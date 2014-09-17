@@ -685,10 +685,11 @@ contains
          'linear vertical profile     ', &
          'advective-diffusive balance ' /)
 
-    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+    character(len=*), dimension(0:3), parameter :: flow_law = (/ &
          'const 1e-16 Pa^-n a^-1      ', &
          'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ' /)
+         'Paterson and Budd           ', &
+         'read flwa/flwastag from file' /)
 
     !TODO - Rename slip_coeff to something like which_btrc?
     character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &

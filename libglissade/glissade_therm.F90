@@ -2156,6 +2156,7 @@ module glissade_therm
     ! $\Phi$ is the (constant) rate of change of melting point temperature with pressure.
 
     use glimmer_physcon, only: scyr, arrmlh, arrmll, actenh, actenl, gascon, trpt
+    use glimmer_paramets, only: vis0
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
@@ -2171,7 +2172,7 @@ module glissade_therm
     real(dp),dimension(:,:),    intent(in)    :: thck      !> ice thickness (m)
     integer, dimension(:,:),    intent(in)    :: ice_mask  !> = 1 where ice is present (thck > thklim), else = 0
     real(dp),dimension(:,:,:),  intent(in)    :: temp      !> 3D temperature field (deg C)
-    real(dp),dimension(:,:,:),  intent(out)   :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}
+    real(dp),dimension(:,:,:),  intent(inout)   :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
     real(dp), intent(in)                      :: default_flwa_arg  !> Glen's A to use in isothermal case 
                                                                    !> Units: Pa^{-n} s^{-1} 
     real(dp), intent(in), optional            :: flow_enhancement_factor !> flow enhancement factor in Arrhenius relationship
@@ -2227,7 +2228,9 @@ module glissade_therm
     default_flwa = enhancement_factor * default_flwa_arg
 
     ! initialize
-    flwa(:,:,:) = default_flwa
+    if (whichflwa /= FLWA_INPUT) then
+       flwa(:,:,:) = default_flwa
+    endif
 
     select case(whichflwa)
 
@@ -2295,8 +2298,17 @@ module glissade_therm
     case(FLWA_CONST_FLWA)
 
        ! do nothing (flwa is initialized to default_flwa above)
-  
+
+    case(FLWA_INPUT)
+      ! do nothing - use flwa from input or forcing file
+      print *, 'FLWA', minval(flwa), maxval(flwa)
+
     end select
+
+    if (whichflwa /= FLWA_INPUT) then
+       ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
+       flwa(:,:,:) = flwa(:,:,:) / vis0
+    endif
 
   end subroutine glissade_flow_factor
 

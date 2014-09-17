@@ -98,6 +98,7 @@ module glide_types
   integer, parameter :: FLWA_CONST_FLWA = 0
   integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
   integer, parameter :: FLWA_PATERSON_BUDD = 2
+  integer, parameter :: FLWA_INPUT = 3
 
   integer, parameter :: BTRC_ZERO = 0
   integer, parameter :: BTRC_CONSTANT = 1
