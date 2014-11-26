@@ -799,8 +799,10 @@
     ! (which_ho_approx = HO_APPROX_SSA or HO_APPROX_L1L2)
 
     logical ::  &
-       solve_2d           ! if true, solve 2D matrix (SSA or L1L2)
-                          ! else solve 3D matrix (SIA or BP)
+       assemble_2d,      &! if true, assemble a 2D matrix (SSA, L1L2)
+                          ! else assemble a 3D matrix (SIA, BP, fast BP)
+       solve_2d           ! if true, solve a 2D matrix (SSA, L1L2, fast BP)
+                          ! else solve a 3D matrix (SIA, BP)
 
     integer ::            &
        nVerticesSolve     ! number of vertices where we solve for velocity
@@ -833,6 +835,14 @@
     logical, dimension(:,:,:), allocatable ::  &
        Afill_2d           ! true wherever the matrix value is potentially nonzero
                           ! 2D Trilinos only
+
+    ! The following arrays are allocated for a fast BP solve
+    real(dp), dimension(:,:,:,:), allocatable ::  &
+       Auu_sia, Avv_sia   ! assembled SIA matrix, divided into 2 parts
+                          ! 1st dimension = 3 (node and its nearest neighbors in z direction) 
+                          ! other dimensions = (k,i,j)
+
+    integer :: kfast      ! level k where the fast BP solver does a 2D solve for velocity
 
     real(dp) :: maxbeta, minbeta
     integer :: i, j, k, m, n, r
@@ -973,14 +983,20 @@
     uvel_2d(:,:) = uvel(nz,:,:)
     vvel_2d(:,:) = vvel(nz,:,:)
 
-    if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then  ! 2D assemble/solve
+    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2) then
+       assemble_2d = .true.
+    else   ! 3D solve
+       assemble_2d = .false.
+    endif
+
+    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_FAST_BP) then
        solve_2d = .true.
-    else   ! 3D assemble/solve
+    else   ! 3D solve
        solve_2d = .false.
     endif
 
     if (solve_2d) then
-       ! allocate 2D arrays needed for the SSA or L1L2 solve
+       ! allocate arrays needed for a 2D solve
        allocate(Auu_2d(nNodeNeighbors_2d,nx-1,ny-1))
        allocate(Auv_2d(nNodeNeighbors_2d,nx-1,ny-1))
        allocate(Avu_2d(nNodeNeighbors_2d,nx-1,ny-1))
@@ -993,14 +1009,21 @@
        allocate(vsav_2d(nx-1,ny-1))
        allocate(resid_u_2d(nx-1,ny-1))
        allocate(resid_v_2d(nx-1,ny-1))
-    endif
-
-    if (.not.solve_2d) then
+    else   ! 3D solve
        ! These are big, so do not allocate them for a 2D solve
        allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
        allocate(Auv(nNodeNeighbors_3d,nz,nx-1,ny-1))
        allocate(Avu(nNodeNeighbors_3d,nz,nx-1,ny-1))
        allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
+    endif
+
+    if (whichapprox == HO_APPROX_FAST_BP) then
+       ! allocate some additional matrices for a local SIA solve
+       allocate(Auu_sia(-1:1,nz,nx-1,ny-1))
+       allocate(Avv_sia(-1:1,nz,nx-1,ny-1))
+       ! set the level where we solve for the 2D velocity
+       !TODO - Test different choices for kfast
+       kfast = nz/2
     endif
 
     if (test_matrix) then
@@ -1694,7 +1717,8 @@
        !  uvel and vvel at all levels).
        !-------------------------------------------------------------------
        
-       if (solve_2d) then  ! assemble 2D matrix
+!!       if (solve_2d) then  ! assemble 2D matrix
+       if (assemble_2d) then  ! assemble 2D matrix
 
           ! save current velocity
           usav_2d(:,:) = uvel_2d(:,:)
@@ -1714,7 +1738,7 @@
                                             Auu_2d,           Auv_2d,          &
                                             Avu_2d,           Avv_2d)
              
-          if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the stiffness matrix'
+          if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 2D stiffness matrix'
 
           !---------------------------------------------------------------------------
           ! Incorporate basal sliding boundary conditions
@@ -1872,21 +1896,83 @@
 
           call t_startf('glissade_assemble_stiffness_mat')
 
-          call assemble_stiffness_matrix_3d(nx,               ny,              &
-                                            nz,               sigma,           &
-                                            nhalo,            active_cell,     &
-                                            xVertex,          yVertex,         &
-                                            uvel,             vvel,            &
-                                            stagusrf,         stagthck,        &
-                                            flwafact,         whichapprox,     &
-                                            efvs,             whichefvs,       &
-                                            efvs_constant,                     &
-                                            Auu,              Auv,             &
-                                            Avu,              Avv)
+          if (whichapprox == HO_APPROX_FAST_BP) then
+
+             ! For the fast BP solve, compute a local SIA matrix as well as a BP matrix
+
+             call t_startf('glissade_assemble_stiffness_mat')
+
+             ! Compute the 3D SIA matrix
+             ! Do this first so that Auu and Avv can be used as work matrices and later overwritten.
+             ! Each of the four component matrices will contain up to 27 nonzero terms in each row.
+
+             call assemble_stiffness_matrix_3d(nx,               ny,              &
+                                               nz,               sigma,           &
+                                               nhalo,            active_cell,     &
+                                               xVertex,          yVertex,         &
+                                               uvel,             vvel,            &
+                                               stagusrf,         stagthck,        &
+                                               flwafact,         HO_APPROX_SIA,   &
+                                               efvs,             whichefvs,       &
+                                               efvs_constant,                     &
+                                               Auu,              Auv,             &
+                                               Avu,              Avv)
           
+             ! Average terms in the 3D SIA matrix to form a local SIA matrix
+             ! The component matrices contain up to 3 nonzero terms in each row.
+
+             ! For now, just copy the diagonal values
+             !TODO - Sum values (but check for singularities)
+             m = indxA_3d(0,0,-1)
+             Auu_sia(-1,:,:,:) = Auu(m,:,:,:)
+             Avv_sia(-1,:,:,:) = Avv(m,:,:,:)
+
+             m = indxA_3d(0,0,0)
+             Auu_sia( 0,:,:,:) = Auu(m,:,:,:)
+             Avv_sia( 0,:,:,:) = Avv(m,:,:,:)
+
+             m = indxA_3d(0,0,1)
+             Auu_sia( 1,:,:,:) = Auu(m,:,:,:)
+             Avv_sia( 1,:,:,:) = Avv(m,:,:,:)
+
+             if (verbose_matrix .and. this_rank==rtest) print*, 'Fast BP: Assembled the SIA stiffness matrix'
+
+             call assemble_stiffness_matrix_3d(nx,               ny,              &
+                                               nz,               sigma,           &
+                                               nhalo,            active_cell,     &
+                                               xVertex,          yVertex,         &
+                                               uvel,             vvel,            &
+                                               stagusrf,         stagthck,        &
+                                               flwafact,         HO_APPROX_BP,    &
+                                               efvs,             whichefvs,       &
+                                               efvs_constant,                     &
+                                               Auu,              Auv,             &
+                                               Avu,              Avv)
+
+             if (verbose_matrix .and. this_rank==rtest) print*, 'Fast BP: Assembled the BP stiffness matrix'
+
+             call t_stopf('glissade_assemble_stiffness_mat')
+
+          else    ! whichapprox = HO_APPROX_SIA or HO_APPROX_BP
+                  ! only one matrix needed
+
+             call assemble_stiffness_matrix_3d(nx,               ny,              &
+                                               nz,               sigma,           &
+                                               nhalo,            active_cell,     &
+                                               xVertex,          yVertex,         &
+                                               uvel,             vvel,            &
+                                               stagusrf,         stagthck,        &
+                                               flwafact,         whichapprox,     &
+                                               efvs,             whichefvs,       &
+                                               efvs_constant,                     &
+                                               Auu,              Auv,             &
+                                               Avu,              Avv)
+          
+             if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 3D stiffness matrix'
+
+          endif  ! whichapprox
+
           call t_stopf('glissade_assemble_stiffness_mat')
-       
-          if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the stiffness matrix'
 
           !---------------------------------------------------------------------------
           ! Incorporate basal sliding boundary conditions
@@ -2050,7 +2136,7 @@
              
           endif  ! verbose_matrix
 
-       endif  ! whichapprox
+       endif  ! assemble 2d or 3d matrix
 
        !---------------------------------------------------------------------------
        ! If the matrix has no nonzero entries, then set velocities to zero and exit the solver.
@@ -2086,6 +2172,81 @@
           return
 
        endif  ! nNonzeros = 0
+
+       !---------------------------------------------------------------------------
+       ! If doing a fast BP solve, compress the assembled 3D matrix and rhs to 2D
+       ! by summing over the vertical coordinate.
+       !---------------------------------------------------------------------------
+
+       if (whichapprox == HO_APPROX_FAST_BP) then
+
+          call compress_3d_to_2d(nx,        ny,      nz,  &
+                                 Auu,       Auv,          &
+                                 Avu,       Avv,          &
+                                 bu,        bv,           &
+                                 Auu_2d,    Auv_2d,       &
+                                 Avu_2d,    Avv_2d,       &
+                                 bu_2d,     bv_2d)
+        
+          !WHL - debug - print out some matrix values
+
+          if (verbose_matrix .and. this_rank==rtest) then
+             i = itest
+             j = jtest
+             r = rtest
+             print*, ' '
+             print*, 'i,j =', i, j
+             print*, 'Auu_2d sum =', sum(Auu_2d(:,i,j))
+             print*, 'Auv_2d sum =', sum(Auv_2d(:,i,j))
+             print*, 'Avu_2d sum =', sum(Avu_2d(:,i,j))
+             print*, 'Avv_2d sum =', sum(Avv_2d(:,i,j))
+
+             print*, ' '
+             print*, 'iA, jA, Auu_2d, Auv_2d, Avu_2d, Avv_2d:'
+             do jA = -1, 1
+                do iA = -1, 1
+                   m = indxA_2d(iA,jA)
+                   print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j) 
+                enddo
+             enddo
+             
+             print*, 'bu_2d =', bu_2d(i,j)
+             print*, 'bv_2d =', bv_2d(i,j)
+             
+             m = indxA_2d(0,0)
+!             print*, ' '
+!             print*, 'Auu_2d diag'
+             do j = ny-1, 1, -1
+                do i = 1, nx-1
+!                   write(6,'(e10.2)',advance='no'), Auu_2d(m,i,j)
+                enddo
+!                print*, ' '
+             enddo
+             
+!             print*, ' '
+!             print*, 'bu_2d'
+             do j = ny-1, 1, -1
+                do i = 1, nx-1
+!                   write(6,'(e10.2)',advance='no'), bu_2d(i,j)
+                enddo
+!                print*, ' '
+             enddo
+             
+             j = jtest
+             m = indxA_2d(0,0)  ! diag entry
+             print*, ' '
+             print*, 'Matrix row properties, j =', j
+             print*, ' '
+             print*, 'i, diag, max, min, sum:'
+             do i = 1, nx-1
+                print*, ' '
+                write(6,'(a4, i4, 4f16.8)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), minval(Auu_2d(:,i,j)), sum(Auu_2d(:,i,j))
+                write(6,'(a4, i4, 4f16.8)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), minval(Auv_2d(:,i,j)), sum(Auv_2d(:,i,j))
+             enddo
+             
+          endif  ! verbose_matrix
+
+       endif   ! fast BP
 
        !---------------------------------------------------------------------------
        ! Solve the 2D or 3D matrix system.
@@ -2517,6 +2678,34 @@
           call t_stopf('glissade_resid_vec2')
 
        endif ! 2D or 3D solve
+
+       if (whichapprox == HO_APPROX_FAST_BP) then
+
+          !---------------------------------------------------------------------------
+          ! We have just done a 2D solve for the velocity at level kfast.
+          ! Now estimate the full 3D velocity field
+          !---------------------------------------------------------------------------
+
+          if (verbose_L1L2 .and. main_task) print*, 'Compute 3D velocity, fast BP'
+
+          call compute_3d_velocity_fast_BP(nx,               ny,              &
+                                           nz,               sigma,           &
+                                           nhalo,            kfast,           &
+                                           active_vertex,                     &
+                                           Auu,              Auv,             &
+                                           Auv,              Avu,             & 
+                                           bu,               bv,              &
+                                           Auu_sia,          Avv_sia,         &
+                                           uvel_2d,          vvel_2d,         &
+                                           uvel,             vvel)
+
+          call staggered_parallel_halo(uvel)
+          call staggered_parallel_halo(vvel)
+
+          ! The 2D residual was computed after the 2D solve; now compute the 3D residual.
+
+
+       endif
 
        !---------------------------------------------------------------------------
        ! Write diagnostics (iteration number, max residual, and location of max residual.
@@ -4186,6 +4375,199 @@
     enddo      ! j
 
   end subroutine assemble_stiffness_matrix_2d
+
+!****************************************************************************
+
+  subroutine compute_3d_velocity_fast_BP(nx,               ny,              &
+                                         nz,               sigma,           &
+                                         nhalo,            kfast,           &
+                                         active_vertex,                     &
+                                         Auu,              Auv,             &
+                                         Avu,              Avv,             & 
+                                         bu,               bv,              &
+                                         Auu_sia,          Avv_sia,         &
+                                         uvel_2d,          vvel_2d,         &
+                                         uvel,             vvel)
+
+    !----------------------------------------------------------------
+    ! Given the velocity at at single level, the full 3D BP matrix, and
+    !  a local 3D SIA matrix, estimate the 3D velocity field.
+    !----------------------------------------------------------------
+
+    use glissade_velo_higher_pcg, only : easy_sia_solver, matvec_multiply_structured_3d
+ 
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+       nx, ny,                  &    ! horizontal grid dimensions
+       nz,                      &    ! number of vertical levels at which velocity is computed
+       nhalo,                   &    ! number of halo layers
+       kfast                         ! vertical index for layer where 2D solve was done
+
+    real(dp), dimension(nz), intent(in) ::    &
+       sigma              ! sigma vertical coordinate
+
+    integer, dimension(nx,ny), intent(in) ::  &
+       ice_mask,        & ! = 1 for cells where ice is present (thk > thklim), else = 0
+       land_mask          ! = 1 for cells where topography is above sea level
+
+    logical, dimension(nx,ny), intent(in) ::  &
+       active_cell        ! true if cell contains ice and borders a locally owned vertex
+
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       active_vertex      ! true for vertices of active cells
+
+    !TODO - Make sure that changing these arrays doesn't mess up anything
+    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(inout) ::  &
+       Auu, Auv,    &     ! assembled BP matrix, divided into 4 parts
+       Avu, Avv           ! modified here to apply Dirichlet BC                         
+
+    real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::   &
+       bu, bv             ! assembled BP load vector, divided into 2 parts
+
+    real(dp), dimension(-1:1,nz,nx-1,ny-1), intent(in) ::  &
+       Auu_sia, Avv_sia   ! assembled local SIA matrix, divided into 2 parts
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+       uvel_2d, vvel_2d   ! velocity components at level kfast (m/yr)
+
+    real(dp), dimension(nz,nx-1,ny-1), intent(out) ::  &
+       uvel, vvel         ! 3D velocity components (m/yr)
+
+    ! Local variables
+
+    integer :: i, j, k, m
+
+    real(dp), dimension(nz,nx-1,ny-1) ::  &
+       xu, xv,           &! work arrays
+       zu, zv             ! work arrays
+
+    logical, dimension(nz,nx-1,ny-1) ::  &
+       umask_dirichlet    ! mask for applying Dirichlet BC at level kfast
+
+    ! NOTE: The problem we want to solve is
+    !       (1)  A*u^{n+1} = b
+    !       where {n+1} denotes the new time level.
+    !       Note that A = A(u^n) where n is the old time level.
+    !       Given u^{n+1} = u_kfast^{n+1} + delta_u^{n+1}, this can be written as
+    !       (2)  A*delta_u^{n+1} = b - A*u_kfast^{n+1}.
+    !       (Recall we have already solved for u_kfast^{n+1}.) 
+    !       Instead of solving (2) exactly, we solve it approximately by replacing A
+    !       with A_sia and linearizing delta_u:
+    !       (3) A_sia*delta_u^{n+1} = b - A*u_kfast - (A - A_sia)*delta_u^n
+    !       where A_sia is a local matrix and
+    !       delta_u^n = u^n - u_kfast^{n+1} at each level k /= k+1,
+    !       with delta_u^n = 0 at k = kfast.
+
+    ! Copy the 2D velocity solution at level kfast to 3D work arrays
+    do k = 1, nz
+       xu(k,:,:) = uvel_2d(:,:)
+       xv(k,:,:) = vvel_2d(:,:)
+    enddo
+
+    ! Take the matrix-vector product A*u_kfast, where A is the full BP matrix 
+    ! and u_kfast is the velocity vector corresponding to u = u(kfast) at all levels
+
+    call matvec_multiply_structured_3d(nx,        ny,            &
+                                       nz,        nhalo,         &
+                                       indxA_3d,  active_vertex, &
+                                       Auu,       Auv,           &
+                                       Avu,       Avv,           &
+                                       xu,        xv,            &
+                                       zu,        zv)
+
+    ! Modify the rhs by subtracting this matvec product
+    ! This puts b - A*u_kfast on the rhs
+
+    bu(:,:,:) = bu(:,:,:) - zu(:,:,:)
+    bv(:,:,:) = bv(:,:,:) - zv(:,:,:)
+
+    ! Modify A to apply a Dirichlet BC delta_u = 0 at k = kfast.
+
+    umask_dirichlet(:,:,:) = .false.      ! initialize
+    umask_dirichlet(kfast,:,:) = .true.   ! apply BC at level kfast
+
+    xu(:,:,:) = 0.d0   ! to apply delta_u = 0 at k = kfast
+    xv(:,:,:) = 0.d0
+
+    call dirichlet_boundary_conditions_3d(nx,              ny,                &
+                                          nz,              nhalo,             &
+                                          active_vertex,   umask_dirichlet,   &
+                                          xu,              xv,                &
+                                          Auu,             Auv,               &
+                                          Avu,             Avv,               &
+                                          bu,              bv)
+
+    !TODO - Do the same for A_sia at k = kfast?
+
+    ! Overwrite A with A - A_sia, where A_sia is a local SIA matrix with
+    !  nonzero values only in the local column
+    ! Note: Auv and Avu are unchanged since these components are zero for the SIA
+
+    m = indxA_3d(0,0,-1)
+    Auu(m,:,:,:) = Auu(m,:,:,:) - Auu_sia(-1,:,:,:)
+    Avv(m,:,:,:) = Avv(m,:,:,:) - Avv_sia(-1,:,:,:)
+
+    m = indxA_3d(0,0,0)
+    Auu(m,:,:,:) = Auu(m,:,:,:) - Auu_sia(0,:,:,:)
+    Avv(m,:,:,:) = Avv(m,:,:,:) - Avv_sia(0,:,:,:)
+
+    m = indxA_3d(0,0,1)
+    Auu(m,:,:,:) = Auu(m,:,:,:) - Auu_sia(1,:,:,:)
+    Avv(m,:,:,:) = Avv(m,:,:,:) - Avv_sia(1,:,:,:)
+
+    ! Compute the difference between the new 2D solution (u_kfast) and the
+    ! old 3D solution at each level.  Set delta_u = 0 at k = kfast.
+
+    do k = 1, nz
+       if (k == kfast) then
+          xu(k,:,:) = 0.d0
+          xv(k,:,:) = 0.d0
+       else
+          xu(k,:,:) = uvel(k,:,:) - uvel_2d(:,:)
+          xv(k,:,:) = vvel(k,:,:) - vvel_2d(:,:)
+       endif
+    enddo
+
+    ! Take the matrix-vector product (A - A_sia)*delta_u
+
+    call matvec_multiply_structured_3d(nx,        ny,            &
+                                       nz,        nhalo,         &
+                                       indxA_3d,  active_vertex, &
+                                       Auu,       Auv,           &
+                                       Avu,       Avv,           &
+                                       xu,        xv,            &
+                                       zu,        zv)
+
+    ! Put this matvec product on the rhs
+
+    bu(:,:,:) = bu(:,:,:) - zu(:,:,:)
+    bv(:,:,:) = bv(:,:,:) - zv(:,:,:)
+
+    ! Now solve A_sia * delta_u = b (given the above modifications in b)
+    ! Since A_sia is local, we have a tridiagonal problem for delta_u in each column
+
+    !TODO - Make sure delta_u = 0 for k = kfast
+    call easy_sia_solver(nx,   ny,   nz,        &
+                         active_vertex,         &
+                         Auu,  xu,   bu)      ! solve Auu*xu = bu for xu 
+
+    call easy_sia_solver(nx,   ny,   nz,        &
+                         active_vertex,         &
+                         Avv,  xv,   bv)      ! solve Avv*xv = bv for xv
+
+    ! Given delta_u, compute the 3D velocity field
+    do k = 1, nz
+       uvel(k,:,:) = uvel_2d(:,:) + xu(k,:,:)
+       vvel(k,:,:) = vvel_2d(:,:) + xv(k,:,:)
+    enddo
+
+    !WHL - debug
+    print*, 'Computed fast BP velocities'
+    
+  end subroutine compute_3d_velocity_fast_BP
 
 !****************************************************************************
 
@@ -7992,7 +8374,90 @@
     close(15)
 
   end subroutine write_matrix_elements_2d
-  
+
+!****************************************************************************
+
+  subroutine compress_3d_to_2d(nx,        ny,      nz,  &
+                               Auu,       Auv,          &
+                               Avu,       Avv,          &
+                               bu,        bv,           &
+                               Auu_2d,    Auv_2d,       &
+                               Avu_2d,    Avv_2d,       &
+                               bu_2d,     bv_2d)
+
+    !----------------------------------------------------------------
+    ! Form the 2D matrix and rhs by combining terms from the 3D matrix and rhs.
+    ! This combination is based on the assumption of no vertical shear;
+    !  i.e., uvel and vvel have the same value at each level in a given column.
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::   &
+       nx, ny,               &  ! horizontal grid dimensions
+       nz                       ! number of vertical levels where velocity is computed
+
+    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(in) ::  &
+       Auu, Auv,    &     ! assembled 3D stiffness matrix, divided into 4 parts
+       Avu, Avv           
+                          
+    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
+       bu, bv             ! assembled 3D rhs vector, divided into 2 parts
+                          
+    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(out) ::  &
+       Auu_2d, Auv_2d,   &! assembled 2D (SSA) stiffness matrix, divided into 4 parts
+       Avu_2d, Avv_2d           
+                          
+    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
+       bu_2d, bv_2d       ! assembled 2D (SSA) rhs vector, divided into 2 parts
+                          
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer :: i, j, k, iA, jA, kA, m, m2
+
+    ! Initialize 2D matrix and rhs
+
+    Auu_2d(:,:,:) = 0.d0
+    Auv_2d(:,:,:) = 0.d0
+    Avu_2d(:,:,:) = 0.d0
+    Avv_2d(:,:,:) = 0.d0
+    bu_2d(:,:) = 0.d0
+    bv_2d(:,:) = 0.d0
+
+    ! Form 2D matrix and rhs
+
+    do j = 1, ny-1
+       do i = 1, nx-1
+          do k = 1, nz
+
+             ! matrix
+             do kA = -1,1
+                do jA = -1,1
+                   do iA = -1,1
+                      m = indxA_3d(iA,jA,kA)
+                      m2 = indxA_2d(iA,jA)
+                      Auu_2d(m2,i,j) = Auu_2d(m2,i,j) + Auu(m,k,i,j)
+                      Auv_2d(m2,i,j) = Auv_2d(m2,i,j) + Auv(m,k,i,j)
+                      Avu_2d(m2,i,j) = Avu_2d(m2,i,j) + Avu(m,k,i,j)
+                      Avv_2d(m2,i,j) = Avv_2d(m2,i,j) + Avv(m,k,i,j)
+                   enddo   ! iA
+                enddo      ! jA
+             enddo         ! kA
+
+             ! rhs
+             bu_2d(i,j) = bu_2d(i,j) + bu(k,i,j)
+             bv_2d(i,j) = bv_2d(i,j) + bv(k,i,j)
+
+          enddo            ! k
+       enddo               ! i
+    enddo                  ! j
+
+  end subroutine compress_3d_to_2d
+
 !****************************************************************************
 
   end module glissade_velo_higher
