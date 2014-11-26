@@ -4409,26 +4409,20 @@
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
 
-    integer, dimension(nx,ny), intent(in) ::  &
-       ice_mask,        & ! = 1 for cells where ice is present (thk > thklim), else = 0
-       land_mask          ! = 1 for cells where topography is above sea level
-
-    logical, dimension(nx,ny), intent(in) ::  &
-       active_cell        ! true if cell contains ice and borders a locally owned vertex
-
     logical, dimension(nx-1,ny-1), intent(in) ::  &
        active_vertex      ! true for vertices of active cells
 
     !TODO - Make sure that changing these arrays doesn't mess up anything
     real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(inout) ::  &
        Auu, Auv,    &     ! assembled BP matrix, divided into 4 parts
-       Avu, Avv           ! modified here to apply Dirichlet BC                         
+       Avu, Avv           ! modified here to apply Dirichlet BC
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::   &
        bu, bv             ! assembled BP load vector, divided into 2 parts
 
-    real(dp), dimension(-1:1,nz,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(-1:1,nz,nx-1,ny-1), intent(inout) ::  &
        Auu_sia, Avv_sia   ! assembled local SIA matrix, divided into 2 parts
+                          ! modified here to apply Dirichlet BC
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        uvel_2d, vvel_2d   ! velocity components at level kfast (m/yr)
@@ -4456,7 +4450,7 @@
     !       (Recall we have already solved for u_kfast^{n+1}.) 
     !       Instead of solving (2) exactly, we solve it approximately by replacing A
     !       with A_sia and linearizing delta_u:
-    !       (3) A_sia*delta_u^{n+1} = b - A*u_kfast - (A - A_sia)*delta_u^n
+    !       (3) A_sia*delta_u^{n+1} = b - A*u_kfast^{n+1} - (A - A_sia)*delta_u^n
     !       where A_sia is a local matrix and
     !       delta_u^n = u^n - u_kfast^{n+1} at each level k /= k+1,
     !       with delta_u^n = 0 at k = kfast.
@@ -4484,23 +4478,32 @@
     bu(:,:,:) = bu(:,:,:) - zu(:,:,:)
     bv(:,:,:) = bv(:,:,:) - zv(:,:,:)
 
-    ! Modify A to apply a Dirichlet BC delta_u = 0 at k = kfast.
+    ! Modify A to apply a Dirichlet BC, delta_u = 0, for k = kfast.
 
-    umask_dirichlet(:,:,:) = .false.      ! initialize
-    umask_dirichlet(kfast,:,:) = .true.   ! apply BC at level kfast
+    k = kfast    
 
-    xu(:,:,:) = 0.d0   ! to apply delta_u = 0 at k = kfast
-    xv(:,:,:) = 0.d0
+    do j = 1, ny-1
+       do i = 1, nx-1
+          if (active_vertex(i,j)) then
 
-    call dirichlet_boundary_conditions_3d(nx,              ny,                &
-                                          nz,              nhalo,             &
-                                          active_vertex,   umask_dirichlet,   &
-                                          xu,              xv,                &
-                                          Auu,             Auv,               &
-                                          Avu,             Avv,               &
-                                          bu,              bv)
+             ! Zero out the matrix row and rhs
+             do m = 1, 27
+                Auu(m,k,:,:) = 0.d0
+                Auv(m,k,:,:) = 0.d0
+                Avu(m,k,:,:) = 0.d0
+                Avv(m,k,:,:) = 0.d0
+                bu(k,:,:) = 0.d0
+                bv(k,:,:) = 0.d0
+             enddo
 
-    !TODO - Do the same for A_sia at k = kfast?
+             ! Put a 1 on the diagonal
+             m = indxA_3d(0,0,0)
+             Auu(m,k,:,:) = 1.d0
+             Avv(m,k,:,:) = 1.d0
+             
+          endif   ! active vertex
+       enddo      ! i
+    enddo         ! j
 
     ! Overwrite A with A - A_sia, where A_sia is a local SIA matrix with
     !  nonzero values only in the local column
@@ -4549,14 +4552,27 @@
     ! Now solve A_sia * delta_u = b (given the above modifications in b)
     ! Since A_sia is local, we have a tridiagonal problem for delta_u in each column
 
-    !TODO - Make sure delta_u = 0 for k = kfast
-    call easy_sia_solver(nx,   ny,   nz,        &
-                         active_vertex,         &
-                         Auu,  xu,   bu)      ! solve Auu*xu = bu for xu 
+    ! First alter the matrix and rhs to enforce delta_u = 0 for k = kfast
 
-    call easy_sia_solver(nx,   ny,   nz,        &
+    k = kfast
+    Auu_sia(-1,k,:,:) = 0.d0
+    Avv_sia(-1,k,:,:) = 0.d0
+    Auu_sia( 0,k,:,:) = 1.d0
+    Avv_sia( 0,k,:,:) = 1.d0
+    Auu_sia( 1,k,:,:) = 0.d0
+    Avv_sia( 1,k,:,:) = 0.d0
+    bu(k,:,:) = 0.d0
+    bv(k,:,:) = 0.d0
+
+    ! Do a tridiagonal solve for delta_u in each column
+
+    call easy_sia_solver(nx,       ny,   nz,    &
                          active_vertex,         &
-                         Avv,  xv,   bv)      ! solve Avv*xv = bv for xv
+                         Auu_sia,  xu,   bu)    ! solve Auu_sia*xu = bu for xu 
+
+    call easy_sia_solver(nx,       ny,   nz,    &
+                         active_vertex,         &
+                         Avv_sia,  xv,   bv)    ! solve Avv_sia*xv = bv for xv
 
     ! Given delta_u, compute the 3D velocity field
     do k = 1, nz
