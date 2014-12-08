@@ -53,7 +53,7 @@
     private
     public :: pcg_solver_standard_3d,  pcg_solver_standard_2d,  &
               pcg_solver_chrongear_3d, pcg_solver_chrongear_2d, &
-              easy_sia_solver, matvec_multiply_structured_3d
+              matvec_multiply_structured_3d
     
     logical :: verbose_pcg
 

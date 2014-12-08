@@ -75,7 +75,8 @@
 
     use glissade_velo_higher_pcg, only:   &
          pcg_solver_standard_3d,   pcg_solver_standard_2d,  &
-         pcg_solver_chrongear_3d,  pcg_solver_chrongear_2d
+         pcg_solver_chrongear_3d,  pcg_solver_chrongear_2d, &
+         matvec_multiply_structured_3d
 
 #ifdef TRILINOS
     use glissade_velo_higher_trilinos, only: &
@@ -194,8 +195,8 @@
 !    logical :: verbose_Jac = .true.
     logical :: verbose_residual = .false.
 !    logical :: verbose_residual = .true.
-    logical :: verbose_state = .false.
-!    logical :: verbose_state = .true.
+!    logical :: verbose_state = .false.
+    logical :: verbose_state = .true.
     logical :: verbose_id = .false.
 !    logical :: verbose_id = .true.
     logical :: verbose_load = .false.
@@ -222,6 +223,8 @@
 !    logical :: verbose_dirichlet= .true.
     logical :: verbose_L1L2 = .false.
 !    logical :: verbose_L1L2 = .true.
+!    logical :: verbose_gold = .false.
+    logical :: verbose_gold = .true.
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
@@ -798,6 +801,7 @@
     ! The following arrays are used for a 2D matrix solve 
     ! (which_ho_approx = HO_APPROX_SSA or HO_APPROX_L1L2)
 
+    !TODO - Remove assemble_2d
     logical ::  &
        assemble_2d,      &! if true, assemble a 2D matrix (SSA, L1L2)
                           ! else assemble a 3D matrix (SIA, BP, fast BP)
@@ -836,13 +840,14 @@
        Afill_2d           ! true wherever the matrix value is potentially nonzero
                           ! 2D Trilinos only
 
-    ! The following arrays are allocated for a fast BP solve
-    real(dp), dimension(:,:,:,:), allocatable ::  &
-       Auu_sia, Avv_sia   ! assembled SIA matrix, divided into 2 parts
-                          ! 1st dimension = 3 (node and its nearest neighbors in z direction) 
-                          ! other dimensions = (k,i,j)
+    ! The following are used for the depth-integrated Goldberg (2011) solve
+    real(dp), dimension(:,:), allocatable :: &
+       beta_eff,         &! effective beta, defined by Goldberg eq. 41
+                          ! beta*u_b = beta_eff*u_av
+       omega              ! double integral, defined by Goldberg eq. 35
 
-    integer :: kfast      ! level k where the fast BP solver does a 2D solve for velocity
+    real(dp), dimension(:,:,:), allocatable :: &
+       omega_k            ! single integral, defined by Goldberg eq. 32
 
     real(dp) :: maxbeta, minbeta
     integer :: i, j, k, m, n, r
@@ -989,7 +994,7 @@
        assemble_2d = .false.
     endif
 
-    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_FAST_BP) then
+    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_GOLD) then
        solve_2d = .true.
     else   ! 3D solve
        solve_2d = .false.
@@ -1009,21 +1014,23 @@
        allocate(vsav_2d(nx-1,ny-1))
        allocate(resid_u_2d(nx-1,ny-1))
        allocate(resid_v_2d(nx-1,ny-1))
-    else   ! 3D solve
-       ! These are big, so do not allocate them for a 2D solve
+    endif
+
+    if (.not. assemble_2d) then   ! 3D assembly
+       ! These are big, so do not allocate them for 2D assembly
        allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
        allocate(Auv(nNodeNeighbors_3d,nz,nx-1,ny-1))
        allocate(Avu(nNodeNeighbors_3d,nz,nx-1,ny-1))
        allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
     endif
 
-    if (whichapprox == HO_APPROX_FAST_BP) then
-       ! allocate some additional matrices for a local SIA solve
-       allocate(Auu_sia(-1:1,nz,nx-1,ny-1))
-       allocate(Avv_sia(-1:1,nz,nx-1,ny-1))
-       ! set the level where we solve for the 2D velocity
-       !TODO - Test different choices for kfast
-       kfast = nz/2
+    !TODO - omega_k only?
+    if (whichapprox == HO_APPROX_GOLD) then
+       allocate(beta_eff(nx-1,ny-1))
+       allocate(omega(nx-1,ny-1))
+       allocate(omega_k(nz,nx-1,ny-1))
+       omega(:,:) = 0.d0
+       omega_k(:,:,:) = 0.d0
     endif
 
     if (test_matrix) then
@@ -1054,7 +1061,9 @@
     ! These are quantities that do not change during the outer nonlinear loop. 
     !------------------------------------------------------------------------------
 
-    if (verbose_state) then
+    !WHL - debug - Kill this output for now
+!!    if (verbose_state) then
+    if (0 == 1) then
        maxthck = maxval(thck(:,:))
        maxthck = parallel_reduce_max(maxthck)
        maxusrf = maxval(usrf(:,:))
@@ -1190,15 +1199,17 @@
                                     eus,         ice_mask,     &
                                     whichground, f_ground)
 
+    
     if (verbose_state .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'f_ground, rank =', rtest
-       do j = ny, 1, -1
-          do i = 1, nx
-             write(6,'(f5.2)',advance='no') f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
+       !TODO - Uncomment when testing grounding line scheme
+!       print*, ' '
+!       print*, 'f_ground, rank =', rtest
+!       do j = ny, 1, -1
+!          do i = 1, nx
+!             write(6,'(f5.2)',advance='no') f_ground(i,j)
+!          enddo
+!          print*, ' '
+!       enddo
     endif
 
     !------------------------------------------------------------------------------
@@ -1724,20 +1735,37 @@
           usav_2d(:,:) = uvel_2d(:,:)
           vsav_2d(:,:) = vvel_2d(:,:)
 
-          call assemble_stiffness_matrix_2d(nx,               ny,              &
-                                            nz,               sigma,           &
-                                            nhalo,            active_cell,     &
-                                            xVertex,          yVertex,         &
-                                            uvel_2d,          vvel_2d,         &
-                                            stagusrf,         stagthck,        &
-                                            dusrf_dx,         dusrf_dy,        &
-                                            flwa,             flwafact,        &
-                                            whichapprox,                       &
-                                            whichefvs,        efvs_constant,   &
-                                            efvs,                              &
-                                            Auu_2d,           Auv_2d,          &
-                                            Avu_2d,           Avv_2d)
+          if (whichapprox == HO_APPROX_GOLD) then  ! Goldberg depth-integrated
+
+             call assemble_stiffness_matrix_goldberg(nx,               ny,              &
+                                                     nz,               sigma,           &
+                                                     nhalo,            active_cell,     &
+                                                     xVertex,          yVertex,         &
+                                                     uvel,             vvel,            &
+                                                     stagusrf,         stagthck,        &
+                                                     flwafact,                          &
+                                                     whichefvs,        efvs_constant,   &
+                                                     efvs,                              &
+                                                     Auu_2d,           Auv_2d,          &
+                                                     Avu_2d,           Avv_2d)
+          else    ! L1L2, SSA
+
+             call assemble_stiffness_matrix_2d(nx,               ny,              &
+                                               nz,               sigma,           &
+                                               nhalo,            active_cell,     &
+                                               xVertex,          yVertex,         &
+                                               uvel_2d,          vvel_2d,         &
+                                               stagusrf,         stagthck,        &
+                                               dusrf_dx,         dusrf_dy,        &
+                                               flwa,             flwafact,        &
+                                               whichapprox,                       &
+                                               whichefvs,        efvs_constant,   &
+                                               efvs,                              &
+                                               Auu_2d,           Auv_2d,          &
+                                               Avu_2d,           Avv_2d)
              
+          endif
+
           if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 2D stiffness matrix'
 
           !---------------------------------------------------------------------------
@@ -1896,81 +1924,19 @@
 
           call t_startf('glissade_assemble_stiffness_mat')
 
-          if (whichapprox == HO_APPROX_FAST_BP) then
-
-             ! For the fast BP solve, compute a local SIA matrix as well as a BP matrix
-
-             call t_startf('glissade_assemble_stiffness_mat')
-
-             ! Compute the 3D SIA matrix
-             ! Do this first so that Auu and Avv can be used as work matrices and later overwritten.
-             ! Each of the four component matrices will contain up to 27 nonzero terms in each row.
-
-             call assemble_stiffness_matrix_3d(nx,               ny,              &
-                                               nz,               sigma,           &
-                                               nhalo,            active_cell,     &
-                                               xVertex,          yVertex,         &
-                                               uvel,             vvel,            &
-                                               stagusrf,         stagthck,        &
-                                               flwafact,         HO_APPROX_SIA,   &
-                                               efvs,             whichefvs,       &
-                                               efvs_constant,                     &
-                                               Auu,              Auv,             &
-                                               Avu,              Avv)
+          call assemble_stiffness_matrix_3d(nx,               ny,              &
+                                            nz,               sigma,           &
+                                            nhalo,            active_cell,     &
+                                            xVertex,          yVertex,         &
+                                            uvel,             vvel,            &
+                                            stagusrf,         stagthck,        &
+                                            flwafact,         whichapprox,     &
+                                            efvs,             whichefvs,       &
+                                            efvs_constant,                     &
+                                            Auu,              Auv,             &
+                                            Avu,              Avv)
           
-             ! Average terms in the 3D SIA matrix to form a local SIA matrix
-             ! The component matrices contain up to 3 nonzero terms in each row.
-
-             ! For now, just copy the diagonal values
-             !TODO - Sum values (but check for singularities)
-             m = indxA_3d(0,0,-1)
-             Auu_sia(-1,:,:,:) = Auu(m,:,:,:)
-             Avv_sia(-1,:,:,:) = Avv(m,:,:,:)
-
-             m = indxA_3d(0,0,0)
-             Auu_sia( 0,:,:,:) = Auu(m,:,:,:)
-             Avv_sia( 0,:,:,:) = Avv(m,:,:,:)
-
-             m = indxA_3d(0,0,1)
-             Auu_sia( 1,:,:,:) = Auu(m,:,:,:)
-             Avv_sia( 1,:,:,:) = Avv(m,:,:,:)
-
-             if (verbose_matrix .and. this_rank==rtest) print*, 'Fast BP: Assembled the SIA stiffness matrix'
-
-             call assemble_stiffness_matrix_3d(nx,               ny,              &
-                                               nz,               sigma,           &
-                                               nhalo,            active_cell,     &
-                                               xVertex,          yVertex,         &
-                                               uvel,             vvel,            &
-                                               stagusrf,         stagthck,        &
-                                               flwafact,         HO_APPROX_BP,    &
-                                               efvs,             whichefvs,       &
-                                               efvs_constant,                     &
-                                               Auu,              Auv,             &
-                                               Avu,              Avv)
-
-             if (verbose_matrix .and. this_rank==rtest) print*, 'Fast BP: Assembled the BP stiffness matrix'
-
-             call t_stopf('glissade_assemble_stiffness_mat')
-
-          else    ! whichapprox = HO_APPROX_SIA or HO_APPROX_BP
-                  ! only one matrix needed
-
-             call assemble_stiffness_matrix_3d(nx,               ny,              &
-                                               nz,               sigma,           &
-                                               nhalo,            active_cell,     &
-                                               xVertex,          yVertex,         &
-                                               uvel,             vvel,            &
-                                               stagusrf,         stagthck,        &
-                                               flwafact,         whichapprox,     &
-                                               efvs,             whichefvs,       &
-                                               efvs_constant,                     &
-                                               Auu,              Auv,             &
-                                               Avu,              Avv)
-          
-             if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 3D stiffness matrix'
-
-          endif  ! whichapprox
+          if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 3D stiffness matrix'
 
           call t_stopf('glissade_assemble_stiffness_mat')
 
@@ -2010,7 +1976,7 @@
                                                 Auu,             Auv,               &
                                                 Avu,             Avv,               &
                                                 bu,              bv)
-
+          
           !---------------------------------------------------------------------------
           ! Halo updates for matrices
           !
@@ -2025,7 +1991,7 @@
           !  is communicated to processor A.  If these values are slightly different, 
           !  they will be reconciled by the subroutine check_symmetry_assembled_matrix.
           !---------------------------------------------------------------------------
-     
+          
           call t_startf('glissade_halo_Axxs')
           call staggered_parallel_halo(Auu(:,:,:,:))
           call staggered_parallel_halo(Auv(:,:,:,:))
@@ -2172,81 +2138,6 @@
           return
 
        endif  ! nNonzeros = 0
-
-       !---------------------------------------------------------------------------
-       ! If doing a fast BP solve, compress the assembled 3D matrix and rhs to 2D
-       ! by summing over the vertical coordinate.
-       !---------------------------------------------------------------------------
-
-       if (whichapprox == HO_APPROX_FAST_BP) then
-
-          call compress_3d_to_2d(nx,        ny,      nz,  &
-                                 Auu,       Auv,          &
-                                 Avu,       Avv,          &
-                                 bu,        bv,           &
-                                 Auu_2d,    Auv_2d,       &
-                                 Avu_2d,    Avv_2d,       &
-                                 bu_2d,     bv_2d)
-        
-          !WHL - debug - print out some matrix values
-
-          if (verbose_matrix .and. this_rank==rtest) then
-             i = itest
-             j = jtest
-             r = rtest
-             print*, ' '
-             print*, 'i,j =', i, j
-             print*, 'Auu_2d sum =', sum(Auu_2d(:,i,j))
-             print*, 'Auv_2d sum =', sum(Auv_2d(:,i,j))
-             print*, 'Avu_2d sum =', sum(Avu_2d(:,i,j))
-             print*, 'Avv_2d sum =', sum(Avv_2d(:,i,j))
-
-             print*, ' '
-             print*, 'iA, jA, Auu_2d, Auv_2d, Avu_2d, Avv_2d:'
-             do jA = -1, 1
-                do iA = -1, 1
-                   m = indxA_2d(iA,jA)
-                   print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j) 
-                enddo
-             enddo
-             
-             print*, 'bu_2d =', bu_2d(i,j)
-             print*, 'bv_2d =', bv_2d(i,j)
-             
-             m = indxA_2d(0,0)
-!             print*, ' '
-!             print*, 'Auu_2d diag'
-             do j = ny-1, 1, -1
-                do i = 1, nx-1
-!                   write(6,'(e10.2)',advance='no'), Auu_2d(m,i,j)
-                enddo
-!                print*, ' '
-             enddo
-             
-!             print*, ' '
-!             print*, 'bu_2d'
-             do j = ny-1, 1, -1
-                do i = 1, nx-1
-!                   write(6,'(e10.2)',advance='no'), bu_2d(i,j)
-                enddo
-!                print*, ' '
-             enddo
-             
-             j = jtest
-             m = indxA_2d(0,0)  ! diag entry
-             print*, ' '
-             print*, 'Matrix row properties, j =', j
-             print*, ' '
-             print*, 'i, diag, max, min, sum:'
-             do i = 1, nx-1
-                print*, ' '
-                write(6,'(a4, i4, 4f16.8)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), minval(Auu_2d(:,i,j)), sum(Auu_2d(:,i,j))
-                write(6,'(a4, i4, 4f16.8)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), minval(Auv_2d(:,i,j)), sum(Auv_2d(:,i,j))
-             enddo
-             
-          endif  ! verbose_matrix
-
-       endif   ! fast BP
 
        !---------------------------------------------------------------------------
        ! Solve the 2D or 3D matrix system.
@@ -2661,7 +2552,7 @@
              print*, 'rank, i, j:', this_rank, i, j
              print*, 'k, uvel, vvel:'
              do k = 1, nz
-                print*, uvel(k,i,j), vvel(k,i,j)
+                print*, k, uvel(k,i,j), vvel(k,i,j)
              enddo
              print*, ' '
           endif
@@ -2679,33 +2570,38 @@
 
        endif ! 2D or 3D solve
 
-       if (whichapprox == HO_APPROX_FAST_BP) then
+       if (whichapprox == HO_APPROX_GOLD) then
 
           !---------------------------------------------------------------------------
-          ! We have just done a 2D solve for the velocity at level kfast.
-          ! Now estimate the full 3D velocity field
+          ! Given the depth-integrated mean velocity, construct the full
+          ! velocity profile in each column.
+          !
+          ! The resulting velocity field is used to update the viscosity on the
+          !  next nonlinear iteration.
           !---------------------------------------------------------------------------
 
-          if (verbose_L1L2 .and. main_task) print*, 'Compute 3D velocity, fast BP'
+          !TODO - Is this needed?
+          do k = 1, nz
+             uvel(k,:,:) = uvel_2d(:,:)
+             vvel(k,:,:) = vvel_2d(:,:)
+          enddo
 
-          call compute_3d_velocity_fast_BP(nx,               ny,              &
-                                           nz,               sigma,           &
-                                           nhalo,            kfast,           &
-                                           active_vertex,                     &
-                                           Auu,              Auv,             &
-                                           Auv,              Avu,             & 
-                                           bu,               bv,              &
-                                           Auu_sia,          Avv_sia,         &
-                                           uvel_2d,          vvel_2d,         &
-                                           uvel,             vvel)
+
+          if (verbose_gold .and. main_task) print*, 'Compute 3D velocity, Goldberg'
+
+          call compute_3d_velocity_goldberg(nx,               ny,              &
+                                            nz,               sigma,           &
+                                            nhalo,            active_vertex,   &
+                                            stagthck,         beta_eff,        &
+                                            omega_k,          omega,           &
+                                            uvel_2d,          vvel_2d,         &
+                                            uvel,             vvel,            &
+                                            btractx,          btracty)
 
           call staggered_parallel_halo(uvel)
           call staggered_parallel_halo(vvel)
 
-          ! The 2D residual was computed after the 2D solve; now compute the 3D residual.
-
-
-       endif
+       endif  ! fast BP
 
        !---------------------------------------------------------------------------
        ! Write diagnostics (iteration number, max residual, and location of max residual.
@@ -2833,8 +2729,9 @@
        print*, ' '
        print*, 'uvel, k=1 (m/yr):'
        do j = ny-nhalo, nhalo+1, -1
-          do i = nhalo+1, nx-nhalo
-             write(6,'(f12.7)',advance='no') uvel(1,i,j)
+!!          do i = nhalo+1, nx-nhalo
+          do i = nhalo+1, nx/2
+             write(6,'(f8.2)',advance='no') uvel(1,i,j)
           enddo
           print*, ' '
        enddo
@@ -2842,8 +2739,9 @@
        print*, ' '
        print*, 'vvel, k=1 (m/yr):'
        do j = ny-nhalo, nhalo+1, -1
-          do i = nhalo+1, nx-nhalo
-             write(6,'(f12.7)',advance='no') vvel(1,i,j)
+!!          do i = nhalo+1, nx-nhalo
+          do i = nhalo+1, nx/2
+             write(6,'(f8.2)',advance='no') vvel(1,i,j)
           enddo
           print*, ' '
        enddo       
@@ -3935,8 +3833,11 @@
 
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
-       
+
        if (active_cell(i,j)) then
+
+          !WHL - debug
+!!          print*, 'i, j:', i, j
 
           do k = 1, nz-1    ! loop over elements in this column 
                             ! assume k increases from upper surface to bed
@@ -4070,10 +3971,8 @@
     ! Assemble the stiffness matrix A in the linear system Ax = b.
     ! This subroutine is called for each nonlinear iteration if
     !  we are iterating on the effective viscosity.
-    ! A can be based on either the shallow-shelf approximation or 
-    !  the higher-order, vertically integrated L1L2 approximation 
-    !  (Schoof and Hindmarsh, 2010).  The main difference between SSA and
-    !  L1L2 is in the computation of the effective viscosity.
+    ! The matrix A can be based on the shallow-shelf approximation or 
+    !  the depth-integrated L1L2 approximation (Schoof and Hindmarsh, 2010).
     !----------------------------------------------------------------
  
     !----------------------------------------------------------------
@@ -4169,7 +4068,7 @@
        h,               & ! thickness at nodes
        s,               & ! upper surface elevation at nodes
        dsdx, dsdy         ! upper surface elevation gradient at nodes (L1L2 only)
-  
+
     real(dp), dimension(nQuadPoints_2d) ::    &
        efvs_qp_vertavg    ! vertically averaged effective viscosity at a quad pt
 
@@ -4261,15 +4160,11 @@
 
              !WHL - Pass in i, j and p to the following subroutines for debugging
 
-!          call t_startf('glissade_basis_function_derivs')
              call get_basis_function_derivatives_2d(x(:),             y(:),          &
                                                     dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
                                                     detJ(p) , i, j, p)
              dphi_dz_2d(:) = 0.d0
-!          call t_stopf('glissade_basis_function_derivs')
-
-!          call t_startf('glissade_effective_viscosity')
 
              if (whichapprox == HO_APPROX_L1L2) then
 
@@ -4306,8 +4201,6 @@
 
              endif    ! whichapprox
 
-!          call t_stopf('glissade_effective_viscosity')
-
              ! Compute ice thickness at this quadrature point
 
              h_qp = 0.d0
@@ -4319,7 +4212,6 @@
              ! Note: The effective viscosity is multiplied by thickness since the equation to be solved
              !       is vertically integrated.
 
-!          call t_startf('glissade_increment_element_stiffness')
              call compute_element_matrix(whichapprox,     nNodesPerElement_2d,               & 
                                          wqp_2d(p),       detJ(p),                           &
                                          h_qp*efvs_qp_vertavg(p),                            &
@@ -4327,13 +4219,308 @@
                                          Kuu(:,:),        Kuv(:,:),                          &
                                          Kvu(:,:),        Kvv(:,:),                          &
                                          i, j, 1, p )
-!          call t_stopf('glissade_increment_element_stiffness')
 
           enddo   ! nQuadPoints_2d
 
           ! Compute average of effective viscosity over quad points
           ! For L1L2 there is a different efvs in each layer.
           ! For SSA, simply write the vertical average value to each layer.
+
+          efvs(:,i,j) = 0.d0
+          do p = 1, nQuadPoints_2d
+             do k = 1, nz-1
+                efvs(k,i,j) = efvs(k,i,j) + efvs_qp(k,p)
+             enddo
+          enddo
+          efvs(:,i,j) = efvs(:,i,j) / nQuadPoints_2d
+
+          if (check_symmetry_element) then
+             call check_symmetry_element_matrix(nNodesPerElement_2d,   &
+                                                Kuu, Kuv, Kvu, Kvv)
+          endif
+
+          ! Sum the terms of element matrix K into the dense assembled matrix A
+
+          call element_to_global_matrix_2d(nx,           ny,        &
+                                           i,            j,         &
+                                           Kuu,          Kuv,       &
+                                           Kvu,          Kvv,       &
+                                           Auu,          Auv,       &
+                                           Avu,          Avv)
+
+          if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+             print*, 'i, j =', i, j
+             print*, 'k, efvs:'
+             do k = 1, nz-1
+                print*, k, efvs(k,i,j)
+             enddo
+          endif
+
+       endif   ! active cell
+
+    enddo      ! i
+    enddo      ! j
+
+  end subroutine assemble_stiffness_matrix_2d
+
+!****************************************************************************
+
+  subroutine assemble_stiffness_matrix_goldberg(nx,               ny,              &
+                                                nz,               sigma,           &
+                                                nhalo,            active_cell,     &
+                                                xVertex,          yVertex,         &
+                                                uvel,             vvel,            &
+                                                stagusrf,         stagthck,        &
+                                                flwafact,                          &
+                                                whichefvs,        efvs_constant,   &
+                                                efvs,                              &
+                                                Auu,              Auv,             &
+                                                Avu,              Avv)
+
+    !----------------------------------------------------------------
+    ! Assemble the stiffness matrix A in the linear system Ax = b,
+    !  based on the depth-integrated Goldberg approximation (Goldberg 2011).
+    ! This subroutine is called for each nonlinear iteration if
+    !  we are iterating on the effective viscosity.
+    !----------------------------------------------------------------
+ 
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+       nx, ny,                  &    ! horizontal grid dimensions
+       nz,                      &    ! number of vertical levels at which velocity is computed
+       nhalo                         ! number of halo layers
+
+    real(dp), dimension(nz), intent(in) ::    &
+       sigma              ! sigma vertical coordinate
+
+    logical, dimension(nx,ny), intent(in) ::  &
+       active_cell        ! true if cell contains ice and borders a locally owned vertex
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
+       xVertex, yVertex   ! x and y coordinates of vertices
+
+    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
+       uvel, vvel         ! 3D velocity components (m/yr)
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+       stagusrf,       &  ! upper surface elevation on staggered grid (m)
+       stagthck           ! ice thickness on staggered grid (m)
+
+    real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
+       flwafact           ! temperature-based flow factor, 0.5 * A^(-1/n), Pa yr^(1/n)
+                          ! used to compute the effective viscosity
+
+    integer, intent(in) ::   &
+       whichefvs          ! option for effective viscosity calculation 
+
+    real(dp), intent(in) :: &
+       efvs_constant      ! constant value of effective viscosity (Pa yr)
+
+    real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
+       efvs               ! effective viscosity (Pa yr)
+
+    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(out) ::  &
+       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
+       Avu, Avv                                    
+
+    !---------------------------------------------------------
+    ! Local variables
+    !---------------------------------------------------------
+
+    real(dp), dimension(nQuadPoints_2d) ::   &
+       detJ               ! determinant of J
+
+    !----------------------------------------------------------------
+    ! Note: Kuu, Kuv, Kvu, and Kvv are 4x4 components of the stiffness matrix
+    !       for the local element.  (The combined stiffness matrix is 8x8.)
+    !
+    ! Once these matrices are formed, their coefficients are summed into the global
+    !  matrices Auu_2d, Auv_2d, Avu_2d, Avv_2d.  The global matrices each have as 
+    !  many rows as there are active vertices, but only 9 columns, corresponding to 
+    !  the 9 vertices of the 4 elements sharing a given node.
+    !----------------------------------------------------------------
+
+    real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &   !
+       Kuu,          &    ! element stiffness matrix, divided into 4 parts as shown below
+       Kuv,          &    !  
+       Kvu,          &    !
+       Kvv                !    Kuu  | Kuv
+                          !    _____|____          
+                          !         |
+                          !    Kvu  | Kvv
+                          !         
+                          ! Kvu may not be needed if matrix is symmetric, but is included for now
+
+    real(dp), dimension(nNodesPerElement_3d) ::     &
+       x, y, z,       & ! Cartesian coordinates of nodes
+       u, v,          & ! u and v at nodes
+       h,             & ! thickness at nodes
+       s                ! upper surface elevation at nodes
+  
+    real(dp), dimension(nQuadPoints_2d) ::    &
+       efvs_qp_vertavg    ! vertically averaged effective viscosity at a quad pt
+
+    real(dp), dimension(nz-1,nQuadPoints_2d) ::    &
+       efvs_qp            ! effective viscosity at each layer in a cell column
+                          ! corresponding to a quad pt
+
+    real(dp) ::         &
+       h_qp               ! thickness at a quad pt
+
+    logical, parameter ::   &
+       check_symmetry_element = .true.  ! if true, then check symmetry of element matrix
+
+!    real(dp), dimension(nx,ny) ::  &
+!       flwafact_2d        ! vertically averaged flow factor
+
+    integer :: i, j, k, n, p
+!    integer :: iVertex, jVertex
+
+    integer :: iNode, jNode, kNode
+
+    real(dp), dimension(nNodesPerElement_3d) ::   &
+       dphi_dx_3d, dphi_dy_3d, dphi_dz_3d  ! derivatives of basis function, evaluated at quad pts
+    
+    real(dp), dimension(nNodesPerElement_2d) ::   &
+       dphi_dx_2d, dphi_dy_2d, dphi_dz_2d  ! derivatives of basis function, evaluated at quad pts
+                                           ! set dphi_dz = 0 for 2D problem
+
+    if (verbose_matrix .and. main_task) then
+       print*, ' '
+       print*, 'In assemble_stiffness_matrix_goldberg'
+    endif
+
+    ! Initialize effective viscosity
+    efvs(:,:,:) = 0.d0
+
+    ! Initialize global stiffness matrix
+
+    Auu(:,:,:) = 0.d0
+    Auv(:,:,:) = 0.d0
+    Avu(:,:,:) = 0.d0
+    Avv(:,:,:) = 0.d0
+
+    ! Sum over active cells 
+    ! Loop over all cells that border locally owned vertices.
+
+    do j = nhalo+1, ny-nhalo+1
+    do i = nhalo+1, nx-nhalo+1
+       
+       if (active_cell(i,j)) then
+
+          ! Initialize element stiffness matrix
+          Kuu(:,:) = 0.d0
+          Kuv(:,:) = 0.d0
+          Kvu(:,:) = 0.d0
+          Kvv(:,:) = 0.d0
+  
+          ! Compute vertically averaged effective viscosity for this column
+
+          ! loop over elements
+          do k = 1, nz-1
+
+             ! compute spatial coordinates, velocity, and upper surface elevation for each node
+
+             do n = 1, nNodesPerElement_3d
+
+                ! Determine (k,i,j) for this node
+                ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
+                ! Indices for other nodes are computed relative to this node.
+                iNode = i + ishift(7,n)
+                jNode = j + jshift(7,n)
+                kNode = k + kshift(7,n)
+
+                x(n) = xVertex(iNode,jNode)
+                y(n) = yVertex(iNode,jNode)
+                z(n) = stagusrf(iNode,jNode) - sigma(kNode)*stagthck(iNode,jNode)
+                u(n) = uvel(kNode,iNode,jNode)
+                v(n) = vvel(kNode,iNode,jNode)
+                s(n) = stagusrf(iNode,jNode)
+
+                if (verbose_matrix .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
+                   print*, ' '
+                   print*, 'i, j, k, n, x, y, z:', i, j, k, n, x(n), y(n), z(n)
+                   print*, 's, u, v:', s(n), u(n), v(n)
+                endif
+
+             enddo   ! nodes per element
+
+             ! Loop over quadrature points for this element
+   
+             do p = 1, nQuadPoints_3d
+
+                ! Evaluate the derivatives of the element basis functions at this quadrature point.
+                !WHL - Pass in i, j, k, and p to the following subroutines for debugging.
+
+                call get_basis_function_derivatives_3d(x(:),             y(:),             z(:),              &          
+                                                       dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
+                                                       dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
+                                                       detJ(p) , i, j, k, p  )
+
+!          call t_startf('glissade_effective_viscosity')
+                ! Compute the effective viscosity at this quadrature point
+                ! The viscosity is computed from the current velocity as in the Blatter-Pattyn approximation
+                call compute_effective_viscosity(whichefvs,        HO_APPROX_BP,                      &
+                                                 efvs_constant,    nNodesPerElement_3d,               &
+                                                 dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
+                                                 u(:),             v(:),                              & 
+                                                 flwafact(k,i,j),  efvs_qp(k,p),                      &
+                                                 i, j, k, p )
+!          call t_stopf('glissade_effective_viscosity')
+
+                if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
+                   print*, 'i, j, k, p, efvs (Pa yr):', i, j, k, p, efvs_qp(k,p)
+                endif
+
+             enddo   ! nQuadPoints
+
+          enddo      ! k
+             
+          ! Compute vertical average of effective viscosity
+          efvs_qp_vertavg(p) = 0.d0
+          do k = 1, nz-1
+             efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p) * (sigma(k+1) - sigma(k))
+          enddo
+                
+          ! Loop over 2D quadrature points for this column
+   
+          do p = 1, nQuadPoints_2d
+
+             ! Get basis function derivatives
+             call get_basis_function_derivatives_2d(x(:),             y(:),          &
+                                                    dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
+                                                    dphi_dx_2d(:),    dphi_dy_2d(:),    &
+                                                    detJ(p) , i, j, p)
+             dphi_dz_2d(:) = 0.d0
+
+             ! Compute ice thickness at this quadrature point
+             
+             h_qp = 0.d0
+             do n = 1, nNodesPerElement_2d
+                h_qp = h_qp + phi_2d(n,p) * h(n)
+             enddo
+
+             ! Increment the element stiffness matrix with the contribution from each quadrature point.
+             ! Note: The effective viscosity is multiplied by thickness since the equation to be solved
+             !       is vertically integrated.
+             ! Include horizontal-plane (SSA) matrix terms only
+
+!          call t_startf('glissade_increment_element_stiffness')
+             call compute_element_matrix(HO_APPROX_SSA,   nNodesPerElement_2d,               & 
+                                         wqp_2d(p),       detJ(p),                           &
+                                         h_qp*efvs_qp_vertavg(p),                            &
+                                         dphi_dx_2d(:),   dphi_dy_2d(:),    dphi_dz_2d(:),   &
+                                         Kuu(:,:),        Kuv(:,:),                          &
+                                         Kvu(:,:),        Kvv(:,:),                          &
+                                         i, j, 1, p)
+!          call t_stopf('glissade_increment_element_stiffness')
+
+          enddo   ! nQuadPoints_2d
+
+          ! Compute average of effective viscosity over quad points
 
           efvs(:,i,j) = 0.d0
           do p = 1, nQuadPoints_2d
@@ -4374,28 +4561,19 @@
     enddo      ! i
     enddo      ! j
 
-  end subroutine assemble_stiffness_matrix_2d
+  end subroutine assemble_stiffness_matrix_goldberg
 
 !****************************************************************************
 
-  subroutine compute_3d_velocity_fast_BP(nx,               ny,              &
-                                         nz,               sigma,           &
-                                         nhalo,            kfast,           &
-                                         active_vertex,                     &
-                                         Auu,              Auv,             &
-                                         Avu,              Avv,             & 
-                                         bu,               bv,              &
-                                         Auu_sia,          Avv_sia,         &
-                                         uvel_2d,          vvel_2d,         &
-                                         uvel,             vvel)
+  subroutine compute_3d_velocity_goldberg(nx,               ny,              &
+                                          nz,               sigma,           &
+                                          nhalo,            active_vertex,   &           
+                                          stagthck,         beta_eff,        &
+                                          omega_k,          omega,           &
+                                          uvel_2d,          vvel_2d,         &
+                                          uvel,             vvel,            &
+                                          btractx,          btracty)
 
-    !----------------------------------------------------------------
-    ! Given the velocity at at single level, the full 3D BP matrix, and
-    !  a local 3D SIA matrix, estimate the 3D velocity field.
-    !----------------------------------------------------------------
-
-    use glissade_velo_higher_pcg, only : easy_sia_solver, matvec_multiply_structured_3d
- 
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -4403,8 +4581,7 @@
     integer, intent(in) ::      &
        nx, ny,                  &    ! horizontal grid dimensions
        nz,                      &    ! number of vertical levels at which velocity is computed
-       nhalo,                   &    ! number of halo layers
-       kfast                         ! vertical index for layer where 2D solve was done
+       nhalo                         ! number of halo layers
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
@@ -4412,178 +4589,90 @@
     logical, dimension(nx-1,ny-1), intent(in) ::  &
        active_vertex      ! true for vertices of active cells
 
-    !TODO - Make sure that changing these arrays doesn't mess up anything
-    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(inout) ::  &
-       Auu, Auv,    &     ! assembled BP matrix, divided into 4 parts
-       Avu, Avv           ! modified here to apply Dirichlet BC
+    real(dp), dimension(nx,ny), intent(in) ::  &
+       stagthck           ! ice thickness at vertices (m)
 
-    real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::   &
-       bu, bv             ! assembled BP load vector, divided into 2 parts
+    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
+       omega_k            ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
 
-    real(dp), dimension(-1:1,nz,nx-1,ny-1), intent(inout) ::  &
-       Auu_sia, Avv_sia   ! assembled local SIA matrix, divided into 2 parts
-                          ! modified here to apply Dirichlet BC
-
+   !TODO - Pass in only omega_k and not omega?
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       uvel_2d, vvel_2d   ! velocity components at level kfast (m/yr)
-
-    real(dp), dimension(nz,nx-1,ny-1), intent(out) ::  &
+       omega,            &! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
+       beta_eff,         &! effective beta, defined by Goldberg eq. 41
+                          ! beta*u_b = beta_eff*u_av
+       uvel_2d, vvel_2d   ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
+                            
+    !TODO - intent(out)?
+    real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        uvel, vvel         ! 3D velocity components (m/yr)
+
+    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
+       btractx, btracty         ! components of basal traction (Pa)
 
     ! Local variables
 
     integer :: i, j, k, m
 
-    real(dp), dimension(nz,nx-1,ny-1) ::  &
-       xu, xv,           &! work arrays
-       zu, zv             ! work arrays
+    !----------------------------------------------------------------
+    !TODO - Add an algorithm summary here
+    !
+    ! u_av = u_b + (taub_x/H^2) * omega
+    !
+    ! where omega = int_b^s{ int_b^z{[(s-z')/(H*efvs)] dz'} dz}
+    !       taub_x = beta*u_b = beta_eff*u_av
+    !
+    ! u(z) = u(b) + (taub_x/H) * {int_b^z{[(s-z')/(H*efvs)] dz'}
+    ! 
+    !----------------------------------------------------------------
 
-    logical, dimension(nz,nx-1,ny-1) ::  &
-       umask_dirichlet    ! mask for applying Dirichlet BC at level kfast
+    !WHL - debug
+    if (verbose_gold .and. this_rank==rtest) then
+       print*, 'Goldberg: Computing 3D velocities'
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'u_av, v_av:', uvel_2d(i,j), vvel_2d(i,j)
+    endif
 
-    ! NOTE: The problem we want to solve is
-    !       (1)  A*u^{n+1} = b
-    !       where {n+1} denotes the new time level.
-    !       Note that A = A(u^n) where n is the old time level.
-    !       Given u^{n+1} = u_kfast^{n+1} + delta_u^{n+1}, this can be written as
-    !       (2)  A*delta_u^{n+1} = b - A*u_kfast^{n+1}.
-    !       (Recall we have already solved for u_kfast^{n+1}.) 
-    !       Instead of solving (2) exactly, we solve it approximately by replacing A
-    !       with A_sia and linearizing delta_u:
-    !       (3) A_sia*delta_u^{n+1} = b - A*u_kfast^{n+1} - (A - A_sia)*delta_u^n
-    !       where A_sia is a local matrix and
-    !       delta_u^n = u^n - u_kfast^{n+1} at each level k /= k+1,
-    !       with delta_u^n = 0 at k = kfast.
-
-    ! Copy the 2D velocity solution at level kfast to 3D work arrays
-    do k = 1, nz
-       xu(k,:,:) = uvel_2d(:,:)
-       xv(k,:,:) = vvel_2d(:,:)
-    enddo
-
-    ! Take the matrix-vector product A*u_kfast, where A is the full BP matrix 
-    ! and u_kfast is the velocity vector corresponding to u = u(kfast) at all levels
-
-    call matvec_multiply_structured_3d(nx,        ny,            &
-                                       nz,        nhalo,         &
-                                       indxA_3d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       xu,        xv,            &
-                                       zu,        zv)
-
-    ! Modify the rhs by subtracting this matvec product
-    ! This puts b - A*u_kfast on the rhs
-
-    bu(:,:,:) = bu(:,:,:) - zu(:,:,:)
-    bv(:,:,:) = bv(:,:,:) - zv(:,:,:)
-
-    ! Modify A to apply a Dirichlet BC, delta_u = 0, for k = kfast.
-
-    k = kfast    
+    ! Given omega and u_av/v_av, compute u_b and v_b
 
     do j = 1, ny-1
        do i = 1, nx-1
           if (active_vertex(i,j)) then
 
-             ! Zero out the matrix row and rhs
-             do m = 1, 27
-                Auu(m,k,:,:) = 0.d0
-                Auv(m,k,:,:) = 0.d0
-                Avu(m,k,:,:) = 0.d0
-                Avv(m,k,:,:) = 0.d0
-                bu(k,:,:) = 0.d0
-                bv(k,:,:) = 0.d0
+             ! basal shear stress (Goldberg eq. 38-39)
+             btractx(i,j) = beta_eff(i,j) * uvel_2d(i,j)
+             btracty(i,j) = beta_eff(i,j) * vvel_2d(i,j)
+
+             ! basal velocity (Goldberg eq. 34)
+             ! TODO - Save btract/stagthck as temp var
+             uvel(nz,i,j) = uvel_2d(i,j) - (btractx(i,j)/stagthck(i,j)) * omega(i,j) 
+             vvel(nz,i,j) = vvel_2d(i,j) - (btracty(i,j)/stagthck(i,j)) * omega(i,j) 
+         
+             ! vertical velocity profile (Goldberg eq. 32)
+             do k = 1, nz-1
+                uvel(k,i,j) = (btractx(i,j)/stagthck(i,j)) * omega_k(k,i,j)
+                vvel(k,i,j) = (btracty(i,j)/stagthck(i,j)) * omega_k(k,i,j)
              enddo
 
-             ! Put a 1 on the diagonal
-             m = indxA_3d(0,0,0)
-             Auu(m,k,:,:) = 1.d0
-             Avv(m,k,:,:) = 1.d0
-             
-          endif   ! active vertex
+          endif   ! active_vertex
        enddo      ! i
     enddo         ! j
 
-    ! Overwrite A with A - A_sia, where A_sia is a local SIA matrix with
-    !  nonzero values only in the local column
-    ! Note: Auv and Avu are unchanged since these components are zero for the SIA
-
-    m = indxA_3d(0,0,-1)
-    Auu(m,:,:,:) = Auu(m,:,:,:) - Auu_sia(-1,:,:,:)
-    Avv(m,:,:,:) = Avv(m,:,:,:) - Avv_sia(-1,:,:,:)
-
-    m = indxA_3d(0,0,0)
-    Auu(m,:,:,:) = Auu(m,:,:,:) - Auu_sia(0,:,:,:)
-    Avv(m,:,:,:) = Avv(m,:,:,:) - Avv_sia(0,:,:,:)
-
-    m = indxA_3d(0,0,1)
-    Auu(m,:,:,:) = Auu(m,:,:,:) - Auu_sia(1,:,:,:)
-    Avv(m,:,:,:) = Avv(m,:,:,:) - Avv_sia(1,:,:,:)
-
-    ! Compute the difference between the new 2D solution (u_kfast) and the
-    ! old 3D solution at each level.  Set delta_u = 0 at k = kfast.
-
-    do k = 1, nz
-       if (k == kfast) then
-          xu(k,:,:) = 0.d0
-          xv(k,:,:) = 0.d0
-       else
-          xu(k,:,:) = uvel(k,:,:) - uvel_2d(:,:)
-          xv(k,:,:) = vvel(k,:,:) - vvel_2d(:,:)
-       endif
-    enddo
-
-    ! Take the matrix-vector product (A - A_sia)*delta_u
-
-    call matvec_multiply_structured_3d(nx,        ny,            &
-                                       nz,        nhalo,         &
-                                       indxA_3d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       xu,        xv,            &
-                                       zu,        zv)
-
-    ! Put this matvec product on the rhs
-
-    bu(:,:,:) = bu(:,:,:) - zu(:,:,:)
-    bv(:,:,:) = bv(:,:,:) - zv(:,:,:)
-
-    ! Now solve A_sia * delta_u = b (given the above modifications in b)
-    ! Since A_sia is local, we have a tridiagonal problem for delta_u in each column
-
-    ! First alter the matrix and rhs to enforce delta_u = 0 for k = kfast
-
-    k = kfast
-    Auu_sia(-1,k,:,:) = 0.d0
-    Avv_sia(-1,k,:,:) = 0.d0
-    Auu_sia( 0,k,:,:) = 1.d0
-    Avv_sia( 0,k,:,:) = 1.d0
-    Auu_sia( 1,k,:,:) = 0.d0
-    Avv_sia( 1,k,:,:) = 0.d0
-    bu(k,:,:) = 0.d0
-    bv(k,:,:) = 0.d0
-
-    ! Do a tridiagonal solve for delta_u in each column
-
-    call easy_sia_solver(nx,       ny,   nz,    &
-                         active_vertex,         &
-                         Auu_sia,  xu,   bu)    ! solve Auu_sia*xu = bu for xu 
-
-    call easy_sia_solver(nx,       ny,   nz,    &
-                         active_vertex,         &
-                         Avv_sia,  xv,   bv)    ! solve Avv_sia*xv = bv for xv
-
-    ! Given delta_u, compute the 3D velocity field
-    do k = 1, nz
-       uvel(k,:,:) = uvel_2d(:,:) + xu(k,:,:)
-       vvel(k,:,:) = vvel_2d(:,:) + xv(k,:,:)
-    enddo
-
     !WHL - debug
-    print*, 'Computed fast BP velocities'
-    
-  end subroutine compute_3d_velocity_fast_BP
+    if (verbose_gold .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Computed 3D velocities'
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'New uvel, vvel:'
+       do k = 1, nz
+          print*, k, uvel(k,i,j), vvel(k,i,j)
+       enddo
+    endif
+       
+  end subroutine compute_3d_velocity_goldberg
 
 !****************************************************************************
 
@@ -7044,6 +7133,7 @@
     resid_u(:,:,:) = 0.d0
     resid_v(:,:,:) = 0.d0
 
+    !TODO - Replace the following by a call to matvec_multiply_structured_3d
     ! Loop over locally owned vertices
 
     do j = nhalo+1, ny-nhalo

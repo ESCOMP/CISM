@@ -770,12 +770,12 @@ contains
          'Trilinos interface                         '/)
 
     character(len=*), dimension(-1:4), parameter :: ho_whichapprox = (/ &
-         'SIA only (glissade_velo_sia)                 ', &
-         'SIA only (glissade_velo_higher)              ', &
-         'SSA only (glissade_velo_higher)              ', &
-         'Blatter-Pattyn HO (glissade_velo_higher)     ', &
-         'Depth-integrated L1L2 (glissade_velo_higher) ', &
-         'Fast Blatter-Pattyn HO (glissade_velo_higher)' /)
+         'SIA only (glissade_velo_sia)                    ', &
+         'SIA only (glissade_velo_higher)                 ', &
+         'SSA only (glissade_velo_higher)                 ', &
+         'Blatter-Pattyn HO (glissade_velo_higher)        ', &
+         'Depth-integrated L1L2 (glissade_velo_higher)    ', &
+         'Depth-integrated Goldberg (glissade_velo_higher)' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichprecond = (/ &
          'No preconditioner (glissade PCG)        ', &
@@ -874,7 +874,7 @@ contains
     if (model%options%whichdycore == DYCORE_GLISSADE) then 
        if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
              model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-             model%options%which_ho_approx == HO_APPROX_FAST_BP)   &
+             model%options%which_ho_approx == HO_APPROX_GOLD)   &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
@@ -903,7 +903,7 @@ contains
            model%options%which_ho_approx == HO_APPROX_SIA       .or.   &
            model%options%which_ho_approx == HO_APPROX_SSA       .or.   &
            model%options%which_ho_approx == HO_APPROX_L1L2      .or.   &
-           model%options%which_ho_approx == HO_APPROX_FAST_BP) then 
+           model%options%which_ho_approx == HO_APPROX_GOLD) then 
           call write_log('Error, Glam dycore must use Blatter-Pattyn approximation', GM_FATAL)
        endif
     endif
