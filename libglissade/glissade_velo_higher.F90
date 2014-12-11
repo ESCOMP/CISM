@@ -195,8 +195,8 @@
 !    logical :: verbose_Jac = .true.
     logical :: verbose_residual = .false.
 !    logical :: verbose_residual = .true.
-!    logical :: verbose_state = .false.
-    logical :: verbose_state = .true.
+    logical :: verbose_state = .false.
+!    logical :: verbose_state = .true.
     logical :: verbose_id = .false.
 !    logical :: verbose_id = .true.
     logical :: verbose_load = .false.
@@ -223,8 +223,8 @@
 !    logical :: verbose_dirichlet= .true.
     logical :: verbose_L1L2 = .false.
 !    logical :: verbose_L1L2 = .true.
-!    logical :: verbose_gold = .false.
-    logical :: verbose_gold = .true.
+    logical :: verbose_gold = .false.
+!    logical :: verbose_gold = .true.
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
@@ -988,7 +988,7 @@
     uvel_2d(:,:) = uvel(nz,:,:)
     vvel_2d(:,:) = vvel(nz,:,:)
 
-    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2) then
+    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_GOLD) then
        assemble_2d = .true.
     else   ! 3D solve
        assemble_2d = .false.
@@ -1024,11 +1024,11 @@
        allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
     endif
 
-    !TODO - omega_k only?
     if (whichapprox == HO_APPROX_GOLD) then
        allocate(beta_eff(nx-1,ny-1))
        allocate(omega(nx-1,ny-1))
        allocate(omega_k(nz,nx-1,ny-1))
+       beta_eff(:,:) = 0.d0
        omega(:,:) = 0.d0
        omega_k(:,:,:) = 0.d0
     endif
@@ -1128,8 +1128,10 @@
     ! initialize
     umask_dirichlet(:,:,:) = .false.   
 
-    if (whichbabc == HO_BABC_NO_SLIP) then
-       ! Impose zero sliding everywhere at the bed.
+    if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_GOLD) then
+       ! Impose zero sliding everywhere at the bed
+       ! Note: For the Goldberg case, this BC is handled by setting beta_eff = H/omega
+       !TODO - Allow application of no-slip BC at selected basal nodes instead of all nodes?
        umask_dirichlet(nz,:,:) = .true.    ! u = v = 0 at bed
     endif
 
@@ -1143,7 +1145,8 @@
     enddo
 
     if (verbose_dirichlet .and. this_rank==rtest) then
-       print*, ' '
+
+      print*, ' '
        print*, 'umask_dirichlet, k = 1 and nz, j =', jtest
        j = jtest
        do i = 1, nx-1
@@ -1737,18 +1740,111 @@
 
           if (whichapprox == HO_APPROX_GOLD) then  ! Goldberg depth-integrated
 
+             if (verbose_gold .and. main_task) then
+                print*, ' '
+                print*, 'Assemble 2D matrix, Goldberg'
+             endif
+
+             ! Assemble the matrix
+
              call assemble_stiffness_matrix_goldberg(nx,               ny,              &
                                                      nz,               sigma,           &
-                                                     nhalo,            active_cell,     &
+                                                     nhalo,                             &
+                                                     active_cell,      active_vertex,   & 
                                                      xVertex,          yVertex,         &
                                                      uvel,             vvel,            &
                                                      stagusrf,         stagthck,        &
                                                      flwafact,                          &
                                                      whichefvs,        efvs_constant,   &
-                                                     efvs,                              &
+                                                     efvs,             ice_mask,        &
                                                      Auu_2d,           Auv_2d,          &
-                                                     Avu_2d,           Avv_2d)
+                                                     Avu_2d,           Avv_2d,          &
+                                                     omega_k,          omega)
+
+             ! Halo update for omega (so that beta_eff will be correct in halos)
+             call staggered_parallel_halo(omega(:,:))
+
+             !TODO: Might want to updata omega_k as well. 
+             !      Then we may be able to skip the 3D update for uvel/vvel after the 3D velocity reconstruction.
+!!             call staggered_parallel_halo(omega_k(:,:,:))
+              
+             ! Set beta_eff (Goldberg eq. 40 and 41)
+
+             if (whichbabc==HO_BABC_NO_SLIP) then  ! set beta_eff = H/omega everywhere
+                do j = 1, ny-1
+                   do i = 1, nx-1
+                      if (omega(i,j) > 0.d0) then
+                         beta_eff(i,j) = stagthck(i,j) / omega(i,j)
+                      else
+                         beta_eff(i,j) = 0.d0
+                      endif
+                   enddo
+                enddo
+             else   ! slip allowed at bed; set beta_eff = beta / (1 + beta*omega/H)
+                do j = 1, ny-1
+                   do i = 1, nx-1
+                      if (stagthck(i,j) > 0.d0) then
+                         beta_eff(i,j) = beta(i,j) / (1.d0 + beta(i,j)*omega(i,j)/stagthck(i,j))
+                      else
+                         beta_eff(i,j) = 0.d0
+                      endif
+                   enddo
+                enddo
+             endif
+
+             if (verbose_gold .and. this_rank==rtest) then
+                i = itest
+                j = jtest
+                print*, ' '
+                print*, 'i, j, stagthck, omega, beta, beta_eff:', i, j, stagthck(i,j), omega(i,j), beta(i,j), beta_eff(i,j)
+!                print*, ' '
+!                print*, 'beta_eff:'
+!                do j = ny-1, 1, -1
+!                   print*, ' '
+!                   print*, 'j =', j
+!                   do i = 1, nx-1
+!                      write(6,'(e10.3)',advance='no') beta_eff(i,j)
+!                   enddo
+!                   write(6,*) ' '
+!                enddo
+             endif
+
+             !WHL - debug
+             if (verbose_gold .and. this_rank==rtest) then
+                i = itest
+                j = jtest
+                print*, ' '
+                print*, 'After assembly, before basal BC, i, j =', i, j
+                print*, 'Auu_2d sum =', sum(Auu_2d(:,i,j))
+                print*, 'Auv_2d sum =', sum(Auv_2d(:,i,j))
+                print*, 'Avu_2d sum =', sum(Avu_2d(:,i,j))
+                print*, 'Avv_2d sum =', sum(Avv_2d(:,i,j))
+                print*, ' '
+                print*, 'i, j =', i, j
+                print*, 'iA, jA, Auu_2d, Auv_2d, Avu_2d, Avv_2d:'
+                do jA = -1, 1
+                   do iA = -1, 1
+                      m = indxA_2d(iA,jA)
+                      print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j) 
+                   enddo
+                enddo
+                print*, ' '
+                print*, 'bu_2d =', bu_2d(i,j)
+                print*, 'bv_2d =', bv_2d(i,j)
+             endif
+
+             ! Incorporate basal sliding boundary conditions
+
+             call basal_sliding_bc(nx,                ny,              &
+                                   nNodeNeighbors_2d, nhalo,           &
+                                   active_cell,       beta_eff,        &
+                                   xVertex,           yVertex,         &
+                                   whichassemble_beta,                 &
+                                   Auu_2d,            Avv_2d)
+                
           else    ! L1L2, SSA
+
+             ! Assemble the matrix
 
              call assemble_stiffness_matrix_2d(nx,               ny,              &
                                                nz,               sigma,           &
@@ -1764,20 +1860,42 @@
                                                Auu_2d,           Auv_2d,          &
                                                Avu_2d,           Avv_2d)
              
-          endif
+             !WHL - debug
+             if (verbose_gold .and. this_rank==rtest) then
+                i = itest
+                j = jtest
+                print*, ' '
+                print*, 'After assembly, before basal BC, i, j =', i, j
+                print*, 'Auu_2d sum =', sum(Auu_2d(:,i,j))
+                print*, 'Auv_2d sum =', sum(Auv_2d(:,i,j))
+                print*, 'Avu_2d sum =', sum(Avu_2d(:,i,j))
+                print*, 'Avv_2d sum =', sum(Avv_2d(:,i,j))
+                print*, ' '
+                print*, 'i, j =', i, j
+                print*, 'iA, jA, Auu_2d, Auv_2d, Avu_2d, Avv_2d:'
+                do jA = -1, 1
+                   do iA = -1, 1
+                      m = indxA_2d(iA,jA)
+                      print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j) 
+                   enddo
+                enddo
+                print*, ' '
+                print*, 'bu_2d =', bu_2d(i,j)
+                print*, 'bv_2d =', bv_2d(i,j)
+             endif
+
+             ! Incorporate basal sliding boundary conditions
+
+             call basal_sliding_bc(nx,                ny,              &
+                                   nNodeNeighbors_2d, nhalo,           &
+                                   active_cell,       beta,            &
+                                   xVertex,           yVertex,         &
+                                   whichassemble_beta,                 &
+                                   Auu_2d,            Avv_2d)
+
+          endif    ! whichapprox (SSA, L1L2, Goldberg)
 
           if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 2D stiffness matrix'
-
-          !---------------------------------------------------------------------------
-          ! Incorporate basal sliding boundary conditions
-          !---------------------------------------------------------------------------
-
-          call basal_sliding_bc(nx,                ny,              &
-                                nNodeNeighbors_2d, nhalo,           &
-                                active_cell,       beta,            &
-                                xVertex,           yVertex,         &
-                                whichassemble_beta,                 &
-                                Auu_2d,            Avv_2d)
 
           !---------------------------------------------------------------------------
           ! Set rhs to the load vector
@@ -1876,27 +1994,13 @@
           if (verbose_matrix .and. this_rank==rtest) then
              i = itest
              j = jtest
-             r = rtest
              print*, ' '
-             print*, 'i,j =', i, j
+             print*, 'After assembly and BC, i, j =', i, j
              print*, 'Auu_2d sum =', sum(Auu_2d(:,i,j))
              print*, 'Auv_2d sum =', sum(Auv_2d(:,i,j))
              print*, 'Avu_2d sum =', sum(Avu_2d(:,i,j))
              print*, 'Avv_2d sum =', sum(Avv_2d(:,i,j))
 
-             print*, ' '
-             print*, 'iA, jA, Auu_2d, Auv_2d, Avu_2d, Avv_2d:'
-             do jA = -1, 1
-                do iA = -1, 1
-                   m = indxA_2d(iA,jA)
-                   print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j) 
-                enddo
-             enddo
-             
-             print*, 'bu_2d =', bu_2d(i,j)
-             print*, 'bv_2d =', bv_2d(i,j)
-             
-             j = jtest
              m = indxA_2d(0,0)  ! diag entry
              print*, ' '
              print*, 'Matrix row properties, j =', j
@@ -1904,11 +2008,25 @@
              print*, 'i, diag, max, min, sum:'
              do i = 1, nx-1
                 print*, ' '
-                write(6,'(a4, i4, 4f16.8)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), &
+                write(6,'(a8, i4, 4f20.12)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), &
                                                    minval(Auu_2d(:,i,j)),   sum(Auu_2d(:,i,j))
-                write(6,'(a4, i4, 4f16.8)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), &
+                write(6,'(a8, i4, 4f20.12)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), &
                                                    minval(Auv_2d(:,i,j)),   sum(Auv_2d(:,i,j))
              enddo
+
+             i = itest
+             j = jtest
+             print*, 'i, j =', i, j
+             print*, 'iA, jA, Auu_2d, Auv_2d, Avu_2d, Avv_2d:'
+             do jA = -1, 1
+                do iA = -1, 1
+                   m = indxA_2d(iA,jA)
+                   print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j) 
+                enddo
+             enddo
+             print*, ' '
+             print*, 'bu_2d =', bu_2d(i,j)
+             print*, 'bv_2d =', bv_2d(i,j)
              
           endif  ! verbose_matrix
 
@@ -2586,8 +2704,10 @@
              vvel(k,:,:) = vvel_2d(:,:)
           enddo
 
-
-          if (verbose_gold .and. main_task) print*, 'Compute 3D velocity, Goldberg'
+          if (verbose_gold .and. main_task) then
+             print*, ' '
+             print*, 'Compute 3D velocity, Goldberg'
+          endif
 
           call compute_3d_velocity_goldberg(nx,               ny,              &
                                             nz,               sigma,           &
@@ -2601,7 +2721,33 @@
           call staggered_parallel_halo(uvel)
           call staggered_parallel_halo(vvel)
 
-       endif  ! fast BP
+          !WHL - debug
+!          if (verbose_gold .and. this_rank==rtest) then
+!             print*, ' '
+!             print*, 'uvel, k=1 (m/yr):'
+!             do j = ny-nhalo, nhalo+1, -1
+                !!          do i = nhalo+1, nx-nhalo
+!                do i = nhalo+1, nx/2
+!                   write(6,'(f8.2)',advance='no') uvel(1,i,j)
+!                enddo
+!                print*, ' '
+!             enddo
+             
+!             print*, ' '
+!             print*, 'vvel, k=1 (m/yr):'
+!             do j = ny-nhalo, nhalo+1, -1
+                !!          do i = nhalo+1, nx-nhalo
+!                do i = nhalo+1, nx/2
+!                   write(6,'(f8.2)',advance='no') vvel(1,i,j)
+!                enddo
+!                print*, ' '
+!             enddo
+!             print*, ' '
+!             print*, 'max(uvel, vvel) =', maxval(uvel), maxval(vvel)
+!             print*, ' '             
+!          endif
+
+       endif  ! Goldberg
 
        !---------------------------------------------------------------------------
        ! Write diagnostics (iteration number, max residual, and location of max residual.
@@ -4147,7 +4293,7 @@
 
              if (verbose_matrix .and. this_rank==rtest .and. i==itest .and. j==jtest) then
                 print*, 'i, j, n, x, y:', i, j, n, x(n), y(n)
-                print*, 's, u, v:', s(n), u(n), v(n)
+                print*, 's, h, u, v:', s(n), h(n), u(n), v(n)
              endif
 
           enddo   ! vertices per element
@@ -4267,15 +4413,17 @@
 
   subroutine assemble_stiffness_matrix_goldberg(nx,               ny,              &
                                                 nz,               sigma,           &
-                                                nhalo,            active_cell,     &
+                                                nhalo,                             &
+                                                active_cell,      active_vertex,   &
                                                 xVertex,          yVertex,         &
                                                 uvel,             vvel,            &
                                                 stagusrf,         stagthck,        &
                                                 flwafact,                          &
                                                 whichefvs,        efvs_constant,   &
-                                                efvs,                              &
+                                                efvs,             ice_mask,        &
                                                 Auu,              Auv,             &
-                                                Avu,              Avv)
+                                                Avu,              Avv,             &
+                                                omega_k,          omega)
 
     !----------------------------------------------------------------
     ! Assemble the stiffness matrix A in the linear system Ax = b,
@@ -4298,6 +4446,9 @@
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
+
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       active_vertex      ! true for vertices of active cells
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex   ! x and y coordinates of vertices
@@ -4322,13 +4473,25 @@
     real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
        efvs               ! effective viscosity (Pa yr)
 
+    integer, dimension(nx,ny) ::     &
+       ice_mask           ! = 1 for cells where ice is present (thk > thklim), else = 0
+
     real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
        Avu, Avv                                    
 
+    real(dp), dimension(nz,nx-1,ny-1), intent(inout) :: &
+       omega_k            ! single integral, defined by Goldberg eq. 32
+
+    real(dp), dimension(nx-1,ny-1), intent(inout) :: &
+       omega              ! double integral, defined by Goldberg eq. 35
+
     !---------------------------------------------------------
     ! Local variables
     !---------------------------------------------------------
+
+    real(dp), dimension(nz-1,nx-1,ny-1) :: &
+       stagefvs           ! effective viscosity, interpolated to staggered grid
 
     real(dp), dimension(nQuadPoints_2d) ::   &
        detJ               ! determinant of J
@@ -4361,11 +4524,10 @@
        s                ! upper surface elevation at nodes
   
     real(dp), dimension(nQuadPoints_2d) ::    &
-       efvs_qp_vertavg    ! vertically averaged effective viscosity at a quad pt
+       efvs_qp_vertavg    ! vertically averaged effective viscosity at a 2D quad pt
 
-    real(dp), dimension(nz-1,nQuadPoints_2d) ::    &
-       efvs_qp            ! effective viscosity at each layer in a cell column
-                          ! corresponding to a quad pt
+    real(dp), dimension(nz-1,nQuadPoints_3d) ::    &
+       efvs_qp            ! effective viscosity at each layer in a cell column, at a 3D quad pt
 
     real(dp) ::         &
        h_qp               ! thickness at a quad pt
@@ -4373,12 +4535,7 @@
     logical, parameter ::   &
        check_symmetry_element = .true.  ! if true, then check symmetry of element matrix
 
-!    real(dp), dimension(nx,ny) ::  &
-!       flwafact_2d        ! vertically averaged flow factor
-
     integer :: i, j, k, n, p
-!    integer :: iVertex, jVertex
-
     integer :: iNode, jNode, kNode
 
     real(dp), dimension(nNodesPerElement_3d) ::   &
@@ -4388,7 +4545,10 @@
        dphi_dx_2d, dphi_dy_2d, dphi_dz_2d  ! derivatives of basis function, evaluated at quad pts
                                            ! set dphi_dz = 0 for 2D problem
 
-    if (verbose_matrix .and. main_task) then
+    real(dp) :: &
+       omega_av, dz, depth
+
+    if ((verbose_matrix .or. verbose_gold) .and. main_task) then
        print*, ' '
        print*, 'In assemble_stiffness_matrix_goldberg'
     endif
@@ -4438,21 +4598,24 @@
                 z(n) = stagusrf(iNode,jNode) - sigma(kNode)*stagthck(iNode,jNode)
                 u(n) = uvel(kNode,iNode,jNode)
                 v(n) = vvel(kNode,iNode,jNode)
+                h(n) = stagthck(iNode,jNode)
                 s(n) = stagusrf(iNode,jNode)
 
                 if (verbose_matrix .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
-                   print*, ' '
+!!                   print*, ' '
                    print*, 'i, j, k, n, x, y, z:', i, j, k, n, x(n), y(n), z(n)
-                   print*, 's, u, v:', s(n), u(n), v(n)
+                   print*, 's, h, u, v:', s(n), h(n), u(n), v(n)
                 endif
 
              enddo   ! nodes per element
 
-             ! Loop over quadrature points for this element
+             ! Loop over 3D quadrature points for this element
    
              do p = 1, nQuadPoints_3d
 
-                ! Evaluate the derivatives of the element basis functions at this quadrature point.
+                ! Evaluate the derivatives of the 3D element basis functions at this quadrature point.
+                ! We need the 3D derivatives to evaluate the 3D viscosity.
+                ! (Below, we need only the 2D derivatives to increment the element matrix.)
                 !WHL - Pass in i, j, k, and p to the following subroutines for debugging.
 
                 call get_basis_function_derivatives_3d(x(:),             y(:),             z(:),              &          
@@ -4462,7 +4625,7 @@
 
 !          call t_startf('glissade_effective_viscosity')
                 ! Compute the effective viscosity at this quadrature point
-                ! The viscosity is computed from the current velocity as in the Blatter-Pattyn approximation
+                ! The viscosity is computed from the 3D velocity as in the Blatter-Pattyn approximation
                 call compute_effective_viscosity(whichefvs,        HO_APPROX_BP,                      &
                                                  efvs_constant,    nNodesPerElement_3d,               &
                                                  dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
@@ -4479,22 +4642,32 @@
 
           enddo      ! k
              
-          ! Compute vertical average of effective viscosity
-          efvs_qp_vertavg(p) = 0.d0
-          do k = 1, nz-1
-             efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p) * (sigma(k+1) - sigma(k))
+          ! Compute average of 3D effective viscosity over quad points
+
+          efvs(:,i,j) = 0.d0
+          do p = 1, nQuadPoints_3d
+             do k = 1, nz-1
+                efvs(k,i,j) = efvs(k,i,j) + efvs_qp(k,p)
+             enddo
           enddo
-                
+          efvs(:,i,j) = efvs(:,i,j) / nQuadPoints_3d
+
           ! Loop over 2D quadrature points for this column
    
           do p = 1, nQuadPoints_2d
 
-             ! Get basis function derivatives
-             call get_basis_function_derivatives_2d(x(:),             y(:),          &
-                                                    dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
-                                                    dphi_dx_2d(:),    dphi_dy_2d(:),    &
-                                                    detJ(p) , i, j, p)
-             dphi_dz_2d(:) = 0.d0
+             ! Compute vertical average of effective viscosity for this quadrative point
+             ! For each element, take the average of efvs at the two 3D quad points 
+             !  in the same vertical column at the 2D quad point
+
+             efvs_qp_vertavg(p) = 0.d0
+             do k = 1, nz-1
+                efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + 0.5d0*(efvs_qp(k,p) + efvs_qp(k,p+nQuadPoints_3d/2)) * (sigma(k+1) - sigma(k))
+             enddo
+
+             if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
+                print*, 'i, j, p, vert avg efvs (Pa yr):', i, j, p, efvs_qp_vertavg(p)
+             endif
 
              ! Compute ice thickness at this quadrature point
              
@@ -4503,12 +4676,19 @@
                 h_qp = h_qp + phi_2d(n,p) * h(n)
              enddo
 
+             ! Evaluate the derivatives of the 2D element basis functions at this quadrature point.
+
+             call get_basis_function_derivatives_2d(x(:),             y(:),             &
+                                                    dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
+                                                    dphi_dx_2d(:),    dphi_dy_2d(:),    &
+                                                    detJ(p) , i, j, p)
+             dphi_dz_2d(:) = 0.d0
+
              ! Increment the element stiffness matrix with the contribution from each quadrature point.
              ! Note: The effective viscosity is multiplied by thickness since the equation to be solved
              !       is vertically integrated.
              ! Include horizontal-plane (SSA) matrix terms only
 
-!          call t_startf('glissade_increment_element_stiffness')
              call compute_element_matrix(HO_APPROX_SSA,   nNodesPerElement_2d,               & 
                                          wqp_2d(p),       detJ(p),                           &
                                          h_qp*efvs_qp_vertavg(p),                            &
@@ -4516,26 +4696,13 @@
                                          Kuu(:,:),        Kuv(:,:),                          &
                                          Kvu(:,:),        Kvv(:,:),                          &
                                          i, j, 1, p)
-!          call t_stopf('glissade_increment_element_stiffness')
 
           enddo   ! nQuadPoints_2d
-
-          ! Compute average of effective viscosity over quad points
-
-          efvs(:,i,j) = 0.d0
-          do p = 1, nQuadPoints_2d
-             do k = 1, nz-1
-                efvs(k,i,j) = efvs(k,i,j) + efvs_qp(k,p)
-             enddo
-          enddo
-          efvs(:,i,j) = efvs(:,i,j) / nQuadPoints_2d
 
           if (check_symmetry_element) then
              call check_symmetry_element_matrix(nNodesPerElement_2d,   &
                                                 Kuu, Kuv, Kvu, Kvv)
           endif
-
-!          call t_startf('glissade_element_to_global')
 
           ! Sum the terms of element matrix K into the dense assembled matrix A
 
@@ -4545,8 +4712,6 @@
                                            Kvu,          Kvv,       &
                                            Auu,          Auv,       &
                                            Avu,          Avv)
-
-!          call t_stopf('glissade_element_to_global')
 
           if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
              print*, 'i, j =', i, j
@@ -4560,6 +4725,58 @@
 
     enddo      ! i
     enddo      ! j
+
+    !TODO - Move the rest of assemble_stiffness_matrix_goldberg into a different subroutine?
+    !       Would need active_vertex, efvs and stagthck as input, omega and omega_k as output
+    !
+    ! Interpolate the effective viscosity to the staggered grid
+
+    do k = 1, nz-1
+       call glissade_stagger(nx,           ny,                &
+                             efvs(k,:,:),  stagefvs(k,:,:),   &
+                             ice_mask,     stagger_margin_in = 1)
+    enddo
+             
+    ! For each active vertex, compute these integrals:
+    !    omega_k = int_b^z{[(s-z)/(H*efvs)] dz} at each node 
+    !    omega   = int_b^s{ int_b^z{[(s-z')/(H*efvs)] dz'} dz} for the column 
+
+    do j = 1, ny-1
+       do i = 1, nx-1
+          if (active_vertex(i,j)) then
+
+             omega_k(nz,i,j) = 0.d0
+             do k = nz-1, 1, -1
+                if (stagefvs(k,i,j) > 0.d0 .and. stagthck(i,j) > 0.d0) then
+                   depth = 0.5d0*(sigma(k)+sigma(k+1))*stagthck(i,j)
+                   dz = (sigma(k+1)-sigma(k)) * stagthck(i,j)
+                   omega_k(k,i,j) = omega_k(k+1,i,j) + depth/(stagefvs(k,i,j)*stagthck(i,j)) * dz
+                else
+                   omega_k(k,i,j) = 0.d0
+                endif
+             enddo
+             
+             omega(i,j) = 0.d0
+             do k = 1, nz-1
+                omega_av = 0.5d0*(omega_k(k,i,j) + omega_k(k+1,i,j))
+                dz = (sigma(k+1)-sigma(k)) * stagthck(i,j)             
+                omega(i,j) = omega(i,j) + omega_av * dz
+             enddo
+             
+          if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'i, j =', i, j
+                print*, 'k, omega_k:'
+                do k = nz, 1, -1
+                   print*, k, omega_k(k,i,j)
+                enddo
+                print*, 'omega =', omega(i,j)
+             endif
+             
+          endif   ! active vertex
+
+       enddo      ! i
+    enddo         ! j
 
   end subroutine assemble_stiffness_matrix_goldberg
 
@@ -4589,7 +4806,7 @@
     logical, dimension(nx-1,ny-1), intent(in) ::  &
        active_vertex      ! true for vertices of active cells
 
-    real(dp), dimension(nx,ny), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        stagthck           ! ice thickness at vertices (m)
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
@@ -4631,10 +4848,11 @@
        i = itest
        j = jtest
        print*, ' '
+       print*, 'i, j =', i, j
        print*, 'u_av, v_av:', uvel_2d(i,j), vvel_2d(i,j)
     endif
 
-    ! Given omega and u_av/v_av, compute u_b and v_b
+    ! Given omega, u_av and v_av, compute u_b and v_b
 
     do j = 1, ny-1
        do i = 1, nx-1
@@ -4651,22 +4869,33 @@
          
              ! vertical velocity profile (Goldberg eq. 32)
              do k = 1, nz-1
-                uvel(k,i,j) = (btractx(i,j)/stagthck(i,j)) * omega_k(k,i,j)
-                vvel(k,i,j) = (btracty(i,j)/stagthck(i,j)) * omega_k(k,i,j)
+                uvel(k,i,j) = uvel(nz,i,j) + btractx(i,j) * omega_k(k,i,j)
+                vvel(k,i,j) = vvel(nz,i,j) + btracty(i,j) * omega_k(k,i,j)
              enddo
+
+             if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'i, j =', i, j
+                print*, 'omega =', omega(i,j)
+                print*, 'beta_eff, btractx/y =', beta_eff(i,j), btractx(i,j), btracty(i,j)
+                print*, 'k, omega_k, uvel, vvel:'
+                do k = 1, nz
+                   print*, k, omega_k(k,i,j), uvel(k,i,j), vvel(k,i,j)
+                enddo
+             endif
 
           endif   ! active_vertex
        enddo      ! i
     enddo         ! j
 
-    !WHL - debug
     if (verbose_gold .and. this_rank==rtest) then
        print*, ' '
        print*, 'Computed 3D velocities'
        i = itest
        j = jtest
        print*, ' '
-       print*, 'New uvel, vvel:'
+       print*, 'i, j =', i, j
+       print*, 'k, new uvel, vvel:'
        do k = 1, nz
           print*, k, uvel(k,i,j), vvel(k,i,j)
        enddo
