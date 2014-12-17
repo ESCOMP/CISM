@@ -732,8 +732,8 @@
        tau_eff                  ! effective stress (Pa)
 
     integer,  dimension(:,:), pointer ::   &
-       kinbcmask                ! = 1 at vertices where u = v = 0 (Dirichlet BC)
-                                ! = 0 elsewhere
+       kinbcmask   ! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC)
+                   ! = 0 elsewhere
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
