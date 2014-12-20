@@ -199,8 +199,8 @@
 !    logical :: verbose_init = .true.   
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
-!    logical :: verbose_residual = .false.
-    logical :: verbose_residual = .true.
+    logical :: verbose_residual = .false.
+!    logical :: verbose_residual = .true.
     logical :: verbose_state = .false.
 !    logical :: verbose_state = .true.
 !    logical :: verbose_velo = .false.
@@ -724,6 +724,9 @@
        bu, bv                   ! right-hand-side vector b, divided into 2 parts
 
     real(dp), dimension(:,:), pointer ::  &
+       uvel_2d, vvel_2d,       &! 2D velocity field 
+                                ! = vertical average for Goldberg approx
+                                ! = basal velocity for L1L2
        btractx, btracty         ! components of basal traction (Pa)
 
     real(dp), dimension(:,:,:), pointer ::  &
@@ -891,10 +894,6 @@
     integer, dimension((nx-1)*(ny-1)) ::   &
        iVertexIndex, jVertexIndex   ! i and j indices of vertices
 
-    real(dp), dimension(nx-1,ny-1) ::  &
-       uvel_2d, vvel_2d   ! components of 2D velocity solution
-                          ! (= basal velocity, for the 3D solution)
-
     real(dp), dimension(:,:,:), allocatable ::  &
        Auu_2d, Auv_2d,   &! assembled stiffness matrix, divided into 4 parts
        Avu_2d, Avv_2d     ! 1st dimension = 9 (node and its nearest neighbors in x and y direction) 
@@ -927,15 +926,15 @@
        stag_efvs_integral_k    ! stag_efvs_integral_k interpolated to staggered grid
 
     real(dp), dimension(:,:,:,:), allocatable :: &
-       efvs_qp2                ! effective viscosity in each layer at each QP
+       efvs_qp_3d              ! effective viscosity at each QP of each layer of each cell
 
     integer, parameter :: &
-       goldberg_layer_index = 0  ! layer for which the Goldberg scheme finds the 2D velocity
+       goldberg_level_index = 0  ! level for which the Goldberg scheme finds the 2D velocity
                                  ! 0 = mean, 1 = upper surface
                                  ! Results are not very sensitive to this choice                     
     real(dp) :: dsigma
     real(dp) :: maxbeta, minbeta
-    integer :: i, j, k, m, n, r
+    integer :: i, j, k, m, n, p, r
     integer :: iA, jA, kA
     real(dp) :: maxthck, maxusrf
     logical, parameter :: test_matrix = .false.
@@ -997,7 +996,8 @@
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
-
+     uvel_2d  => model%velocity%uvel_2d(:,:)
+     vvel_2d  => model%velocity%vvel_2d(:,:)
      resid_u  => model%velocity%resid_u(:,:,:)
      resid_v  => model%velocity%resid_v(:,:,:)
      bu       => model%velocity%rhs_u(:,:,:)
@@ -1038,14 +1038,16 @@
     !--------------------------------------------------------
 
 !pw call t_startf('glissade_velo_higher_scale_input')
-    call glissade_velo_higher_scale_input(dx,     dy,            &
-                                          thck,   usrf,          &
-                                          topg,                  &
-                                          eus,    thklim,        &
-                                          flwa,   efvs,          &
-                                          bwat,   mintauf,       &
-                                          beta,   ho_beta_const, &
-                                          uvel,   vvel)
+    call glissade_velo_higher_scale_input(dx,      dy,            &
+                                          thck,    usrf,          &
+                                          topg,                   &
+                                          eus,     thklim,        &
+                                          flwa,    efvs,          &
+                                          bwat,    mintauf,       &
+                                          beta,    ho_beta_const, &
+                                          btractx, btracty,       &
+                                          uvel,    vvel,          &
+                                          uvel_2d, vvel_2d)
 !pw call t_stopf('glissade_velo_higher_scale_input')
 
     ! Set volume scale
@@ -1105,46 +1107,29 @@
 
     if (whichapprox == HO_APPROX_GOLD) then
        allocate(beta_eff(nx-1,ny-1))
-       allocate(efvs_qp2(nz-1,nQuadPoints_2d,nx,ny))
        allocate(efvs_integral(nx,ny))
        allocate(efvs_integral_k(nz,nx,ny))
        allocate(stag_efvs_integral(nx-1,ny-1))
        allocate(stag_efvs_integral_k(nz,nx-1,ny-1))
+       allocate(efvs_qp_3d(nz-1,nQuadPoints_2d,nx,ny))
        beta_eff(:,:) = 0.d0
-       efvs_qp2(:,:,:,:) = 0.d0
        efvs_integral(:,:) = 0.d0
        efvs_integral_k(:,:,:) = 0.d0
        stag_efvs_integral(:,:) = 0.d0
        stag_efvs_integral_k(:,:,:) = 0.d0
+       ! Note: Initializing efvs_qp as efvs is a reasonable guess that allows us to
+       !       write efvs to the restart file instead of efvs_qp (which is 4x larger).
+       do p = 1, nQuadPoints_2d
+          efvs_qp_3d(:,p,:,:) = efvs(:,:,:)
+       enddo
     endif
 
-    !TODO - Carry over BFB from previous iteration
-    if (whichapprox == HO_APPROX_GOLD) then
-       ! Initialize uvel_2d and vvel_2d to the mean velocity
-       uvel_2d(:,:) = 0.d0
-       vvel_2d(:,:) = 0.d0
-       do k = 1, nz
-          dsigma = stagwbndsigma(k) - stagwbndsigma(k-1)
-          uvel_2d(:,:) = uvel_2d(:,:) + uvel(k,:,:)*dsigma
-          vvel_2d(:,:) = vvel_2d(:,:) + vvel(k,:,:)*dsigma
-       enddo
-
-       ! Initialize the basal traction and effective beta
-       btractx(:,:) = 0.d0
-       btracty(:,:) = 0.d0
-       beta_eff(:,:) = 0.d0
-
-       !WHL - debug
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'Starting velocity: rank, i, j =', this_rank, i, j    
-       print*, 'k, uvel, vvel:'
-       do k = 1, nz
-          print*, k, uvel(k,i,j), vvel(k,i,j)
-       enddo
-    else
-       ! Initialize the 2D velocity to the velocity at the bed
+    if (whichapprox /= HO_APPROX_GOLD) then
+       ! Set the 2D velocity to the velocity at the bed
+       ! Note: For L1L2 and SSA, this is the 2D velocity solution from the previous solve.
+       !       For Goldberg, the velocity solution from the previous solve is typically the
+       !        mean velocity, which cannot be extracted exactly from the 3D velocity field
+       !        and must be stored in a separate array.
        uvel_2d(:,:) = uvel(nz,:,:)
        vvel_2d(:,:) = vvel(nz,:,:)
     endif
@@ -1863,7 +1848,7 @@
              i = itest
              j = jtest
              print*, ' '
-             print*, 'i, j, uvel, vvel, beta_eff, btractx, btracty:',  &
+             print*, 'i, j, uvel_2d, vvel_2d, beta_eff, btractx, btracty:',  &
                       i, j, uvel_2d(i,j), vvel_2d(i,j), beta_eff(i,j), btractx(i,j), btracty(i,j)
           endif
 
@@ -1887,14 +1872,9 @@
                                             thck,                              &          
                                             btractx,          btracty,         &
                                             efvs_integral_k,  efvs_integral,   &
-                                            efvs_qp2)
+                                            efvs_qp_3d)
 
           if (whichapprox == HO_APPROX_GOLD) then  ! Goldberg depth-integrated
-
-             if (verbose_gold .and. main_task) then
-                print*, ' '
-                print*, 'Assembled 2D matrix, Goldberg'
-             endif
 
              ! Halo update for efvs_integral
              ! This is needed so that beta_eff, computed below, will be correct in halos
@@ -1902,7 +1882,7 @@
              call parallel_halo(efvs_integral)
 
              ! Interpolate the appropriate integral
-             if (goldberg_layer_index == 0) then   ! solving for 2D mean velocity field
+             if (goldberg_level_index == 0) then   ! solving for 2D mean velocity field
 
                 ! Interpolate efvs_integral to the staggered grid
                 call glissade_stagger(nx,                  ny,                       &
@@ -1911,7 +1891,7 @@
 
              else  ! solving for the velocity at level k (k = 1 at upper surface)
 
-                k = goldberg_layer_index
+                k = goldberg_level_index
 
                 call parallel_halo(efvs_integral_k(k,:,:))
 
@@ -2361,6 +2341,7 @@
                                                  resid_u, resid_v,       &
                                                  bu,      bv,            &
                                                  uvel,    vvel,          &
+                                                 uvel_2d, vvel_2d,       &
                                                  btractx, btracty,       &
                                                  tau_xz,  tau_yz,        &
                                                  tau_xx,  tau_yy,        &
@@ -2928,7 +2909,7 @@
 
        call compute_3d_velocity_goldberg(nx,                   ny,                   &
                                          nz,                   sigma,                &
-                                         active_vertex,        goldberg_layer_index, &
+                                         active_vertex,        goldberg_level_index, &
                                          stag_efvs_integral_k, stag_efvs_integral,   &
                                          btractx,              btracty,              &
                                          uvel_2d,              vvel_2d,              &
@@ -3071,6 +3052,7 @@
                                            resid_u, resid_v,       &
                                            bu,      bv,            &
                                            uvel,    vvel,          &
+                                           uvel_2d, vvel_2d,       &
                                            btractx, btracty,       &
                                            tau_xz,  tau_yz,        &
                                            tau_xx,  tau_yy,        &
@@ -3082,14 +3064,16 @@
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_input(dx,     dy,             &
-                                              thck,   usrf,           &
+  subroutine glissade_velo_higher_scale_input(dx,      dy,             &
+                                              thck,    usrf,           &
                                               topg,                   &
-                                              eus,    thklim,         &
-                                              flwa,   efvs,           &
-                                              bwat,   mintauf,        &
-                                              beta,   ho_beta_const,  &
-                                              uvel,   vvel)
+                                              eus,     thklim,         &
+                                              flwa,    efvs,           &
+                                              bwat,    mintauf,        &
+                                              beta,    ho_beta_const,  &
+                                              btractx, btracty,       &
+                                              uvel,    vvel,          &
+                                              uvel_2d, vvel_2d)
 
     !--------------------------------------------------------
     ! Convert input variables (generally dimensionless)
@@ -3116,10 +3100,12 @@
     real(dp), dimension(:,:), intent(inout)  ::  &
        bwat,  &                ! basal water depth (m)
        mintauf, &              ! till yield stress (Pa)
-       beta                    ! basal traction parameter (Pa/(m/yr))
+       beta,  &                ! basal traction parameter (Pa/(m/yr))
+       btractx, btracty,  &    ! components of basal traction (Pa)
+       uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
-       uvel, vvel              ! velocity components (m/yr)
+       uvel, vvel              ! components of 3D velocity (m/yr)
 
     ! grid cell dimensions: rescale from dimensionless to m
     dx = dx * len0
@@ -3148,9 +3134,15 @@
     beta = beta * tau0/(vel0*scyr)
     ho_beta_const = ho_beta_const * tau0/(vel0*scyr)
 
+    ! basal traction: rescale from dimensionless to Pa
+    btractx = btractx * tau0
+    btracty = btracty * tau0
+
     ! ice velocity: rescale from dimensionless to m/yr
     uvel = uvel * (vel0*scyr)
     vvel = vvel * (vel0*scyr)
+    uvel_2d = uvel_2d * (vel0*scyr)
+    vvel_2d = vvel_2d * (vel0*scyr)
 
   end subroutine glissade_velo_higher_scale_input
 
@@ -3164,6 +3156,7 @@
                                                resid_u, resid_v,        &
                                                bu,      bv,             &
                                                uvel,    vvel,           &
+                                               uvel_2d, vvel_2d,        &
                                                btractx, btracty,        &
                                                tau_xz,  tau_yz,         &
                                                tau_xx,  tau_yy,         &
@@ -3189,11 +3182,12 @@
        beta                     ! basal traction parameter (Pa/(m/yr))
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
-       uvel, vvel,    &         ! velocity components (m/yr)
+       uvel, vvel,    &         ! components of 3D velocity (m/yr)
        resid_u, resid_v,  &     ! components of residual Ax - b (Pa/m)
        bu, bv                   ! components of b in Ax = b (Pa/m)
 
     real(dp), dimension(:,:), intent(inout) ::  &
+       uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
        btractx, btracty         ! components of basal traction (Pa)
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
@@ -3224,6 +3218,8 @@
     ! Convert velocity from m/yr to dimensionless units
     uvel = uvel / (vel0*scyr)
     vvel = vvel / (vel0*scyr)
+    uvel_2d = uvel_2d / (vel0*scyr)
+    vvel_2d = vvel_2d / (vel0*scyr)
 
     ! Convert residual and rhs from Pa/m to dimensionless units
     resid_u = resid_u / (tau0/len0)
@@ -4226,7 +4222,7 @@
                                           sigma,            stagsigma,       &
                                           nhalo,            active_cell,     &
                                           xVertex,          yVertex,         &
-                                          uvel,             vvel,            &
+                                          uvel_2d,          vvel_2d,         &
                                           stagusrf,         stagthck,        &
                                           flwa,             flwafact,        &
                                           whichapprox,                       &
@@ -4238,7 +4234,7 @@
                                           thck,                              &
                                           btractx,          btracty,         &
                                           efvs_integral_k,  efvs_integral,   &
-                                          efvs_qp2)
+                                          efvs_qp_3d)
   
     !----------------------------------------------------------------
     ! Assemble the stiffness matrix A in the linear system Ax = b.
@@ -4271,7 +4267,7 @@
        xVertex, yVertex   ! x and y coordinates of vertices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       uvel, vvel         ! velocity components (m/yr)
+       uvel_2d, vvel_2d   ! 2D velocity components (m/yr)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        stagusrf,       &  ! upper surface elevation on staggered grid (m)
@@ -4319,7 +4315,7 @@
                           ! Note: efvs_integral = omega/H
 
     real(dp), dimension(nz-1,nQuadPoints_2d,nx,ny), intent(inout), optional ::  &
-       efvs_qp2           ! effective viscosity (Pa yr)
+       efvs_qp_3d         ! effective viscosity (Pa yr)
 
     !---------------------------------------------------------
     ! Local variables
@@ -4435,8 +4431,8 @@
 
              x(n) = xVertex(iVertex,jVertex)
              y(n) = yVertex(iVertex,jVertex)
-             u(n) = uvel(iVertex,jVertex)
-             v(n) = vvel(iVertex,jVertex)
+             u(n) = uvel_2d(iVertex,jVertex)
+             v(n) = vvel_2d(iVertex,jVertex)
              s(n) = stagusrf(iVertex,jVertex)
              h(n) = stagthck(iVertex,jVertex)
              if (present(dusrf_dx) .and. present(dusrf_dy)) then  ! L1L2
@@ -4495,7 +4491,7 @@
              elseif (whichapprox == HO_APPROX_GOLD) then
 
                 !WHL - Copy efvs_qp from global array to column array
-                efvs_qp(:,:) = efvs_qp2(:,:,i,j)
+                efvs_qp(:,:) = efvs_qp_3d(:,:,i,j)
 
                 ! Compute effective viscosity for each layer at this quadrature point
                 call compute_effective_viscosity_goldberg(whichefvs,            efvs_constant,     &
@@ -4509,8 +4505,8 @@
                                                           efvs_qp(:,p),                            &
                                                           i, j, p)
 
-                !WHL - Copy efvs_qp from column array to global array
-                efvs_qp2(:,:,i,j) = efvs_qp(:,:)
+                !WHL - Copy local efvs_qp to the global array
+                efvs_qp_3d(:,:,i,j) = efvs_qp(:,:)
 
                 ! Compute vertical average of effective viscosity
                 efvs_qp_vertavg(p) = 0.d0
@@ -4740,7 +4736,7 @@
 
   subroutine compute_3d_velocity_goldberg(nx,                   ny,                   &
                                           nz,                   sigma,                &
-                                          active_vertex,        goldberg_layer_index, &  
+                                          active_vertex,        goldberg_level_index, &  
                                           stag_efvs_integral_k, stag_efvs_integral,   &
                                           btractx,              btracty,              &
                                           uvel_2d,              vvel_2d,              &
@@ -4766,7 +4762,7 @@
        active_vertex      ! true for vertices of active cells
 
     integer, intent(in) ::   &
-       goldberg_layer_index   ! layer for which the Goldberg scheme finds the 2D velocity
+       goldberg_level_index   ! level for which the Goldberg scheme finds the 2D velocity
                               ! 0 = mean, 1 = upper surface
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
@@ -4789,15 +4785,15 @@
 
     real(dp), dimension(nx-1,ny-1) ::  &
          stag_integral         ! integral that relates bed velocity to uvel_2d/vvel_2d
-                               ! = stag_efvs_integral for goldberg_layer_index = 0
-                               ! = stag_efvs_integral_k(k,:,:) for other values of goldberg_layer_index
+                               ! = stag_efvs_integral for goldberg_level_index = 0
+                               ! = stag_efvs_integral_k(k,:,:) for other values of goldberg_level_index
 
     ! Identify the appropriate integral for relating uvel_2d/vvel_2d to the bed velocity
 
-    if (goldberg_layer_index == 0) then  ! solved for mean velocity
+    if (goldberg_level_index == 0) then  ! solved for mean velocity
        stag_integral(:,:) = stag_efvs_integral(:,:)
     else
-       k = goldberg_layer_index
+       k = goldberg_level_index
        stag_integral(:,:) = stag_efvs_integral_k(k,:,:)
     endif
 
@@ -4810,8 +4806,6 @@
           if (active_vertex(i,j)) then
 
              ! basal velocity (Goldberg eq. 34)
-!             uvel(nz,i,j) = uvel_2d(i,j) - btractx(i,j)*stag_efvs_integral(i,j) 
-!             vvel(nz,i,j) = vvel_2d(i,j) - btracty(i,j)*stag_efvs_integral(i,j) 
              uvel(nz,i,j) = uvel_2d(i,j) - btractx(i,j)*stag_integral(i,j) 
              vvel(nz,i,j) = vvel_2d(i,j) - btracty(i,j)*stag_integral(i,j) 
          
@@ -6773,31 +6767,12 @@
 
        enddo   ! k
 
-       !WHL - debug
-       if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
-          print*, ' '
-          print*, 'Cubic efvs solve, i, j, p =', i, j, p
-          print*, 'k, efvs:'
-          do k = 1, nz-1
-             print*, k, efvs(k)
-          enddo
-       endif
-
-    else  ! alternate solve
-
-       if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
-          print*, ' '
-          print*, 'Old efvs, i, j, p =', i, j, p
-          print*, 'k, efvs:'
-          do k = 1, nz-1
-             print*, k, efvs(k)
-          enddo
-       endif
+    else  ! solve for efvs, using the old value of efvs to estimate the vertical strain rates
 
        do k = 1, nz-1   ! loop over layers
           !TODO - Initialize efvs somewhere above?
           if (efvs(k)==0.d0) then
-             efvs(k) = flwafact(k) * effstrain_min**p_effstr  
+             efvs(k) = flwafact(k) * effstrain_min**p_effstr
           endif
           du_dz = taux * stagsigma(k) / efvs(k)   ! old value of efvs
           dv_dz = tauy * stagsigma(k) / efvs(k)
@@ -6807,15 +6782,14 @@
           efvs(k) = flwafact(k) * effstrainsq**(-1.d0/3.d0)  !TODO - Replace with p2_effstr
        enddo
 
-       !WHL - debug
-       if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
-          print*, ' '
-          print*, 'Alternate efvs solve, i, j, p =', i, j, p
-          print*, 'k, efvs:'
-          do k = 1, nz-1
-             print*, k, efvs(k)
-          enddo
-       endif
+!       if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
+!          print*, ' '
+!          print*, 'efvs solve, i, j, p =', i, j, p
+!          print*, 'k, efvs:'
+!          do k = 1, nz-1
+!             print*, k, efvs(k)
+!          enddo
+!       endif
 
     endif   ! cubic
 

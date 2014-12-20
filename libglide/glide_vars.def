@@ -181,6 +181,7 @@ units:         Pa
 long_name:     basal traction (x-direction comp)
 data:          data%stress%btractx(:,:)
 factor:        scale_tau
+load:          1
 
 [btracty]
 dimensions:    time, y0, x0
@@ -188,6 +189,7 @@ units:         Pa
 long_name:     basal traction (y-direction comp)
 data:          data%stress%btracty(:,:)
 factor:        scale_tau
+load:          1
 
 [ubas]
 dimensions:    time, y0, x0
@@ -480,6 +482,24 @@ factor:        scale_uvel
 standard_name: land_ice_y_velocity
 load:          1
 
+[uvel_2d]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     vertically averaged ice velocity in x direction
+data:          data%velocity%uvel_2d(:,:)
+factor:        scale_uvel
+standard_name: land_ice_x_velocity_2d
+load:          1
+
+[vvel_2d]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     vertically averaged ice velocity in y direction
+data:          data%velocity%vvel_2d(:,:)
+factor:        scale_uvel
+standard_name: land_ice_y_velocity_2d
+load:          1
+
 [uvel_extend]
 dimensions:    time, level, y1, x1
 units:         meter/year
@@ -689,6 +709,7 @@ long_name:     effective viscosity
 data:          data%stress%efvs(up,:,:)
 factor:        scale_efvs
 coordinates:   lon lat
+load:          1
 
 [temp]
 dimensions:    time, level, y1, x1

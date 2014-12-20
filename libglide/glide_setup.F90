@@ -1698,8 +1698,21 @@ contains
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
         ! TODO not sure if thkmask is needed for HO
+
         call glide_add_to_restart_variable_list('uvel vvel thkmask bfricflx dissip')
 
+        ! Glissade approximation options
+        select case (options%which_ho_approx)
+        case (HO_APPROX_GOLD)  !TODO - Change name of Goldberg approx?
+           ! This approximation also needs the 2D velocity, basal traction and effective viscosity
+           ! Note: The 2D velocity is needed if the Goldberg scheme solves for the mean velocity.
+           !       If solving for the velocity at a specific level (e.g., the surface), the
+           !       2D velocity could be initialized from the 3D velocity.
+           call glide_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs')
+        case default
+           ! Other approximations (including SSA and L1L2) use the 3D uvel and vvel to initialize the velocity
+        end select
+    
     end select
 
     ! ==== Other non-dycore specific options ====

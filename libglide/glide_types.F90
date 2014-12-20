@@ -495,7 +495,7 @@ module glide_types
     character(fname_length) :: dycore_input_file=''
     !FD Name of a file containing external dycore settings.
 
-    integer :: which_ho_approx = 2    
+    integer :: which_ho_approx = 2 
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
     !> Compute Blatter-Pattyn HO momentum balance by default.
@@ -705,6 +705,8 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: diffu_y => null() 
     real(dp),dimension(:,:)  ,pointer :: total_diffu => null() !> total diffusivity
 
+    real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D vertically averaged $x$-velocity.
+    real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D vertically averaged $y$-velocity.
     real(dp),dimension(:,:)  ,pointer :: ubas  => null()   !> 
     real(dp),dimension(:,:)  ,pointer :: ubas_tavg  => null()
     real(dp),dimension(:,:)  ,pointer :: vbas  => null()   !> 
@@ -1446,6 +1448,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%uvel_extend)
     call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%vvel_extend)
 
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_2d)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_2d)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas_tavg)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vbas)
@@ -1702,6 +1706,10 @@ contains
     if (associated(model%velocity%rhs_v)) &
         deallocate(model%velocity%rhs_v)
 
+    if (associated(model%velocity%uvel_2d)) &
+        deallocate(model%velocity%uvel_2d)
+    if (associated(model%velocity%vvel_2d)) &
+        deallocate(model%velocity%vvel_2d)
     if (associated(model%velocity%ubas)) &
         deallocate(model%velocity%ubas)
     if (associated(model%velocity%ubas_tavg)) &
