@@ -231,8 +231,8 @@
 !    logical :: verbose_dirichlet= .true.
 !    logical :: verbose_L1L2 = .false.
     logical :: verbose_L1L2 = .true.
-!    logical :: verbose_gold = .false.
-    logical :: verbose_gold = .true.
+!    logical :: verbose_diva = .false.
+    logical :: verbose_diva = .true.
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
@@ -724,9 +724,7 @@
        bu, bv                   ! right-hand-side vector b, divided into 2 parts
 
     real(dp), dimension(:,:), pointer ::  &
-       uvel_2d, vvel_2d,       &! 2D velocity field 
-                                ! = vertical average for Goldberg approx
-                                ! = basal velocity for L1L2
+       uvel_2d, vvel_2d,       &! 2D velocity field; solution for SSA, L1L2 and DIVA 
        btractx, btracty         ! components of basal traction (Pa)
 
     real(dp), dimension(:,:,:), pointer ::  &
@@ -882,7 +880,7 @@
     ! (which_ho_approx = HO_APPROX_SSA or HO_APPROX_L1L2)
 
     logical ::  &
-       solve_2d           ! if true, solve a 2D matrix (SSA, L1L2, Goldberg)
+       solve_2d           ! if true, solve a 2D matrix (SSA, L1L2, DIVA)
                           ! else solve a 3D matrix (SIA, BP)
 
     integer ::            &
@@ -913,25 +911,25 @@
        Afill_2d           ! true wherever the matrix value is potentially nonzero
                           ! 2D Trilinos only
 
-    ! The following are used for the depth-integrated Goldberg (2011) solve
+    ! The following are used for the depth-integrated viscosity solve
     real(dp), dimension(:,:), allocatable :: &
-       beta_eff,            &! effective beta, defined by Goldberg eq. 41
+       beta_eff,            &! effective beta, defined by Goldberg (2011) eq. 41
                              ! beta*u_b = beta_eff*u_av
-       efvs_integral,       &! double integral, defined by Goldberg eq. 35
-                             ! Note: efvs_integral = omega/H
-       stag_efvs_integral    ! efvs_integral interpolated to staggered grid
+       omega,               &! double integral, defined by Goldberg (2011) eq. 35
+                             ! Note: omega here is equal to Goldberg's omega/H
+       stag_omega            ! omega interpolated to staggered grid
 
     real(dp), dimension(:,:,:), allocatable :: &
-       efvs_integral_k,       &! single integral, defined by Goldberg eq. 32
-       stag_efvs_integral_k    ! stag_efvs_integral_k interpolated to staggered grid
+       omega_k,             &! single integral, defined by Goldberg (2011) eq. 32
+       stag_omega_k          ! omega_k interpolated to staggered grid
 
     real(dp), dimension(:,:,:,:), allocatable :: &
        efvs_qp_3d              ! effective viscosity at each QP of each layer of each cell
 
     integer, parameter :: &
-       goldberg_level_index = 0  ! level for which the Goldberg scheme finds the 2D velocity
-                                 ! 0 = mean, 1 = upper surface
-                                 ! Results are not very sensitive to this choice                     
+       diva_level_index = 0  ! level for which the DIVA scheme finds the 2D velocity
+                             ! 0 = mean, 1 = upper surface
+                             ! Results are not very sensitive to this choice                     
     real(dp) :: dsigma
     real(dp) :: maxbeta, minbeta
     integer :: i, j, k, m, n, p, r
@@ -1068,16 +1066,16 @@
 !!       if (verbose .and. main_task) print*, 'Solving depth-integrated L1L2 approximation'
        if (main_task) print*, 'Solving depth-integrated L1L2 approximation'
 
-    elseif (whichapprox == HO_APPROX_GOLD) then  ! Goldberg
-!!       if (verbose .and. main_task) print*, 'Solving depth-integrated Goldberg approximation'
-       if (main_task) print*, 'Solving depth-integrated Goldberg approximation'
+    elseif (whichapprox == HO_APPROX_DIVA) then  ! DIVA, based on Goldberg (2011)
+!!       if (verbose .and. main_task) print*, 'Solving depth-integrated viscosity approximation'
+       if (main_task) print*, 'Solving depth-integrated viscosity approximation'
 
     else   ! Blatter-Pattyn higher-order 
 !!       if (verbose .and. main_task) print*, 'Solving Blatter-Pattyn higher-order approximation'
        if (main_task) print*, 'Solving Blatter-Pattyn higher-order approximation'
     endif
 
-    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_GOLD) then
+    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_DIVA) then
        solve_2d = .true.
     else   ! 3D solve
        solve_2d = .false.
@@ -1105,18 +1103,18 @@
        allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
     endif
 
-    if (whichapprox == HO_APPROX_GOLD) then
+    if (whichapprox == HO_APPROX_DIVA) then
        allocate(beta_eff(nx-1,ny-1))
-       allocate(efvs_integral(nx,ny))
-       allocate(efvs_integral_k(nz,nx,ny))
-       allocate(stag_efvs_integral(nx-1,ny-1))
-       allocate(stag_efvs_integral_k(nz,nx-1,ny-1))
+       allocate(omega(nx,ny))
+       allocate(omega_k(nz,nx,ny))
+       allocate(stag_omega(nx-1,ny-1))
+       allocate(stag_omega_k(nz,nx-1,ny-1))
        allocate(efvs_qp_3d(nz-1,nQuadPoints_2d,nx,ny))
        beta_eff(:,:) = 0.d0
-       efvs_integral(:,:) = 0.d0
-       efvs_integral_k(:,:,:) = 0.d0
-       stag_efvs_integral(:,:) = 0.d0
-       stag_efvs_integral_k(:,:,:) = 0.d0
+       omega(:,:) = 0.d0
+       omega_k(:,:,:) = 0.d0
+       stag_omega(:,:) = 0.d0
+       stag_omega_k(:,:,:) = 0.d0
        ! Note: Initializing efvs_qp as efvs is a reasonable guess that allows us to
        !       write efvs to the restart file instead of efvs_qp (which is 4x larger).
        do p = 1, nQuadPoints_2d
@@ -1124,10 +1122,10 @@
        enddo
     endif
 
-    if (whichapprox /= HO_APPROX_GOLD) then
+    if (whichapprox /= HO_APPROX_DIVA) then
        ! Set the 2D velocity to the velocity at the bed
        ! Note: For L1L2 and SSA, this is the 2D velocity solution from the previous solve.
-       !       For Goldberg, the velocity solution from the previous solve is typically the
+       !       For DIVA, the velocity solution from the previous solve is typically the
        !        mean velocity, which cannot be extracted exactly from the 3D velocity field
        !        and must be stored in a separate array.
        uvel_2d(:,:) = uvel(nz,:,:)
@@ -1229,9 +1227,9 @@
     ! initialize
     umask_dirichlet(:,:,:) = .false.   
 
-    if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_GOLD) then
+    if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_DIVA) then
        ! Impose zero sliding everywhere at the bed
-       ! Note: For the Goldberg case, this BC is handled by setting beta_eff = 1/efvs_integral
+       ! Note: For the DIVA case, this BC is handled by setting beta_eff = 1/omega
        !TODO - Allow application of no-slip BC at selected basal nodes instead of all nodes?
        umask_dirichlet(nz,:,:) = .true.    ! u = v = 0 at bed
     endif
@@ -1239,7 +1237,7 @@
     ! Set mask in columns identified in kinbcmask, typically read from file at initialization
     ! Note: We can use the 3D umask_dirichlet with a 2D solver provided there is no vertical
     !       shear in the ice velocity (e.g., the Ross shelf test case).
-    ! TODO: Support Dirichlet condition with vertical shear for L1L2 and Goldberg?
+    ! TODO: Support Dirichlet condition with vertical shear for L1L2 and DIVA?
 
     do j = 1,ny-1
        do i = 1, nx-1
@@ -1844,7 +1842,7 @@
           usav_2d(:,:) = uvel_2d(:,:)
           vsav_2d(:,:) = vvel_2d(:,:)
 
-          if (whichapprox==HO_APPROX_GOLD .and. verbose_gold .and. this_rank==rtest) then
+          if (whichapprox==HO_APPROX_DIVA .and. verbose_diva .and. this_rank==rtest) then
              i = itest
              j = jtest
              print*, ' '
@@ -1853,7 +1851,7 @@
           endif
 
           ! Assemble the matrix
-          !TODO - Different calls for SSA, L1L2 and Goldberg?
+          !TODO - Different calls for SSA, L1L2 and DIVA?
           
           call assemble_stiffness_matrix_2d(nx,               ny,              &
                                             nz,                                &
@@ -1871,78 +1869,72 @@
                                             dusrf_dx,         dusrf_dy,        &
                                             thck,                              &          
                                             btractx,          btracty,         &
-                                            efvs_integral_k,  efvs_integral,   &
+                                            omega_k,          omega,   &
                                             efvs_qp_3d)
 
-          if (whichapprox == HO_APPROX_GOLD) then  ! Goldberg depth-integrated
+          if (whichapprox == HO_APPROX_DIVA) then
 
-             ! Halo update for efvs_integral
+             ! Halo update for omega
              ! This is needed so that beta_eff, computed below, will be correct in halos
 
-             call parallel_halo(efvs_integral)
+             call parallel_halo(omega)
 
              ! Interpolate the appropriate integral
-             if (goldberg_level_index == 0) then   ! solving for 2D mean velocity field
+             if (diva_level_index == 0) then   ! solving for 2D mean velocity field
 
-                ! Interpolate efvs_integral to the staggered grid
-                call glissade_stagger(nx,                  ny,                       &
-                                      efvs_integral(:,:),  stag_efvs_integral(:,:),  &
-                                      ice_mask,            stagger_margin_in = 1)
+                ! Interpolate omega to the staggered grid
+                call glissade_stagger(nx,           ny,                       &
+                                      omega(:,:),   stag_omega(:,:),  &
+                                      ice_mask,     stagger_margin_in = 1)
 
              else  ! solving for the velocity at level k (k = 1 at upper surface)
 
-                k = goldberg_level_index
+                k = diva_level_index
 
-                call parallel_halo(efvs_integral_k(k,:,:))
+                call parallel_halo(omega_k(k,:,:))
 
-                call glissade_stagger(nx,                      ny,                           &
-                                      efvs_integral_k(k,:,:),  stag_efvs_integral(:,:),  &
-                                      ice_mask,                stagger_margin_in = 1)
+                call glissade_stagger(nx,              ny,                           &
+                                      omega_k(k,:,:),  stag_omega(:,:),  &
+                                      ice_mask,        stagger_margin_in = 1)
                 
              endif
                 
-             ! Compute effective beta (Goldberg eq. 40 and 41)
-             !TODO - Modify for case of solving for u_sfc
-
-             !----------------------------------------------------------------------------
-             ! If solving the Goldberg approximation, then multiply beta by a correction factor to account
-             ! for the fact that we are solving for velocity somewhere other than the bed.
+             !-------------------------------------------------------------------
+             ! Compute effective beta based on Goldberg (2011) eq. 40 and 41
              !
              ! If solving for the depth-integrated velocity u_mean:
              !
              !       beta_eff * u_mean = beta * u_b
              !
-             ! where beta_eff = beta / (1 + beta*F2)
-             !             F2 = int_b^z {[(s-z)/H]^2 * 1/efvs * dz}
-             !                = efvs_integral
+             ! where beta_eff = beta / (1 + beta*omega)
+             !          omega = int_b^z {[(s-z)/H]^2 * 1/efvs * dz}
              !   
              ! If solving for the surface velocity u_sfc:
              !
              !       beta_eff * u_sfc = beta * u_b
              !
-             ! where beta_eff = beta / (1 + beta*F1)
-             !             F1 = int_b^z {[(s-z)/H] * 1/efvs * dz}
-             !                = efvs_integral_k for k = 1
+             ! where beta_eff = beta / (1 + beta*omega_1)
+             !        omega_1 = int_b^s {[(s-z)/H] * 1/efvs * dz}
+             !                = omega_k for k = 1
              !
-             ! Sinc
-             ! To implement a no-slip basal BC, set beta_eff = 1/efvs_integral
-             !----------------------------------------------------------------------------
+             ! To implement a no-slip basal BC, set beta_eff = 1/omega
+             !--------------------------------------------------------------------
     
              beta_eff(:,:) = 0.d0
 
-             if (whichbabc==HO_BABC_NO_SLIP) then
-                where (stag_efvs_integral > 0.d0) beta_eff = 1.d0 / stag_efvs_integral
-             else   ! slip allowed at bed; set beta_eff = beta / (1 + beta*efvs_integral)
-                beta_eff(:,:) = beta(:,:) / (1.d0 + beta(:,:)*stag_efvs_integral(:,:))
+             if (whichbabc == HO_BABC_NO_SLIP) then
+                where (stag_omega > 0.d0) beta_eff = 1.d0 / stag_omega
+             else   ! slip allowed at bed
+                beta_eff(:,:) = beta(:,:) / (1.d0 + beta(:,:)*stag_omega(:,:))
              endif
 
-             if (verbose_gold .and. this_rank==rtest) then
+             if (verbose_diva .and. this_rank==rtest) then
                 print*, ' '
-                print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_efvs_integral(i,j), beta_eff(i,j), btractx(i,j)
+                print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_omega(i,j), beta_eff(i,j), btractx(i,j)
                 print*, 'uvel, F2, beta_eff, btracty:', vvel_2d(i,j), btracty(i,j)
              endif
 
-!!             if (verbose_gold .and. this_rank==rtest) then
+!!             if (verbose_diva .and. this_rank==rtest) then
              if (0==1 .and. this_rank==rtest) then
                 i = itest
                 j = jtest
@@ -1980,7 +1972,7 @@
                                    whichassemble_beta,                 &
                                    Auu_2d,            Avv_2d)
 
-          endif    ! whichapprox (SSA, L1L2, Goldberg)
+          endif    ! whichapprox (SSA, L1L2, DIVA)
 
           call t_stopf('glissade_assemble_2d')
 
@@ -1996,15 +1988,15 @@
 
           !---------------------------------------------------------------------------
           ! Incorporate Dirichlet boundary conditions (prescribed uvel and vvel)
-          ! Note: With a no-slip BC, umask_dirichlet(nz,:,:) = .true., except for the Goldberg solver.
-          !       For Goldberg, the no-slip BC is enforced by setting beta_eff = 1/efvs_integral.
+          ! Note: With a no-slip BC, umask_dirichlet(nz,:,:) = .true., except for the DIVA scheme.
+          !       For DIVA, the no-slip BC is enforced by setting beta_eff = 1/omega.
           !---------------------------------------------------------------------------
 
           if (verbose_dirichlet .and. main_task) then
              print*, 'Call Dirichlet_bc'
           endif
 
-          !TODO - Modify Dirichlet BC for Goldberg solver?
+          !TODO - Modify Dirichlet BC for DIVA solver?
 
           call t_startf('glissade_dirichlet_2d')
           call dirichlet_boundary_conditions_2d(nx,              ny,                      &
@@ -2729,7 +2721,7 @@
           call staggered_parallel_halo(vvel_2d)
           call t_stopf('glissade_halo_xvel')
 
-          ! Compute the components of basal traction (Goldberg eq. 38-39)
+          ! Compute the components of basal traction, based on Goldberg (2011) eq. 38-39
           ! These are needed to compute the effective viscosity on the next iteration
 
           if (verbose_velo .and. this_rank==rtest) then
@@ -2741,7 +2733,7 @@
           endif
 
           !TODO - Does this apply to no-slip BC?
-          if (whichapprox == HO_APPROX_GOLD) then
+          if (whichapprox == HO_APPROX_DIVA) then
              btractx(:,:) = beta_eff(:,:) * uvel_2d(:,:)
              btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
           endif
@@ -2849,7 +2841,7 @@
 
     !------------------------------------------------------------------------------
     ! After a 2D solve, fill in the full 3D velocity arrays.
-    ! This is a simple copy for SSA, but required vertical integrals for L1L2 and Goldberg. 
+    ! This is a simple copy for SSA, but required vertical integrals for L1L2 and DIVA. 
     ! Note: We store redundant 3D residual info rather than creating a separate 2D residual array.
     !------------------------------------------------------------------------------
 
@@ -2890,32 +2882,32 @@
        call staggered_parallel_halo(uvel)
        call staggered_parallel_halo(vvel)
 
-    elseif (whichapprox == HO_APPROX_GOLD) then
+    elseif (whichapprox == HO_APPROX_DIVA) then
 
-       if (verbose_gold .and. main_task) print*, 'Compute 3D velocity, Goldberg'
+       if (verbose_diva .and. main_task) print*, 'Compute 3D velocity, DIVA'
 
        do k = 1, nz
           resid_u(k,:,:) = resid_u_2d(:,:)
           resid_v(k,:,:) = resid_v_2d(:,:)
        enddo
 
-       ! Interpolate efvs_integral_k to the staggered grid
+       ! Interpolate omega_k to the staggered grid
 
        do k = 1, nz
-          call glissade_stagger(nx,                      ny,                           &
-                                efvs_integral_k(k,:,:),  stag_efvs_integral_k(k,:,:),  &
-                                ice_mask,                stagger_margin_in = 1)
+          call glissade_stagger(nx,              ny,                           &
+                                omega_k(k,:,:),  stag_omega_k(k,:,:),  &
+                                ice_mask,        stagger_margin_in = 1)
        enddo
 
-       call compute_3d_velocity_goldberg(nx,                   ny,                   &
-                                         nz,                   sigma,                &
-                                         active_vertex,        goldberg_level_index, &
-                                         stag_efvs_integral_k, stag_efvs_integral,   &
-                                         btractx,              btracty,              &
-                                         uvel_2d,              vvel_2d,              &
-                                         uvel,                 vvel)
+       call compute_3d_velocity_diva(nx,              ny,                   &
+                                     nz,              sigma,                &
+                                     active_vertex,   diva_level_index,     &
+                                     stag_omega_k,    stag_omega,           &
+                                     btractx,         btracty,              &
+                                     uvel_2d,         vvel_2d,              &
+                                     uvel,            vvel)
 
-       if (verbose_gold .and. this_rank==rtest) then
+       if (verbose_diva .and. this_rank==rtest) then
           i = itest
           j = jtest
           print*, ' '
@@ -4233,7 +4225,7 @@
                                           dusrf_dx,         dusrf_dy,        &
                                           thck,                              &
                                           btractx,          btracty,         &
-                                          efvs_integral_k,  efvs_integral,   &
+                                          omega_k,          omega,   &
                                           efvs_qp_3d)
   
     !----------------------------------------------------------------
@@ -4299,7 +4291,7 @@
        dusrf_dx,       &  ! upper surface elevation gradient on staggered grid (m/m)
        dusrf_dy           ! needed for L1L2 assembly only
 
-    ! The following optional arguments are used for the Goldberg approximation only
+    ! The following optional arguments are used for DIVA only
 
     real(dp), dimension(nx,ny), intent(in), optional ::   &
        thck               ! ice thickness (m)
@@ -4308,11 +4300,11 @@
        btractx, btracty         ! components of basal traction (Pa)
 
     real(dp), dimension(nz,nx,ny), intent(out), optional :: &
-       efvs_integral_k    ! single integral, defined by Goldberg eq. 32
+       omega_k            ! single integral, defined by Goldberg (2011) eq. 32
 
     real(dp), dimension(nx,ny), intent(out), optional :: &
-       efvs_integral      ! double integral, defined by Goldberg eq. 35
-                          ! Note: efvs_integral = omega/H
+       omega              ! double integral, defined by Goldberg (2011) eq. 35
+                          ! Note: omega here = Goldberg's omega/H
 
     real(dp), dimension(nz-1,nQuadPoints_2d,nx,ny), intent(inout), optional ::  &
        efvs_qp_3d         ! effective viscosity (Pa yr)
@@ -4359,7 +4351,7 @@
        u, v,            & ! depth-integrated mean velocity at vertices (m/yr)
        h,               & ! thickness at vertices (m)
        s,               & ! upper surface elevation at vertices (m)
-       bx, by,          & ! basal traction at vertices (Pa) (Goldberg only)
+       bx, by,          & ! basal traction at vertices (Pa) (DIVA only)
        dsdx, dsdy         ! upper surface elevation gradient at vertices (m/m) (L1L2 only)
 
     real(dp), dimension(nQuadPoints_2d) ::    &
@@ -4420,7 +4412,7 @@
           Kvv(:,:) = 0.d0
   
           ! Compute spatial coordinates, velocity, thickness and surface elevation for each vertex
-          ! Also compute surface elevation gradient (for L1L2) and basal traction (for Goldberg)
+          ! Also compute surface elevation gradient (for L1L2) and basal traction (for DIVA)
           do n = 1, nNodesPerElement_2d
 
              ! Determine (i,j) for this vertex
@@ -4439,7 +4431,7 @@
                 dsdx(n) = dusrf_dx(iVertex,jVertex)
                 dsdy(n) = dusrf_dy(iVertex,jVertex)
              endif
-             if (present(btractx) .and. present(btracty)) then  ! Goldberg
+             if (present(btractx) .and. present(btracty)) then    ! DIVA
                 bx(n) = btractx(iVertex,jVertex)
                 by(n) = btracty(iVertex,jVertex)
              endif
@@ -4488,22 +4480,22 @@
                    efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p) * (sigma(k+1) - sigma(k))
                 enddo
 
-             elseif (whichapprox == HO_APPROX_GOLD) then
+             elseif (whichapprox == HO_APPROX_DIVA) then
 
                 !WHL - Copy efvs_qp from global array to column array
                 efvs_qp(:,:) = efvs_qp_3d(:,:,i,j)
 
                 ! Compute effective viscosity for each layer at this quadrature point
-                call compute_effective_viscosity_goldberg(whichefvs,            efvs_constant,     &
-                                                          nz,                   stagsigma,         &
-                                                          nNodesPerElement_2d,  phi_2d(:,p),       &
-                                                          dphi_dx_2d(:),        dphi_dy_2d(:),     &
-                                                          u(:),                 v(:),              & 
-                                                          bx(:),                by(:),             &
-                                                          h(:),                                    &
-                                                          flwa(:,i,j),          flwafact(:,i,j),   &
-                                                          efvs_qp(:,p),                            &
-                                                          i, j, p)
+                call compute_effective_viscosity_diva(whichefvs,            efvs_constant,     &
+                                                      nz,                   stagsigma,         &
+                                                      nNodesPerElement_2d,  phi_2d(:,p),       &
+                                                      dphi_dx_2d(:),        dphi_dy_2d(:),     &
+                                                      u(:),                 v(:),              & 
+                                                      bx(:),                by(:),             &
+                                                      h(:),                                    &
+                                                      flwa(:,i,j),          flwafact(:,i,j),   &
+                                                      efvs_qp(:,p),                            &
+                                                      i, j, p)
 
                 !WHL - Copy local efvs_qp to the global array
                 efvs_qp_3d(:,:,i,j) = efvs_qp(:,:)
@@ -4550,18 +4542,18 @@
 
           enddo   ! nQuadPoints_2d
 
-          if (whichapprox == HO_APPROX_GOLD) then
+          if (whichapprox == HO_APPROX_DIVA) then
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
-             call compute_integrals_goldberg(nz,                     sigma,              &
-                                             thck(i,j),              efvs_qp(:,:),  &
-                                             efvs_integral_k(:,i,j), efvs_integral(i,j), &
-                                             i, j)
+             call compute_integrals_diva(nz,               sigma,              &
+                                         thck(i,j),        efvs_qp(:,:),  &
+                                         omega_k(:,i,j),   omega(i,j), &
+                                         i, j)
 
-          endif   ! Goldberg approximation
+          endif
 
           ! Compute average of effective viscosity over quad points
-          ! For L1L2 and Goldberg there is a different efvs in each layer.
+          ! For L1L2 and DIVA there is a different efvs in each layer.
           ! For SSA, simply write the vertical average value to each layer.
 
           efvs(:,i,j) = 0.d0
@@ -4606,12 +4598,12 @@
 
 ! For now, passing in i and j for debugging
 
-  subroutine compute_integrals_goldberg(nz,              sigma,         & 
-                                        thck,            efvs_qp,       &
-                                        efvs_integral_k, efvs_integral, i, j)
+  subroutine compute_integrals_diva(nz,        sigma,         & 
+                                    thck,      efvs_qp,       &
+                                    omega_k,   omega,   i, j)
 
     !----------------------------------------------------------------
-    ! Compute some integrals used by the Goldberg solver to relate velocities
+    ! Compute some integrals used by the DIVA solver to relate velocities
     ! in different parts of the column:
     !
     !    F1(z) = int_b^z {[(s-z)/H] * 1/efvs * dz}
@@ -4641,11 +4633,11 @@
        efvs_qp            ! effective viscosity (Pa yr) at each quad point in each layer
 
     real(dp), dimension(nz), intent(out) :: &
-       efvs_integral_k    ! single integral, defined by Goldberg eq. 32
+       omega_k            ! single integral, defined by Goldberg (2011) eq. 32
 
     real(dp), intent(out) :: &
-       efvs_integral      ! double integral, defined by Goldberg eq. 35
-                          ! Note: efvs_integral = omega/H
+       omega              ! double integral, defined by Goldberg (2011) eq. 35
+                          ! Note: omega here = Goldberg's omega/H
 
     integer, intent(in) :: i, j   ! temporary, for debugging
 
@@ -4656,7 +4648,7 @@
     integer :: k, p
 
     real(dp), dimension(nz,nQuadPoints_2d) :: &
-       efvs_integral_kp   ! efvs_integral_k in a column associated with a quad point
+       omega_kp   ! omega_k in a column associated with a quad point
 
     real(dp) :: &
        layer_avg, dz, depth
@@ -4664,86 +4656,87 @@
     !WHL - debug
     real(dp), dimension(nz) :: fact_k
 
-    efvs_integral_k(:) = 0.d0
-    efvs_integral = 0.d0
+    omega_k(:) = 0.d0
+    omega = 0.d0
 
-    ! Compute efvs_integral_k in the vertical column at each quad point
+    ! Compute omega_k in the vertical column at each quad point
     do p = 1, nQuadPoints_2d
-       efvs_integral_kp(nz,p) = 0.d0
+       omega_kp(nz,p) = 0.d0
        do k = nz-1, 1, -1
 !!          depth = 0.5d0*(sigma(k)+sigma(k+1))/thck
           depth = 0.5d0*(sigma(k)+sigma(k+1))   ! depth/thck
           dz = (sigma(k+1)-sigma(k)) * thck
-          efvs_integral_kp(k,p) = efvs_integral_kp(k+1,p) + depth/efvs_qp(k,p) * dz
+          omega_kp(k,p) = omega_kp(k+1,p) + depth/efvs_qp(k,p) * dz
        enddo
     enddo
 
     ! Average from quad points to the cell center
     do k = 1, nz
-       efvs_integral_k(k) = sum(efvs_integral_kp(k,:)) / nQuadPoints_2d
+       omega_k(k) = sum(omega_kp(k,:)) / nQuadPoints_2d
     enddo
 
-    ! Integrate efvs_integral_k in the vertical to obtain efvs_integral
-    efvs_integral = 0.d0
+    ! Integrate omega_k in the vertical to obtain omega
+    omega = 0.d0
     do k = 1, nz-1
-       layer_avg = 0.5d0*(efvs_integral_k(k) + efvs_integral_k(k+1))
+       layer_avg = 0.5d0*(omega_k(k) + omega_k(k+1))
 !!       dz = (sigma(k+1)-sigma(k)) * thck 
        dz = sigma(k+1)-sigma(k)  ! dz/thck
-       efvs_integral = efvs_integral + layer_avg * dz
+       omega = omega + layer_avg * dz
     enddo
              
-    if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+    if (verbose_diva .and. this_rank==rtest .and. i==itest .and. j==jtest) then
        print*, ' '
-       print*, 'Goldberg integrals, i, j =', i, j
+       print*, 'DIVA integrals, i, j =', i, j
        print*, 'k, integral_k:'
        do k = 1, nz
-          print*, k, efvs_integral_k(k)
+          print*, k, omega_k(k)
        enddo
-       print*, 'efvs_integral =', efvs_integral
+       print*, 'omega =', omega
     endif
 
+    !TODO - Test results further with this integral
     !Note - The following code computes the integral Arthern-style.
-    !       The resulting efvs_integral can vary by ~50%, but code answers change little.
+    !       The resulting omega can vary by ~50%, but code answers change little.
 
     do p = 1, nQuadPoints_2d
-       efvs_integral_kp(nz,p) = 0.d0
+       omega_kp(nz,p) = 0.d0
        do k = 1, nz-1
           depth = 0.5d0*(sigma(k)+sigma(k+1))   ! depth/thck
           dz = (sigma(k+1)-sigma(k)) * thck
-          efvs_integral_kp(k,p) = efvs_integral_kp(k+1,p) + depth**2/efvs_qp(k,p) * dz
+          omega_kp(k,p) = omega_kp(k+1,p) + depth**2/efvs_qp(k,p) * dz
        enddo
     enddo
 
     ! Average from quad points to the cell center
     do k = 1, nz
-       fact_k(k) = sum(efvs_integral_kp(k,:)) / nQuadPoints_2d
+       fact_k(k) = sum(omega_kp(k,:)) / nQuadPoints_2d
     enddo
-!!    efvs_integral = fact_k(1)  ! Uncomment to use Arthern value of efvs_integral
+!!    omega = fact_k(1)  ! Uncomment to use Arthern value of omega
     
-!    if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+!    if (verbose_diva .and. this_rank==rtest .and. i==itest .and. j==jtest) then
 !       print*, ' '
 !       print*, 'Arthern integrals, i, j =', i, j
 !       print*, 'k, fact_k:'
 !       do k = 1, nz
 !          print*, k, fact_k(k)
 !       enddo
-!       print*, 'efvs_integral =', efvs_integral
+!       print*, 'omega =', omega
 !    endif
 
-  end subroutine compute_integrals_goldberg
+  end subroutine compute_integrals_diva
 
 !****************************************************************************
 
-  subroutine compute_3d_velocity_goldberg(nx,                   ny,                   &
-                                          nz,                   sigma,                &
-                                          active_vertex,        goldberg_level_index, &  
-                                          stag_efvs_integral_k, stag_efvs_integral,   &
-                                          btractx,              btracty,              &
-                                          uvel_2d,              vvel_2d,              &
-                                          uvel,                 vvel)
-
+  subroutine compute_3d_velocity_diva(nx,               ny,                 &
+                                      nz,               sigma,              &
+                                      active_vertex,    diva_level_index,   &  
+                                      stag_omega_k,     stag_omega,         &
+                                      btractx,          btracty,            &
+                                      uvel_2d,          vvel_2d,            &
+                                      uvel,             vvel)
+    
     !----------------------------------------------------------------
-    ! Compute the 3D velocity field for the Goldberg approximation,
+    ! Compute the 3D velocity field for the DIVA scheme,
     ! given the 2D velocity solution and the 3D effective viscosity.
     !----------------------------------------------------------------
 
@@ -4762,19 +4755,19 @@
        active_vertex      ! true for vertices of active cells
 
     integer, intent(in) ::   &
-       goldberg_level_index   ! level for which the Goldberg scheme finds the 2D velocity
-                              ! 0 = mean, 1 = upper surface
+       diva_level_index   ! level for which the DIVA scheme finds the 2D velocity
+                          ! 0 = mean, 1 = upper surface
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
-       stag_efvs_integral_k    ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
-                               ! interpolated to staggered grid
+       stag_omega_k       ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
+                          ! interpolated to staggered grid
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stag_efvs_integral,    &! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
-                               ! interpolated to staggered grid
-                               ! Note: efvs_integral = omega/H
-       btractx, btracty,      &! components of basal traction (Pa)
-       uvel_2d, vvel_2d        ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
+       stag_omega,       &! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
+                          ! interpolated to staggered grid
+                          ! Note: omega here = Goldberg's omega/H
+       btractx, btracty, &! components of basal traction (Pa)
+       uvel_2d, vvel_2d   ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
                             
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        uvel, vvel         ! 3D velocity components (m/yr)
@@ -4785,16 +4778,16 @@
 
     real(dp), dimension(nx-1,ny-1) ::  &
          stag_integral         ! integral that relates bed velocity to uvel_2d/vvel_2d
-                               ! = stag_efvs_integral for goldberg_level_index = 0
-                               ! = stag_efvs_integral_k(k,:,:) for other values of goldberg_level_index
+                               ! = stag_omega for diva_level_index = 0
+                               ! = stag_omega_k(k,:,:) for other values of diva_level_index
 
     ! Identify the appropriate integral for relating uvel_2d/vvel_2d to the bed velocity
 
-    if (goldberg_level_index == 0) then  ! solved for mean velocity
-       stag_integral(:,:) = stag_efvs_integral(:,:)
+    if (diva_level_index == 0) then  ! solved for mean velocity
+       stag_integral(:,:) = stag_omega(:,:)
     else
-       k = goldberg_level_index
-       stag_integral(:,:) = stag_efvs_integral_k(k,:,:)
+       k = diva_level_index
+       stag_integral(:,:) = stag_omega_k(k,:,:)
     endif
 
     !----------------------------------------------------------------
@@ -4811,17 +4804,17 @@
          
              ! vertical velocity profile (Goldberg eq. 32)
              do k = 1, nz-1
-                uvel(k,i,j) = uvel(nz,i,j) + btractx(i,j)*stag_efvs_integral_k(k,i,j)
-                vvel(k,i,j) = vvel(nz,i,j) + btracty(i,j)*stag_efvs_integral_k(k,i,j)
+                uvel(k,i,j) = uvel(nz,i,j) + btractx(i,j)*stag_omega_k(k,i,j)
+                vvel(k,i,j) = vvel(nz,i,j) + btracty(i,j)*stag_omega_k(k,i,j)
              enddo
 
-             if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+             if (verbose_diva .and. this_rank==rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'i, j =', i, j
-                print*, 'stag_efvs_integral =', stag_efvs_integral(i,j)
-                print*, 'k, stag_efvs_integal_k, uvel, vvel:'
+                print*, 'stag_omega =', stag_omega(i,j)
+                print*, 'k, stag_omega_k, uvel, vvel:'
                 do k = 1, nz
-                   print*, k, stag_efvs_integral_k(k,i,j), uvel(k,i,j), vvel(k,i,j)
+                   print*, k, stag_omega_k(k,i,j), uvel(k,i,j), vvel(k,i,j)
                 enddo
              endif
 
@@ -4829,7 +4822,7 @@
        enddo      ! i
     enddo         ! j
 
-    if (verbose_gold .and. this_rank==rtest) then
+    if (verbose_diva .and. this_rank==rtest) then
        print*, ' '
        print*, 'Computed 3D velocities'
        i = itest
@@ -4842,7 +4835,7 @@
        enddo
     endif
        
-  end subroutine compute_3d_velocity_goldberg
+  end subroutine compute_3d_velocity_diva
 
 !****************************************************************************
 
@@ -6155,8 +6148,9 @@
                                            ! GLAM uses 1.d-20 s^{-1} for minimum effective strain rate
        effstrain_min = 1.d-8,     &! minimum value of effective strain rate, yr^{-1}
                                    ! Mauro Perego suggests 1.d-8 yr^{-1}
-       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp),         &! exponent (1-n)/n in effective viscosity relation
-       p2_effstr = 0.5d0 * (1.d0 - real(gn,dp))/real(gn,dp)   ! exponent (1-n)/(2n) in effective viscosity relation
+       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp),  &! exponent (1-n)/n in effective viscosity relation
+       p2_effstr = p_effstr/2                          ! exponent (1-n)/(2n) in effective viscosity relation
+
                                                                
     !----------------------------------------------------------------
     ! Local variables
@@ -6520,17 +6514,17 @@
 
 !****************************************************************************
 
-  subroutine compute_effective_viscosity_goldberg(whichefvs,        efvs_constant,      &
-                                                  nz,               stagsigma,          &
-                                                  nNodesPerElement, phi,                &
-                                                  dphi_dx,          dphi_dy,            &
-                                                  uvel,             vvel,               &
-                                                  btractx,          btracty,            &
-                                                  stagthck,                             &
-                                                  flwa,             flwafact,           &
-                                                  efvs,                                 &
-                                                  i, j, p )
-
+  subroutine compute_effective_viscosity_diva(whichefvs,        efvs_constant,      &
+                                              nz,               stagsigma,          &
+                                              nNodesPerElement, phi,                &
+                                              dphi_dx,          dphi_dy,            &
+                                              uvel,             vvel,               &
+                                              btractx,          btracty,            &
+                                              stagthck,                             &
+                                              flwa,             flwafact,           &
+                                              efvs,                                 &
+                                              i, j, p )
+    
     ! Compute the effective viscosity at each layer of an ice column corresponding
     !  to a particular quadrature point, based on the depth-integrated formulation.
     ! See Goldberg(2011) for details.
@@ -6587,7 +6581,8 @@
                                            ! GLAM uses 1.d-20 s^{-1} for minimum effective strain rate
        effstrain_min = 1.d-8,     &! minimum value of effective strain rate (yr^{-1})
                                    ! Mauro Perego suggests 1.d-8 yr^{-1}
-       p_effstr = (1.d0 - real(gn,dp)) / real(gn,dp)    ! exponent (1-n)/n in effective viscosity relation
+       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp), &! exponent (1-n)/n in effective viscosity relation
+       p2_effstr = p_effstr/2                         ! exponent (1-n)/(2n) in effective viscosity relation
                                                                
     !----------------------------------------------------------------
     ! Local variables
@@ -6605,11 +6600,12 @@
     real(dp) :: facta, factb, a, b, c, rootA, rootB   ! terms in cubic equation
 
     integer :: n, k
-
-    !WHL - Alternate computation
     real(dp) :: du_dz, dv_dz
+
+    !WHL - For ISMIP-HOM, the cubic solve is not robust.  It leads to oscillations
+    !      in successive iterations between uvel_2d/vvel_2d and btractx/btracty
+    !TODO - Remove the cubic solve for efvs, unless we find a way to make it robust?
     logical, parameter :: cubic = .false.
-!!    logical, parameter :: cubic = .true.
 
     select case(whichefvs)
 
@@ -6704,38 +6700,13 @@
        !       a = [(tau_x^2 + tau_y^2)*(s-z)^2 / (4*H^2*effstrainsq) >= 0
        !       b = -1/(8*A*effstrainsq) < 0
        !
-       ! If (b^2)/4 + (a^3)/27 > 0, then there is one real root A + B, where
-       ! 
-       !     A = [-b/2 + sqrt((b^2)/4 + (a^3)/27)]^(1/3)
-       !     B = -[b/2 + sqrt((b^2)/4 + (a^3)/27)]^(1/3)
-       !  
-       ! There is also a pair of complex conjugate roots that are not of interest here.
+       ! See comments in compute_effective_viscosity_L1L2 for more details on the cubic solve.
        !
-       ! Note: If a^3/27 << b^2/4 (as can happen if the basal shear stress is small), then the
-       !       bracketed term in B is given to a good approximation by 
+       ! NOTE: This scheme does not reliably converge.
        !
-       !       b/2 + (|b|/2)*(1 + 2a^3/(27b^2)) = a^3 / (27|b|).
-       !
-       ! Hence B = -a / (3 * |b|^(1/3)).
-       !
-       ! We use the alternate expression for B when a^3/27 < 1.d-6 * b^2/4,
-       !  so as to avoid roundoff error from subtracting two large numbers of nearly
-       !  the same size. 
-       !---------------------------------------------------------------------------
-       !
-       ! Note: The scheme above does not reliably converge.
        !       The problem is that taux and tauy are proportional to beta_eff, which is
        !        a function of the old viscosity.  Mixing the old and new viscosity in the
        !        expression for vertical shear can lead to oscillations.
-       !
-       ! Next try:
-       !       u_z = tau_x*(s-z) / (H*efvs)
-       !       v_z = tau_y*(s-z) / (H*efvs)
-       !
-       !       where efvs is the old viscosity.  This requires saving efvs at QPs.
-       !
-       ! Question: In tau_x = beta_eff*u, should we use old u or new u?
-       !
        !---------------------------------------------------------------------------
 
        facta = (taux**2 + tauy**2) / (4.d0 * thck**2 * effstrainsq)
@@ -6770,32 +6741,22 @@
     else  ! solve for efvs, using the old value of efvs to estimate the vertical strain rates
 
        do k = 1, nz-1   ! loop over layers
-          !TODO - Initialize efvs somewhere above?
           if (efvs(k)==0.d0) then
-             efvs(k) = flwafact(k) * effstrain_min**p_effstr
+             efvs(k) = flwafact(k) * effstrain_min**p_effstr  ! efvs associated with minimum strain rate
           endif
-          du_dz = taux * stagsigma(k) / efvs(k)   ! old value of efvs
+          du_dz = taux * stagsigma(k) / efvs(k)   ! old value of efvs on RHS
           dv_dz = tauy * stagsigma(k) / efvs(k)
           effstrainsq = effstrain_min**2          &
                       + du_dx**2 + dv_dy**2 + du_dx*dv_dy + 0.25d0*(dv_dx + du_dy)**2  &
                       + 0.25d0 * (du_dz**2 + dv_dz**2)
-          efvs(k) = flwafact(k) * effstrainsq**(-1.d0/3.d0)  !TODO - Replace with p2_effstr
+          efvs(k) = flwafact(k) * effstrainsq**p2_effstr
        enddo
-
-!       if (verbose_gold .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
-!          print*, ' '
-!          print*, 'efvs solve, i, j, p =', i, j, p
-!          print*, 'k, efvs:'
-!          do k = 1, nz-1
-!             print*, k, efvs(k)
-!          enddo
-!       endif
 
     endif   ! cubic
 
     end select
 
-  end subroutine compute_effective_viscosity_goldberg
+  end subroutine compute_effective_viscosity_diva
 
 !****************************************************************************
 
@@ -7082,7 +7043,7 @@
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::    &
        beta                          ! basal traction field (Pa/(m/yr)) at cell vertices
-                                     ! = beta_eff for Goldberg approximation
+                                     ! = beta_eff for DIVA
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices

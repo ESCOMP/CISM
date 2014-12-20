@@ -770,12 +770,12 @@ contains
          'Trilinos interface                         '/)
 
     character(len=*), dimension(-1:4), parameter :: ho_whichapprox = (/ &
-         'SIA only (glissade_velo_sia)                    ', &
-         'SIA only (glissade_velo_higher)                 ', &
-         'SSA only (glissade_velo_higher)                 ', &
-         'Blatter-Pattyn HO (glissade_velo_higher)        ', &
-         'Depth-integrated L1L2 (glissade_velo_higher)    ', &
-         'Depth-integrated Goldberg (glissade_velo_higher)' /)
+         'SIA only (glissade_velo_sia)                     ', &
+         'SIA only (glissade_velo_higher)                  ', &
+         'SSA only (glissade_velo_higher)                  ', &
+         'Blatter-Pattyn HO (glissade_velo_higher)         ', &
+         'Depth-integrated L1L2 (glissade_velo_higher)     ', &
+         'Depth-integrated viscosity (glissade_velo_higher)' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichprecond = (/ &
          'No preconditioner (glissade PCG)        ', &
@@ -874,7 +874,7 @@ contains
     if (model%options%whichdycore == DYCORE_GLISSADE) then 
        if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
              model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-             model%options%which_ho_approx == HO_APPROX_GOLD)   &
+             model%options%which_ho_approx == HO_APPROX_DIVA)   &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
@@ -903,7 +903,7 @@ contains
            model%options%which_ho_approx == HO_APPROX_SIA       .or.   &
            model%options%which_ho_approx == HO_APPROX_SSA       .or.   &
            model%options%which_ho_approx == HO_APPROX_L1L2      .or.   &
-           model%options%which_ho_approx == HO_APPROX_GOLD) then 
+           model%options%which_ho_approx == HO_APPROX_DIVA) then 
           call write_log('Error, Glam dycore must use Blatter-Pattyn approximation', GM_FATAL)
        endif
     endif
@@ -1703,9 +1703,9 @@ contains
 
         ! Glissade approximation options
         select case (options%which_ho_approx)
-        case (HO_APPROX_GOLD)  !TODO - Change name of Goldberg approx?
+        case (HO_APPROX_DIVA)
            ! This approximation also needs the 2D velocity, basal traction and effective viscosity
-           ! Note: The 2D velocity is needed if the Goldberg scheme solves for the mean velocity.
+           ! Note: The 2D velocity is needed if the DIVA scheme solves for the mean velocity.
            !       If solving for the velocity at a specific level (e.g., the surface), the
            !       2D velocity could be initialized from the 3D velocity.
            call glide_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs')

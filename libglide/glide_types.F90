@@ -198,7 +198,7 @@ module glide_types
   integer, parameter :: HO_APPROX_SSA = 1
   integer, parameter :: HO_APPROX_BP = 2
   integer, parameter :: HO_APPROX_L1L2 = 3
-  integer, parameter :: HO_APPROX_GOLD = 4
+  integer, parameter :: HO_APPROX_DIVA = 4
 
   integer, parameter :: HO_PRECOND_NONE = 0
   integer, parameter :: HO_PRECOND_DIAG = 1
@@ -503,12 +503,12 @@ module glide_types
     !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
     !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
     !> \begin{description}
-    !> \item[-1] Shallow-ice approximation, Glide-type calculation (uses glissade_velo_sia)
-    !> \item[0]  Shallow-ice approximation, vertical-shear stresses only (uses glissade_velo_higher)
-    !> \item[1]  Shallow-shelf approximation, horizontal-plane stresses only (uses glissade_velo_higher)
-    !> \item[2]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses (uses glissade_velo_higher)
-    !> \item[3]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses (uses glissade_velo_higher)
-    !> \item[4]  Depth-integrated Goldberg (2011) approximation
+    !> \item[-1] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
+    !> \item[0]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
+    !> \item[1]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
+    !> \item[2]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[3]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[4]  Depth-integrated viscosity approximation based on Goldberg (2011); uses glissade_velo_higher 
     !> \end{description}
 
     integer :: which_ho_precond = 2    
