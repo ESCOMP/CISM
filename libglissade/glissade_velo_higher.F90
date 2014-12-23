@@ -771,12 +771,11 @@
     !--------------------------------------------------------
 
     real(dp), dimension(nx-1,ny-1) :: &
-       xVertex, yVertex       ! x and y coordinates of each vertex (m)
-
-    real(dp), dimension(nx-1,ny-1) ::   &
+       xVertex, yVertex,    & ! x and y coordinates of each vertex (m)
        stagusrf,            & ! upper surface averaged to vertices (m)
        stagthck,            & ! ice thickness averaged to vertices (m)
-       dusrf_dx, dusrf_dy     ! gradient of upper surface elevation (m/m)
+       dusrf_dx, dusrf_dy,  & ! gradient of upper surface elevation (m/m)
+       ubas, vbas             ! basal ice velocity (m/yr); input to calcbeta 
 
     integer, dimension(nx,ny) ::     &
        ice_mask,             &! = 1 for cells where ice is present (thk > thklim), else = 0
@@ -876,11 +875,10 @@
        matrix_order,    & ! order of matrix = number of rows
        max_nonzeros       ! upper bound for number of nonzero entries in sparse matrix
 
-    ! The following arrays are used for a 2D matrix solve 
-    ! (which_ho_approx = HO_APPROX_SSA or HO_APPROX_L1L2)
+    ! The following arrays are used for a 2D matrix solve (SSA, L1L2 or DIVA)
 
     logical ::  &
-       solve_2d           ! if true, solve a 2D matrix (SSA, L1L2, DIVA)
+       solve_2d           ! if true, solve a 2D matrix)
                           ! else solve a 3D matrix (SIA, BP)
 
     integer ::            &
@@ -1234,19 +1232,26 @@
        umask_dirichlet(nz,:,:) = .true.    ! u = v = 0 at bed
     endif
        
-    ! Set mask in columns identified in kinbcmask, typically read from file at initialization
-    ! Note: We can use the 3D umask_dirichlet with a 2D solver provided there is no vertical
-    !       shear in the ice velocity (e.g., the Ross shelf test case).
+    ! Set mask in columns identified in kinbcmask, typically read from file at initialization.
+    ! For a 2D solve, initialize uvel_2d and vvel_2d at Dirichlet points to the bed velocity.
+    ! Note: Assuming there is no vertical shear at these points, the bed velocity is the same
+    !       as the velocity throughout the column.  This allows us to use the 3D umask_dirichlet
+    !       with a 2D solver.
+    !
     ! TODO: Support Dirichlet condition with vertical shear for L1L2 and DIVA?
 
-    do j = 1,ny-1
+    do j = 1, ny-1
        do i = 1, nx-1
           if (kinbcmask(i,j) == 1) then
              umask_dirichlet(:,i,j) = .true.
+             if (solve_2d) then
+                uvel_2d(i,j) = uvel(nz,i,j)
+                vvel_2d(i,j) = vvel(nz,i,j)
+             endif
           endif
        enddo
     enddo
-       
+
     if (verbose_dirichlet .and. this_rank==rtest) then
        print*, ' '
        print*, 'umask_dirichlet, k = 1 and nz, j =', jtest
@@ -1784,18 +1789,24 @@
        !       the value of model%options%which_ho_babc.
        ! Note: The units of the input arguments in calcbeta are assumed to be the
        !       same as the Glissade units.
+       ! Note: The basal velocity is a required input to calcbeta.  
+       !       DIVA does not compute the basal velocity in the 2D matrix solve, 
+       !       but computes the 3D velocity after each iteration so that
+       !       uvel/vvel(nz,:,:) are available here.
        !-------------------------------------------------------------------
 
-       ! For 3D solve, copy basal velocity into uvel_2d and vvel_2d
-       if (.not. solve_2d) then
-          uvel_2d(:,:) = uvel(nz,:,:)
-          vvel_2d(:,:) = vvel(nz,:,:)
+       if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then
+          ubas(:,:) = uvel_2d(:,:)
+          vbas(:,:) = vvel_2d(:,:)
+       else  ! 3D solve or DIVA
+          ubas(:,:) = uvel(nz,:,:)
+          vbas(:,:) = vvel(nz,:,:)
        endif
 
        call calcbeta (whichbabc,                        &
                       dx,            dy,                &
                       nx,            ny,                &
-                      uvel_2d,       vvel_2d,           &
+                      ubas,          vbas,              &
                       bwat,          ho_beta_const,     &
                       mintauf,                          &
                       model%basal_physics,              &
@@ -1813,6 +1824,18 @@
        endif
 
        if (verbose_beta .and. main_task) then
+
+          if (whichbabc==HO_BABC_YIELD_PICARD) then
+             print*, ' '
+             print*, 'mintauf field, rank =', rtest
+             do j = ny-1, 1, -1
+                do i = 1, nx-1
+                   write(6,'(e10.3)',advance='no') mintauf(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
           print*, ' '
           print*, 'beta field, rank =', rtest
           do j = ny-1, 1, -1
@@ -1930,7 +1953,7 @@
              if (verbose_diva .and. this_rank==rtest) then
                 print*, ' '
                 print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_omega(i,j), beta_eff(i,j), btractx(i,j)
-                print*, 'uvel, F2, beta_eff, btracty:', vvel_2d(i,j), btracty(i,j)
+                print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
              endif
 
 !!             if (verbose_diva .and. this_rank==rtest) then
@@ -1994,8 +2017,6 @@
           if (verbose_dirichlet .and. main_task) then
              print*, 'Call Dirichlet_bc'
           endif
-
-          !TODO - Modify Dirichlet BC for DIVA solver?
 
           call t_startf('glissade_dirichlet_2d')
           call dirichlet_boundary_conditions_2d(nx,              ny,                      &
@@ -2725,21 +2746,12 @@
           call staggered_parallel_halo(vvel_2d)
           call t_stopf('glissade_halo_xvel')
 
-          ! Compute the components of basal traction, based on Goldberg (2011) eq. 38-39
-          ! These are needed to compute the effective viscosity on the next iteration
-
           if (verbose_velo .and. this_rank==rtest) then
              i = itest
              j = jtest
              print*, ' '
              print*, 'rank, i, j, uvel_2d, vvel_2d (m/yr):', &
                       this_rank, i, j, uvel_2d(i,j), vvel_2d(i,j)               
-          endif
-
-          !TODO - Does this apply to no-slip BC?
-          if (whichapprox == HO_APPROX_DIVA) then
-             btractx(:,:) = beta_eff(:,:) * uvel_2d(:,:)
-             btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
           endif
 
           !---------------------------------------------------------------------------
@@ -2791,6 +2803,46 @@
 
        !WHL - debug
        if (main_task) print*, 'Solved the linear system, niters, err =', niters, err
+
+       !---------------------------------------------------------------------------
+       ! Some calculations specific to the DIVA scheme
+       !---------------------------------------------------------------------------
+
+       if (whichapprox == HO_APPROX_DIVA) then
+
+          ! Compute the components of basal traction, based on Goldberg (2011) eq. 38-39
+          ! These are needed to compute the effective viscosity on the next iteration
+
+          btractx(:,:) = beta_eff(:,:) * uvel_2d(:,:)
+          btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
+
+          ! Interpolate omega_k to the staggered grid
+
+          do k = 1, nz
+             call glissade_stagger(nx,              ny,                           &
+                                   omega_k(k,:,:),  stag_omega_k(k,:,:),  &
+                                   ice_mask,        stagger_margin_in = 1)
+          enddo
+
+          ! Compute the new 3D velocity field
+          ! NOTE: The full velocity field is not needed to update efvs and solve 
+          !       again for uvel_2d and vvel_2D.  However, the basal velocity
+          !       may be needed as an input to calcbeta.  It is possible to
+          !       compute the basal velocity without computing the full column
+          !       velocity, but it is simpler just to compute over the full column.
+
+          call compute_3d_velocity_diva(nx,              ny,                   &
+                                        nz,              sigma,                &
+                                        active_vertex,   diva_level_index,     &
+                                        stag_omega_k,    stag_omega,           &
+                                        btractx,         btracty,              &
+                                        uvel_2d,         vvel_2d,              &
+                                        uvel,            vvel)
+
+          call staggered_parallel_halo(uvel)
+          call staggered_parallel_halo(vvel)
+
+       endif   ! DIVA
 
        !---------------------------------------------------------------------------
        ! Write diagnostics (iteration number, max residual, and residual target
@@ -2888,48 +2940,39 @@
 
     elseif (whichapprox == HO_APPROX_DIVA) then
 
-       if (verbose_diva .and. main_task) print*, 'Compute 3D velocity, DIVA'
-
        do k = 1, nz
           resid_u(k,:,:) = resid_u_2d(:,:)
           resid_v(k,:,:) = resid_v_2d(:,:)
        enddo
 
-       ! Interpolate omega_k to the staggered grid
+       !WHL - Commented out because the 3D velocity is now computed after each iteration.
 
-       do k = 1, nz
-          call glissade_stagger(nx,              ny,                           &
-                                omega_k(k,:,:),  stag_omega_k(k,:,:),  &
-                                ice_mask,        stagger_margin_in = 1)
-       enddo
+!       ! Interpolate omega_k to the staggered grid
 
-       call compute_3d_velocity_diva(nx,              ny,                   &
-                                     nz,              sigma,                &
-                                     active_vertex,   diva_level_index,     &
-                                     stag_omega_k,    stag_omega,           &
-                                     btractx,         btracty,              &
-                                     uvel_2d,         vvel_2d,              &
-                                     uvel,            vvel)
+!       do k = 1, nz
+!          call glissade_stagger(nx,              ny,                           &
+!                                omega_k(k,:,:),  stag_omega_k(k,:,:),  &
+!                                ice_mask,        stagger_margin_in = 1)
+!       enddo
+
+!       call compute_3d_velocity_diva(nx,              ny,                   &
+!                                     nz,              sigma,                &
+!                                     active_vertex,   diva_level_index,     &
+!                                     stag_omega_k,    stag_omega,           &
+!                                     btractx,         btracty,              &
+!                                     uvel_2d,         vvel_2d,              &
+!                                     uvel,            vvel)
+
+!       call staggered_parallel_halo(uvel)
+!       call staggered_parallel_halo(vvel)
 
        if (verbose_diva .and. this_rank==rtest) then
+          print*, 'Computed 3D velocity, DIVA'
           i = itest
           j = jtest
           print*, ' '
           print*, 'i, j, beta, beta_eff:', i, j, beta(i,j), beta_eff(i,j)
-!                print*, ' '
-!                print*, 'beta_eff:'
-!                do j = ny-1, 1, -1
-!                   print*, ' '
-!                   print*, 'j =', j
-!                   do i = 1, nx-1
-!                      write(6,'(e10.3)',advance='no') beta_eff(i,j)
-!                   enddo
-!                   write(6,*) ' '
-!                enddo
        endif
-
-       call staggered_parallel_halo(uvel)
-       call staggered_parallel_halo(vvel)
 
     endif   ! whichapprox
 
@@ -2968,6 +3011,7 @@
     btractx(:,:) = beta(:,:) * uvel(nz,:,:)
     btracty(:,:) = beta(:,:) * vvel(nz,:,:)
 
+    ! Debug prints
     if (verbose_velo .and. this_rank==rtest) then
        print*, ' '
        print*, 'uvel, k=1 (m/yr):'
@@ -2999,7 +3043,7 @@
        do k = 1, nz
           print*, k, uvel(k,i,j), vvel(k,i,j)
        enddo
-       print*, 'Mean:', uvel_2d(i,j), vvel_2d(i,j)
+       if (solve_2d) print*, '2D velo:', uvel_2d(i,j), vvel_2d(i,j)
     endif
 
     !------------------------------------------------------------------------------
@@ -4812,31 +4856,20 @@
                 vvel(k,i,j) = vvel(nz,i,j) + btracty(i,j)*stag_omega_k(k,i,j)
              enddo
 
-             if (verbose_diva .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'i, j =', i, j
-                print*, 'stag_omega =', stag_omega(i,j)
-                print*, 'k, stag_omega_k, uvel, vvel:'
-                do k = 1, nz
-                   print*, k, stag_omega_k(k,i,j), uvel(k,i,j), vvel(k,i,j)
-                enddo
-             endif
-
           endif   ! active_vertex
        enddo      ! i
     enddo         ! j
 
     if (verbose_diva .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Computed 3D velocities'
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'i, j =', i, j
-       print*, 'k, new uvel, vvel:'
+       print*, 'Computed 3D velocities, i, j =', i, j
+       print*, 'k, uvel, vvel:'
        do k = 1, nz
           print*, k, uvel(k,i,j), vvel(k,i,j)
        enddo
+       print*, ' '
     endif
        
   end subroutine compute_3d_velocity_diva
