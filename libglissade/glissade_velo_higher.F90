@@ -924,7 +924,7 @@
        stag_omega_k          ! omega_k interpolated to staggered grid
 
     real(dp), dimension(:,:,:,:), allocatable :: &
-       efvs_qp_3d              ! effective viscosity at each QP of each layer of each cell
+       efvs_qp_3d            ! effective viscosity at each QP of each layer of each cell
 
     integer, parameter :: &
        diva_level_index = 0  ! level for which the DIVA scheme finds the 2D velocity
@@ -1115,7 +1115,7 @@
        omega_k(:,:,:) = 0.d0
        stag_omega(:,:) = 0.d0
        stag_omega_k(:,:,:) = 0.d0
-       ! Note: Initializing efvs_qp as efvs is a reasonable guess that allows us to
+       ! Note: Initializing efvs_qp as efvs is a reasonable first guess that allows us to
        !       write efvs to the restart file instead of efvs_qp (which is 4x larger).
        do p = 1, nQuadPoints_2d
           efvs_qp_3d(:,p,:,:) = efvs(:,:,:)
@@ -1248,7 +1248,6 @@
     enddo
        
     if (verbose_dirichlet .and. this_rank==rtest) then
-       
        print*, ' '
        print*, 'umask_dirichlet, k = 1 and nz, j =', jtest
        j = jtest
@@ -2349,13 +2348,18 @@
        ! Solve the 2D or 3D matrix system.
        !---------------------------------------------------------------------------
 
-       ! First handle a possible problem case: 
-       ! Set uvel_2d = vvel_2d = 0 for the case of a Dirichlet no-slip basal BC and a 2D solve.
-       ! (This could be the case if solving a no-slip problem with L1L2.)
+       !---------------------------------------------------------------------------
+       ! First, handle a possible problem case: Set uvel_2d = vvel_2d = 0 for the case 
+       !  of a Dirichlet no-slip basal BC and a 2D L1L2 solve.
+       ! It would be pointless to apply the SSA to a no-slip problem, but this case
+       !  is included for completeness.
+       ! Note: DIVA computes a nonzero 2D velocity with a no-slip BC.
+       !---------------------------------------------------------------------------
 
-       if (whichbabc == HO_BABC_NO_SLIP .and. solve_2d) then
+       if ((whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_SSA) .and. &
+              whichbabc==HO_BABC_NO_SLIP) then
 
-          ! zero out
+          ! zero out velocity and related fields
           uvel_2d(:,:) = 0.d0
           vvel_2d(:,:) = 0.d0
           resid_u_2d(:,:) = 0.d0
@@ -4357,13 +4361,12 @@
     real(dp), dimension(nQuadPoints_2d) ::    &
        efvs_qp_vertavg    ! vertically averaged effective viscosity at a quad pt
 
-    ! these are for L1L2 only
+    real(dp) ::         &
+       h_qp               ! thickness at a quad pt
+
     real(dp), dimension(nz-1,nQuadPoints_2d) ::    &
        efvs_qp            ! effective viscosity at each layer in a cell column
                           ! corresponding to a quad pt
-
-    real(dp) ::         &
-       h_qp               ! thickness at a quad pt
 
     logical, parameter ::   &
        check_symmetry_element = .true.  ! if true, then check symmetry of element matrix
@@ -4482,10 +4485,11 @@
 
              elseif (whichapprox == HO_APPROX_DIVA) then
 
-                !WHL - Copy efvs_qp from global array to column array
+                ! Copy efvs_qp from global array to local column array
                 efvs_qp(:,:) = efvs_qp_3d(:,:,i,j)
 
                 ! Compute effective viscosity for each layer at this quadrature point
+                ! Note: efvs_qp_3d is intent(inout); old value is used to compute new value
                 call compute_effective_viscosity_diva(whichefvs,            efvs_constant,     &
                                                       nz,                   stagsigma,         &
                                                       nNodesPerElement_2d,  phi_2d(:,p),       &
@@ -4503,7 +4507,7 @@
                 ! Compute vertical average of effective viscosity
                 efvs_qp_vertavg(p) = 0.d0
                 do k = 1, nz-1
-                   efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p) * (sigma(k+1) - sigma(k))
+                   efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p)*(sigma(k+1) - sigma(k))
                 enddo
 
              else     ! SSA
@@ -4545,9 +4549,9 @@
           if (whichapprox == HO_APPROX_DIVA) then
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
-             call compute_integrals_diva(nz,               sigma,              &
+             call compute_integrals_diva(nz,               sigma,                &
                                          thck(i,j),        efvs_qp(:,:),  &
-                                         omega_k(:,i,j),   omega(i,j), &
+                                         omega_k(:,i,j),   omega(i,j),           &
                                          i, j)
 
           endif
