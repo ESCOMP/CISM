@@ -203,8 +203,8 @@
 !    logical :: verbose_residual = .true.
     logical :: verbose_state = .false.
 !    logical :: verbose_state = .true.
-!    logical :: verbose_velo = .false.
-    logical :: verbose_velo = .true.
+    logical :: verbose_velo = .false.
+!    logical :: verbose_velo = .true.
     logical :: verbose_id = .false.
 !    logical :: verbose_id = .true.
     logical :: verbose_load = .false.
@@ -221,8 +221,8 @@
 !    logical :: verbose_trilinos = .true.
     logical :: verbose_beta = .false.
 !    logical :: verbose_beta = .true.
-!    logical :: verbose_efvs = .false.
-    logical :: verbose_efvs = .true.
+    logical :: verbose_efvs = .false.
+!    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
 !    logical :: verbose_tau = .true.
     logical :: verbose_gridop = .false.
@@ -770,6 +770,9 @@
     ! Local variables
     !--------------------------------------------------------
 
+    real(dp), dimension(nx,ny) :: &
+       f_pattyn               ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
+
     real(dp), dimension(nx-1,ny-1) :: &
        xVertex, yVertex,    & ! x and y coordinates of each vertex (m)
        stagusrf,            & ! upper surface averaged to vertices (m)
@@ -1307,7 +1310,8 @@
     call glissade_grounded_fraction(nx,          ny,           &
                                     thck,        topg,         &
                                     eus,         ice_mask,     &
-                                    whichground, f_ground)
+                                    whichground, f_ground,     &
+                                    f_pattyn)
 
     
     if (verbose_state .and. this_rank==rtest) then
@@ -1388,6 +1392,20 @@
                                        land_mask = land_mask)
 
     endif   ! whichgradient
+
+    !------------------------------------------------------------------------------
+    ! If using a GLP, then correct the surface gradient at vertices adjacent to
+    !  the grounding line (i.e., 0 < f_ground < 1).
+    !------------------------------------------------------------------------------
+    !WHL - debug - pass in itest and jtest for now
+
+    call glissade_gradient_at_grounding_line(nx,               ny,         &
+                                             dx,               dy,         &
+                                             f_pattyn,         f_ground,   &
+                                             ice_mask,         usrf,       &
+!!                                             dusrf_dx,         dusrf_dy)
+                                             dusrf_dx,         dusrf_dy,   &
+                                             itest,            jtest)
 
 !pw call t_stopf('glissade_gradient')
 
@@ -2927,6 +2945,7 @@
                                      nhalo,                             &
                                      ice_mask,         land_mask,       &
                                      active_cell,      active_vertex,   &
+                                     umask_dirichlet(nz,:,:),           &
                                      xVertex,          yVertex,         &
                                      thck,             stagthck,        &
                                      usrf,                              &
@@ -2975,6 +2994,25 @@
        endif
 
     endif   ! whichapprox
+
+    !WHL - debug
+    if (this_rank==rtest) then
+       j = jtest
+       print*, ' '
+       print*, 'j =', jtest
+       print*, 'thck:'
+       write(6,'(11f12.6)') thck(itest-5:itest+5,j)
+       write(6,*) ' '
+       print*, 'stagthck:'
+       write(6,'(i4,11f12.6)') 0, stagthck(itest-5:itest+5,j)
+       write(6,*) ' '
+       print*, 'ds/dx:'
+       write(6,'(i4,11f12.6)') 0, dusrf_dx(itest-5:itest+5,j)
+       print*, 'k, uvel:'
+       do k = 1, nz
+          write(6,'(i4, 11f12.4)') k, uvel(k, itest-5:itest+5,j)
+       enddo
+    endif
 
     !------------------------------------------------------------------------------
     ! Compute the components of the 3D stress tensor.
@@ -4882,6 +4920,7 @@
                                       nhalo,                             &
                                       ice_mask,         land_mask,       &
                                       active_cell,      active_vertex,   &
+                                      umask_dirichlet,                   &
                                       xVertex,          yVertex,         &
                                       thck,             stagthck,        &
                                       usrf,                              &
@@ -4923,6 +4962,9 @@
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex   ! x and y coordinates of vertices
+
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       umask_dirichlet        ! Dirichlet mask for velocity (if true, u = v = 0)
 
     real(dp), dimension(nx,ny), intent(in) ::  &
        thck,             &! ice thickness at cell centers (m)
@@ -5321,8 +5363,14 @@
           do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
 
-             uvel(k,i,j) = uvel(nz,i,j) + (uedge(i,j) + uedge(i,j+1)) / 2.d0
-             vvel(k,i,j) = vvel(nz,i,j) + (vedge(i,j) + vedge(i+1,j)) / 2.d0
+             if (umask_dirichlet(i,j)) then
+                ! Note: Currently do not support Dirichlet BC with depth-varying velocity
+                uvel(k,i,j) = uvel(nz,i,j)
+                vvel(k,i,j) = vvel(nz,i,j)
+             else
+                uvel(k,i,j) = uvel(nz,i,j) + (uedge(i,j) + uedge(i,j+1)) / 2.d0
+                vvel(k,i,j) = vvel(nz,i,j) + (vedge(i,j) + vedge(i+1,j)) / 2.d0
+             endif
 
              if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
                 print*, k, uvel(k,i,j), vvel(k,i,j)
@@ -5340,15 +5388,26 @@
 
                 ! compute velocity components at this level
 
-                tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
+                if (umask_dirichlet(i,j)) then
 
-                ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
-                !       only for gn = 3 (in which case (n-1)/2 = 1).
-                fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
+                   ! Note: Currently do not support Dirichlet BC with depth-varying velocity
+                   uvel(k,i,j) = uvel(nz,i,j)
+                   vvel(k,i,j) = vvel(nz,i,j)
 
-                uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
-                vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
+                else
+                   ! compute velocity components at this level
+
+                   tau_eff_sq = stagtau_parallel_sq(i,j)   &
+                              + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
+
+                   ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
+                   !       only for gn = 3 (in which case (n-1)/2 = 1).
+                   fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
+
+                   uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
+                   vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
+
+                endif
 
                 if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
                    print*, k, uvel(k,i,j), vvel(k,i,j)

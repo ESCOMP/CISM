@@ -774,7 +774,7 @@
           call broadcast(indices_adv(3), proc=procnum)
           ! indices_adv now has i,j on the global grid for the limiting proc's location
 
-          write(dt_string,'(f12.5)') allowable_dt_adv
+          write(dt_string,'(f12.6)') allowable_dt_adv
           write(xpos_string,'(i12)') indices_adv(2)
           write(ypos_string,'(i12)') indices_adv(3)
           write(message,*) 'Advective CFL violation!  Maximum allowable time step for advective CFL condition is ' &
@@ -795,7 +795,7 @@
           call broadcast(indices_diff(2), proc=procnum)
           ! indices_diff now has i,j on the global grid for the limiting proc's location
 
-          write(dt_string,'(f12.5)') allowable_dt_diff
+          write(dt_string,'(f12.6)') allowable_dt_diff
           write(xpos_string,'(i12)') indices_diff(1)
           write(ypos_string,'(i12)') indices_diff(2)
           write(message,*) 'Diffusive CFL violation!  Maximum allowable time step for diffusive CFL condition is ' &

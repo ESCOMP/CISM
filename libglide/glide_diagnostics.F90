@@ -436,7 +436,7 @@ contains
     imax_global = parallel_reduce_max(imax_global)
     jmax_global = parallel_reduce_max(jmax_global)
 
-    write(message,'(a25,f24.16,2i4)') 'Max thickness (m), i, j  ',   &
+    write(message,'(a25,f24.16,2i6)') 'Max thickness (m), i, j  ',   &
                                        max_thck_global*thk0, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -471,7 +471,7 @@ contains
     call broadcast(jmax_global, procnum)
     call broadcast(kmax_global, procnum)
 
-    write(message,'(a25,f24.16,3i4)') 'Max temperature, i, j, k ',   &
+    write(message,'(a25,f24.16,3i6)') 'Max temperature, i, j, k ',   &
                     max_temp_global, imax_global, jmax_global, kmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
  
@@ -503,7 +503,7 @@ contains
     call broadcast(jmin_global, procnum)
     call broadcast(kmin_global, procnum)
 
-    write(message,'(a25,f24.16,3i4)') 'Min temperature, i, j, k ',   &
+    write(message,'(a25,f24.16,3i6)') 'Min temperature, i, j, k ',   &
                     min_temp_global, imin_global, jmin_global, kmin_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -530,7 +530,7 @@ contains
     call broadcast(imax_global, procnum)
     call broadcast(jmax_global, procnum)
 
-    write(message,'(a25,f24.16,2i4)') 'Max sfc spd (m/yr), i, j ',   &
+    write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/yr), i, j ',   &
                     max_spd_sfc_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -556,7 +556,7 @@ contains
     call broadcast(imax_global, procnum)
     call broadcast(jmax_global, procnum)
 
-    write(message,'(a25,f24.16,2i4)') 'Max base spd (m/yr), i, j',   &
+    write(message,'(a25,f24.16,2i6)') 'Max base spd (m/yr), i, j',   &
                     max_spd_bas_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
