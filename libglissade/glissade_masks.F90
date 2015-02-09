@@ -158,8 +158,6 @@
     ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
     !----------------------------------------------------------------
     
-    !TODO: Apply this subroutine in MISMIP test cases
-
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -185,7 +183,7 @@
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
        f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
-                              ! set to -1 where vmask = 0
+                              ! set to special value where vmask = 0
 
     real(dp), dimension(nx,ny), intent(out) :: &
        f_pattyn               ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
@@ -197,10 +195,10 @@
     integer :: i, j
 
     integer, dimension(nx-1,ny-1) ::   &
-       vmask                  ! = 1 for vertices of cells where ice is present (thk > thklim), else = 0
+       vmask              ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
     real(dp), dimension(nx-1,ny-1) :: &
-       stagf_pattyn              ! f_pattyn interpolated to staggered grid
+       stagf_pattyn       ! f_pattyn interpolated to staggered grid
 
     real(dp) :: a, b, c, d       ! coefficients in bilinear interpolation
                                  ! f(x,y) = a + b*x + c*y + d*x*y
@@ -247,45 +245,47 @@
        enddo
     enddo
 
+    ! Compute Pattyn function at cell centers
+    ! Note: f_pattyn <= 1 for grounded ice, f_pattyn > 1 for floating ice
+    !       Setting f_pattyn = 0 for ice-free cells implies that these cells are considered grounded
+
+    do j = 1, ny
+       do i = 1, nx
+          if (ice_mask(i,j) == 1) then
+             f_pattyn(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
+          else
+             f_pattyn(i,j) = 0.d0
+          endif
+       enddo
+    enddo
+
+    ! Interpolate f_pattyn to staggered mesh
+
+    ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
+    ! Will return stagf_pattyn = 0 in ice-free regions
+
+    call glissade_stagger(nx,       ny,             &
+                          f_pattyn, stagf_pattyn,   &
+                          ice_mask, stagger_margin_in = 1)
 
     ! initialize f_ground
-    ! Choose a special non-physical value; this value will be overwritten in all cells with ice
-    !TODO Choose a different special value?
-!    f_ground(:,:) = -1.d0
-    f_ground(:,:) = 9.d0
+    ! Choose a special non-physical value to be overwritten in all cells with ice
+    !TODO: Make sure the special value isn't used in any calculations
+    f_ground(:,:) = -1.d0
+!!    f_ground(:,:) = 9.d0
+
+    ! Compute f_ground according to the value of whichground
 
     select case(whichground)
 
     case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
-                             ! f_ground = 1 if f_pattyn <=1, f_ground = 0 if f_pattyn > 1
-                             ! Note: Ice is considered grounded at the GL.
-
-       ! Compute Pattyn function at cell centers
-
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                f_pattyn(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
-             else
-                f_pattyn(i,j) = 0.d0
-             endif
-          enddo
-       enddo
-
-       ! Interpolate to staggered mesh
-
-       ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-       ! Will return stagf_pattyn = 0. in ice-free regions
-
-       call glissade_stagger(nx,       ny,             &
-                             f_pattyn, stagf_pattyn,   &
-                             ice_mask, stagger_margin_in = 1)
+                             ! f_ground = 1 if stagf_pattyn <=1, f_ground = 0 if stagf_pattyn > 1
 
        ! Assume grounded if stagf_pattyn <= 1, else floating
 
        do j = 1, ny-1
           do i = 1, nx-1
-             if (vmask(i,j)==1) then
+             if (vmask(i,j) == 1) then
                 if (stagf_pattyn(i,j) <= 1.d0) then
                    f_ground(i,j) = 1.d0
                 else
@@ -297,27 +297,7 @@
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization based on Pattyn (2006, JGR)
 
-       ! Compute Pattyn function at grid cell centers
-
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then  ! thck > thklim
-                f_pattyn(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
-             else
-                f_pattyn(i,j) = 0.d0  ! this value is never used
-             endif
-          enddo
-       enddo
-
-       ! Interpolate Pattyn function to staggered mesh
-       ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-       ! Returns stagf_pattyn = 0. in ice-free regions
-
-       call glissade_stagger(nx,       ny,             &
-                             f_pattyn, stagf_pattyn,   &
-                             ice_mask, stagger_margin_in = 1)
-
-       ! Identify cell centers that are floating
+       ! Identify cells that contain floating ice
 
        do j = 1, ny
           do i = 1, nx
@@ -331,11 +311,11 @@
 
        !WHL - debug
        i = it; j = jt
-       print*, 'i, j =', i, j
-       print*, 'f_pattyn(i:i+1,j+1):', f_pattyn(i:i+1,j+1)
-       print*, 'f_pattyn(i:i+1,j)  :', f_pattyn(i:i+1,j)
-       print*, 'cfloat(i:i+1,j+1):', cfloat(i:i+1,j+1)
-       print*, 'cfloat(i:i+1,j)  :', cfloat(i:i+1,j)
+!!       print*, 'i, j =', i, j
+!!       print*, 'f_pattyn(i:i+1,j+1):', f_pattyn(i:i+1,j+1)
+!!       print*, 'f_pattyn(i:i+1,j)  :', f_pattyn(i:i+1,j)
+!!       print*, 'cfloat(i:i+1,j+1):', cfloat(i:i+1,j+1)
+!!       print*, 'cfloat(i:i+1,j)  :', cfloat(i:i+1,j)
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1
 

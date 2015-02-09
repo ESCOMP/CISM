@@ -749,14 +749,22 @@ coordinates:   lon lat
 #load:          0
 #coordinates:   lon lat
 
-#[f_ground]
-#dimensions:    time, y0, x0
-#units:         unitless [0,1]
-#long_name:     grounded ice fraction
-#data:          data%geometry%f_ground
-#standard_name: grounded_fraction
-#load:          0
-#coordinates:   lon lat
+[f_pattyn]
+dimensions:    time, y1, x1
+units:         unitless
+long_name:     Pattyn flotation function
+data:          data%geometry%f_pattyn
+load:          0
+coordinates:   lon lat
+
+[f_ground]
+dimensions:    time, y0, x0
+units:         unitless [0,1]
+long_name:     grounded ice fraction
+data:          data%geometry%f_ground
+standard_name: grounded_fraction
+load:          0
+coordinates:   lon lat
 
 #TODO - Are these gline fields needed?
 #[gl_ew]

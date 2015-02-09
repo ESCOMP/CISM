@@ -61,7 +61,7 @@
 
     use glide_types
     use glissade_grid_operators, only: glissade_stagger, glissade_centered_gradient, &
-                                       glissade_edge_gradient
+                                       glissade_gradient_at_edges
     use parallel
 
     implicit none
@@ -820,9 +820,12 @@
     real(dp), dimension(nx,ny) ::   &
        uedge, vedge             ! velocity components at cell edges (m/yr)
                                 ! u on E edge, v on N edge (C grid)
-    real(dp), dimension(nx-1,ny-1) ::  &
-       dusrf_dx_edge,         &  ! upper surface elevation gradient at cell edges (m/m)
-       dusrf_dy_edge
+
+    real(dp), dimension(nx-1,ny) ::  &
+       dusrf_dx_edge             ! x gradient of upper surface elevation at cell edges (m/m)
+
+    real(dp), dimension(nx,ny-1) ::  &
+       dusrf_dy_edge             ! y gradient of upper surface elevation at cell edges (m/m)
 
     real(dp), dimension(nx-1,ny-1) :: diffu
 
@@ -895,13 +898,13 @@
     !       is likely to give less accurate results.
     ! See comments above the call to glissade_centered_gradient.
 
-    call glissade_edge_gradient(nx,               ny,             &
-                                dx,               dy,             &
-                                usrf,                             &
-                                dusrf_dx_edge,    dusrf_dy_edge,  &
-                                gradient_margin_in = whichgradient_margin, &
-                                ice_mask = ice_mask,              &
-                                land_mask = land_mask)
+    call glissade_gradient_at_edges(nx,               ny,             &
+                                    dx,               dy,             &
+                                    usrf,                             &
+                                    dusrf_dx_edge,    dusrf_dy_edge,  &
+                                    gradient_margin_in = whichgradient_margin, &
+                                    ice_mask = ice_mask,              &
+                                    land_mask = land_mask)
     
     do k = nz-1, 1, -1
 

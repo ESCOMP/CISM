@@ -231,8 +231,10 @@
 !    logical :: verbose_dirichlet= .true.
 !    logical :: verbose_L1L2 = .false.
     logical :: verbose_L1L2 = .true.
-!    logical :: verbose_diva = .false.
-    logical :: verbose_diva = .true.
+    logical :: verbose_diva = .false.
+!    logical :: verbose_diva = .true.
+!    logical :: verbose_glp = .false.
+    logical :: verbose_glp = .true.
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
@@ -711,6 +713,7 @@
        mintauf,              &  ! till yield stress (Pa)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
+       f_pattyn,             &  ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
        f_ground                 ! grounded ice fraction, 0 <= f_ground <= 1
 
     integer, dimension(:,:), pointer ::   &
@@ -769,9 +772,6 @@
     !--------------------------------------------------------
     ! Local variables
     !--------------------------------------------------------
-
-    real(dp), dimension(nx,ny) :: &
-       f_pattyn               ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
 
     real(dp), dimension(nx-1,ny-1) :: &
        xVertex, yVertex,    & ! x and y coordinates of each vertex (m)
@@ -983,6 +983,7 @@
      thck     => model%geometry%thck(:,:)
      usrf     => model%geometry%usrf(:,:)
      topg     => model%geometry%topg(:,:)
+     f_pattyn => model%geometry%f_pattyn(:,:)
      f_ground => model%geometry%f_ground(:,:)
      stagmask => model%geometry%stagmask(:,:)
 
@@ -1300,11 +1301,11 @@
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
     ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
     !
-    ! f_ground is set to a non-physical value of -1 in cells without ice
+    ! f_ground is set to a special non-physical value of -1 in cells without ice
+    ! f_pattyn is not needed in further calculations but is output as a diagnostic
     !
-    ! NOTE: The grounding line scheme is not yet scientifically supported;
-    !       f_ground is computed here but is not used in matrix assembly.
-    ! TODO - Incorporate f_ground in matrix assembly.
+    ! NOTE: The grounding line scheme is still being tested
+    ! TODO: Decide when the GLP is officially supported
     !------------------------------------------------------------------------------
 
     call glissade_grounded_fraction(nx,          ny,           &
@@ -1314,16 +1315,32 @@
                                     f_pattyn)
 
     
-    if (verbose_state .and. this_rank==rtest) then
-       !TODO - Uncomment when testing grounding line scheme
-!       print*, ' '
-!       print*, 'f_ground, rank =', rtest
-!       do j = ny, 1, -1
-!          do i = 1, nx
-!             write(6,'(f5.2)',advance='no') f_ground(i,j)
-!          enddo
-!          print*, ' '
-!       enddo
+    if (verbose_glp .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'thck, rank =', rtest
+       do j = jtest+2, jtest-2, -1
+          do i = itest-3, itest+3
+             write(6,'(f8.2)',advance='no') thck(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'f_pattyn, rank =', rtest
+       do j = jtest+2, jtest-2, -1
+          do i = itest-3, itest+3
+             write(6,'(f8.4)',advance='no') f_pattyn(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'f_ground, rank =', rtest
+       do j = jtest+2, jtest-2, -1
+          write(6,'(a4)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f8.4)',advance='no') f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
     endif
 
     !------------------------------------------------------------------------------
@@ -1393,21 +1410,19 @@
 
     endif   ! whichgradient
 
-    !------------------------------------------------------------------------------
-    ! If using a GLP, then correct the surface gradient at vertices adjacent to
-    !  the grounding line (i.e., 0 < f_ground < 1).
-    !------------------------------------------------------------------------------
-    !WHL - debug - pass in itest and jtest for now
-
-    call glissade_gradient_at_grounding_line(nx,               ny,         &
-                                             dx,               dy,         &
-                                             f_pattyn,         f_ground,   &
-                                             ice_mask,         usrf,       &
-!!                                             dusrf_dx,         dusrf_dy)
-                                             dusrf_dx,         dusrf_dy,   &
-                                             itest,            jtest)
-
 !pw call t_stopf('glissade_gradient')
+
+    if (verbose_glp .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'dusrf_dx, rank =', rtest
+       do j = jtest+2, jtest-2, -1
+          write(6,'(a4)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f8.4)',advance='no') dusrf_dx(i,j)
+          enddo
+          print*, ' '
+       enddo       
+    endif
 
     if (verbose_gridop .and. this_rank==rtest) then
 
@@ -1857,13 +1872,27 @@
           print*, ' '
           print*, 'beta field, rank =', rtest
           do j = ny-1, 1, -1
-             do i = 1, nx-1
+!!             do i = 1, nx-1
+             do i = itest-4, itest+4
                 write(6,'(e10.3)',advance='no') beta(i,j)
              enddo
              write(6,*) ' '
           enddo          
           print*, ' '
           print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
+
+          print*, ' '
+          print*, 'beta*f_ground, rank =', rtest
+          do j = ny-1, 1, -1
+!!             do i = 1, nx-1
+             do i = itest-4, itest+4
+                write(6,'(e10.3)',advance='no') beta(i,j)*f_ground(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+          print*, ' '
+          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
+
        endif
 
        !-------------------------------------------------------------------
@@ -1999,7 +2028,8 @@
                                    active_cell,       beta_eff,        &
                                    xVertex,           yVertex,         &
                                    whichassemble_beta,                 &
-                                   Auu_2d,            Avv_2d)
+                                   Auu_2d,            Avv_2d,          &
+                                   f_ground)
 
           else    ! L1L2, SSA
 
@@ -2010,7 +2040,8 @@
                                    active_cell,       beta,            &
                                    xVertex,           yVertex,         &
                                    whichassemble_beta,                 &
-                                   Auu_2d,            Avv_2d)
+                                   Auu_2d,            Avv_2d,          &
+                                   f_ground)
 
           endif    ! whichapprox (SSA, L1L2, DIVA)
 
@@ -2192,7 +2223,8 @@
                                    active_cell,         beta,            &
                                    xVertex,             yVertex,         &
                                    whichassemble_beta,                   &
-                                   Auu(:,nz,:,:),       Avv(:,nz,:,:))
+                                   Auu(:,nz,:,:),       Avv(:,nz,:,:),   &
+                                   f_ground)
 
           endif   ! whichbabc
 
@@ -5033,9 +5065,11 @@
                                  ! = tau_parallel^2 + tau_perp^2 for L1L2
        fact                      ! factor in velocity integral
 
-    real(dp), dimension(nx-1,ny-1) ::  &
-       dusrf_dx_edge,         &  ! upper surface elevation gradient at cell edges (m/m)
-       dusrf_dy_edge
+    real(dp), dimension(nx-1,ny) ::  &
+       dusrf_dx_edge             ! x gradient of upper surface elevation at cell edges (m/m)
+
+    real(dp), dimension(nx,ny-1) ::  &
+       dusrf_dy_edge             ! y gradient of upper surface elevation at cell edges (m/m)
 
     integer :: i, j, k, n
 
@@ -5277,13 +5311,13 @@
        uedge(:,:) = 0.d0
        vedge(:,:) = 0.d0
 
-       call glissade_edge_gradient(nx,               ny,                &
-                                   dx,               dy,                &
-                                   usrf,                                &
-                                   dusrf_dx_edge,    dusrf_dy_edge,     &
-                                   gradient_margin_in = whichgradient_margin, &
-                                   ice_mask = ice_mask,                 &
-                                   land_mask = land_mask)
+       call glissade_gradient_at_edges(nx,               ny,                &
+                                       dx,               dy,                &
+                                       usrf,                                &
+                                       dusrf_dx_edge,    dusrf_dy_edge,     &
+                                       gradient_margin_in = whichgradient_margin, &
+                                       ice_mask = ice_mask,                 &
+                                       land_mask = land_mask)
     endif
 
     if (verbose_L1L2 .and. this_rank==rtest) then
@@ -7113,7 +7147,8 @@
                               active_cell,      beta,            &
                               xVertex,          yVertex,         &
                               whichassemble_beta,                &
-                              Auu,              Avv)
+                              Auu,              Avv,             &
+                              f_ground)
 
     !------------------------------------------------------------------------
     ! Increment the Auu and Avv matrices with basal traction terms.
@@ -7151,6 +7186,10 @@
     real(dp), dimension(nNeighbors,nx-1,ny-1), intent(inout) ::  &
        Auu, Avv             ! parts of stiffness matrix (basal layer only)
 
+    real(dp), dimension(nx-1,ny-1), intent(in), optional ::  &
+       f_ground             ! fraction of grounded ice at each vertex;
+                            ! used to weight beta
+
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
@@ -7173,12 +7212,24 @@
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
 
+    real(dp), dimension(nx-1,ny-1) ::  &
+       f_ground_beta  ! fraction of grounded ice at each vertex; used to weight beta
+                      ! set to input argument f_ground, if present; else = 1.0 everywhere
+  
+    ! Set f_ground_beta for beta calculation
+    ! Note: f_ground is set to a non-physical value at ice-free vertices
+    !       Vertices of active cells, by definition, are not ice-free, so the
+    !        non-physical values are never used
+
+    if (present(f_ground)) then
+       f_ground_beta(:,:) = f_ground(:,:)
+    else
+       f_ground_beta(:,:) = 1.d0
+    endif
+
     if (verbose_basal .and. this_rank==rtest) then
        print*, 'In basal_sliding_bc: itest, jtest, rank =', itest, jtest, rtest
     endif
-
-    !TODO - Add beta correction for GLP.
-    !       Let beta ->  beta * f_ground, where f_ground is the fractional area for the node
 
     ! Sum over elements in active cells 
     ! Loop over all cells that contain locally owned vertices
@@ -7206,10 +7257,16 @@
           y(3) = yVertex(i,j)
           y(4) = yVertex(i-1,j)
 
-          b(1) = beta(i-1,j-1)
-          b(2) = beta(i,j-1)
-          b(3) = beta(i,j)
-          b(4) = beta(i-1,j)
+          ! Note: When using a grounding-line parameterization, beta is reduced for
+          !       vertices adjacent to the GL (0 < f_ground < 1)
+!!          b(1) = beta(i-1,j-1)
+!!          b(2) = beta(i,j-1)
+!!          b(3) = beta(i,j)
+!!          b(4) = beta(i-1,j)
+          b(1) = beta(i-1,j-1) * f_ground(i-1,j-1)
+          b(2) = beta(i,j-1)   * f_ground(i,j-1)
+          b(3) = beta(i,j)     * f_ground(i,j)
+          b(4) = beta(i-1,j)   * f_ground(i-1,j)
 
           ! loop over quadrature points
 

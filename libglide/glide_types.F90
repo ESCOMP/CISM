@@ -591,6 +591,10 @@ module glide_types
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
 
+    real(dp),dimension(:,:),pointer :: f_pattyn=> null() 
+    !> Pattyn flotation function, rhow*(topg-eus)/(rhoi*thck)
+    !    (computed by glissade dycore only)
+
     real(dp),dimension(:,:),pointer :: f_ground => null() 
     !> The fractional area at each vertex which is grounded 
     !    (computed by glissade dycore only)
@@ -1321,6 +1325,7 @@ contains
     !> \item \texttt{topg(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(ewn,nsn))}
+    !> \item \texttt{f_pattyn(ewn,nsn)}
     !> \item \texttt{f_ground(ewn-1,nsn-1)}
     !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
     !> \item \texttt{floating_mask(ewn,nsn))}
@@ -1527,6 +1532,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck2)
     else   ! glam/glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%age)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_pattyn)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
@@ -1838,6 +1844,8 @@ contains
 
     if (associated(model%geometry%age)) &
         deallocate(model%geometry%age)
+    if (associated(model%geometry%f_pattyn)) &
+        deallocate(model%geometry%f_pattyn)
     if (associated(model%geometry%f_ground)) &
         deallocate(model%geometry%f_ground)
     if (associated(model%geomderv%dlsrfdew)) &

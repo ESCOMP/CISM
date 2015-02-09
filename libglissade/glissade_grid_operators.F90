@@ -46,10 +46,9 @@ module glissade_grid_operators
     implicit none
 
     private
-    public :: glissade_stagger, glissade_unstagger,  &
-              glissade_centered_gradient, glissade_upstream_gradient,  &
-              glissade_edge_gradient, glissade_gradient_at_grounding_line,  &
-              glissade_vertical_average
+    public :: glissade_stagger, glissade_unstagger,    &
+              glissade_centered_gradient, glissade_upstream_gradient,    &
+              glissade_gradient_at_edges, glissade_vertical_average
 
     logical, parameter :: verbose_gradient = .false.
 
@@ -61,8 +60,10 @@ contains
                               var,          stagvar,   &
                               ice_mask,     stagger_margin_in)
 
+    !----------------------------------------------------------------
     ! Given a variable on the unstaggered grid (dimension nx, ny), interpolate
     ! to find values on the staggered grid (dimension nx-1, ny-1).
+    !----------------------------------------------------------------
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -136,8 +137,10 @@ contains
                                 stagvar,      unstagvar,   &
                                 vmask,        stagger_margin_in)
 
+    !----------------------------------------------------------------
     ! Given a variable on the staggered grid (dimension nx-1, ny-1), interpolate
     ! to find values on the staggered grid (dimension nx, ny).
+    !----------------------------------------------------------------
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -211,7 +214,7 @@ contains
 
   subroutine glissade_centered_gradient(nx,           ny,        &
                                         dx,           dy,        &
-                                        f,                       &
+                                        field,                   &
                                         df_dx,        df_dy,     &
                                         ice_mask,                &
                                         gradient_margin_in,      &
@@ -247,8 +250,11 @@ contains
        dx, dy                   ! grid cell length and width                                           
                                 ! assumed to have the same value for each grid cell  
 
+    integer, dimension(nx,ny), intent(in) ::        &
+       ice_mask                 ! = 1 where ice is present, else = 0
+
     real(dp), dimension(nx,ny), intent(in) ::       &
-       f                        ! scalar field, defined at cell centers
+       field                    ! scalar field, defined at cell centers
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
        df_dx, df_dy             ! gradient components, defined at cell vertices
@@ -260,9 +266,6 @@ contains
                                 ! 2: use values in ice-covered cells only
                                 !    if one or more values is masked out, construct df_fx and df_dy from the others
 
-    integer, dimension(nx,ny), intent(in) ::        &
-       ice_mask                 ! = 1 where ice is present, else = 0
-
     integer, dimension(nx,ny), intent(in), optional ::        &
        land_mask                ! = 1 for land cells, else = 0
 
@@ -270,16 +273,23 @@ contains
     ! Local variables
     !--------------------------------------------------------
 
+    real(dp), dimension(nx-1,ny) ::    &
+       df_dx_edge               ! x gradients on east cell edges
+
+    real(dp), dimension(nx,ny-1) ::    &
+       df_dy_edge               ! y gradients on north cell edges
+
     integer, dimension(nx,ny) :: mask
     integer :: summask, gradient_margin
     integer :: i, j
 
+    !--------------------------------------------------------
     !   Gradient at vertex(i,j) is based on f(i:i+1,j:j+1)
     ! 
     !   (i,j+1)  |  (i+1,j+1)
     !   -------(i,j)----------
     !   (i,j)    |  (i+1,j)
-
+    !--------------------------------------------------------
 
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
@@ -318,30 +328,30 @@ contains
           summask = mask(i,j) + mask(i+1,j) + mask(i,j+1) + mask(i+1,j+1)
 
           if (summask == 4) then  ! use info in all four neighbor cells
-             df_dx(i,j) = (f(i+1,j) + f(i+1,j+1) - f(i,j) - f(i,j+1)) / (2.d0 * dx)
-             df_dy(i,j) = (f(i,j+1) + f(i+1,j+1) - f(i,j) - f(i+1,j)) / (2.d0 * dy)
+             df_dx(i,j) = (field(i+1,j) + field(i+1,j+1) - field(i,j) - field(i,j+1)) / (2.d0 * dx)
+             df_dy(i,j) = (field(i,j+1) + field(i+1,j+1) - field(i,j) - field(i+1,j)) / (2.d0 * dy)
 
           else  ! use info only in cells with mask = 1
                 ! if info is not available, gradient component = 0
 
              ! df_dx
              if (mask(i,j)==1 .and. mask(i+1,j)==1) then
-                df_dx(i,j) = (f(i+1,j) - f(i,j)) / dx
+                df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
              elseif (mask(i,j+1)==1 .and. mask(i+1,j+1)==1) then
-                df_dx(i,j) = (f(i+1,j+1) - f(i,j+1)) / dx
+                df_dx(i,j) = (field(i+1,j+1) - field(i,j+1)) / dx
              endif
 
              ! df_dy
              if (mask(i,j)==1 .and. mask(i,j+1)==1) then
-                df_dy(i,j) = (f(i,j+1) - f(i,j)) / dy
+                df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
              elseif (mask(i+1,j)==1 .and. mask(i+1,j+1)==1) then
-                df_dy(i,j) = (f(i+1,j+1) - f(i+1,j)) / dy
+                df_dy(i,j) = (field(i+1,j+1) - field(i+1,j)) / dy
              endif
 
           endif
 
        enddo    ! i
-    enddo       ! j
+    enddo    ! j
 
     if (verbose_gradient .and. main_task) then
        print*, ' '
@@ -371,13 +381,14 @@ contains
 
   subroutine glissade_upstream_gradient(nx,           ny,        &
                                         dx,           dy,        &
-                                        f,                       &
+                                        field,                   &
                                         df_dx,        df_dy,     &
                                         ice_mask,                &
                                         gradient_margin_in,      &
                                         accuracy_flag_in,        &
                                         land_mask)
 
+    !----------------------------------------------------------------
     ! Given a scalar variable f on the unstaggered grid (dimension nx, ny),
     !  compute its gradient (df_dx, df_dy) on the staggered grid (dimension nx-1, ny-1).
     ! The gradient can be evaluated at two upstream points (for first-order accuracy) 
@@ -385,7 +396,8 @@ contains
     ! Note: Upstream is defined by the direction of higher surface elevation
     !  rather than the direction the flow is coming from (though these are
     !  usually the same).
-    !
+    !----------------------------------------------------------------
+
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -398,7 +410,7 @@ contains
                                 ! assumed to have the same value for each grid cell  
 
     real(dp), dimension(nx,ny), intent(in) ::       &
-       f                        ! scalar field, defined at cell centers
+       field                    ! scalar field, defined at cell centers
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
        df_dx, df_dy             ! gradient components, defined at cell vertices
@@ -423,11 +435,19 @@ contains
     ! Local variables
     !--------------------------------------------------------
 
+    real(dp), dimension(nx-1,ny) ::    &
+       df_dx_edge               ! x gradients on east cell edges
+
+    real(dp), dimension(nx,ny-1) ::    &
+       df_dy_edge               ! y gradients on north cell edges
+
     integer, dimension(nx,ny) :: mask
     integer :: i, j
     real(dp) :: sum1, sum2
     integer :: gradient_margin, accuracy_flag, summask
 
+
+    !--------------------------------------------------------
     !   First-order upstream gradient at vertex(i,j) is based on two points out of f(i:i+1,j:j+1)
     ! 
     !   (i,j+1)  |  (i+1,j+1)
@@ -435,6 +455,7 @@ contains
     !   (i,j)    |  (i+1,j)
     !
     !   Second-order gradient is based on four points in the upstream direction
+    !--------------------------------------------------------
 
     if (present(accuracy_flag_in)) then
        accuracy_flag = accuracy_flag_in
@@ -484,24 +505,24 @@ contains
 
                 ! Compute df_dx by taking upstream gradient
 
-                sum1 = f(i+1,j+1) + f(i,j+1)
-                sum2 = f(i+1,j) + f(i,j)
+                sum1 = field(i+1,j+1) + field(i,j+1)
+                sum2 = field(i+1,j) + field(i,j)
 
                 if (sum1 > sum2 .and. mask(i+1,j+1)==1 .and. mask(i,j+1)==1) then
-                   df_dx(i,j) = (f(i+1,j+1) - f(i,j+1)) / dx
+                   df_dx(i,j) = (field(i+1,j+1) - field(i,j+1)) / dx
                 elseif (sum1 <= sum2 .and. mask(i+1,j)==1 .and. mask(i,j)==1) then
-                   df_dx(i,j) = (f(i+1,j) - f(i,j)) / dx
+                   df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
                 endif
 
                 ! Compute df_dy by taking upstream gradient
              
-                sum1 = f(i+1,j+1) + f(i+1,j)
-                sum2 = f(i,j+1) + f(i,j)
+                sum1 = field(i+1,j+1) + field(i+1,j)
+                sum2 = field(i,j+1) + field(i,j)
              
                 if (sum1 > sum2 .and. mask(i+1,j+1)==1 .and. mask(i+1,j)==1) then
-                   df_dy(i,j) = (f(i+1,j+1) - f(i+1,j)) / dy
+                   df_dy(i,j) = (field(i+1,j+1) - field(i+1,j)) / dy
                 elseif (sum1 <= sum2 .and. mask(i,j+1)==1 .and. mask(i,j)==1) then
-                   df_dy(i,j) = (f(i,j+1) - f(i,j)) / dy
+                   df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
                 else
                    df_dy(i,j) = 0.d0
                 endif
@@ -525,19 +546,19 @@ contains
              
                 ! determine upstream direction
 
-                sum1 = f(i+1,j+1) + f(i,j+1) + f(i+1,j+2) + f(i,j+2)
-                sum2 = f(i+1,j) + f(i,j) + f(i+1,j-1) + f(i,j-1)
+                sum1 = field(i+1,j+1) + field(i,j+1) + field(i+1,j+2) + field(i,j+2)
+                sum2 = field(i+1,j) + field(i,j) + field(i+1,j-1) + field(i,j-1)
 
                 if (sum1 > sum2) then
 
                    summask = mask(i+1,j+1) + mask(i,j+1) + mask(i+1,j+2) + mask(i,j+2)
 
                    if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dx(i,j) = (1.5d0 * (f(i+1,j+1) - f(i,j+1))     &
-                                  - 0.5d0 * (f(i+1,j+2) - f(i,j+2))) / dx
+                      df_dx(i,j) = (1.5d0 * (field(i+1,j+1) - field(i,j+1))     &
+                                  - 0.5d0 * (field(i+1,j+2) - field(i,j+2))) / dx
                    elseif (mask(i+1,j+1)==1 .and. mask(i,j+1)==1) then   ! revert to 1st order, using upstream info
                       print*, 'df_dx: i, j, summask =', i, j, summask
-                      df_dx(i,j) = (f(i+1,j+1) - f(i,j+1)) / dx
+                      df_dx(i,j) = (field(i+1,j+1) - field(i,j+1)) / dx
                    endif
 
                 else  ! sum1 <= sum2
@@ -545,11 +566,11 @@ contains
                    summask = mask(i+1,j) + mask(i,j) + mask(i+1,j-1) + mask(i,j-1)
 
                    if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dx(i,j) = (1.5d0 * (f(i+1,j)   - f(i,j))     &
-                                  - 0.5d0 * (f(i+1,j-1) - f(i,j-1))) / dx
+                      df_dx(i,j) = (1.5d0 * (field(i+1,j)   - field(i,j))     &
+                                  - 0.5d0 * (field(i+1,j-1) - field(i,j-1))) / dx
                    elseif (mask(i+1,j)==1 .and. mask(i,j)==1) then   ! revert to 1st order, using upstream info
                       print*, 'df_dx: i, j, summask =', i, j, summask
-                      df_dx(i,j) = (f(i+1,j) - f(i,j)) / dx
+                      df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
                    endif
                    
                 endif   ! sum1 > sum2
@@ -558,19 +579,19 @@ contains
 
                 ! determine upstream direction
 
-                sum1 = f(i+1,j+1) + f(i+1,j) + f(i+2,j+1) + f(i+2,j)
-                sum2 = f(i,j+1) + f(i,j) + f(i-1,j+1) + f(i-1,j)
+                sum1 = field(i+1,j+1) + field(i+1,j) + field(i+2,j+1) + field(i+2,j)
+                sum2 = field(i,j+1) + field(i,j) + field(i-1,j+1) + field(i-1,j)
              
                 if (sum1 > sum2) then
 
                    summask = mask(i+1,j+1) + mask(i+1,j) + mask(i+2,j+1) + mask(i+2,j)
 
                    if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dy(i,j) = (1.5d0 * (f(i+1,j+1) - f(i+1,j))     &
-                                  - 0.5d0 * (f(i+2,j+1) - f(i+2,j))) / dy
+                      df_dy(i,j) = (1.5d0 * (field(i+1,j+1) - field(i+1,j))     &
+                                  - 0.5d0 * (field(i+2,j+1) - field(i+2,j))) / dy
                    elseif (mask(i+1,j+1)==1 .and. mask(i+1,j)==1) then   ! revert to 1st order, using upstream info
                       print*, 'df_dy: i, j, summask =', i, j, summask
-                      df_dy(i,j) = (f(i+1,j+1) - f(i+1,j)) / dy
+                      df_dy(i,j) = (field(i+1,j+1) - field(i+1,j)) / dy
                    endif
 
                 else   ! sum1 <= sum2
@@ -578,11 +599,11 @@ contains
                    summask = mask(i,j+1) + mask(i,j) + mask(i-1,j+1) + mask(i-1,j)
                    
                    if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dy(i,j) = (1.5d0 * (f(i,j+1)   - f(i,j))     &
-                                  - 0.5d0 * (f(i-1,j+1) - f(i-1,j))) / dy
+                      df_dy(i,j) = (1.5d0 * (field(i,j+1)   - field(i,j))     &
+                                  - 0.5d0 * (field(i-1,j+1) - field(i-1,j))) / dy
                    elseif (mask(i+1,j+1)==1 .and. mask(i+1,j)==1) then   ! revert to 1st order, using upstream info
                       print*, 'df_dy: i, j, summask =', i, j, summask
-                      df_dy(i,j) = (f(i,j+1) - f(i,j)) / dy
+                      df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
                    endif
 
                 endif   ! sum1 > sum2
@@ -590,7 +611,7 @@ contains
              endif      ! summask > 0 (mask = 1 in at least one neighbor cell)
 
           enddo     ! i
-       enddo        ! j
+       enddo     ! j
 
        ! fill in halo values
        call staggered_parallel_halo(df_dx)
@@ -623,17 +644,19 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_edge_gradient(nx,           ny,        &
-                                    dx,           dy,        &
-                                    f,                       &
-                                    df_dx,        df_dy,     &
-                                    gradient_margin_in,      &
-                                    ice_mask,     land_mask)
+  subroutine glissade_gradient_at_edges(nx,           ny,        &
+                                        dx,           dy,        &
+                                        field,                   &
+                                        df_dx,        df_dy,     &
+                                        gradient_margin_in,      &
+                                        ice_mask,     land_mask)
 
+    !----------------------------------------------------------------
     ! Given a scalar variable f on the unstaggered grid (dimension nx, ny),
     ! compute its gradient (df_dx, df_dy) at cell edges (i.e., the C grid):
     ! df_dx at the midpoint of the east edge and df_dy at the midpoint of
     ! the north edge.
+    !----------------------------------------------------------------
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -647,10 +670,13 @@ contains
                                 ! assumed to have the same value for each grid cell  
 
     real(dp), dimension(nx,ny), intent(in) ::       &
-       f                        ! scalar field, defined at cell centers
+       field                    ! scalar field, defined at cell centers
 
-    real(dp), dimension(nx-1,ny-1), intent(out) ::    &
-       df_dx, df_dy             ! gradient components, defined at cell edges
+    real(dp), dimension(nx-1,ny), intent(out) ::    &
+       df_dx                    ! x gradient component, defined on east cell edge
+
+    real(dp), dimension(nx,ny-1), intent(out) ::    &
+       df_dy                    ! y gradient component, defined on north cell edge
 
     integer, intent(in), optional ::    &
        gradient_margin_in       ! 0: use all values when computing gradient (including zeroes where ice is absent)
@@ -671,9 +697,10 @@ contains
     integer :: gradient_margin
     integer :: i, j
 
+    !--------------------------------------------------------
     !   Gradient at east edge(i,j) is based on f(i:i+1,j)
     !   Gradient at north edge(i,j) is based on f(i,j:j+1)
-    ! 
+    !
     !   |             |
     !   |   (i,j+1)   |
     !   |             |
@@ -685,6 +712,8 @@ contains
     !   |             |
     !   |             |
     !   |--------------
+    !
+    !--------------------------------------------------------
 
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
@@ -722,21 +751,21 @@ contains
 
     ! Compute the gradients using info in cells with mask = 1
 
-    do j = 1, ny-1
+    ! df_dx
+    do j = 1, ny
        do i = 1, nx-1
-
-          ! df_dx
-
           if (mask(i,j)==1 .and. mask(i+1,j)==1) then
-             df_dx(i,j) = (f(i+1,j) - f(i,j)) / dx
+             df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
           endif
+       enddo    ! i
+    enddo       ! j
 
-          ! df_dy
-
+    ! df_dy
+    do j = 1, ny-1
+       do i = 1, nx
           if (mask(i,j)==1 .and. mask(i,j+1)==1) then
-             df_dy(i,j) = (f(i,j+1) - f(i,j)) / dy
+             df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
           endif
-
        enddo    ! i
     enddo       ! j
 
@@ -746,14 +775,14 @@ contains
        print*, ' '
        print*, 'df_dx:'
        do j = ny-1, 1, -1
-          do i = 1, nx-1
+          do i = 1, nx
              write(6,'(f8.4)',advance='no') df_dx(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'df_dy:'
-       do j = ny-1, 1, -1
+       do j = ny, 1, -1
           do i = 1, nx-1
              write(6,'(f8.4)',advance='no') df_dy(i,j)
           enddo
@@ -761,453 +790,9 @@ contains
        enddo
     endif
 
-  end subroutine glissade_edge_gradient
+  end subroutine glissade_gradient_at_edges
 
-!----------------------------------------------------------------------------
-  subroutine glissade_gradient_at_grounding_line(nx,             ny,         &
-                                                 dx,             dy,         &
-                                                 f_pattyn,       f_ground,   &
-                                                 ice_mask,       usrf,       &
-!!                                                 dusrf_dx,       dusrf_dy)
-                                                 dusrf_dx,       dusrf_dy,   &
-                                                 itest,          jtest)
-
-    !WHL - debug - passing in itest and jtest for now
-
-    !----------------------------------------------------------------
-    ! Compute a surface elevation gradient for vertices adjacent to the grounding line
-    ! (i.e., vertices with 0 < f_ground < 1).
-    ! 
-    ! Here is the procedure for computing ds/dx adjacent to the GL.
-    ! (The procedure is analogous for ds/dy.)
-    ! Consider this block of square cells, where each cell has dimension 1 x 1:
-    !       ________________________________________________
-    !      |           |           |           |           |
-    !      |           |           |           |           |
-    !      |     *     -     *     -     *     -     *     |
-    !      |           |           |           |           |
-    !      |___________|___________|___________|___________|
-    !      |           |           |           |           |
-    !      |           |           |           |           |
-    !      |     *     -     *     -     *     -     *     |
-    !      |           |           |           |           |
-    !      |___________|___________|___________|___________|
-    !
-    ! Asterisks lie at cell centers, and hyphens lie at the midpoint of vertical edges.
-    !
-    ! Suppose we want to compute ds/dx at the central vertex (0,0).
-    ! A standard centered difference would be computed as
-    !  
-    !     ds/dx(0,0) = 1/2 * ((s(0.5,0.5) - s(-0.5,0.5)) + (s(0.5,-0.5) - s(-0.5,-0.5)))
-    !
-    ! In other words, ds/dx is the mean of the edge gradients at (0, ±0.5).
-    !
-    ! But suppose 0 < f_ground < 1 for the vertex at (0,0). This implies that at least 
-    ! one neighbor cell, but not more than three neighbor cells, are floating. (A cell
-    ! is floating if f_pattyn = rhow*b/(rhoi*H) > 1.)  We would like to avoid including in the gradient 
-    ! any edges that join a floating cell to a grounded cell, because ds/dx is discontinuous
-    ! at the GL. Instead, we want to compute gradients based on fully grounded edges 
-    ! (i.e., edges with grounded cells, f_pattyn <= 1, on either side) or fully floating edges.
-    !
-    ! We estimate (ds/dx)_g as follows:
-    ! (1) Consider the two edges at (0, ±0.5). If either edge is fully grounded, take
-    !     (ds/dx)_g to be the gradient at this edge. By assumption, both edges cannot
-    !     be fully grounded.
-    ! (2) If neither of the edges at (0, ±0.5) is fully grounded, then consider the
-    !     four edges at (±1, ±0.5). If one or more of these edges is fully grounded, take
-    !     (ds/dx)_g as the mean of the gradients at these fully grounded edges.
-    ! (3) If none of the edges at (±1, ±0.5) is fully grounded, then consider again
-    !     the two edges at (0, ±0.5). At least one, and perhaps both, of these edges
-    !     is partly grounded or 'mixed' (i.e., it borders one grounded cell). 
-    !     Take (ds/dx)_g as the mean of the gradient at the mixed edges.
-    !
-    ! Similarly, we compute (ds/dx)_f by first searching for fully floating edges 
-    ! (steps 1 and 2), and then if necessary using the gradient at the nearest partly 
-    ! floating edges.
-    !
-    ! Finally, set (ds_dx) = f_ground * (ds/dx)_g + (1 - f_ground) * (ds/dx)_f.
-    !----------------------------------------------------------------
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::      &
-       nx, ny                   ! horizontal grid dimensions
-
-    real(dp), intent(in) ::     &
-       dx, dy                   ! grid cell length and width                                           
-                                ! assumed to have the same value for each grid cell
-
-    integer, dimension(nx,ny), intent(in) ::        &
-       ice_mask                 ! = 1 for cells where ice is present, else = 0
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       f_ground                 ! grounded ice fraction at vertex, 0 <= f_ground <= 1
-                                ! set to -1 where vmask = 0
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-       f_pattyn,              & ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
-       usrf                     ! upper surface elevation (m)
-
-    real(dp), dimension(nx-1,ny-1), intent(inout) :: &
-       dusrf_dx, dusrf_dy       ! gradient of upper surface elevation (m/m) 
-
-    integer, intent(in) ::   &
-       itest, jtest    ! test points
-    
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-
-    integer :: i, j
-
-    real(dp) :: ds_dx_g   ! x gradient for grounded ice
-    real(dp) :: ds_dx_f   ! x gradient for floating ice
-    real(dp) :: ds_dy_g   ! y gradient for grounded ice
-    real(dp) :: ds_dy_f   ! y gradient for floating ice
-    
-    integer :: numedges   ! number of edge gradients to be averaged
-
-    ! Note: Vertical edges with computable gradients have dimension (nx-1,ny), and
-    !       horizontal edges with computable gradients have dimension (nx,ny-1).
-    !       Here we assign dimensions (nx,ny) to all edge arrays for simplicity.
- 
-    real(dp), dimension(nx,ny) :: ds_dx_edge   ! ds/dx at vertical edges
-    real(dp), dimension(nx,ny) :: ds_dy_edge   ! ds/dy at horizontal edges
-    
-    integer, dimension(nx,ny) :: grounded_edge_mask   ! = 1 for fully grounded edges, else = 0
-    integer, dimension(nx,ny) :: floating_edge_mask   ! = 1 for fully floating edges, else = 0
-    integer, dimension(nx,ny) :: mixed_edge_mask      ! = 1 for mixed edges, else = 0
-
-    real(dp), parameter :: eps11 = 1.d-11       ! small number
-
-    !WHL - debug
-    logical, parameter :: verbose_gl_gradient = .true.
-
-    !WHL - debug
-    if (verbose_gl_gradient) then
-       print*, ' '
-       print*, 'Starting ds/dx gradient at GL, itest, jtest =', itest, jtest
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') dusrf_dx(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Starting ds/dy gradient at GL:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') dusrf_dy(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-    !WHL - debug - Create some new thickness profiles
-!!    i = itest
-!!    j = jtest
-    ! ground a floating point downstream
-!!    f_pattyn(i+1,j) = 1.d0  
-!!    f_ground(i,j) = 1.d0
-
-    ! float 3 grounded points upstream
-!!    f_pattyn(i-1,j-1:j+1) = 2.d0
-
-    ! Initialize ds/dx and integer masks at vertical edges
-
-    ds_dx_edge(:,:) = 0.d0
-    grounded_edge_mask(:,:) = 0
-    floating_edge_mask(:,:) = 0
-    mixed_edge_mask(:,:) = 0
-
-    ! Characterize vertical edges as fully grounded, fully floating, or mixed,
-    ! and compute ds/dx at these edges.  
-    ! Vertical edge (i,j) lies to the right of cell center (i,j) and below vertex (i,j). 
-
-    do j = 1, ny     ! loop over vertical edges
-       do i = 1, nx-1
-          if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then   ! both neighbor cells are ice-covered
-             ds_dx_edge(i,j) = (usrf(i+1,j) - usrf(i,j)) / dx
-             if (f_pattyn(i,j) <= 1.d0 .and. f_pattyn(i+1,j) <= 1.d0) then    ! edge is fully grounded
-                grounded_edge_mask(i,j) = 1
-             elseif (f_pattyn(i,j) > 1.d0 .and. f_pattyn(i+1,j) > 1.d0) then  ! edge is fully floating
-                floating_edge_mask(i,j) = 1
-             else
-                mixed_edge_mask(i,j) = 1
-             endif
-          endif
-       enddo
-    enddo
-
-    !WHL - debug
-    if (verbose_gl_gradient) then
-       print*, ' '
-       print*, 'f_pattyn at cell center:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') f_pattyn(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground at vertex:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') f_ground(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Grounded edge mask for ds/dx:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') grounded_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Floating edge mask for ds/dx:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') floating_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Mixed edge mask for ds/dx:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') mixed_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo    
-    endif
-
-    ! Compute (ds/dx)_g and (ds/dx)_f at each vertex, then take weighted mean to compute ds/dx.
-    do j = 1, ny-1   ! loop over vertices 
-       do i = 1, nx-1
-          if (f_ground(i,j) > eps11 .and. f_ground(i,j) < (1.d0 - eps11)) then  ! vertex is adjacent to the GL             
-
-             ! Compute the grounded x gradient, (ds/dx)_g, based on gradients at nearby
-             ! fully grounded edges (if possible), otherwise based on gradients at mixed edges.
-
-             if (grounded_edge_mask(i,j+1) == 1) then
-                ds_dx_g = ds_dx_edge(i,j+1)
-             elseif (grounded_edge_mask(i,j) == 1) then
-                ds_dx_g = ds_dx_edge(i,j)
-             elseif (grounded_edge_mask(i-1,j+1) == 1 .or. grounded_edge_mask(i+1,j+1) == 1  .or.  &
-                     grounded_edge_mask(i-1,j)   == 1 .or. grounded_edge_mask(i+1,j)   == 1) then
-                numedges = grounded_edge_mask(i-1,j+1) + grounded_edge_mask(i+1,j+1) +   &
-                           grounded_edge_mask(i-1,j)   + grounded_edge_mask(i+1,j)
-                ds_dx_g = (grounded_edge_mask(i-1,j+1) * ds_dx_edge(i-1,j+1) +  &
-                           grounded_edge_mask(i-1,j)   * ds_dx_edge(i-1,j)   +  &
-                           grounded_edge_mask(i+1,j+1) * ds_dx_edge(i+1,j+1) +  &
-                           grounded_edge_mask(i+1,j)   * ds_dx_edge(i+1,j))     &
-                           / numedges
-             elseif (mixed_edge_mask(i,j+1) == 1 .or. mixed_edge_mask(i,j) == 1) then
-                numedges = mixed_edge_mask(i,j+1) + mixed_edge_mask(i,j)
-                ds_dx_g = (mixed_edge_mask(i,j+1) * ds_dx_edge(i,j+1) + &
-                           mixed_edge_mask(i,j)   * ds_dx_edge(i,j))   &
-                           / numedges
-             else   ! punt (TODO - Check whether this ever happens)
-                ds_dx_g = 0.d0
-             endif
-
-             ! Compute the floating x gradient, (ds/dx)_f, based on gradients at nearby
-             ! fully floating edges (if possible), otherwise based on gradients at mixed edges.
-
-             if (floating_edge_mask(i,j+1) == 1) then
-                ds_dx_f = ds_dx_edge(i,j+1)
-             elseif (floating_edge_mask(i,j) == 1) then
-                ds_dx_f = ds_dx_edge(i,j)
-             elseif (floating_edge_mask(i-1,j+1) == 1 .or. floating_edge_mask(i+1,j+1) == 1  .or.  &
-                     floating_edge_mask(i-1,j)   == 1 .or. floating_edge_mask(i+1,j)   == 1) then
-                numedges = floating_edge_mask(i-1,j+1) + floating_edge_mask(i+1,j+1) +   &
-                           floating_edge_mask(i-1,j)   + floating_edge_mask(i+1,j)
-                ds_dx_f = (floating_edge_mask(i-1,j+1) * ds_dx_edge(i-1,j+1) +  &
-                           floating_edge_mask(i-1,j)   * ds_dx_edge(i-1,j)   +  &
-                           floating_edge_mask(i+1,j+1) * ds_dx_edge(i+1,j+1) +  &
-                           floating_edge_mask(i+1,j)   * ds_dx_edge(i+1,j)) &
-                           / numedges
-             elseif (mixed_edge_mask(i,j+1) == 1 .or. mixed_edge_mask(i,j) == 1) then
-                numedges = mixed_edge_mask(i,j+1) + mixed_edge_mask(i,j)
-                ds_dx_f = (mixed_edge_mask(i,j+1) * ds_dx_edge(i,j+1) + &
-                           mixed_edge_mask(i,j)   * ds_dx_edge(i,j))   &
-                           / numedges
-             else   ! punt
-                ds_dx_f = 0.d0
-             endif
-
-             !WHL - debug
-             if (i==itest .and. j==jtest .and. verbose_gl_gradient) then
-                print*, 'i, j, f_ground =', i, j, f_ground(i,j)
-                print*, 'ds_dx_g, ds_dx_f =', ds_dx_g, ds_dx_f
-             endif
-
-             ! Compute ds/dx as a weighted average of (ds/dx)_g and (dx/dx)_f
-             dusrf_dx(i,j) = f_ground(i,j) * ds_dx_g + (1.d0 - f_ground(i,j)) * ds_dx_f
-
-          endif   ! vertex is adjacent to the GL
-       enddo      ! i
-    enddo         ! j
-
-    ! Initialize ds/dy and integer masks at horizontal edges
-
-    ds_dy_edge(:,:) = 0.d0
-    grounded_edge_mask(:,:) = 0
-    floating_edge_mask(:,:) = 0
-    mixed_edge_mask(:,:) = 0
-
-    ! Characterize horizontal edges as fully grounded, fully floating, or mixed,
-    ! and compute ds/dy at these edges.  
-    ! Horizontal edge (i,j) lies above cell center (i,j) and to the left of vertex (i,j). 
-
-    do j = 1, ny     ! loop over horizontal edges
-       do i = 1, nx-1
-          if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then   ! both neighbor cells are ice-covered
-             ds_dy_edge(i,j) = (usrf(i,j+1) - usrf(i,j)) / dy
-             if (f_pattyn(i,j) <= 1.d0 .and. f_pattyn(i,j+1) <= 1.d0) then    ! edge is fully grounded
-                grounded_edge_mask(i,j) = 1
-             elseif (f_pattyn(i,j) > 1.d0 .and. f_pattyn(i,j+1) > 1.d0) then  ! edge is fully floating
-                floating_edge_mask(i,j) = 1
-             else
-                mixed_edge_mask(i,j) = 1
-             endif
-          endif
-       enddo
-    enddo
-
-    !WHL - debug
-    if (verbose_gl_gradient) then
-       print*, ' '
-       print*, 'f_pattyn at cell center:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') f_pattyn(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground at vertex:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') f_ground(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Grounded edge mask for ds/dy:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') grounded_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Floating edge mask for ds/dy:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') floating_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Mixed edge mask for ds/dy:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') mixed_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo    
-    endif
-
-    ! Compute (ds/dy)_g and (ds/dy)_f at each vertex, then take weighted mean to compute ds/dy.
-    do j = 1, ny-1   ! loop over vertices
-       do i = 1, nx-1
-          if (f_ground(i,j) > eps11 .and. f_ground(i,j) < (1.d0 - eps11)) then  ! vertex is adjacent to the GL             
-
-             ! Compute the grounded y gradient, (ds/dy)_g, based on gradients at nearby
-             ! fully grounded edges (if possible), otherwise based on gradients at mixed edges.
-
-             if (grounded_edge_mask(i+1,j) == 1) then
-                ds_dy_g = ds_dy_edge(i+1,j)
-             elseif (grounded_edge_mask(i,j) == 1) then
-                ds_dy_g = ds_dy_edge(i,j)
-             elseif (grounded_edge_mask(i,j+1) == 1 .or. grounded_edge_mask(i+1,j+1) == 1  .or.  &
-                     grounded_edge_mask(i,j-1) == 1 .or. grounded_edge_mask(i+1,j-1) == 1) then
-                numedges = grounded_edge_mask(i,j+1) + grounded_edge_mask(i+1,j+1) +   &
-                           grounded_edge_mask(i,j-1) + grounded_edge_mask(i+1,j-1)
-                ds_dy_g = (grounded_edge_mask(i,j+1)   * ds_dy_edge(i,j+1)   +  &
-                           grounded_edge_mask(i,j-1)   * ds_dy_edge(i,j-1)   +  &
-                           grounded_edge_mask(i+1,j+1) * ds_dy_edge(i+1,j+1) +  &
-                           grounded_edge_mask(i+1,j-1) * ds_dy_edge(i+1,j-1))   &
-                           / numedges
-             elseif (mixed_edge_mask(i+1,j) == 1 .or. mixed_edge_mask(i,j) == 1) then
-                numedges = mixed_edge_mask(i+1,j) + mixed_edge_mask(i,j)
-                ds_dy_g = (mixed_edge_mask(i+1,j) * ds_dy_edge(i+1,j) + &
-                           mixed_edge_mask(i,j)   * ds_dy_edge(i,j))   &
-                           / numedges
-             else   ! punt (TODO - Check whether this ever happens)
-                ds_dy_g = 0.d0
-             endif
-
-             ! Compute the floating y gradient, (ds/dy)_f, based on gradients at nearby
-             ! fully floating edges (if possible), otherwise based on gradients at mixed edges.
-
-             if (floating_edge_mask(i+1,j) == 1) then
-                ds_dy_f = ds_dy_edge(i+1,j)
-             elseif (floating_edge_mask(i,j) == 1) then
-                ds_dy_f = ds_dy_edge(i,j)
-             elseif (floating_edge_mask(i,j+1) == 1 .or. floating_edge_mask(i+1,j+1) == 1  .or.  &
-                     floating_edge_mask(i,j-1) == 1 .or. floating_edge_mask(i+1,j-1) == 1) then
-                numedges = floating_edge_mask(i,j+1) + floating_edge_mask(i+1,j+1) +   &
-                           floating_edge_mask(i,j-1) + floating_edge_mask(i+1,j-1)
-                ds_dy_f = (floating_edge_mask(i,j+1)   * ds_dy_edge(i,j+1)   +  &
-                           floating_edge_mask(i,j-1)   * ds_dy_edge(i,j-1)   +  &
-                           floating_edge_mask(i+1,j+1) * ds_dy_edge(i+1,j+1) +  &
-                           floating_edge_mask(i+1,j-1) * ds_dy_edge(i+1,j-1))   &
-                           / numedges
-             elseif (mixed_edge_mask(i+1,j) == 1 .or. mixed_edge_mask(i,j) == 1) then
-                numedges = mixed_edge_mask(i+1,j) + mixed_edge_mask(i,j)
-                ds_dy_f = (mixed_edge_mask(i+1,j) * ds_dy_edge(i+1,j) + &
-                           mixed_edge_mask(i,j)   * ds_dy_edge(i,j))   &
-                           / numedges
-             else   ! punt (TODO - Check whether this ever happens)
-                ds_dy_f = 0.d0
-             endif
-
-             ! Compute ds/dy as a weighted average of (ds/dx)_g and (dx/dx)_f
-             dusrf_dy(i,j) = f_ground(i,j) * ds_dy_g + (1.d0 - f_ground(i,j)) * ds_dy_f
-
-          endif   ! vertex is adjacent to the GL
-       enddo      ! i
-    enddo         ! j
-
-    !WHL - debug
-    if (verbose_gl_gradient) then
-       print*, ' '
-       print*, 'New ds/dx gradient at GL, itest, jtest =', itest, jtest
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') dusrf_dx(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New ds/dy gradient at GL:'
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') dusrf_dy(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-  end subroutine glissade_gradient_at_grounding_line
-
-!----------------------------------------------------------------------------
+!****************************************************************************
 
   subroutine glissade_vertical_average(nx,         ny,        &
                                        nz,         sigma,     &
