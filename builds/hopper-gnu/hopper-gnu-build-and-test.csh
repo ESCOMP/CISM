@@ -89,6 +89,11 @@ echo 'TEST_DIR must also be set in your .bashrc file.'
 
 if ($skip_build_set == 0) then
 
+#remove build if one already exists
+if ( -e cism_driver/cism_driver ) then
+ rm -f cism_driver/cism_driver
+endif
+
 echo
 echo "Configuring and building in directory: " $PWD
 echo 
@@ -97,14 +102,6 @@ echo 'Configuring '$COMPILER_NAME' cmake build...'
 source ./$CMAKE_SCRIPT >& $CMAKE_CONF_OUT
 echo 'Making parallel '$COMPILER_NAME'...'
 make -j 8 >& $CMAKE_BUILD_OUT
-
-if ( -e example-drivers/simple_glide/src/simple_glide ) then
- echo 'Copying '$COMPILER_NAME' parallel simple_glide_'$COMPILER_NAME' to test directory'
- cp -f example-drivers/simple_glide/src/simple_glide $TEST_DIR/simple_glide_$COMPILER_NAME
-else
- echo "cmake '$COMPILER_NAME' build failed, no executable"
- @ build_problem = 1
-endif
 
 if ( -e cism_driver/cism_driver ) then
  echo 'Copying '$COMPILER_NAME' parallel cism_driver_'$COMPILER_NAME' to test directory'
@@ -118,6 +115,7 @@ endif # skip_build_set
 
 if ($build_problem == 1) then
   echo "No job submitted -- cmake build failed."
+  exit
 else  # execute tests:
  
  # Make copy of test suite in $TEST_DIR:
@@ -140,7 +138,6 @@ if (! ($no_copy_set)) then
    popd > /dev/null
  endif
 
- cp -rf ../../tests/higher-order/livv $TEST_DIR
 endif
 
 if ($skip_tests_set) then
@@ -148,7 +145,7 @@ if ($skip_tests_set) then
    exit
 endif
 
-csh $TEST_DIR/livv/run_livv_default_tests.csh $TEST_DIR $CISM_RUN_SCRIPT $PERF_TEST $CISM_VV_SCRIPT
+csh $TEST_DIR/LIVV/run_livv_default_tests.csh $TEST_DIR $CISM_RUN_SCRIPT $PERF_TEST $CISM_VV_SCRIPT
 echo "Back in build-and-test script, exiting."
 exit
 

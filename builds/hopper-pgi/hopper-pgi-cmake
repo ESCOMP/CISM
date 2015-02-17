@@ -56,8 +56,8 @@ module load cray-shmem/6.0.1
 module load cray-mpich/6.0.1
 
 # remove old build data:
-rm ./CMakeCache.txt
-rm -r ./CMakeFiles
+rm -rf ./CMakeCache.txt
+rm -rf ./CMakeFiles
 
 # run a script that creates some CISM source files:
 #pushd .
