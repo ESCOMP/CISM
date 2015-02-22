@@ -309,7 +309,7 @@
     ! gradient_margin_in = 1 (HO_GRADIENT_MARGIN_ICE_LAND) computes the gradient
     !  using ice-covered and/or land points.  It is equivalent to HO_GRADIENT_MARGIN_ALL
     !  for the land-based problems where an SIA solver would usually be applied, and is the
-    !  default value.
+    !  default value.  Requires passing in the surface elevation and a land mask.
     ! gradient_margin_in = 2 (HO_GRADIENT_MARGIN_ICE) computes the gradient
     !  using ice-covered points only.  This scheme is very inaccurate for the
     !  Halfar problem because it underestimates margin velocities.
@@ -320,6 +320,7 @@
                                     dusrf_dx,  dusrf_dy,    &
                                     ice_mask,               &
                                     gradient_margin_in = whichgradient_margin, &
+                                    usrf = usrf,            &
                                     land_mask = land_mask)
 
     if (verbose .and. main_task) then
@@ -904,7 +905,8 @@
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     gradient_margin_in = whichgradient_margin, &
                                     ice_mask = ice_mask,              &
-                                    land_mask = land_mask)
+                                    land_mask = land_mask,            &
+                                    usrf = usrf)
     
     do k = nz-1, 1, -1
 

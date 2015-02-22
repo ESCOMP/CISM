@@ -229,12 +229,12 @@
 !    logical :: verbose_gridop= .true.
     logical :: verbose_dirichlet = .false.
 !    logical :: verbose_dirichlet= .true.
-!    logical :: verbose_L1L2 = .false.
-    logical :: verbose_L1L2 = .true.
+    logical :: verbose_L1L2 = .false.
+!    logical :: verbose_L1L2 = .true.
     logical :: verbose_diva = .false.
 !    logical :: verbose_diva = .true.
-!    logical :: verbose_glp = .false.
-    logical :: verbose_glp = .true.
+    logical :: verbose_glp = .false.
+!    logical :: verbose_glp = .true.
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
@@ -1369,7 +1369,8 @@
     !  if we have ice-covered floating cells next to ice-free ocean cells,
     !  because the gradient will be too big.
     ! Setting gradient_margin_in = 1 uses any available ice-covered cells
-    !  and/or land cells to compute the gradient.  Requires a land mask.
+    !  and/or land cells to compute the gradient.  Requires passing in the surface
+    !  elevation and a land mask.
     !  This is appropriate for both land-based problems and problems
     !  with ice shelves.  It is the default setting.
     ! Setting gradient_margin_in = 2 uses only ice-covered cells to compute
@@ -1381,7 +1382,7 @@
     !  whichapprox = HO_APPROX_BP or HO_APPROX_SIA, because in these cases
     !  the centered gradient fails to cancel checkerboard noise.
     ! The L1L2 solver computes 3D velocities in a way that damps checkerboard noise,
-    !  so a centered difference works well (and for the Halfar problem is more 
+    !  so a centered difference should work well (and for the Halfar problem is more 
     !  accurate than upstream).
     !------------------------------------------------------------------------------
 
@@ -1395,6 +1396,7 @@
                                        dusrf_dx,         dusrf_dy,   &
                                        ice_mask,                     &
                                        gradient_margin_in = whichgradient_margin, &
+                                       usrf = usrf,                  &
                                        land_mask = land_mask)
 
     else          ! 2nd order upstream
@@ -1406,6 +1408,7 @@
                                        ice_mask,                   &
                                        accuracy_flag_in = 2,       &
                                        gradient_margin_in = whichgradient_margin, &
+                                       usrf = usrf,                &
                                        land_mask = land_mask)
 
     endif   ! whichgradient
@@ -2003,8 +2006,7 @@
                 print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
              endif
 
-!!             if (verbose_diva .and. this_rank==rtest) then
-             if (0==1 .and. this_rank==rtest) then
+             if (verbose_diva .and. this_rank==rtest) then
                 i = itest
                 j = jtest
                 print*, ' '
@@ -3026,25 +3028,6 @@
        endif
 
     endif   ! whichapprox
-
-    !WHL - debug
-    if (this_rank==rtest) then
-       j = jtest
-       print*, ' '
-       print*, 'j =', jtest
-       print*, 'thck:'
-       write(6,'(11f12.6)') thck(itest-5:itest+5,j)
-       write(6,*) ' '
-       print*, 'stagthck:'
-       write(6,'(i4,11f12.6)') 0, stagthck(itest-5:itest+5,j)
-       write(6,*) ' '
-       print*, 'ds/dx:'
-       write(6,'(i4,11f12.6)') 0, dusrf_dx(itest-5:itest+5,j)
-       print*, 'k, uvel:'
-       do k = 1, nz
-          write(6,'(i4, 11f12.4)') k, uvel(k, itest-5:itest+5,j)
-       enddo
-    endif
 
     !------------------------------------------------------------------------------
     ! Compute the components of the 3D stress tensor.
