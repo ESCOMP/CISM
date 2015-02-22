@@ -298,13 +298,6 @@ contains
     real(dp) :: df_dx_north, df_dx_south  ! df_dx at neighboring edges
     real(dp) :: df_dy_east, df_dy_west    ! df_dx at neighboring edges
 
-    !WHL - The following can be commented out once the new code (new_edge_gradient = .true.) is tested
-    integer, dimension(nx,ny) :: mask
-    integer :: summask
-
-    logical :: new_edge_gradient = .true.     ! new edge-based gradients
-!!    logical :: new_edge_gradient = .false.  ! old gradients with problems for ice-free land lying above ice
-
     !--------------------------------------------------------
     !   Gradient at vertex(i,j) is based on f(i:i+1,j:j+1)
     ! 
@@ -318,8 +311,6 @@ contains
     else
        gradient_margin = HO_GRADIENT_MARGIN_ICE_LAND
     endif
-
-  if (new_edge_gradient) then
 
     if (gradient_margin == HO_GRADIENT_MARGIN_ALL) then
 
@@ -401,67 +392,6 @@ contains
        enddo  ! i
     enddo     ! j
    
-  else  ! old approach; new_edge_gradient = .false.
-        !TODO - Comment out this section once new version is tested
-
-    ! Initialize gradients to zero
-    df_dx(:,:) = 0.d0
-    df_dy(:,:) = 0.d0
-
-    ! Compute the gradients using info in cells with mask = 1
-
-    ! Set integer mask based on gradient_margin.
-
-    if (gradient_margin == HO_GRADIENT_MARGIN_ALL) then
-
-       mask(:,:) = 1             ! = 1 for all cells
-
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_LAND) then
-
-       if (present(land_mask)) then
-          mask(:,:) = max(ice_mask(:,:),land_mask(:,:))    ! = 1 if ice_mask = 1 .or. land_mask = 1 
-       else
-          call write_log('Must pass in land mask to compute centered gradient with gradient_margin = 1', GM_FATAL)
-       endif
-
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
-
-          mask(:,:) = ice_mask(:,:)    ! = 1 for ice-covered cells
-    endif
-
-    do j = 1, ny-1
-       do i = 1, nx-1
-
-          summask = mask(i,j) + mask(i+1,j) + mask(i,j+1) + mask(i+1,j+1)
-
-          if (summask == 4) then  ! use info in all four neighbor cells
-             df_dx(i,j) = (field(i+1,j) + field(i+1,j+1) - field(i,j) - field(i,j+1)) / (2.d0 * dx)
-             df_dy(i,j) = (field(i,j+1) + field(i+1,j+1) - field(i,j) - field(i+1,j)) / (2.d0 * dy)
-
-          else  ! use info only in cells with mask = 1
-                ! if info is not available, gradient component = 0
-
-             ! df_dx
-             if (mask(i,j)==1 .and. mask(i+1,j)==1) then
-                df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
-             elseif (mask(i,j+1)==1 .and. mask(i+1,j+1)==1) then
-                df_dx(i,j) = (field(i+1,j+1) - field(i,j+1)) / dx
-             endif
-
-             ! df_dy
-             if (mask(i,j)==1 .and. mask(i,j+1)==1) then
-                df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
-             elseif (mask(i+1,j)==1 .and. mask(i+1,j+1)==1) then
-                df_dy(i,j) = (field(i+1,j+1) - field(i+1,j)) / dy
-             endif
-
-          endif
-
-       enddo    ! i
-    enddo    ! j
-
-  endif    ! new_edge_gradient
-
     if (verbose_gradient .and. main_task) then
        print*, ' '
        print*, 'Centered gradient:'
@@ -571,12 +501,6 @@ contains
     real(dp) :: df_dy_east, df_dy_east2
     real(dp) :: df_dy_west, df_dy_west2
 
-    !WHL - The following can be commented out once the new code (new_edge_gradient = .true.) is tested
-    integer, dimension(nx,ny) :: mask
-
-    logical :: new_edge_gradient = .true.     ! new edge-based gradients
-!!    logical :: new_edge_gradient = .false.  ! old gradients with problems for ice-free land lying above ice
-
     !--------------------------------------------------------
     !   First-order upstream gradient at vertex(i,j) is based on two points out of f(i:i+1,j:j+1)
     ! 
@@ -598,8 +522,6 @@ contains
     else
        gradient_margin = HO_GRADIENT_MARGIN_ICE_LAND
     endif
-
-  if (new_edge_gradient) then
 
     ! Set integer edge mask based on gradient_margin.
 
@@ -818,161 +740,6 @@ contains
 
     endif   ! first or second order accurate
 
-  else  ! old approach; new_edge_gradient = .false.
-        !TODO - Comment out this section once new version is tested
-
-    ! Initialize gradients to zero
-    df_dx(:,:) = 0.d0
-    df_dy(:,:) = 0.d0
-
-    ! Set integer mask based on gradient_margin.
-
-    if (gradient_margin == HO_GRADIENT_MARGIN_ALL) then
-
-       mask(:,:) = 1             ! = 1 for all cells
-
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_LAND) then
-
-       if (present(land_mask)) then
-          mask(:,:) = max(ice_mask(:,:),land_mask(:,:))    ! = 1 if ice_mask = 1 .or. land_mask = 1 
-       else
-          call write_log('Must pass in land mask to compute upstream gradient with gradient_margin = 1', GM_FATAL)
-       endif
-
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
-
-       mask(:,:) = ice_mask(:,:)    ! = 1 for ice-covered cells
-
-    endif
-
-    if (accuracy_flag == 1) then   ! first-order accurate
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-
-             ! Compute gradient only if at least one neighbor is ice-covered
-             summask = ice_mask(i,j) + ice_mask(i+1,j) + ice_mask(i,j+1) + ice_mask(i+1,j+1)
-           
-             if (summask > 0) then
-
-                ! Compute df_dx by taking upstream gradient
-
-                sum1 = usrf(i+1,j+1) + usrf(i,j+1)
-                sum2 = usrf(i+1,j) + usrf(i,j)
-
-                if (sum1 > sum2 .and. mask(i+1,j+1)==1 .and. mask(i,j+1)==1) then
-                   df_dx(i,j) = (field(i+1,j+1) - field(i,j+1)) / dx
-                elseif (sum1 <= sum2 .and. mask(i+1,j)==1 .and. mask(i,j)==1) then
-                   df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
-                endif
-
-                ! Compute df_dy by taking upstream gradient
-             
-                sum1 = usrf(i+1,j+1) + usrf(i+1,j)
-                sum2 = usrf(i,j+1) + usrf(i,j)
-             
-                if (sum1 > sum2 .and. mask(i+1,j+1)==1 .and. mask(i+1,j)==1) then
-                   df_dy(i,j) = (field(i+1,j+1) - field(i+1,j)) / dy
-                elseif (sum1 <= sum2 .and. mask(i,j+1)==1 .and. mask(i,j)==1) then
-                   df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
-                else
-                   df_dy(i,j) = 0.d0
-                endif
-
-             endif  ! summask > 0 (mask = 1 in at least one neighbor cell)
-
-          enddo
-       enddo
-
-    else    ! second-order accurate
-
-       do j = 2, ny-2   ! loop does not include all of halo
-          do i = 2, nx-2
-
-             ! Compute gradient only if at least one neighbor is ice-covered
-             summask = ice_mask(i,j) + ice_mask(i+1,j) + ice_mask(i,j+1) + ice_mask(i+1,j+1)
-           
-             if (summask > 0) then
-
-                ! Compute df_dx by taking upstream gradient
-             
-                ! determine upstream direction
-
-                sum1 = usrf(i+1,j+1) + usrf(i,j+1) + usrf(i+1,j+2) + usrf(i,j+2)
-                sum2 = usrf(i+1,j) + usrf(i,j) + usrf(i+1,j-1) + usrf(i,j-1)
-
-                if (sum1 > sum2) then
-
-                   summask = mask(i+1,j+1) + mask(i,j+1) + mask(i+1,j+2) + mask(i,j+2)
-
-                   if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dx(i,j) = (1.5d0 * (field(i+1,j+1) - field(i,j+1))     &
-                                  - 0.5d0 * (field(i+1,j+2) - field(i,j+2))) / dx
-                   elseif (mask(i+1,j+1)==1 .and. mask(i,j+1)==1) then   ! revert to 1st order, using upstream info
-                      print*, 'df_dx: i, j, summask =', i, j, summask
-                      df_dx(i,j) = (field(i+1,j+1) - field(i,j+1)) / dx
-                   endif
-
-                else  ! sum1 <= sum2
-
-                   summask = mask(i+1,j) + mask(i,j) + mask(i+1,j-1) + mask(i,j-1)
-
-                   if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dx(i,j) = (1.5d0 * (field(i+1,j)   - field(i,j))     &
-                                  - 0.5d0 * (field(i+1,j-1) - field(i,j-1))) / dx
-                   elseif (mask(i+1,j)==1 .and. mask(i,j)==1) then   ! revert to 1st order, using upstream info
-                      print*, 'df_dx: i, j, summask =', i, j, summask
-                      df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
-                   endif
-                   
-                endif   ! sum1 > sum2
-
-                ! Compute df_dy by taking upstream gradient
-
-                ! determine upstream direction
-
-                sum1 = usrf(i+1,j+1) + usrf(i+1,j) + usrf(i+2,j+1) + usrf(i+2,j)
-                sum2 = usrf(i,j+1) + usrf(i,j) + usrf(i-1,j+1) + usrf(i-1,j)
-             
-                if (sum1 > sum2) then
-
-                   summask = mask(i+1,j+1) + mask(i+1,j) + mask(i+2,j+1) + mask(i+2,j)
-
-                   if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dy(i,j) = (1.5d0 * (field(i+1,j+1) - field(i+1,j))     &
-                                  - 0.5d0 * (field(i+2,j+1) - field(i+2,j))) / dy
-                   elseif (mask(i+1,j+1)==1 .and. mask(i+1,j)==1) then   ! revert to 1st order, using upstream info
-                      print*, 'df_dy: i, j, summask =', i, j, summask
-                      df_dy(i,j) = (field(i+1,j+1) - field(i+1,j)) / dy
-                   endif
-
-                else   ! sum1 <= sum2
-
-                   summask = mask(i,j+1) + mask(i,j) + mask(i-1,j+1) + mask(i-1,j)
-                   
-                   if (summask == 4) then ! use info in all four upstream neighbor cells
-                      df_dy(i,j) = (1.5d0 * (field(i,j+1)   - field(i,j))     &
-                                  - 0.5d0 * (field(i-1,j+1) - field(i-1,j))) / dy
-                   elseif (mask(i+1,j+1)==1 .and. mask(i+1,j)==1) then   ! revert to 1st order, using upstream info
-                      print*, 'df_dy: i, j, summask =', i, j, summask
-                      df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
-                   endif
-
-                endif   ! sum1 > sum2
-
-             endif      ! summask > 0 (mask = 1 in at least one neighbor cell)
-
-          enddo     ! i
-       enddo     ! j
-
-       ! fill in halo values
-       call staggered_parallel_halo(df_dx)
-       call staggered_parallel_halo(df_dy)
-
-    endif   ! 1st or 2nd order accurate
-
-  endif   ! new_edge_gradient
-
     if (verbose_gradient .and. main_task) then
        print*, ' '
        print*, 'upstream df_dx:'
@@ -1060,12 +827,6 @@ contains
     logical, dimension(nx,ny-1) ::    &
        edge_mask_y               ! edge mask for computing df/dy
 
-    !TODO - Remove when new mask is tested
-    integer, dimension(nx,ny) :: mask
-
-!!    logical, parameter :: new_edge_gradient = .false.
-    logical, parameter :: new_edge_gradient = .true.
-
     !--------------------------------------------------------
     !   Gradient at east edge(i,j) is based on f(i:i+1,j)
     !   Gradient at north edge(i,j) is based on f(i,j:j+1)
@@ -1089,8 +850,6 @@ contains
     else
        gradient_margin = HO_GRADIENT_MARGIN_ICE_LAND
     endif
-
-  if (new_edge_gradient) then
 
     ! Set integer edge mask based on gradient_margin.
 
@@ -1160,58 +919,6 @@ contains
           endif
        enddo    ! i
     enddo       ! j
-
-  else   ! old method; to be removed
-
-    ! Initialize gradients to zero
-    df_dx(:,:) = 0.d0
-    df_dy(:,:) = 0.d0
-
-    ! Set integer mask based on gradient_margin.
-
-    if (gradient_margin == HO_GRADIENT_MARGIN_ALL) then
-
-       mask(:,:) = 1             ! = 1 for all cells
-
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_LAND) then
-
-       if (present(land_mask) .and. present(ice_mask)) then
-          mask(:,:) = max(ice_mask(:,:),land_mask(:,:))    ! = 1 if ice_mask = 1 .or. land_mask = 1 
-       else
-          call write_log('Must pass in land and ice masks to compute edge gradient with gradient_margin = 1', GM_FATAL)
-       endif
-
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
-
-       if (present(ice_mask)) then
-          mask(:,:) = ice_mask(:,:)    ! = 1 for ice-covered cells
-       else
-          call write_log('Must pass in ice mask to compute edge gradient with gradient_margin = 2', GM_FATAL)
-       endif
-
-    endif
-
-    ! Compute the gradients using info in cells with mask = 1
-
-    ! df_dx
-    do j = 1, ny
-       do i = 1, nx-1
-          if (mask(i,j)==1 .and. mask(i+1,j)==1) then
-             df_dx(i,j) = (field(i+1,j) - field(i,j)) / dx
-          endif
-       enddo    ! i
-    enddo       ! j
-
-    ! df_dy
-    do j = 1, ny-1
-       do i = 1, nx
-          if (mask(i,j)==1 .and. mask(i,j+1)==1) then
-             df_dy(i,j) = (field(i,j+1) - field(i,j)) / dy
-          endif
-       enddo    ! i
-    enddo       ! j
-
-  endif   ! new_edge_gradient
 
     if (verbose_gradient .and. main_task) then
        print*, ' '
