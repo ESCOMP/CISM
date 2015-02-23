@@ -218,7 +218,8 @@ contains
     ! Stagger effective pressure if a friction law will need it.  cases BWATER_OCEAN_PENETRATION, BWATER_SHEET calculate it, but it may also be passed in as data or forcing.
     ! cap the staggered effective pressure at 0x and 1x overburden pressure to avoid strange values going to the friction laws
     if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
-         (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) ) then
+         (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
+         (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) ) then
 
         allocate(N_capped(model%general%ewn,model%general%nsn))
 

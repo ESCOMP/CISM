@@ -176,6 +176,7 @@ module glide_types
   integer, parameter :: HO_BABC_ISHOMC = 8
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
+  integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
 
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_JFNK = 1
@@ -451,7 +452,8 @@ module glide_types
     !> \item[7] treat beta value as till yield stress (in Pa) using Newton-type iteration (in development)
     !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
     !> \item[9] power law based using effective pressure
-    !> \item[10] Coulomb friction law using effective pressure
+    !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
+    !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -893,6 +895,8 @@ module glide_types
       real(dp) :: Coulomb_C = 0.84d0*0.5d0        !< basal stress constant (no dimension)
       real(dp) :: Coulomb_Bump_Wavelength = 2.0d0 !< bed rock wavelength at subgrid scale precision (m)
       real(dp) :: Coulomb_Bump_max_slope = 0.5d0  !< maximum bed bump slope at subgrid scale precision (no dimension) 
+      real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for the Schoof (2005) Coulomb friction law, in units Pa^{-n} s^{-1} 
+                                                  !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
   end type glide_basal_physics
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1548,6 +1552,7 @@ contains
     ! Basal Physics
     if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
          (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
+         (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) .or. &
          (model%options%whichbwat == BWATER_OCEAN_PENETRATION)     ) then
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)

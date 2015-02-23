@@ -1162,9 +1162,7 @@
     ! These are quantities that do not change during the outer nonlinear loop. 
     !------------------------------------------------------------------------------
 
-    !WHL - debug - Kill this output for now
-!!    if (verbose_state) then
-    if (0 == 1) then
+    if (verbose_state) then
        maxthck = maxval(thck(:,:))
        maxthck = parallel_reduce_max(maxthck)
        maxusrf = maxval(usrf(:,:))
@@ -1873,7 +1871,7 @@
           endif
 
           print*, ' '
-          print*, 'beta field, rank =', rtest
+          print*, 'beta field, itest, rank =', itest, rtest
           do j = ny-1, 1, -1
 !!             do i = 1, nx-1
              do i = itest-4, itest+4
@@ -1885,7 +1883,7 @@
           print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
 
           print*, ' '
-          print*, 'beta*f_ground, rank =', rtest
+          print*, 'beta*f_ground, itest, rank =', itest, rtest
           do j = ny-1, 1, -1
 !!             do i = 1, nx-1
              do i = itest-4, itest+4

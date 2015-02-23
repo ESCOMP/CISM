@@ -107,7 +107,7 @@ contains
   real(dp), intent(in), dimension(:,:)    :: mintauf  ! till yield stress (Pa)
   real(dp), intent(in)                    :: beta_const  ! spatially uniform beta (Pa yr/m)
   type(glide_basal_physics), intent(in) :: basal_physics  ! basal physics object
-  real(dp), intent(in), dimension(:,:) :: flwa_basal  ! flwa for the basal ice layer
+  real(dp), intent(in), dimension(:,:) :: flwa_basal  ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
   real(dp), intent(in), dimension(:,:) :: thck  ! ice thickness
   integer, intent(in), dimension(:,:)     :: mask ! staggered grid mask
   real(dp), intent(inout), dimension(:,:) :: beta  ! (Pa yr/m)
@@ -144,8 +144,7 @@ contains
   real(dp), dimension(size(beta,1), size(beta,2)) :: big_lambda       ! bed rock characteristics
   integer, dimension(size(thck,1), size(thck,2))  :: imask            ! ice grid mask  1=ice, 0=no ice
   real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
-
-
+                                                                      ! NOTE: Units are Pa^{-n} yr^{-1}
   select case(whichbabc)
 
     case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
@@ -297,29 +296,39 @@ contains
        beta = basal_physics%friction_powerlaw_k**(-1.0d0/p) * basal_physics%effecpress_stag**(q/p)    &
               * dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 )**(1.0d0/p-1.0d0)
 
-    case(HO_BABC_COULOMB_FRICTION)
+    case(HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
 
       ! Basal stress representation using coulomb friction law
       ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
-
-      ! Need flwa of the basal layer on the staggered grid
-      where (thck > 0.0)
-        imask = 1
-      elsewhere
-        imask = 0
-      end where
-      call glissade_stagger(ewn,        nsn,               &
-                           flwa_basal,  flwa_basal_stag,   &
-                           imask,       stagger_margin_in = 1)
-      ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
 
       ! Setup parameters needed for the friction law
       m_max = basal_physics%Coulomb_Bump_max_slope  !maximum bed obstacle slope(unitless)
       lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
       ! biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
-      big_lambda = lambda_max / m_max * flwa_basal_stag
       Coulomb_C = basal_physics%Coulomb_C    ! Basal shear stress factor (Pa (m^-1 y)^1/3)
       !gn                         ! Glen's flaw law from parameter module
+
+      if (whichbabc == HO_BABC_COULOMB_FRICTION) then
+
+         ! Need flwa of the basal layer on the staggered grid
+         where (thck > 0.0)
+            imask = 1
+         elsewhere
+            imask = 0
+         end where
+         call glissade_stagger(ewn,         nsn,               &
+                               flwa_basal,  flwa_basal_stag,   &
+                               imask,       stagger_margin_in = 1)
+         ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
+
+         big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
+
+      else   ! which babc = HO_BABC_COULOMB_CONST_BASAL_FLWA; use a constant value of basal flwa
+             ! NOTE: Units of flwa_basal are Pa{-n} s{-1}
+
+         big_lambda(:,:) = (lambda_max / m_max) * basal_physics%flwa_basal
+
+      endif
 
       beta = Coulomb_C * basal_physics%effecpress_stag * &
              (dsqrt(thisvel**2 + othervel**2 + smallnum**2))**(1.0d0/gn - 1.0d0) * &
@@ -328,9 +337,9 @@ contains
              basal_physics%effecpress_stag**gn * big_lambda                        &
              )**(-1.0d0/gn)
 
-      ! for numerical stability purposes
-      where (beta>1.0d8)
-              beta = 1.0d8
+      ! for numerical stability
+      where (beta > 1.0d8)
+         beta = 1.0d8
       end where
 
     case default

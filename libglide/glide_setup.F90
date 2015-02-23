@@ -737,18 +737,19 @@ contains
          '0-order SIA                       ', &
          'first-order model (Blatter-Pattyn)' /)
 
-    character(len=*), dimension(0:10), parameter :: ho_whichbabc = (/ &
-         'constant beta                          ', &
-         'simple pattern of beta                 ', &
-         'till yield stress (Picard)             ', &
-         'function of bwat                       ', &
-         'no slip (using large B^2)              ', &
-         'beta passed from CISM                  ', &
-         'no slip (Dirichlet implementation)     ', &
-         'till yield stress (Newton)             ', &
-         'beta as in ISMIP-HOM test C            ', &
-         'power law using effective pressure     ', &
-         'Coulomb friction law using effec press ' /)
+    character(len=*), dimension(0:11), parameter :: ho_whichbabc = (/ &
+         'constant beta                                    ', &
+         'simple pattern of beta                           ', &
+         'till yield stress (Picard)                       ', &
+         'function of bwat                                 ', &
+         'no slip (using large B^2)                        ', &
+         'beta passed from CISM                            ', &
+         'no slip (Dirichlet implementation)               ', &
+         'till yield stress (Newton)                       ', &
+         'beta as in ISMIP-HOM test C                      ', &
+         'power law using effective pressure               ', &
+         'Coulomb friction law w/ effec press              ', &
+         'Coulomb friction law w/ effec press, const flwa_b' /)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration  ', &
@@ -1073,7 +1074,8 @@ contains
        if (model%options%which_ho_babc == HO_BABC_POWERLAW) then
          call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        endif
-       if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
+       if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
+           model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
          call write_log('Coulomb friction law higher-order basal boundary condition is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        endif
 
@@ -1227,6 +1229,7 @@ contains
     call GetValue(section, 'coulomb_c', model%basal_physics%Coulomb_C)
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%Coulomb_Bump_max_slope)
     call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%Coulomb_bump_wavelength)
+    call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
 
     ! ocean penetration parameterization parameter
     call GetValue(section,'p_ocean_penetration', model%paramets%p_ocean_penetration)
@@ -1338,13 +1341,18 @@ contains
        call write_log(message)
     end if
 
-    if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
+    if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
+        model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
        write(message,*) 'C coefficient for Coulomb friction law : ', model%basal_physics%Coulomb_C
        call write_log(message)
        write(message,*) 'bed bump max. slope for Coulomb friction law : ', model%basal_physics%Coulomb_Bump_max_slope
        call write_log(message)
        write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%Coulomb_bump_wavelength
        call write_log(message)
+       if (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
+          write(message,*) 'constant basal flwa for Coulomb friction law : ', model%basal_physics%flwa_basal
+          call write_log(message)
+       endif
     end if
 
     if (model%options%whichbwat == BWATER_OCEAN_PENETRATION) then
@@ -1736,7 +1744,7 @@ contains
     end select
 
     select case (options%which_ho_babc)
-      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION)
+      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
         ! These friction laws need effective pressure
         call glide_add_to_restart_variable_list('effecpress')
       case default
