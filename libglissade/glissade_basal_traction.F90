@@ -145,6 +145,7 @@ contains
   integer, dimension(size(thck,1), size(thck,2))  :: imask            ! ice grid mask  1=ice, 0=no ice
   real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
                                                                       ! NOTE: Units are Pa^{-n} yr^{-1}
+
   select case(whichbabc)
 
     case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
@@ -324,7 +325,7 @@ contains
          big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
 
       else   ! which babc = HO_BABC_COULOMB_CONST_BASAL_FLWA; use a constant value of basal flwa
-             ! NOTE: Units of flwa_basal are Pa{-n} s{-1}
+             ! NOTE: Units of flwa_basal are Pa{-n} yr{-1}
 
          big_lambda(:,:) = (lambda_max / m_max) * basal_physics%flwa_basal
 
@@ -336,6 +337,7 @@ contains
               dsqrt(thisvel**2 + othervel**2 + smallnum**2) +                      &
              basal_physics%effecpress_stag**gn * big_lambda                        &
              )**(-1.0d0/gn)
+
 
       ! for numerical stability
       where (beta > 1.0d8)

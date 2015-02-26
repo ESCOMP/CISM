@@ -150,6 +150,9 @@ module glide_types
   integer, parameter :: RESTART_FALSE = 0
   integer, parameter :: RESTART_TRUE = 1
 
+  integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
+  integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
+  
   !basal proc option disabled for now
   integer, parameter :: BAS_PROC_DISABLED = 0
 !!  integer, parameter :: BAS_PROC_FULLCALC = 1
@@ -404,6 +407,14 @@ module glide_types
     !> \begin{description}
     !> \item[0] normal start-up (take init fields from .nc input file OR if absent, use default options)
     !> \item[1] restart model from previous run (do not calc. temp, rate factor, or vel)
+    !> \end{description}
+
+    integer :: restart_extend_velo = 0
+    !> if velocity fields should be written on the extended staggered mesh
+    !> \begin{description}
+    !> \item[0] write uvel and vvel to restart file on standard staggered mesh
+    !> \item[1] write uvel_extend and vvel_extend to restart file on extended staggered mesh
+    !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
 
     ! This is a Glimmer serial option
@@ -723,11 +734,13 @@ module glide_types
 !    real(dp),dimension(:,:,:),pointer :: vres  => null() !> 3D $y$-residual.
 !    real(dp),dimension(:,:,:),pointer :: magres  => null() !> 3D $magnitude$-residual.
 
-    ! Note: uvel_extend and vvel_extend can be used for output of uvel, vvel on a staggered grid 
-    !       that is the same size as the unstaggered grid (e.g., for ISMIP-HOM problems with periodic BC, 
-    !       where the number of velocity points is equal to the number of grid cells.)
+    ! Note: uvel_extend and vvel_extend can be used for input and output of uvel, vvel on a staggered grid 
+    !       that is the same size as the unstaggered grid. This is required for exact restart if velocities
+    !       are nonzero along the north and east boundaries of the global domain.
     real(dp),dimension(:,:,:),pointer :: uvel_extend => null()  !> 3D $x$-velocity on extended staggered grid
     real(dp),dimension(:,:,:),pointer :: vvel_extend => null()  !> 3D $y$-velocity on extended staggered grid
+    real(dp),dimension(:,:)  ,pointer :: uvel_2d_extend => null()  !> 2D $x$-velocity on extended staggered grid
+    real(dp),dimension(:,:)  ,pointer :: vvel_2d_extend => null()  !> 2D $y$-velocity on extended staggered grid
 
     real(dp),dimension(:,:)  ,pointer :: bed_softness => null() !> bed softness parameter
     real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !>  basal traction (scaler field)
@@ -765,13 +778,16 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: efvs => null()    !> effective viscosity
     real(dp),dimension(:,:),  pointer :: btractx => null() !> basal traction (Pa), x comp
     real(dp),dimension(:,:),  pointer :: btracty => null() !> basal traction (Pa), y comp
+    !WHL - The extended versions are needed for exact restart if using DIVA solver for a problem with nonzero traction at global boundaries
+    real(dp),dimension(:,:),  pointer :: btractx_extend => null() !> basal traction (Pa), x comp, on extended staggered grid
+    real(dp),dimension(:,:),  pointer :: btracty_extend => null() !> basal traction (Pa), y comp, on extended staggered grid
 
   end type glide_stress_t      
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 !TODO - Should calving and eus be part of some type other than glide_climate?
-
+!TODO - Make eus a config file parameter.
 !TODO - Rename acab in glide_climate type to avoid confusion over units? (e.g., acab_ice?)
 !       Here, acab has units of m/y ice, whereas in Glint, acab has units of m/y water equiv.
 
@@ -1178,7 +1194,7 @@ module glide_types
     !Model variables that will be passed to other subroutines
     real(dp),dimension(:,:)  ,pointer :: mintauf => null() !Bed strength calculated with basal proc. mod.
 !    real(dp),dimension(:,:)  ,pointer :: Hwater  => null() !Water available from till layer (m)
-    !Model variabled necessary for restart
+    !Model variables necessary for restart
 !    real(dp),dimension(:,:,:)  ,pointer :: u => null()     !Till excess pore pressure (Pa)
 !    real(dp),dimension(:,:,:)  ,pointer :: etill  => null()  !Till void ratio (ND)  
     
@@ -1452,17 +1468,18 @@ contains
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_v)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%rhs_u)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%rhs_v)
-
-    ! These two are on the extended staggered grid, which is the same size as the ice grid.
-    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%uvel_extend)
-    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%vvel_extend)
-
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_2d)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_2d)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas_tavg)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vbas)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vbas_tavg)
+
+    ! The following are on the extended staggered grid, which is the same size as the ice grid.
+    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%uvel_extend)
+    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%vvel_extend)
+    call coordsystem_allocate(model%general%ice_grid,  model%velocity%uvel_2d_extend)
+    call coordsystem_allocate(model%general%ice_grid,  model%velocity%vvel_2d_extend)
 
     if (model%options%whichdycore == DYCORE_GLIDE) then
        call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel)
@@ -1504,6 +1521,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xy)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_extend)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_extend)
     endif
 
     ! geometry arrays
@@ -1690,6 +1709,10 @@ contains
         deallocate(model%velocity%uvel)
     if (associated(model%velocity%vvel)) &
         deallocate(model%velocity%vvel)
+    if (associated(model%velocity%uvel_2d)) &
+        deallocate(model%velocity%uvel_2d)
+    if (associated(model%velocity%vvel_2d)) &
+        deallocate(model%velocity%vvel_2d)
     if (associated(model%velocity%velnorm)) &
         deallocate(model%velocity%velnorm)
     if (associated(model%velocity%wvel)) &
@@ -1704,10 +1727,6 @@ contains
         deallocate(model%velocity%btrc)
     if (associated(model%velocity%btraction)) &
         deallocate(model%velocity%btraction)
-    if (associated(model%velocity%uvel_extend)) &
-        deallocate(model%velocity%uvel_extend)
-    if (associated(model%velocity%vvel_extend)) &
-        deallocate(model%velocity%vvel_extend)
     if (associated(model%velocity%resid_u)) &
         deallocate(model%velocity%resid_u)
     if (associated(model%velocity%resid_v)) &
@@ -1716,11 +1735,14 @@ contains
         deallocate(model%velocity%rhs_u)
     if (associated(model%velocity%rhs_v)) &
         deallocate(model%velocity%rhs_v)
-
-    if (associated(model%velocity%uvel_2d)) &
-        deallocate(model%velocity%uvel_2d)
-    if (associated(model%velocity%vvel_2d)) &
-        deallocate(model%velocity%vvel_2d)
+    if (associated(model%velocity%uvel_extend)) &
+        deallocate(model%velocity%uvel_extend)
+    if (associated(model%velocity%vvel_extend)) &
+        deallocate(model%velocity%vvel_extend)
+    if (associated(model%velocity%uvel_2d_extend)) &
+        deallocate(model%velocity%uvel_2d_extend)
+    if (associated(model%velocity%vvel_2d_extend)) &
+        deallocate(model%velocity%vvel_2d_extend)
     if (associated(model%velocity%ubas)) &
         deallocate(model%velocity%ubas)
     if (associated(model%velocity%ubas_tavg)) &
@@ -1787,6 +1809,10 @@ contains
         deallocate(model%stress%btractx)
     if (associated(model%stress%btracty)) &
         deallocate(model%stress%btracty)
+    if (associated(model%stress%btractx_extend)) &
+        deallocate(model%stress%btractx_extend)
+    if (associated(model%stress%btracty_extend)) &
+        deallocate(model%stress%btracty_extend)
 
     ! basal physics arrays
     if (associated(model%basal_physics%effecpress)) &

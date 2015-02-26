@@ -988,8 +988,94 @@ contains
     if ( (model%options%is_restart == RESTART_TRUE) .and. &
          (model%numerics%time == model%numerics%tstart) ) then
   
-       call write_log('Using uvel, vvel from restart file at initial time')
+       ! If necessary, copy some restart fields from the extended staggered mesh to the
+       ! standard staggered mesh.
+       !
+       ! Note: For problems with nonzero velocity along the global boundaries (e.g., MISMIP on a periodic domain),
+       !        exact restart requires that the restart velocity field lies on an extended staggered mesh with
+       !        an extra row and column of velocity points along the north and east boundary of the domain.
+       !       In that case, uvel_extend and vvel_extend should be written to the restart file by setting
+       !        restart_extend_velo = 1 in the config file. They will then be read as input fields and at this
+       !        point need to be copied into uvel and vvel.
+       !       (It would have been cleaner to give uvel and vvel the same dimensions as the scalar mesh,
+       !        but that design decision was made many years ago and would take a lot of work to change.)
 
+       ! If uvel_extend and vvel_extend are input fields, then copy them into uvel and vvel.
+       ! Halo updates are then needed to make sure the velocities are correct along the boundaries.
+ 
+       if  ( (maxval(abs(model%velocity%uvel_extend)) /= 0.0d0) .or. & 
+             (maxval(abs(model%velocity%vvel_extend)) /= 0.0d0) ) then
+          call write_log('Using uvel_extend, vvel_extend from restart file at initial time')
+          model%velocity%uvel(:,:,:) = model%velocity%uvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
+          model%velocity%vvel(:,:,:) = model%velocity%vvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
+       else
+          call write_log('Using uvel, vvel from restart file at initial time')
+       endif
+
+       call staggered_parallel_halo(model%velocity%uvel)
+       call staggered_parallel_halo(model%velocity%vvel)
+
+       ! The DIVA solver option requires some additional fields on the staggered mesh for exact restart.
+       ! If these fields were input on the extended mesh, they need to be copied to the standard staggered mesh.
+       ! Halo updates are then needed to make sure they have the correct values along the boundaries.
+
+       if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+
+          if  ( (maxval(abs(model%velocity%uvel_2d_extend)) /= 0.0d0) .or. & 
+                (maxval(abs(model%velocity%vvel_2d_extend)) /= 0.0d0) ) then
+             call write_log('Using uvel_2d_extend, vvel_2d_extend from restart file at initial time')
+             model%velocity%uvel_2d(:,:) = model%velocity%uvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
+             model%velocity%vvel_2d(:,:) = model%velocity%vvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
+          else
+             call write_log('Using uvel_2d, vvel_2d from restart file at initial time')
+          endif
+
+          if  ( (maxval(abs(model%stress%btractx_extend)) /= 0.0d0) .or. & 
+                (maxval(abs(model%stress%btracty_extend)) /= 0.0d0) ) then
+             model%stress%btractx(:,:) = model%stress%btractx_extend(1:model%general%ewn-1,1:model%general%nsn-1)
+             model%stress%btracty(:,:) = model%stress%btracty_extend(1:model%general%ewn-1,1:model%general%nsn-1)
+          endif
+
+          if (this_rank==model%numerics%rdiag_local) then
+             print*, ' '
+             print*, 'After restart, before halo update: uvel_2d:'
+             do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+                write(6,'(i8)',advance='no') i
+             enddo
+             print*, ' '
+             do j = model%general%nsn-1, 1, -1
+                write(6,'(i4)',advance='no') j
+                do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+                   write(6,'(f8.2)',advance='no') model%velocity%uvel_2d(i,j) * (vel0*scyr)
+                enddo
+                print*, ' '
+             enddo
+          endif
+
+          call staggered_parallel_halo(model%velocity%uvel_2d)
+          call staggered_parallel_halo(model%velocity%vvel_2d)
+          call staggered_parallel_halo(model%stress%btractx)
+          call staggered_parallel_halo(model%stress%btracty)
+
+
+          if (this_rank==model%numerics%rdiag_local) then
+             print*, ' '
+             print*, 'After halo update: uvel_2d:'
+             do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+                write(6,'(i8)',advance='no') i
+             enddo
+             print*, ' '
+             do j = model%general%nsn-1, 1, -1
+                write(6,'(i4)',advance='no') j
+                do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+                   write(6,'(f8.2)',advance='no') model%velocity%uvel_2d(i,j) * (vel0*scyr)
+                enddo
+                print*, ' '
+             enddo
+          endif
+
+       endif   ! DIVA approx
+             
     else
 
        ! If this is not a restart or we are not at the initial time, then proceed normally.
@@ -1148,12 +1234,8 @@ contains
 
     ! Copy uvel and vvel to arrays uvel_extend and vvel_extend.
     ! These arrays have horizontal dimensions (nx,ny) instead of (nx-1,ny-1).
-    ! Thus they are better suited for I/O if we have periodic BC,
-    !  where the velocity field we are solving for has global dimensions (nx,ny).
-    ! Since uvel and vvel are not defined for i = nx or j = ny, the
-    !  uvel_extend and vvel_extend arrays will have values of zero at these points.
-    ! But these are halo points, so when we write netCDF I/O it shouldn't matter;
-    !  we should have the correct values at physical points.
+    ! They are needed for exact restart if we have nonzero velocities along the
+    !  north and east edges of the global domain, as in some test problems.
     
     model%velocity%uvel_extend(:,:,:) = 0.d0
     model%velocity%vvel_extend(:,:,:) = 0.d0
@@ -1164,7 +1246,31 @@ contains
           model%velocity%vvel_extend(:,i,j) = model%velocity%vvel(:,i,j)             
        enddo
     enddo
- 
+
+    ! Copy some additional 2D arrays to the extended grid if using the DIVA solver.
+
+    if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+
+       model%velocity%uvel_2d_extend(:,:) = 0.d0
+       model%velocity%vvel_2d_extend(:,:) = 0.d0
+       do j = 1, model%general%nsn-1
+          do i = 1, model%general%ewn-1
+             model%velocity%uvel_2d_extend(i,j) = model%velocity%uvel_2d(i,j)
+             model%velocity%vvel_2d_extend(i,j) = model%velocity%vvel_2d(i,j)             
+          enddo
+       enddo
+
+       model%stress%btractx_extend(:,:) = 0.d0
+       model%stress%btracty_extend(:,:) = 0.d0
+       do j = 1, model%general%nsn-1
+          do i = 1, model%general%ewn-1
+             model%stress%btractx_extend(i,j) = model%stress%btractx(i,j)
+             model%stress%btracty_extend(i,j) = model%stress%btracty(i,j)   
+          enddo
+       enddo
+
+    endif
+
     ! Calculate wvel, assuming grid velocity is 0.
     ! This is calculated relative to ice sheet base, rather than a fixed reference location
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD

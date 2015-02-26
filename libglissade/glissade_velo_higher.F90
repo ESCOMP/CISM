@@ -1999,22 +1999,16 @@
              endif
 
              if (verbose_diva .and. this_rank==rtest) then
-                print*, ' '
-                print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_omega(i,j), beta_eff(i,j), btractx(i,j)
-                print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
-             endif
-
-             if (verbose_diva .and. this_rank==rtest) then
                 i = itest
                 j = jtest
                 print*, ' '
-                print*, 'i, j, stagthck, beta, beta_eff:', i, j, stagthck(i,j), beta(i,j), beta_eff(i,j)
+                print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_omega(i,j), beta_eff(i,j), btractx(i,j)
+                print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
                 print*, ' '
                 print*, 'beta_eff:'
                 do j = ny-1, 1, -1
-                   print*, ' '
-                   print*, 'j =', j
-                   do i = 1, nx-1
+!!                   do i = 1, nx-1
+                   do i = itest-5, itest+5
                       write(6,'(e10.3)',advance='no') beta_eff(i,j)
                    enddo
                    write(6,*) ' '

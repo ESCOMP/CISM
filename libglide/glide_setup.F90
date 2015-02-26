@@ -572,6 +572,8 @@ contains
     call GetValue(section,'hotstart',model%options%is_restart)
     call GetValue(section,'restart',model%options%is_restart)
 
+    call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
+
     ! These are not currently supported
     !call GetValue(section, 'use_plume',model%options%use_plume)
     !call GetValue(section,'basal_proc',model%options%which_bproc)
@@ -1030,6 +1032,9 @@ contains
 
     if (model%options%is_restart == RESTART_TRUE) then
        call write_log('Restarting model from a previous run')
+       if (model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+          call write_log('Using extended velocity fields for restart')
+       endif
     end if
 
 !!     This option is not currently supported
@@ -1701,27 +1706,56 @@ contains
         end select
 
       case (DYCORE_GLAM, DYCORE_GLISSADE)
-        ! uvel,vvel - these are needed for an exact restart because we can only 
-        !             recalculate them to within the picard/jfnk convergence tolerance.
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
         ! TODO not sure if thkmask is needed for HO
+        call glide_add_to_restart_variable_list('thkmask kinbcmask bfricflx dissip')
 
-        call glide_add_to_restart_variable_list('uvel vvel thkmask bfricflx dissip')
+        ! uvel,vvel: These are needed for an exact restart because we can only recalculate
+        !            them to within the picard/jfnk convergence tolerance.
+        ! uvel/vvel_extend - These are identical to uvel and vvel, except that the mesh includes
+        !                     points along the north and east boundaries of the domain.
+        !                    CISM requires these fields for exact restart if the boundary velocities are nonzero,
+        !                     as in MISMIP test problems with periodic BCs.
+        !                    To output these fields, the user must set restart_extend_velo = 1 in the config file.
+        ! Note: It never hurts to write uvel/vvel_extend in place of uvel/vvel. But for most cases where restart
+        !       is required (e.g., whole-ice-sheet simulations), velocities are zero along the boundary
+        !       and uvel/vvel are sufficient.
+
+        if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+           call glide_add_to_restart_variable_list('uvel_extend vvel_extend')
+        else
+           call glide_add_to_restart_variable_list('uvel vvel')
+        endif
 
         ! Glissade approximation options
         select case (options%which_ho_approx)
-        case (HO_APPROX_DIVA)
-           ! This approximation also needs the 2D velocity, basal traction and effective viscosity
-           ! Note: The 2D velocity is needed if the DIVA scheme solves for the mean velocity.
-           !       If solving for the velocity at a specific level (e.g., the surface), the
-           !       2D velocity could be initialized from the 3D velocity.
-           call glide_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs')
-        case default
-           ! Other approximations (including SSA and L1L2) use the 3D uvel and vvel to initialize the velocity
-        end select
-    
-    end select
+
+           case (HO_APPROX_DIVA)
+              ! DIVA requires the 2D velocity, basal traction and effective viscosity for exact restart.
+              ! Since the 2D velocity and basal traction are located on the staggered grid, these fields
+              !  must be written to and read from the extended grid if velocites are nonzero at the boundaries.
+              !
+              ! Note: The 2D velocity is needed if the DIVA scheme solves for the mean velocity.
+              !       If DIVA is configured to solve for the velocity at a specific level (e.g., the surface),
+              !       then the 2D velocity could instead be copied from the 3D velocity array.
+              ! Note: In addition to uvel/vvel_2D, DIVA requires the full 3D velocity field for exact restart,
+              !       because horizontal transport is done before updating the velocity.
+              
+              if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+                 print*, 'Adding uvel_2d_extend to restart'
+                 call glide_add_to_restart_variable_list('uvel_2d_extend vvel_2d_extend btractx_extend btracty_extend efvs')
+              else
+                 print*, 'Adding uvel_2d to restart'
+                 call glide_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs')
+              endif
+              
+           case default
+              ! Other approximations (including SSA and L1L2) use the 3D uvel and vvel to initialize the velocity
+
+        end select   ! which_ho_approx
+           
+      end select ! which_dycore
 
     ! ==== Other non-dycore specific options ====
 
