@@ -101,7 +101,7 @@ cmake \
 \
   -D CMAKE_CXX_FLAGS:STRING="-O2 -g --diag_suppress 554,111,611 -DH5_USE_16_API" \
   -D CISM_Fortran_FLAGS:STRING="-O2 -g -DNO_RESCALE" \
-  -D CISM_EXTRA_LIBS:STRING="-L$PETSC_DIR/$PETSC_ARCH/lib -lpetsc -lHYPRE -lparmetis -lmetis -llapack -lblas -lpthread -ldl" \
+  -D CISM_EXTRA_LIBS:STRING="-L$PETSC_DIR/$PETSC_ARCH/lib -lpetsc -lHYPRE -lparmetis -lmetis -llapack -lblas -lpthread -lssl -lcrypto -ldl" \
   -D BISICLES_LIB_SUBDIR=libpgi \
   -D BISICLES_INTERFACE_DIR=$PWD/../../../BISICLES/CISM-interface/interface \
   -D CISM_MPI_LIBS:STRING="mpichf90" \
