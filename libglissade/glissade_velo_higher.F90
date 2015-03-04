@@ -728,7 +728,8 @@
 
     real(dp), dimension(:,:), pointer ::  &
        uvel_2d, vvel_2d,       &! 2D velocity field; solution for SSA, L1L2 and DIVA 
-       btractx, btracty         ! components of basal traction (Pa)
+       btractx, btracty,       &! components of basal traction (Pa)
+       taudx, taudy             ! components of driving stress (Pa)
 
     real(dp), dimension(:,:,:), pointer ::  &
        tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
@@ -759,7 +760,9 @@
                                 ! 1 = include ice-covered and/or land cells
                                 ! 2 = include ice-covered cells only
        whichassemble_beta,  &   ! 0 = standard finite element assembly
-                                ! 1 = apply local beta value at each vertex
+                                ! 1 = apply local value of beta at each vertex
+       whichassemble_taud,  &   ! 0 = standard finite element assembly
+                                ! 1 = apply local value of driving stress at each vertex
        whichground,  &          ! option for computing grounded fraction of each cell
        maxiter_nonlinear        ! maximum number of nonlinear iterations
 
@@ -1005,6 +1008,8 @@
 
      btractx  => model%stress%btractx(:,:)
      btracty  => model%stress%btracty(:,:)
+     taudx    => model%stress%taudx(:,:)
+     taudy    => model%stress%taudy(:,:)
      tau_xz   => model%stress%tau%xz(:,:,:)
      tau_yz   => model%stress%tau%yz(:,:,:)
      tau_xx   => model%stress%tau%xx(:,:,:)
@@ -1028,6 +1033,7 @@
      whichgradient        = model%options%which_ho_gradient
      whichgradient_margin = model%options%which_ho_gradient_margin
      whichassemble_beta   = model%options%which_ho_assemble_beta
+     whichassemble_taud   = model%options%which_ho_assemble_taud
      whichground          = model%options%which_ho_ground
      maxiter_nonlinear    = model%options%glissade_maxiter
 
@@ -1301,9 +1307,6 @@
     !
     ! f_ground is set to a special non-physical value of -1 in cells without ice
     ! f_pattyn is not needed in further calculations but is output as a diagnostic
-    !
-    ! NOTE: The grounding line scheme is still being tested
-    ! TODO: Decide when the GLP is officially supported
     !------------------------------------------------------------------------------
 
     call glissade_grounded_fraction(nx,          ny,           &
@@ -1311,36 +1314,7 @@
                                     eus,         ice_mask,     &
                                     whichground, f_ground,     &
                                     f_pattyn)
-
     
-    if (verbose_glp .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'thck, rank =', rtest
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f8.2)',advance='no') thck(i,j)
-          enddo
-          print*, ' '
-       enddo       
-       print*, ' '
-       print*, 'f_pattyn, rank =', rtest
-       do j = jtest+2, jtest-2, -1
-          do i = itest-3, itest+3
-             write(6,'(f8.4)',advance='no') f_pattyn(i,j)
-          enddo
-          print*, ' '
-       enddo       
-       print*, ' '
-       print*, 'f_ground, rank =', rtest
-       do j = jtest+2, jtest-2, -1
-          write(6,'(a4)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f8.4)',advance='no') f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif
-
     !------------------------------------------------------------------------------
     ! Compute ice thickness and upper surface on staggered grid
     ! (requires that thck and usrf are up to date in halo cells).
@@ -1414,19 +1388,59 @@
 !pw call t_stopf('glissade_gradient')
 
     if (verbose_glp .and. this_rank==rtest) then
+       print*, 'effecpress_stag, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') model%basal_physics%effecpress_stag(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'usrf, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') usrf(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'thck, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') thck(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'f_pattyn, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') f_pattyn(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'f_ground, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
        print*, ' '
        print*, 'dusrf_dx, rank =', rtest
-       do j = jtest+2, jtest-2, -1
-          write(6,'(a4)',advance='no') '    '
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
           do i = itest-3, itest+3
-             write(6,'(f8.4)',advance='no') dusrf_dx(i,j)
+             write(6,'(f10.4)',advance='no') dusrf_dx(i,j)
           enddo
           print*, ' '
        enddo       
     endif
 
     if (verbose_gridop .and. this_rank==rtest) then
-
        print*, ' '
        print*, 'thck:'
        do j = ny, 1, -1
@@ -1435,7 +1449,6 @@
           enddo
           print*, ' '
        enddo
-
        print*, ' '
        print*, 'stagthck, rank =',rtest
        do j = ny-1, 1, -1
@@ -1444,7 +1457,6 @@
           enddo
           print*, ' '
        enddo
-
        print*, ' '
        print*, 'usrf:'
        do j = ny, 1, -1
@@ -1453,7 +1465,6 @@
           enddo
           print*, ' '
        enddo
-
        print*, ' '
        print*, 'dusrf_dx:'
        do j = ny-1, 1, -1
@@ -1462,7 +1473,6 @@
           enddo
           print*, ' '
        enddo
-
        print*, ' '
        print*, 'dusrf_dy:'
        do j = ny-1, 1, -1
@@ -1758,9 +1768,60 @@
                              xVertex,          yVertex,         &
                              stagusrf,         stagthck,        &
                              dusrf_dx,         dusrf_dy,        &
+                             whichassemble_taud,                &
                              loadu,            loadv)
        
     call t_stopf('glissade_load_vector_gravity')
+
+    ! Compute components of gravitational driving stress
+    taudx(:,:) = 0.d0
+    taudy(:,:) = 0.d0
+    do j = 1, ny-1
+       do i = 1, nx-1
+          do k = 1, nz
+             taudx(i,j) = taudx(i,j) + loadu(k,i,j)
+             taudy(i,j) = taudy(i,j) + loadv(k,i,j)
+          enddo
+       enddo
+    enddo
+    taudx(:,:) = taudx(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
+    taudy(:,:) = taudy(:,:) * vol0/(dx*dy)
+
+    if (verbose_glp .and. this_rank==rtest) then
+       ! Note: The first of these quantities is the load vector on the rhs of the matrix
+       !       The second is the value that would go on the rhs by simply taking rho*g*H*ds/dx.
+       !       These will not agree exactly because of the way H is handled in FE assembly,
+       !        but they should be close if which_ho_assemble_taud = HO_ASSEMBLE_TAUD_LOCAL.
+       !       If which_ho_assemble_taud = HO_ASSEMBLE_TAUD_STANDARD, they can differ substantially.
+
+       print*, ' '
+       print*, 'vert sum of grav load vector, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') taudx(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'rho*g*H*ds/dx, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') -rhoi*grav*stagthck(i,j)*dusrf_dx(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'Starting uvel_2d, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') uvel_2d(i,j)
+          enddo
+          print*, ' '
+       enddo       
+    endif
 
     !------------------------------------------------------------------------------
     ! Lateral pressure at vertical ice edge
@@ -1816,17 +1877,22 @@
        !---------------------------------------------------------------------------
        ! Compute or prescribe the basal traction field 'beta'.
        !
-       ! Note: We could compute beta before the main outer loop if beta
-       !       were assumed to be independent of velocity.  Computing beta here,
-       !       however, allows for more general sliding laws.
-       ! Note: The input value of model%velocity%beta can change depending on
-       !       the value of model%options%which_ho_babc.
-       ! Note: The units of the input arguments in calcbeta are assumed to be the
+       ! Notes:
+       ! (1) We could compute beta before the main outer loop if beta
+       !     were assumed to be independent of velocity.  Computing beta here,
+       !     however, allows for more general sliding laws.
+       ! (2) The input value of model%velocity%beta can change here depending on
+       !     the value of model%options%which_ho_babc.
+       ! (3) The units of the input arguments in calcbeta are assumed to be the
        !       same as the Glissade units.
-       ! Note: The basal velocity is a required input to calcbeta.  
-       !       DIVA does not compute the basal velocity in the 2D matrix solve, 
-       !       but computes the 3D velocity after each iteration so that
-       !       uvel/vvel(nz,:,:) are available here.
+       ! (4) The computed beta is weighted by f_ground, the grounded fraction at
+       !     each vertex.  With a GLP, f_ground is between 0 and 1 for vertices
+       !     adjacent to the GL, allowing for a smooth change in beta as the GL
+       !     advances and retreats.
+       ! (5) The basal velocity is a required input to calcbeta.  
+       !     DIVA does not compute the basal velocity in the 2D matrix solve, 
+       !     but computes the 3D velocity after each iteration so that
+       !     uvel/vvel(nz,:,:) are available here.
        !-------------------------------------------------------------------
 
        if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then
@@ -1846,7 +1912,8 @@
                       model%basal_physics,              &
                       flwa(nz-1,:,:),                   &  ! basal flwa layer
                       thck,                             &
-                      stagmask,      beta)
+                      stagmask,      beta,              & 
+                      f_ground)
 
        call staggered_parallel_halo(beta)
 
@@ -1876,18 +1943,6 @@
 !!             do i = 1, nx-1
              do i = itest-4, itest+4
                 write(6,'(e10.3)',advance='no') beta(i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
-          print*, ' '
-          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
-
-          print*, ' '
-          print*, 'beta*f_ground, itest, rank =', itest, rtest
-          do j = ny-1, 1, -1
-!!             do i = 1, nx-1
-             do i = itest-4, itest+4
-                write(6,'(e10.3)',advance='no') beta(i,j)*f_ground(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2022,8 +2077,7 @@
                                    active_cell,       beta_eff,        &
                                    xVertex,           yVertex,         &
                                    whichassemble_beta,                 &
-                                   Auu_2d,            Avv_2d,          &
-                                   f_ground)
+                                   Auu_2d,            Avv_2d)
 
           else    ! L1L2, SSA
 
@@ -2034,8 +2088,7 @@
                                    active_cell,       beta,            &
                                    xVertex,           yVertex,         &
                                    whichassemble_beta,                 &
-                                   Auu_2d,            Avv_2d,          &
-                                   f_ground)
+                                   Auu_2d,            Avv_2d)
 
           endif    ! whichapprox (SSA, L1L2, DIVA)
 
@@ -2217,8 +2270,7 @@
                                    active_cell,         beta,            &
                                    xVertex,             yVertex,         &
                                    whichassemble_beta,                   &
-                                   Auu(:,nz,:,:),       Avv(:,nz,:,:),   &
-                                   f_ground)
+                                   Auu(:,nz,:,:),       Avv(:,nz,:,:))
 
           endif   ! whichbabc
 
@@ -2399,6 +2451,7 @@
                                                  uvel,    vvel,          &
                                                  uvel_2d, vvel_2d,       &
                                                  btractx, btracty,       &
+                                                 taudx,   taudy,         &
                                                  tau_xz,  tau_yz,        &
                                                  tau_xx,  tau_yy,        &
                                                  tau_xy,  tau_eff)
@@ -2548,10 +2601,6 @@
           endif      ! whichapprox
 
           call t_stopf('glissade_pcg_slv_struct')
-
-          if (verbose .and. main_task) then
-             print*, 'Solved the linear system, niters, err =', niters, err
-          endif
 
 #ifdef TRILINOS
        elseif (whichsparse == HO_SPARSE_TRILINOS) then   ! solve with Trilinos
@@ -2747,10 +2796,6 @@
                                  err,    niters, whichsparse)
           call t_stopf('glissade_easy_slv')
 
-          if (main_task) then
-             print*, 'Solved the linear system using SLAP, niters, err =', niters, err
-          endif
-
           !------------------------------------------------------------------------
           ! Put the velocity solution back into the uvel and vvel arrays
           !------------------------------------------------------------------------
@@ -2778,6 +2823,10 @@
           call t_stopf('glissade_slap_post')
 
        endif   ! whichsparse 
+
+       if (main_task) then
+          print*, 'Solved the linear system, niters, err =', niters, err
+       endif
 
        if (solve_2d) then
 
@@ -2844,9 +2893,6 @@
           call t_stopf('glissade_resid_vec2')
 
        endif ! 2D or 3D solve
-
-       !WHL - debug
-       if (main_task) print*, 'Solved the linear system, niters, err =', niters, err
 
        !---------------------------------------------------------------------------
        ! Some calculations specific to the DIVA scheme
@@ -2937,6 +2983,17 @@
           !WHL - debug
 !!          stop
        endif
+    endif
+
+    if (verbose_glp .and. this_rank==rtest) then 
+       print*, ' '
+       print*, 'beta, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') beta(i,j)
+          enddo
+          print*, ' '
+       enddo       
     endif
 
     !------------------------------------------------------------------------------
@@ -3139,6 +3196,7 @@
                                            uvel,    vvel,          &
                                            uvel_2d, vvel_2d,       &
                                            btractx, btracty,       &
+                                           taudx,   taudy,         &
                                            tau_xz,  tau_yz,        &
                                            tau_xx,  tau_yy,        &
                                            tau_xy,  tau_eff)
@@ -3243,6 +3301,7 @@
                                                uvel,    vvel,           &
                                                uvel_2d, vvel_2d,        &
                                                btractx, btracty,        &
+                                               taudx,   taudy,          &
                                                tau_xz,  tau_yz,         &
                                                tau_xx,  tau_yy,         &
                                                tau_xy,  tau_eff)
@@ -3273,7 +3332,8 @@
 
     real(dp), dimension(:,:), intent(inout) ::  &
        uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
-       btractx, btracty         ! components of basal traction (Pa)
+       btractx, btracty,       &! components of basal traction (Pa)
+       taudx,   taudy           ! components of driving stress (Pa)
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
@@ -3315,6 +3375,8 @@
     ! Convert stresses from Pa to dimensionless units
     btractx = btractx/tau0
     btracty = btracty/tau0
+    taudx   = taudx/tau0
+    taudy   = taudy/tau0
     tau_xz  = tau_xz/tau0
     tau_yz  = tau_yz/tau0
     tau_xx  = tau_xx/tau0
@@ -3486,6 +3548,7 @@
                                  xVertex,          yVertex,         &
                                  stagusrf,         stagthck,        &
                                  dusrf_dx,         dusrf_dy,        &
+                                 whichassemble_taud,                &
                                  loadu,            loadv)
 
     integer, intent(in) ::      &
@@ -3510,6 +3573,10 @@
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        dusrf_dx,       &  ! upper surface elevation gradient on staggered grid (m/m)
        dusrf_dy
+
+    integer, intent(in) :: &
+       whichassemble_taud   ! = 0 for standard finite element computation of driving stress terms
+                            ! = 1 for computation that uses only the local value of the driving stress at each node
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        loadu, loadv       ! load vector, divided into u and v components
@@ -3590,44 +3657,69 @@
                                                        dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
                                                        detJ , i, j, k, p   )
 
-                ! Evaluate dsdx and dsdy at this quadrature point
- 
-                dsdx_qp = 0.d0
-                dsdy_qp = 0.d0
-
-                do n = 1, nNodesPerElement_3d
-                   dsdx_qp = dsdx_qp + phi_3d(n,p) * dsdx(n)
-                   dsdy_qp = dsdy_qp + phi_3d(n,p) * dsdy(n)
-                enddo
-
-                if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
-                   print*, ' '
-                   print*, 'Increment load vector, i, j, k, p =', i, j, k, p
-                   print*, 'ds/dx, ds/dy =', dsdx_qp, dsdy_qp
-                   print*, 'detJ/vol0 =', detJ/vol0
-                   print*, 'detJ/vol0* (ds/dx, ds/dy) =', detJ/vol0*dsdx_qp, detJ/vol0*dsdy_qp
-                endif
-
                 ! Increment the load vector with the gravitational contribution from this quadrature point
+                ! The standard finite-element treatment (HO_ASSEMBLE_TAUD_STANDARD) is to take a 
+                !  phi-weighted sum over neighboring vertices.
+                ! For local driving stress (HO_ASSEMBLE_TAUD_LOCAL), use the value at the nearest vertex.
+                ! (Note that vertex numbering is the same as QP numbering, CCW from 1 to 4 on bottom face and from 5 to 8 on top face.)
 
-                do n = 1, nNodesPerElement_3d
+                if (whichassemble_taud == HO_ASSEMBLE_TAUD_LOCAL) then
 
-                   ! Determine (k,i,j) for this node
-                   iNode = i + ishift(7,n)
-                   jNode = j + jshift(7,n)
-                   kNode = k + kshift(7,n)
+                   ! Determine (k,i,j) for the node nearest to this quadrature point
+                   iNode = i + ishift(7,p)
+                   jNode = j + jshift(7,p)
+                   kNode = k + kshift(7,p)
          
-                   loadu(kNode,iNode,jNode) = loadu(kNode,iNode,jNode) - rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdx_qp * phi_3d(n,p)
-                   loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdy_qp * phi_3d(n,p)
+                   ! Add the ds/dx and ds/dy terms to the load vector for this node                   
+                   loadu(kNode,iNode,jNode) = loadu(kNode,iNode,jNode) - rhoi*grav * detJ/vol0 * dsdx(p)
+                   loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - rhoi*grav * detJ/vol0 * dsdy(p)
 
                    if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
                       print*, ' '
-                      print*, 'n, phi_3d(n), delta(loadu), delta(loadv):', n, phi_3d(n,p), &
-                               rhoi*grav*wqp_3d(p)*detJ/vol0 * dsdx_qp * phi_3d(n,p), &
-                               rhoi*grav*wqp_3d(p)*detJ/vol0 * dsdy_qp * phi_3d(n,p)
+                      print*, 'n, delta(loadu), delta(loadv):', n, rhoi*grav*detJ/vol0 * dsdx_qp, &
+                                                                   rhoi*grav*detJ/vol0 * dsdy_qp
                    endif
 
-                enddo   ! nNodesPerElement_3d
+                else   ! standard FE assembly (HO_ASSEMBLE_TAUD_STANDARD)
+
+                   ! Evaluate dsdx and dsdy at this quadrature point
+                   dsdx_qp = 0.d0
+                   dsdy_qp = 0.d0
+                   do n = 1, nNodesPerElement_3d
+                      dsdx_qp = dsdx_qp + phi_3d(n,p) * dsdx(n)
+                      dsdy_qp = dsdy_qp + phi_3d(n,p) * dsdy(n)
+                   enddo
+
+                   if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
+                      print*, ' '
+                      print*, 'Increment load vector, i, j, k, p =', i, j, k, p
+                      print*, 'ds/dx, ds/dy =', dsdx_qp, dsdy_qp
+                      print*, 'detJ/vol0 =', detJ/vol0
+                      print*, 'detJ/vol0* (ds/dx, ds/dy) =', detJ/vol0*dsdx_qp, detJ/vol0*dsdy_qp
+                   endif
+
+                   ! Loop over the nodes of the element
+                   do n = 1, nNodesPerElement_3d
+
+                      ! Determine (k,i,j) for this node
+                      iNode = i + ishift(7,n)
+                      jNode = j + jshift(7,n)
+                      kNode = k + kshift(7,n)
+         
+                      ! Add the ds/dx and ds/dy terms to the load vector for this node                   
+                      loadu(kNode,iNode,jNode) = loadu(kNode,iNode,jNode) - rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdx_qp * phi_3d(n,p)
+                      loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdy_qp * phi_3d(n,p)
+
+                      if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
+                         print*, ' '
+                         print*, 'n, phi_3d(n), delta(loadu), delta(loadv):', n, phi_3d(n,p), &
+                                  rhoi*grav*wqp_3d(p)*detJ/vol0 * dsdx_qp * phi_3d(n,p), &
+                                  rhoi*grav*wqp_3d(p)*detJ/vol0 * dsdy_qp * phi_3d(n,p)
+                      endif
+
+                   enddo   ! nNodesPerElement_3d
+
+                endif   ! whichassemble_taud
 
              enddo      ! nQuadPoints_3d
 
@@ -7122,8 +7214,7 @@
                               active_cell,      beta,            &
                               xVertex,          yVertex,         &
                               whichassemble_beta,                &
-                              Auu,              Avv,             &
-                              f_ground)
+                              Auu,              Avv)
 
     !------------------------------------------------------------------------
     ! Increment the Auu and Avv matrices with basal traction terms.
@@ -7136,6 +7227,10 @@
     !   tau_y = -beta*v
     ! where beta is defined at vertices (and beta may depend
     ! on the velocity from a previous iteration).
+    !
+    ! Note: The input beta field should already have been weighted by f_ground. We should have
+    !       beta = 0 for floating ice (f_ground = 0). If using a GLP, then beta will
+    !       have less than its full value for partially floating ice (0 < f_ground < 1). 
     !------------------------------------------------------------------------
 
     integer, intent(in) ::      &
@@ -7161,10 +7256,6 @@
     real(dp), dimension(nNeighbors,nx-1,ny-1), intent(inout) ::  &
        Auu, Avv             ! parts of stiffness matrix (basal layer only)
 
-    real(dp), dimension(nx-1,ny-1), intent(in), optional ::  &
-       f_ground             ! fraction of grounded ice at each vertex;
-                            ! used to weight beta
-
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
@@ -7186,21 +7277,6 @@
 
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
-
-    real(dp), dimension(nx-1,ny-1) ::  &
-       f_ground_beta  ! fraction of grounded ice at each vertex; used to weight beta
-                      ! set to input argument f_ground, if present; else = 1.0 everywhere
-  
-    ! Set f_ground_beta for beta calculation
-    ! Note: f_ground is set to a non-physical value at ice-free vertices
-    !       Vertices of active cells, by definition, are not ice-free, so the
-    !        non-physical values are never used
-
-    if (present(f_ground)) then
-       f_ground_beta(:,:) = f_ground(:,:)
-    else
-       f_ground_beta(:,:) = 1.d0
-    endif
 
     if (verbose_basal .and. this_rank==rtest) then
        print*, 'In basal_sliding_bc: itest, jtest, rank =', itest, jtest, rtest
@@ -7232,16 +7308,10 @@
           y(3) = yVertex(i,j)
           y(4) = yVertex(i-1,j)
 
-          ! Note: When using a grounding-line parameterization, beta is reduced for
-          !       vertices adjacent to the GL (0 < f_ground < 1)
-!!          b(1) = beta(i-1,j-1)
-!!          b(2) = beta(i,j-1)
-!!          b(3) = beta(i,j)
-!!          b(4) = beta(i-1,j)
-          b(1) = beta(i-1,j-1) * f_ground(i-1,j-1)
-          b(2) = beta(i,j-1)   * f_ground(i,j-1)
-          b(3) = beta(i,j)     * f_ground(i,j)
-          b(4) = beta(i-1,j)   * f_ground(i-1,j)
+          b(1) = beta(i-1,j-1)
+          b(2) = beta(i,j-1)
+          b(3) = beta(i,j)
+          b(4) = beta(i-1,j)
 
           ! loop over quadrature points
 
@@ -7283,7 +7353,7 @@
              Kuu(:,:) = 0.d0
 
              if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then  ! Use the value at the nearest vertex
-                                                   ! Then Kuu is diagonal, so friction at a vertex depends only on beta at that vertex
+                                      ! Then Kuu is diagonal, so the traction parameter at a vertex depends only on beta at that vertex
                 Kuu(p,p) = beta_qp * (detJ/vol0)   
 
              else

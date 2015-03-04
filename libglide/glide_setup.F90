@@ -601,6 +601,7 @@ contains
     call GetValue(section, 'which_ho_gradient',  model%options%which_ho_gradient)
     call GetValue(section, 'which_ho_gradient_margin', model%options%which_ho_gradient_margin)
     call GetValue(section, 'which_ho_assemble_beta',   model%options%which_ho_assemble_beta)
+    call GetValue(section, 'which_ho_assemble_taud',   model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_ground',    model%options%which_ho_ground)
     call GetValue(section, 'glissade_maxiter',   model%options%glissade_maxiter)
 
@@ -797,6 +798,10 @@ contains
     character(len=*), dimension(0:1), parameter :: ho_whichassemble_beta = (/ &
          'standard finite-element assembly (glissade dycore) ', &
          'use local beta for assembly (glissade dycore)      '  /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichassemble_taud = (/ &
+         'standard finite-element assembly (glissade dycore)     ', &
+         'use local driving stress for assembly (glissade dycore)'  /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
@@ -1149,6 +1154,14 @@ contains
           if (model%options%which_ho_assemble_beta < 0 .or. &
               model%options%which_ho_assemble_beta >= size(ho_whichassemble_beta)) then
              call write_log('Error, beta assembly option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          write(message,*) 'ho_whichassemble_taud   : ',model%options%which_ho_assemble_taud,  &
+                            ho_whichassemble_taud(model%options%which_ho_assemble_taud)
+          call write_log(message)
+          if (model%options%which_ho_assemble_taud < 0 .or. &
+              model%options%which_ho_assemble_taud >= size(ho_whichassemble_taud)) then
+             call write_log('Error, driving-stress assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
           write(message,*) 'ho_whichground          : ',model%options%which_ho_ground,  &
@@ -1719,7 +1732,7 @@ contains
         !                     as in MISMIP test problems with periodic BCs.
         !                    To output these fields, the user must set restart_extend_velo = 1 in the config file.
         ! Note: It never hurts to write uvel/vvel_extend in place of uvel/vvel. But for most cases where restart
-        !       is required (e.g., whole-ice-sheet simulations), velocities are zero along the boundary
+        !       is required (e.g., whole-ice-sheet simulations), velocities are zero along the boundaries
         !       and uvel/vvel are sufficient.
 
         if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then

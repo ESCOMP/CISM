@@ -542,11 +542,10 @@
 !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
  
     if (niters == maxiters) then
-       if (main_task) then
-          print*, 'WARNING: Glissade PCG solver not converged'
+       if (verbose_pcg .and. main_task) then
+          print*, 'Glissade PCG solver not converged'
           print*, 'niters, err, tolerance:', niters, err, tolerance
        endif
-!!!     stop
     endif
 
   end subroutine pcg_solver_standard_3d
@@ -969,7 +968,7 @@
 !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
  
     if (niters == maxiters) then
-       if (main_task) then
+       if (verbose_pcg .and. main_task) then
           print*, 'Glissade PCG solver not converged'
           print*, 'niters, err, tolerance:', niters, err, tolerance
        endif
@@ -1628,7 +1627,7 @@
     !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
  
     if (niters == maxiters) then
-       if (main_task) then
+       if (verbose_pcg .and. main_task) then
           print*, 'Glissade PCG solver not converged'
           print*, 'niters, err, tolerance:', niters, err, tolerance
        endif
@@ -2178,7 +2177,7 @@
     !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
  
     if (niters == maxiters) then
-       if (main_task) then
+       if (verbose_pcg .and. main_task) then
           print*, 'Glissade PCG solver not converged'
           print*, 'niters, err, tolerance:', niters, err, tolerance
        endif

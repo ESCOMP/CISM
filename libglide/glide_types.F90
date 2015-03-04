@@ -218,6 +218,9 @@ module glide_types
   integer, parameter :: HO_ASSEMBLE_BETA_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_BETA_LOCAL = 1
 
+  integer, parameter :: HO_ASSEMBLE_TAUD_STANDARD = 0
+  integer, parameter :: HO_ASSEMBLE_TAUD_LOCAL = 1
+
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
@@ -554,7 +557,14 @@ module glide_types
     !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
     !> \begin{description}
     !> \item[0] standard finite-element calculation (which effectively smooths beta)
-    !> \item[1] apply local beta value at each vertex
+    !> \item[1] apply local value of beta at each vertex
+
+    integer :: which_ho_assemble_taud = 0
+
+    !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
+    !> \item[1] apply local value of driving stress at each vertex
 
     integer :: which_ho_ground = 0    
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
@@ -605,7 +615,7 @@ module glide_types
     !> The elevation of the topography, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: f_pattyn=> null() 
-    !> Pattyn flotation function, rhow*(topg-eus)/(rhoi*thck)
+    !> Pattyn flotation function, rhoo*(topg-eus)/(rhoi*thck)
     !    (computed by glissade dycore only)
 
     real(dp),dimension(:,:),pointer :: f_ground => null() 
@@ -781,6 +791,8 @@ module glide_types
     !WHL - The extended versions are needed for exact restart if using DIVA solver for a problem with nonzero traction at global boundaries
     real(dp),dimension(:,:),  pointer :: btractx_extend => null() !> basal traction (Pa), x comp, on extended staggered grid
     real(dp),dimension(:,:),  pointer :: btracty_extend => null() !> basal traction (Pa), y comp, on extended staggered grid
+    real(dp),dimension(:,:),  pointer :: taudx => null()   !> driving stress (Pa), x comp
+    real(dp),dimension(:,:),  pointer :: taudy => null()   !> driving stress (Pa), y comp
 
   end type glide_stress_t      
 
@@ -1523,6 +1535,8 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
        call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_extend)
        call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_extend)
+       call coordsystem_allocate(model%general%velo_grid, model%stress%taudx)
+       call coordsystem_allocate(model%general%velo_grid, model%stress%taudy)
     endif
 
     ! geometry arrays
@@ -1813,6 +1827,10 @@ contains
         deallocate(model%stress%btractx_extend)
     if (associated(model%stress%btracty_extend)) &
         deallocate(model%stress%btracty_extend)
+    if (associated(model%stress%taudx)) &
+        deallocate(model%stress%taudx)
+    if (associated(model%stress%taudy)) &
+        deallocate(model%stress%taudy)
 
     ! basal physics arrays
     if (associated(model%basal_physics%effecpress)) &

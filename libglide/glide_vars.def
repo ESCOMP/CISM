@@ -241,6 +241,22 @@ long_name:     basal shear stress in y direction
 data:          data%velocity%tau_y
 factor:        1e-3*thk0*thk0/len0
 
+[taudx]
+dimensions:    time, y0, x0
+units:         Pa
+long_name:     driving stress (x-direction comp)
+data:          data%stress%taudx(:,:)
+factor:        scale_tau
+load:          1
+
+[taudy]
+dimensions:    time, y0, x0
+units:         Pa
+long_name:     driving stress (y-direction comp)
+data:          data%stress%taudy(:,:)
+factor:        scale_tau
+load:          1
+
 [thk]
 dimensions:    time, y1, x1
 units:         meter

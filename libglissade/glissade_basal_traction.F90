@@ -81,7 +81,8 @@ contains
                        bwat,          beta_const,    &
                        mintauf,       basal_physics, &
                        flwa_basal,    thck,          &
-                       mask,          beta)
+                       mask,          beta,          &
+                       f_ground)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -111,13 +112,8 @@ contains
   real(dp), intent(in), dimension(:,:) :: thck  ! ice thickness
   integer, intent(in), dimension(:,:)     :: mask ! staggered grid mask
   real(dp), intent(inout), dimension(:,:) :: beta  ! (Pa yr/m)
+  real(dp), intent(in), dimension(:,:), optional :: f_ground   ! grounded ice fraction, 0 <= f_ground <= 1
 
-!WHL - These masks are no longer used
-!  logical, intent(in), dimension(:,:), optional ::  &
-!     floating_mask,   &! = 1 for cells where ice is present and is floating
-!     ocean_mask        ! = 1 for cells where topography is below sea level and ice is absent
-!                       ! Note: These masks live on the scalar grid; beta lives on the staggered grid
-   
   ! Local variables
 
   real(dp) :: smallnum = 1.0d-2  ! m/yr
@@ -142,10 +138,10 @@ contains
   real(dp) :: lambda_max  ! wavelength of bedrock bumps at subgrid scale
   real(dp) :: m_max       ! maximum bed obstacle slope
   real(dp), dimension(size(beta,1), size(beta,2)) :: big_lambda       ! bed rock characteristics
+  real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2) 
   integer, dimension(size(thck,1), size(thck,2))  :: imask            ! ice grid mask  1=ice, 0=no ice
   real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
                                                                       ! NOTE: Units are Pa^{-n} yr^{-1}
-
   select case(whichbabc)
 
     case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
@@ -153,37 +149,16 @@ contains
 !      beta(:,:) = 10.d0       ! This is the default value (Pa yr/m)
       beta(:,:) = beta_const   ! Pa yr/m
 
-      ! If floating and ocean masks are passed in, then set beta to zero for shelf/ocean nodes,
-      ! overriding the constant value set above. This allows us to model large regions
-      ! (e.g., a whole ice sheet) in a simple but physically sensible way without specifying 
-      ! a 2D beta field.
-      !
-      ! Note: A node must be surrounded by four floating or ocean cells to be considered
-      !       a shelf/ocean node.  Nodes along the grounding line retain previous values of beta.
-
-      !if (present(floating_mask) .and. present(ocean_mask)) then
-      !   do ns = 1, nsn-1
-      !      do ew = 1, ewn-1
-      !         if ( (floating_mask(ew,ns  )  ==1 .or. ocean_mask(ew,ns)    ==1)   .and.  &
-      !              (floating_mask(ew,ns+1)  ==1 .or. ocean_mask(ew,ns+1)  ==1)   .and.  &
-      !              (floating_mask(ew+1,ns)  ==1 .or. ocean_mask(ew+1,ns)  ==1)   .and.  &
-      !              (floating_mask(ew+1,ns+1)==1 .or. ocean_mask(ew+1,ns+1)==1) ) then
-      !            beta(ew,ns) = 0.d0
-      !         endif
-      !      enddo
-      !   enddo
-      !endif
-
     case(HO_BABC_SIMPLE)    ! simple pattern; also useful for debugging and test cases
                             ! (here, a strip of weak bed surrounded by stronger bed to simulate an ice stream)
 
       beta(:,:) = 1.d4        ! Pa yr/m
 
       !TODO - Change this loop to work in parallel (set beta on the global grid and scatter to local)
-      do ns=5, nsn-5
-      do ew=1, ewn-1
-        beta(ew,ns) = 100.d0      ! Pa yr/m
-      end do
+      do ns = 5, nsn-5
+         do ew = 1, ewn-1
+            beta(ew,ns) = 100.d0      ! Pa yr/m
+         end do
       end do
 
     case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
@@ -273,8 +248,8 @@ contains
 
       ! this is a check for NaNs, which indicate, and are replaced by no slip
 
-      do ns=1, nsn-1
-         do ew=1, ewn-1 
+      do ns = 1, nsn-1
+         do ew = 1, ewn-1 
             if( beta(ew,ns) /= beta(ew,ns) )then
                beta(ew,ns) = 1.d10     ! Pa yr/m
             endif
@@ -299,19 +274,21 @@ contains
 
     case(HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
 
-      ! Basal stress representation using coulomb friction law
+      ! Basal stress representation using Coulomb friction law
       ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
 
-      ! Setup parameters needed for the friction law
-      m_max = basal_physics%Coulomb_Bump_max_slope  !maximum bed obstacle slope(unitless)
+      ! Set up parameters needed for the friction law
+      m_max = basal_physics%Coulomb_Bump_max_slope       ! maximum bed obstacle slope(unitless)
       lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
-      ! biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
-      Coulomb_C = basal_physics%Coulomb_C    ! Basal shear stress factor (Pa (m^-1 y)^1/3)
-      !gn                         ! Glen's flaw law from parameter module
+      Coulomb_C = basal_physics%Coulomb_C                ! basal shear stress factor (Pa (m^-1 y)^1/3)
+
+      ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
 
       if (whichbabc == HO_BABC_COULOMB_FRICTION) then
 
          ! Need flwa of the basal layer on the staggered grid
+         !TODO - Pass in ice_mask instead of computing imask here?
+         !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
          where (thck > 0.0)
             imask = 1
          elsewhere
@@ -331,15 +308,13 @@ contains
 
       endif
 
-      beta = Coulomb_C * basal_physics%effecpress_stag * &
-             (dsqrt(thisvel**2 + othervel**2 + smallnum**2))**(1.0d0/gn - 1.0d0) * &
-             (                                                                     &
-              dsqrt(thisvel**2 + othervel**2 + smallnum**2) +                      &
-             basal_physics%effecpress_stag**gn * big_lambda                        &
-             )**(-1.0d0/gn)
+      ! Compute beta
+      ! gn = Glen's n from physcon module
+      speed = dsqrt(thisvel**2 + othervel**2 + smallnum**2)
+      beta = Coulomb_C * basal_physics%effecpress_stag * speed**(1.0d0/gn - 1.0d0) * &
+             (speed + basal_physics%effecpress_stag**gn * big_lambda)**(-1.0d0/gn)
 
-
-      ! for numerical stability
+      ! Limit for numerical stability
       where (beta > 1.0d8)
          beta = 1.0d8
       end where
@@ -349,14 +324,22 @@ contains
 
    end select
 
-   ! check for areas where ice is floating and make sure beta in these regions is 0 
-   do ns=1, nsn-1
-     do ew=1, ewn-1 
-       if( GLIDE_IS_FLOAT( mask(ew,ns) ) )then
-         beta(ew,ns) = 0.d0
-       endif
-     end do
-   end do
+   ! Check for areas where ice is floating and make sure beta in these regions is 0. 
+   ! Note: With a GLP, f_ground can have values between 0 and 1 at vertices adjacent to the GL.
+   !       Without a GLP, f_ground = 0 or 1 based on a flotation criterion.
+   !       Using fractional f_ground rather than the Glide mask is preferred for the Coulomb friction options.
+
+   if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
+      beta(:,:) = beta(:,:) * f_ground(:,:)
+   else    ! set beta = 1 where Glide mask say the ice is floating
+      do ns = 1, nsn-1
+         do ew = 1, ewn-1 
+            if (GLIDE_IS_FLOAT(mask(ew,ns))) then
+               beta(ew,ns) = 0.d0
+            endif
+         end do
+      end do
+   endif   ! present(f_ground)
 
  end subroutine calcbeta
 
