@@ -159,9 +159,7 @@ contains
   subroutine glide_scale_params(model)
     !> scale parameters
     use glide_types
-    use glimmer_physcon,  only: scyr
-
-    use glimmer_physcon,  only: gn
+    use glimmer_physcon,  only: scyr, gn
     use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
 
     implicit none
@@ -1199,16 +1197,27 @@ contains
     use glimmer_config
     use glide_types
     use glimmer_log
+    use glimmer_physcon, only: rhoi, rhoo, grav
+
     implicit none
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
-    loglevel = GM_levels-GM_ERROR
+    !NOTE: The following physical constants have default values in glimmer_physcon.F90.
+    !      Some test cases (e.g., MISMIP) specify different values. The default values
+    !      can therefore be overridden by the user in the config file (except that certain
+    !      constants in CESM's shr_const_mod cannot be overridden when CISM is coupled to CESM).
+    !      These constants are not part of the model derived type.
 
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
+#ifndef CCSMCOUPLED
+    call GetValue(section,'rhoi', rhoi)
+    call GetValue(section,'rhoo', rhoo)
+    call GetValue(section,'grav', grav)
+#endif
+
+    loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
     call glimmer_set_msg_level(loglevel)
     call GetValue(section,'ice_limit',        model%numerics%thklim)
@@ -1216,6 +1225,8 @@ contains
     call GetValue(section,'marine_limit',     model%numerics%mlimit)
     call GetValue(section,'calving_fraction', model%numerics%calving_fraction)
     call GetValue(section,'geothermal',       model%paramets%geot)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
+    !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
     call GetValue(section,'flow_factor',      model%paramets%flow_enhancement_factor)
     call GetValue(section,'default_flwa',     model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',    model%paramets%efvs_constant)
@@ -1296,7 +1307,16 @@ contains
        call write_log(message)
     end if
 
-    write(message,*) 'geothermal flux  (W/m2)       : ', model%paramets%geot
+    write(message,*) 'ice density (kg/m^3)          : ', rhoi
+    call write_log(message)
+
+    write(message,*) 'ocean density (kg/m^3)        : ', rhoo
+    call write_log(message)
+
+    write(message,*) 'gravitational accel (m/s^2)   : ', grav
+    call write_log(message)
+
+    write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
     call write_log(message)
 
     write(message,*) 'flow enhancement factor       : ', model%paramets%flow_enhancement_factor
