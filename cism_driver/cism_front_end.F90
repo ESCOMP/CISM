@@ -270,6 +270,15 @@ subroutine cism_run_dycore(model)
   if (time < model%numerics%tend) then
     do while(time + time_eps < model%numerics%tend)
 
+      !!! SFP moved block of code for applying time dependent forcing read in from netCDF here,
+      !!! as opposed to at the end of the time step (commented it out in it's original location for now)
+      !!! This is a short-term fix. See additioanl discussion as part of issue #19 (in cism-piscees github repo).
+
+      ! Forcing from a 'forcing' data file - will read time slice if needed
+      call t_startf('read_forcing')
+      call glide_read_forcing(model, model)
+      call t_stopf('read_forcing')
+
       ! Increment time step
       if (model%options%whichdycore /= DYCORE_BISICLES) then
         time = time + model%numerics%tinc
@@ -277,7 +286,6 @@ subroutine cism_run_dycore(model)
         model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
       endif
 ! print *,"external_dycore_type: ",model%options%external_dycore_type
-
 
       !if (model%options%external_dycore_type .EQ. 0) then      ! NO_EXTERNAL_DYCORE) then
       !  if (model%options%whichdycore == DYCORE_GLIDE) then
@@ -347,10 +355,12 @@ subroutine cism_run_dycore(model)
       call eismint_surftemp(model%eismint_climate,model,time)
       call t_stopf('set_forcing')
 
-      ! Forcing from a 'forcing' data file - will read time slice if needed
-      call t_startf('read_forcing')
-      call glide_read_forcing(model, model)
-      call t_stopf('read_forcing')
+      !!! SFP moved this next block of code to the start of the time step. See additional notes there.
+
+  !    ! Forcing from a 'forcing' data file - will read time slice if needed
+  !    call t_startf('read_forcing')
+  !    call glide_read_forcing(model, model)
+  !    call t_stopf('read_forcing')
 
       ! Write to output netCDF files at desired intervals
       call t_startf('io_writeall')
