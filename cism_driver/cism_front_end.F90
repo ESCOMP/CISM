@@ -405,6 +405,15 @@ subroutine cism_finalize_dycore(model)
   ! finalise GLIDE
   call glide_finalise(model)
 
+  ! (DFM) -- finalize external dycores 
+  if (model%options%whichdycore == DYCORE_BISICLES) then
+    call t_startf('finalize_external_dycore')
+    call cism_finalize_external_dycore(model%options%external_dycore_type,model)
+    call t_stopf('finalize_external_dycore')
+  endif
+
+
+
   !TODO - Do we need to call glimmer_write_stats?
 #if (! defined CCSMCOUPLED && ! defined CESMTIMERS)
   call system_clock(clock,clock_rate)
