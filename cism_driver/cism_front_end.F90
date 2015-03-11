@@ -399,11 +399,8 @@ subroutine cism_finalize_dycore(model)
 
   type(glide_global_type) :: model        ! model instance
   integer :: clock,clock_rate
-  integer :: wd
 
   call t_stopf('cism')
-
-  wd = model%options%whichdycore 
 
   ! finalise GLIDE
   call glide_finalise(model)
