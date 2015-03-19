@@ -86,7 +86,7 @@ cmake \
 \
   -D CISM_NETCDF_DIR=$NETCDF_DIR \
   -D CISM_HDF5_LIB_DIR=$HDF5_DIR \
-  -D CISM_MPI_BASE_DIR=$MPI_DIR \
+  -D CISM_MPI_BASE_DIR=$MPICH_DIR \
 \
   -D CISM_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/libgptl/libgptl-hopper-gnu \
 \

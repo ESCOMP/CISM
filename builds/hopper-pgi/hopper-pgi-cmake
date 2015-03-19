@@ -81,7 +81,7 @@ cmake \
   -D CISM_TRILINOS_ALBANY_DIR=/project/projectdirs/piscees/trilinos-default/hopper-pgi-albany/install \
 \
   -D CISM_NETCDF_DIR=$NETCDF_DIR \
-  -D CISM_MPI_BASE_DIR=$MPI_DIR \
+  -D CISM_MPI_BASE_DIR=$MPICH_DIR \
 \
   -D CISM_FMAIN=/opt/pgi/14.2.0/linux86-64/14.2/lib/f90main.o \
 \
