@@ -51,26 +51,12 @@ module glad_type
                                                ! (hold the ice state fixed at initial condition)
   integer, parameter :: EVOLVE_ICE_TRUE  = 1   ! let the ice sheet evolve
 
-!  These are defined in glint_mbal to avoid a circular dependency
-!  integer, parameter :: MASS_BALANCE_GCM = 0       ! receive mass balance from global climate model
-!  integer, parameter :: MASS_BALANCE_PDD = 1       ! compute mass balance using positive-degree-day scheme
-!  integer, parameter :: MASS_BALANCE_ACCUM = 2     ! accumulation only 
-!  integer, parameter :: MASS_BALANCE_EBM = 3       ! compute mass balance using energy-balance model
-!  integer, parameter :: MASS_BALANCE_DAILY_PDD = 4 ! compute mass balance using daily PDD model
-!  Note: Option 3 is not presently supported.
-    
-  integer, parameter :: PRECIP_STANDARD = 1    ! use large-scale precip field as is
-  integer, parameter :: PRECIP_RL = 2          ! use Roe-Lindzen paramterization
-  
   integer, parameter :: ZERO_GCM_FLUXES_FALSE = 0 ! send true fluxes to the GCM
   integer, parameter :: ZERO_GCM_FLUXES_TRUE  = 1 ! zero out all fluxes sent to the GCM
 
   !TODO - Add other Glint options here to avoid hardwiring of case numbers?
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  !TODO - glint_instance includes information that is not needed if the SMB is received from a GCM.
-  !       Maybe we should create a new derived type (glint_instance_gcm?) without the extra information.
 
   type glad_instance
 
@@ -81,9 +67,6 @@ module glad_type
      type(coordsystem_type)           :: lgrid              !> Local grid for interfacing with glide (grid on this task)
                                                             !> (WJS: Note that origin may be incorrect with multiple tasks;
                                                             !>  as far as I can tell, this isn't currently a problem)
-     type(coordsystem_type)           :: lgrid_fulldomain   !> Local grid on the full domain (across all tasks),
-                                                            !> used for downscaling & upscaling
-                                                            !> (ONLY VALID ON MAIN TASK)
      type(glad_input_averages_type)   :: glad_inputs        !> Time-averaged inputs from the climate model
      type(glide_global_type)          :: model              !> The instance and all its arrays.
      character(fname_length)          :: paramfile          !> The name of the configuration file.
@@ -96,19 +79,10 @@ module glad_type
      real(dp)                         :: glide_time         !> Time as seen by glide (years)
      integer                          :: next_time          !> The next time we expect to be called (hours)
 
-     ! Climate inputs from global model --------------------------
+     ! Climate inputs, on the local grid -------------------------
 
      real(dp),dimension(:,:),pointer :: artm        => null() !> Annual mean air temperature
-     ! Locally calculated climate/mass-balance fields ------------
-
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
-
-     ! Output masking --------------------------------------------
-
-     integer, dimension(:,:),pointer :: out_mask => null() 
-
-     !> Array indicating whether a point should be considered or ignored 
-     !> when upscaling data for output. 1 means use, 0 means ignore.
 
      ! Climate options -------------------------------------------
 
@@ -119,30 +93,7 @@ module glad_type
      !> \item[0] The ice sheet cannot evolve; hold fixed at initial state
      !> \item[1] The ice sheet can evolve
 
-     integer :: whichacab = 1
-     
-     !> Which mass-balance scheme: 
-     !> \begin{description}
-     !> \item[0] Receive surface mass balance from climate model
-     !> \item[1] PDD mass-balance model
-     !> \item[2] Accumulation only 
-     !> \item[3] RAPID energy balance model
-     !> \item[4] daily PDD mass-balance model
-     !> \end{description}
-
-     integer :: whichprecip = 1
-
-     !> Source of precipitation:
-     !> \begin{description}
-     !> \item[1] Use large-scale precip as is
-     !> \item[2] Use parameterization of Roe and Lindzen
-     !> \end{description}
-
      logical :: test_coupling = .false.
-
-     integer :: use_mpint = 0
-   
-     !> Flag to control if mean-preserving interpolation is used
 
      integer :: zero_gcm_fluxes = ZERO_GCM_FLUXES_FALSE
      
@@ -151,14 +102,6 @@ module glad_type
      !> \item[0] send true fluxes to the GCM
      !> \item[1] zero out all fluxes sent to the GCM
      !> \end{description}
-
-     ! Climate parameters ----------------------------------------------------------
-
-     real(dp) :: ice_albedo   =   0.4d0 !> Ice albedo. (fraction)
-     real(dp) :: lapse_rate   =   8.d0  !> Uniform lapse rate in deg C/km 
-     !> (N.B. This should be \emph{positive} for temperature falling with height!)
-     real(dp) :: data_lapse_rate = 8.d0 !> Implied lapse rate in large-scale data (used for
-                                        !> tuning). Set equal to lapse\_rate if not supplied.
 
      ! Counter for averaging temperature input --------------------------------------
 
@@ -200,8 +143,6 @@ contains
 
     ! First deallocate if necessary
 
-    if (associated(instance%out_mask))      deallocate(instance%out_mask)
-
     if (associated(instance%artm))          deallocate(instance%artm)
     if (associated(instance%acab))          deallocate(instance%acab)
 
@@ -211,8 +152,6 @@ contains
 
 
     ! Then reallocate and zero...
-
-    allocate(instance%out_mask(ewn,nsn));      instance%out_mask = 1
 
     allocate(instance%artm(ewn,nsn));          instance%artm = 0.d0
     allocate(instance%acab(ewn,nsn));          instance%acab = 0.d0
@@ -256,16 +195,9 @@ contains
     call GetSection(config,section,'GLAD climate')
     if (associated(section)) then
        call GetValue(section,'evolve_ice',instance%evolve_ice)
-       call GetValue(section,'precip_mode',instance%whichprecip)
-       call GetValue(section,'acab_mode',instance%whichacab)
        call GetValue(section,'test_coupling',instance%test_coupling)       
-       call GetValue(section,'ice_albedo',instance%ice_albedo)
-       call GetValue(section,'lapse_rate',instance%lapse_rate)
-       instance%data_lapse_rate=instance%lapse_rate
-       call GetValue(section,'data_lapse_rate',instance%data_lapse_rate)
        call GetValue(section,'mbal_accum_time',mbal_time_temp)
        call GetValue(section,'ice_tstep_multiply',instance%ice_tstep_multiply)
-       call GetValue(section,'mean_preserving',instance%use_mpint)
        call GetValue(section,'zero_gcm_fluxes',instance%zero_gcm_fluxes)
     end if
 
@@ -350,30 +282,11 @@ contains
     call write_log('-------------')
     write(message,*) 'evolve_ice (0=fixed, 1=evolve):  ',instance%evolve_ice
     call write_log(message)
-    write(message,*) 'precip mode (1=standard):        ',instance%whichprecip
-    call write_log(message)
-    write(message,*) 'acab_mode (0 = GCM SMB, 1 = PDD):',instance%whichacab
-    call write_log(message)
     write(message,*) 'test_coupling:                   ',instance%test_coupling
     call write_log(message)    
 
     if (instance%evolve_ice == EVOLVE_ICE_FALSE) then
        call write_log('The ice sheet state will not evolve after initialization')
-    endif
-
-    if (instance%whichacab /= MASS_BALANCE_GCM) then  ! not getting SMB from GCM
-
-       !TODO - Get the PDD scheme to work with multiple task?
-       if (tasks > 1) then
-          call write_log('GLAD: Must use GCM mass balance option to run on more than one processor', GM_FATAL)
-       endif
-
-       write(message,*) 'ice_albedo  ',instance%ice_albedo
-       call write_log(message)
-       write(message,*) 'lapse_rate  ',instance%lapse_rate
-       call write_log(message)
-       write(message,*) 'data_lapse_rate',instance%data_lapse_rate
-       call write_log(message)
     endif
 
     if (instance%mbal_accum_time == -1) then
@@ -385,18 +298,6 @@ contains
 
     write(message,*) 'ice_tstep_multiply:',instance%ice_tstep_multiply
     call write_log(message)
-
-    select case(instance%use_mpint)
-    case(1)
-       write(message,*) 'Using mean-preserving interpolation'
-       call write_log(message)
-    case(0)
-       write(message,*) 'Using normal interpolation'
-       call write_log(message)
-    case default
-       write(message,*) 'Unrecognised value of instance%use_mpint'
-       call write_log(message,GM_FATAL)
-    end select
 
     write(message,*) 'zero_gcm_fluxes: ', instance%zero_gcm_fluxes
     call write_log(message)

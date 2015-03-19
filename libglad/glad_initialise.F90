@@ -46,7 +46,7 @@ module glint_initialise
   implicit none
 
   private
-  public glint_i_initialise, glint_i_initialise_gcm, glint_i_end, calc_coverage
+  public glint_i_initialise, glint_i_initialise_gcm, glint_i_end
 
 contains
 
@@ -197,12 +197,6 @@ contains
 
     call glint_i_readdata(instance)
 
-    ! Create grid spanning full domain and other information needed for downscaling &
-    ! upscaling. Note that, currently, these variables only have valid data on the main
-    ! task, since all downscaling & upscaling is done there
-    
-    call setup_lgrid_fulldomain(instance, grid)
-
     ! initialise the mass-balance accumulation
 
     call glint_init_input_gcm(instance%mbal_accum, &
@@ -314,251 +308,6 @@ contains
 
   end subroutine glint_i_readdata
 
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  subroutine setup_lgrid_fulldomain(instance, grid, grid_orog)
-
-    !> Set up the local (icesheet) grid spanning the full domain (i.e., across all tasks).
-    !> This also sets up auxiliary variables that depend on this full domain lgrid,
-    !> such as the downscaling and upscaling derived types.
-    !> This routine is required because we currently do downscaling and upscaling just
-    !> on the main task, with the appropriate gathers / scatters.
-    !> Thus, this creates a lgrid spanning the full domain on the main task;
-    !> other tasks are left with an uninitialized lgrid_fulldomain.
-    !> Tasks other than the main task also have uninitialized ups, downs and frac_coverage
-    !> (along with the similar *_orog variables).
-    
-    use glint_type         , only : glint_instance
-    use glint_global_grid  , only : global_grid
-    use parallel           , only : main_task, global_ewn, global_nsn, distributed_gather_var
-    use glimmer_coordinates, only : coordsystem_new
-    use glide_types        , only : get_dew, get_dns
-
-    implicit none
-
-    ! Arguments
-
-    type(glint_instance), intent(inout) :: instance
-    type(global_grid)   , intent(in)    :: grid
-    type(global_grid)   , intent(in), optional :: grid_orog
-
-    ! Internal variables
-
-    integer, dimension(:,:), allocatable :: out_mask_fulldomain
-
-    ! Beginning of code
-
-    call distributed_gather_var(instance%out_mask, out_mask_fulldomain)
-
-    if (main_task) then
-
-       instance%lgrid_fulldomain = coordsystem_new(0.d0, 0.d0, &
-                                                   get_dew(instance%model), &
-                                                   get_dns(instance%model), &
-                                                   global_ewn, &
-                                                   global_nsn)
-    
-       call new_downscale(instance%downs, instance%model%projection, grid, &
-                          instance%lgrid_fulldomain, mpint=(instance%use_mpint==1))
-
-       call new_upscale(instance%ups, grid,  instance%model%projection, &
-                        out_mask_fulldomain, instance%lgrid_fulldomain) ! Initialise upscaling parameters
-
-       if (present(grid_orog)) then
-          call new_upscale(instance%ups_orog, grid_orog, instance%model%projection, &
-                           out_mask_fulldomain, instance%lgrid_fulldomain) ! Initialise upscaling parameters
-       endif
-
-       call calc_coverage(instance%lgrid_fulldomain, &
-                          instance%ups,   &             
-                          grid,           &
-                          out_mask_fulldomain, &
-                          instance%frac_coverage)
-
-       if (present(grid_orog)) then
-          call calc_coverage(instance%lgrid_fulldomain, &               
-                             instance%ups_orog,  &             
-                             grid_orog,     &
-                             out_mask_fulldomain, &
-                             instance%frac_cov_orog)
-       endif
-
-    end if
-
-  end subroutine setup_lgrid_fulldomain
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  subroutine calc_coverage(lgrid_fulldomain, ups,     grid,   &
-                           mask_fulldomain,  frac_coverage)
-
-    ! Calculates the fractional coverage of the global grid-boxes by the ice model domain
-
-    use glimmer_map_types
-    use glimmer_coordinates
-    use glint_global_grid
-
-    ! Arguments
-
-    type(coordsystem_type), intent(in)  :: lgrid_fulldomain  !> Local grid, spanning full domain (all tasks)
-    type(upscale),          intent(in)  :: ups               !> Upscaling used
-    type(global_grid),      intent(in)  :: grid              !> Global grid used
-    integer, dimension(:,:),intent(in)  :: mask_fulldomain   !> Mask of points for upscaling, spanning full domain (all tasks)
-    real(dp),dimension(:,:),intent(out) :: frac_coverage     !> Map of fractional 
-                                                             !> coverage of global by local grid-boxes.
-    ! Internal variables
-
-    integer,dimension(grid%nx,grid%ny) :: tempcount
-    integer :: i,j
-
-    ! Beginning of code
-
-    tempcount=0
-
-    do i=1,lgrid_fulldomain%size%pt(1)
-       do j=1,lgrid_fulldomain%size%pt(2)
-          tempcount(ups%gboxx(i,j),ups%gboxy(i,j))=tempcount(ups%gboxx(i,j),ups%gboxy(i,j))+mask_fulldomain(i,j)
-       enddo
-    enddo
-
-    do i=1,grid%nx
-       do j=1,grid%ny
-          if (tempcount(i,j) == 0) then
-             frac_coverage(i,j) = 0.d0
-          else
-             frac_coverage(i,j) = (tempcount(i,j)*lgrid_fulldomain%delta%pt(1)*lgrid_fulldomain%delta%pt(2))/ &
-                                  (lon_diff(grid%lon_bound(i+1),grid%lon_bound(i))*D2R*EQ_RAD**2*    &
-                                  (sin(grid%lat_bound(j)*D2R)-sin(grid%lat_bound(j+1)*D2R)))
-          endif
-       enddo
-    enddo
-
-    ! Fix points that should be 1.0 by checking their surroundings
-
-    ! Interior points first
-
-    do i=2,grid%nx-1
-       do j=2,grid%ny-1
-          if ((frac_coverage(i,j)   /= 0.d0) .and. &
-              (frac_coverage(i+1,j) /= 0.d0) .and. &
-              (frac_coverage(i,j+1) /= 0.d0) .and. &
-              (frac_coverage(i-1,j) /= 0.d0) .and. &
-              (frac_coverage(i,j-1) /= 0.d0) ) &
-                   frac_coverage(i,j) = 1.d0
-       enddo
-    enddo
-
-    ! top and bottom edges
-
-    do i=2,grid%nx/2
-       if ((frac_coverage(i,1)   /= 0.d0).and. &
-           (frac_coverage(i+1,1) /= 0.d0).and. &
-           (frac_coverage(i,2)   /= 0.d0).and. &
-           (frac_coverage(i-1,1) /= 0.d0).and. &
-           (frac_coverage(i+grid%nx/2,1) /= 0.d0)) &
-                frac_coverage(i,1) = 1.d0
-    enddo
-
-    do i=grid%nx/2+1,grid%nx-1
-       if ((frac_coverage(i,1)   /= 0.d0).and. &
-           (frac_coverage(i+1,1) /= 0.d0).and. &
-           (frac_coverage(i,2)   /= 0.d0).and. &
-           (frac_coverage(i-1,1) /= 0.d0).and. &
-           (frac_coverage(i-grid%nx/2,1) /= 0.d0)) &
-                frac_coverage(i,1) = 1.d0
-    enddo
-
-    do i=2,grid%nx/2
-       if ((frac_coverage(i,grid%ny)   /= 0.d0).and. &
-           (frac_coverage(i+1,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i+grid%nx/2,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i-1,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i,grid%ny-1) /= 0.d0)) &
-                frac_coverage(i,grid%ny) = 1.d0
-    enddo
-
-    do i=grid%nx/2+1,grid%nx-1
-       if ((frac_coverage(i,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i+1,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i-grid%nx/2,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i-1,grid%ny) /= 0.d0).and. &
-           (frac_coverage(i,grid%ny-1) /= 0.d0)) &
-                frac_coverage(i,grid%ny) = 1.d0
-    enddo
-
-    ! left and right edges
-
-    do j=2,grid%ny-1
-       if ((frac_coverage(1,j) /= 0.d0).and. &
-           (frac_coverage(2,j) /= 0.d0).and. &
-           (frac_coverage(1,j+1) /= 0.d0).and. &
-           (frac_coverage(grid%nx,j) /= 0.d0).and. &
-           (frac_coverage(1,j-1) /= 0.d0)) &
-                frac_coverage(1,j) = 1.d0
-       if ((frac_coverage(grid%nx,j) /= 0.d0).and. &
-           (frac_coverage(1,j) /= 0.d0).and. &
-           (frac_coverage(grid%nx,j+1) /= 0.d0).and. &
-           (frac_coverage(grid%nx-1,j) /= 0.d0).and. &
-           (frac_coverage(grid%nx,j-1) /= 0.d0)) &
-                frac_coverage(grid%nx,j) = 1.d0
-    enddo
-
-    ! corners
-
-    if ((frac_coverage(1,1) /= 0.d0).and. &
-        (frac_coverage(2,1) /= 0.d0).and. &
-        (frac_coverage(1,2) /= 0.d0).and. &
-        (frac_coverage(grid%nx,1) /= 0.d0).and. &
-        (frac_coverage(grid%nx/2+1,1) /= 0.d0)) &
-             frac_coverage(1,1) = 1.d0
-
-    if ((frac_coverage(1,grid%ny) /= 0.d0).and. &
-        (frac_coverage(2,grid%ny) /= 0.d0).and. &
-        (frac_coverage(grid%nx/2+1,grid%ny) /= 0.d0).and. &
-        (frac_coverage(grid%nx,grid%ny) /= 0.d0).and. &
-        (frac_coverage(1,grid%ny-1) /= 0.d0)) &
-             frac_coverage(1,grid%ny) = 1.d0
-
-    if ((frac_coverage(grid%nx,1) /= 0.d0).and. &
-        (frac_coverage(1,1) /= 0.d0).and. &
-        (frac_coverage(grid%nx,2) /= 0.d0).and. &
-        (frac_coverage(grid%nx-1,1) /= 0.d0).and. &
-        (frac_coverage(grid%nx/2,1) /= 0.d0)) &
-             frac_coverage(grid%nx,1) = 1.d0
-
-    if ((frac_coverage(grid%nx,grid%ny) /= 0.d0).and. &
-        (frac_coverage(1,grid%ny) /= 0.d0).and. &
-        (frac_coverage(grid%nx/2,grid%ny) /= 0.d0).and. &
-        (frac_coverage(grid%nx-1,grid%ny) /= 0.d0).and. &
-        (frac_coverage(grid%nx,grid%ny-1) /= 0.d0)) &
-             frac_coverage(grid%nx,grid%ny) = 1.d0
-
-    ! Finally fix any rogue points > 1.0
-
-    where (frac_coverage > 1.d0) frac_coverage = 1.d0
-
-  end subroutine calc_coverage
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  real(dp) function lon_diff(a,b)
-
-    implicit none
-
-    real(dp),intent(in) :: a,b
-    real(dp) :: aa,bb
-
-    aa=a ; bb=b
-
-    do
-       if (aa > bb) exit
-       aa = aa + 360.d0
-    enddo
-
-    lon_diff = aa - bb
-
-  end function lon_diff
-
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   subroutine define_glint_restart_variables(instance)
@@ -581,24 +330,13 @@ contains
     ! Internal variables
     !------------------------------------------------------------------------------------
 
-    ! Variables needed for restart with glint.
-    ! TODO I am inserting out_mask because it was the only variable with hot=1 in the old glint_vars.def
-    !      Not sure outflux is needed
-    call glint_add_to_restart_variable_list('outmask')
-
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
     !  the correct fluxes after restart; otherwise these fluxes would have values of zero.
     ! These arrays are created only when Glint is run in GCM mode.
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
-    if (instance%whichacab == MASS_BALANCE_GCM) then
-       call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
-    endif
-
-    ! Variables needed for restart with glint_mbal
-    ! No variables had hot=1 in glint_mbal_vars.def, so I am not adding any restart variables here.
-    ! call glint_mbal_add_to_restart_variable_list('')
+    call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
 
   end subroutine define_glint_restart_variables
 
