@@ -65,7 +65,7 @@ echo
 echo "Doing CMake Configuration step"
 
 cmake \
-  -D CISM_BUILD_CISM_DRIVER:BOOL=OFF \
+  -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
   -D CISM_ENABLE_BISICLES=OFF \
   -D CISM_ENABLE_FELIX=OFF \
 \
@@ -82,6 +82,8 @@ cmake \
 \
   -D CISM_NETCDF_DIR=$NETCDF_DIR \
   -D CISM_MPI_BASE_DIR=$MPI_DIR \
+\
+  -D CISM_FMAIN=/opt/pgi/14.2.0/linux86-64/14.2/lib/f90main.o \
 \
   -D CMAKE_INSTALL_PREFIX:PATH=$PWD/install \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
