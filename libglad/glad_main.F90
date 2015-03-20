@@ -71,23 +71,9 @@ module glad_main
 
      ! Parameters that can be set by the GCM calling Glint
 
-     logical  :: gcm_smb = .false.     !> If true, receive surface mass balance from the GCM 
      logical  :: gcm_restart = .false. !> If true, restart the model from a GCM restart file
      character(fname_length) :: gcm_restart_file   !> Name of restart file
      integer  :: gcm_fileunit = 99     !> Fileunit specified by GCM for reading config files
-
-     ! File information -----------------------------------------
-
-     character(fname_length) :: paramfile      !> Name of global parameter file
-
-     ! Accumulation/averaging flags -----------------------------
-
-     logical :: need_winds=.false. !> Set if we need the winds to be accumulated/downscaled
-     logical :: enmabal=.false.    !> Set if we're using the energy balance mass balance model anywhere
-
-     ! Anomaly coupling for global climate ------------------------------------------
-
-     type(anomaly_coupling) :: anomaly_params !> Parameters for anomaly coupling
 
   end type glint_params
 
