@@ -195,12 +195,12 @@ IF (NOT CISM_USE_DEFAULT_IO)
   IF (CISM_USE_CISM_FRONT_END)
     # Auto-generate the *_io.F90 files in the build directory:
     MESSAGE(">> Calling utils/build/autogenerate-in-build-dir")
-    EXECUTE_PROCESS(COMMAND  ${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-in-build-dir
+    EXECUTE_PROCESS(COMMAND  ${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-and-glad-in-build-dir
                     ${CISM_SOURCE_DIR} 
                     WORKING_DIRECTORY ${CISM_BINARY_DIR}
-                    OUTPUT_FILE ${CISM_BINARY_DIR}/autogen-for-glint.log)
+                    OUTPUT_FILE ${CISM_BINARY_DIR}/autogen-for-glint-and-glad.log)
  
-    MESSAGE(">> see ${CISM_BINARY_DIR}/autogen-for-glint.log")
+    MESSAGE(">> see ${CISM_BINARY_DIR}/autogen-for-glint-and-glad.log")
   ENDIF()
 
 ELSE()
@@ -303,6 +303,7 @@ ENDIF()
 
 #IF (CISM_USE_CISM_FRONT_END)
    file(GLOB GLINT_SOURCES libglint/*.F90)
+   file(GLOB GLAD_SOURCES libglad/*.F90)
    file(GLOB GLISSADE_SOURCES libglissade/*.F90)
 #ENDIF()
 
@@ -315,6 +316,7 @@ file(GLOB FORTRANSOURCES
      cism_driver/eismint_forcing.F90
      cism_driver/testsfg.F90
      ${GLINT_SOURCES}
+     ${GLAD_SOURCES}
      ${GLISSADE_SOURCES}
      ${CISM_TO_DYCORE})
 
