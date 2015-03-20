@@ -72,8 +72,8 @@ contains
     use glide_nc_custom   , only: glide_nc_fillall
     use glide
     use glissade
-    use glint_constants
-    use glint_restart_gcm
+    use glad_constants
+    use glad_restart_gcm
     use glide_diagnostics
     use parallel, only: main_task
 
@@ -118,7 +118,7 @@ contains
          if (present(gcm_restart_file)) then
 
             ! read the restart file
-            call glint_read_restart_gcm(instance%model, gcm_restart_file)
+            call glad_read_restart_gcm(instance%model, gcm_restart_file)
             instance%model%options%is_restart = 1
  
          else
@@ -331,8 +331,8 @@ contains
     use glide_nc_custom   , only: glide_nc_fillall
     use glide
     use glissade
-    use glint_constants
-    use glint_restart_gcm
+    use glad_constants
+    use glad_restart_gcm
     use glide_diagnostics
     use parallel, only: main_task
 
@@ -375,7 +375,7 @@ contains
          if (present(gcm_restart_file)) then
 
             ! read the restart file
-            call glint_read_restart_gcm(instance%model, gcm_restart_file)
+            call glad_read_restart_gcm(instance%model, gcm_restart_file)
             instance%model%options%is_restart = 1
  
          else

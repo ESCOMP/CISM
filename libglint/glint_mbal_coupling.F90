@@ -213,7 +213,7 @@ contains
 
   subroutine glint_average_mbal(params,artm,prcp,ablt,acab,snowd,siced,dt)
 
-    use glint_constants, only: hours2years
+    use glad_constants, only: hours2years
 
     type(glint_mbc)  :: params
     real(dp),dimension(:,:),intent(out)   :: artm   ! Mean air temperature (degC)

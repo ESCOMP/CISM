@@ -135,7 +135,7 @@ contains
 
     ! In glint, this was done in glint_downscale.F90
 
-    use glint_constants, only: hours2years
+    use glad_constants, only: hours2years
 
     type(glad_mbc)  :: params
     integer,                intent(in)    :: dt     !> mbal accumulation time (hours)
