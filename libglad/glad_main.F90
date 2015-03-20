@@ -37,10 +37,8 @@ module glad_main
   ! This only provides code for the SMB case, not for the PDD case.
 
   use glimmer_global, only: dp, fname_length
-  use glint_type
-  use glint_global_grid
+  use glad_type
   use glad_constants
-  use glint_anomcouple
 
   use glimmer_paramets, only: stdout, GLC_DEBUG
 
@@ -48,11 +46,11 @@ module glad_main
   private
   
   ! ------------------------------------------------------------
-  ! glint_params derived type definition
+  ! glad_params derived type definition
   ! This is where default values are set.
   ! ------------------------------------------------------------
 
-  type, public :: glint_params 
+  type, public :: glad_params 
 
      !> Derived type containing parameters relevant to all instances of 
      !> the model - i.e. those parameters which pertain to the global model. 
@@ -61,21 +59,21 @@ module glad_main
 
      integer                                   :: ninstances = 1       !> Number of ice model instances
      character(fname_length),pointer,dimension(:) :: config_fnames => null()    ! array of config filenames
-     type(glint_instance),pointer,dimension(:) :: instances  => null() !> Array of glimmer\_instances
+     type(glad_instance),pointer,dimension(:) :: instances  => null() !> Array of glimmer\_instances
 
      ! Global model parameters ----------------------------------
 
      integer  :: tstep_mbal = 1        !> Mass-balance timestep (hours)
-     integer  :: start_time            !> Time of first call to glint (hours)
+     integer  :: start_time            !> Time of first call to glad (hours)
      integer  :: time_step             !> Calling timestep of global model (hours)
 
-     ! Parameters that can be set by the GCM calling Glint
+     ! Parameters that can be set by the GCM calling Glad
 
      logical  :: gcm_restart = .false. !> If true, restart the model from a GCM restart file
      character(fname_length) :: gcm_restart_file   !> Name of restart file
      integer  :: gcm_fileunit = 99     !> Fileunit specified by GCM for reading config files
 
-  end type glint_params
+  end type glad_params
 
   !---------------------------------------------------------------------------------------
   ! Use of the routines here:
@@ -140,11 +138,11 @@ contains
 
     ! Subroutine argument declarations --------------------------------------------------------
     
-    type(glint_params),              intent(inout) :: params      !> parameters to be set
+    type(glad_params),              intent(inout) :: params      !> parameters to be set
     integer,                           intent(in)  :: time_step   !> Timestep of calling model (hours)
     character(*),dimension(:),         intent(in)  :: paramfile   !> array of configuration filenames.
     integer,                  optional,intent(in)  :: daysinyear  !> Number of days in the year
-    integer,                  optional,intent(in)  :: start_time  !> Time of first call to glint (hours)
+    integer,                  optional,intent(in)  :: start_time  !> Time of first call to glad (hours)
     logical,                  optional,intent(in)  :: gcm_restart ! logical flag to restart from a GCM restart file
     character(*),             optional,intent(in)  :: gcm_restart_file ! restart filename for a GCM restart
                                                                   ! (currently assumed to be CESM)
@@ -171,7 +169,7 @@ contains
 
     params%time_step = time_step
 
-    ! Note: start_time = nhour_glint = 0 for an initial run.
+    ! Note: start_time = nhour_glad = 0 for an initial run.
     !       Does this create problems given that Glad convention is to ignore t = 0?
 
     if (present(start_time)) then
@@ -220,7 +218,7 @@ contains
        ! Load the configuration file into the linked list
        call ConfigRead(process_path(paramfile(1)), global_config, params%gcm_fileunit)    
        ! Parse the list
-       call glint_readconfig(global_config, params%ninstances, params%config_fnames, paramfile)
+       call glad_readconfig(global_config, params%ninstances, params%config_fnames, paramfile)
     else
        params%ninstances = size(paramfile)
        allocate(params%config_fnames(params%ninstances))
@@ -247,7 +245,7 @@ contains
     
     ! Subroutine argument declarations --------------------------------------------------------
 
-    type(glint_params),              intent(inout) :: params          !> parameters to be set
+    type(glad_params),              intent(inout) :: params          !> parameters to be set
     integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
 
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
@@ -273,7 +271,7 @@ contains
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
          instance_config, params%gcm_fileunit)
 
-    call glint_i_initialise_gcm(instance_config,     params%instances(i),     &
+    call glad_i_initialise_gcm(instance_config,     params%instances(i),     &
                                 params%g_grid,                                &
                                 params%start_time,   params%time_step,        &
                                 params%gcm_restart,  params%gcm_restart_file, &
@@ -289,7 +287,7 @@ contains
 
   subroutine glad_initialization_wrapup(params, ice_dt)
 
-    type(glint_params),              intent(inout) :: params      !> parameters to be set
+    type(glad_params),              intent(inout) :: params      !> parameters to be set
     integer,                  optional,intent(out) :: ice_dt      !> Ice dynamics time-step in hours
 
     ! Wrapup glad initialization - perform error checks, etc. See above for documentation
@@ -340,10 +338,7 @@ contains
     ! See the user documentation for more information.
 
     use glimmer_utils
-    use glint_interp
-    use glint_timestep, only: glint_i_tstep_gcm
-    use glint_downscale, only: glint_downscaling_gcm
-    use glint_upscale, only: glint_upscaling_gcm
+    use glad_timestep, only: glad_i_tstep_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
     use parallel, only: main_task, tasks
@@ -352,7 +347,7 @@ contains
 
     ! Subroutine argument declarations -------------------------------------------------------------
 
-    type(glint_params),              intent(inout) :: params          !> parameters for this run
+    type(glad_params),              intent(inout) :: params          !> parameters for this run
     integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
     integer,                         intent(in)    :: time            !> Current model time        (hours)
 
@@ -399,13 +394,13 @@ contains
     
     if (mod (time - av_start_time, params%time_step) /= 0) then
        
-       write(message,*) 'Unexpected calling of GLINT at time ', time
+       write(message,*) 'Unexpected calling of GLAD at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
     
     else if (time - av_start_time + params%time_step > params%tstep_mbal) then
 
        write(message,*) &
-            'Incomplete forcing of GLINT mass-balance time-step detected at time ', time
+            'Incomplete forcing of GLAD mass-balance time-step detected at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
        
     else if (time - av_start_time + params%time_step == params%tstep_mbal) then
@@ -478,14 +473,14 @@ contains
 
   !===================================================================
 
-  subroutine end_glint(params,close_logfile)
+  subroutine end_glad(params,close_logfile)
 
-    !> tidy-up operations for Glint
-    use glint_initialise
+    !> tidy-up operations for Glad
+    use glad_initialise
     use glimmer_log
     implicit none
 
-    type(glint_params),intent(inout) :: params          ! parameters for this run
+    type(glad_params),intent(inout) :: params          ! parameters for this run
     logical, intent(in), optional    :: close_logfile   ! if true, then close the log file
                                                         ! (GCM may do this elsewhere)                                  
     integer :: i
@@ -493,7 +488,7 @@ contains
     ! end individual instances
 
     do i = 1, params%ninstances
-       call glint_i_end(params%instances(i))
+       call glad_i_end(params%instances(i))
     enddo
 
     if (present(close_logfile)) then
@@ -505,18 +500,18 @@ contains
     deallocate(params%config_fnames)
     deallocate(params%instances)
 
-  end subroutine end_glint
+  end subroutine end_glad
 
   !----------------------------------------------------------------------
   ! PRIVATE INTERNAL GLIMMER SUBROUTINES FOLLOW.............
   !----------------------------------------------------------------------
 
-  !TODO - Move subroutine glint_readconfig to a glint_setup module, in analogy to glide_setup?
+  !TODO - Move subroutine glad_readconfig to a glad_setup module, in analogy to glide_setup?
 
-  subroutine glint_readconfig(config, ninstances, fnames, infnames)
+  subroutine glad_readconfig(config, ninstances, fnames, infnames)
 
     !> Determine whether a given config file is a
-    !> top-level glint config file, and return parameters
+    !> top-level glad config file, and return parameters
     !> accordingly.
 
     use glimmer_config
@@ -538,12 +533,12 @@ contains
 
     if (associated(fnames)) nullify(fnames)
 
-    call GetSection(config,section,'GLINT')
+    call GetSection(config,section,'GLAD')
     if (associated(section)) then
        call GetValue(section,'n_instance',ninstances)
        allocate(fnames(ninstances))
        do i=1,ninstances
-          call GetSection(section%next,section,'GLINT instance')
+          call GetSection(section%next,section,'GLAD instance')
           if (.not.associated(section)) then
              write(message,*) 'Must specify ',ninstances,' instance config files'
              call write_log(message,GM_FATAL,__FILE__,__LINE__)
@@ -558,13 +553,13 @@ contains
 
     ! Print some configuration information
 
-!!$    call write_log('GLINT global')
+!!$    call write_log('GLAD global')
 !!$    call write_log('------------')
 !!$    write(message,*) 'number of instances :',params%ninstances
 !!$    call write_log(message)
 !!$    call write_log('')
 
-  end subroutine glint_readconfig
+  end subroutine glad_readconfig
 
 
   !========================================================
@@ -602,6 +597,6 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-end module glint_main
+end module glad_main
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

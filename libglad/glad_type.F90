@@ -36,10 +36,7 @@ module glad_type
   !> contains type definitions for GLAD
 
   use glimmer_global, only: dp
-  use glint_interp
   use glide_types
-  use glint_mbal_coupling, only: glint_mbc, mbal_has_snow_model
-  use glint_mbal
 
   implicit none
 
@@ -54,7 +51,7 @@ module glad_type
   integer, parameter :: ZERO_GCM_FLUXES_FALSE = 0 ! send true fluxes to the GCM
   integer, parameter :: ZERO_GCM_FLUXES_TRUE  = 1 ! zero out all fluxes sent to the GCM
 
-  !TODO - Add other Glint options here to avoid hardwiring of case numbers?
+  !TODO - Add other Glad options here to avoid hardwiring of case numbers?
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -130,7 +127,7 @@ contains
     implicit none
 
     type(glad_instance),intent(inout) :: instance    !> Instance whose elements are to be allocated.
-    integer,            intent(in)    :: force_start !> glint forcing start time (hours)
+    integer,            intent(in)    :: force_start !> glad forcing start time (hours)
     
     integer :: ewn,nsn    ! dimensions of local grid
 
@@ -300,4 +297,4 @@ contains
 
   end subroutine glad_i_printconfig
 
-end module glint_type
+end module glad_type

@@ -63,10 +63,10 @@ contains
     use glide
     use glissade
     use glide_io
-    use glint_downscale, only: glint_accumulate_input_gcm, glint_average_input_gcm
-    use glint_upscale, only: glint_accumulate_output_gcm
-    use glint_io
-    use glint_mbal_io
+    use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
+    use glad_outputs, only: glad_accumulate_output
+    use glad_io
+    use glad_mbal_io
     use glide_diagnostics
     use parallel, only: tasks, main_task, this_rank
 
@@ -77,7 +77,7 @@ contains
     ! ------------------------------------------------------------------------  
 
     integer,                intent(in)   :: time         ! Current time in hours
-    type(glint_instance), intent(inout)  :: instance     ! Model instance
+    type(glad_instance), intent(inout)  :: instance     ! Model instance
     logical,                intent(out)  :: ice_tstep    ! Set if we have done an ice time step
 
     ! ------------------------------------------------------------------------  
@@ -89,7 +89,7 @@ contains
     integer :: i, il, jl
 
     if (GLC_DEBUG .and. main_task) then
-       print*, 'In glint_i_tstep_gcm'
+       print*, 'In glad_i_tstep_gcm'
     endif
 
     ice_tstep = .false.
@@ -102,9 +102,9 @@ contains
     ! setting all points < 0.0 to zero
     ! ------------------------------------------------------------------------  
 
-    !Note: Call to glint_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
+    !Note: Call to glad_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
 !!    call glide_get_usurf(instance%model, instance%local_orog)
-!!    call glint_remove_bath(instance%local_orog,1,1)
+!!    call glad_remove_bath(instance%local_orog,1,1)
 
     ! Get ice thickness ----------------------------------------
 
@@ -112,15 +112,15 @@ contains
 
     ! Accumulate Glide input fields, acab and artm
     ! Note: At this point, instance%acab has units of m
-    !       Upon averaging (in glint_mbal_gcm), units are converted to m/yr
+    !       Upon averaging (in glad_average_input_gcm), units are converted to m/yr
 
-    call glint_accumulate_input_gcm(instance%mbal_accum,   time,        &
+    call glad_accumulate_input_gcm(instance%mbal_accum,   time,        &
                                     instance%acab,         instance%artm)
 
 
     if (GLC_DEBUG .and. main_task) then
        write(stdout,*) ' '
-       write(stdout,*) 'In glint_i_tstep_gcm, time =', time
+       write(stdout,*) 'In glad_i_tstep_gcm, time =', time
        write(stdout,*) 'next_time =', instance%next_time
        write(stdout,*) 'Check for ice dynamics timestep'
        write(stdout,*) 'time =', time
@@ -157,17 +157,17 @@ contains
           ! Get average values of acab and artm during mbal_accum_time
           ! instance%acab has units of m/yr w.e. after averaging
 
-          call glint_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
+          call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
                                        instance%acab,       instance%artm)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
           call glide_get_thk(instance%model,thck_temp)
           thck_temp = thck_temp * rhoi/rhow
 
-          !Note: Call to glint_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
+          !Note: Call to glad_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
           ! Get latest upper-surface elevation (needed for masking)
 !!          call glide_get_usurf(instance%model, instance%local_orog)
-!!          call glint_remove_bath(instance%local_orog,1,1)
+!!          call glad_remove_bath(instance%local_orog,1,1)
 
           ! Mask out non-accumulation in ice-free areas
 
@@ -203,7 +203,7 @@ contains
              write (stdout,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
           end if
 
-          ! Adjust glint acab and ablt for output
+          ! Adjust glad acab for output
  
           where (instance%acab < -thck_temp .and. thck_temp > 0.d0)
              instance%acab = -thck_temp
@@ -246,7 +246,7 @@ contains
           ! write netCDF output
 
           call glide_io_writeall(instance%model,instance%model)
-          call glint_io_writeall(instance,instance%model)
+          call glad_io_writeall(instance,instance%model)
 
           ! Accumulate Glide output fields to be sent to GCM
 
@@ -266,7 +266,7 @@ contains
 
     ! Output instantaneous values
 
-    call glint_mbal_io_writeall(instance, instance%model,       &
+    call glad_mbal_io_writeall(instance, instance%model,       &
                                 outfiles = instance%out_first,  &
                                 time = time*hours2years)
 
@@ -278,14 +278,14 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Done in glint_i_tstep_gcm'
+       write(stdout,*) 'Done in glad_i_tstep_gcm'
     endif
 
   end subroutine glad_i_tstep_gcm
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !TODO - Rewrite glint_remove_bath to support multiple tasks?
+  !TODO - Rewrite glad_remove_bath to support multiple tasks?
   !       Calls to this subroutine are currently commented out.
 
   subroutine glad_remove_bath(orog,x,y)
@@ -306,14 +306,14 @@ contains
     ! This can't be made a fatal error, because this is currently called even if we have
     ! more than one task... the hope is just that the returned data aren't needed in CESM.
     if (tasks > 1) then
-       call write_log('Use of glint_remove_bath currently assumes the use of only one task', &
+       call write_log('Use of glad_remove_bath currently assumes the use of only one task', &
                       GM_WARNING, __FILE__, __LINE__)
     end if
 
     nx=size(orog,1) ; ny=size(orog,2)
 
     if (orog(x,y) < 0.d0) orog(x,y) = 0.d0
-    call glint_find_bath(orog,x,y,nx,ny)
+    call glad_find_bath(orog,x,y,nx,ny)
 
   end subroutine glad_remove_bath
 
@@ -337,7 +337,7 @@ contains
            y+yi(i) <= ny .and. y+yi(i) > 0) then
           if (orog(x+xi(i),y+yi(i)) < 0.d0) then
              orog(x+xi(i),y+yi(i)) = 0.d0
-             call glint_find_bath(orog,x+xi(i),y+yi(i),nx,ny)
+             call glad_find_bath(orog,x+xi(i),y+yi(i),nx,ny)
           endif
        endif
     enddo

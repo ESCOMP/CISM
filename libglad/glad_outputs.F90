@@ -125,7 +125,7 @@ contains
 
     ! Arguments ----------------------------------------------------------------------------
 
-    type(glint_instance), intent(in) :: instance
+    type(glad_instance), intent(in) :: instance
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)

@@ -9,7 +9,7 @@
 #endif
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glint_initialise.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glad_initialise.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -37,35 +37,34 @@
 #include "config.inc"
 #endif
 
-module glint_initialise
+module glad_initialise
 
-  !> Initialise GLINT model instance
+  !> Initialise GLAD model instance
 
-  use glint_type
+  use glad_type
   use glimmer_global, only: dp
   implicit none
 
   private
-  public glint_i_initialise, glint_i_initialise_gcm, glint_i_end
+  public glad_i_initialise_gcm, glad_i_end
 
 contains
 
-  subroutine glint_i_initialise_gcm(config,           instance,         &
+  subroutine glad_i_initialise_gcm(config,           instance,         &
                                     grid,             &
                                     force_start,      force_dt,         &
                                     gcm_restart,      gcm_restart_file, &
                                     gcm_config_unit)
 
-    ! Initialise a GLINT ice model instance for GCM coupling
+    ! Initialise a GLAD ice model instance for GCM coupling
 
     use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
-    use glint_global_grid
-    use glint_downscale   , only: glint_init_input_gcm
-    use glint_io          , only: glint_io_createall     , glint_io_writeall
-    use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
+    use glad_mbal_coupling, only : glad_mbc_init
+    use glad_io          , only: glad_io_createall     , glad_io_writeall
+    use glad_mbal_io     , only: glad_mbal_io_createall, glad_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
     use glide
@@ -79,11 +78,11 @@ contains
 
     ! Arguments
     type(ConfigSection), pointer         :: config           ! structure holding sections of configuration file   
-    type(glint_instance),  intent(inout) :: instance         ! The instance being initialised.
+    type(glad_instance),  intent(inout) :: instance         ! The instance being initialised.
     type(global_grid),     intent(in)    :: grid             ! Global grid to use
 
-    integer,               intent(in)    :: force_start      ! glint forcing start time (hours)
-    integer,               intent(in)    :: force_dt         ! glint forcing time step (hours)
+    integer,               intent(in)    :: force_start      ! glad forcing start time (hours)
+    integer,               intent(in)    :: force_dt         ! glad forcing time step (hours)
 
     logical,     optional, intent(in)    :: gcm_restart      ! logical flag to read from a restart file
     character(*),optional, intent(in)    :: gcm_restart_file ! restart filename for restart
@@ -147,27 +146,27 @@ contains
 
     instance%glide_time = instance%model%numerics%tstart
 
-    ! read glint configuration
+    ! read glad configuration
 
-    call glint_i_readconfig(instance, config)    
-    call glint_i_printconfig(instance)    
+    call glad_i_readconfig(instance, config)    
+    call glad_i_printconfig(instance)    
 
     ! Construct the list of necessary restart variables based on the config options 
-    ! selected by the user in the config file (specific to glint - other configs,
+    ! selected by the user in the config file (specific to glad - other configs,
     ! e.g. glide, isos, are handled separately by their setup routines).
     ! This is done regardless of whether or not a restart ouput file is going 
     ! to be created for this run, but this information is needed before setting up outputs.   MJH 1/17/13
     ! Note: the corresponding call for glide is placed within *_readconfig, which is probably more appropriate,
-    ! but putting this call into glint_i_readconfig creates a circular dependency.  
+    ! but putting this call into glad_i_readconfig creates a circular dependency.  
 
-    call define_glint_restart_variables(instance)
+    call define_glad_restart_variables(instance)
  
-    ! create glint variables for the glide output files
-    call glint_io_createall(instance%model, data=instance)
+    ! create glad variables for the glide output files
+    call glad_io_createall(instance%model, data=instance)
 
-    ! create instantaneous glint variables
+    ! create instantaneous glad variables
     call openall_out(instance%model, outfiles=instance%out_first)
-    call glint_mbal_io_createall(instance%model, data=instance, outfiles=instance%out_first)
+    call glad_mbal_io_createall(instance%model, data=instance, outfiles=instance%out_first)
 
     ! fill dimension variables
     call glide_nc_fillall(instance%model)
@@ -195,7 +194,7 @@ contains
 
     ! Read data and initialise climate
 
-    call glint_i_readdata(instance)
+    call glad_i_readdata(instance)
 
     ! initialise the mass-balance accumulation
 
@@ -214,7 +213,7 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glint_mbc_init'
+       write (6,*) 'Called glad_mbc_init'
        write (6,*) 'mbal tstep =', instance%mbal_tstep
        write (6,*) 'next_time =', instance%next_time
        write (6,*) 'start_time =', instance%mbal_accum%start_time
@@ -264,65 +263,65 @@ contains
     ! Write netCDF output for this instance
 
     call glide_io_writeall(instance%model, instance%model)
-    call glint_io_writeall(instance, instance%model)
-    call glint_mbal_io_writeall(instance, instance%model, outfiles=instance%out_first)
+    call glad_io_writeall(instance, instance%model)
+    call glad_mbal_io_writeall(instance, instance%model, outfiles=instance%out_first)
 
-  end subroutine glint_i_initialise_gcm
+  end subroutine glad_i_initialise_gcm
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glint_i_end(instance)
+  subroutine glad_i_end(instance)
 
     !> Tidy up 
 
     use glide
     use glimmer_ncio
     implicit none
-    type(glint_instance),  intent(inout) :: instance    !> The instance being initialised.
+    type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
     call glide_finalise(instance%model)
     call closeall_out(instance%model,outfiles=instance%out_first)
     instance%out_first => null()
 
-  end subroutine glint_i_end
+  end subroutine glad_i_end
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glint_i_readdata(instance)
+  subroutine glad_i_readdata(instance)
     !> read data from netCDF file and initialise climate
 
-    use glint_io
+    use glad_io
     use glide_thck, only: glide_calclsrf
     implicit none
 
-    type(glint_instance),intent(inout)   :: instance    !> Instance whose elements are to be allocated.
+    type(glad_instance),intent(inout)   :: instance    !> Instance whose elements are to be allocated.
 
     ! read data
-    call glint_io_readall(instance,instance%model)
+    call glad_io_readall(instance,instance%model)
 
     call glide_calclsrf(instance%model%geometry%thck,instance%model%geometry%topg, &
          instance%model%climate%eus,instance%model%geometry%lsrf)
     instance%model%geometry%usrf = instance%model%geometry%thck + instance%model%geometry%lsrf
 
-  end subroutine glint_i_readdata
+  end subroutine glad_i_readdata
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine define_glint_restart_variables(instance)
+  subroutine define_glad_restart_variables(instance)
 
-    ! This subroutine analyzes the glint options input by the user in the config file
+    ! This subroutine analyzes the glad options input by the user in the config file
     ! and determines which variables are necessary for an exact restart.  MJH 1/11/2013
 
     ! Please comment thoroughly the reasons why a particular variable needs to be a restart variable for a given config.
 
-    use glint_io, only: glint_add_to_restart_variable_list
-    use glint_mbal_io, only: glint_mbal_add_to_restart_variable_list
+    use glad_io, only: glad_add_to_restart_variable_list
+    use glad_mbal_io, only: glad_mbal_add_to_restart_variable_list
     implicit none
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
-    type(glint_instance), intent (in) :: instance  !> Derived type that includes all glint options
+    type(glad_instance), intent (in) :: instance  !> Derived type that includes all glad options
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -331,12 +330,11 @@ contains
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
     !  the correct fluxes after restart; otherwise these fluxes would have values of zero.
-    ! These arrays are created only when Glint is run in GCM mode.
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
-    call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
+    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
 
-  end subroutine define_glint_restart_variables
+  end subroutine define_glad_restart_variables
 
 
-end module glint_initialise
+end module glad_initialise
