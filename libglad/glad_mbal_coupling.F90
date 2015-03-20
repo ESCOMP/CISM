@@ -34,7 +34,10 @@ module glad_mbal_coupling
 
   implicit none
 
-  ! Module to handle the accumulation of inputs
+  ! Module to handle the accumulation of inputs.
+
+  ! Note that this module has some functionality in common with glad_input_averages, but
+  ! they are used at different stages in the time loops.
 
   type glad_mbc
      real(dp),dimension(:,:),pointer :: acab_save  => null() ! used to accumulate mass-balance
@@ -87,6 +90,73 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  subroutine glad_accumulate_input_gcm(params, time, acab, artm)
+
+    ! In glint, this was done in glint_downscale.F90
+    
+    type(glad_mbc)  :: params
+    integer :: time
+
+    real(dp),dimension(:,:),intent(in) :: acab   ! Surface mass balance (m)
+    real(dp),dimension(:,:),intent(in) :: artm   ! Mean air temperature (degC)
+
+    ! Things to do the first time
+
+    if (params%new_accum) then
+
+       params%new_accum = .false.
+       params%av_count  = 0
+
+       ! Initialise
+
+       params%acab_save = 0.d0
+       params%artm_save = 0.d0
+       params%start_time = time
+
+    end if
+
+    params%av_count = params%av_count + 1
+
+    ! Accumulate
+
+    params%acab_save = params%acab_save + acab
+    params%artm_save = params%artm_save + artm
+
+    ! Copy instantaneous fields
+
+    params%acab = acab
+    params%artm = artm
+
+  end subroutine glad_accumulate_input_gcm
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++
+
+  subroutine glad_average_input_gcm(params, dt, acab, artm)
+
+    ! In glint, this was done in glint_downscale.F90
+
+    use glint_constants, only: hours2years
+
+    type(glad_mbc)  :: params
+    integer,                intent(in)    :: dt     !> mbal accumulation time (hours)
+    real(dp),dimension(:,:),intent(out)   :: artm   !> Mean air temperature (degC)
+    real(dp),dimension(:,:),intent(out)   :: acab   !> Mass-balance (m/yr)
+
+    if (.not. params%new_accum) then
+       params%artm_save = params%artm_save / real(params%av_count,dp)
+    end if
+    artm  = params%artm_save
+
+    ! Note: acab_save has units of m, but acab has units of m/yr
+    acab  = params%acab_save / real(dt*hours2years,dp)
+
+    params%new_accum = .true.
+
+  end subroutine glad_average_input_gcm
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++
+
+  
 end module glad_mbal_coupling
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++

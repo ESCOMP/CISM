@@ -33,6 +33,9 @@ module glad_input_averages
   !> This module defines a type and related operations for working with inputs from the
   !> GCM. Its main purpose is to produce temporal averages of these inputs.
 
+  ! Note that this module has some functionality in common with glad_mbal_coupling, but
+  ! they are used at different stages in the time loops.
+
   ! NOTE(wjs, 2015-03-17) Most or all of the functionality here could be removed if we
   ! performed all of the necessary temporal averaging in the climate model, with coupling
   ! to the CISM code only happening once per mass balance time step. If we do that, we

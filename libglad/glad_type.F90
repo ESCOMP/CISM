@@ -103,10 +103,6 @@ module glad_type
      !> \item[1] zero out all fluxes sent to the GCM
      !> \end{description}
 
-     ! Counter for averaging temperature input --------------------------------------
-
-     integer  :: av_count = 0 !> Counter for averaging temperature input
-
      !WHL - added these for upscaling
      ! Counters and fields for averaging dycore output
 

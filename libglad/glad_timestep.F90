@@ -250,12 +250,12 @@ contains
 
           ! Accumulate Glide output fields to be sent to GCM
 
-          call glint_accumulate_output_gcm(instance%model,            &
-                                           instance%av_count_output,  &
-                                           instance%new_tavg_output,  &
-                                           instance%rofi_tavg,        &
-                                           instance%rofl_tavg,        &
-                                           instance%hflx_tavg )
+          call glad_accumulate_output(instance%model,            &
+                                      instance%av_count_output,  &
+                                      instance%new_tavg_output,  &
+                                      instance%rofi_tavg,        &
+                                      instance%rofl_tavg,        &
+                                      instance%hflx_tavg )
 
        end do   ! instance%n_icetstep
 
