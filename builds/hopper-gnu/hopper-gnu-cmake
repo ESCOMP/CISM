@@ -7,7 +7,7 @@
 # of Trilinos, but does need a BISICLES build located in BISICLES_INTERFACE_DIR
 # (currently set to /global/u2/d/dmartin/BISICLES/code/interface)
 
-# This script should be run from the builds/hopper-pgi subdirectory
+# This script should be run from the builds/hopper-gnu subdirectory
 # of the main seacism repository (reflected in the two instances
 # of "../.." below).
 
@@ -99,7 +99,7 @@ cmake \
   -D CMAKE_Fortran_COMPILER=ftn \
 \
 \
-  -D CMAKE_CXX_FLAGS:STRING="-O2 -fopenmp -DH5_USE_16_API" \
+  -D CMAKE_CXX_FLAGS:STRING="-O2 -fopenmp" \
   -D CISM_Fortran_FLAGS:STRING="-O2 -fopenmp -ffree-line-length-none " \
   -D BISICLES_LIB_SUBDIR=libgnu \
   -D CISM_GNU:BOOL=ON \
