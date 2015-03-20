@@ -39,7 +39,12 @@ module glad_main
   use glimmer_global, only: dp, fname_length
   use glad_type
   use glad_constants
-
+  use glimmer_config
+  use glimmer_filenames, only : process_path
+  use parallel, only: main_task
+  use glad_input_averages, only : get_av_start_time, accumulate_averages, &
+       calculate_averages, reset_glad_input_averages
+  
   use glimmer_paramets, only: stdout, GLC_DEBUG
 
   implicit none
@@ -271,8 +276,7 @@ contains
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
          instance_config, params%gcm_fileunit)
 
-    call glad_i_initialise_gcm(instance_config,     params%instances(i),     &
-                                params%g_grid,                                &
+    call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
                                 params%start_time,   params%time_step,        &
                                 params%gcm_restart,  params%gcm_restart_file, &
                                 params%gcm_fileunit )
@@ -341,7 +345,6 @@ contains
     use glad_timestep, only: glad_i_tstep_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
 
     implicit none
 

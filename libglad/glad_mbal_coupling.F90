@@ -31,6 +31,7 @@
 module glad_mbal_coupling
 
   use glimmer_config
+  use glimmer_global, only : dp
 
   implicit none
 
@@ -62,6 +63,7 @@ contains
     ! into this glad_mbal_coupling module.
 
     use glimmer_coordinates
+    use glad_constants, only : years2hours
 
     type(glad_mbc)  :: params
     type(coordsystem_type) :: lgrid

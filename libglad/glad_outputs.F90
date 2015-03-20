@@ -33,6 +33,10 @@ module glad_outputs
   ! This module defines routines for computing the outputs that CISM sends to a climate
   ! model.
 
+  use glimmer_global, only : dp
+  use glimmer_paramets, only : thk0
+  use glide_types, only : glide_global_type, glide_geometry
+  
   implicit none
   private
 
@@ -54,7 +58,9 @@ contains
     ! This used to be in glint_upscale.F90
     
     use glimmer_paramets, only: thk0, tim0
-
+    use glimmer_physcon, only : rhoi
+    use glide_types, only : glide_global_type
+    
     type(glide_global_type), intent(in)  :: model
 
     integer,  intent(inout) :: av_count_output     ! step counter 
@@ -123,6 +129,8 @@ contains
        ice_covered, topo, rofi, rofl, hflx, &
        ice_sheet_grid_mask, icemask_coupled_fluxes)
 
+    use glad_type, only : glad_instance, ZERO_GCM_FLUXES_TRUE
+    
     ! Arguments ----------------------------------------------------------------------------
 
     type(glad_instance), intent(in) :: instance
@@ -216,7 +224,7 @@ contains
     ! TODO(wjs, 2015-03-18) Could the logic here be replaced by the use of some existing
     ! mask? For now I am simply re-implementing the logic that was in glint.
 
-    usrf = thk0 * instance%model%geometry%usrf(i,j)
+    usrf = thk0 * geometry%usrf(i,j)
 
     if (usrf > 0.d0) then
        ! points not at sea level are assumed to be land or ice sheet
@@ -224,11 +232,16 @@ contains
     else
        is_in_active_grid = .false.
     end if
+
+  end function is_in_active_grid
   
   !===================================================================
 
   logical function is_ice_covered(geometry, i, j)
     ! Return true if the given point is ice-covered
+
+    use glad_constants, only : min_thck
+
     type(glide_geometry), intent(in) :: geometry
     integer, intent(in) :: i, j  ! point of interest
 
@@ -237,7 +250,7 @@ contains
     ! TODO(wjs, 2015-03-18) The logic here should probably be replaced by the use of some
     ! existing mask. For now I am simply re-implementing the logic that was in glint.
 
-    thck = thk0 * instance%model%geometry%thck(i,j)
+    thck = thk0 * geometry%thck(i,j)
 
     if (thck > min_thck) then
        is_ice_covered = .true.
@@ -246,3 +259,5 @@ contains
     end if
 
   end function is_ice_covered
+
+end module glad_outputs

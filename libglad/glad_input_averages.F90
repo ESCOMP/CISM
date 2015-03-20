@@ -42,8 +42,11 @@ module glad_input_averages
   ! should probably add checks to ensure that the model is really just being called when
   ! it's time for a mass balance time step.
 
-  use glad_type
-
+  use glimmer_global, only : dp
+  use glimmer_paramets, only: GLC_DEBUG, stdout
+  use glimmer_log
+  use parallel, only : main_task
+  
   implicit none
   private
   
@@ -71,7 +74,7 @@ contains
   subroutine initialize_glad_input_averages(glad_inputs, ewn, nsn, next_av_start)
     ! Initialize a glad_inputs instance
     
-    type(glad_inputs), intent(inout) :: glad_inputs
+    type(glad_input_averages_type), intent(inout) :: glad_inputs
 
     ! dimensions of local grid
     integer, intent(in) :: ewn
@@ -88,7 +91,7 @@ contains
 
   integer function get_av_start_time(glad_inputs)
     ! Get value of time from the last occasion averaging was restarted (hours)
-    type(glad_inputs), intent(in) :: glad_inputs
+    type(glad_input_averages_type), intent(in) :: glad_inputs
 
     get_av_start_time = glad_inputs%av_start_time
   end function get_av_start_time
@@ -98,7 +101,7 @@ contains
     !
     ! Should be called every time we have new inputs from the climate model.
     
-    type(glad_inputs), intent(inout) :: glad_inputs
+    type(glad_input_averages_type), intent(inout) :: glad_inputs
     real(dp),dimension(:,:),intent(in)  :: qsmb     ! flux of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)  :: tsfc     ! surface ground temperature (C)
     integer, intent(in) :: time  ! Current model time
@@ -116,7 +119,7 @@ contains
 
   subroutine calculate_averages(glad_inputs, qsmb, tsfc)
     ! Calculate averages over the averaging period
-    type(glad_inputs), intent(in) :: glad_inputs
+    type(glad_input_averages_type), intent(in) :: glad_inputs
     real(dp), dimension(:,:), intent(out) :: qsmb  ! average surface mass balance (kg m-2 s-1)
     real(dp), dimension(:,:), intent(out) :: tsfc  ! average surface temperature (deg C)
     
@@ -129,7 +132,7 @@ contains
     !
     ! Should be called at the end of an averaging period, in order to prepare for the
     ! next averaging period
-    type(glad_inputs), intent(inout) :: glad_inputs
+    type(glad_input_averages_type), intent(inout) :: glad_inputs
     integer, intent(in) :: next_av_start  ! start time for next averaging period (hours)
 
     glad_inputs%tot_qsmb(:,:) = 0.d0
@@ -147,9 +150,11 @@ contains
     ! Also performs some error checking to make sure we're not calling GLAD at an
     ! unexpected time.
 
-    type(glad_inputs), intent(inout) :: glad_inputs
+    type(glad_input_averages_type), intent(inout) :: glad_inputs
     integer, intent(in) :: time  ! Current model time
 
+    character(len=100) :: message
+    
     if (GLC_DEBUG .and. main_task) then
        write (stdout,*) 'Accumulating averages, current time (hr) =', time
        write (stdout,*) 'av_start_time =', glad_inputs%av_start_time
@@ -166,3 +171,5 @@ contains
     end if
 
   end subroutine start_new_averaging_period
+
+end module glad_input_averages

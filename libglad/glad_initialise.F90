@@ -51,7 +51,6 @@ module glad_initialise
 contains
 
   subroutine glad_i_initialise_gcm(config,           instance,         &
-                                    grid,             &
                                     force_start,      force_dt,         &
                                     gcm_restart,      gcm_restart_file, &
                                     gcm_config_unit)
@@ -79,7 +78,6 @@ contains
     ! Arguments
     type(ConfigSection), pointer         :: config           ! structure holding sections of configuration file   
     type(glad_instance),  intent(inout) :: instance         ! The instance being initialised.
-    type(global_grid),     intent(in)    :: grid             ! Global grid to use
 
     integer,               intent(in)    :: force_start      ! glad forcing start time (hours)
     integer,               intent(in)    :: force_dt         ! glad forcing time step (hours)

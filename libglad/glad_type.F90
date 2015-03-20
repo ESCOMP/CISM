@@ -37,7 +37,9 @@ module glad_type
 
   use glimmer_global, only: dp
   use glide_types
-
+  use glad_input_averages, only : glad_input_averages_type, initialize_glad_input_averages
+  use glad_mbal_coupling, only : glad_mbc
+  
   implicit none
 
   ! Constants that describe the options available
@@ -81,6 +83,10 @@ module glad_type
      real(dp),dimension(:,:),pointer :: artm        => null() !> Annual mean air temperature
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
 
+     ! Arrays to accumulate mass-balance quantities --------------
+
+     type(glad_mbc) :: mbal_accum
+     
      ! Climate options -------------------------------------------
 
      integer :: evolve_ice = 1
