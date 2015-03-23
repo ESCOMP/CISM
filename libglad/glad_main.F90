@@ -127,9 +127,6 @@ module glad_main
   ! The land model has the option to update its ice coverage and surface elevation, given
   ! the fields returned from Glad.
   !
-  ! There are two driver subroutines in this module for CESM coupling: 
-  !  initialise_glad_gcm (for initialization) and glad_gcm (for timestepping).
-  !
   !---------------------------------------------------------------------------------------
   
 contains
