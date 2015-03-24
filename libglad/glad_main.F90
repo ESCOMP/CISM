@@ -103,6 +103,8 @@ module glad_main
   
   public :: glad_initialize
   public :: glad_initialize_instance
+  public :: glad_get_grid_size
+  public :: glad_get_initial_outputs
   public :: glad_initialization_wrapup
   
   public :: glad_gcm
