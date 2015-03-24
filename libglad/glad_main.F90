@@ -291,6 +291,8 @@ contains
     ! The caller can then allocate arrays (inputs to and outputs from glad) with size
     ! (ewn, nsn).
 
+    use parallel, only : own_ewn, own_nsn
+    
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet instance
     integer, intent(out) :: ewn  ! number of east-west points (first dimension of arrays)
@@ -299,8 +301,8 @@ contains
     ! FIXME(wjs, 2015-03-24) This routine needs to be modified to work correctly in
     ! parallel. In particular: it currently doesn't remove the halo cells.
 
-    ewn = get_ewn(params%instances(instance_index)%model)
-    nsn = get_nsn(params%instances(instance_index)%model)
+    ewn = own_ewn
+    nsn = own_nsn
 
   end subroutine glad_get_grid_size
     
