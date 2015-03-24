@@ -83,9 +83,18 @@ module glad_main
   !---------------------------------------------------------------------------------------
   ! Use of the routines here:
   !
+  ! NOTE(wjs, 2015-03-24) I think this is going to need some rework in order to handle
+  ! multiple instances the way I'm planning to do it in CESM, with the coupler managing
+  ! these multiple instances: I think we're going to want a totally separate glad
+  ! instance for each ice sheet instance. Then some of these initialization routines
+  ! could be combined.
+  !
   ! In model initialization:
   ! - Call glad_initialize once
   ! - Call glad_initialize_instance once per instance
+  ! - Call glad_get_grid_size once per instance
+  !   (this is needed so that the caller can allocate arrays appropriately)
+  ! - Call glad_get_initial_outputs once per instance
   ! - Call glad_initialization_wrapup once
   !
   ! In the model run loop:
@@ -235,12 +244,9 @@ contains
 
   end subroutine glad_initialize
 
-  subroutine glad_initialize_instance(params,         instance_index,        &
-                                      ice_covered,    topo,                  &
-                                      rofi,           rofl,           hflx,  &
-                                      ice_sheet_grid_mask,                   &
-                                      icemask_coupled_fluxes,                &
-                                      output_flag)
+  !===================================================================
+
+  subroutine glad_initialize_instance(params, instance_index)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -250,16 +256,6 @@ contains
     type(glad_params),              intent(inout) :: params          !> parameters to be set
     integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
 
-    real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
-    real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
-    real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
-    real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
-    real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
-    real(dp),dimension(:,:),intent(out) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
-    real(dp),dimension(:,:),intent(out) :: icemask_coupled_fluxes !mask of ice sheet grid coverage where we are potentially sending non-zero fluxes
-    
-    logical,                  optional,intent(out) :: output_flag !> Flag to show output set (provided for consistency)
-    
     ! Internal variables -----------------------------------------------------------------------
 
     type(ConfigSection), pointer :: instance_config
@@ -278,14 +274,75 @@ contains
                                 params%gcm_restart,  params%gcm_restart_file, &
                                 params%gcm_fileunit )
 
+  end subroutine glad_initialize_instance
+
+  !===================================================================
+
+  subroutine glad_get_grid_size(params, instance_index, &
+                                ewn, nsn)
+
+    ! Get the size of a grid corresponding to this instance.
+    !
+    ! The size is returned withOUT halo cells - note that the other routines here assume
+    ! that inputs and outputs do not have halo cells.
+    !
+    ! The caller can then allocate arrays (inputs to and outputs from glad) with size
+    ! (ewn, nsn).
+
+    type(glad_params), intent(in) :: params
+    integer, intent(in) :: instance_index  ! index of current ice sheet instance
+    integer, intent(out) :: ewn  ! number of east-west points (first dimension of arrays)
+    integer, intent(out) :: nsn  ! number of north-south points (second dimension of arrays)
+
+    ! FIXME(wjs, 2015-03-24) This routine needs to be modified to work correctly in
+    ! parallel. In particular: it currently doesn't remove the halo cells.
+
+    ewn = get_ewn(params%instances(instance_index)%model)
+    nsn = get_nsn(params%instances(instance_index)%model)
+
+  end subroutine glad_get_grid_size
+    
+  !===================================================================
+  
+  subroutine glad_get_initial_outputs(params,         instance_index,        &
+                                      ice_covered,    topo,                  &
+                                      rofi,           rofl,           hflx,  &
+                                      ice_sheet_grid_mask,                   &
+                                      icemask_coupled_fluxes,                &
+                                      output_flag)
+
+    ! Get initial outputs for one instance. See above for documentation of the full
+    ! initialization sequence.
+    !
+    ! Output arrays are assumed to NOT have halo cells.
+
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_params),               intent(in)    :: params
+    integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
+
+    real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
+    real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
+    real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
+    real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
+    real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
+    real(dp),dimension(:,:),intent(out) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
+    real(dp),dimension(:,:),intent(out) :: icemask_coupled_fluxes !mask of ice sheet grid coverage where we are potentially sending non-zero fluxes
+    
+    logical,                  optional,intent(out) :: output_flag !> Flag to show output set (provided for consistency)
+    
+    ! Begin subroutine code --------------------------------------------------------------------
+  
     call set_output_fields(params%instances(instance_index), &
          ice_covered, topo, rofi, rofl, hflx, &
          ice_sheet_grid_mask, icemask_coupled_fluxes)
 
     if (present(output_flag)) output_flag = .true.
     
-  end subroutine glad_initialize_instance
-
+  end subroutine glad_get_initial_outputs
+  
+  !===================================================================
+  
   subroutine glad_initialization_wrapup(params, ice_dt)
 
     type(glad_params),              intent(inout) :: params      !> parameters to be set
