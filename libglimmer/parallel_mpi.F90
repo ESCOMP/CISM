@@ -3057,6 +3057,11 @@ contains
     ! Returns a unique ID for a given row and column reference that is identical across all processors.
     ! For instance if Proc 0: (17,16) is the same global cell as Proc 3: (17,1), then the globalID will be the same for both.
     ! These IDs are spaced upstride apart.  upstride = number of vertical layers.
+
+    ! The global index increases going from left to right, and then from bottom to top.
+    ! So the indices for the bottom (southernmost) row go 1..global_ewn, then the indices
+    ! for the next row north go (global_ewn+1)..(2*global_ewn), etc. 
+    
     integer,intent(IN) :: locns, locew, upstride
     integer :: parallel_globalID_scalar
     ! locns is local NS (row) grid index
