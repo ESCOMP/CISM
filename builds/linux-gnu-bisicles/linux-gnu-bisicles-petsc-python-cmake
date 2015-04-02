@@ -55,7 +55,7 @@ cmake \
 \
   -D CMAKE_CXX_FLAGS:STRING="-g" \
   -D CISM_Fortran_FLAGS:STRING="-g  -ffree-line-length-none -fno-range-check -DNO_RESCALE" \
-  -D CISM_EXTRA_LIBS:STRING="-L$PETSC_DIR/$PETSC_ARCH/lib -lpetsc -llapack -lblas" \
+  -D CISM_EXTRA_LIBS:STRING="-L$PETSC_DIR/$PETSC_ARCH/lib -lpetsc -llapack -lblas -lpython2.7" \
   -D BISICLES_INTERFACE_DIR=$PWD/../../../BISICLES/CISM-interface/interface \
   -D BISICLES_LIB_SUBDIR=libgnu \
  ../..
