@@ -106,6 +106,10 @@ module glad_main
   public :: glad_get_grid_size
   public :: glad_get_initial_outputs
   public :: glad_initialization_wrapup
+
+  public :: glad_get_grid_indices
+  public :: glad_get_lat_lon
+  public :: glad_get_areas
   
   public :: glad_gcm
 
@@ -281,9 +285,13 @@ contains
   !===================================================================
 
   subroutine glad_get_grid_size(params, instance_index, &
-                                ewn, nsn)
+       ewn, nsn, npts, &
+       ewn_tot, nsn_tot, npts_tot)
 
     ! Get the size of a grid corresponding to this instance.
+    !
+    ! Returns both the size of local arrays (ewn, nsn, npts) and the size of global arrays
+    ! (ewn_tot, nsn_tot, npts_tot).
     !
     ! The size is returned withOUT halo cells - note that the other routines here assume
     ! that inputs and outputs do not have halo cells.
@@ -291,18 +299,24 @@ contains
     ! The caller can then allocate arrays (inputs to and outputs from glad) with size
     ! (ewn, nsn).
 
-    use parallel, only : own_ewn, own_nsn
+    use parallel, only : own_ewn, own_nsn, global_ewn, global_nsn
     
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet instance
-    integer, intent(out) :: ewn  ! number of east-west points (first dimension of arrays)
-    integer, intent(out) :: nsn  ! number of north-south points (second dimension of arrays)
-
-    ! FIXME(wjs, 2015-03-24) This routine needs to be modified to work correctly in
-    ! parallel. In particular: it currently doesn't remove the halo cells.
-
+    integer, intent(out) :: ewn  ! number of east-west points owned by this proc (first dimension of arrays)
+    integer, intent(out) :: nsn  ! number of north-south points owned by this proc (second dimension of arrays)
+    integer, intent(out) :: npts ! total number of points owned by this proc
+    integer, intent(out) :: ewn_tot ! total number of east-west points in grid
+    integer, intent(out) :: nsn_tot ! total number of north-south points in grid
+    integer, intent(out) :: npts_tot ! total number of points in grid
+    
     ewn = own_ewn
     nsn = own_nsn
+    npts = ewn * nsn
+
+    ewn_tot = global_ewn
+    nsn_tot = global_nsn
+    npts_tot = ewn_tot * nsn_tot
 
   end subroutine glad_get_grid_size
     
@@ -380,6 +394,124 @@ contains
     
 
   end subroutine glad_initialization_wrapup
+
+  !===================================================================
+  
+  subroutine glad_get_grid_indices(params, instance_index, &
+                                   global_indices, local_indices)
+
+    ! Get 1-d indices for each grid cell.
+    !
+    ! The global indices are unique across all tasks (i.e., the global grid). The local
+    ! indices go from 1 .. ncells on each task. The global indices increase going from
+    ! left to right, and then from bottom to top. So the indices for the bottom
+    ! (southernmost) row go 1 .. (# east-west points), etc. The local indices go in the
+    ! same order.
+    !
+    ! The global_indices and local_indices arrays should NOT include halo cells. The
+    ! returned indices also ignore halo cells.
+
+    use parallel, only : own_ewn, own_nsn, global_row_offset, global_col_offset, global_ewn
+    
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_params), intent(in) :: params
+    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(out) :: global_indices(:,:)
+    integer, intent(out) :: local_indices(:,:)
+
+    ! Internal variables -----------------------------------------------------------------------
+
+    integer :: own_points  ! number of points this proc is responsible for
+    integer, allocatable :: counts(:)  ! count number of times each local index has been set
+    integer :: local_row, local_col
+    integer :: global_row, global_col
+    integer :: local_index, global_index
+    character(len=*), parameter :: subname = 'glad_get_grid_indices'
+
+    ! Begin subroutine code --------------------------------------------------------------------
+    
+    ! Perform error checking on inputs
+    
+    if (size(global_indices, 1) /= own_ewn .or. size(global_indices, 2) /= own_nsn) then
+       call write_log(subname // ' ERROR: Wrong size for global_indices', &
+            GM_FATAL, __FILE__, __LINE__)
+    end if
+
+    if (size(local_indices, 1) /= own_ewn .or. size(local_indices, 2) /= own_nsn) then
+       call write_log(subname // ' ERROR: Wrong size for local_indices', &
+            GM_FATAL, __FILE__, __LINE__)
+    end if
+
+    ! Set global and local indices
+
+    own_points = own_ewn * own_nsn
+    allocate(counts(own_points))
+    counts(:) = 0
+
+    ! TODO(wjs, 2015-04-01) Need to confirm that global_ewn, global_row_offset and
+    ! global_col_offset don't include the global halo, by checking the indices set
+    ! here. As long as they are observed to go 1..n in a parallel run, all should be okay.
+    do local_row = 1, own_nsn
+       do local_col = 1, own_ewn
+          local_index = (local_row - 1)*own_ewn + local_col
+          if (local_index < 1 .or. local_index > own_points) then
+             write(stdout,*) subname//' ERROR: local_index out of bounds: ', &
+                  local_index, own_points
+             call write_log(subname // ' ERROR: local_index out of bounds', &
+                  GM_FATAL, __FILE__, __LINE__)
+          end if
+          local_indices(local_col,local_row) = local_index
+          counts(local_index) = counts(local_index) + 1
+          
+          global_row = local_row + global_row_offset
+          global_col = local_col + global_col_offset
+          global_index = (global_row - 1)*global_ewn + global_col
+          global_indices(local_col,local_row) = global_index
+       end do
+    end do
+          
+    ! Make sure that each local index has been assigned exactly once
+    if (any(counts /= 1)) then
+       call write_log(subname // ' ERROR: not all local indices have been assigned exactly once', &
+            GM_FATAL, __FILE__, __LINE__)
+    end if
+    
+  end subroutine glad_get_grid_indices
+
+  !===================================================================
+  
+  subroutine glad_get_lat_lon(params, instance_index, &
+                              lats, lons)
+
+    ! Get latitude and longitude for each grid cell
+
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_params), intent(in) :: params
+    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(out) :: lats(:,:)      ! latitudes (degrees)
+    integer, intent(out) :: lons(:,:)      ! longitudes (degrees)
+
+  end subroutine glad_get_lat_lon
+
+    !===================================================================
+  
+  subroutine glad_get_areas(params, instance_index, areas)
+
+    ! Get area of each grid cell
+
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_params), intent(in) :: params
+    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(out) :: areas(:,:)     ! areas (m^2)
+
+    areas(:,:) = get_dns(params%instances(instance_index)%model) * &
+                 get_dew(params%instances(instance_index)%model)
+    
+  end subroutine glad_get_areas
+
   
   !===================================================================
 
