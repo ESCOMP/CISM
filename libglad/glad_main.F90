@@ -498,6 +498,9 @@ contains
     real(dp), intent(out) :: lats(:,:)      ! latitudes (degrees)
     real(dp), intent(out) :: lons(:,:)      ! longitudes (degrees)
 
+    ! Internal variables -----------------------------------------------------------------------
+    character(len=*), parameter :: subname = 'glad_get_lat_lon'
+    
     ! Begin subroutine code --------------------------------------------------------------------
     
     ! Perform error checking on inputs
