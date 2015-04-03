@@ -113,6 +113,7 @@ module glad_main
   
   public :: glad_gcm
 
+  public :: end_glad
   
   !---------------------------------------------------------------------------------------
   ! Some notes on coupling to the Community Earth System Model (CESM).  These may be applicable
@@ -256,6 +257,8 @@ contains
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
+
+    use glad_initialise, only : glad_i_initialise_gcm
     
     ! Subroutine argument declarations --------------------------------------------------------
 
@@ -333,6 +336,8 @@ contains
     ! initialization sequence.
     !
     ! Output arrays are assumed to NOT have halo cells.
+
+    use glad_outputs, only : set_output_fields
 
     ! Subroutine argument declarations --------------------------------------------------------
 
@@ -490,8 +495,8 @@ contains
 
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet index
-    integer, intent(out) :: lats(:,:)      ! latitudes (degrees)
-    integer, intent(out) :: lons(:,:)      ! longitudes (degrees)
+    real(dp), intent(out) :: lats(:,:)      ! latitudes (degrees)
+    real(dp), intent(out) :: lons(:,:)      ! longitudes (degrees)
 
   end subroutine glad_get_lat_lon
 
@@ -505,7 +510,7 @@ contains
 
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet index
-    integer, intent(out) :: areas(:,:)     ! areas (m^2)
+    real(dp), intent(out) :: areas(:,:)     ! areas (m^2)
 
     areas(:,:) = get_dns(params%instances(instance_index)%model) * &
                  get_dew(params%instances(instance_index)%model)
@@ -535,7 +540,8 @@ contains
     use glad_timestep, only: glad_i_tstep_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
-
+    use glad_outputs, only : set_output_fields
+    
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------
