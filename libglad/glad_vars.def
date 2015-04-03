@@ -19,7 +19,7 @@ dimensions:    time, y1, x1
 units:         degreeN
 long_name:     latitude
 standard_name: latitude
-data:          data%lati
+data:          data%lat
 load:          1
 standard_name: latitude
 
@@ -27,7 +27,7 @@ standard_name: latitude
 dimensions:    time, y1, x1
 units:         degreeE
 long_name:     longitude
-data:          data%loni
+data:          data%lon
 load:          1
 standard_name: longitude
 
