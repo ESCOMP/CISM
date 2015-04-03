@@ -493,6 +493,24 @@ contains
     integer, intent(out) :: lats(:,:)      ! latitudes (degrees)
     integer, intent(out) :: lons(:,:)      ! longitudes (degrees)
 
+    ! Begin subroutine code --------------------------------------------------------------------
+    
+    ! Perform error checking on inputs
+
+    if (size(lats, 1) /= own_ewn .or. size(lats, 2) /= own_nsn) then
+       call write_log(subname // ' ERROR: Wrong size for lats', &
+            GM_FATAL, __FILE__, __LINE__)
+    end if
+
+    if (size(lons, 1) /= own_ewn .or. size(lons, 2) /= own_nsn) then
+       call write_log(subname // ' ERROR: Wrong size for lons', &
+            GM_FATAL, __FILE__, __LINE__)
+    end if
+
+    ! TODO(wjs, 2015-04-03) Need to discard halo values from the internal arrays
+    lats(:,:) = params%instances(instance_index)%lat(:,:)
+    lons(:,:) = params%instances(instance_index)%lon(:,:)
+    
   end subroutine glad_get_lat_lon
 
     !===================================================================

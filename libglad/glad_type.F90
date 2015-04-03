@@ -106,6 +106,10 @@ module glad_type
      !> \item[1] zero out all fluxes sent to the GCM
      !> \end{description}
 
+     ! Latitude & longitude of model grid points
+     real(dp), dimension(:,:), pointer :: lat(:,:)
+     real(dp), dimension(:,:), pointer :: lon(:,:)
+     
      !WHL - added these for upscaling
      ! Counters and fields for averaging dycore output
 
@@ -145,6 +149,9 @@ contains
     if (associated(instance%artm))          deallocate(instance%artm)
     if (associated(instance%acab))          deallocate(instance%acab)
 
+    if (associated(instance%lat))           deallocate(instance%lat)
+    if (associated(instance%lon))           deallocate(instance%lon)
+    
     if (associated(instance%rofi_tavg))     deallocate(instance%rofi_tavg)
     if (associated(instance%rofl_tavg))     deallocate(instance%rofl_tavg)
     if (associated(instance%hflx_tavg))     deallocate(instance%hflx_tavg)
@@ -154,6 +161,9 @@ contains
 
     allocate(instance%artm(ewn,nsn));          instance%artm = 0.d0
     allocate(instance%acab(ewn,nsn));          instance%acab = 0.d0
+
+    allocate(instance%lat(ewn,nsn));           instance%lat  = 0.d0
+    allocate(instance%lon(ewn,nsn));           instance%lon  = 0.d0
 
     allocate(instance%rofi_tavg(ewn,nsn));     instance%rofi_tavg = 0.d0
     allocate(instance%rofl_tavg(ewn,nsn));     instance%rofl_tavg = 0.d0
