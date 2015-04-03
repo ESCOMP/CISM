@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Fri, 03 Apr 2015 17:54:13 +0000
+! Fri, 03 Apr 2015 18:33:13 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -268,7 +268,7 @@ contains
       NCO%vars(pos+1:pos+3) = '   '
     end if
     if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%lati)) then
+    if (is_enabled(data%lat)) then
        call write_log('Creating variable lat')
        status = parallel_def_var(NCO%id,'lat',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
@@ -290,7 +290,7 @@ contains
       NCO%vars(pos+1:pos+3) = '   '
     end if
     if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%loni)) then
+    if (is_enabled(data%lon)) then
        call write_log('Creating variable lon')
        status = parallel_def_var(NCO%id,'lon',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
@@ -384,14 +384,14 @@ contains
     status = parallel_inq_varid(NCO%id,'lat',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
-            data%lati, (/1,1,outfile%timecounter/))
+            data%lat, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
     status = parallel_inq_varid(NCO%id,'lon',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
-            data%loni, (/1,1,outfile%timecounter/))
+            data%lon, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -648,10 +648,10 @@ contains
 
     status = parallel_inq_varid(NCI%id,'lat',varid)
     if (status .eq. nf90_noerr) then
-    if (is_enabled(data%lati)) then
+    if (is_enabled(data%lat)) then
        call write_log('  Loading lat')
        status = distributed_get_var(NCI%id, varid, &
-            data%lati, (/1,1,infile%current_time/))
+            data%lat, (/1,1,infile%current_time/))
        call nc_errorhandle(__FILE__,__LINE__,status)
        status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
        if (status.ne.NF90_NOERR) then
@@ -659,7 +659,7 @@ contains
        end if
        if (abs(scaling_factor-1.0d0).gt.1.d-17) then
           call write_log("scaling lat",GM_DIAGNOSTIC)
-          data%lati = data%lati*scaling_factor
+          data%lat = data%lat*scaling_factor
        end if
     else
     call write_log('Variable lat was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
@@ -669,10 +669,10 @@ contains
 
     status = parallel_inq_varid(NCI%id,'lon',varid)
     if (status .eq. nf90_noerr) then
-    if (is_enabled(data%loni)) then
+    if (is_enabled(data%lon)) then
        call write_log('  Loading lon')
        status = distributed_get_var(NCI%id, varid, &
-            data%loni, (/1,1,infile%current_time/))
+            data%lon, (/1,1,infile%current_time/))
        call nc_errorhandle(__FILE__,__LINE__,status)
        status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
        if (status.ne.NF90_NOERR) then
@@ -680,7 +680,7 @@ contains
        end if
        if (abs(scaling_factor-1.0d0).gt.1.d-17) then
           call write_log("scaling lon",GM_DIAGNOSTIC)
-          data%loni = data%loni*scaling_factor
+          data%lon = data%lon*scaling_factor
        end if
     else
     call write_log('Variable lon was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
@@ -826,7 +826,7 @@ contains
     type(glad_instance) :: data
     real(dp), dimension(:,:), intent(out) :: outarray
 
-    outarray = data%lati
+    outarray = data%lat
   end subroutine glad_get_lat
 
   subroutine glad_set_lat(data,inarray)
@@ -837,7 +837,7 @@ contains
     type(glad_instance) :: data
     real(dp), dimension(:,:), intent(in) :: inarray
 
-    data%lati = inarray
+    data%lat = inarray
   end subroutine glad_set_lat
 
   subroutine glad_get_lon(data,outarray)
@@ -848,7 +848,7 @@ contains
     type(glad_instance) :: data
     real(dp), dimension(:,:), intent(out) :: outarray
 
-    outarray = data%loni
+    outarray = data%lon
   end subroutine glad_get_lon
 
   subroutine glad_set_lon(data,inarray)
@@ -859,7 +859,7 @@ contains
     type(glad_instance) :: data
     real(dp), dimension(:,:), intent(in) :: inarray
 
-    data%loni = inarray
+    data%lon = inarray
   end subroutine glad_set_lon
 
 
