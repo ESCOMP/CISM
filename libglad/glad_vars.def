@@ -14,6 +14,23 @@ datatype: glad_instance
 # module where type is defined
 datamod:  glad_type 
 
+[lat]
+dimensions:    time, y1, x1
+units:         degreeN
+long_name:     latitude
+standard_name: latitude
+data:          data%lati
+load:          1
+standard_name: latitude
+
+[lon]
+dimensions:    time, y1, x1
+units:         degreeE
+long_name:     longitude
+data:          data%loni
+load:          1
+standard_name: longitude
+
 [rofi_tavg]
 dimensions:    time, y1, x1
 units:         kg m-2 s-1

@@ -325,6 +325,12 @@ contains
     ! Internal variables
     !------------------------------------------------------------------------------------
 
+    ! lat and lon need to be on the input file. Since a restart run only reads the
+    ! restart file (and not the original input file) we need to write lat and lon back to
+    ! the restart file so they will be available for the following run segment.
+    
+    call glad_add_to_restart_variable_list('lat lon')
+    
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
     !  the correct fluxes after restart; otherwise these fluxes would have values of zero.
