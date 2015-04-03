@@ -106,7 +106,7 @@ contains
     use glide_thck, only : glide_calclsrf
     use glam_strs2, only : glam_velo_init
     use glimmer_coordinates, only: coordsystem_new
-    use glide_grid_operators, only: stagvarb
+    use glissade_grid_operators, only: glissade_stagger
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use felix_dycore_interface, only: felix_velo_init
@@ -277,13 +277,40 @@ contains
           call write_log('Warning: the input "beta" field will be overwritten with values interpolated from the input "unstagbeta" field!')
        endif
 
-       call parallel_halo(model%velocity%unstagbeta)    ! fill in halo values
-       call stagvarb(model%velocity%unstagbeta,  &      ! interpolate
-                     model%velocity%beta,        &
-                     model%general%ewn,          &
-                     model%general%nsn)
+       ! do a halo update and interpolate to the staggered grid
+       ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
+       call parallel_halo(model%velocity%unstagbeta)
+       call glissade_stagger(model%general%ewn,          model%general%nsn,      &
+                             model%velocity%unstagbeta,  model%velocity%beta,    &
+                             stagger_margin_in = 0)
 
     endif  ! unstagbeta > 0
+
+    ! The MISMIP 3D test case requires reading in a spatial factor that multiplies Coulomb_C.
+    ! This factor is read in on the unstaggered grid, then interpolated to the staggered grid.
+    ! If this factor is not present in the input file, then set it to 1 everywhere.
+
+    print*, 'Here 2'
+
+    if (maxval(model%basal_physics%C_space_factor) > tiny(0.d0)) then  ! C_space_factor was read in
+
+       print*, 'stagger C'
+       ! do a halo update and interpolate to the staggered grid
+       ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
+       call parallel_halo(model%basal_physics%C_space_factor)
+       call glissade_stagger(model%general%ewn,                  model%general%nsn,                       &
+                             model%basal_physics%C_space_factor, model%basal_physics%C_space_factor_stag, &
+                             stagger_margin_in = 0)
+
+    else  ! C_space_factor was not read in; set to 1 everywhere
+
+       print*, 'set C'
+       model%basal_physics%C_space_factor(:,:) = 1.d0
+       model%basal_physics%C_space_factor_stag(:,:) = 1.d0
+
+    endif
+
+    print*, 'Here 3'
 
     ! Note: The basal process option is currently disabled.
     ! initialize basal process module

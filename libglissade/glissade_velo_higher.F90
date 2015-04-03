@@ -1925,11 +1925,28 @@
        endif
 
        if (verbose_beta .and. main_task) then
+          print*, ' '
+          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
+       endif
 
-          if (whichbabc==HO_BABC_YIELD_PICARD) then
+       if (verbose_beta .and. this_rank==rtest) then
+
+          print*, ' '
+          print*, 'beta field, itest, rank =', itest, rtest
+          do j = ny-1, 1, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-4, itest+4
+                write(6,'(e10.3)',advance='no') beta(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          if (whichbabc == HO_BABC_YIELD_PICARD) then
              print*, ' '
              print*, 'mintauf field, rank =', rtest
              do j = ny-1, 1, -1
+                write(6,'(i6)',advance='no') j
                 do i = 1, nx-1
                    write(6,'(e10.3)',advance='no') mintauf(i,j)
                 enddo
@@ -1937,19 +1954,21 @@
              enddo
           endif
 
-          print*, ' '
-          print*, 'beta field, itest, rank =', itest, rtest
-          do j = ny-1, 1, -1
-!!             do i = 1, nx-1
-             do i = itest-4, itest+4
-                write(6,'(e10.3)',advance='no') beta(i,j)
+          if (whichbabc == HO_BABC_COULOMB_FRICTION .or. &
+              whichbabc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
+             print*, ' '
+             print*, 'C_space_factor_stag, itest, rank =', itest, rtest
+             do j = ny-1, 1, -1
+                write(6,'(i6)',advance='no') j
+!!                do i = 1, nx-1
+                do i = itest-4, itest+4
+                   write(6,'(f10.3)',advance='no') model%basal_physics%C_space_factor_stag(i,j)
+                enddo
+                write(6,*) ' '
              enddo
-             write(6,*) ' '
-          enddo          
-          print*, ' '
-          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
+          endif
 
-       endif
+       endif   ! verbose_beta
 
        !-------------------------------------------------------------------
        ! Assemble the linear system Ax = b

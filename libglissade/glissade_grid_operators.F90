@@ -78,14 +78,15 @@ contains
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
        stagvar                  ! staggered field, defined at cell vertices
 
-    integer, dimension(nx,ny), intent(in) ::        &
+    integer, dimension(nx,ny), intent(in), optional ::        &
        ice_mask                 ! = 1 where values are included in the average, else = 0
                                 ! Typically ice_mask = 1 where ice is present (or thck > thklim), else = 0
+                                ! Note: ice_mask is not needed if stagger_margin = 0
 
     integer, intent(in), optional ::   &
-       stagger_margin_in        ! 0 = use all values when interpolating (including zeroes where ice is absent)
+       stagger_margin_in        ! 0 = use all values when interpolating
                                 !   may be appropriate when computing stagusrf and stagthck on land
-                                ! 1 = use only values where ice is present
+                                ! 1 = use only values where ice_mask = 1
                                 !   preferable for tracers (e.g., temperature, flwa) and ocean margins
 
     !--------------------------------------------------------
@@ -99,7 +100,11 @@ contains
     if (present(stagger_margin_in)) then
        stagger_margin = stagger_margin_in
     else
-       stagger_margin = 1  ! default is to average only over the cells with ice present
+       stagger_margin = 0  ! default is to average over all cells, including those where ice is absent
+    endif
+
+    if (stagger_margin == 1 .and. .not.present(ice_mask)) then
+       call write_log('Must pass in ice_mask to compute staggered field with stagger_margin = 1', GM_FATAL)
     endif
 
     stagvar(:,:) = 0.d0
@@ -116,7 +121,7 @@ contains
 
     elseif (stagger_margin == 1) then
 
-       ! Average over cells with ice present (ice_mask = 1)
+       ! Average over cells where ice_mask = 1
 
        do j = 1, ny-1     ! all vertices
        do i = 1, nx-1
@@ -155,7 +160,7 @@ contains
     real(dp), dimension(nx,ny), intent(out) ::    &
        unstagvar                ! unstaggered field, defined at cell centers
 
-    integer, dimension(nx-1,ny-1), intent(in) ::        &
+    integer, dimension(nx-1,ny-1), intent(in), optional  ::        &
        vmask                    ! = 1 for vertices where the value is used in the average, else = 0
                                 ! Note: The user needs to compute this mask in the calling subroutine.
                                 !       It will likely be based on the scalar ice mask, but the details are left open.
@@ -175,7 +180,11 @@ contains
     if (present(stagger_margin_in)) then
        stagger_margin = stagger_margin_in
     else
-       stagger_margin = 1  ! default is to average over cells where vmask = 1
+       stagger_margin = 0  ! default is to average over all cells, including those where ice is absent
+    endif
+
+    if (stagger_margin == 1 .and. .not.present(vmask)) then
+       call write_log('Must pass in vmask to compute unstaggered field with stagger_margin = 1', GM_FATAL)
     endif
 
     unstagvar(:,:) = 0.d0
@@ -658,6 +667,7 @@ contains
                 df_dx_south  = (field(i+1,j)   - field(i,j))   / dx
                 df_dx_south2 = (field(i+1,j-1) - field(i,j-1)) / dx
 
+                !TODO - Make this consistent with how df_dy is handled (with sums over 4 cells)
                 sum1 = usrf(i+1,j+1) + usrf(i,j+1)
                 sum2 = usrf(i+1,j) + usrf(i,j)
 

@@ -308,10 +308,14 @@ contains
 
       endif
 
+      ! Note: For MISMIP3D, Coulomb_C is multiplied by a spatial factor (C_space_factor) which is
+      !       read in during initialization. This factor is typically between 0 and 1.
+      !       If this factor is not present in the input file, it is set to 1 everywhere.
+
       ! Compute beta
       ! gn = Glen's n from physcon module
       speed = dsqrt(thisvel**2 + othervel**2 + smallnum**2)
-      beta = Coulomb_C * basal_physics%effecpress_stag * speed**(1.0d0/gn - 1.0d0) * &
+      beta = Coulomb_C * basal_physics%C_space_factor_stag * basal_physics%effecpress_stag * speed**(1.0d0/gn - 1.0d0) * &
              (speed + basal_physics%effecpress_stag**gn * big_lambda)**(-1.0d0/gn)
 
       ! Limit for numerical stability

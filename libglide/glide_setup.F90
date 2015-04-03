@@ -1814,6 +1814,9 @@ contains
       case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
         ! These friction laws need effective pressure
         call glide_add_to_restart_variable_list('effecpress')
+        !WHL - C_space_factor needs to be in restart file if not = 1 everywhere
+        !TODO - Add C_space_factor to the restart file only if not = 1?
+        call glide_add_to_restart_variable_list('C_space_factor')
       case default
         ! Most other HO basal boundary conditions need the beta field  (although there are a few that don't)
         call glide_add_to_restart_variable_list('beta')

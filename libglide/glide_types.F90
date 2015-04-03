@@ -571,8 +571,8 @@ module glide_types
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
-    !> \item[1] fground = 1 in all cells
-    !> \item[2] 0 <= fground <= 1, based on a grounding line parameterization
+    !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
+    !> \item[2] fground = 1 in all cells
 
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
@@ -916,9 +916,11 @@ module glide_types
       ! see glissade_basal_traction.F90 for usage details
       ! Note: It may make sense to move effecpress to a hydrology model when one is available.
       real(dp), dimension(:,:), pointer :: effecpress => null()  !< effective pressure  
-      real(dp), dimension(:,:), pointer :: effecpress_stag => null() !< effective pressure staggered grid
-      ! paramter for friction law
-      real(dp) :: friction_powerlaw_k = 8.4e-9  !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  The default value is that given in Bindschadler (1983) based on fits to observations, converted to CISM units.
+      real(dp), dimension(:,:), pointer :: effecpress_stag => null() !< effective pressure on staggered grid
+      real(dp), dimension(:,:), pointer :: C_space_factor => null()  !< spatial factor for basal shear stress (no dimension)
+      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
+      real(dp) :: friction_powerlaw_k = 8.4d-9  !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  
+                   ! The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
       ! Parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
       real(dp) :: Coulomb_C = 0.84d0*0.5d0        !< basal stress constant (no dimension)
       real(dp) :: Coulomb_Bump_Wavelength = 2.0d0 !< bed rock wavelength at subgrid scale precision (m)
@@ -1580,16 +1582,21 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2usrfdns2)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2thckdew2)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2thckdns2)
-    endif
 
-    ! Basal Physics
-    if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
-         (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
-         (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) .or. &
-         (model%options%whichbwat == BWATER_OCEAN_PENETRATION)     ) then
+       ! Basal Physics
+       !WHL - Since the number of basal BC options is proliferating, simplify the logic by allocating the following arrays
+       !      whenever running glam/glissade
+!!       if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
+!!            (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
+!!            (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) .or. &
+!!            (model%options%whichbwat == BWATER_OCEAN_PENETRATION)     ) then
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-    endif
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
+       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
+!!       endif
+
+    endif  ! glam/glissade
 
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
@@ -1837,6 +1844,10 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
+    if (associated(model%basal_physics%C_space_factor)) &
+        deallocate(model%basal_physics%C_space_factor)
+    if (associated(model%basal_physics%C_space_factor_stag)) &
+        deallocate(model%basal_physics%C_space_factor_stag)
 
     ! geometry arrays
 

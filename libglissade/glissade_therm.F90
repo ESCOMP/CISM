@@ -317,7 +317,6 @@ module glissade_therm
     use glimmer_utils,  only : tridiag
     use glimmer_physcon, only: shci, coni, rhoi, tocnfrz_sfc, dtocnfrz_dh
     use glide_mask
-    use glissade_grid_operators, only: glissade_stagger
     use glissade_masks, only: glissade_get_masks
 
     !------------------------------------------------------------------------------------
