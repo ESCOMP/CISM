@@ -66,7 +66,9 @@ module glide_types
 
   integer, parameter :: GLOBAL_BC_PERIODIC = 0  ! doubly periodic
   integer, parameter :: GLOBAL_BC_OUTFLOW = 1   ! free outflow; scalars in global halo set to zero
-  
+  integer, parameter :: GLOBAL_BC_NO_PENETRATION = 2   ! no penetration; outflow set to zero at global boundaries
+                                                       ! NOTE: The no-penetration option is currently supported for Glissade only
+
   integer, parameter :: DYCORE_GLIDE = 0     ! old shallow-ice dycore from Glimmer
   integer, parameter :: DYCORE_GLAM = 1      ! Payne-Price finite-difference solver
   integer, parameter :: DYCORE_GLISSADE = 2  ! prototype finite-element solver
@@ -243,7 +245,7 @@ module glide_types
     real(dp), dimension(:),pointer :: x1 => null() !original x1 grid
     real(dp), dimension(:),pointer :: y1 => null() !original y1 grid
 
-    integer :: global_bc = 0     ! 0 for periodic, 1 for outflow
+    integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no-penetration
 
   end type glide_general
 
@@ -760,12 +762,12 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: tau_x => null()        !> SIA basal shear stress, x-dir
     real(dp),dimension(:,:)  ,pointer :: tau_y => null()        !> SIA basal shear stress, y-dir
 
-    !> A mask similar to glide_geometry%thck_index, but on the velocity grid instead of the
-    !> ice grid.  This is to aid in converging higher-order velocities
-!!    integer, dimension(:,:), pointer    :: velmask => null()    ! No longer used
+    !> mask that specifies where the velocity being read in should be held constant as a dirichlet condition
+    integer, dimension(:,:), pointer  :: kinbcmask => null()    
 
-    !> A mask that specifies where the velocity being read in should be held constant as a dirichlet condition
-    integer, dimension(:,:), pointer    :: kinbcmask => null()    
+    !> masks that specify where the outflow velocities on the global boundary should be set to zero
+    integer, dimension(:,:), pointer  :: umask_no_penetration
+    integer, dimension(:,:), pointer  :: vmask_no_penetration
 
     !*sfp* mask on vel grid showing which dyn bc is applied at each grid cell (mainly for debugging)
     integer, dimension(:,:), pointer    :: dynbcmask => null()    
@@ -1517,6 +1519,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel_ho)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%dynbcmask)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
          ! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%ures)
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%vres)
@@ -1801,6 +1805,8 @@ contains
         deallocate(model%velocity%kinbcmask)
     if (associated(model%velocity%dynbcmask)) &
         deallocate(model%velocity%dynbcmask)
+    if (associated(model%velocity%umask_no_penetration)) &
+        deallocate(model%velocity%vmask_no_penetration)
 
     !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
 !    if (associated(model%velocity%ures)) & 

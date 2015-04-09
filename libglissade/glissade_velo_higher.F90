@@ -235,6 +235,8 @@
 !    logical :: verbose_diva = .true.
     logical :: verbose_glp = .false.
 !    logical :: verbose_glp = .true.
+    logical :: verbose_pcg = .false.
+!    logical :: verbose_pcg = .true.
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
@@ -716,6 +718,7 @@
        f_pattyn,             &  ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
        f_ground                 ! grounded ice fraction, 0 <= f_ground <= 1
 
+    !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
     integer, dimension(:,:), pointer ::   &
        stagmask                 ! mask on staggered grid
 
@@ -737,8 +740,9 @@
        tau_eff                  ! effective stress (Pa)
 
     integer,  dimension(:,:), pointer ::   &
-       kinbcmask   ! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC)
-                   ! = 0 elsewhere
+       kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
+       umask_no_penetration,   &! = 1 at vertices along east/west global boundary where uvel = 0, = 0 elsewhere
+       vmask_no_penetration     ! = 1 at vertices along north/south global boundary where vvel = 0, = 0 elsewhere
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
@@ -807,8 +811,9 @@
                                     !       whereas bu and bv can be set each nonlinear iteration to account 
                                     !       for inhomogeneous Dirichlet BC
   
-    logical, dimension(nz,nx-1,ny-1) ::    &
-       umask_dirichlet        ! Dirichlet mask for 3D velocity
+    integer, dimension(nz,nx-1,ny-1) ::    &
+       umask_dirichlet,     & ! Dirichlet mask for u component of velocity, = 1 for prescribed velo, else = 0
+       vmask_dirichlet        ! Dirichlet mask for v component of velocity, = 1 for prescribed velo, else = 0
 
     real(dp) :: &
        resid_velo,          & ! quantity related to velocity convergence
@@ -947,6 +952,9 @@
     logical, parameter :: test_trilinos = .false.
 !    logical, parameter :: test_trilinos = .true.
 
+    ! for diagnostic prints
+    integer, parameter :: xmax_print = 20
+
     call t_startf('glissade_vhs_init')
     rtest = -999
     itest = 1
@@ -980,6 +988,7 @@
      dx = model%numerics%dew
      dy = model%numerics%dns
 
+     !TODO - Remove (:), (:,:) and (:,:,:) from pointer targets?
      sigma    => model%numerics%sigma(:)
      stagsigma=> model%numerics%stagsigma(:)
      stagwbndsigma=> model%numerics%stagwbndsigma(:)
@@ -1018,6 +1027,8 @@
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
      kinbcmask => model%velocity%kinbcmask(:,:)
+     umask_no_penetration => model%velocity%umask_no_penetration(:,:)
+     vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
      thklim = model%numerics%thklim
      eus    = model%climate%eus
@@ -1231,54 +1242,178 @@
     !------------------------------------------------------------------------------
 
     ! initialize
-    umask_dirichlet(:,:,:) = .false.   
+    umask_dirichlet(:,:,:) = 0 
+    vmask_dirichlet(:,:,:) = 0   
 
     if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_DIVA) then
        ! Impose zero sliding everywhere at the bed
        ! Note: For the DIVA case, this BC is handled by setting beta_eff = 1/omega
        !TODO - Allow application of no-slip BC at selected basal nodes instead of all nodes?
-       umask_dirichlet(nz,:,:) = .true.    ! u = v = 0 at bed
+       umask_dirichlet(nz,:,:) = 1    ! u = v = 0 at bed
+       vmask_dirichlet(nz,:,:) = 1
     endif
        
     ! Set mask in columns identified in kinbcmask, typically read from file at initialization.
-    ! For a 2D solve, initialize uvel_2d and vvel_2d at Dirichlet points to the bed velocity.
     ! Note: Assuming there is no vertical shear at these points, the bed velocity is the same
     !       as the velocity throughout the column.  This allows us to use the 3D umask_dirichlet
-    !       with a 2D solver.
-    !
+    !       and vmask_dirichlet with a 2D solver.
     ! TODO: Support Dirichlet condition with vertical shear for L1L2 and DIVA?
+    !
+    ! For a no-penetration global BC, set umask_dirichlet = 0 and uvel = 0.d0 along east/west global boundaries,
+    !  and set vmask_dirichlet = 0 and vvel = 0.d0 along north/south global boundaries (based on umask_no_penetration
+    !  and vmask_no_penetration, which are computed at initialization). 
+    !
+    ! For a 2D solve, initialize uvel_2d and vvel_2d at Dirichlet points to the bed velocity.
 
     do j = 1, ny-1
        do i = 1, nx-1
+
+          ! if kinbcmask = 1, set Dirichlet masks for both uvel and vvel
           if (kinbcmask(i,j) == 1) then
-             umask_dirichlet(:,i,j) = .true.
+             umask_dirichlet(:,i,j) = 1
+             vmask_dirichlet(:,i,j) = 1
              if (solve_2d) then
                 uvel_2d(i,j) = uvel(nz,i,j)
                 vvel_2d(i,j) = vvel(nz,i,j)
              endif
           endif
+
+          ! for the no-penetration global BC, prescribe zero outflow velocities
+          ! (v = 0 at N/S boundaries, u = 0 at E/W boundaries)
+          ! for other global BCs (periodic and outflow), umask_no_penetration = vmask_no_penetration = 0 everywhere
+
+          if (umask_no_penetration(i,j) == 1) then
+             umask_dirichlet(:,i,j) = 1
+             uvel(:,i,j) = 0.d0
+             if (solve_2d) uvel_2d(i,j) = 0.d0
+          endif
+
+          if (vmask_no_penetration(i,j) == 1) then
+             vmask_dirichlet(:,i,j) = 1
+             vvel(:,i,j) = 0.d0
+             if (solve_2d) vvel_2d(i,j) = 0.d0
+          endif
+
        enddo
     enddo
 
+    !Note: The following halo updates are not needed here, provided that kinbcmask,
+    !      umask_no_penetration and vmask_no_penetration receive halo updates
+    !      (as done in glissade_initialise)
+!    call staggered_parallel_halo(umask_dirichlet)
+!    call staggered_parallel_halo(vmask_dirichlet)
+
     if (verbose_dirichlet .and. this_rank==rtest) then
+
        print*, ' '
-       print*, 'umask_dirichlet, k = 1 and nz, j =', jtest
-       j = jtest
-       do i = 1, nx-1
-          write(6,'(i4,2L3)') i, umask_dirichlet(1,i,j), umask_dirichlet(nz,i,j)
+       print*, 'kinbcmask:'
+       write(6,'(a6)',advance='no')'        '
+       do i = 1, xmax_print
+          write(6,'(i6)',advance='no') i
        enddo
-       
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, xmax_print
+             write(6,'(i6)',advance='no') kinbcmask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
        print*, ' '
-       print*, 'uvel, k = 1 and nz, j =', jtest
-       do i = 1, nx-1
-          write(6,'(i4,2f12.6)') i, uvel(1,i,j), uvel(nz,i,j)
+       print*, 'umask_no_penetration:'
+       write(6,'(a6)',advance='no')'        '
+       do i = 1, xmax_print
+          write(6,'(i6)',advance='no') i
        enddo
-       
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, xmax_print
+             write(6,'(i6)',advance='no') umask_no_penetration(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
        print*, ' '
-       print*, 'vvel, k = 1 and nz, j =', jtest
-       do i = 1, nx-1
-          write(6,'(i4,2f12.6)') i, vvel(1,i,j), vvel(nz,i,j)
+       print*, 'vmask_no_penetration:'
+       write(6,'(a6)',advance='no')'        '
+       do i = 1, xmax_print
+          write(6,'(i6)',advance='no') i
        enddo
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, xmax_print
+             write(6,'(i6)',advance='no') vmask_no_penetration(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'umask_dirichlet, k = 1:'
+       write(6,'(a6)',advance='no') '        '
+       do i = 1, xmax_print
+          write(6,'(i6)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, xmax_print
+             write(6,'(i6)',advance='no') umask_dirichlet(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'vmask_dirichlet, k = 1:'
+       write(6,'(a6)',advance='no') '        '
+       do i = 1, xmax_print
+          write(6,'(i6)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, xmax_print
+             write(6,'(i6)',advance='no') vmask_dirichlet(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'uvel, k = 1:'
+       write(6,'(a10)',advance='no') '          '
+!!       do i = 1, xmax_print
+       do i = itest-3, itest+3
+          write(6,'(i10)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i10)',advance='no') j
+!!       do i = 1, xmax_print
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') uvel(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'vvel, k = 1:'
+       write(6,'(a10)',advance='no') '          '
+!!       do i = 1, xmax_print
+       do i = itest-3, itest+3
+          write(6,'(i10)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = ny-1, 1, -1
+          write(6,'(i10)',advance='no') j
+!!       do i = 1, xmax_print
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') vvel(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
     endif   ! verbose_dirichlet
 
     !------------------------------------------------------------------------------
@@ -2125,7 +2260,8 @@
 
           !---------------------------------------------------------------------------
           ! Incorporate Dirichlet boundary conditions (prescribed uvel and vvel)
-          ! Note: With a no-slip BC, umask_dirichlet(nz,:,:) = .true., except for the DIVA scheme.
+          ! Note: With a no-slip BC, umask_dirichlet(nz,:,:) = vmask_dirichlet(nz,:,:) = .true., 
+          !        except for the DIVA scheme.
           !       For DIVA, the no-slip BC is enforced by setting beta_eff = 1/omega.
           !---------------------------------------------------------------------------
 
@@ -2134,13 +2270,14 @@
           endif
 
           call t_startf('glissade_dirichlet_2d')
-          call dirichlet_boundary_conditions_2d(nx,              ny,                      &
-                                                nhalo,                                    &
-                                                active_vertex,   umask_dirichlet(nz,:,:), &
-                                                uvel_2d,         vvel_2d,                 &
-                                                Auu_2d,          Auv_2d,                  &
-                                                Avu_2d,          Avv_2d,                  &
-                                                bu_2d,           bv_2d)
+          call dirichlet_boundary_conditions_2d(nx,                       ny,                      &
+                                                nhalo,                                             &
+                                                active_vertex,                                     &
+                                                umask_dirichlet(nz,:,:),  vmask_dirichlet(nz,:,:), &
+                                                uvel_2d,                  vvel_2d,                 &
+                                                Auu_2d,                   Auv_2d,                  &
+                                                Avu_2d,                   Avv_2d,                  &
+                                                bu_2d,                    bv_2d)
           call t_stopf('glissade_dirichlet_2d')
 
           !---------------------------------------------------------------------------
@@ -2310,7 +2447,8 @@
           call t_startf('glissade_dirichlet_3d')
           call dirichlet_boundary_conditions_3d(nx,              ny,                &
                                                 nz,              nhalo,             &
-                                                active_vertex,   umask_dirichlet,   &
+                                                active_vertex,                      &
+                                                umask_dirichlet, vmask_dirichlet,   &
                                                 uvel,            vvel,              &
                                                 Auu,             Auv,               &
                                                 Avu,             Avv,               &
@@ -2549,7 +2687,7 @@
                                              uvel_2d,      vvel_2d,       &
                                              whichprecond, err,           &
                                              niters,                      &
-                                             itest, jtest, rtest)
+                                             itest, jtest, rtest, verbose_pcg)
 
              else   ! use standard PCG algorithm
              
@@ -2562,7 +2700,7 @@
                                             uvel_2d,      vvel_2d,       &
                                             whichprecond, err,           &
                                             niters,                      &
-                                            itest, jtest, rtest)
+                                            itest, jtest, rtest, verbose_pcg)
 
              endif  ! whichsparse
 
@@ -2600,7 +2738,7 @@
                                              uvel,         vvel,          &
                                              whichprecond, err,           &
                                              niters,                      &
-                                             itest, jtest, rtest)
+                                             itest, jtest, rtest, verbose_pcg)
 
              else   ! use standard PCG algorithm
              
@@ -2613,7 +2751,7 @@
                                             uvel,         vvel,          &
                                             whichprecond, err,           &
                                             niters,                      &
-                                            itest, jtest, rtest)
+                                            itest, jtest, rtest, verbose_pcg)
 
              endif   ! whichsparse
 
@@ -3048,6 +3186,7 @@
                                      ice_mask,         land_mask,       &
                                      active_cell,      active_vertex,   &
                                      umask_dirichlet(nz,:,:),           &
+                                     vmask_dirichlet(nz,:,:),           &
                                      xVertex,          yVertex,         &
                                      thck,             stagthck,        &
                                      usrf,                              &
@@ -3137,8 +3276,7 @@
        print*, ' '
        print*, 'uvel, k=1 (m/yr):'
        do j = ny-nhalo, nhalo+1, -1
-!!          do i = nhalo+1, nx-nhalo
-          do i = nhalo+1, nx/2
+          do i = nhalo+1, nx-nhalo
              write(6,'(f8.2)',advance='no') uvel(1,i,j)
           enddo
           print*, ' '
@@ -3147,8 +3285,7 @@
        print*, ' '
        print*, 'vvel, k=1 (m/yr):'
        do j = ny-nhalo, nhalo+1, -1
-!!          do i = nhalo+1, nx-nhalo
-          do i = nhalo+1, nx/2
+          do i = nhalo+1, nx-nhalo
              write(6,'(f8.2)',advance='no') vvel(1,i,j)
           enddo
           print*, ' '
@@ -3165,7 +3302,7 @@
           print*, k, uvel(k,i,j), vvel(k,i,j)
        enddo
        if (solve_2d) print*, '2D velo:', uvel_2d(i,j), vvel_2d(i,j)
-    endif
+    endif  ! verbose_velo
 
     !------------------------------------------------------------------------------
     ! Clean up
@@ -5038,7 +5175,7 @@
                                       nhalo,                             &
                                       ice_mask,         land_mask,       &
                                       active_cell,      active_vertex,   &
-                                      umask_dirichlet,                   &
+                                      umask_dirichlet,  vmask_dirichlet, &
                                       xVertex,          yVertex,         &
                                       thck,             stagthck,        &
                                       usrf,                              &
@@ -5081,8 +5218,9 @@
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex   ! x and y coordinates of vertices
 
-    logical, dimension(nx-1,ny-1), intent(in) ::  &
-       umask_dirichlet        ! Dirichlet mask for velocity (if true, u = v = 0)
+    integer, dimension(nx-1,ny-1), intent(in) ::  &
+       umask_dirichlet,  &! Dirichlet mask for u velocity, = 1 for prescribed velo, else = 0
+       vmask_dirichlet    ! Dirichlet mask for v velocity, = 1 for prescribed velo, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::  &
        thck,             &! ice thickness at cell centers (m)
@@ -5479,22 +5617,27 @@
           ! Average edge velocities to vertices and add to ubas                                                                                                   
           ! Do this for locally owned vertices only
           ! (Halo update is done at a higher level after returning)
-
+          ! Note: Currently do not support Dirichlet BC with depth-varying velocity
+          
           do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
 
-             if (umask_dirichlet(i,j)) then
-                ! Note: Currently do not support Dirichlet BC with depth-varying velocity
+             if (umask_dirichlet(i,j) == 1) then
                 uvel(k,i,j) = uvel(nz,i,j)
-                vvel(k,i,j) = vvel(nz,i,j)
              else
                 uvel(k,i,j) = uvel(nz,i,j) + (uedge(i,j) + uedge(i,j+1)) / 2.d0
+             endif
+
+             if (vmask_dirichlet(i,j) == 1) then
+                vvel(k,i,j) = vvel(nz,i,j)
+             else
                 vvel(k,i,j) = vvel(nz,i,j) + (vedge(i,j) + vedge(i+1,j)) / 2.d0
              endif
 
              if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
                 print*, k, uvel(k,i,j), vvel(k,i,j)
              endif
+
           enddo
           enddo
 
@@ -5506,27 +5649,25 @@
 
              if (active_vertex(i,j)) then
 
-                ! compute velocity components at this level
+                tau_eff_sq = stagtau_parallel_sq(i,j)   &
+                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
 
-                if (umask_dirichlet(i,j)) then
+                ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
+                !       only for gn = 3 (in which case (n-1)/2 = 1).
+                fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
 
-                   ! Note: Currently do not support Dirichlet BC with depth-varying velocity
+                ! reset velocity to prescribed basal value if Dirichlet condition applies
+                ! else compute velocity at this level 
+                if (umask_dirichlet(i,j) == 1) then
                    uvel(k,i,j) = uvel(nz,i,j)
-                   vvel(k,i,j) = vvel(nz,i,j)
-
                 else
-                   ! compute velocity components at this level
-
-                   tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                              + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
-
-                   ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
-                   !       only for gn = 3 (in which case (n-1)/2 = 1).
-                   fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
-
                    uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
-                   vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
+                endif
 
+                if (vmask_dirichlet(i,j) == 1) then
+                   vvel(k,i,j) = vvel(nz,i,j)
+                else
+                   vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
                 endif
 
                 if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
@@ -7460,7 +7601,8 @@
 
   subroutine dirichlet_boundary_conditions_3d(nx,              ny,               &
                                               nz,              nhalo,            &
-                                              active_vertex,   umask_dirichlet,  &
+                                              active_vertex,                     &
+                                              umask_dirichlet, vmask_dirichlet,  &
                                               uvel,            vvel,             &
                                               Auu,             Auv,              &
                                               Avu,             Avv,              &
@@ -7485,8 +7627,9 @@
     logical, dimension(nx-1,ny-1), intent(in) ::  &
        active_vertex       ! true for active vertices (vertices of active cells)
 
-    logical, dimension(nz,nx-1,ny-1), intent(in) ::  &
-       umask_dirichlet     ! Dirichlet mask for velocity (if true, u is prescribed)
+      integer, dimension(nz,nx-1,ny-1), intent(in) ::  &
+       umask_dirichlet,   &! Dirichlet mask for u velocity (if true, u is prescribed)
+       vmask_dirichlet     ! Dirichlet mask for v velocity (if true, v is prescribed)
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
        uvel, vvel          ! velocity components
@@ -7514,10 +7657,14 @@
         do i = nhalo, nx-nhalo+1
           if (active_vertex(i,j)) then
              do k = 1, nz
-                if (umask_dirichlet(k,i,j)) then
+
+                if (umask_dirichlet(k,i,j) == 1) then
+
+                   ! set the rhs to the prescribed velocity
+                   bu(k,i,j) = uvel(k,i,j)
 
                    ! loop through matrix values in the rows associated with this node
-                   ! (Auu/Auv contain one row, Avu/Avv contain a second row)
+                   ! (Auu contains one row, Avu contains a second row)
                    do kA = -1,1
                    do jA = -1,1
                    do iA = -1,1
@@ -7530,17 +7677,17 @@
 
                          if (iA==0 .and. jA==0 .and. kA==0) then  ! main diagonal
 
-                            ! Set Auu = Avv = 1 on the main diagonal
+                            ! Set Auu = 1 on the main diagonal
+                            ! Set Auv term = 0; this term is off-diagonal for the fully assembled matrix
+                            ! Set Avu term = 0 to preserve matrix symmetry (given that Auv term = 0)
                             m = indxA_3d(0,0,0)
                             Auu(m,k,i,j) = 1.d0
                             Auv(m,k,i,j) = 0.d0
                             Avu(m,k,i,j) = 0.d0
-                            Avv(m,k,i,j) = 1.d0
 
-                            ! Set the rhs to the prescribed velocity
-                            ! This will force u = uvel, v = vvel for this node
-                            bu(k,i,j) = uvel(k,i,j)
-                            bv(k,i,j) = vvel(k,i,j)
+                            !TODO - Set bu above, outside iA/jA loop
+                            ! Set the rhs to the prescribed velocity, forcing u = prescribed uvel for this vertex
+!!                            bu(k,i,j) = uvel(k,i,j)
                             
                          else     ! not on the diagonal
 
@@ -7548,27 +7695,21 @@
                             m = indxA_3d(iA,jA,kA)
                             Auu(m, k, i, j) = 0.d0
                             Auv(m, k, i, j) = 0.d0
-                            Avu(m, k, i, j) = 0.d0
-                            Avv(m, k, i, j) = 0.d0
 
                             ! Shift terms associated with this velocity to the rhs.
                             ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
                             m = indxA_3d(-iA,-jA,-kA)
 
-                            if (.not. umask_dirichlet(k+kA, i+iA, j+jA)) then
-                               bu(k+kA, i+iA, j+jA) = bu(k+kA, i+iA, j+jA)   &
-                                                    - Auu(m, k+kA, i+iA, j+jA) * uvel(k,i,j)   &
-                                                    - Auv(m, k+kA, i+iA, j+jA) * vvel(k,i,j)
-                               bv(k+kA, i+iA, j+jA) = bv(k+kA, i+iA, j+jA)   &
-                                                    - Avu(m, k+kA, i+iA, j+jA) * uvel(k,i,j)   &
-                                                    - Avv(m, k+kA, i+iA, j+jA) * vvel(k,i,j)
-
-                               ! Zero out non-diagonal matrix terms in the columns associated with this node
-                               m = indxA_3d(-iA,-jA,-kA)
+                            if (umask_dirichlet(k+kA, i+iA, j+jA) /= 1) then
+                               ! Move (Auu term) * uvel to rhs
+                               bu(k+kA, i+iA, j+jA) = bu(k+kA, i+iA, j+jA) - Auu(m, k+kA, i+iA, j+jA) * uvel(k,i,j) 
                                Auu(m, k+kA, i+iA, j+jA) = 0.d0
-                               Auv(m, k+kA, i+iA, j+jA) = 0.d0
+                            endif
+
+                            if (vmask_dirichlet(k+kA, i+iA, j+jA) /= 1) then
+                               ! Move (Avu term) * uvel to rhs
+                               bv(k+kA, i+iA, j+jA) = bv(k+kA, i+iA, j+jA) - Avu(m, k+kA, i+iA, j+jA) * uvel(k,i,j)
                                Avu(m, k+kA, i+iA, j+jA) = 0.d0
-                               Avv(m, k+kA, i+iA, j+jA) = 0.d0
                             endif
 
                          endif  ! on the diagonal
@@ -7580,6 +7721,72 @@
                   enddo        ! jA
 
                 endif    ! umask_dirichlet
+
+                if (vmask_dirichlet(k,i,j) == 1) then
+
+                   ! set the rhs to the prescribed velocity
+                   bv(k,i,j) = vvel(k,i,j)
+
+                   ! loop through matrix values in the rows associated with this node
+                   ! (Auu contains one row, Avu contains a second row)
+                   do kA = -1,1
+                   do jA = -1,1
+                   do iA = -1,1
+
+                      if ( (k+kA >= 1 .and. k+kA <= nz)         &
+                                      .and.                     &
+                           (i+iA >= 1 .and. i+iA <= nx-1)       &
+                                      .and.                     &
+                           (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+                         if (iA==0 .and. jA==0 .and. kA==0) then  ! main diagonal
+
+                            ! Set Avv = 1 on the main diagonal
+                            ! Set Avu term = 0; this term is off-diagonal for the fully assembled matrix
+                            ! Set Auv term = 0 to preserve matrix symmetry (given that Avu term = 0)
+                            m = indxA_3d(0,0,0)
+
+                            Auv(m,k,i,j) = 0.d0
+                            Avu(m,k,i,j) = 0.d0
+                            Avv(m,k,i,j) = 1.d0
+
+                            !TODO - Set bv above, outside iA/jA loop
+                            ! Set the rhs to the prescribed velocity, forcing v = prescribed vvel for this node
+!!                            bv(k,i,j) = vvel(k,i,j)
+                            
+                         else     ! not on the diagonal
+
+                            ! Zero out non-diagonal matrix terms in the rows associated with this node
+                            m = indxA_3d(iA,jA,kA)
+                            Avu(m, k, i, j) = 0.d0
+                            Avv(m, k, i, j) = 0.d0
+
+                            ! Shift terms associated with this velocity to the rhs.
+                            ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
+                            m = indxA_3d(-iA,-jA,-kA)
+
+                            if (umask_dirichlet(k+kA, i+iA, j+jA) /= 1) then
+                               ! Move (Auv term) * vvel to rhs
+                               bu(k+kA, i+iA, j+jA) = bu(k+kA, i+iA, j+jA) - Auv(m, k+kA, i+iA, j+jA) * vvel(k,i,j)
+                               Auv(m, k+kA, i+iA, j+jA) = 0.d0
+                            endif
+
+                            if (vmask_dirichlet(k+kA, i+iA, j+jA) /= 1) then
+                               ! Move (Avv term) * vvel to rhs
+                               bv(k+kA, i+iA, j+jA) = bv(k+kA, i+iA, j+jA) - Avv(m, k+kA, i+iA, j+jA) * vvel(k,i,j)
+                               Avv(m, k+kA, i+iA, j+jA) = 0.d0
+                            endif
+
+                         endif  ! on the diagonal
+
+                     endif     ! i+iA, j+jA, and k+kA in bounds
+
+                  enddo        ! kA
+                  enddo        ! iA
+                  enddo        ! jA
+
+                endif    ! vmask_dirichlet
+
              enddo       ! k
           endif          ! active_vertex
        enddo             ! i
@@ -7591,7 +7798,8 @@
 
   subroutine dirichlet_boundary_conditions_2d(nx,              ny,               &
                                               nhalo,                             &
-                                              active_vertex,   umask_dirichlet,  &
+                                              active_vertex,                     &
+                                              umask_dirichlet, vmask_dirichlet,  &
                                               uvel,            vvel,             &
                                               Auu,             Auv,              &
                                               Avu,             Avv,              &
@@ -7615,8 +7823,9 @@
     logical, dimension(nx-1,ny-1), intent(in) ::  &
        active_vertex       ! true for active vertices (vertices of active cells)
 
-    logical, dimension(nx-1,ny-1), intent(in) ::  &
-       umask_dirichlet     ! Dirichlet mask for velocity (if true, u is prescribed)
+    integer, dimension(nx-1,ny-1), intent(in) ::  &
+       umask_dirichlet,   &! Dirichlet mask for velocity (if true, u is prescribed)
+       vmask_dirichlet     ! Dirichlet mask for velocity (if true, v is prescribed)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        uvel, vvel          ! velocity components
@@ -7634,7 +7843,7 @@
     
     integer :: i, j     ! Cartesian indices of nodes
     integer :: iA, jA   ! i and j offsets of neighboring nodes 
-    integer :: m
+    integer :: m, m2
 
     ! Loop over all vertices that border locally owned vertices.
     ! Locally owned vertices are (nhalo+1:nx-nhalo, nhalo+1:ny-nhalo)
@@ -7643,10 +7852,14 @@
      do j = nhalo, ny-nhalo+1
         do i = nhalo, nx-nhalo+1
           if (active_vertex(i,j)) then
-             if (umask_dirichlet(i,j)) then
 
-                ! loop through matrix values in the rows associated with this node
-                ! (Auu/Auv contain one row, Avu/Avv contain a second row)
+             if (umask_dirichlet(i,j) == 1) then
+
+                ! set the rhs to the prescribed velocity
+                bu(i,j) = uvel(i,j)
+
+                ! loop through matrix values in the rows associated with this vertex
+                ! (Auu contains one row, Avu contains a second row)
                 do jA = -1,1
                 do iA = -1,1
 
@@ -7656,45 +7869,39 @@
 
                       if (iA==0 .and. jA==0) then  ! main diagonal
 
-                         ! Set Auu = Avv = 1 on the main diagonal
+                         ! Set Auu = 1 on the main diagonal
+                         ! Set Auv term = 0; this term is off-diagonal for the fully assembled matrix
+                         ! Set Avu term = 0 to preserve matrix symmetry (given that Auv term = 0)
                          m = indxA_2d(0,0)
                          Auu(m,i,j) = 1.d0
                          Auv(m,i,j) = 0.d0
                          Avu(m,i,j) = 0.d0
-                         Avv(m,i,j) = 1.d0
 
-                         ! Set the rhs to the prescribed velocity
-                         ! This will force u = uvel, v = vvel for this node
-                         bu(i,j) = uvel(i,j)
-                         bv(i,j) = vvel(i,j)
+                         !TODO - Set bu above, outside iA/jA loop
+                         ! Set the rhs to the prescribed velocity, forcing u = prescribed uvel for this vertex
+!!                         bu(i,j) = uvel(i,j)
                             
                       else     ! not on the diagonal
 
-                         ! Zero out non-diagonal matrix terms in the rows associated with this node
+                         ! Zero out non-diagonal matrix terms in the row associated with this vertex
                          m = indxA_2d(iA,jA)
                          Auu(m, i, j) = 0.d0
                          Auv(m, i, j) = 0.d0
-                         Avu(m, i, j) = 0.d0
-                         Avv(m, i, j) = 0.d0
 
                          ! Shift terms associated with this velocity to the rhs.
                          ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
                          m = indxA_2d(-iA,-jA)
 
-                         if (.not. umask_dirichlet(i+iA, j+jA)) then
-                            bu(i+iA, j+jA) = bu(i+iA, j+jA)   &
-                                           - Auu(m, i+iA, j+jA) * uvel(i,j)   &
-                                           - Auv(m, i+iA, j+jA) * vvel(i,j)
-                            bv(i+iA, j+jA) = bv(i+iA, j+jA)   &
-                                           - Avu(m, i+iA, j+jA) * uvel(i,j)   &
-                                           - Avv(m, i+iA, j+jA) * vvel(i,j)
-
-                            ! Zero out non-diagonal matrix terms in the columns associated with this node
-                            m = indxA_2d(-iA,-jA)
+                         if (umask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Auu term) * uvel to rhs
+                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auu(m, i+iA, j+jA) * uvel(i,j)
                             Auu(m, i+iA, j+jA) = 0.d0
-                            Auv(m, i+iA, j+jA) = 0.d0
+                         endif
+
+                         if (vmask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Avu term) * uvel to rhs
+                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avu(m, i+iA, j+jA) * uvel(i,j)
                             Avu(m, i+iA, j+jA) = 0.d0
-                            Avv(m, i+iA, j+jA) = 0.d0
                          endif
 
                       endif  ! on the diagonal
@@ -7705,6 +7912,67 @@
                 enddo    ! jA
 
              endif       ! umask_dirichlet
+
+             if (vmask_dirichlet(i,j) == 1) then
+
+                ! set the rhs to the prescribed velocity
+                bv(i,j) = vvel(i,j)
+
+                ! loop through matrix values in the rows associated with this vertex
+                ! (Auv contains one row, Avv contains a second row)
+                do jA = -1,1
+                do iA = -1,1
+
+                   if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
+                                   .and.                     &
+                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+                      if (iA==0 .and. jA==0) then  ! main diagonal
+
+                         ! Set Avv = 1 on the main diagonal
+                         ! Set Avu term = 0; this term is off-diagonal for the fully assembled matrix
+                         ! Set Auv term = 0 to preserve matrix symmetry (given that Avu term = 0)
+                         m = indxA_2d(0,0)
+                         Auv(m,i,j) = 0.d0
+                         Avu(m,i,j) = 0.d0
+                         Avv(m,i,j) = 1.d0
+
+                         !TODO - Set bv above, outside iA/jA loop
+                         ! Set the rhs to the prescribed velocity, forcing v = prescribed vvel for this vertex
+!!                         bv(i,j) = vvel(i,j)
+                            
+                      else     ! not on the diagonal
+
+                         ! Zero out non-diagonal matrix terms in the rows associated with this vertex
+                         m = indxA_2d(iA,jA)
+                         Avu(m, i, j) = 0.d0
+                         Avv(m, i, j) = 0.d0
+
+                         ! Shift terms associated with this velocity to the rhs.
+                         ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
+                         m = indxA_2d(-iA,-jA)
+
+                         if (umask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Auv term) * vvel to rhs
+                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auv(m, i+iA, j+jA) * vvel(i,j)
+                            Auv(m, i+iA, j+jA) = 0.d0
+                         endif
+
+                         if (vmask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Avv term) * vvel to rhs
+                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avv(m, i+iA, j+jA) * vvel(i,j)
+                            Avv(m, i+iA, j+jA) = 0.d0                                           
+                         endif
+
+                      endif  ! on the diagonal
+
+                   endif     ! i+iA and j+jA in bounds
+
+                enddo    ! iA
+                enddo    ! jA
+
+             endif       ! vmask_dirichlet
+
           endif          ! active_vertex
        enddo             ! i
     enddo                ! j

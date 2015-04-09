@@ -68,6 +68,7 @@ module glissade
   integer, private, parameter :: dummyunit=99
 
   logical, parameter :: verbose_glissade = .false.
+!!  logical, parameter :: verbose_glissade = .true.
 
   ! Change either of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.   ! if true, call test_transport subroutine
@@ -134,9 +135,15 @@ contains
 
     ! With outflow BCs, scalars in the halos are set to zero.
     if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
-       call distributed_grid(model%general%ewn,model%general%nsn,outflow_bc_in=.true.)
+       call distributed_grid(model%general%ewn, model%general%nsn, outflow_bc_in=.true.)
+    elseif (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
+       ! Note: In this case, halo updates are treated the same as for periodic BC
+       !       In addition, we set masks that are used to zero out the outflow velocities in the Glissade velocity solvers
+       !       The no-penetration BC is not supported for the Glam solver
+       print*, this_rank, 'GLOBAL_BC:', 'no_penetration'
+       call distributed_grid(model%general%ewn, model%general%nsn)
     else
-       call distributed_grid(model%general%ewn,model%general%nsn)
+       call distributed_grid(model%general%ewn, model%general%nsn)
     endif
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0,               &
@@ -149,6 +156,12 @@ contains
 
     ! allocate arrays
     call glide_allocarr(model)
+
+    ! set masks at global boundary for no-penetration boundary conditions
+    ! this subroutine includes a halo update
+    if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
+       call staggered_no_penetration_mask(model%velocity%umask_no_penetration, model%velocity%vmask_no_penetration)
+    endif
 
     ! set uniform basal heat flux (positive down)
     model%temper%bheatflx = model%paramets%geot
@@ -210,12 +223,19 @@ contains
     ! Update some variables in halo cells
     ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly (if not read from input file).
     !       We do an update here for temp in case temp is read from an input file.
-    !       If temp is computed in glissade_init_therm (based on the value of options%temp_init),
+    !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
     !        then the halos will receive the correct values.
-    !TODO - Does anything else need an initial halo update?
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
+
+    ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
+    ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
+    !       (and also into the north and east rows of the global domain, which are not included 
+    !       on the global staggered grid).
+    call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask)  ! = 1 for Dirichlet BCs
+
+    !TODO - Does anything else need an initial halo update?
 
     !TODO - Remove call to init_velo in glissade_initialise?
     !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
@@ -290,8 +310,6 @@ contains
     ! This factor is read in on the unstaggered grid, then interpolated to the staggered grid.
     ! If this factor is not present in the input file, then set it to 1 everywhere.
 
-    print*, 'Here 2'
-
     if (maxval(model%basal_physics%C_space_factor) > tiny(0.d0)) then  ! C_space_factor was read in
 
        print*, 'stagger C'
@@ -304,13 +322,10 @@ contains
 
     else  ! C_space_factor was not read in; set to 1 everywhere
 
-       print*, 'set C'
        model%basal_physics%C_space_factor(:,:) = 1.d0
        model%basal_physics%C_space_factor_stag(:,:) = 1.d0
 
     endif
-
-    print*, 'Here 3'
 
     ! Note: The basal process option is currently disabled.
     ! initialize basal process module
@@ -427,6 +442,18 @@ contains
     
     !WHL - debug
     real(dp) :: thck_west, thck_east, dthck, u_west, u_east
+
+    !WHL - debug
+    integer :: itest, jtest, rtest
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -688,7 +715,7 @@ contains
           model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
           model%climate%acab(:,:) = acab_unscaled(:,:) / (thk0/tim0)
          
-          if (verbose_glissade) then
+          if (this_rank==rtest .and. verbose_glissade) then
              print*, ' '
              print*, 'After glissade_transport_driver:'
              print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
@@ -698,8 +725,16 @@ contains
              print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
              print*, ' '
              print*, 'thck:'
+             write(6,'(a6)',advance='no') '      '
+             do i = 1, model%general%ewn
+!!             do i = itest-3, itest+3
+                write(6,'(i6)',advance='no') i
+             enddo
+             write(6,*) ' '
              do j = model%general%nsn, 1, -1
+                write(6,'(i6)',advance='no') j
                 do i = 1, model%general%ewn
+!!                do i = itest-3, itest+3
                    write(6,'(f6.0)',advance='no') model%geometry%thck(i,j) * thk0
                 enddo
                 write(6,*) ' '
@@ -914,6 +949,18 @@ contains
          ice_mask,     &! = 1 where thck > thklim, else = 0
          floating_mask  ! = 1 where ice is floating, else = 0
 
+    !WHL - debug
+    integer :: itest, jtest, rtest
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
     ! 1. First part of diagnostic solve: 
@@ -1103,7 +1150,7 @@ contains
 
        endif   ! DIVA approx
              
-    else
+    else  ! not a restart
 
        ! If this is not a restart or we are not at the initial time, then proceed normally.
 
@@ -1199,9 +1246,10 @@ contains
                                    model%temper%bfricflx(:,:) )
        endif
        
-       if (this_rank==model%numerics%rdiag_local .and. verbose_glissade) then
-          i = model%numerics%idiag_local
-          j = model%numerics%jdiag_local
+       if (this_rank==rtest .and. verbose_glissade) then
+          i = itest
+          j = jtest
+          print*, 'itest, jtest =', i, j
           print*, 'k, dissip (deg/yr):'
           do k = 1, model%general%upn-1
              print*, k, model%temper%dissip(k,i,j)*scyr
@@ -1210,18 +1258,19 @@ contains
                                   model%velocity%vvel(model%general%upn,i,j)
           print*, 'btraction =',  model%velocity%btraction(:,i,j)
           print*, 'bfricflx =', model%temper%bfricflx(i,j)
-       endif
 
-       if (main_task .and. verbose_glissade) then
           print*, ' '
           print*, 'After glissade velocity solve: uvel, k = 1:'
+          write(6,'(a8)',advance='no') '          '
           do i = 1, model%general%ewn-1
+!!          do i = itest-3, itest+3
              write(6,'(i8)',advance='no') i
           enddo
           print*, ' '
           do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
+             write(6,'(i8)',advance='no') j
              do i = 1, model%general%ewn-1
+!!             do i = itest-3, itest+3
                 write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
              enddo 
              print*, ' '
@@ -1229,17 +1278,21 @@ contains
 
           print*, ' '
           print*, 'After glissade velocity solve: vvel, k = 1:'
+          write(6,'(a8)',advance='no') '          '
           do i = 1, model%general%ewn-1
+!!          do i = itest-3, itest+3
              write(6,'(i8)',advance='no') i
           enddo
           print*, ' '
           do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
+             write(6,'(i8)',advance='no') j
              do i = 1, model%general%ewn-1
+!!             do i = itest-3, itest+3
                 write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
              enddo 
              print*, ' '
           enddo
+
        endif  ! main_task & verbose_glissade
 
     endif     ! is_restart

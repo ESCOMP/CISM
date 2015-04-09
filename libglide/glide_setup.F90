@@ -399,8 +399,6 @@ contains
     call GetValue(section,'dew',model%numerics%dew)
     call GetValue(section,'dns',model%numerics%dns)
     call GetValue(section,'sigma_file',model%funits%sigfile)
-
-    !WHL - added global boundary conditions
     call GetValue(section,'global_bc',model%general%global_bc)
 
     ! We set this flag to one to indicate we've got a sigfile name.
@@ -440,6 +438,9 @@ contains
        call write_log(trim(message))
     elseif (model%general%global_bc==GLOBAL_BC_OUTFLOW) then
        write(message,*) 'Outflow global boundary conditions; scalars in global halo will be set to zero'
+       call write_log(trim(message))
+    elseif (model%general%global_bc==GLOBAL_BC_NO_PENETRATION) then
+       write(message,*) 'No-penetration global boundary conditions; outflow set to zero at global boundaries'
        call write_log(trim(message))
     endif
 
@@ -868,7 +869,7 @@ contains
     end if
 
     if (tasks > 1 .and. model%options%which_ho_babc==HO_BABC_ISHOMC) then
-       call write_log('Error, ISHOM basal BCs not supported for more than one processor', GM_FATAL)
+       call write_log('Error, ISHOM C basal BCs not supported for more than one processor', GM_FATAL)
     endif
 
     if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
@@ -878,6 +879,7 @@ contains
     ! Forbidden options associated with Glam and Glissade dycores
    
     if (model%options%whichdycore == DYCORE_GLISSADE) then 
+
        if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
              model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
              model%options%which_ho_approx == HO_APPROX_DIVA)   &
@@ -888,28 +890,36 @@ contains
              call write_log('Error, cannot use SIA preconditioning for 2D solve', GM_FATAL)
           endif
        endif
-    endif
 
-    if (model%options%whichdycore == DYCORE_GLISSADE) then 
-       if ( model%options%which_ho_approx == HO_APPROX_LOCAL_SIA .and. &
-            model%options%which_ho_disp   == HO_DISP_FIRSTORDER ) then
-          call write_log('Error, cannot use first-order dissipation with local SIA solver', GM_FATAL)
-       endif
+       if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+          
+          if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
+             call write_log('Error, cannot use first-order dissipation with local SIA solver', GM_FATAL)
+          endif
+
+          if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
+             call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
+          endif
+
+       endif  ! Glissade local SIA solver
+
     endif
 
     if (model%options%whichdycore /= DYCORE_GLISSADE) then 
+
        if (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.   &
            model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) then
           call write_log('Error, native PCG solver requires glissade dycore', GM_FATAL)
        endif
+
+       if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
+          call write_log('Error, no-penetration BC requires glissade dycore', GM_FATAL)
+       endif
+
     endif
 
     if (model%options%whichdycore == DYCORE_GLAM) then
-       if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA .or.   &
-           model%options%which_ho_approx == HO_APPROX_SIA       .or.   &
-           model%options%which_ho_approx == HO_APPROX_SSA       .or.   &
-           model%options%which_ho_approx == HO_APPROX_L1L2      .or.   &
-           model%options%which_ho_approx == HO_APPROX_DIVA) then 
+       if (model%options%which_ho_approx /= HO_APPROX_BP) then
           call write_log('Error, Glam dycore must use Blatter-Pattyn approximation', GM_FATAL)
        endif
     endif
