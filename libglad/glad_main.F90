@@ -337,8 +337,6 @@ contains
     !
     ! Output arrays are assumed to NOT have halo cells.
 
-    use glad_outputs, only : set_output_fields
-
     ! Subroutine argument declarations --------------------------------------------------------
 
     type(glad_params),               intent(in)    :: params
@@ -353,15 +351,15 @@ contains
     real(dp),dimension(:,:),intent(out) :: icemask_coupled_fluxes !mask of ice sheet grid coverage where we are potentially sending non-zero fluxes
     
     logical,                  optional,intent(out) :: output_flag !> Flag to show output set (provided for consistency)
-    
+
     ! Begin subroutine code --------------------------------------------------------------------
-  
-    call set_output_fields(params%instances(instance_index), &
+
+    call glad_set_output_fields(params%instances(instance_index), &
          ice_covered, topo, rofi, rofl, hflx, &
          ice_sheet_grid_mask, icemask_coupled_fluxes)
-
-    if (present(output_flag)) output_flag = .true.
     
+    if (present(output_flag)) output_flag = .true.
+
   end subroutine glad_get_initial_outputs
   
   !===================================================================
@@ -491,6 +489,10 @@ contains
 
     ! Get latitude and longitude for each grid cell
 
+    ! Output arrays do NOT have halo cells
+
+    use parallel, only : parallel_convert_haloed_to_nonhaloed
+    
     ! Subroutine argument declarations --------------------------------------------------------
 
     type(glad_params), intent(in) :: params
@@ -515,9 +517,8 @@ contains
             GM_FATAL, __FILE__, __LINE__)
     end if
 
-    ! TODO(wjs, 2015-04-03) Need to discard halo values from the internal arrays
-    lats(:,:) = params%instances(instance_index)%lat(:,:)
-    lons(:,:) = params%instances(instance_index)%lon(:,:)
+    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lat, lats)
+    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lon, lons)
     
   end subroutine glad_get_lat_lon
 
@@ -556,12 +557,14 @@ contains
     !
     ! Input fields should be taken as means over the period since the last call.
     ! See the user documentation for more information.
+    !
+    ! Input fields are assumed to NOT have halo cells
 
     use glimmer_utils
     use glad_timestep, only: glad_i_tstep_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use glad_outputs, only : set_output_fields
+    use parallel, only : parallel_convert_nonhaloed_to_haloed
     
     implicit none
 
@@ -588,12 +591,18 @@ contains
 
     ! Internal variables ----------------------------------------------------------------------------
 
+    integer :: ewn,nsn    ! dimensions of local grid
+
+    ! version of input fields with halo cells
+    real(dp),dimension(:,:),allocatable :: qsmb_haloed
+    real(dp),dimension(:,:),allocatable :: tsfc_haloed
+
     logical :: icets
     character(250) :: message
 
     integer :: av_start_time  ! value of time from the last occasion averaging was restarted (hours)
 
-    ! Check input fields are correct ----------------------------------------------------------------
+    ! Begin subroutine code --------------------------------------------------------------------
 
     ! Reset output flag
 
@@ -602,8 +611,15 @@ contains
 
     ! Accumulate input fields for later averaging
 
+    ewn = get_ewn(params%instances(instance_index)%model)
+    nsn = get_nsn(params%instances(instance_index)%model)
+    allocate(qsmb_haloed(ewn,nsn))
+    allocate(tsfc_haloed(ewn,nsn))
+    call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
+    call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
+
     call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-         qsmb = qsmb, tsfc = tsfc, time = time)
+         qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
 
     ! ---------------------------------------------------------
     ! If this is a mass balance timestep, prepare global fields, and do a timestep
@@ -664,7 +680,7 @@ contains
                params%instances(instance_index),   &
                icets)
 
-          call set_output_fields(params%instances(instance_index), &
+          call glad_set_output_fields(params%instances(instance_index), &
                ice_covered, topo, rofi, rofl, hflx, &
                ice_sheet_grid_mask, icemask_coupled_fluxes)
           
@@ -726,6 +742,74 @@ contains
   ! PRIVATE INTERNAL GLIMMER SUBROUTINES FOLLOW.............
   !----------------------------------------------------------------------
 
+  subroutine glad_set_output_fields(instance,        &
+                                    ice_covered,    topo,                  &
+                                    rofi,           rofl,           hflx,  &
+                                    ice_sheet_grid_mask,                   &
+                                    icemask_coupled_fluxes)
+
+    ! Sets output fields for this instance.
+    !
+    ! Arguments are assumed to NOT have halo cells. This routine handles the removal of
+    ! the halo cells.
+
+    use glad_outputs, only : set_output_fields
+    use parallel, only : parallel_convert_haloed_to_nonhaloed
+
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_instance), intent(in) :: instance
+
+    real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
+    real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
+    real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
+    real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
+    real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
+    real(dp),dimension(:,:),intent(out) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
+    real(dp),dimension(:,:),intent(out) :: icemask_coupled_fluxes !mask of ice sheet grid coverage where we are potentially sending non-zero fluxes
+    
+    logical,                  optional,intent(out) :: output_flag !> Flag to show output set (provided for consistency)
+
+    ! Internal variables -----------------------------------------------------------------------
+
+    integer :: ewn,nsn    ! dimensions of local grid
+    
+    ! temporary versions of output fields with halo cells
+    real(dp),dimension(:,:),allocatable :: ice_covered_haloed
+    real(dp),dimension(:,:),allocatable :: topo_haloed
+    real(dp),dimension(:,:),allocatable :: hflx_haloed
+    real(dp),dimension(:,:),allocatable :: rofi_haloed
+    real(dp),dimension(:,:),allocatable :: rofl_haloed
+    real(dp),dimension(:,:),allocatable :: ice_sheet_grid_mask_haloed
+    real(dp),dimension(:,:),allocatable :: icemask_coupled_fluxes_haloed
+
+    ! Begin subroutine code --------------------------------------------------------------------
+
+    ewn = get_ewn(params%instances(instance_index)%model)
+    nsn = get_nsn(params%instances(instance_index)%model)
+
+    allocate(ice_covered_haloed(ewn,nsn))
+    allocate(topo_haloed(ewn,nsn))
+    allocate(hflx_haloed(ewn,nsn))
+    allocate(rofi_haloed(ewn,nsn))
+    allocate(rofl_haloed(ewn,nsn))
+    allocate(ice_sheet_grid_mask_haloed(ewn,nsn))
+    allocate(icemask_coupled_fluxes_haloed(ewn,nsn))
+    
+    call set_output_fields(params%instances(instance_index), &
+         ice_covered_haloed, topo_haloed, rofi_haloed, rofl_haloed, hflx_haloed, &
+         ice_sheet_grid_mask_haloed, icemask_coupled_fluxes_haloed)
+
+    call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered)
+    call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo)
+    call parallel_convert_haloed_to_nonhaloed(hflx_haloed, hflx)
+    call parallel_convert_haloed_to_nonhaloed(rofi_haloed, rofi)
+    call parallel_convert_haloed_to_nonhaloed(rofl_haloed, rofl)
+    call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask)
+    call parallel_convert_haloed_to_nonhaloed(icemask_coupled_fluxes_haloed, icemask_coupled_fluxes)
+
+  end subroutine glad_set_output_fields
+  
   !TODO - Move subroutine glad_readconfig to a glad_setup module, in analogy to glide_setup?
 
   subroutine glad_readconfig(config, ninstances, fnames, infnames)
