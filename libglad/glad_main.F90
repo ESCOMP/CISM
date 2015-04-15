@@ -565,7 +565,8 @@ contains
     use glimmer_log
     use glimmer_paramets, only: scyr
     use parallel, only : parallel_convert_nonhaloed_to_haloed
-    
+    use glide_types, only : get_ewn, get_nsn
+
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------
@@ -755,6 +756,7 @@ contains
 
     use glad_outputs, only : set_output_fields
     use parallel, only : parallel_convert_haloed_to_nonhaloed
+    use glide_types, only : get_ewn, get_nsn
 
     ! Subroutine argument declarations --------------------------------------------------------
 
@@ -768,8 +770,6 @@ contains
     real(dp),dimension(:,:),intent(out) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
     real(dp),dimension(:,:),intent(out) :: icemask_coupled_fluxes !mask of ice sheet grid coverage where we are potentially sending non-zero fluxes
     
-    logical,                  optional,intent(out) :: output_flag !> Flag to show output set (provided for consistency)
-
     ! Internal variables -----------------------------------------------------------------------
 
     integer :: ewn,nsn    ! dimensions of local grid
@@ -785,8 +785,8 @@ contains
 
     ! Begin subroutine code --------------------------------------------------------------------
 
-    ewn = get_ewn(params%instances(instance_index)%model)
-    nsn = get_nsn(params%instances(instance_index)%model)
+    ewn = get_ewn(instance%model)
+    nsn = get_nsn(instance%model)
 
     allocate(ice_covered_haloed(ewn,nsn))
     allocate(topo_haloed(ewn,nsn))
@@ -796,7 +796,7 @@ contains
     allocate(ice_sheet_grid_mask_haloed(ewn,nsn))
     allocate(icemask_coupled_fluxes_haloed(ewn,nsn))
     
-    call set_output_fields(params%instances(instance_index), &
+    call set_output_fields(instance, &
          ice_covered_haloed, topo_haloed, rofi_haloed, rofl_haloed, hflx_haloed, &
          ice_sheet_grid_mask_haloed, icemask_coupled_fluxes_haloed)
 
