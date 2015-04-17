@@ -452,9 +452,6 @@ contains
     allocate(counts(own_points))
     counts(:) = 0
 
-    ! TODO(wjs, 2015-04-01) Need to confirm that global_ewn, global_row_offset and
-    ! global_col_offset don't include the global halo, by checking the indices set
-    ! here. As long as they are observed to go 1..n in a parallel run, all should be okay.
     do local_row = 1, own_nsn
        do local_col = 1, own_ewn
           local_index = (local_row - 1)*own_ewn + local_col
