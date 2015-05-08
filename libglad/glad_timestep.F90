@@ -68,7 +68,8 @@ contains
     use glad_mbal_io
     use glide_diagnostics
     use parallel, only: tasks, main_task, this_rank
-
+    use glad_output_fluxes, only : accumulate_output_fluxes, reset_output_fluxes
+    
     implicit none
 
     ! ------------------------------------------------------------------------  

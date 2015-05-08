@@ -563,7 +563,8 @@ contains
     use glimmer_paramets, only: scyr
     use parallel, only : parallel_convert_nonhaloed_to_haloed
     use glide_types, only : get_ewn, get_nsn
-
+    use glad_output_fluxes, only : calculate_average_output_fluxes
+    
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------

@@ -39,6 +39,7 @@ module glad_type
   use glide_types
   use glad_input_averages, only : glad_input_averages_type, initialize_glad_input_averages
   use glad_mbal_coupling, only : glad_mbc
+  use glad_output_fluxes, only : glad_output_fluxes_type, initialize_glad_output_fluxes
   
   implicit none
 

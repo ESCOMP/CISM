@@ -35,6 +35,8 @@ module glad_output_fluxes
 
   ! (Most of the code here used to be in glint_upscale.F90)
 
+  use glimmer_global, only: dp
+
   implicit none
   private
 
