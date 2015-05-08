@@ -109,16 +109,13 @@ module glad_type
      ! Latitude & longitude of model grid points
      real(dp), dimension(:,:), pointer :: lat(:,:)
      real(dp), dimension(:,:), pointer :: lon(:,:)
+
+     ! Fields for averaging dycore output
+     type(glad_output_fluxes_type) :: glad_output_fluxes
+     real(dp), dimension(:,:), pointer :: hflx_tavg => null()  ! conductive heat flux at top surface (W m-2)
+     real(dp), dimension(:,:), pointer :: rofi_tavg => null()  ! solid ice runoff (kg m-2 s-1)
+     real(dp), dimension(:,:), pointer :: rofl_tavg => null()  ! liquid runoff from basal/interior melting (kg m-2 s-1)
      
-     !WHL - added these for upscaling
-     ! Counters and fields for averaging dycore output
-
-     integer  :: av_count_output = 0       ! step counter
-     logical  :: new_tavg_output = .true.  ! if true, start new averaging
-     real(dp), dimension(:,:), pointer :: hflx_tavg => null()   ! conductive heat flux at top surface (W m-2)
-     real(dp), dimension(:,:), pointer :: rofi_tavg => null()   ! solid ice runoff (kg m-2 s-1)
-     real(dp), dimension(:,:), pointer :: rofl_tavg => null()   ! liquid runoff from basal/interior melting (kg m-2 s-1)
-
      ! Pointers to file input and output
 
      type(glimmer_nc_output),pointer :: out_first => null() !> first element of linked list defining netCDF outputs
@@ -165,12 +162,14 @@ contains
     allocate(instance%lat(ewn,nsn));           instance%lat  = 0.d0
     allocate(instance%lon(ewn,nsn));           instance%lon  = 0.d0
 
-    allocate(instance%rofi_tavg(ewn,nsn));     instance%rofi_tavg = 0.d0
-    allocate(instance%rofl_tavg(ewn,nsn));     instance%rofl_tavg = 0.d0
-    allocate(instance%hflx_tavg(ewn,nsn));     instance%hflx_tavg = 0.d0
-
+    allocate(instance%rofi_tavg(ewn,nsn));    instance%rofi_tavg = 0.d0
+    allocate(instance%rofl_tavg(ewn,nsn));    instance%rofl_tavg = 0.d0
+    allocate(instance%hflx_tavg(ewn,nsn));    instance%hflx_tavg = 0.d0
+    
     call initialize_glad_input_averages(instance%glad_inputs, ewn=ewn, nsn=nsn, &
          next_av_start=force_start)
+
+    call initialize_glad_output_fluxes(instance%glad_output_fluxes, ewn=ewn, nsn=nsn)
     
   end subroutine glad_i_allocate_gcm
 

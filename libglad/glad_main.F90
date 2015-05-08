@@ -678,6 +678,12 @@ contains
                params%instances(instance_index),   &
                icets)
 
+          call calculate_average_output_fluxes( &
+               params%instances(instance_index)%glad_output_fluxes, &
+               rofi_tavg = params%instances(instance_index)%rofi_tavg, &
+               rofl_tavg = params%instances(instance_index)%rofl_tavg, &
+               hflx_tavg = params%instances(instance_index)%hflx_tavg)
+
           call glad_set_output_fields(params%instances(instance_index), &
                ice_covered, topo, rofi, rofl, hflx, &
                ice_sheet_grid_mask, icemask_coupled_fluxes)
@@ -794,8 +800,19 @@ contains
     allocate(icemask_coupled_fluxes_haloed(ewn,nsn))
     
     call set_output_fields(instance, &
-         ice_covered_haloed, topo_haloed, rofi_haloed, rofl_haloed, hflx_haloed, &
-         ice_sheet_grid_mask_haloed, icemask_coupled_fluxes_haloed)
+         ice_covered_haloed, topo_haloed, ice_sheet_grid_mask_haloed)
+
+    if (instance%zero_gcm_fluxes == ZERO_GCM_FLUXES_TRUE) then
+       icemask_coupled_fluxes_haloed(:,:) = 0.d0
+       hflx_haloed(:,:) = 0.d0
+       rofi_haloed(:,:) = 0.d0
+       rofl_haloed(:,:) = 0.d0
+    else
+       icemask_coupled_fluxes_haloed(:,:) = ice_sheet_grid_mask_haloed(:,:)
+       hflx_haloed(:,:) = instance%hflx_tavg(:,:)
+       rofi_haloed(:,:) = instance%rofi_tavg(:,:)
+       rofl_haloed(:,:) = instance%rofl_tavg(:,:)
+    end if
 
     call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered)
     call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo)

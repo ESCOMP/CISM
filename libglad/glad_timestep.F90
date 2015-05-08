@@ -144,6 +144,8 @@ contains
 
        ice_tstep = .true.
 
+       call reset_output_fluxes(instance%glad_output_fluxes)
+
        ! ---------------------------------------------------------------------
        ! Timestepping for ice sheet model
        ! ---------------------------------------------------------------------
@@ -250,12 +252,7 @@ contains
 
           ! Accumulate Glide output fields to be sent to GCM
 
-          call glad_accumulate_output(instance%model,            &
-                                      instance%av_count_output,  &
-                                      instance%new_tavg_output,  &
-                                      instance%rofi_tavg,        &
-                                      instance%rofl_tavg,        &
-                                      instance%hflx_tavg )
+          call accumulate_output_fluxes(instance%glad_output_fluxes, instance%model)
 
        end do   ! instance%n_icetstep
 

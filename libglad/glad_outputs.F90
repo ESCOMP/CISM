@@ -40,107 +40,23 @@ module glad_outputs
   implicit none
   private
 
-  public :: glad_accumulate_output
   public :: set_output_fields  ! set all fields output to a climate model
 
 contains
 
-  subroutine glad_accumulate_output(model,            &
-                                    av_count_output,  &
-                                    new_tavg_output,  &
-                                    rofi_tavg,        &
-                                    rofl_tavg,        &
-                                    hflx_tavg)
-
-    ! Given the calving, basal melting, and conductive heat flux fields from the dycore,
-    ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
-
-    ! This used to be in glint_upscale.F90
-    
-    use glimmer_paramets, only: thk0, tim0
-    use glimmer_physcon, only : rhoi
-    use glide_types, only : glide_global_type
-    
-    type(glide_global_type), intent(in)  :: model
-
-    integer,  intent(inout) :: av_count_output     ! step counter 
-    logical,  intent(inout) :: new_tavg_output     ! if true, start new averaging
-    real(dp), dimension(:,:), intent(inout) :: rofi_tavg    ! solid ice runoff (kg m-2 s-1)
-    real(dp), dimension(:,:), intent(inout) :: rofl_tavg    ! liquid runoff from basal/interior melting (kg m-2 s-1)
-    real(dp), dimension(:,:), intent(inout) :: hflx_tavg    ! conductive heat flux at top surface (W m-2)
-
-    ! things to do the first time
-
-    if (new_tavg_output) then
-
-       new_tavg_output = .false.
-       av_count_output  = 0
-
-       ! Initialise
-       rofi_tavg(:,:) = 0.d0
-       rofl_tavg(:,:) = 0.d0
-       hflx_tavg(:,:) = 0.d0
-
-    end if
-
-    av_count_output = av_count_output + 1
-
-    !--------------------------------------------------------------------
-    ! Accumulate solid runoff (calving)
-    !--------------------------------------------------------------------
-                       
-    ! Note on units: model%climate%calving has dimensionless ice thickness units
-    !                Multiply by thk0 to convert to meters of ice
-    !                Multiply by rhoi to convert to kg/m^2 water equiv.
-    !                Divide by (dt*tim0) to convert to kg/m^2/s
-
-    ! Convert to kg/m^2/s
-    rofi_tavg(:,:) = rofi_tavg(:,:)  &
-                   + model%climate%calving(:,:) * thk0 * rhoi / (model%numerics%dt * tim0)
-
-    !--------------------------------------------------------------------
-    ! Accumulate liquid runoff (basal melting)
-    !--------------------------------------------------------------------
-    !TODO - Add internal melting for enthalpy case
-                       
-    ! Note on units: model%temper%bmlt has dimensionless units of ice thickness per unit time
-    !                Multiply by thk0/tim0 to convert to meters ice per second
-    !                Multiply by rhoi to convert to kg/m^2/s water equiv.
-
-    ! Convert to kg/m^2/s
-    rofl_tavg(:,:) = rofl_tavg(:,:)  &
-                   + model%temper%bmlt(:,:) * thk0/tim0 * rhoi
-
-    !--------------------------------------------------------------------
-    ! Accumulate basal heat flux
-    !--------------------------------------------------------------------
-
-    ! Note on units: model%temper%ucondflx has units of W/m^2, positive down
-    !                Flip the sign so that hflx_tavg is positive up.
-
-    hflx_tavg(:,:) = hflx_tavg(:,:) &
-                   - model%temper%ucondflx(:,:)
-
-  end subroutine glad_accumulate_output
-
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   subroutine set_output_fields(instance, &
-       ice_covered, topo, rofi, rofl, hflx, &
-       ice_sheet_grid_mask, icemask_coupled_fluxes)
+       ice_covered, topo, ice_sheet_grid_mask)
 
-    use glad_type, only : glad_instance, ZERO_GCM_FLUXES_TRUE
+    use glad_type, only : glad_instance
     
     ! Arguments ----------------------------------------------------------------------------
 
     type(glad_instance), intent(in) :: instance
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
-    real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
-    real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
-    real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(out) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
-    real(dp),dimension(:,:),intent(out) :: icemask_coupled_fluxes !mask of ice sheet grid coverage where we are potentially sending non-zero fluxes
 
     ! Internal variables ----------------------------------------------------------------------
 
@@ -154,11 +70,7 @@ contains
     ! in case any bugs creep into the below code.
     ice_covered(:,:) = 0.d0
     topo(:,:) = 0.d0
-    hflx(:,:) = 0.d0
-    rofi(:,:) = 0.d0
-    rofl(:,:) = 0.d0
     ice_sheet_grid_mask(:,:) = 0.d0
-    icemask_coupled_fluxes(:,:) = 0.d0
     
     nxl = instance%lgrid%size%pt(1)
     nyl = instance%lgrid%size%pt(2)
@@ -191,22 +103,6 @@ contains
        end do
     end do
 
-    ! TODO(wjs, 2015-03-18) Set hflx, rofi & rofl. Note that these need some
-    ! time-averaging, as is done in glint_upscale.F90: glint_upscaling_gcm. For now, I am
-    ! simply setting them to 0.
-    hflx(:,:) = 0.d0
-    rofi(:,:) = 0.d0
-    rofl(:,:) = 0.d0
-
-    if (instance%zero_gcm_fluxes == ZERO_GCM_FLUXES_TRUE) then
-       icemask_coupled_fluxes(:,:) = 0.d0
-       hflx(:,:) = 0.d0
-       rofi(:,:) = 0.d0
-       rofl(:,:) = 0.d0
-    else
-       icemask_coupled_fluxes(:,:) = ice_sheet_grid_mask(:,:)
-    end if
-    
   end subroutine set_output_fields
 
   
