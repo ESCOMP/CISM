@@ -64,7 +64,6 @@ contains
     use glissade
     use glide_io
     use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
-    use glad_outputs, only: glad_accumulate_output
     use glad_io
     use glad_mbal_io
     use glide_diagnostics

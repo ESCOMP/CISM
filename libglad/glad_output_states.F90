@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glad_outputs.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glad_output_states.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -28,10 +28,10 @@
 #include "config.inc"
 #endif
 
-module glad_outputs
+module glad_output_states
 
-  ! This module defines routines for computing the outputs that CISM sends to a climate
-  ! model.
+  ! This module defines routines for computing the output state variables that CISM sends
+  ! to a climate model.
 
   use glimmer_global, only : dp
   use glimmer_paramets, only : thk0
@@ -40,13 +40,13 @@ module glad_outputs
   implicit none
   private
 
-  public :: set_output_fields  ! set all fields output to a climate model
+  public :: set_output_states  ! set state fields output to a climate model
 
 contains
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine set_output_fields(instance, &
+  subroutine set_output_states(instance, &
        ice_covered, topo, ice_sheet_grid_mask)
 
     use glad_type, only : glad_instance
@@ -103,7 +103,7 @@ contains
        end do
     end do
 
-  end subroutine set_output_fields
+  end subroutine set_output_states
 
   
   !===================================================================
@@ -156,4 +156,4 @@ contains
 
   end function is_ice_covered
 
-end module glad_outputs
+end module glad_output_states

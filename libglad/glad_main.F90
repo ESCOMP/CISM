@@ -757,7 +757,7 @@ contains
     ! Arguments are assumed to NOT have halo cells. This routine handles the removal of
     ! the halo cells.
 
-    use glad_outputs, only : set_output_fields
+    use glad_output_states, only : set_output_states
     use parallel, only : parallel_convert_haloed_to_nonhaloed
     use glide_types, only : get_ewn, get_nsn
 
@@ -799,7 +799,7 @@ contains
     allocate(ice_sheet_grid_mask_haloed(ewn,nsn))
     allocate(icemask_coupled_fluxes_haloed(ewn,nsn))
     
-    call set_output_fields(instance, &
+    call set_output_states(instance, &
          ice_covered_haloed, topo_haloed, ice_sheet_grid_mask_haloed)
 
     if (instance%zero_gcm_fluxes == ZERO_GCM_FLUXES_TRUE) then
