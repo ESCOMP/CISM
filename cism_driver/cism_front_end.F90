@@ -142,13 +142,25 @@ subroutine cism_init_dycore(model)
 
   call spinup_lithot(model)
 
-  if (model%options%whichdycore == DYCORE_BISICLES) then
-    call t_startf('init_external_dycore')
-    call cism_init_external_dycore(model%options%external_dycore_type,model)
-    call t_stopf('init_external_dycore')
-  endif
-
   call t_stopf('initialization')
+
+  if (model%options%whichdycore == DYCORE_BISICLES) then
+    call t_startf('initial_diag_var_solve')
+
+    if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+      ! disable further profiling in normal usage
+      call t_adj_detailf(+10)
+    endif
+
+    call cism_init_external_dycore(model%options%external_dycore_type,model)
+
+    if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+      ! restore profiling to normal settings
+      call t_adj_detailf(-10)
+    endif
+
+    call t_stopf('initial_diag_var_solve')
+  endif
 
   if (model%options%whichdycore .ne. DYCORE_BISICLES) then
   !MJH Created this block here to fill out initial state without needing to enter time stepping loop.  This allows
