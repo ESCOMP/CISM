@@ -108,8 +108,8 @@ module glad_type
      !> \end{description}
 
      ! Latitude & longitude of model grid points
-     real(dp), dimension(:,:), pointer :: lat(:,:)
-     real(dp), dimension(:,:), pointer :: lon(:,:)
+     real(dp), dimension(:,:), pointer :: lat(:,:) => null()
+     real(dp), dimension(:,:), pointer :: lon(:,:) => null()
 
      ! Fields for averaging dycore output
      type(glad_output_fluxes_type) :: glad_output_fluxes
