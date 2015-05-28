@@ -40,11 +40,11 @@
 #define NCI infile%nc
 
 
-module glint_io
+module glad_io
   ! template for creating subsystem specific I/O routines
   ! written by Magnus Hagdorn, 2004
 
-  use glint_type
+  use glad_type
 
   implicit none
 
@@ -53,7 +53,7 @@ module glint_io
   character(310), save :: restart_variable_list=''    ! list of variables needed for a restart
 !TODO change 310 to a variable - see glimmer_ncdf.F90 in the definition for type glimmer_nc_stat for other instances of this value.
 
-  interface is_enabled  ! MJH 10/21/13: Interface needed for determining if arrays have been enabled.  See notes below in glint_io_create.
+  interface is_enabled  ! MJH 10/21/13: Interface needed for determining if arrays have been enabled.  See notes below in glad_io_create.
     module procedure is_enabled_0dint
     module procedure is_enabled_1dint
     module procedure is_enabled_2dint
@@ -68,15 +68,15 @@ contains
   !*****************************************************************************
   ! netCDF output
   !*****************************************************************************
-  subroutine glint_io_createall(model,data,outfiles)
+  subroutine glad_io_createall(model,data,outfiles)
     ! open all netCDF files for output
-    use glint_type
+    use glad_type
     use glide_types
     use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(glide_global_type) :: model
-    type(glint_instance) :: data ! MJH 10/21/13: Making 'data' mandatory.  See notes below in glint_io_create
+    type(glad_instance) :: data ! MJH 10/21/13: Making 'data' mandatory.  See notes below in glad_io_create
     type(glimmer_nc_output),optional,pointer :: outfiles
     
     ! local variables
@@ -89,19 +89,19 @@ contains
     end if
 
     do while(associated(oc))
-       call glint_io_create(oc,model,data)
+       call glad_io_create(oc,model,data)
        oc=>oc%next
     end do
-  end subroutine glint_io_createall
+  end subroutine glad_io_createall
 
-  subroutine glint_io_writeall(data,model,atend,outfiles,time)
+  subroutine glad_io_writeall(data,model,atend,outfiles,time)
     ! if necessary write to netCDF files
-    use glint_type
+    use glad_type
     use glide_types
     use glimmer_ncdf
     use glimmer_ncio
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     type(glide_global_type) :: model
     logical, optional :: atend
     type(glimmer_nc_output),optional,pointer :: outfiles
@@ -124,27 +124,27 @@ contains
     do while(associated(oc))
 #ifdef HAVE_AVG
        if (oc%do_averages) then
-          call glint_avg_accumulate(oc,data,model)
+          call glad_avg_accumulate(oc,data,model)
        end if
 #endif
        call glimmer_nc_checkwrite(oc,model,forcewrite,time)
        if (oc%nc%just_processed) then
           ! write standard variables
-          call glint_io_write(oc,data)
+          call glad_io_write(oc,data)
 #ifdef HAVE_AVG
           if (oc%do_averages) then
-             call glint_avg_reset(oc,data)
+             call glad_avg_reset(oc,data)
           end if
 #endif
        end if
        oc=>oc%next
     end do
-  end subroutine glint_io_writeall
+  end subroutine glad_io_writeall
   
-  subroutine glint_io_create(outfile,model,data)
+  subroutine glad_io_create(outfile,model,data)
     use parallel
     use glide_types
-    use glint_type
+    use glad_type
     use glimmer_ncdf
     use glimmer_ncio
     use glimmer_map_types
@@ -155,7 +155,7 @@ contains
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
-    type(glint_instance) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
+    type(glad_instance) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
 
     integer status,varid,pos
 
@@ -231,80 +231,13 @@ contains
     !   Also note that this change requires that data be a mandatory argument to this subroutine.
 
     ! Some output variables will need tavgf.  The value does not matter, but it must exist.  
-    ! Nonetheless, for completeness give it the proper value that it has in glint_io_write.
+    ! Nonetheless, for completeness give it the proper value that it has in glad_io_write.
     tavgf = outfile%total_time
     if (tavgf.ne.0.d0) then
        tavgf = 1.d0/tavgf
     end if
     ! Similarly, some output variables use the variable up.  Give it value of 0 here.
     up = 0
-
-    !     ablt -- ablation
-    pos = index(NCO%vars,' ablt ')
-    status = parallel_inq_varid(NCO%id,'ablt',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+4) = '    '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%ablt)) then
-       call write_log('Creating variable ablt')
-       status = parallel_def_var(NCO%id,'ablt',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'ablation')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter (water)/year')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable ablt was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     arng -- air temperature half-range
-    pos = index(NCO%vars,' arng ')
-    status = parallel_inq_varid(NCO%id,'arng',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+4) = '    '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%arng)) then
-       call write_log('Creating variable arng')
-       status = parallel_def_var(NCO%id,'arng',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'air temperature half-range')
-       status = parallel_put_att(NCO%id, varid, 'units', 'degreeC')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable arng was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     global_orog -- orographic elevation provided by global model
-    pos = index(NCO%vars,' global_orog ')
-    status = parallel_inq_varid(NCO%id,'global_orog',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+11) = '           '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%global_orog)) then
-       call write_log('Creating variable global_orog')
-       status = parallel_def_var(NCO%id,'global_orog',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'orographic elevation provided by global model')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'surface_altitude')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable global_orog was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
 
     !     hflx_tavg -- heat flux to ice surface
     pos = index(NCO%vars,' hflx_tavg ')
@@ -328,93 +261,47 @@ contains
      end if
      end if
 
-    !     inmask -- downscaling mask
-    pos = index(NCO%vars,' inmask ')
-    status = parallel_inq_varid(NCO%id,'inmask',varid)
+    !     lat -- latitude
+    pos = index(NCO%vars,' lat ')
+    status = parallel_inq_varid(NCO%id,'lat',varid)
     if (pos.ne.0) then
-      NCO%vars(pos+1:pos+6) = '      '
+      NCO%vars(pos+1:pos+3) = '   '
     end if
     if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%downs%lmask)) then
-       call write_log('Creating variable inmask')
-       status = parallel_def_var(NCO%id,'inmask',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
+    if (is_enabled(data%lat)) then
+       call write_log('Creating variable lat')
+       status = parallel_def_var(NCO%id,'lat',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'downscaling mask')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'long_name', 'latitude')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', 'latitude')
+       status = parallel_put_att(NCO%id, varid, 'units', 'degreeN')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable inmask was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable lat was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
-    !     local_orog -- orographic elevation provided by local model
-    pos = index(NCO%vars,' local_orog ')
-    status = parallel_inq_varid(NCO%id,'local_orog',varid)
+    !     lon -- longitude
+    pos = index(NCO%vars,' lon ')
+    status = parallel_inq_varid(NCO%id,'lon',varid)
     if (pos.ne.0) then
-      NCO%vars(pos+1:pos+10) = '          '
+      NCO%vars(pos+1:pos+3) = '   '
     end if
     if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%local_orog)) then
-       call write_log('Creating variable local_orog')
-       status = parallel_def_var(NCO%id,'local_orog',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
+    if (is_enabled(data%lon)) then
+       call write_log('Creating variable lon')
+       status = parallel_def_var(NCO%id,'lon',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'orographic elevation provided by local model')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'surface_altitude')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', 'longitude')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', 'longitude')
+       status = parallel_put_att(NCO%id, varid, 'units', 'degreeE')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable local_orog was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     outmask -- upscaling mask
-    pos = index(NCO%vars,' outmask ')
-    status = parallel_inq_varid(NCO%id,'outmask',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+7) = '       '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%out_mask)) then
-       call write_log('Creating variable outmask')
-       status = parallel_def_var(NCO%id,'outmask',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'upscaling mask')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable outmask was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     prcp -- precipitation
-    pos = index(NCO%vars,' prcp ')
-    status = parallel_inq_varid(NCO%id,'prcp',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+4) = '    '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%prcp)) then
-       call write_log('Creating variable prcp')
-       status = parallel_def_var(NCO%id,'prcp',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'precipitation')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'lwe_precipitation_rate')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter (water)/year')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable prcp was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable lon was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -462,63 +349,18 @@ contains
      end if
      end if
 
-    !     siced -- superimposed ice depth
-    pos = index(NCO%vars,' siced ')
-    status = parallel_inq_varid(NCO%id,'siced',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+5) = '     '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%siced)) then
-       call write_log('Creating variable siced')
-       status = parallel_def_var(NCO%id,'siced',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'superimposed ice depth')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable siced was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
+  end subroutine glad_io_create
 
-    !     snowd -- snow depth
-    pos = index(NCO%vars,' snowd ')
-    status = parallel_inq_varid(NCO%id,'snowd',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+5) = '     '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%snowd)) then
-       call write_log('Creating variable snowd')
-       status = parallel_def_var(NCO%id,'snowd',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'snow depth')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'surface_snow_thickness')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable snowd was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-  end subroutine glint_io_create
-
-  subroutine glint_io_write(outfile,data)
+  subroutine glad_io_write(outfile,data)
     use parallel
-    use glint_type
+    use glad_type
     use glimmer_ncdf
     use glimmer_paramets
     use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     ! the model instance
 
     ! local variables
@@ -532,27 +374,6 @@ contains
     end if
 
     ! write variables
-    status = parallel_inq_varid(NCO%id,'ablt',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%ablt, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'arng',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%arng, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'global_orog',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%global_orog, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
     status = parallel_inq_varid(NCO%id,'hflx_tavg',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -560,31 +381,17 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    status = parallel_inq_varid(NCO%id,'inmask',varid)
+    status = parallel_inq_varid(NCO%id,'lat',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
-            data%downs%lmask, (/1,1,outfile%timecounter/))
+            data%lat, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    status = parallel_inq_varid(NCO%id,'local_orog',varid)
+    status = parallel_inq_varid(NCO%id,'lon',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
-            data%local_orog, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'outmask',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%out_mask, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'prcp',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%prcp, (/1,1,outfile%timecounter/))
+            data%lon, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -602,24 +409,10 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    status = parallel_inq_varid(NCO%id,'siced',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%siced, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'snowd',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%snowd, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-  end subroutine glint_io_write
+  end subroutine glad_io_write
 
 
-  subroutine glint_add_to_restart_variable_list(vars_to_add)
+  subroutine glad_add_to_restart_variable_list(vars_to_add)
     ! This subroutine adds variables to the list of variables needed for a restart.
     ! It is a public subroutine that allows other parts of the model to modify the list, 
     ! which is a module level variable.   MJH 1/17/2013
@@ -644,13 +437,13 @@ contains
        call write_log('Adding restart variables has made the restart variable list too long.',GM_FATAL)
     else
        restart_variable_list = trim(adjustl(restart_variable_list)) // ' ' // trim(vars_to_add)
-       !call write_log('Adding to glint restart variable list: ' // trim(vars_to_add) )
+       !call write_log('Adding to glad restart variable list: ' // trim(vars_to_add) )
     endif
 
-  end subroutine glint_add_to_restart_variable_list
+  end subroutine glad_add_to_restart_variable_list
 
 
-  ! Functions for the interface 'is_enabled'.  These are needed by the auto-generated code in glint_io_create
+  ! Functions for the interface 'is_enabled'.  These are needed by the auto-generated code in glad_io_create
   !   to determine if a variable is 'turned on', and should be written.
 
   function is_enabled_0dint(var)
@@ -726,14 +519,14 @@ contains
   !*****************************************************************************
   ! netCDF input
   !*****************************************************************************  
-  subroutine glint_io_readall(data, model, filetype)
+  subroutine glad_io_readall(data, model, filetype)
     ! read from netCDF file
-    use glint_type
+    use glad_type
     use glide_types
     use glimmer_ncdf
     use glimmer_ncio
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     type(glide_global_type) :: model
     integer, intent(in), optional :: filetype  ! 0 for input, 1 for forcing; defaults to input
 
@@ -755,21 +548,21 @@ contains
     do while(associated(ic))
        call glimmer_nc_checkread(ic,model)
        if (ic%nc%just_processed) then
-          call glint_io_read(ic,data)
+          call glad_io_read(ic,data)
        end if
        ic=>ic%next
     end do
-  end subroutine glint_io_readall
+  end subroutine glad_io_readall
 
 
-  subroutine glint_read_forcing(data, model)
+  subroutine glad_read_forcing(data, model)
     ! Read data from forcing files
     use glimmer_log
     use glide_types
     use glimmer_ncdf
 
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     type(glide_global_type), intent(inout) :: model
 
     ! Locals
@@ -800,30 +593,30 @@ contains
 
        ! read all forcing fields present in this file for the time specified above
        ic%nc%just_processed = .false.  ! set this to false so it will be re-processed every time through - this ensures info gets written to the log, and that time levels don't get skipped.
-       call glint_io_readall(data, model, filetype=1)
+       call glad_io_readall(data, model, filetype=1)
 
        ! move on to the next forcing file
        ic=>ic%next
     end do
 
-  end subroutine glint_read_forcing
+  end subroutine glad_read_forcing
 
 
 !------------------------------------------------------------------------------
 
 
-  subroutine glint_io_read(infile,data)
+  subroutine glad_io_read(infile,data)
     ! read variables from a netCDF file
     use parallel
     use glimmer_log
     use glimmer_ncdf
-    use glint_type
+    use glad_type
     use glimmer_paramets
     use glimmer_scales
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     ! the model instance
 
     ! local variables
@@ -853,23 +646,44 @@ contains
 
     end if
 
-    status = parallel_inq_varid(NCI%id,'outmask',varid)
+    status = parallel_inq_varid(NCI%id,'lat',varid)
     if (status .eq. nf90_noerr) then
-    if (is_enabled(data%out_mask)) then
-       call write_log('  Loading outmask')
+    if (is_enabled(data%lat)) then
+       call write_log('  Loading lat')
        status = distributed_get_var(NCI%id, varid, &
-            data%out_mask, (/1,1,infile%current_time/))
+            data%lat, (/1,1,infile%current_time/))
        call nc_errorhandle(__FILE__,__LINE__,status)
        status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
        if (status.ne.NF90_NOERR) then
           scaling_factor = 1.0d0
        end if
        if (abs(scaling_factor-1.0d0).gt.1.d-17) then
-          call write_log("scaling outmask",GM_DIAGNOSTIC)
-          data%out_mask = data%out_mask*scaling_factor
+          call write_log("scaling lat",GM_DIAGNOSTIC)
+          data%lat = data%lat*scaling_factor
        end if
     else
-    call write_log('Variable outmask was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable lat was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'lon',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%lon)) then
+       call write_log('  Loading lon')
+       status = distributed_get_var(NCI%id, varid, &
+            data%lon, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling lon",GM_DIAGNOSTIC)
+          data%lon = data%lon*scaling_factor
+       end if
+    else
+    call write_log('Variable lon was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -916,83 +730,41 @@ contains
 
     end if
 
-    status = parallel_inq_varid(NCI%id,'siced',varid)
-    if (status .eq. nf90_noerr) then
-    if (is_enabled(data%siced)) then
-       call write_log('  Loading siced')
-       status = distributed_get_var(NCI%id, varid, &
-            data%siced, (/1,1,infile%current_time/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
-       if (status.ne.NF90_NOERR) then
-          scaling_factor = 1.0d0
-       end if
-       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
-          call write_log("scaling siced",GM_DIAGNOSTIC)
-          data%siced = data%siced*scaling_factor
-       end if
-    else
-    call write_log('Variable siced was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
-    end if
+  end subroutine glad_io_read
 
-    end if
-
-    status = parallel_inq_varid(NCI%id,'snowd',varid)
-    if (status .eq. nf90_noerr) then
-    if (is_enabled(data%snowd)) then
-       call write_log('  Loading snowd')
-       status = distributed_get_var(NCI%id, varid, &
-            data%snowd, (/1,1,infile%current_time/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
-       if (status.ne.NF90_NOERR) then
-          scaling_factor = 1.0d0
-       end if
-       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
-          call write_log("scaling snowd",GM_DIAGNOSTIC)
-          data%snowd = data%snowd*scaling_factor
-       end if
-    else
-    call write_log('Variable snowd was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
-    end if
-
-    end if
-
-  end subroutine glint_io_read
-
-  subroutine glint_io_checkdim(infile,model,data)
+  subroutine glad_io_checkdim(infile,model,data)
     ! check if dimension sizes in file match dims of model
     use parallel
     use glimmer_log
     use glimmer_ncdf
     use glide_types
-    use glint_type
+    use glad_type
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
     type(glide_global_type) :: model
-    type(glint_instance), optional :: data
+    type(glad_instance), optional :: data
 
     integer status,dimid,dimsize
     character(len=150) message
 
     ! check dimensions
-  end subroutine glint_io_checkdim
+  end subroutine glad_io_checkdim
 
   !*****************************************************************************
   ! calculating time averages
   !*****************************************************************************  
 #ifdef HAVE_AVG
-  subroutine glint_avg_accumulate(outfile,data,model)
+  subroutine glad_avg_accumulate(outfile,data,model)
     use parallel
     use glide_types
-    use glint_type
+    use glad_type
     use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
     type(glide_global_type) :: model
-    type(glint_instance) :: data
+    type(glad_instance) :: data
 
     ! local variables
     real(dp) :: factor
@@ -1002,16 +774,16 @@ contains
     outfile%total_time = outfile%total_time + model%numerics%tinc
     factor = model%numerics%tinc
 
-  end subroutine glint_avg_accumulate
+  end subroutine glad_avg_accumulate
 
-  subroutine glint_avg_reset(outfile,data)
+  subroutine glad_avg_reset(outfile,data)
     use parallel
-    use glint_type
+    use glad_type
     use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
-    type(glint_instance) :: data
+    type(glad_instance) :: data
 
     ! local variables
     integer status, varid
@@ -1019,7 +791,7 @@ contains
     ! reset total time
     outfile%total_time = 0.d0
 
-  end subroutine glint_avg_reset
+  end subroutine glad_avg_reset
 #endif
 
   !*********************************************************************
@@ -1046,203 +818,49 @@ contains
   !*********************************************************************
   ! lots of accessor subroutines follow
   !*********************************************************************
-  subroutine glint_get_ablt(data,outarray)
+  subroutine glad_get_lat(data,outarray)
     use glimmer_scales
     use glimmer_paramets
-    use glint_type
+    use glad_type
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     real(dp), dimension(:,:), intent(out) :: outarray
 
-    outarray = data%ablt
-  end subroutine glint_get_ablt
+    outarray = data%lat
+  end subroutine glad_get_lat
 
-  subroutine glint_set_ablt(data,inarray)
+  subroutine glad_set_lat(data,inarray)
     use glimmer_scales
     use glimmer_paramets
-    use glint_type
+    use glad_type
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     real(dp), dimension(:,:), intent(in) :: inarray
 
-    data%ablt = inarray
-  end subroutine glint_set_ablt
+    data%lat = inarray
+  end subroutine glad_set_lat
 
-  subroutine glint_get_arng(data,outarray)
+  subroutine glad_get_lon(data,outarray)
     use glimmer_scales
     use glimmer_paramets
-    use glint_type
+    use glad_type
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     real(dp), dimension(:,:), intent(out) :: outarray
 
-    outarray = data%arng
-  end subroutine glint_get_arng
+    outarray = data%lon
+  end subroutine glad_get_lon
 
-  subroutine glint_set_arng(data,inarray)
+  subroutine glad_set_lon(data,inarray)
     use glimmer_scales
     use glimmer_paramets
-    use glint_type
+    use glad_type
     implicit none
-    type(glint_instance) :: data
+    type(glad_instance) :: data
     real(dp), dimension(:,:), intent(in) :: inarray
 
-    data%arng = inarray
-  end subroutine glint_set_arng
-
-  subroutine glint_get_global_orog(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%global_orog
-  end subroutine glint_get_global_orog
-
-  subroutine glint_set_global_orog(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%global_orog = inarray
-  end subroutine glint_set_global_orog
-
-  subroutine glint_get_inmask(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%downs%lmask
-  end subroutine glint_get_inmask
-
-  subroutine glint_set_inmask(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%downs%lmask = inarray
-  end subroutine glint_set_inmask
-
-  subroutine glint_get_local_orog(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%local_orog
-  end subroutine glint_get_local_orog
-
-  subroutine glint_set_local_orog(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%local_orog = inarray
-  end subroutine glint_set_local_orog
-
-  subroutine glint_get_outmask(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%out_mask
-  end subroutine glint_get_outmask
-
-  subroutine glint_set_outmask(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%out_mask = inarray
-  end subroutine glint_set_outmask
-
-  subroutine glint_get_prcp(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%prcp
-  end subroutine glint_get_prcp
-
-  subroutine glint_set_prcp(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%prcp = inarray
-  end subroutine glint_set_prcp
-
-  subroutine glint_get_siced(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%siced
-  end subroutine glint_get_siced
-
-  subroutine glint_set_siced(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%siced = inarray
-  end subroutine glint_set_siced
-
-  subroutine glint_get_snowd(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%snowd
-  end subroutine glint_get_snowd
-
-  subroutine glint_set_snowd(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glint_type
-    implicit none
-    type(glint_instance) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%snowd = inarray
-  end subroutine glint_set_snowd
+    data%lon = inarray
+  end subroutine glad_set_lon
 
 
-end module glint_io
+end module glad_io

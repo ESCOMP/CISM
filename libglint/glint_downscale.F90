@@ -34,7 +34,7 @@
   ! Much of the actual work is done at a lower level, in glint_interp.F90.
 
   use glint_type
-  use glint_constants
+  use glad_constants
   use glimmer_global, only: dp
 
   implicit none
@@ -100,7 +100,7 @@ contains
                                     topo_g,     gmask)
  
     use glimmer_paramets, only: thk0, GLC_DEBUG
-    use glint_constants, only: lapse
+    use glad_constants, only: lapse
     use glint_type
     use glint_interp, only: interp_to_local, copy_to_local
     use glimmer_log
@@ -272,7 +272,7 @@ contains
     ! to a GCM that provides the surface mass balance and temperature
 
     use glimmer_coordinates
-    use glint_constants, only: years2hours
+    use glad_constants, only: years2hours
 
     type(glint_mbc)        :: params      ! mass balance parameters
     type(coordsystem_type) :: lgrid       ! local grid
@@ -343,7 +343,7 @@ contains
 
   subroutine glint_average_input_gcm(params, dt, acab, artm)
 
-    use glint_constants, only: hours2years
+    use glad_constants, only: hours2years
 
     type(glint_mbc)  :: params
     integer,                intent(in)    :: dt     !> mbal accumulation time (hours)

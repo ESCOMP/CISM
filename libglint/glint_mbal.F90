@@ -65,7 +65,7 @@ contains
 
     use glimmer_config
     use glimmer_log
-    use glint_constants
+    use glad_constants
 
     ! Initialise mass-balance schemes
 

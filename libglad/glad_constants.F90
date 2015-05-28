@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glint_constants.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glad_constants.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! 
@@ -28,7 +28,7 @@
 #include "config.inc"
 #endif
 
-module glint_constants
+module glad_constants
 
   use glimmer_global, only: dp
   use glimmer_physcon, only: pi
@@ -64,7 +64,7 @@ module glint_constants
 
 contains
 
-  subroutine glint_set_year_length(daysinyear)
+  subroutine glad_set_year_length(daysinyear)
 
     integer, intent(in) :: daysinyear
 
@@ -72,6 +72,6 @@ contains
     years2hours = days2hours*days_in_year 
     hours2years = 1.d0/years2hours      
 
-  end subroutine glint_set_year_length
+  end subroutine glad_set_year_length
 
-end module glint_constants
+end module glad_constants

@@ -35,13 +35,6 @@ echo "  --creating glide_io.F90"
 cp $CISM_SOURCE_DIR/libglide/glide_vars.def .
 python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glide_vars.def ncdf_template.F90.in
 
-#echo "  --creating glint_io.F90 and glint_mbal_io.F90 "
-#cp $CISM_SOURCE_DIR/libglint/glint_vars.def .
-#cp $CISM_SOURCE_DIR/libglint/glint_mbal_vars.def .
-#python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glint_vars.def ncdf_template.F90.in
-#python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glint_mbal_vars.def ncdf_template.F90.in
-
-
 #echo "  --creating eis_io.F90"
 #cp $CISM_SOURCE_DIR/example-drivers/eis/src/eis_vars.def .
 #python ../../../utils/build/generate_ncvars.py eis_vars.def ncdf_template.F90.in

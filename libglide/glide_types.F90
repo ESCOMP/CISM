@@ -773,9 +773,6 @@ module glide_types
      real(dp),dimension(:,:),pointer :: calving   => null() !> Calving flux 
                                                             !    (scaled as mass balance, thickness, etc)
 
-     !TODO - lati and loni are not currently used.  Are they needed?
-     real(dp),dimension(:,:),pointer :: lati     => null() !> Latitudes of model grid points 
-     real(dp),dimension(:,:),pointer :: loni     => null() !> Longitudes of model grid points
      real(dp) :: eus = 0.d0                                !> eustatic sea level
   end type glide_climate
 
@@ -1294,8 +1291,6 @@ contains
     !> \begin{itemize}
     !> \item \texttt{acab(ewn,nsn))}
     !> \item \texttt{artm(ewn,nsn))}
-    !> \item \texttt{lati(ewn,nsn))}
-    !> \item \texttt{loni(ewn,nsn))}
     !> \end{itemize}
 
     !> In \texttt{model\%geomderv}:
@@ -1546,8 +1541,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%calving)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%lati)     
-    call coordsystem_allocate(model%general%ice_grid, model%climate%loni)
 
     ! matrix solver arrays
 
@@ -1859,10 +1852,6 @@ contains
         deallocate(model%climate%artm)
     if (associated(model%climate%calving)) &
         deallocate(model%climate%calving)
-    if (associated(model%climate%lati)) &
-        deallocate(model%climate%lati)
-    if (associated(model%climate%loni)) &
-        deallocate(model%climate%loni)
 
     ! matrix solver arrays
 

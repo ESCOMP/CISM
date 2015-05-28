@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glint_restart_gcm.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glad_restart_gcm.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -26,10 +26,10 @@
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
- module glint_restart_gcm
+ module glad_restart_gcm
 
 !BOP
-! !MODULE: glint_restart_gcm
+! !MODULE: glad_restart_gcm
 
 ! !DESCRIPTION:
 !  Contains routines for specialized restarts called by GCMs
@@ -44,7 +44,7 @@
 
 ! !PUBLIC MEMBER FUNCTIONS:
 
-   public :: glint_read_restart_gcm
+   public :: glad_read_restart_gcm
 
 !----------------------------------------------------------------------
 !
@@ -61,10 +61,10 @@
 
 !***********************************************************************
 !BOP
-! !IROUTINE: glint_read_restart_gcm
+! !IROUTINE: glad_read_restart_gcm
 ! !INTERFACE:
 
-   subroutine glint_read_restart_gcm(model, restart_filename)
+   subroutine glad_read_restart_gcm(model, restart_filename)
 
     use glide_types
     implicit none
@@ -86,10 +86,10 @@
     ! note that the model will do the actual reading of data
     model%funits%in_first => ic
 
-  end subroutine glint_read_restart_gcm
+  end subroutine glad_read_restart_gcm
 
 !-----------------------------------------------------------------------
 
-end module glint_restart_gcm
+end module glad_restart_gcm
 
 !-----------------------------------------------------------------------
