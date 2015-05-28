@@ -488,7 +488,7 @@ contains
 
     ! Output arrays do NOT have halo cells
 
-    use parallel, only : parallel_convert_haloed_to_nonhaloed
+    use parallel, only : own_ewn, own_nsn, parallel_convert_haloed_to_nonhaloed
     
     ! Subroutine argument declarations --------------------------------------------------------
 
