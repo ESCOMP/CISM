@@ -335,7 +335,7 @@ contains
 
    if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
       beta(:,:) = beta(:,:) * f_ground(:,:)
-   else    ! set beta = 1 where Glide mask say the ice is floating
+   else    ! set beta = 0 where Glide mask says the ice is floating
       do ns = 1, nsn-1
          do ew = 1, ewn-1 
             if (GLIDE_IS_FLOAT(mask(ew,ns))) then

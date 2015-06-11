@@ -389,6 +389,7 @@ module glissade_therm
          ice_mask_temp, &! = 1 where ice temperature is computed (thck > thklim_temp), else = 0
          floating_mask   ! = 1 where ice is floating, else = 0
 
+    !TODO - ucondflx cannot be strictly local because it is needed for coupling
     real(dp), dimension(ewn,nsn) ::  &
          ucondflx,     & ! conductive heat flux (W/m^2) at upper sfc (positive down)
          lcondflx,     & ! conductive heat flux (W/m^2) at lower sfc (positive down)

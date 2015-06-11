@@ -898,7 +898,8 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: waterfrac => null() !> fractional water content in layer (0 <= waterfrac <= 1)
     real(dp),dimension(:,:,:),pointer :: enthalpy => null()  !> specific enthalpy in layer (J m-3)
                                                              !> = rhoi * Ci * T for cold ice
-    !TODO - Remove ucondflx, lcondflx, dissipcol; make these local to glissade_therm
+    !TODO - Remove ucondflx, lcondflx, dissipcol and make these local to glissade_therm?
+    !       Probably cannot remove ucondflx because it may be needed for coupling.
     real(dp),dimension(:,:),  pointer :: ucondflx => null()  !> conductive heat flux (W/m^2) at upper sfc (positive down)
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
