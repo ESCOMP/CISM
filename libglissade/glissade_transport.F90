@@ -722,6 +722,8 @@
       ! Estimate diffusivity using the relation that the 2-d flux Q=-D grad h and Q=UH, 
       ! where h is surface elevation, D is diffusivity, U is 2-d velocity vector, and H is thickness
       ! Solving for D = UH/-grad h
+      !TODO - Modify this loop to consider only grounded ice.  The diffusive CFL computed for floating ice
+      !       usually is unnecessarily small for HO problems.
 
       allowable_dt_diff = 1.0d20  ! start with a huge value
       indices_diff(:) = 1 ! Initialize these to something, on the off-chance they never get set... (e.g., no ice on this processor)
@@ -774,7 +776,7 @@
           call broadcast(indices_adv(3), proc=procnum)
           ! indices_adv now has i,j on the global grid for the limiting proc's location
 
-          write(dt_string,'(f12.5)') allowable_dt_adv
+          write(dt_string,'(f12.6)') allowable_dt_adv
           write(xpos_string,'(i12)') indices_adv(2)
           write(ypos_string,'(i12)') indices_adv(3)
           write(message,*) 'Advective CFL violation!  Maximum allowable time step for advective CFL condition is ' &
@@ -795,7 +797,7 @@
           call broadcast(indices_diff(2), proc=procnum)
           ! indices_diff now has i,j on the global grid for the limiting proc's location
 
-          write(dt_string,'(f12.5)') allowable_dt_diff
+          write(dt_string,'(f12.6)') allowable_dt_diff
           write(xpos_string,'(i12)') indices_diff(1)
           write(ypos_string,'(i12)') indices_diff(2)
           write(message,*) 'Diffusive CFL violation!  Maximum allowable time step for diffusive CFL condition is ' &
@@ -1066,7 +1068,7 @@
                ! new tracer values in top layer
                tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
 
-            elseif (acab(i,j) < 0.d0) then   ! ablation in one or mor layers            
+            elseif (acab(i,j) < 0.d0) then   ! ablation in one or more layers            
 
                ! reduce ice thickness (tracer values will not change)
 

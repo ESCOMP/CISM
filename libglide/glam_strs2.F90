@@ -3132,7 +3132,7 @@ subroutine findcoefstr(ewn,  nsn,   upn,            &
                  beta_const * tau0/(vel0*scyr),      &   ! Pa yr/m
                  mintauf * tau0,                     &   ! Pa
                  basal_physics,                      &
-                 flwa(upn,:,:) * vis0*scyr,          &
+                 flwa(upn,:,:) * vis0*scyr,          &   ! Pa^{-n} yr^{-1}
                  thck,                               &
                  mask,                               &
                  beta )
@@ -3419,7 +3419,8 @@ subroutine bodyset(ew,  ns,  up,           &
            elseif( whichbabc == HO_BABC_CONSTANT     .or. whichbabc == HO_BABC_SIMPLE         .or.  &
                    whichbabc == HO_BABC_YIELD_PICARD .or. whichbabc == HO_BABC_BETA_BWAT .or.  &
                    whichbabc == HO_BABC_LARGE_BETA   .or. whichbabc == HO_BABC_EXTERNAL_BETA .or. &
-                   whichbabc == HO_BABC_POWERLAW     .or. whichbabc == HO_BABC_COULOMB_FRICTION) then
+                   whichbabc == HO_BABC_POWERLAW     .or. whichbabc == HO_BABC_COULOMB_FRICTION .or. &
+                   whichbabc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
                 bcflag = (/1,1/)              ! flag for specififed stress at bed: Tau_zx = beta * u_bed,
                                               ! where beta is MacAyeal-type traction parameter
            end if   
@@ -3633,7 +3634,8 @@ subroutine bodyset(ew,  ns,  up,           &
            elseif( whichbabc == HO_BABC_CONSTANT     .or. whichbabc == HO_BABC_SIMPLE         .or.  &
                    whichbabc == HO_BABC_YIELD_PICARD .or. whichbabc == HO_BABC_BETA_BWAT .or.  &
                    whichbabc == HO_BABC_LARGE_BETA   .or. whichbabc == HO_BABC_EXTERNAL_BETA .or. &
-                   whichbabc == HO_BABC_POWERLAW     .or. whichbabc == HO_BABC_COULOMB_FRICTION) then
+                   whichbabc == HO_BABC_POWERLAW     .or. whichbabc == HO_BABC_COULOMB_FRICTION .or. &
+                   whichbabc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
                 bcflag = (/1,1/)              ! flag for specififed stress at bed: Tau_zx = beta * u_bed,
                                               ! where beta is MacAyeal-type traction parameter
            end if
