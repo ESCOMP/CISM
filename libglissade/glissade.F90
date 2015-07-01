@@ -401,7 +401,6 @@ contains
     use glissade_temp, only: glissade_temp_driver
     use glissade_therm, only: glissade_therm_driver, glissade_temp2enth, glissade_enth2temp
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
-    use glide_ground, only: glide_marinlim
     use glide_grid_operators
     use isostasy
     use glissade_enthalpy
@@ -409,6 +408,7 @@ contains
     use glissade_grid_operators
     use glide_thck, only: glide_calclsrf
     use glide_bwater
+    use glissade_calving, only: glissade_calve_ice
 
     implicit none
 
@@ -634,7 +634,8 @@ contains
        !       * dew, dns, thck (m)
        !       * uvel, vvel, acab, blmt (m/s)
        !       Since thck has intent(inout), we create and pass a temporary array with units of m.
-       ! TODO - Pass ice age as tracer 2
+       ! TODO - Pass ice age and calving damage
+       !        This may require a setup module and a tracer field
 
        do sc = 1, model%numerics%subcyc
           if (model%numerics%subcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle ',sc
@@ -801,15 +802,14 @@ contains
 
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
-    ! --- Calculate updated mask because marinlim calculation needs a mask.
+    ! --- Calculate updated mask because calving calculation needs a mask.
 
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
                         model%climate%eus,    model%geometry%thkmask)
 
-    !TODO - Look at marinlim more carefully and see which halo updates are necessary.
-    !       It appears that marinlim only needs the halo of thkmask for case 5 (which was removed).  
+    !TODO - Look at glide_calve_ice more carefully and see which halo updates are necessary, if any.
     !
     !       glide_set_mask includes a halo update of model%geometry%thkmask; remove this one?
     !       Do we need a halo update for relx? If so, should this be done at initialization?
@@ -821,23 +821,22 @@ contains
     ! Remove ice which is either floating, or is present below prescribed depth, 
     ! depending on value of whichmarn
     ! ------------------------------------------------------------------------ 
+    !TODO - Add option to use glissade_calve_ice, then remove call to glide_calve_ice
 
-    call glide_marinlim(model%options%whichmarn, &
-                        model%geometry%thck,  &
-                        model%isostasy%relx,      &
-                        model%geometry%topg,  &
-                        model%geometry%thkmask,    &
-                        model%numerics%mlimit,     &
-                        model%numerics%calving_fraction, &
-                        model%climate%eus,         &
-                        model%climate%calving,  &
-                        model%ground, &
-                        model%numerics%dew,    &
-                        model%numerics%dns, &
-                        model%general%nsn, &
-                        model%general%ewn)
+    !WHL - debug
+    print*, 'Call glissade_calve_ice, whichcalving =', model%options%whichcalving
 
-    !TODO: Think about what halo updates are needed after glide_marinlim. Just thck and thkmask?
+    call glissade_calve_ice(model%options%whichcalving, &
+                            model%geometry%thck,        &
+                            model%isostasy%relx,        &
+                            model%geometry%topg,        &
+                            model%geometry%thkmask,     &
+                            model%calving%marine_limit,     &
+                            model%calving%calving_fraction, &
+                            model%climate%eus,          &
+                            model%calving%calving_thck)
+
+    !TODO: Think about what halo updates are needed after calving. Just thck and thkmask?
 
     ! halo updates
     call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calc_lsrf
@@ -847,7 +846,7 @@ contains
     !        so a call here is not needed for the velo diagnostic solve.
     !       The question is whether it is needed for the isostasy.
 
-    ! --- marinlim adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
+    ! --- glissade_calve_ice adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
     ! --- This time we want to calculate the optional arguments iarea and ivol because thickness 
     ! --- will not change further during this time step.
 

@@ -281,8 +281,16 @@ coordinates:   lon lat
 dimensions:    time, y1, x1
 units:         meter
 long_name:     ice margin calving
-data:          data%climate%calving
+data:          data%calving%calving_thck
 factor:        thk0
+coordinates:   lon lat
+
+[damage]
+dimensions:    time, y1, x1
+units:         unitless [0,1]
+long_name:     ice damage
+data:          data%calving%damage
+load:          1
 coordinates:   lon lat
 
 [ivol]

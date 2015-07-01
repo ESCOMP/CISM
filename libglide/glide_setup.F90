@@ -181,7 +181,11 @@ contains
     model%numerics%dew = model%numerics%dew / len0
     model%numerics%dns = model%numerics%dns / len0
 
-    model%numerics%mlimit = model%numerics%mlimit / thk0
+    !TODO - Scale eus for calving?
+    !       I think the scaling for eus (like relx and topg) is handled automatically in glide_io.F90.
+    !       Would need to handle eus scaling separately if reading from config file.
+
+    model%calving%marine_limit = model%calving%marine_limit / thk0
 
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
     model%numerics%periodic_offset_ns = model%numerics%periodic_offset_ns / thk0
@@ -557,7 +561,7 @@ contains
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
-    call GetValue(section,'marine_margin',model%options%whichmarn)
+    call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'topo_is_relaxed',model%options%whichrelaxed)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
@@ -715,13 +719,15 @@ contains
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
-    character(len=*), dimension(0:5), parameter :: marine_margin = (/ &
+    !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
+    character(len=*), dimension(0:6), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
          'relaxed bedrock threshold       ', &
          'present bedrock threshold       ', &
-         'Huybrechts grounding line scheme' /)
+         'Huybrechts grounding-line scheme', &
+         'damage-based calving scheme     ' /)
 
     character(len=*), dimension(0:1), parameter :: vertical_integration = (/ &
          'standard     ', &
@@ -970,11 +976,18 @@ contains
       call write_log('Ocean penetration basal_water option is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
-    if (model%options%whichmarn < 0 .or. model%options%whichmarn >= size(marine_margin)) then
+    if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(marine_margin)) then
        call write_log('Error, marine_margin out of range',GM_FATAL)
     end if
-    write(message,*) 'marine_margin           : ', model%options%whichmarn, marine_margin(model%options%whichmarn)
+    write(message,*) 'marine_margin           : ', model%options%whichcalving, marine_margin(model%options%whichcalving)
     call write_log(message)
+
+    ! calving damage option is supported for Glissade dycore only
+    if (model%options%whichdycore /= DYCORE_GLISSADE) then
+       if (model%options%whichcalving == CALVING_DAMAGE) then
+          call write_log('Error, calving damage model is supported for Glissade dycore only', GM_FATAL)
+       endif
+    endif
 
     if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(slip_coeff)) then
        call write_log('Error, slip_coeff out of range',GM_FATAL)
@@ -1232,8 +1245,9 @@ contains
     call glimmer_set_msg_level(loglevel)
     call GetValue(section,'ice_limit',        model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',   model%numerics%thklim_temp)
-    call GetValue(section,'marine_limit',     model%numerics%mlimit)
-    call GetValue(section,'calving_fraction', model%numerics%calving_fraction)
+    call GetValue(section,'marine_limit',     model%calving%marine_limit)
+    call GetValue(section,'calving_fraction', model%calving%calving_fraction)
+    call GetValue(section,'damage_threshold', model%calving%damage_threshold)
     call GetValue(section,'geothermal',       model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
@@ -1293,7 +1307,7 @@ contains
     call write_log('Parameters')
     call write_log('----------')
 
-    write(message,*) 'ice limit for dynamics (m)    : ',model%numerics%thklim
+    write(message,*) 'ice limit for dynamics (m)    : ', model%numerics%thklim
     call write_log(message)
 
     !Note: The Glissade dycore is known to crash for thklim = 0, but has not
@@ -1305,15 +1319,23 @@ contains
     endif
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then
-       write(message,*) 'ice limit for temperature (m) : ',model%numerics%thklim_temp
+       write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
        call write_log(message)
     endif
 
-    write(message,*) 'marine depth limit (m)        : ',model%numerics%mlimit
-    call write_log(message)
+    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+       write(message,*) 'ice fraction lost due to calving : ', model%calving%calving_fraction
+       call write_log(message)
+    end if
 
-    if (model%options%whichmarn == MARINE_FLOAT_FRACTION) then
-       write(message,*) 'ice fraction lost due to calving : ', model%numerics%calving_fraction
+    if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
+        model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
+       write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_DAMAGE) then
+       write(message,*) 'calving damage threshold: ', model%calving%damage_threshold
        call write_log(message)
     end if
 
