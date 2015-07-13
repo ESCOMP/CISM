@@ -830,7 +830,7 @@
 
     integer ::  & 
        counter,         & ! outer (nonlinear) iteration counter
-       niters             ! linear iteration count from sparse_easy_solve
+       niters             ! linear iteration count
 
     integer :: nNonzeros  ! number of nonzero matrix entries
 

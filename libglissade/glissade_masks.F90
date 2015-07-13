@@ -42,16 +42,26 @@
     use glimmer_physcon, only: rhoi, rhoo
     use glissade_grid_operators     
     use glide_types  ! grounding line options
-!    use parallel
+    use parallel
 
     implicit none
 
-    private
-    public :: glissade_get_masks, glissade_grounded_fraction
+    ! All variables, functions and subroutines in this module are public
+
+    ! public parameters
+
+    ! integer mask values
+    integer, parameter :: mask_value_land          =  1   ! topg >= eus
+    integer, parameter :: mask_value_active_ice    =  2   ! thick enough to be active
+    integer, parameter :: mask_value_floating_ice  =  4   ! active and floating
+    integer, parameter :: mask_value_margin        =  8   ! margin between active ice and inactive/zero ice
+    integer, parameter :: mask_value_ice           =  16  ! giving this the highest value so it is obvious during visualization
 
   contains
 
 !****************************************************************************
+
+  !TODO - Remove this subroutine and replace with glissade_calculate_masks.
 
   subroutine glissade_get_masks(nx,          ny,         &
                                 thck,        topg,       &
@@ -59,11 +69,12 @@
                                 ice_mask,    floating_mask, &
                                 ocean_mask,  land_mask)
                                   
-
     !----------------------------------------------------------------
-    ! Compute various masks for Glissade dycore.
+    ! Compute various masks for the Glissade dycore.
     !----------------------------------------------------------------
     
+    use parallel  ! halo update for ocean_edge_mask
+
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -118,7 +129,7 @@
           endif
 
           if (present(floating_mask)) then
-             if (topg(i,j) - eus < (-rhoi/rhoo)*thck(i,j) .and. thck(i,j) > thklim) then
+             if (topg(i,j) - eus < (-rhoi/rhoo)*thck(i,j) .and. ice_mask(i,j) == 1) then
                 floating_mask(i,j) = 1
              else
                 floating_mask(i,j) = 0
@@ -132,7 +143,7 @@
                 land_mask(i,j) = 0
              endif
           endif
-
+          
        enddo
     enddo
 
@@ -669,6 +680,175 @@
     end select
 
   end subroutine glissade_grounded_fraction
+
+!****************************************************************************
+
+  subroutine glissade_calculate_masks(nx,            ny,             &
+                                      thck,                          &
+                                      topg,          eus,            &
+                                      thklim_ground, thklim_float,   &
+                                      cell_mask)
+                                  
+    !----------------------------------------------------------------
+    ! Compute an integer mask in each grid cell for the Glissade dycore.
+    !----------------------------------------------------------------
+    
+    use parallel
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::   &
+         nx,  ny                ! number of grid cells in each direction
+
+    ! Preferred dimensions are meters, but this subroutine will work for
+    ! any length units as long as thck, topg, eus and thklim have the same units.
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck,                 &! ice thickness
+         topg                   ! elevation of bedrock topography
+
+    real(dp), intent(in) ::  &
+         eus,                  &! eustatic sea level, = 0. by default
+         thklim_ground,        &! min thickness for active grounded ice (land-based or marine)
+         thklim_float           ! min thickness for active floating ice
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         cell_mask              ! integer mask that encodes information about each cell 
+
+    real(dp) :: &
+         h_flotation            ! flotation thickness, (rhoo/rhoi)*(eus-topg)
+
+    integer :: i, j
+
+    ! initialize
+    cell_mask(:,:) = 0
+
+    ! identify cells with ice (active or not)
+
+    where (thck > 0.0d0)
+       cell_mask = ior(cell_mask, mask_value_ice)
+    endwhere
+
+    ! identify land cells, active ice, floating ice
+
+    do j = 1, ny
+       do i = 1, nx
+          if (topg(i,j) >= eus) then  ! land cell
+             cell_mask(i,j) = ior(cell_mask(i,j), mask_value_land)
+             if (thck(i,j) > thklim_ground) then   ! active
+                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
+             endif
+          else  ! marine cell, topg < eus
+             h_flotation = (rhoo/rhoi)*(eus - topg(i,j))  ! flotation thickness
+             if (thck(i,j) < h_flotation) then  ! floating
+                if (thck(i,j) > thklim_float) then  ! active
+                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
+                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_floating_ice)
+                endif
+             else   ! grounded marine ice
+                if (thck(i,j) > thklim_ground) then  ! active
+                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
+                endif
+             endif  ! floating
+          endif  ! land
+       enddo  ! i
+    enddo  ! j
+
+    ! identify cells on the margin between active ice and inactive/zero ice
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (mask_is_active_ice(cell_mask(i,j))) then
+             if (.not.mask_is_active_ice(cell_mask(i-1,j)) .or. .not.mask_is_active_ice(cell_mask(i+1,j)) .or.  &
+                 .not.mask_is_active_ice(cell_mask(i,j-1)) .or. .not.mask_is_active_ice(cell_mask(i,j+1))) then
+                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_margin)
+             endif
+          else   ! inactive or zero ice
+             if (mask_is_active_ice(cell_mask(i-1,j)) .or. mask_is_active_ice(cell_mask(i+1,j)) .or.  &
+                 mask_is_active_ice(cell_mask(i,j-1)) .or. mask_is_active_ice(cell_mask(i,j+1))) then
+                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_margin)
+             endif
+          endif  ! active
+       enddo  ! i
+    enddo  ! j
+
+    ! halo update, since margin mask was not calculated for all cells
+
+    call parallel_halo(cell_mask)
+
+  end subroutine glissade_calculate_masks
+
+!****************************************************************************
+
+! The following logical functions will decode bit masks
+
+!****************************************************************************
+
+  function mask_is_land(mask)
+
+    integer, intent(in) :: mask   ! mask with encoded info
+    logical :: mask_is_land
+
+    mask_is_land = iand(mask, mask_value_land) == mask_value_land
+    
+  end function mask_is_land
+
+!****************************************************************************
+
+  function mask_is_ice(mask)
+
+    integer, intent(in) :: mask   ! mask with encoded info
+    logical :: mask_is_ice
+
+    mask_is_ice = iand(mask, mask_value_ice) == mask_value_ice
+    
+  end function mask_is_ice
+
+!****************************************************************************
+
+  function mask_is_active_ice(mask)
+
+    integer, intent(in) :: mask   ! mask with encoded info
+    logical :: mask_is_active_ice
+
+    mask_is_active_ice = iand(mask, mask_value_active_ice) == mask_value_active_ice
+    
+  end function mask_is_active_ice
+
+!****************************************************************************
+
+  function mask_is_floating_ice(mask)
+
+    integer, intent(in) :: mask   ! mask with encoded info
+    logical :: mask_is_floating_ice
+
+    mask_is_floating_ice = iand(mask, mask_value_floating_ice) == mask_value_floating_ice
+    
+  end function mask_is_floating_ice
+
+!****************************************************************************
+
+  function mask_is_margin(mask)
+
+    integer, intent(in) :: mask   ! mask with encoded info
+    logical :: mask_is_margin
+
+    mask_is_margin = iand(mask, mask_value_margin) == mask_value_margin
+    
+  end function mask_is_margin
+
+!****************************************************************************
+
+  function mask_is_ocean(mask)
+
+    integer, intent(in) :: mask   ! mask with encoded info
+    logical :: mask_is_ocean
+
+    mask_is_ocean = (.not.mask_is_land(mask) .and. .not.mask_is_active_ice(mask))
+    
+  end function mask_is_ocean
 
 !****************************************************************************
 

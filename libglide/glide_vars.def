@@ -286,11 +286,18 @@ factor:        thk0
 coordinates:   lon lat
 
 [damage]
-dimensions:    time, y1, x1
+dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]
 long_name:     ice damage
 data:          data%calving%damage
 load:          1
+coordinates:   lon lat
+
+[damage_column]
+dimensions:    time, y1, x1
+units:         unitless [0,1]
+long_name:     vertically integrated ice damage
+data:          data%calving%damage_column
 coordinates:   lon lat
 
 [ivol]

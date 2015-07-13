@@ -168,7 +168,7 @@ contains
 
     model%numerics%dttem = model%numerics%ntem * model%numerics%tinc   
 
-    ! convert dt and dttem to scaled time units
+    ! convert dt and dttem from yr to scaled time units
     model%numerics%dt     = model%numerics%tinc * scyr / tim0   
     model%numerics%dttem  = model%numerics%dttem * scyr / tim0   
 
@@ -182,10 +182,12 @@ contains
     model%numerics%dns = model%numerics%dns / len0
 
     !TODO - Scale eus for calving?
-    !       I think the scaling for eus (like relx and topg) is handled automatically in glide_io.F90.
+    !       Currently the scaling for eus (like relx and topg) is handled automatically in glide_io.F90.
     !       Would need to handle eus scaling separately if reading from config file.
 
     model%calving%marine_limit = model%calving%marine_limit / thk0
+    model%calving%calving_minthck = model%calving%calving_minthck / thk0
+    model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
 
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
     model%numerics%periodic_offset_ns = model%numerics%periodic_offset_ns / thk0
@@ -562,6 +564,8 @@ contains
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
+    call GetValue(section,'calving_init',model%options%calving_init)
+    call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'topo_is_relaxed',model%options%whichrelaxed)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
@@ -720,14 +724,25 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
-    character(len=*), dimension(0:6), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:7), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
          'relaxed bedrock threshold       ', &
          'present bedrock threshold       ', &
          'Huybrechts grounding-line scheme', &
-         'damage-based calving scheme     ' /)
+         'ice thickness threshold         ', &
+         'damage-based calving scheme     ' /) 
+
+    character(len=*), dimension(0:1), parameter :: init_calving = (/ &
+         'no calving at initialization    ', &
+         'ice calves at initialization    ' /)
+
+    !TODO - Implement calving_domain = 2
+    character(len=*), dimension(0:2), parameter :: domain_calving = (/ &
+         'calving only at the ocean edge             ',  &
+         'calving in all cells where criterion is met',  &
+         'calving in cells connected to ocean edge   '/)
 
     character(len=*), dimension(0:1), parameter :: vertical_integration = (/ &
          'standard     ', &
@@ -982,10 +997,39 @@ contains
     write(message,*) 'marine_margin           : ', model%options%whichcalving, marine_margin(model%options%whichcalving)
     call write_log(message)
 
-    ! calving damage option is supported for Glissade dycore only
-    if (model%options%whichdycore /= DYCORE_GLISSADE) then
+    if (model%options%calving_init < 0 .or. model%options%calving_init >= size(init_calving)) then
+       call write_log('Error, calving_init out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_init            : ', model%options%calving_init, init_calving(model%options%calving_init)
+    call write_log(message)
+
+    if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(domain_calving)) then
+       call write_log('Error, calving_domain out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
+    call write_log(message)
+
+    ! unsupported calving options
+
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+       if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+          write(message,*) 'Warning, calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
+          call write_log(message)
+       endif
+    else   ! not Glissade
+       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+          call write_log('Error, calving thickness threshold model is supported for Glissade dycore only', GM_FATAL)
+       endif
        if (model%options%whichcalving == CALVING_DAMAGE) then
           call write_log('Error, calving damage model is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
+          write(message,*) 'Warning, calving domain can be selected for Glissade dycore only; user selection ignored'
+          call write_log(message)
+       endif
+       if (model%calving%calving_timescale > 0.0d0) then
+          write(message,*) 'Warning, calving timescale option suppored for Glissade dycore only; user selection ignored'
+          call write_log(message)
        endif
     endif
 
@@ -1247,6 +1291,8 @@ contains
     call GetValue(section,'ice_limit_temp',   model%numerics%thklim_temp)
     call GetValue(section,'marine_limit',     model%calving%marine_limit)
     call GetValue(section,'calving_fraction', model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',model%calving%calving_timescale)
+    call GetValue(section,'calving_minthck',  model%calving%calving_minthck)
     call GetValue(section,'damage_threshold', model%calving%damage_threshold)
     call GetValue(section,'geothermal',       model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
@@ -1334,10 +1380,20 @@ contains
        call write_log(message)
     endif
 
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
+       call write_log(message)
+    endif
+
     if (model%options%whichcalving == CALVING_DAMAGE) then
        write(message,*) 'calving damage threshold: ', model%calving%damage_threshold
        call write_log(message)
     end if
+
+    if (model%calving%calving_timescale >= 0.0d0) then
+       write(message,*) 'calving time scale (yr): ', model%calving%calving_timescale
+       call write_log(message)
+    endif
 
     write(message,*) 'ice density (kg/m^3)          : ', rhoi
     call write_log(message)

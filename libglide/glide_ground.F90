@@ -60,7 +60,7 @@ contains
 
     !TODO: Change mask to thkmask?  The argument passed in is model%geometry%thkmask.
 
-    integer,                intent(in)    :: whichcalving   !> calving option
+    integer,                intent(in)    :: whichcalving   !> option for calving law
     real(dp),dimension(:,:),intent(inout) :: thck           !> ice thickness
     real(dp),dimension(:,:),intent(in)    :: relx           !> relaxed bedrock topography
     real(dp),dimension(:,:),intent(in)    :: topg           !> present bedrock topography
@@ -105,7 +105,7 @@ contains
 
       ! if uncomment above mask update, then call parallel_halo(mask)
 
-    case(CALVING_RELX_THRESHOLD) ! Set thickness to zero if relaxed bedrock is below a given level
+    case(CALVING_RELX_THRESHOLD) ! Set thickness to zero if relaxed bedrock is below a given depth
 
        where (relx <= marine_limit+eus)
           calving_thck = thck
@@ -118,9 +118,6 @@ contains
           calving_thck = thck
           thck = 0.0d0
        end where
-       
-!WHL - Removed old case (5) based on recommendation from Jesse Johnson
-!      Then changed old case(7) to new case(5) to avoid a gap in the case numbering.
 
     ! Huybrechts grounding line scheme for Greenland initialization
 

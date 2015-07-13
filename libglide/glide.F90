@@ -399,39 +399,42 @@ contains
        model%velocity%ubas = model%velocity%uvel(model%general%upn,:,:)
        model%velocity%vbas = model%velocity%vvel(model%general%upn,:,:)
 
-    else
-       ! Only make the calculations on a cold start.
+    else   ! Only make the calculations on a cold start
 
     ! ------------------------------------------------------------------------ 
-    ! ***Part 1: Make geometry consistent with calving law, if necessary
+    ! ***Part 1: Make geometry consistent with calving law, if desired
     ! ------------------------------------------------------------------------       
 
-       !TODO - Not sure why the calving scheme is called in the Glide diagnostic subroutine
-       !       and not in the Glissade diagnostic subroutine.
-       ! ------------------------------------------------------------------------ 
-       ! Remove ice which is either floating, or is present below prescribed depth, 
-       ! depending on value of whichcalving
-       ! ------------------------------------------------------------------------ 
+       if (model%options%calving_init == CALVING_INIT_ON) then
+
+          !WHL - debug
+          print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
+
+          ! ------------------------------------------------------------------------ 
+          ! Remove ice which should calve, depending on the value of whichcalving
+          ! ------------------------------------------------------------------------ 
        
-       !  On a cold start, glide_calve_ice needs the mask to be calculated, but a call to 
-       !  glide_set_mask occurs in glide_initialise, so we should be set here without calling it again.
-
-       call glide_calve_ice(model%options%whichcalving, &
-                            model%geometry%thck,        &
-                            model%isostasy%relx,        &
-                            model%geometry%topg,        &
-                            model%geometry%thkmask,     &
-                            model%calving%marine_limit,     &
-                            model%calving%calving_fraction, &
-                            model%climate%eus,          &
-                            model%calving%calving_thck)
-
-       ! We now need to recalculate the mask because glide_calve_ice may have modified the geometry.
-       call glide_set_mask(model%numerics,                                &
-                           model%geometry%thck,  model%geometry%topg,     &
-                           model%general%ewn,    model%general%nsn,       &
-                           model%climate%eus,    model%geometry%thkmask,  &
-                           model%geometry%iarea, model%geometry%ivol)
+          !  Note: On a cold start, glide_calve_ice needs the mask to be calculated, but a call to 
+          !  glide_set_mask occurs in glide_initialise and does not need to be repeated here.
+          
+          call glide_calve_ice(model%options%whichcalving,     &
+                               model%geometry%thck,            &
+                               model%isostasy%relx,            &
+                               model%geometry%topg,            &
+                               model%geometry%thkmask,         &
+                               model%calving%marine_limit,     &
+                               model%calving%calving_fraction, &
+                               model%climate%eus,              &
+                               model%calving%calving_thck)
+          
+          ! We now need to recalculate the mask because glide_calve_ice may have modified the geometry.
+          call glide_set_mask(model%numerics,                                &
+                              model%geometry%thck,  model%geometry%topg,     &
+                              model%general%ewn,    model%general%nsn,       &
+                              model%climate%eus,    model%geometry%thkmask,  &
+                              model%geometry%iarea, model%geometry%ivol)
+          
+       endif  ! calving_init
 
        ! Compute total areas of grounded and floating ice
        call calc_iareaf_iareag(model%numerics%dew,    model%numerics%dns,     &
@@ -894,14 +897,14 @@ contains
     !TODO - Some arguments for glide_calve_ice may not be needed.
     !       Old glide includes only arguments through model%climate%calving.
 
-    call glide_calve_ice(model%options%whichcalving, &
-                         model%geometry%thck,        &
-                         model%isostasy%relx,        &
-                         model%geometry%topg,        &
-                         model%geometry%thkmask,     &
+    call glide_calve_ice(model%options%whichcalving,     &
+                         model%geometry%thck,            &
+                         model%isostasy%relx,            &
+                         model%geometry%topg,            &
+                         model%geometry%thkmask,         &
                          model%calving%marine_limit,     &
                          model%calving%calving_fraction, &
-                         model%climate%eus,          &
+                         model%climate%eus,              &
                          model%calving%calving_thck)
 
     ! Recalculate the mask following calving
