@@ -49,6 +49,8 @@ module glissade_calving
   !WHL - debug
   logical, parameter :: verbose_calving = .false.
   integer, parameter :: jtest = 3
+  logical, parameter :: remove_floating_islands = .false.  ! seems to be working, but turn off for now
+!!  logical, parameter :: remove_floating_islands = .true.  ! seems to be working, but turn off for now
 
 contains
 
@@ -99,8 +101,8 @@ contains
     real(dp), intent(in)                    :: calving_minthck   !> min thickness of ice at marine edge before it calves;
                                                                  !> used with which_ho_calving = CALVING_THCK_THRESHOLD
     
-!    real(dp), dimension(:,:,:), intent(inout)  :: damage            !> 3D scalar damage parameter  !WHL - debug - Tweak damage below
     real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
+!    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
     real(dp), dimension(:,:), intent(out)   :: damage_column     !> 2D vertically integrated scalar damage parameter
     real(dp), intent(in)                    :: damage_threshold  !> threshold value where ice is sufficiently damaged to calve
     real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
@@ -129,8 +131,8 @@ contains
          calving_domain_mask   ! = T in the domain where calving is allowed to occur (e.g., at ocean edge), else = F
 
     real(dp) :: &
-         float_fraction_calve  ! = calving_fraction for whichcalving = CALVING_FLOAT_FRACTION
-                               ! = 1.0 for whichcalving = CALVING_FLOAT_ZERO
+         float_fraction_calve  ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
+                               ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
    
     real(dp) :: &
          thklim_ground,      & ! min thickness for grounding ice to be active for purposes of calving
@@ -138,6 +140,11 @@ contains
 
     !WHL - debug
     integer :: sum_fill_local, sum_fill_global  ! number of filled cells
+
+    !WHL - debug
+    if (verbose_calving .and. main_task) then
+       print*, 'In glissade_calve_ice, which_calving =', which_calving
+    endif
 
     ! initialize
     calving_thck(:,:) = 0.d0
@@ -361,8 +368,6 @@ contains
           
           calving_domain_mask(:,:) = .false.
 
-          print*, 'calving domain: ocean connect'
-
           ! initialize 
           ! Assign the initial color to cells that meet the calving-law criteria and thus could calve,
           !  but only if they are connected to the ocean through other cells that meet the criteria.
@@ -387,8 +392,6 @@ contains
  
 !          maxcount_fill = 1
           maxcount_fill = max(ewtasks,nstasks)
-
-          print*, 'maxcount_fill =', maxcount_fill
 
           do count = 1, maxcount_fill
 
@@ -435,8 +438,6 @@ contains
 
              endif  ! count = 1
 
-             !WHL - debug
-             print*, 'glissade_fill, count =', count
              sum_fill_local = 0
              do j = nhalo+1, ny-nhalo
                 do i = nhalo+1, nx-nhalo
@@ -445,7 +446,10 @@ contains
              enddo
 
              sum_fill_global = parallel_reduce_sum(sum_fill_local)
-             print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
+
+             if (verbose_calving) then
+                print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
+             endif
 
           enddo  ! count
 
@@ -528,10 +532,14 @@ contains
        print*, 'Remove floating islands'
     endif
 
-    call glissade_remove_floating_islands(&
-         thck,              relx,        &
-         topg,              eus,         &
-         calving_thck)
+    if (remove_floating_islands) then
+
+       call glissade_remove_floating_islands(&
+            thck,              relx,        &
+            topg,              eus,         &
+            calving_thck)
+
+    endif
 
     ! cleanup
     deallocate (cell_mask)
@@ -614,7 +622,9 @@ contains
     
     maxcount_fill = max(ewtasks,nstasks)
 
-    print*, 'maxcount_fill =', maxcount_fill
+    if (verbose_calving .and. main_task) then
+       print*, 'maxcount_fill =', maxcount_fill
+    endif
 
     do count = 1, maxcount_fill
 
@@ -662,7 +672,10 @@ contains
        endif  ! count = 1
 
        !WHL - debug
-       print*, 'glissade floating island fill, count =', count
+       if (verbose_calving .and. main_task) then
+          print*, 'glissade floating island fill, count =', count
+       endif
+
        sum_fill_local = 0
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
@@ -671,7 +684,10 @@ contains
        enddo
        
        sum_fill_global = parallel_reduce_sum(sum_fill_local)
-       print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
+
+       if (verbose_calving .and. main_task) then
+          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
+       endif
 
     enddo  ! count
 

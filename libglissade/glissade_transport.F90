@@ -529,17 +529,6 @@
 
       endif       ! remapping v. upwind transport
 
-      !WHL - debug
-      k = 2
-      write(6,*) 'After remapping, tracer, k =', k
-      do j = ny, 1, -1
-         write(6,'(i6)',advance='no') j
-         do i = 5, nx-5
-            write(6,'(f8.3)',advance='no') tracers(i,j,1,k)
-         enddo
-         write(6,*) ' '
-      enddo
-
       !-------------------------------------------------------------------
       ! Check that mass and mass*tracers are exactly conserved by transport.
       ! Note: Conservation errors will occur if the global domain is open
