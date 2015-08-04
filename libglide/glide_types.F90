@@ -662,6 +662,12 @@ module glide_types
     real(dp),dimension(:,:,:,:), pointer :: tracers => null()
     !> all 3D tracers packed into one array
 
+    real(dp),dimension(:,:,:), pointer :: tracers_usrf => null()
+    !> value at upper surface for all tracers
+
+    real(dp),dimension(:,:,:), pointer :: tracers_lsrf => null()
+    !> value at lower surface for all tracers
+
     integer, dimension(:,:),pointer :: thkmask => null()
     !> see glide_mask.f90 for possible values
 
@@ -1646,7 +1652,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2usrfdns2)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2thckdew2)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2thckdns2)
-       !Note: model%geometry%tracers is allocated later, in glissade_transport_setup
+       !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup
 
        ! Basal Physics
        !WHL - Since the number of basal BC options is proliferating, simplify the logic by allocating the following arrays

@@ -46,8 +46,8 @@ module glissade_calving
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   !WHL - debug
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
   integer, parameter :: jtest = 3
 !!  logical, parameter :: remove_floating_islands = .false.  ! seems to be working, but turn off for now
   logical, parameter :: remove_floating_islands = .true.  ! seems to be working, but turn off for now

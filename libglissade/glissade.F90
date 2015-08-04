@@ -725,10 +725,10 @@ contains
                                         thck_unscaled(:,:),                                   &
                                         acab_unscaled(:,:),                                   &
                                         bmlt_continuity(:,:),                                 &
-                                        model%temper%temp(0,:,:),                             &  ! surface temperature
-                                        model%temper%temp(model%general%upn,:,:),             &  ! bed temperature
                                         model%geometry%ntracers,                              &
                                         model%geometry%tracers(:,:,:,:),                      &
+                                        model%geometry%tracers_usrf(:,:,:),                   &
+                                        model%geometry%tracers_lsrf(:,:,:),                   &
                                         upwind_transport_in = do_upwind_transport )
 
        enddo     ! subcycling
