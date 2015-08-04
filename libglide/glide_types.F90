@@ -148,9 +148,6 @@ module glide_types
 
   !WHL - added an option to determine whether calving can occur everywhere the calving
   !      criterion is met, or only at the ocean edge
-  !TODO - Implement an option to calve ice everywhere the calving criterion is met, and
-  !       there is a connected path to the ocean through cells where the criterion is met.
-  !       (Defined the parameter here, but will need a flood-fill algorithm to implement)
   integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
   integer, parameter :: CALVING_DOMAIN_OCEAN_CONNECT = 2

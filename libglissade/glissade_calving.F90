@@ -25,8 +25,7 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !CALVING TODO:
 ! (1) Test Glide v. Glissade masks (then remove Glide masks)
-! (2) Scale eus
-! (3) Transport damage tracer
+! (2) Transport damage tracer
 
 !!#ifdef HAVE_CONFIG_H
 !!#include "config.inc"
@@ -47,10 +46,11 @@ module glissade_calving
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   !WHL - debug
-  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
   integer, parameter :: jtest = 3
-  logical, parameter :: remove_floating_islands = .false.  ! seems to be working, but turn off for now
-!!  logical, parameter :: remove_floating_islands = .true.  ! seems to be working, but turn off for now
+!!  logical, parameter :: remove_floating_islands = .false.  ! seems to be working, but turn off for now
+  logical, parameter :: remove_floating_islands = .true.  ! seems to be working, but turn off for now
 
 contains
 
@@ -88,6 +88,8 @@ contains
     integer,  intent(in)                    :: calving_domain    !> option for where calving can occur
                                                                  !> = 0 if calving occurs at the ocean edge only
                                                                  !> = 1 if calving occurs everywhere the calving criterion is met
+                                                                 !> = 2 if calving occurs where criterion is met and there is a connected path
+                                                                 !>     to the ocean through other cells where the criterion is met
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
@@ -141,6 +143,15 @@ contains
     !WHL - debug
     integer :: sum_fill_local, sum_fill_global  ! number of filled cells
 
+    integer :: iplot1, iplot2
+
+    !default
+!    iplot1 = nx-20
+!    iplot2 = nx-1
+    ! other useful limits
+    iplot1 = 600
+    iplot2 = 609
+
     !WHL - debug
     if (verbose_calving .and. main_task) then
        print*, 'In glissade_calve_ice, which_calving =', which_calving
@@ -164,24 +175,46 @@ contains
        print*, 'which_calving =', which_calving
        print*, 'calving_domain =', calving_domain
        print*, 'i, relx, topg, thck, usfc:'
-       do i = nx-20, nx-1
+       do i = iplot1, iplot2
           print*, i, relx(i,j)*thk0, topg(i,j)*thk0, thck(i,j)*thk0, (topg(i,j) + thck(i,j))*thk0
        enddo
     endif
+
+    ! Set the thickness fraction to be removed in each calving cell
+    ! Note: The CALVING_FLOAT_FRACTION option has been superseded by the calving_timescale variable,
+    !       but is included here for consistency with Glide.
+
+    if (which_calving == CALVING_FLOAT_FRACTION) then
+
+       !WHL - Changed definition of calving fraction; now it is the fraction lost
+       !      rather than the fraction remaining
+       float_fraction_calve = calving_fraction
+       
+    else  ! other calving options
+
+       if (calving_timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
+          float_fraction_calve = 1.0d0
+       else  ! calve a fraction of the column based on the calving time scale
+          float_fraction_calve = max(dt/calving_timescale, 1.0d0)
+       endif
+       
+    endif
+       
+    ! Do the calving based on the value of which_calving
 
     ! Note: The thickness-threshold option is different from the others.
     !       For the other options, we look at each cell and determine whether it meets the calving-law criteria
     !        (e.g., ice is floating, or the topography lies below a given level).
     !        If a cell meets the criteria and lies in the calving domain (e.g., at the margin), it is calved.
-    !       For the thickness-threshold option, ice thinner than calving_minthck is calved, but only if it is inactive.
-    !        Cells are marked inactive if they are ocean cells, not on the margin, with thck < calving_minthck.
-    !        The reason for this more complicated approach is that we do not want to remove all floating ice
+    !       For the thickness-threshold option, ice thinner than calving_minthck is calved, but only if it 
+    !        lies beyond a protected ring of thin ice at the floating margin.
+    !       The reason for this more complicated approach is that we do not want to remove all floating ice
     !         with thck < calving_minthck, because then we would remove thin ice that has just been advected
     !         from active cells at the margin, and thus the calving front would not be able to advance.
-    !        By protecting a ring of inactive ice (thck < calving_minthck) at the margin, we allow ice in
-    !         these cells to thicken and become active, thus advancing the calving front.
-    !        The calving front retreats when active floating ice thins to become inactive, removing protection
-    !         from previously protected cells.
+    !       By protecting a ring of inactive ice (thck < calving_minthck) at the margin, we allow ice in
+    !        these cells to thicken and become active, thus advancing the calving front.
+    !       The calving front retreats when active floating ice thins to become inactive, removing protection
+    !        from previously protected cells.
 
     if (which_calving == CALVING_NONE) then
 
@@ -201,12 +234,18 @@ contains
                                      thklim_ground, thklim_float,  &
                                      cell_mask)
 
-       ! Calve inactive floating ice (i.e, thin ice that lies in the ocean but not on the margin)
+       ! Calve thin floating ice (but not if it lies on the margin)
+       ! Note: All cells that are not land and do not have active ice present are marked as ocean cells.
+       !       This includes cells with ice present but thk < thklim_float.
+       ! Note: The calving_law_mask does not need to be set because it is not used subsequently,
+       !       but could be set here for diagnostic purposes.
+
        do j = 1, ny
           do i = 1, nx
              if (mask_is_ocean(cell_mask(i,j)) .and. .not.mask_is_margin(cell_mask(i,j))) then
-                calving_thck(i,j) = thck(i,j)
-                thck(i,j) = 0.0d0
+                calving_thck(i,j) = float_fraction_calve * thck(i,j)
+                thck(i,j) = thck(i,j) - calving_thck(i,j)
+                !WHL - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
              endif
           enddo
        enddo
@@ -245,12 +284,12 @@ contains
           enddo
 
           !NOTE: The Glide version of CALVING_FLOAT_ZERO calves all floating ice.
-          !      Glissade calves floating ice only in the calving domain, which = CALVING_DOMAIN_OCEAN_EDGE by default.
+          !      Glissade calves floating ice only in the calving domain, which is CALVING_DOMAIN_OCEAN_EDGE by default.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
 
        case(CALVING_RELX_THRESHOLD)   ! set thickness to zero if relaxed bedrock is below a given level
 
-          !WHL - The Glide verison of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
+          !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
   
           where (relx <= marine_limit + eus)
@@ -390,7 +429,7 @@ contains
           ! Alternatively, we could use a smaller value of maxcount_fill and allow calving to occur over multiple time steps,
           !  but this could make the calving evolution more dependent on ntasks than desired.
  
-!          maxcount_fill = 1
+!          maxcount_fill = 1  ! setting maxcount_fill = 1 will ignore connections between neighboring processors.
           maxcount_fill = max(ewtasks,nstasks)
 
           do count = 1, maxcount_fill
@@ -413,7 +452,7 @@ contains
                 call parallel_halo(color)
 
                 ! west halo layer
-                i = nhalo               
+                i = nhalo
                 do j = 1, ny
                    if (color(i,j) == fill_color) call glissade_fill(nx, ny, i+1, j, color)
                 enddo
@@ -432,7 +471,7 @@ contains
 
                 ! north halo layer
                 j = ny-nhalo+1
-                do i = nhalo+1, nx-nhalo
+                do i = nhalo+1, nx-nhalo  ! already checked halo corners above
                    if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color)
                 enddo
 
@@ -445,6 +484,7 @@ contains
                 enddo
              enddo
 
+             !WHL - If running a large problem, may want to reduce the frequency of this global sum
              sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
              if (verbose_calving) then
@@ -453,11 +493,9 @@ contains
 
           enddo  ! count
 
-          ! Following this loop, all cells with calving_law_mask = T should have the fill color if they
-          !  are connected to the margin through other cells with calving_law_mask = T.  These are the cells
-          !  in the calving domain.
-          ! Note: By construction, all cells in the calving domain have calving_law = T, so the logic below
-          !  (calving_law_mask = T .and. calving_domain_mask = T) is redundant, but it does no harm.
+          ! At this point, all cells with calving_law_mask = T should have the fill color if they
+          !  are connected to the margin through other cells with calving_law_mask = T.  
+          !  These cells are now assigned to the calving domain.
           
           do j = 1, ny
              do i = 1, nx
@@ -471,28 +509,11 @@ contains
 
           deallocate(color)
 
+          ! Note: For this option, all cells in the calving domain have calving_law = T, so the logic below
+          !  (calving_law_mask = T .and. calving_domain_mask = T) is redundant, but it does no harm.
+
        endif   ! calving_domain
 
-       ! set the thickness fraction to be removed in each calving cell
-       ! Note: The CALVING_FLOAT_FRACTION option has been superseded by the calving_timescale variable,
-       !       but is included here for consistency with Glide.
-
-       if (which_calving == CALVING_FLOAT_FRACTION) then
-
-          !WHL - Changed definition of calving fraction; now it is the fraction lost
-          !      rather than the fraction remaining
-          float_fraction_calve = calving_fraction
-
-       else  ! other calving options
-
-          if (calving_timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
-             float_fraction_calve = 1.0d0
-          else  ! calve a fraction of the column based on the calving time scale
-             float_fraction_calve = max(dt/calving_timescale, 1.0d0)
-          endif
-
-       endif
-       
        ! Calve ice where calving_law_mask = T and calving_domain_mask = T
 
        do j = 1, ny
@@ -512,7 +533,7 @@ contains
        j = jtest
        print*, 'Calved ice: j =', j
        print*, 'i, relx, topg, thck, usfc, calving_law_mask, calving_domain_mask:'
-       do i = nx-20, nx-1
+       do i = iplot1, iplot2
           print*, i, relx(i,j)*thk0, topg(i,j)*thk0, thck(i,j)*thk0, (topg(i,j) + thck(i,j))*thk0, &
                   calving_law_mask(i,j), calving_domain_mask(i,j)
        enddo
@@ -520,20 +541,20 @@ contains
 
     ! Remove any floating ice islands.
     ! Typically these will be removed by the calving scheme above, but if not, 
-    !  then they should be removed before calling the velocity solver,
+    !  then they need to be removed before calling the velocity solver,
     !  which will have problems in regions without any grounded ice.
 
     !WHL - debug - set up an ice island
 !!    i = nx-10
 !!    thck(i,:) = 0.0d0
 
-    !WHL - debug
-    if (verbose_calving .and. main_task) then
-       print*, 'Remove floating islands'
-    endif
-
     if (remove_floating_islands) then
 
+       !WHL - debug
+       if (verbose_calving .and. main_task) then
+          print*, 'Remove floating islands'
+       endif
+       
        call glissade_remove_floating_islands(&
             thck,              relx,        &
             topg,              eus,         &
@@ -551,9 +572,9 @@ contains
 !---------------------------------------------------------------------------
 
   subroutine glissade_remove_floating_islands(&
-    thck,              relx,        &
-    topg,              eus,         &
-    calving_thck)
+       thck,              relx,        &
+       topg,              eus,         &
+       calving_thck)
 
     ! Remove any floating ice islands. 
         
@@ -565,7 +586,7 @@ contains
     ! Repeat the loop several times to allow communication between adjacent
     !  processors via halo updates.
     ! Any ice-covered cells that still have the initial color are floating
-    !  ice islands.  Remove the ice and add it to the calving field. 
+    !  ice islands.  Remove this ice and add it to the calving field. 
 
     use glissade_masks
 
@@ -665,7 +686,7 @@ contains
           
           ! north halo layer
           j = ny-nhalo+1
-          do i = nhalo+1, nx-nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
              if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color)
           enddo
           
@@ -683,6 +704,7 @@ contains
           enddo
        enddo
        
+       !WHL - If running a large problem, may want to reduce the frequency of this global sum
        sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
        if (verbose_calving .and. main_task) then
@@ -691,7 +713,7 @@ contains
 
     enddo  ! count
 
-    ! Any cells that still have the initial color are part of floating ice islands. 
+    ! Any cells that still have the initial color are part of floating ice islands.
     ! Remove ice in these cells, adding it to the calving field.
 
     do j = 1, ny
@@ -710,7 +732,7 @@ contains
 
 !****************************************************************************
 
-  recursive subroutine glissade_fill(nx,  ny,  i,   j,  color)
+  recursive subroutine glissade_fill(nx,  ny,  i,  j,  color)
 
     ! Given a domain with an initial color, a boundary color and a fill color,
     ! assign the fill color to all cells that either (1) are prescribed to have
