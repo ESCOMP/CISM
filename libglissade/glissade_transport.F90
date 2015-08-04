@@ -466,15 +466,15 @@
                                thck(:,:),    thck_mask(:,:))
 
       !WHL - debug
-      k = 2
-      write(6,*) 'Before remapping, tracer, k =', k
-      do j = ny, 1, -1
-         write(6,'(i6)',advance='no') j
-         do i = 5, nx-5
-            write(6,'(f8.3)',advance='no') tracers(i,j,1,k)
-         enddo
-         write(6,*) ' '
-      enddo
+!      k = 2
+!      write(6,*) 'Before remapping, tracer, k =', k
+!      do j = ny, 1, -1
+!         write(6,'(i6)',advance='no') j
+!         do i = 5, nx-5
+!            write(6,'(f8.3)',advance='no') tracers(i,j,1,k)
+!         enddo
+!         write(6,*) ' '
+!      enddo
 
       !-------------------------------------------------------------------
       ! Remap ice thickness and tracers; loop over layers

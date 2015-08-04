@@ -103,8 +103,8 @@ contains
     real(dp), intent(in)                    :: calving_minthck   !> min thickness of ice at marine edge before it calves;
                                                                  !> used with which_ho_calving = CALVING_THCK_THRESHOLD
     
-    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
-!    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
+!    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
+    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
     real(dp), dimension(:,:), intent(out)   :: damage_column     !> 2D vertically integrated scalar damage parameter
     real(dp), intent(in)                    :: damage_threshold  !> threshold value where ice is sufficiently damaged to calve
     real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate

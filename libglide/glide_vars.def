@@ -289,7 +289,7 @@ coordinates:   lon lat
 dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]
 long_name:     ice damage
-data:          data%calving%damage
+data:          data%calving%damage(up,:,:)
 load:          1
 coordinates:   lon lat
 
