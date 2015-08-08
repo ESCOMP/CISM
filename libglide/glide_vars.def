@@ -812,15 +812,15 @@ data:          data%lithot%temp
 load:          1
 coordinates:   lon lat
 
-#[age]
-#dimensions:    time, level, y1, x1
-#units:         year
-#long_name:     ice age
-#data:          data%geometry%age(up,:,:)
-#standard_name: land_ice_age
-#factor:        tim0/scyr
-#load:          0
-#coordinates:   lon lat
+[ice_age]
+dimensions:    time, staglevel, y1, x1
+units:         year
+long_name:     ice age
+data:          data%geometry%ice_age(up,:,:)
+standard_name: land_ice_age
+factor:        tim0/scyr
+load:          1
+coordinates:   lon lat
 
 [f_pattyn]
 dimensions:    time, y1, x1

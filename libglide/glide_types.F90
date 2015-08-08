@@ -239,6 +239,9 @@ module glide_types
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
 
+  integer, parameter :: HO_ICE_AGE_NONE = 0 
+  integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_general
@@ -605,6 +608,11 @@ module glide_types
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
 
+    integer :: which_ho_ice_age = 1    
+    !> Flag that indicates whether to compute a 3d ice age tracer
+    !> \item[0] ice age computation off
+    !> \item[1] ice age computation on
+
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
 
@@ -653,8 +661,9 @@ module glide_types
     !> The fractional area at each vertex which is grounded 
     !    (computed by glissade dycore only)
 
-    real(dp),dimension(:,:,:),pointer :: age => null()
+    real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
+    !> Used to be called 'age', but changed to 'ice_age' for easier grepping
 
     integer :: ntracers
     !> number of tracers to be transported
@@ -1640,7 +1649,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck)
        call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck2)
     else   ! glam/glissade dycore
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%age)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_pattyn)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
@@ -1979,8 +1988,8 @@ contains
 !!    if (associated(model%thckwk%float)) &  ! no longer used
 !!        deallocate(model%thckwk%float)
 
-    if (associated(model%geometry%age)) &
-        deallocate(model%geometry%age)
+    if (associated(model%geometry%ice_age)) &
+        deallocate(model%geometry%ice_age)
     if (associated(model%geometry%tracers)) &
         deallocate(model%geometry%tracers)
     if (associated(model%geometry%f_pattyn)) &

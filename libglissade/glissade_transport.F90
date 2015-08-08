@@ -107,7 +107,11 @@
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         ! add other tracers here if desired (e.g., ice age)
+         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+            model%geometry%ntracers = model%geometry%ntracers + 1
+         endif
+
+         ! add more tracers here, if desired
 
          ! make sure there is at least one tracer
          model%geometry%ntracers = max(model%geometry%ntracers,1)
@@ -118,6 +122,8 @@
          allocate(model%geometry%tracers_lsrf(nx,ny,model%geometry%ntracers))         
 
          model%geometry%tracers(:,:,:,:) = 0.0d0
+         model%geometry%tracers_usrf(:,:,:) = 0.0d0
+         model%geometry%tracers_lsrf(:,:,:) = 0.0d0
 
       endif
 
@@ -180,7 +186,18 @@
 
          endif
          
-         ! add other tracers, if desired (e.g., ice age)
+         ! ice age parameter
+         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+            nt = nt + 1
+            do k = 1, nlyr
+               model%geometry%tracers(:,:,nt,k) = model%geometry%ice_age(k,:,:)
+            enddo
+         endif
+
+         model%geometry%tracers_usrf(:,:,nt) = 0.0d0  ! new accumulation has age = 0
+         model%geometry%tracers_lsrf(:,:,nt) = 0.0d0
+
+         ! add more tracers here, if desired
 
       endif  ! transport_tracers
 
@@ -246,7 +263,15 @@
 
       endif
 
-      ! add other tracers, if desired (e.g., ice age)
+      ! ice age parameter
+      if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+         nt = nt + 1
+         do k = 1, nlyr
+            model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)
+         enddo
+      endif
+      
+      ! add more tracers here, if desired
 
     end subroutine glissade_transport_finish_tracers
 

@@ -860,6 +860,32 @@ contains
     ! halo updates
     call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calc_lsrf
 
+    ! ------------------------------------------------------------------------ 
+    ! Increment the ice age.
+    ! If a cell becomes ice-free, the age is reset to zero.
+    ! Note: Internally, the age has the same units as dt, but on output it will be converted to years.
+    ! ------------------------------------------------------------------------ 
+    
+    !WHL - debug
+    print*, 'Increment ice age, time, dt =', model%numerics%time, model%numerics%dt
+    i = itest; j = jtest; k = 1
+    print*, 'Starting age: i, j, k, age:', i, j, k, model%geometry%ice_age(k,i,j)*tim0/scyr
+    if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+       do j = 1, model%general%nsn 
+          do i = 1, model%general%ewn 
+             if (model%geometry%thck(i,j) > 0.0d0) then
+                model%geometry%ice_age(:,i,j) = model%geometry%ice_age(:,i,j) + model%numerics%dt
+             else
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+    endif
+    i = itest; j = jtest; k = 1
+    print*, 'New age: i, j, k, age:', i, j, k, model%geometry%ice_age(k,i,j)*tim0/scyr
+
+    call parallel_halo(model%geometry%ice_age)
+
     !TODO - Remove this call to glide_set_mask?
     !       This subroutine is called at the beginning of glissade_velo_driver,
     !        so a call here is not needed for the velo diagnostic solve.

@@ -610,6 +610,7 @@ contains
     call GetValue(section, 'which_ho_assemble_beta',   model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',   model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_ground',    model%options%which_ho_ground)
+    call GetValue(section, 'which_ho_ice_age',   model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',   model%options%glissade_maxiter)
 
   end subroutine handle_ho_options
@@ -827,6 +828,10 @@ contains
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
          'f_ground = 1 for all active cells (glissade dycore)', &
          '0 <= f_ground <= 1, based on GLP (glissade dycore) ' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
+         'ice age computation off', &
+         'ice age computation on ' /)
 
     call write_log('GLIDE options')
     call write_log('-------------')
@@ -1234,6 +1239,13 @@ contains
           call write_log(message)
           if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then
              call write_log('Error, ground option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
+                            ho_whichice_age(model%options%which_ho_ice_age)
+          call write_log(message)
+          if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(ho_whichice_age)) then
+             call write_log('Error, ice_age option out of range for glissade dycore', GM_FATAL)
           end if
 
           write(message,*) 'glissade_maxiter        : ',model%options%glissade_maxiter
@@ -1830,6 +1842,7 @@ contains
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
         ! TODO not sure if thkmask is needed for HO
+
         call glide_add_to_restart_variable_list('thkmask kinbcmask bfricflx dissip')
 
         ! uvel,vvel: These are needed for an exact restart because we can only recalculate
@@ -1930,7 +1943,16 @@ contains
          ! no new restart variables needed
     end select
 
-
+    !WHL - added ice_age option
+    !      Note: Ice age is a diagnostic field, not part of the prognostic ice state.
+    !      Omitting it from restart will only break the diagnostic.
+    select case (options%which_ho_ice_age)
+       case(HO_ICE_AGE_COMPUTE)
+          call glide_add_to_restart_variable_list('ice_age')
+       case default
+          ! no restart variables needed
+    end select
+    !
     ! basal processes module - requires tauf for a restart
 !!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
 !!        call glide_add_to_restart_variable_list('tauf')

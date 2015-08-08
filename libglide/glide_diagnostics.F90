@@ -91,6 +91,7 @@ contains
 
        quotient = time/model%numerics%dt_diag
        nint_quotient = nint(quotient)
+
        if (abs(quotient - real(nint_quotient,dp)) < eps) then  ! time to write
 
           call glide_write_diag(model,                 &
