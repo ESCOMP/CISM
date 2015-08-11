@@ -65,6 +65,7 @@
                                                 transport_tracers_in)
       
       ! This subroutine copies all the 3D tracer fields into a single array for transport.
+      ! It also does halo updates for tracers.
 
       use glide_types
 
@@ -138,6 +139,7 @@
 
          if (model%options%whichtemp == TEMP_PROGNOSTIC) then
             nt = nt + 1
+            call parallel_halo(model%temper%temp)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%temper%temp(k,:,:)
             enddo
@@ -146,6 +148,7 @@
 
          elseif (model%options%whichtemp == TEMP_ENTHALPY) then
             nt = nt + 1
+            call parallel_halo(model%temper%enthalpy)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%temper%enthalpy(k,:,:)
             enddo
@@ -156,6 +159,7 @@
          ! damage parameter for prognostic calving scheme
          if (model%options%whichcalving == CALVING_DAMAGE) then
             nt = nt + 1
+            call parallel_halo(model%calving%damage)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%calving%damage(k,:,:)
             enddo
@@ -169,25 +173,12 @@
             model%geometry%tracers_usrf(:,:,nt) = model%geometry%tracers(:,:,nt,1)
             model%geometry%tracers_lsrf(:,:,nt) = model%geometry%tracers(:,:,nt,nlyr)
 
-            !WHL - debug
-!            print*, 'Remap setup: Adding damage tracer, nt =', nt
-!            do k = 1, nlyr, nlyr-1
-!               write(6,*) 'k =', k
-!!            do j = ny, 1, -1
-!               do j = ny-4, ny-12, -1
-!                  write(6,'(i6)',advance='no') j
-!                  do i = 4, nx/4
-!                     write(6,'(f10.6)',advance='no') model%geometry%tracers(i,j,nt,k)
-!                  enddo
-!                  write(6,*) ' '
-!               enddo
-!            enddo
-
          endif
          
          ! ice age parameter
          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
             nt = nt + 1
+            call parallel_halo(model%geometry%ice_age)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%geometry%ice_age(k,:,:)
             enddo
@@ -207,44 +198,15 @@
 
       endif  ! transport_tracers
 
-    !WHL - debug - check for NaNs
-    do k = 1, nlyr
-       do nt = 1, model%geometry%ntracers
-          do j = 1, ny
-             do i = 1, nx
-                if (model%geometry%tracers(i,j,nt,k) /= model%geometry%tracers(i,j,nt,k)) then
-                   print*, 'WARNING: NaN tracer, i, j, k, nt:', i, j, k, nt, model%geometry%tracers(i,j,nt,k)
-                   stop
-                endif
-             enddo
-          enddo
-       enddo
-    enddo
-
-       do nt = 1, model%geometry%ntracers
-          do j = 1, ny
-             do i = 1, nx
-                if (model%geometry%tracers_usrf(i,j,nt) /= model%geometry%tracers_usrf(i,j,nt)) then
-                   print*, 'WARNING: NaN, tracer setup, i, j, nt:', i, j, nt, model%geometry%tracers_usrf(i,j,nt)
-                   stop
-                endif
-                if (model%geometry%tracers_lsrf(i,j,nt) /= model%geometry%tracers_lsrf(i,j,nt)) then
-                   print*, 'WARNING: NaN, tracer setup, i, j, nt:', i, j, nt, model%geometry%tracers_lsrf(i,j,nt)
-                   stop
-                endif
-             enddo
-          enddo
-       enddo
-
-
     end subroutine glissade_transport_setup_tracers
 
 !=======================================================================
 
     subroutine glissade_transport_finish_tracers(model)
 
-      ! This subroutine copies all the 3D tracer fields from a single tracer transport array
-      ! back to individual tracer arrays.
+      ! This subroutine copies the 3D tracer fields from a single tracer transport array
+      !  back to individual tracer arrays.
+      ! It also does halo updates for tracers.
 
       use glide_types
 
@@ -269,11 +231,13 @@
          do k = 1, nlyr
             model%temper%temp(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
+         call parallel_halo(model%temper%temp)
       elseif (model%options%whichtemp == TEMP_ENTHALPY) then
          nt = nt+1
          do k = 1, nlyr
             model%temper%enthalpy(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
+         call parallel_halo(model%temper%enthalpy)
       endif
 
       ! damage parameter for prognostic calving scheme
@@ -282,6 +246,7 @@
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
          enddo
+         call parallel_halo(model%calving%damage)
 
          !WHL - debug
 !         print*, 'Remap finish: new damage tracer'
@@ -305,6 +270,7 @@
          do k = 1, nlyr
             model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
+         call parallel_halo(model%geometry%ice_age)
       endif
       
       ! add more tracers here, if desired
@@ -803,11 +769,11 @@
       ! Interpolate tracers back to sigma coordinates 
       !-------------------------------------------------------------------
 
-!      call glissade_vertical_remap(nx,                ny,       &
-      call glissade_vertical_remap2(nx,                ny,       &
-                                   nlyr,              ntracers, &
+      call glissade_vertical_remap(nx,                ny,       &
+                                   nlyr,              nhalo,    &
                                    sigma(:),                    &
                                    thck_layer(:,:,:),           &
+                                   ntracers, &
                                    tracers(:,:,:,:),            &
                                    tracers_usrf(:,:,:),         &
                                    tracers_lsrf(:,:,:),         &
@@ -850,30 +816,16 @@
       endif      ! conservation_check
 
       !-------------------------------------------------------------------
-      ! Halo updates for thickness and tracer arrays
-      !
-      ! Note: Cannot pass the full 3D array to parallel_halo, because that
-      !       subroutine assumes that k is the first rather than third index.
-      !-------------------------------------------------------------------
-
-      do k = 1, nlyr
-
-         call parallel_halo(thck_layer(:,:,k))
-
-         do nt = 1, ntracers
-            call parallel_halo(tracers(:,:,nt,k))
-         enddo
-
-      enddo
-
-      !-------------------------------------------------------------------
-      ! Recompute thickness
+      ! Recompute thickness and do a halo update
+      ! Note: Halo updates for tracers are done in glissade_transport_tracer_finish.
       !-------------------------------------------------------------------
 
       thck(:,:) = 0.d0
       do k = 1, nlyr
          thck(:,:) = thck(:,:) + thck_layer(:,:,k)
       enddo
+
+      call parallel_halo(thck)
 
     end subroutine glissade_transport_driver
 
@@ -1413,148 +1365,12 @@
 
 !----------------------------------------------------------------------
 
-    subroutine glissade_vertical_remap(nx,       ny,        &
-                                       nlyr,     ntracer,   &
-                                       sigma,    hlyr,      &
-                                       trcr)
- 
-    ! Conservative remapping of tracer fields from one set of vertical 
-    ! coordinates to another.  The remapping is first-order accurate.
-    !
-    ! Note: The cost of this subroutine scales as nlyr; a previous version scaled as nlyr^2.
-    !
-    ! TODO - Add a 2nd-order accurate vertical remapping scheme?
-    !
-    ! Author: William Lipscomb, LANL
-
-    implicit none
- 
-    ! in-out arguments
- 
-    integer, intent(in) ::  &
-         nx, ny,     &! number of cells in EW and NS directions
-         nlyr,       &! number of vertical layers
-         ntracer      ! number of tracer fields
-
-    real(dp), dimension (nx, ny, nlyr), intent(inout) ::  &
-         hlyr         ! layer thickness
-
-    real(dp), dimension (nlyr+1), intent(in) ::  &
-         sigma        ! sigma vertical coordinate (at layer interfaces)
-
-    real(dp), dimension (nx, ny, ntracer, nlyr), intent(inout) ::   &
-         trcr         ! tracer field to be remapped
-                      ! tracer(k) = value at midpoint of layer k
- 
-    ! local variables
- 
-    integer :: i, j, k, k1, k2, nt
- 
-    real(dp), dimension (nlyr+1) ::  &
-         z1,        &! layer interfaces in old coordinate system
-                     ! z1(1) = 0. = value at top surface
-                     ! z1(k) = value at top of layer k
-                     ! z1(nlyr+1) = value at bottom surface (= 1 in sigma coordinates)
-         z2          ! layer interfaces in new coordinate system
-
-    real(dp) ::        &
-         thck,      &! total thickness
-         rthck       ! reciprocal of total thickness
- 
-    real(dp), dimension(ntracer,nlyr) ::       &
-         htsum        ! sum of thickness*tracer in a layer         
-
-    real(dp) :: zlo, zhi, hovlp
-
-    do j = 1, ny
-       do i = 1, nx
-
-          !-----------------------------------------------------------------
-          ! Compute total thickness and reciprocal thickness
-          !-----------------------------------------------------------------
-
-          thck = 0.d0
-          do k = 1, nlyr
-             thck = thck + hlyr(i,j,k)
-          enddo
-
-          if (thck > 0.d0) then
-             rthck = 1.d0/thck
-          else
-             rthck = 0.d0
-          endif
-
-          !-----------------------------------------------------------------
-          ! Determine vertical coordinate z1, given input layer thicknesses.
-          ! These are the coordinates from which we start.
-          !-----------------------------------------------------------------
-
-          z1(1) = 0.d0
-          do k = 2, nlyr
-             z1(k) = z1(k-1) +  hlyr(i,j,k-1)*rthck 
-          enddo
-          z1(nlyr+1) = 1.d0
-                       
-          !-----------------------------------------------------------------
-          ! Set vertical coordinate z2, given sigma.
-          ! These are the coordinates to which we remap in the vertical.
-          !-----------------------------------------------------------------
-
-          z2(1) = 0.d0
-          do k = 2, nlyr
-             z2(k) = sigma(k)
-          enddo
-          z2(nlyr+1) = 1.d0
-
-          !-----------------------------------------------------------------
-          ! Compute new layer thicknesses (z2 coordinates)
-          !-----------------------------------------------------------------
-
-          do k = 1, nlyr
-             hlyr(i,j,k) = (z2(k+1) - z2(k)) * thck
-          enddo
-
-          !-----------------------------------------------------------------
-          ! Compute sum of h*T for each new layer (k2) by integrating
-          ! over the regions of overlap with old layers (k1).
-          !-----------------------------------------------------------------
-             
-          htsum(:,:) = 0.d0
-          k1 = 1
-          k2 = 1
-          do while (k1 <= nlyr .and. k2 <= nlyr)
-             zhi = min (z1(k1+1), z2(k2+1)) 
-             zlo = max (z1(k1),   z2(k2))
-             hovlp = max (zhi-zlo, 0.d0) * thck
-             htsum(:,k2) = htsum(:,k2) +  trcr(i,j,:,k1) * hovlp
-             if (z1(k1+1) > z2(k2+1)) then
-                k2 = k2 + 1
-             else
-                k1 = k1 + 1
-             endif
-          enddo
-
-          do k = 1, nlyr
-             if (hlyr(i,j,k) > 0.d0) then
-                trcr(i,j,:,k) = htsum(:,k) / hlyr(i,j,k)
-             else
-                trcr(i,j,:,k) = 0.d0
-             endif
-          enddo    ! k
-          
-       enddo       ! i
-    enddo          ! j
-
-    end subroutine glissade_vertical_remap
-
-!----------------------------------------------------------------------
-
-    subroutine glissade_vertical_remap2(nx,        ny,        &
-                                        nlyr,      ntracer,   &
-                                        sigma,     hlyr,      &
-                                        trcr,                 &
-                                        trcr_usrf, trcr_lsrf, &
-                                        vert_remap_accuracy)
+    subroutine glissade_vertical_remap(nx,        ny,        &
+                                       nlyr,      nhalo,     &
+                                       sigma,     hlyr,      &
+                                       ntracer,   trcr,      &
+                                       trcr_usrf, trcr_lsrf, &
+                                       vert_remap_accuracy)
  
     ! Conservative remapping of tracer fields from one set of vertical 
     ! coordinates to another.  The remapping can be chosen to be first-order 
@@ -1573,6 +1389,7 @@
     integer, intent(in) ::  &
          nx, ny,     &! number of cells in EW and NS directions
          nlyr,       &! number of vertical layers
+         nhalo,      &! number of halo rows
          ntracer      ! number of tracer fields
 
     real(dp), dimension (nx, ny, nlyr), intent(inout) ::  &
@@ -1635,8 +1452,8 @@
 !    print*, 'vert_remap_accuracy =', vert_remap_accuracy
 !    print*, 'HO_VERTICAL_REMAP_SECOND_ORDER =', HO_VERTICAL_REMAP_SECOND_ORDER
 
-    do j = 1, ny
-       do i = 1, nx
+    do j = 1+nhalo, ny-nhalo
+       do i = 1+nhalo, nx-nhalo
 
           !-----------------------------------------------------------------
           ! Compute total thickness
@@ -1832,7 +1649,7 @@
        enddo
     enddo
 
-    end subroutine glissade_vertical_remap2
+    end subroutine glissade_vertical_remap
 
 !=======================================================================
 

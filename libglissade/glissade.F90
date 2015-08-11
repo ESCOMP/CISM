@@ -229,6 +229,7 @@ contains
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
+    if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
     ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
@@ -647,22 +648,15 @@ contains
 
       call t_startf('new_remap_halo_upds')
 
-      ! halo update for velocity
+      ! pre-transport halo updates for velocity and thickness
       ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
       !  (just to be on the safe side).
 
       call staggered_parallel_halo(model%velocity%uvel)
       call staggered_parallel_halo(model%velocity%vvel)
-
-      ! halo update for thickness
       call parallel_halo(model%geometry%thck)
 
-      ! halo updates for tracers
-      !TODO - Do these halo updates in the tracer setup subroutine?
-      call parallel_halo(model%temper%temp)
-      if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
-      if (model%options%whichcalving == CALVING_DAMAGE) call parallel_halo(model%calving%damage)
-      if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) call parallel_halo(model%geometry%ice_age)
+      ! Note: Halo updates for tracers are done in subroutine glissade_transport_setup_tracers
 
       call t_stopf('new_remap_halo_upds')
 
@@ -711,14 +705,16 @@ contains
       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
       acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
 
-      ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
-      call glissade_transport_setup_tracers (model)
-
       do sc = 1, model%numerics%subcyc
+
          if (model%numerics%subcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle ',sc
 
+         ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
+         ! (includes a halo update for tracers)
+         call glissade_transport_setup_tracers (model)
+
          ! Main transport driver subroutine
-         ! Note: Halo updates for thickness and tracers are done in this subroutine
+         ! (includes a halo update for thickness: thck_unscaled in this case)
          call glissade_transport_driver(model%numerics%dt_transport * tim0,                   &
                                         model%numerics%dew * len0, model%numerics%dns * len0, &
                                         model%general%ewn,         model%general%nsn,         &
@@ -735,10 +731,11 @@ contains
                                         model%options%which_ho_vertical_remap,                &
                                         upwind_transport_in = do_upwind_transport)
 
-       enddo     ! subcycling
+         ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers
+         ! (includes a halo update for tracers)
+         call glissade_transport_finish_tracers(model)
 
-      ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers
-       call glissade_transport_finish_tracers(model)
+       enddo     ! subcycling
 
        ! convert thck and acab back to scaled units
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
