@@ -79,18 +79,17 @@
 
       logical :: transport_tracers
 
-      !WHL - debug
       integer :: i, j, nx, ny
+
       nx = model%general%ewn
       ny = model%general%nsn
+      nlyr = model%general%upn - 1
 
       if (present(transport_tracers_in)) then
          transport_tracers = transport_tracers_in
       else
          transport_tracers = .true.  ! transport tracers by default
       endif
-
-      nlyr = model%general%upn - 1
 
       if (.not.associated(model%geometry%tracers)) then
 
@@ -125,7 +124,7 @@
          model%geometry%tracers_usrf(:,:,:) = 0.0d0
          model%geometry%tracers_lsrf(:,:,:) = 0.0d0
 
-      endif
+      endif   ! not(associated(model%geometry%tracers))
 
       ! fill the tracer array
 
@@ -167,8 +166,8 @@
             !       and if the ice is undamaged, new snow/ice will not increase the damage.
             !      This approach was suggested by Jeremy Bassis (8/4/15). Other hypotheses may be tested later.
 
-            model%geometry%tracers_usrf(:,:,nt) = model%calving%damage(1,:,:)
-            model%geometry%tracers_lsrf(:,:,nt) = model%calving%damage(nlyr,:,:)
+            model%geometry%tracers_usrf(:,:,nt) = model%geometry%tracers(:,:,nt,1)
+            model%geometry%tracers_lsrf(:,:,nt) = model%geometry%tracers(:,:,nt,nlyr)
 
             !WHL - debug
 !            print*, 'Remap setup: Adding damage tracer, nt =', nt
@@ -192,14 +191,51 @@
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%geometry%ice_age(k,:,:)
             enddo
-         endif
 
-         model%geometry%tracers_usrf(:,:,nt) = 0.0d0  ! new accumulation has age = 0
-         model%geometry%tracers_lsrf(:,:,nt) = 0.0d0
+            ! Note: Upper surface accumulation has age = 0.
+            !       Basal freeze-on, however, is assigned the same age as the bottom layer.
+            !        This is based partly on the fact that it may originate from old melted ice.
+            !        Also, the 2nd order vertical remapping constructs a gradient based on this value.
+            !        A lower surface value of zero will likely lead to a poor approximation of the gradient.
+            
+            model%geometry%tracers_usrf(:,:,nt) = 0.0d0
+            model%geometry%tracers_lsrf(:,:,nt) = model%geometry%tracers(:,:,nt,nlyr)
+            
+         endif
 
          ! add more tracers here, if desired
 
       endif  ! transport_tracers
+
+    !WHL - debug - check for NaNs
+    do k = 1, nlyr
+       do nt = 1, model%geometry%ntracers
+          do j = 1, ny
+             do i = 1, nx
+                if (model%geometry%tracers(i,j,nt,k) /= model%geometry%tracers(i,j,nt,k)) then
+                   print*, 'WARNING: NaN tracer, i, j, k, nt:', i, j, k, nt, model%geometry%tracers(i,j,nt,k)
+                   stop
+                endif
+             enddo
+          enddo
+       enddo
+    enddo
+
+       do nt = 1, model%geometry%ntracers
+          do j = 1, ny
+             do i = 1, nx
+                if (model%geometry%tracers_usrf(i,j,nt) /= model%geometry%tracers_usrf(i,j,nt)) then
+                   print*, 'WARNING: NaN, tracer setup, i, j, nt:', i, j, nt, model%geometry%tracers_usrf(i,j,nt)
+                   stop
+                endif
+                if (model%geometry%tracers_lsrf(i,j,nt) /= model%geometry%tracers_lsrf(i,j,nt)) then
+                   print*, 'WARNING: NaN, tracer setup, i, j, nt:', i, j, nt, model%geometry%tracers_lsrf(i,j,nt)
+                   stop
+                endif
+             enddo
+          enddo
+       enddo
+
 
     end subroutine glissade_transport_setup_tracers
 
@@ -273,6 +309,8 @@
       
       ! add more tracers here, if desired
 
+      !TODO - Do tracer halo updates here instead of at the end of glissade_transport_driver?
+
     end subroutine glissade_transport_finish_tracers
 
 !=======================================================================
@@ -286,6 +324,7 @@
                                          acab,         bmlt,         &
                                          ntracers,     tracers,      &
                                          tracers_usrf, tracers_lsrf, &
+                                         vert_remap_accuracy,        &
                                          upwind_transport_in)
 
 
@@ -333,15 +372,19 @@
                                 ! (defined at horiz cell centers)
 
       integer, intent(in) ::  &
-           ntracers             ! number of tracers to be transported
+         ntracers               ! number of tracers to be transported
       
       !TODO - Make the tracer arrays optional arguments?
       real(dp), dimension(nx,ny,ntracers,nlyr), intent(inout) ::  &
-           tracers              ! set of 3D tracer arrays, packed into a 4D array
+         tracers                ! set of 3D tracer arrays, packed into a 4D array
 
       real(dp), dimension(nx,ny,ntracers), intent(in) :: &
-           tracers_usrf,       &! tracer values associated with accumulation at upper surface
-           tracers_lsrf         ! tracer values associated with freeze-on at lower surface
+         tracers_usrf,         &! tracer values associated with accumulation at upper surface
+         tracers_lsrf           ! tracer values associated with freeze-on at lower surface
+
+      integer, intent(in) ::  &
+         vert_remap_accuracy    ! order of accuracy for vertical remapping
+                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
 
       logical, intent(in), optional ::  &
          upwind_transport_in    ! if true, do first-order upwind transport
@@ -760,11 +803,15 @@
       ! Interpolate tracers back to sigma coordinates 
       !-------------------------------------------------------------------
 
-      call glissade_vertical_remap(nx,                ny,       &
+!      call glissade_vertical_remap(nx,                ny,       &
+      call glissade_vertical_remap2(nx,                ny,       &
                                    nlyr,              ntracers, &
                                    sigma(:),                    &
                                    thck_layer(:,:,:),           &
-                                   tracers(:,:,:,:) )
+                                   tracers(:,:,:,:),            &
+                                   tracers_usrf(:,:,:),         &
+                                   tracers_lsrf(:,:,:),         &
+                                   vert_remap_accuracy)
 
       !-------------------------------------------------------------------
       ! Final conservation check: Check that mass and mass*tracers are exactly 
@@ -806,7 +853,7 @@
       ! Halo updates for thickness and tracer arrays
       !
       ! Note: Cannot pass the full 3D array to parallel_halo, because that
-      !       subroutine assumes that k is the first rather than third index. 
+      !       subroutine assumes that k is the first rather than third index.
       !-------------------------------------------------------------------
 
       do k = 1, nlyr
@@ -1500,7 +1547,295 @@
 
     end subroutine glissade_vertical_remap
 
+!----------------------------------------------------------------------
+
+    subroutine glissade_vertical_remap2(nx,        ny,        &
+                                        nlyr,      ntracer,   &
+                                        sigma,     hlyr,      &
+                                        trcr,                 &
+                                        trcr_usrf, trcr_lsrf, &
+                                        vert_remap_accuracy)
+ 
+    ! Conservative remapping of tracer fields from one set of vertical 
+    ! coordinates to another.  The remapping can be chosen to be first-order 
+    ! or second-order accurate.
+    !
+    ! Note: The cost of this subroutine scales as nlyr; a previous version scaled as nlyr^2.
+    !
+    ! Author: William Lipscomb, LANL
+
+    use glide_types, only: HO_VERTICAL_REMAP_SECOND_ORDER
+
+    implicit none
+ 
+    ! in-out arguments
+ 
+    integer, intent(in) ::  &
+         nx, ny,     &! number of cells in EW and NS directions
+         nlyr,       &! number of vertical layers
+         ntracer      ! number of tracer fields
+
+    real(dp), dimension (nx, ny, nlyr), intent(inout) ::  &
+         hlyr         ! layer thickness
+
+    real(dp), dimension (nlyr+1), intent(in) ::  &
+         sigma        ! sigma vertical coordinate (at layer interfaces)
+
+    real(dp), dimension (nx, ny, ntracer, nlyr), intent(inout) ::   &
+         trcr         ! tracer field to be remapped
+                      ! tracer(k) = value at midpoint of layer k
+
+    real(dp), dimension (nx, ny, ntracer), intent(in), optional ::   &
+         trcr_usrf,  &! tracer field at upper surface
+         trcr_lsrf    ! tracer field at lower surface
+
+    integer, intent(in) ::  &
+         vert_remap_accuracy    ! order of accuracy for vertical remapping
+                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+
+    ! local variables
+ 
+    integer :: i, j, k, k1, k2
+ 
+    real(dp), dimension(nlyr+1) ::  &
+         z1,        &! layer interfaces in old coordinate system
+                     ! z1(1) = 0. = value at upper surface
+                     ! z1(k) = value at top of layer k
+                     ! z1(nlyr+1) = value at lower surface (= 1 in sigma coordinates)
+         z2          ! layer interfaces in new coordinate system
+
+    real(dp), dimension(0:nlyr+1) ::  &
+         zmid        ! layer midpoints in old coordinate system
+                     ! zmid(0) = value at upper surface
+                     ! zmid(nlyr+1) = value at lower surface
+
+    real(dp) ::        &
+         thck,      &! total thickness
+         rthck       ! reciprocal of total thickness
+ 
+    real(dp), dimension(ntracer,nlyr) ::       &
+         gradt,     &! gradient of a tracer within a layer
+         htsum       ! sum of thickness*tracer in a layer         
+
+    real(dp), dimension(ntracer) ::  &
+         tm1, tp1,       &! tracer values in layer k-1 and k+1
+         tmax, tmin,     &! max/min tracer value in a layer and its neighbors
+         tzmax, tzmin,   &! max/min value of reconstructed tracer in a layer (relative to midpt value)
+         wk1, wk2         ! work arrays
+
+    real(dp) :: zlo, zhi, dz, zav, hovlp
+
+    character(len=100) :: message
+
+    !WHL - debug
+    integer :: nt
+!    integer, parameter :: itest = 14, jtest = 33
+!    print*, 'Vertical remap: itest, jtest =', itest, jtest
+!    print*, 'max, min(age):', maxval(trcr(:,:,nt,:)), minval(trcr(:,:,nt,:))
+!    print*, 'vert_remap_accuracy =', vert_remap_accuracy
+!    print*, 'HO_VERTICAL_REMAP_SECOND_ORDER =', HO_VERTICAL_REMAP_SECOND_ORDER
+
+    do j = 1, ny
+       do i = 1, nx
+
+          !-----------------------------------------------------------------
+          ! Compute total thickness
+          !-----------------------------------------------------------------
+          
+          thck = 0.d0
+          do k = 1, nlyr
+             thck = thck + hlyr(i,j,k)
+          enddo
+          
+          !-----------------------------------------------------------------
+          ! If thck > 0, do vertical remapping of tracers
+          !-----------------------------------------------------------------
+
+          if (thck > 0.d0) then
+
+             !-----------------------------------------------------------------
+             ! Determine vertical coordinate z1, given input layer thicknesses.
+             ! These are the coordinates from which we start.
+             !-----------------------------------------------------------------
+
+             rthck = 1.d0/thck
+
+             z1(1) = 0.d0
+             do k = 2, nlyr
+                z1(k) = z1(k-1) +  hlyr(i,j,k-1)*rthck 
+             enddo
+             z1(nlyr+1) = 1.d0
+                       
+             !-----------------------------------------------------------------
+             ! Compute layer midpoints for z1. Tracers are located at midpoints.
+             !-----------------------------------------------------------------
+
+             zmid(0) = 0.0d0
+             do k = 1, nlyr
+                zmid(k) = 0.5d0 * (z1(k) + z1(k+1))
+             enddo
+             zmid(nlyr+1) = z1(nlyr+1)
+                
+             !-----------------------------------------------------------------
+             ! Compute vertical coordinate z2, given sigma.
+             ! These are the coordinates to which we remap in the vertical.
+             !-----------------------------------------------------------------
+             
+             z2(1) = 0.d0
+             do k = 2, nlyr
+                z2(k) = sigma(k)
+             enddo
+             z2(nlyr+1) = 1.d0
+
+             !-----------------------------------------------------------------
+             ! Compute new layer thicknesses (z2 coordinates)
+             !-----------------------------------------------------------------
+             
+             do k = 1, nlyr
+                hlyr(i,j,k) = (z2(k+1) - z2(k)) * thck
+             enddo
+             
+             !-----------------------------------------------------------------
+             ! For second-order remapping: Compute tracer gradients in each layer.
+             !                             Limit the gradients to preserve monotonicity.
+             ! For first-order remapping:  Set the gradients to zero.
+             !-----------------------------------------------------------------
+
+             if (vert_remap_accuracy == HO_VERTICAL_REMAP_SECOND_ORDER) then
+             
+                do k = 1, nlyr
+                   
+                   ! Load values in layers above and below
+                   
+                   if (k > 1) then
+                      tm1(:) = trcr(i,j,:,k-1)
+                   else
+                      if (present(trcr_usrf)) then
+                         tm1(:) = trcr_usrf(i,j,:)
+                      else
+                         tm1(:) = trcr(i,j,:,1)
+                      endif
+                   endif
+                   
+                   if (k < nlyr) then
+                      tp1(:) = trcr(i,j,:,k+1)
+                   else
+                      if (present(trcr_lsrf)) then
+                         tp1(:) = trcr_lsrf(i,j,:)
+                      else
+                         tp1(:) = trcr(i,j,:,nlyr)
+                      endif
+                   endif
+                   
+                   ! Compute unlimited gradient
+                   
+                   dz = zmid(k+1) - zmid(k-1)
+                   if (dz > 0.0d0) then
+                      gradt(:,k) = (tp1(:) - tm1(:)) / dz
+                   else
+                      gradt(:,k) = 0.0d0
+                   endif
+
+                   ! Find the max and min deviations of tracer values in layer k-1, k, k+1
+                   ! from the value in layer k
+                   tmax(:) = max(tm1(:),trcr(i,j,:,k),tp1(:)) - trcr(i,j,:,k)
+                   tmin(:) = min(tm1(:),trcr(i,j,:,k),tp1(:)) - trcr(i,j,:,k)
+                
+                   ! Find the max and min tracer deviations in this layer, given the unlimited gradient
+                   wk1(:) = gradt(:,k) * (z1(k+1) - zmid(k))
+                   wk2(:) = gradt(:,k) * (z1(k) - zmid(k))
+                   tzmax(:) = max(wk1(:), wk2(:))
+                   tzmin(:) = min(wk1(:), wk2(:))
+
+                   ! Limit the gradient
+                   
+                   where (abs(tzmin) > 0.0d0)
+                      wk1 = max(0.0d0, tmin/tzmin)
+                   elsewhere
+                      wk1 = 1.0d0
+                   endwhere
+                   
+                   where (abs(tzmax) > 0.0d0)
+                      wk2 = max(0.0d0, tmax/tzmax)
+                   elsewhere
+                      wk2 = 1.0d0
+                   endwhere
+                   
+                   gradt(:,k) = gradt(:,k) * min(1.0d0, wk1(:), wk2(:))
+                
+                enddo   ! k
+                
+             else   ! first-order vertical remapping
+                
+                gradt(:,:) = 0.0d0
+                
+             endif
+
+             !-----------------------------------------------------------------
+             ! Compute sum of h*T for each new layer (k2) by integrating
+             ! over the regions of overlap with old layers (k1).
+             !
+             ! The basic formula is as follows:
+             !
+             ! int_zlo^zhi [T(z) dz] = int_zlo^zhi [Tmid + gradT*(z - zmid)] dz
+             !                       = dz * [Tmid + gradT*(zav - zmid)]
+             ! where dz = zhi - zlo, zav = (zhi+zlo)/2, Tmid = midpoint tracer value
+             !
+             ! For first-order remapping, gradT = 0.
+             !-----------------------------------------------------------------
+          
+             htsum(:,:) = 0.d0
+             k1 = 1
+             k2 = 1
+             do while (k1 <= nlyr .and. k2 <= nlyr)
+                zhi = min (z1(k1+1), z2(k2+1))
+                zlo = max (z1(k1),   z2(k2))
+                zav = 0.5d0 * (zlo + zhi)
+                hovlp = max (zhi-zlo, 0.d0) * thck
+                htsum(:,k2) = htsum(:,k2)   &
+                            + hovlp * (trcr(i,j,:,k1) + gradt(:,k1) * (zav - zmid(k1)))
+                if (z1(k1+1) > z2(k2+1)) then
+                   k2 = k2 + 1
+                else
+                   k1 = k1 + 1
+                endif
+             enddo
+          
+             ! compute new tracer values
+             ! Note: Since thck > 0, must have hlyr > 0 for all k
+             
+             do k = 1, nlyr
+                trcr(i,j,:,k) = htsum(:,k) / hlyr(i,j,k)
+             enddo
+
+          else   ! thck = 0.0
+
+             trcr(i,j,:,:) = 0.d0
+
+          endif  ! thck > 0
+             
+       enddo       ! i
+    enddo          ! j
+
+    !WHL - debug - check for NaNs
+    !TODO - Remove this check when satisfied the 2nd order remapping is working
+    do k = 1, nlyr
+       do nt = 1, ntracer
+          do j = 1, ny
+             do i = 1, nx
+                if (trcr(i,j,nt,k) /= trcr(i,j,nt,k)) then
+                   write(message,*) 'ERROR: Vertical remap, i, j, k, hlyr, temp:', i, j, k, hlyr(i,j,k), trcr(i,j,nt,k)
+                   call write_log(trim(message), GM_FATAL) 
+                endif
+             enddo
+          enddo
+       enddo
+    enddo
+
+    end subroutine glissade_vertical_remap2
+
 !=======================================================================
+
 
     subroutine upwind_field (nx,       ny,         &
                              ilo, ihi, jlo, jhi,   &

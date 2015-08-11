@@ -229,6 +229,9 @@ module glide_types
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_LAND = 1
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
 
+  integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
+  integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
+
   integer, parameter :: HO_ASSEMBLE_BETA_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_BETA_LOCAL = 1
 
@@ -585,6 +588,14 @@ module glide_types
     !> \item[0] Use info from all neighbor cells, ice-covered or ice-free
     !> \item[1] Use info from ice-covered and/or land cells, not ice-free ocean
     !> \item[2] Use info from ice-covered cells only
+
+    !TODO: Change the default to 2nd order vertical remapping
+    ! WHL: Keeping this 1st order for now to avoid answer changes
+    integer :: which_ho_vertical_remap = 0
+    !> Flag that indicates the order of accuracy for vertical remapping
+    !> \begin{description}
+    !> \item[0] first-order accurate in the vertical direction
+    !> \item[1] second-order accurate in the vertical direction
 
     integer :: which_ho_assemble_beta = 0
 

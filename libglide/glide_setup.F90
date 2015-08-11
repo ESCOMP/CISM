@@ -607,6 +607,7 @@ contains
     call GetValue(section, 'which_ho_precond',   model%options%which_ho_precond)
     call GetValue(section, 'which_ho_gradient',  model%options%which_ho_gradient)
     call GetValue(section, 'which_ho_gradient_margin', model%options%which_ho_gradient_margin)
+    call GetValue(section, 'which_ho_vertical_remap',  model%options%which_ho_vertical_remap)
     call GetValue(section, 'which_ho_assemble_beta',   model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',   model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_ground',    model%options%which_ho_ground)
@@ -815,6 +816,10 @@ contains
          'all neighbor cells in gradient (glissade dycore)         ', &
          'ice-covered &/or land cells in gradient (glissade dycore)', &
          'only ice-covered cells in gradient (glissade dycore)     ' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
+         'first-order accurate  ', &
+         'second-order accurate ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichassemble_beta = (/ &
          'standard finite-element assembly (glissade dycore) ', &
@@ -1216,6 +1221,14 @@ contains
           if (model%options%which_ho_gradient_margin < 0 .or. &
               model%options%which_ho_gradient_margin >= size(ho_whichgradient_margin)) then
              call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          write(message,*) 'ho_whichvertical_remap  : ',model%options%which_ho_vertical_remap,  &
+                            ho_whichvertical_remap(model%options%which_ho_vertical_remap)
+          call write_log(message)
+          if (model%options%which_ho_vertical_remap < 0 .or. &
+              model%options%which_ho_vertical_remap >= size(ho_whichvertical_remap)) then
+             call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
           end if
 
           write(message,*) 'ho_whichassemble_beta   : ',model%options%which_ho_assemble_beta,  &

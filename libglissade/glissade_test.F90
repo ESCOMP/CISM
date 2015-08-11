@@ -552,6 +552,7 @@ contains
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
                                       model%geometry%tracers_lsrf(:,:,:),                   &
+                                      model%options%which_ho_vertical_remap,                &
                                       upwind_transport_in = do_upwind_transport)
 
        call glissade_transport_finish_tracers(model)

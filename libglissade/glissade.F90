@@ -645,21 +645,24 @@ contains
           print *, 'Compute dH/dt'
        endif
 
-       ! Halo updates for velocities, thickness and tracers
-       ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
-       !  (just to be on the safe side).
-
       call t_startf('new_remap_halo_upds')
+
+      ! halo update for velocity
+      ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
+      !  (just to be on the safe side).
 
       call staggered_parallel_halo(model%velocity%uvel)
       call staggered_parallel_halo(model%velocity%vvel)
 
+      ! halo update for thickness
       call parallel_halo(model%geometry%thck)
-      call parallel_halo(model%temper%temp)
 
-      if (model%options%whichtemp == TEMP_ENTHALPY) then
-         call parallel_halo(model%temper%waterfrac)
-      endif
+      ! halo updates for tracers
+      !TODO - Do these halo updates in the tracer setup subroutine?
+      call parallel_halo(model%temper%temp)
+      if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
+      if (model%options%whichcalving == CALVING_DAMAGE) call parallel_halo(model%calving%damage)
+      if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) call parallel_halo(model%geometry%ice_age)
 
       call t_stopf('new_remap_halo_upds')
 
@@ -729,7 +732,8 @@ contains
                                         model%geometry%tracers(:,:,:,:),                      &
                                         model%geometry%tracers_usrf(:,:,:),                   &
                                         model%geometry%tracers_lsrf(:,:,:),                   &
-                                        upwind_transport_in = do_upwind_transport )
+                                        model%options%which_ho_vertical_remap,                &
+                                        upwind_transport_in = do_upwind_transport)
 
        enddo     ! subcycling
 
@@ -866,10 +870,6 @@ contains
     ! Note: Internally, the age has the same units as dt, but on output it will be converted to years.
     ! ------------------------------------------------------------------------ 
     
-    !WHL - debug
-    print*, 'Increment ice age, time, dt =', model%numerics%time, model%numerics%dt
-    i = itest; j = jtest; k = 1
-    print*, 'Starting age: i, j, k, age:', i, j, k, model%geometry%ice_age(k,i,j)*tim0/scyr
     if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
        do j = 1, model%general%nsn 
           do i = 1, model%general%ewn 
@@ -881,10 +881,10 @@ contains
           enddo
        enddo
     endif
-    i = itest; j = jtest; k = 1
-    print*, 'New age: i, j, k, age:', i, j, k, model%geometry%ice_age(k,i,j)*tim0/scyr
 
-    call parallel_halo(model%geometry%ice_age)
+    !WHL - debug
+!!    i = itest; j = jtest; k = 1
+!!    print*, 'i, j, k, thickness (m), age (yr):', i, j, k, model%geometry%thck(i,j)*thk0, model%geometry%ice_age(k,i,j)*tim0/scyr
 
     !TODO - Remove this call to glide_set_mask?
     !       This subroutine is called at the beginning of glissade_velo_driver,
