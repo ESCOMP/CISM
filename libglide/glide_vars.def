@@ -281,8 +281,23 @@ coordinates:   lon lat
 dimensions:    time, y1, x1
 units:         meter
 long_name:     ice margin calving
-data:          data%climate%calving
+data:          data%calving%calving_thck
 factor:        thk0
+coordinates:   lon lat
+
+[damage]
+dimensions:    time, staglevel, y1, x1
+units:         unitless [0,1]
+long_name:     ice damage
+data:          data%calving%damage(up,:,:)
+load:          1
+coordinates:   lon lat
+
+[damage_column]
+dimensions:    time, y1, x1
+units:         unitless [0,1]
+long_name:     vertically integrated ice damage
+data:          data%calving%damage_column
 coordinates:   lon lat
 
 [ivol]
@@ -797,15 +812,15 @@ data:          data%lithot%temp
 load:          1
 coordinates:   lon lat
 
-#[age]
-#dimensions:    time, level, y1, x1
-#units:         year
-#long_name:     ice age
-#data:          data%geometry%age(up,:,:)
-#standard_name: land_ice_age
-#factor:        tim0/scyr
-#load:          0
-#coordinates:   lon lat
+[ice_age]
+dimensions:    time, staglevel, y1, x1
+units:         year
+long_name:     ice age
+data:          data%geometry%ice_age(up,:,:)
+standard_name: land_ice_age
+factor:        tim0/scyr
+load:          1
+coordinates:   lon lat
 
 [f_pattyn]
 dimensions:    time, y1, x1

@@ -168,7 +168,7 @@ contains
 
     model%numerics%dttem = model%numerics%ntem * model%numerics%tinc   
 
-    ! convert dt and dttem to scaled time units
+    ! convert dt and dttem from yr to scaled time units
     model%numerics%dt     = model%numerics%tinc * scyr / tim0   
     model%numerics%dttem  = model%numerics%dttem * scyr / tim0   
 
@@ -181,7 +181,13 @@ contains
     model%numerics%dew = model%numerics%dew / len0
     model%numerics%dns = model%numerics%dns / len0
 
-    model%numerics%mlimit = model%numerics%mlimit / thk0
+    !TODO - Scale eus for calving?
+    !       Currently the scaling for eus (like relx and topg) is handled automatically in glide_io.F90.
+    !       Would need to handle eus scaling separately if reading from config file.
+
+    model%calving%marine_limit = model%calving%marine_limit / thk0
+    model%calving%calving_minthck = model%calving%calving_minthck / thk0
+    model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
 
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
     model%numerics%periodic_offset_ns = model%numerics%periodic_offset_ns / thk0
@@ -557,7 +563,9 @@ contains
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
-    call GetValue(section,'marine_margin',model%options%whichmarn)
+    call GetValue(section,'marine_margin',model%options%whichcalving)
+    call GetValue(section,'calving_init',model%options%calving_init)
+    call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'topo_is_relaxed',model%options%whichrelaxed)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
@@ -599,9 +607,11 @@ contains
     call GetValue(section, 'which_ho_precond',   model%options%which_ho_precond)
     call GetValue(section, 'which_ho_gradient',  model%options%which_ho_gradient)
     call GetValue(section, 'which_ho_gradient_margin', model%options%which_ho_gradient_margin)
+    call GetValue(section, 'which_ho_vertical_remap',  model%options%which_ho_vertical_remap)
     call GetValue(section, 'which_ho_assemble_beta',   model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',   model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_ground',    model%options%which_ho_ground)
+    call GetValue(section, 'which_ho_ice_age',   model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',   model%options%glissade_maxiter)
 
   end subroutine handle_ho_options
@@ -715,13 +725,26 @@ contains
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
-    character(len=*), dimension(0:5), parameter :: marine_margin = (/ &
+    !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
+    character(len=*), dimension(0:7), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
          'relaxed bedrock threshold       ', &
          'present bedrock threshold       ', &
-         'Huybrechts grounding line scheme' /)
+         'Huybrechts grounding-line scheme', &
+         'ice thickness threshold         ', &
+         'damage-based calving scheme     ' /) 
+
+    character(len=*), dimension(0:1), parameter :: init_calving = (/ &
+         'no calving at initialization    ', &
+         'ice calves at initialization    ' /)
+
+    !TODO - Implement calving_domain = 2
+    character(len=*), dimension(0:2), parameter :: domain_calving = (/ &
+         'calving only at the ocean edge             ',  &
+         'calving in all cells where criterion is met',  &
+         'calving in cells connected to ocean edge   '/)
 
     character(len=*), dimension(0:1), parameter :: vertical_integration = (/ &
          'standard     ', &
@@ -794,6 +817,10 @@ contains
          'ice-covered &/or land cells in gradient (glissade dycore)', &
          'only ice-covered cells in gradient (glissade dycore)     ' /)
 
+    character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
+         'first-order accurate  ', &
+         'second-order accurate ' /)
+
     character(len=*), dimension(0:1), parameter :: ho_whichassemble_beta = (/ &
          'standard finite-element assembly (glissade dycore) ', &
          'use local beta for assembly (glissade dycore)      '  /)
@@ -806,6 +833,10 @@ contains
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
          'f_ground = 1 for all active cells (glissade dycore)', &
          '0 <= f_ground <= 1, based on GLP (glissade dycore) ' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
+         'ice age computation off', &
+         'ice age computation on ' /)
 
     call write_log('GLIDE options')
     call write_log('-------------')
@@ -970,11 +1001,47 @@ contains
       call write_log('Ocean penetration basal_water option is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
-    if (model%options%whichmarn < 0 .or. model%options%whichmarn >= size(marine_margin)) then
+    if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(marine_margin)) then
        call write_log('Error, marine_margin out of range',GM_FATAL)
     end if
-    write(message,*) 'marine_margin           : ', model%options%whichmarn, marine_margin(model%options%whichmarn)
+    write(message,*) 'marine_margin           : ', model%options%whichcalving, marine_margin(model%options%whichcalving)
     call write_log(message)
+
+    if (model%options%calving_init < 0 .or. model%options%calving_init >= size(init_calving)) then
+       call write_log('Error, calving_init out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_init            : ', model%options%calving_init, init_calving(model%options%calving_init)
+    call write_log(message)
+
+    if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(domain_calving)) then
+       call write_log('Error, calving_domain out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
+    call write_log(message)
+
+    ! unsupported calving options
+
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+       if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+          write(message,*) 'Warning, calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
+          call write_log(message)
+       endif
+    else   ! not Glissade
+       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+          call write_log('Error, calving thickness threshold model is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CALVING_DAMAGE) then
+          call write_log('Error, calving damage model is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
+          write(message,*) 'Warning, calving domain can be selected for Glissade dycore only; user selection ignored'
+          call write_log(message)
+       endif
+       if (model%calving%calving_timescale > 0.0d0) then
+          write(message,*) 'Warning, calving timescale option suppored for Glissade dycore only; user selection ignored'
+          call write_log(message)
+       endif
+    endif
 
     if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(slip_coeff)) then
        call write_log('Error, slip_coeff out of range',GM_FATAL)
@@ -1156,6 +1223,14 @@ contains
              call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
           end if
 
+          write(message,*) 'ho_whichvertical_remap  : ',model%options%which_ho_vertical_remap,  &
+                            ho_whichvertical_remap(model%options%which_ho_vertical_remap)
+          call write_log(message)
+          if (model%options%which_ho_vertical_remap < 0 .or. &
+              model%options%which_ho_vertical_remap >= size(ho_whichvertical_remap)) then
+             call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
+          end if
+
           write(message,*) 'ho_whichassemble_beta   : ',model%options%which_ho_assemble_beta,  &
                             ho_whichassemble_beta(model%options%which_ho_assemble_beta)
           call write_log(message)
@@ -1177,6 +1252,13 @@ contains
           call write_log(message)
           if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then
              call write_log('Error, ground option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
+                            ho_whichice_age(model%options%which_ho_ice_age)
+          call write_log(message)
+          if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(ho_whichice_age)) then
+             call write_log('Error, ice_age option out of range for glissade dycore', GM_FATAL)
           end if
 
           write(message,*) 'glissade_maxiter        : ',model%options%glissade_maxiter
@@ -1232,8 +1314,11 @@ contains
     call glimmer_set_msg_level(loglevel)
     call GetValue(section,'ice_limit',        model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',   model%numerics%thklim_temp)
-    call GetValue(section,'marine_limit',     model%numerics%mlimit)
-    call GetValue(section,'calving_fraction', model%numerics%calving_fraction)
+    call GetValue(section,'marine_limit',     model%calving%marine_limit)
+    call GetValue(section,'calving_fraction', model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',model%calving%calving_timescale)
+    call GetValue(section,'calving_minthck',  model%calving%calving_minthck)
+    call GetValue(section,'damage_threshold', model%calving%damage_threshold)
     call GetValue(section,'geothermal',       model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
@@ -1293,7 +1378,7 @@ contains
     call write_log('Parameters')
     call write_log('----------')
 
-    write(message,*) 'ice limit for dynamics (m)    : ',model%numerics%thklim
+    write(message,*) 'ice limit for dynamics (m)    : ', model%numerics%thklim
     call write_log(message)
 
     !Note: The Glissade dycore is known to crash for thklim = 0, but has not
@@ -1305,17 +1390,35 @@ contains
     endif
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then
-       write(message,*) 'ice limit for temperature (m) : ',model%numerics%thklim_temp
+       write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
        call write_log(message)
     endif
 
-    write(message,*) 'marine depth limit (m)        : ',model%numerics%mlimit
-    call write_log(message)
-
-    if (model%options%whichmarn == MARINE_FLOAT_FRACTION) then
-       write(message,*) 'ice fraction lost due to calving : ', model%numerics%calving_fraction
+    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+       write(message,*) 'ice fraction lost due to calving : ', model%calving%calving_fraction
        call write_log(message)
     end if
+
+    if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
+        model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
+       write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_DAMAGE) then
+       write(message,*) 'calving damage threshold: ', model%calving%damage_threshold
+       call write_log(message)
+    end if
+
+    if (model%calving%calving_timescale >= 0.0d0) then
+       write(message,*) 'calving time scale (yr): ', model%calving%calving_timescale
+       call write_log(message)
+    endif
 
     write(message,*) 'ice density (kg/m^3)          : ', rhoi
     call write_log(message)
@@ -1752,6 +1855,7 @@ contains
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
         ! TODO not sure if thkmask is needed for HO
+
         call glide_add_to_restart_variable_list('thkmask kinbcmask bfricflx dissip')
 
         ! uvel,vvel: These are needed for an exact restart because we can only recalculate
@@ -1852,7 +1956,16 @@ contains
          ! no new restart variables needed
     end select
 
-
+    !WHL - added ice_age option
+    !      Note: Ice age is a diagnostic field, not part of the prognostic ice state.
+    !      Omitting it from restart will only break the diagnostic.
+    select case (options%which_ho_ice_age)
+       case(HO_ICE_AGE_COMPUTE)
+          call glide_add_to_restart_variable_list('ice_age')
+       case default
+          ! no restart variables needed
+    end select
+    !
     ! basal processes module - requires tauf for a restart
 !!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
 !!        call glide_add_to_restart_variable_list('tauf')

@@ -61,6 +61,7 @@ module parallel
 
   integer,save :: ewlb,ewub,nslb,nsub
   integer,save :: east,north,south,west
+  integer,save :: ewtasks,nstasks
 
   !Note: Currently, periodic_bc is always T, since periodic BCs are always applied.                                                             
   !      Outflow BCs require some additional operations on scalars after periodic BCs are applied.
@@ -541,7 +542,7 @@ contains
     logical, intent(in), optional :: outflow_bc_in  ! true for outflow global BCs
                                                     ! (scalars in global halo set to zero)
            
-    integer :: ewrank,ewtasks,nsrank,nstasks
+    integer :: ewrank,nsrank
 
     ! Optionally, change the halo values
     ! Note: The higher-order dycores (glam, glissade) currently require nhalo = 2.

@@ -103,7 +103,6 @@ contains
     use glide_mask
     use isostasy
     use glimmer_map_init
-    use glide_ground
     use glide_thck, only : glide_calclsrf
     use glam_strs2, only : glam_velo_init
     use glimmer_coordinates, only: coordsystem_new
@@ -113,6 +112,8 @@ contains
     use felix_dycore_interface, only: felix_velo_init
     use glide_bwater
     use glimmer_paramets, only: thk0
+
+    use glissade_calving, only: glissade_calve_ice
 
     implicit none
 
@@ -228,6 +229,7 @@ contains
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
+    if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
     ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
@@ -336,24 +338,24 @@ contains
 !!    end if      
 
     ! calculate mask
+    ! Note: This call includes a halo update for thkmask
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
                         model%climate%eus,    model%geometry%thkmask,  &
                         model%geometry%iarea, model%geometry%ivol)
 
-    ! and calculate lower and upper ice surface
-
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
-    model%geometry%usrf = model%geometry%thck + model%geometry%lsrf
+    ! compute halo for relaxed topography
+    !TODO - Is this halo update necessary?
+    call parallel_halo(model%isostasy%relx)
 
     ! register the newly created model so that it can be finalised in the case
     ! of an error without needing to pass the whole thing around to every
     ! function that might cause an error
     call register_model(model)
 
-    ! initialise model diagnostics                                                                                                                 \
-                                                                                                                                                  
+    ! initialise model diagnostics                                                                                           \
+
     call glide_init_diag(model)
 
     ! optional unit tests
@@ -384,6 +386,56 @@ contains
                   GLIDE_IS_FLOAT(model%geometry%thkmask), &
                   model%tempwk%wphi)
 
+    ! initial calving, if desired
+    ! Note: Do this only for a cold start, not for a restart
+    if (model%options%calving_init == CALVING_INIT_ON .and. &
+        model%options%is_restart == RESTART_FALSE) then
+
+       ! ------------------------------------------------------------------------
+       ! Remove ice which should calve, depending on the value of whichcalving
+       !TODO - Make sure we have done the necessary halo updates before calving
+       ! ------------------------------------------------------------------------        
+
+       !WHL - debug
+       print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
+
+       call glissade_calve_ice(model%options%whichcalving,      &
+                               model%options%calving_domain,    &
+                               model%geometry%thck,             &
+                               model%isostasy%relx,             &
+                               model%geometry%topg,             &
+                               model%climate%eus,               &
+                               model%calving%marine_limit,      &
+                               model%calving%calving_fraction,  &
+                               model%calving%calving_timescale, &
+                               model%numerics%dt,               &
+                               model%calving%calving_minthck,   &
+                               model%calving%damage,            &
+                               model%calving%damage_threshold,  &
+                               model%calving%damage_column,     &
+                               model%numerics%sigma,            &
+                               model%calving%calving_thck)
+
+       !TODO: Think about what halo updates are needed after calving. Just thck and thkmask?
+
+       ! halo updates
+       call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calc_lsrf
+
+       ! The mask needs to be recalculated after calving.
+       ! Note: glide_set_mask includes a halo update for thkmask.
+
+       call glide_set_mask(model%numerics,                                &
+                           model%geometry%thck,  model%geometry%topg,     &
+                           model%general%ewn,    model%general%nsn,       &
+                           model%climate%eus,    model%geometry%thkmask,  &
+                           model%geometry%iarea, model%geometry%ivol)
+
+    endif
+
+    ! calculate the lower and upper ice surface
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
+    model%geometry%usrf = model%geometry%thck + model%geometry%lsrf
+
   end subroutine glissade_initialise
   
 !=======================================================================
@@ -401,14 +453,16 @@ contains
     use glissade_temp, only: glissade_temp_driver
     use glissade_therm, only: glissade_therm_driver, glissade_temp2enth, glissade_enth2temp
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
-    use glide_ground, only: glide_marinlim
     use glide_grid_operators
     use isostasy
     use glissade_enthalpy
-    use glissade_transport, only: glissade_transport_driver, glissade_check_cfl, ntracer
+    use glissade_transport, only: glissade_transport_driver, glissade_check_cfl,  &
+                                  glissade_transport_setup_tracers, glissade_transport_finish_tracers
     use glissade_grid_operators
     use glide_thck, only: glide_calclsrf
     use glide_bwater
+
+    use glissade_calving, only: glissade_calve_ice
 
     implicit none
 
@@ -435,6 +489,8 @@ contains
 
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
                                     ! set to true for EVOL_UPWIND, else = false
+
+    integer :: ntracers       ! number of tracers to be transported
 
     integer :: i, j, k
     integer :: nx, ny
@@ -590,21 +646,17 @@ contains
           print *, 'Compute dH/dt'
        endif
 
-       ! Halo updates for velocities, thickness and tracers
-       ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
-       !  (just to be on the safe side).
-
       call t_startf('new_remap_halo_upds')
+
+      ! pre-transport halo updates for velocity and thickness
+      ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
+      !  (just to be on the safe side).
 
       call staggered_parallel_halo(model%velocity%uvel)
       call staggered_parallel_halo(model%velocity%vvel)
-
       call parallel_halo(model%geometry%thck)
-      call parallel_halo(model%temper%temp)
 
-      if (model%options%whichtemp == TEMP_ENTHALPY) then
-         call parallel_halo(model%temper%waterfrac)
-      endif
+      ! Note: Halo updates for tracers are done in subroutine glissade_transport_setup_tracers
 
       call t_stopf('new_remap_halo_upds')
 
@@ -628,151 +680,123 @@ contains
                               model%numerics%dt_transport * tim0 / scyr,                                      &
                               model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt )
 
-       ! Call the transport driver.
-       ! Note: This subroutine assumes SI units:
-       !       * dt (s)
-       !       * dew, dns, thck (m)
-       !       * uvel, vvel, acab, blmt (m/s)
-       !       Since thck has intent(inout), we create and pass a temporary array with units of m.
-       ! TODO - Pass ice age as tracer 2
+      ! Call the transport driver.
+      ! Note: This subroutine assumes SI units:
+      !       * dt (s)
+      !       * dew, dns, thck (m)
+      !       * uvel, vvel, acab, blmt (m/s)
+      !       Since thck has intent(inout), we create and pass a temporary array with units of m.
 
-       do sc = 1, model%numerics%subcyc
-          if (model%numerics%subcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle ',sc
+      if (model%options%whichtemp == TEMP_ENTHALPY) then  ! Use IR to transport enthalpy
 
-          ! temporary in/out arrays in SI units (m)                               
-          thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
-          acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
+         ! Derive enthalpy from temperature and waterfrac
+         ! Note: glissade_temp2enth expects SI units
+         do j = 1, model%general%nsn 
+            do i = 1, model%general%ewn
+               call glissade_temp2enth (model%numerics%stagsigma(1:upn-1),        &
+                                        model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j),   &
+                                        model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j))
+            enddo
+         enddo
 
-          if (model%options%whichtemp == TEMP_PROGNOSTIC) then  ! Use IR to transport thickness, temperature
-                                                                ! (and other tracers, if present)
-                                                                ! Note: We are passing arrays in SI units.
+      endif    ! TEMP_ENTHALPY
 
-             call glissade_transport_driver(model%numerics%dt_transport * tim0,                   &
-                                            model%numerics%dew * len0, model%numerics%dns * len0, &
-                                            model%general%ewn,         model%general%nsn,         &
-                                            model%general%upn-1,       model%numerics%sigma,      &
-                                            ntracer,                                              &
-                                            model%velocity%uvel(:,:,:) * vel0,                    &
-                                            model%velocity%vvel(:,:,:) * vel0,                    &
-                                            thck_unscaled(:,:),                                   &
-                                            acab_unscaled(:,:),                                   &
-                                            bmlt_continuity(:,:),                                 &
-                                            model%temper%temp(:,:,:),                             &
-                                            upwind_transport_in = do_upwind_transport )
+      ! temporary in/out arrays in SI units (m)                               
+      thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
+      acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
 
-             ! convert thck and acab back to scaled units
-             model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-             model%climate%acab(:,:) = acab_unscaled(:,:) / (thk0/tim0)
+      do sc = 1, model%numerics%subcyc
 
-          elseif (model%options%whichtemp == TEMP_ENTHALPY) then  ! Use IR to transport thickness and enthalpy
+         if (model%numerics%subcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle ',sc
 
-             ! Derive enthalpy from temperature and waterfrac
-             ! Note: glissade_temp2enth expects SI units
-             do j = 1, model%general%nsn 
-                do i = 1, model%general%ewn
-                   call glissade_temp2enth (model%numerics%stagsigma(1:upn-1),        &
-                                            model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j),   &
-                                            model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j))
-                enddo
-             enddo
+         ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
+         ! (includes a halo update for tracers)
+         call glissade_transport_setup_tracers (model)
 
-             ! Transport fields, with enthalpy as a tracer instead of temperature
-             call glissade_transport_driver(model%numerics%dt_transport * tim0,                   &
-                                            model%numerics%dew * len0, model%numerics%dns * len0, &
-                                            model%general%ewn,         model%general%nsn,         &
-                                            model%general%upn-1,       model%numerics%sigma,      & 
-                                            ntracer,                                              &
-                                            model%velocity%uvel(:,:,:) * vel0,                    &
-                                            model%velocity%vvel(:,:,:) * vel0,                    &
-                                            thck_unscaled(:,:),                                   &
-                                            acab_unscaled(:,:),                                   &
-                                            bmlt_continuity(:,:),                                 &
-                                            model%temper%enthalpy(:,:,:),                         & 
-                                            upwind_transport_in = do_upwind_transport )
+         ! Main transport driver subroutine
+         ! (includes a halo update for thickness: thck_unscaled in this case)
+         call glissade_transport_driver(model%numerics%dt_transport * tim0,                   &
+                                        model%numerics%dew * len0, model%numerics%dns * len0, &
+                                        model%general%ewn,         model%general%nsn,         &
+                                        model%general%upn-1,       model%numerics%sigma,      &
+                                        model%velocity%uvel(:,:,:) * vel0,                    &
+                                        model%velocity%vvel(:,:,:) * vel0,                    &
+                                        thck_unscaled(:,:),                                   &
+                                        acab_unscaled(:,:),                                   &
+                                        bmlt_continuity(:,:),                                 &
+                                        model%geometry%ntracers,                              &
+                                        model%geometry%tracers(:,:,:,:),                      &
+                                        model%geometry%tracers_usrf(:,:,:),                   &
+                                        model%geometry%tracers_lsrf(:,:,:),                   &
+                                        model%options%which_ho_vertical_remap,                &
+                                        upwind_transport_in = do_upwind_transport)
 
-          else  ! Use IR to transport thickness only
-                ! Note: In glissade_transport_driver, the ice thickness is transported layer by layer,
-                !       which is inefficient if no tracers are being transported.  (It would be more
-                !       efficient to transport thickness in one layer only, using a vertically
-                !       averaged velocity.)  
-                ! Not sure if this option will be used in practice.
-
-             call glissade_transport_driver(model%numerics%dt_transport * tim0,                   &
-                                            model%numerics%dew * len0, model%numerics%dns * len0, &
-                                            model%general%ewn,         model%general%nsn,         &
-                                            model%general%upn-1,       model%numerics%sigma,      &
-                                            ntracer,                                              &
-                                            model%velocity%uvel(:,:,:) * vel0,                    & 
-                                            model%velocity%vvel(:,:,:) * vel0,                    &
-                                            thck_unscaled(:,:),                                   &
-                                            acab_unscaled(:,:),                                   &
-                                            bmlt_continuity(:,:) ,                                &
-                                            upwind_transport_in = do_upwind_transport )
-
-          endif  ! whichtemp
-
-          ! convert thck and acab back to scaled units
-          model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-          model%climate%acab(:,:) = acab_unscaled(:,:) / (thk0/tim0)
-         
-          if (this_rank==rtest .and. verbose_glissade) then
-             print*, ' '
-             print*, 'After glissade_transport_driver:'
-             print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-             print*, 'max, min acab (m/yr) =', maxval(model%climate%acab)*scale_acab, minval(model%climate%acab)*scale_acab
-             print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
-             print*, 'thklim =', model%numerics%thklim * thk0
-             print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-             print*, ' '
-             print*, 'thck:'
-             write(6,'(a6)',advance='no') '      '
-             do i = 1, model%general%ewn
-!!             do i = itest-3, itest+3
-                write(6,'(i6)',advance='no') i
-             enddo
-             write(6,*) ' '
-             do j = model%general%nsn, 1, -1
-                write(6,'(i6)',advance='no') j
-                do i = 1, model%general%ewn
-!!                do i = itest-3, itest+3
-                   write(6,'(f6.0)',advance='no') model%geometry%thck(i,j) * thk0
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-          ! Update halos of modified fields
-
-         call t_startf('after_remap_haloupds')
-
-         call parallel_halo(model%geometry%thck)
-
-         if (model%options%whichtemp == TEMP_ENTHALPY) then
-
-             ! Update enthalpy in halo cells
-             call parallel_halo(model%temper%enthalpy)
-
-             ! Derive new temperature and waterfrac from enthalpy (will be correct in halo cells)
-             ! Note: glissade_enth2temp expects SI units
-             do j = 1, model%general%nsn 
-                do i = 1, model%general%ewn 
-                   call glissade_enth2temp(model%numerics%stagsigma(1:upn-1),                                    &
-                                           model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j),   &
-                                           model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j))
-                enddo
-             enddo
-
-         else   ! update temperature in halo cells
-
-            call parallel_halo(model%temper%temp)
-
-         endif    ! TEMP_ENTHALPY
-
-         ! NOTE: Halo updates of other tracers, if present, should go here
-
-         call t_stopf('after_remap_haloupds')
+         ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers
+         ! (includes a halo update for tracers)
+         call glissade_transport_finish_tracers(model)
 
        enddo     ! subcycling
+
+       ! convert thck and acab back to scaled units
+       model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
+       model%climate%acab(:,:) = acab_unscaled(:,:) / (thk0/tim0)
+
+       if (model%options%whichtemp == TEMP_ENTHALPY) then
+
+          ! Derive new temperature and waterfrac from enthalpy (will be correct in halo cells)
+          ! Note: glissade_enth2temp expects SI units
+          do j = 1, model%general%nsn 
+             do i = 1, model%general%ewn 
+                call glissade_enth2temp(model%numerics%stagsigma(1:upn-1),                                    &
+                                        model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j),   &
+                                        model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j))
+             enddo
+          enddo
+          
+       endif    ! TEMP_ENTHALPY
+
+       if (this_rank==rtest .and. verbose_glissade) then
+          print*, ' '
+          print*, 'After glissade_transport_driver:'
+          print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
+          print*, 'max, min acab (m/yr) =', maxval(model%climate%acab)*scale_acab, minval(model%climate%acab)*scale_acab
+          print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
+          print*, 'thklim =', model%numerics%thklim * thk0
+          print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+          print*, ' '
+          print*, 'thck:'
+          write(6,'(a6)',advance='no') '      '
+          do i = 1, model%general%ewn
+             !!             do i = itest-3, itest+3
+             write(6,'(i6)',advance='no') i
+          enddo
+          write(6,*) ' '
+          do j = model%general%nsn, 1, -1
+             write(6,'(i6)',advance='no') j
+             do i = 1, model%general%ewn
+                !!                do i = itest-3, itest+3
+                write(6,'(f8.2)',advance='no') model%geometry%thck(i,j) * thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          k = 2
+          print*, 'temp, k =', k
+          write(6,'(a6)',advance='no') '      '
+          do i = 1, model%general%ewn
+             !!             do i = itest-3, itest+3
+             write(6,'(i6)',advance='no') i
+          enddo
+          write(6,*) ' '
+          do j = model%general%nsn, 1, -1
+             write(6,'(i6)',advance='no') j
+             do i = 1, model%general%ewn
+                !!                do i = itest-3, itest+3
+                write(6,'(f8.3)',advance='no') model%temper%temp(k,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
        call t_stopf('glissade_transport_driver')
 
@@ -801,64 +825,80 @@ contains
 
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
-    ! --- Calculate updated mask because marinlim calculation needs a mask.
+    ! --- Calculate updated mask because calving calculation needs a mask.
+    !TODO - Remove when using glissade_calve_ice, which does not use the Glide mask?
 
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
                         model%climate%eus,    model%geometry%thkmask)
 
-    !TODO - Look at marinlim more carefully and see which halo updates are necessary.
-    !       It appears that marinlim only needs the halo of thkmask for case 5 (which was removed).  
-    !
-    !       glide_set_mask includes a halo update of model%geometry%thkmask; remove this one?
-    !       Do we need a halo update for relx? If so, should this be done at initialization?
-
-    call parallel_halo(model%geometry%thkmask)
-    call parallel_halo(model%isostasy%relx)
+    !TODO - Look at glissade_calve_ice more carefully and see which halo updates are necessary, if any.
 
     ! ------------------------------------------------------------------------ 
-    ! Remove ice which is either floating, or is present below prescribed depth, 
-    ! depending on value of whichmarn
+    ! Remove ice which should calve, depending on the value of whichcalving 
     ! ------------------------------------------------------------------------ 
 
-    call glide_marinlim(model%options%whichmarn, &
-                        model%geometry%thck,  &
-                        model%isostasy%relx,      &
-                        model%geometry%topg,  &
-                        model%geometry%thkmask,    &
-                        model%numerics%mlimit,     &
-                        model%numerics%calving_fraction, &
-                        model%climate%eus,         &
-                        model%climate%calving,  &
-                        model%ground, &
-                        model%numerics%dew,    &
-                        model%numerics%dns, &
-                        model%general%nsn, &
-                        model%general%ewn)
-
-    !TODO: Think about what halo updates are needed after glide_marinlim. Just thck and thkmask?
+    call glissade_calve_ice(model%options%whichcalving,      &
+                            model%options%calving_domain,    &
+                            model%geometry%thck,             &
+                            model%isostasy%relx,             &
+                            model%geometry%topg,             &
+                            model%climate%eus,               &
+                            model%calving%marine_limit,      &
+                            model%calving%calving_fraction,  &
+                            model%calving%calving_timescale, &
+                            model%numerics%dt,               &
+                            model%calving%calving_minthck,   &
+                            model%calving%damage,            &
+                            model%calving%damage_threshold,  &
+                            model%calving%damage_column,     &
+                            model%numerics%sigma,            &
+                            model%calving%calving_thck)
+    
+    !TODO: Think about what halo updates are needed after calving. Just thck and thkmask?
 
     ! halo updates
     call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calc_lsrf
+
+    ! ------------------------------------------------------------------------ 
+    ! Increment the ice age.
+    ! If a cell becomes ice-free, the age is reset to zero.
+    ! Note: Internally, the age has the same units as dt, but on output it will be converted to years.
+    ! ------------------------------------------------------------------------ 
+    
+    if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+       do j = 1, model%general%nsn 
+          do i = 1, model%general%ewn 
+             if (model%geometry%thck(i,j) > 0.0d0) then
+                model%geometry%ice_age(:,i,j) = model%geometry%ice_age(:,i,j) + model%numerics%dt
+             else
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+    endif
+
+    !WHL - debug
+!!    i = itest; j = jtest; k = 1
+!!    print*, 'i, j, k, thickness (m), age (yr):', i, j, k, model%geometry%thck(i,j)*thk0, model%geometry%ice_age(k,i,j)*tim0/scyr
 
     !TODO - Remove this call to glide_set_mask?
     !       This subroutine is called at the beginning of glissade_velo_driver,
     !        so a call here is not needed for the velo diagnostic solve.
     !       The question is whether it is needed for the isostasy.
 
-    ! --- marinlim adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
-    ! --- This time we want to calculate the optional arguments iarea and ivol because thickness 
-    ! --- will not change further during this time step.
+    ! glissade_calve_ice adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
+    ! Note: glide_set_mask includes a halo update of thkmask
+
+    ! This time we want to calculate the optional arguments iarea and ivol because thickness 
+    ! will not change further during this time step.
 
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
                         model%climate%eus,    model%geometry%thkmask,  &
                         model%geometry%iarea, model%geometry%ivol)
-
-    !Note: glide_set_mask includes a halo update of model%geometry%thkmask at end of call
-    ! call parallel_halo(model%geometry%thkmask)
 
     ! --- Calculate global area of ice that is floating and grounded.
     !TODO  May want to calculate iareaf and iareag in glide_write_diag and remove those calculations here.  
@@ -1011,6 +1051,9 @@ contains
 
     ! ------------------------------------------------------------------------
     ! Update some masks that are used by Glissade subroutines
+    ! TODO - Is this call needed here?  There is a call to glissade_get_masks
+    !        near the start of the velo calculation. But ice_mask is passed into
+    !        glissade_flow_factor.
     ! ------------------------------------------------------------------------
 
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &

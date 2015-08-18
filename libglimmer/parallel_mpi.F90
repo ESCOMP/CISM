@@ -104,6 +104,7 @@ module parallel
 
   integer,save :: ewlb,ewub,nslb,nsub
   integer,save :: east,north,south,west
+  integer,save :: ewtasks,nstasks
 
   !Note: Currently, periodic_bc is always T, since periodic BCs are always applied.
   !      Outflow BCs require some additional operations on scalars after periodic BCs are applied.
@@ -1428,7 +1429,7 @@ contains
                                                     ! (scalars in global halo set to zero)
 
     integer :: best,i,j,metric
-    integer :: ewrank,ewtasks,nsrank,nstasks
+    integer :: ewrank,nsrank
     real(8) :: rewtasks,rnstasks
 
     ! begin

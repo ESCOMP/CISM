@@ -1005,7 +1005,6 @@ contains
     !TODO - Remove the old edge mask option?
 
     logical, parameter :: new_edgemask = .true.
-!!    logical, parameter :: new_edgemask = .false.
 
  if (new_edgemask) then
 
