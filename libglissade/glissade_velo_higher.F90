@@ -2981,9 +2981,12 @@
 
        endif   ! whichsparse 
 
-       if (main_task) then
-          print*, 'Solved the linear system, niters, err =', niters, err
-       endif
+       if (whichsparse /= HO_SPARSE_TRILINOS) then
+          ! niters isn't set when using the trilinos solver
+          if (main_task) then
+             print*, 'Solved the linear system, niters, err =', niters, err
+          endif
+       end if
 
        if (solve_2d) then
 
