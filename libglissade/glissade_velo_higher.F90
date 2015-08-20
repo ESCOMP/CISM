@@ -714,6 +714,7 @@
        bwat,                 &  ! basal water depth (m)
        mintauf,              &  ! till yield stress (Pa)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
+       beta_external,        &  ! beta from external file for whichbabc = HO_BABC_EXTERNAL_BETA
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
        f_pattyn,             &  ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
        f_ground                 ! grounded ice fraction, 0 <= f_ground <= 1
@@ -1002,6 +1003,7 @@
      flwa     => model%temper%flwa(:,:,:)
      efvs     => model%stress%efvs(:,:,:)
      beta     => model%velocity%beta(:,:)
+     beta_external => model%velocity%beta_external(:,:)
      bfricflx => model%temper%bfricflx(:,:)
      bwat     => model%temper%bwat(:,:)
      mintauf  => model%basalproc%mintauf(:,:)
@@ -1871,7 +1873,7 @@
     resid_velo = 1.d0
 
     L2_norm   = 1.0d20      ! arbitrary large value
-    L2_target = 1.0d-4      
+    L2_target = 1.0d-4
 
     !WHL: For standard test cases (dome, circular shelf), a relative target of 1.0d-7 is 
     !     roughly as stringent as an absolute target of 1.0d-4.
@@ -2028,6 +2030,10 @@
        !     DIVA does not compute the basal velocity in the 2D matrix solve, 
        !     but computes the 3D velocity after each iteration so that
        !     uvel/vvel(nz,:,:) are available here.
+       ! (6) For which_ho_babc = HO_BABC_EXTERNAL_BETA, beta_external is passed in
+       !     with dimensionless Glimmer units. Rather than incur roundoff errors by
+       !     repeatedly multiplying and dividing by scaling constants, the conversion
+       !     to Pa yr/m is done here in the argument list.
        !-------------------------------------------------------------------
 
        if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then
@@ -2047,7 +2053,8 @@
                       model%basal_physics,              &
                       flwa(nz-1,:,:),                   &  ! basal flwa layer
                       thck,                             &
-                      stagmask,      beta,              & 
+                      stagmask,      beta_external*tau0/(vel0*scyr),&
+                      beta,                             &
                       f_ground)
 
        call staggered_parallel_halo(beta)

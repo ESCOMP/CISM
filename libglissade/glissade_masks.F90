@@ -280,10 +280,7 @@
                           ice_mask, stagger_margin_in = 1)
 
     ! initialize f_ground
-    ! Choose a special non-physical value to be overwritten in all cells with ice
-    !TODO: Make sure the special value isn't used in any calculations
-    f_ground(:,:) = -1.d0
-!!    f_ground(:,:) = 9.d0
+    f_ground(:,:) = 0.d0
 
     ! Compute f_ground according to the value of whichground
 
