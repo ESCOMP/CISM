@@ -81,7 +81,8 @@ contains
                        bwat,          beta_const,    &
                        mintauf,       basal_physics, &
                        flwa_basal,    thck,          &
-                       mask,          beta,          &
+                       mask,          beta_external, &
+                       beta,                         &
                        f_ground)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
@@ -107,11 +108,12 @@ contains
   real(dp), intent(in), dimension(:,:)    :: bwat     ! basal water depth (m)
   real(dp), intent(in), dimension(:,:)    :: mintauf  ! till yield stress (Pa)
   real(dp), intent(in)                    :: beta_const  ! spatially uniform beta (Pa yr/m)
-  type(glide_basal_physics), intent(in) :: basal_physics  ! basal physics object
-  real(dp), intent(in), dimension(:,:) :: flwa_basal  ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
-  real(dp), intent(in), dimension(:,:) :: thck  ! ice thickness
+  type(glide_basal_physics), intent(in)   :: basal_physics  ! basal physics object
+  real(dp), intent(in), dimension(:,:)    :: flwa_basal  ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
+  real(dp), intent(in), dimension(:,:)    :: thck  ! ice thickness
   integer, intent(in), dimension(:,:)     :: mask ! staggered grid mask
-  real(dp), intent(inout), dimension(:,:) :: beta  ! (Pa yr/m)
+  real(dp), intent(in), dimension(:,:)    :: beta_external   ! beta read from external file (Pa yr/m)
+  real(dp), intent(inout), dimension(:,:) :: beta  ! basal traction coefficient (Pa yr/m)
   real(dp), intent(in), dimension(:,:), optional :: f_ground   ! grounded ice fraction, 0 <= f_ground <= 1
 
   ! Local variables
@@ -139,9 +141,11 @@ contains
   real(dp) :: m_max       ! maximum bed obstacle slope
   real(dp), dimension(size(beta,1), size(beta,2)) :: big_lambda       ! bed rock characteristics
   real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2) 
-  integer, dimension(size(thck,1), size(thck,2))  :: imask            ! ice grid mask  1=ice, 0=no ice
+  integer,  dimension(size(thck,1), size(thck,2)) :: imask            ! ice grid mask  1=ice, 0=no ice
   real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
                                                                       ! NOTE: Units are Pa^{-n} yr^{-1}
+  character(len=300) :: message
+
   select case(whichbabc)
 
     case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
@@ -232,7 +236,9 @@ contains
 
     case(HO_BABC_EXTERNAL_BETA)   ! use value passed in externally from CISM
 
-      ! scale CISM input value to dimensional units of (Pa yr/m)
+       ! set beta to the prescribed external value
+       ! Note: This assumes that beta_external has units of Pa yr/m on input.
+       beta(:,:) = beta_external(:,:)
 
        ! beta is initialized to a negative value; we can use that fact to check whether
        ! it has been read correctly from the file
@@ -243,18 +249,6 @@ contains
           call write_log('or change which_ho_babc to a different option.')
           call write_log('Invalid value for beta. See log file for details.', GM_FATAL)
        end if
-
-!!      beta(:,:) = beta(:,:) * ( tau0 / vel0 / scyr )   ! already dimensional
-
-      ! this is a check for NaNs, which indicate, and are replaced by no slip
-
-      do ns = 1, nsn-1
-         do ew = 1, ewn-1 
-            if( beta(ew,ns) /= beta(ew,ns) )then
-               beta(ew,ns) = 1.d10     ! Pa yr/m
-            endif
-         end do
-      end do
 
     case(HO_BABC_POWERLAW)   ! A power law that uses effective pressure
        ! See Cuffey & Paterson, Physics of Glaciers, 4th Ed. (2010), p. 240, eq. 7.17
@@ -328,10 +322,14 @@ contains
 
    end select
 
-   ! Check for areas where ice is floating and make sure beta in these regions is 0. 
-   ! Note: With a GLP, f_ground can have values between 0 and 1 at vertices adjacent to the GL.
-   !       Without a GLP, f_ground = 0 or 1 based on a flotation criterion.
-   !       Using fractional f_ground rather than the Glide mask is preferred for the Coulomb friction options.
+   ! If f_ground is passed in (as for Glissade), then multiply beta by f_ground (0 <= f_ground <= 1) 
+   !  to reduce the basal traction in regions that are partially or totally floating.
+   ! Note: With a GLP, f_ground will have values between 0 and 1 at vertices adjacent to the GL.
+   !       Without a GLP, f_ground = 0 or 1 everywhere based on a flotation criterion.
+   !       By convention, f_ground = 0 where no ice is present.
+   !
+   ! If f_ground in not passed in (as for Glam), then check for areas where the ice is floating
+   !  and make sure beta in these regions is 0. 
 
    if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
       beta(:,:) = beta(:,:) * f_ground(:,:)
@@ -345,6 +343,19 @@ contains
       end do
    endif   ! present(f_ground)
 
+   ! Bug check: Make sure beta >= 0
+   ! This check will find negative values as well as NaNs
+   do ns = 1, nsn-1
+      do ew = 1, ewn-1 
+         if (beta(ew,ns) >= 0.d0) then
+            ! do nothing
+         else
+            write(message,*) 'Invalid beta value in calcbeta: ew, ns, beta:', ew, ns, beta(ew,ns)
+            call write_log(trim(message), GM_FATAL)
+         endif
+      end do
+   end do
+   
  end subroutine calcbeta
 
 !***********************************************************************

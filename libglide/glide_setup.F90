@@ -1890,10 +1890,8 @@ contains
               !       because horizontal transport is done before updating the velocity.
               
               if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
-                 print*, 'Adding uvel_2d_extend to restart'
                  call glide_add_to_restart_variable_list('uvel_2d_extend vvel_2d_extend btractx_extend btracty_extend efvs')
               else
-                 print*, 'Adding uvel_2d to restart'
                  call glide_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs')
               endif
               

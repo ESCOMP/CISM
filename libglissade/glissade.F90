@@ -308,6 +308,16 @@ contains
 
     endif  ! unstagbeta > 0
 
+    ! If the beta field has been read from an external file, then copy it to the beta_external array.
+    ! Thus we maintain a copy of the external beta field, allowing beta to be modified internally
+    !  based on whether or not ice is present and floating.
+
+    if (model%options%which_ho_babc == HO_BABC_EXTERNAL_BETA) then
+
+       model%velocity%beta_external(:,:) = model%velocity%beta(:,:)
+
+    endif
+
     ! The MISMIP 3D test case requires reading in a spatial factor that multiplies Coulomb_C.
     ! This factor is read in on the unstaggered grid, then interpolated to the staggered grid.
     ! If this factor is not present in the input file, then set it to 1 everywhere.
