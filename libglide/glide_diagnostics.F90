@@ -35,6 +35,7 @@ module glide_diagnostics
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
+  use parallel
 
   implicit none
 
@@ -68,20 +69,24 @@ contains
     real(dp) ::   &
        quotient, nint_quotient
 
+    logical, parameter :: verbose_diagnostics = .false.
+
     if (present(minthick_in)) then
        minthick = minthick_in
     else
        minthick = eps  
     endif
- 
-! debug
-!      print*, '	'
-!      print*, 'In glide_write_diagnostics'
-!      print*, 'time =', time
-!      print*, 'dt_diag =', model%numerics%dt_diag
-!      print*, 'ndiag =', model%numerics%ndiag
-!      print*, 'tstep_count =', tstep_count
 
+    ! debug
+    if (main_task .and. verbose_diagnostics) then
+       print*, '	'
+       print*, 'In glide_write_diagnostics'
+       print*, 'time =', time
+       print*, 'dt_diag =', model%numerics%dt_diag
+       print*, 'ndiag =', model%numerics%ndiag
+       print*, 'tstep_count =', tstep_count
+    endif
+       
     !TODO - Make the write_diag criterion more robust; e.g., derive ndiag from dt_diag at initialization.
     !       Then we would work with integers (tstep_count and ndiag) and avoid roundoff errors.
 
@@ -91,6 +96,10 @@ contains
 
        quotient = time/model%numerics%dt_diag
        nint_quotient = nint(quotient)
+
+       if (main_task .and. verbose_diagnostics) then
+          print*, 'quotient, nint_quotient, diff:', quotient, nint_quotient, abs(quotient - real(nint_quotient,dp)) 
+       endif
 
        if (abs(quotient - real(nint_quotient,dp)) < eps) then  ! time to write
 
@@ -114,8 +123,6 @@ contains
 !--------------------------------------------------------------------------
 
   subroutine glide_init_diag (model)
-
-    use parallel
 
     implicit none
 

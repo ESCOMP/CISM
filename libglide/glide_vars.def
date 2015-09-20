@@ -805,11 +805,11 @@ factor:        tim0/scyr
 load:          1
 coordinates:   lon lat
 
-[f_pattyn]
+[f_flotation]
 dimensions:    time, y1, x1
 units:         unitless
-long_name:     Pattyn flotation function
-data:          data%geometry%f_pattyn
+long_name:     flotation function
+data:          data%geometry%f_flotation
 load:          0
 coordinates:   lon lat
 

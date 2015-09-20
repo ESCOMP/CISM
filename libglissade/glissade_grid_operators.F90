@@ -245,7 +245,7 @@ contains
     !  the gradient, but values in ice-free ocean cells are ignored.  Where required values are 
     !  missing, the gradient is set to zero. For land-based problems this reduces to option (0) 
     !  (except where ice-free land rises above the ice surface), and for ocean-based problems 
-    !  this reduced to option (2).
+    !  this reduces to option (2).
     !
     !  NOTE: Ice-free land cells contribute to the gradient only where their elevation lies below
     !        the elevation of the adjacent ice-covered cell. This constraint prevents nunataks from

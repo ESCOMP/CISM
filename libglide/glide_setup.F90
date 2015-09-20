@@ -610,6 +610,7 @@ contains
     call GetValue(section, 'which_ho_vertical_remap',  model%options%which_ho_vertical_remap)
     call GetValue(section, 'which_ho_assemble_beta',   model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',   model%options%which_ho_assemble_taud)
+    call GetValue(section, 'which_ho_assemble_bfric',  model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_ground',    model%options%which_ho_ground)
     call GetValue(section, 'which_ho_ice_age',   model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',   model%options%glissade_maxiter)
@@ -823,16 +824,20 @@ contains
 
     character(len=*), dimension(0:1), parameter :: ho_whichassemble_beta = (/ &
          'standard finite-element assembly (glissade dycore) ', &
-         'use local beta for assembly (glissade dycore)      '  /)
+         'use local beta at each vertex (glissade dycore)    '  /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichassemble_taud = (/ &
-         'standard finite-element assembly (glissade dycore)     ', &
-         'use local driving stress for assembly (glissade dycore)'  /)
+         'standard finite-element assembly (glissade dycore)       ', &
+         'use local driving stress at each vertex (glissade dycore)'  /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichassemble_bfric = (/ &
+         'standard finite-element assembly (glissade dycore)       ', &
+         'use local basal friction at each vertex (glissade dycore)'  /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
-         'f_ground = 1 for all active cells (glissade dycore)', &
-         '0 <= f_ground <= 1, based on GLP (glissade dycore) ' /)
+         '0 <= f_ground <= 1, based on GLP (glissade dycore) ', &
+         'f_ground = 1 for all active cells (glissade dycore)' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -1247,6 +1252,14 @@ contains
              call write_log('Error, driving-stress assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
+          write(message,*) 'ho_whichassemble_bfric  : ',model%options%which_ho_assemble_bfric,  &
+                            ho_whichassemble_bfric(model%options%which_ho_assemble_bfric)
+          call write_log(message)
+          if (model%options%which_ho_assemble_bfric < 0 .or. &
+              model%options%which_ho_assemble_bfric >= size(ho_whichassemble_bfric)) then
+             call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
+          end if
+
           write(message,*) 'ho_whichground          : ',model%options%which_ho_ground,  &
                             ho_whichground(model%options%which_ho_ground)
           call write_log(message)
@@ -1289,7 +1302,7 @@ contains
     use glimmer_config
     use glide_types
     use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
 
     implicit none
     type(ConfigSection), pointer :: section
@@ -1307,6 +1320,9 @@ contains
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)
     call GetValue(section,'grav', grav)
+    call GetValue(section,'shci', shci)
+    call GetValue(section,'lhci', lhci)
+    call GetValue(section,'trpt', trpt)
 #endif
 
     loglevel = GM_levels-GM_ERROR
@@ -1411,12 +1427,12 @@ contains
     endif
 
     if (model%options%whichcalving == CALVING_DAMAGE) then
-       write(message,*) 'calving damage threshold: ', model%calving%damage_threshold
+       write(message,*) 'calving damage threshold      : ', model%calving%damage_threshold
        call write_log(message)
     end if
 
-    if (model%calving%calving_timescale >= 0.0d0) then
-       write(message,*) 'calving time scale (yr): ', model%calving%calving_timescale
+    if (model%calving%calving_timescale > 0.0d0) then
+       write(message,*) 'calving time scale (yr)       : ', model%calving%calving_timescale
        call write_log(message)
     endif
 
@@ -1427,6 +1443,15 @@ contains
     call write_log(message)
 
     write(message,*) 'gravitational accel (m/s^2)   : ', grav
+    call write_log(message)
+
+    write(message,*) 'heat capacity of ice (J/kg/K) : ', shci
+    call write_log(message)
+
+    write(message,*) 'latent heat of ice (J/kg)     : ', lhci
+    call write_log(message)
+
+    write(message,*) 'triple point of water (K)     : ', trpt
     call write_log(message)
 
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot

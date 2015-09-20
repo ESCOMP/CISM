@@ -716,7 +716,8 @@
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_external,        &  ! beta from external file for whichbabc = HO_BABC_EXTERNAL_BETA
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
-       f_pattyn,             &  ! Pattyn flotation function, -rhoo*(topg-eus) / (rhoi*thck)
+       f_flotation,          &  ! flotation function = (rhoi*thck) / (-rhoo*(topg-eus)) by default
+                                ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
        f_ground                 ! grounded ice fraction, 0 <= f_ground <= 1
 
     !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
@@ -768,6 +769,8 @@
                                 ! 1 = apply local value of beta at each vertex
        whichassemble_taud,  &   ! 0 = standard finite element assembly
                                 ! 1 = apply local value of driving stress at each vertex
+       whichassemble_bfric, &   ! 0 = standard finite element assembly
+                                ! 1 = apply local value of basal friction at each vertex
        whichground,  &          ! option for computing grounded fraction of each cell
        maxiter_nonlinear        ! maximum number of nonlinear iterations
 
@@ -996,9 +999,9 @@
      thck     => model%geometry%thck(:,:)
      usrf     => model%geometry%usrf(:,:)
      topg     => model%geometry%topg(:,:)
-     f_pattyn => model%geometry%f_pattyn(:,:)
-     f_ground => model%geometry%f_ground(:,:)
      stagmask => model%geometry%stagmask(:,:)
+     f_ground => model%geometry%f_ground(:,:)
+     f_flotation => model%geometry%f_flotation(:,:)
 
      flwa     => model%temper%flwa(:,:,:)
      efvs     => model%stress%efvs(:,:,:)
@@ -1047,6 +1050,7 @@
      whichgradient_margin = model%options%which_ho_gradient_margin
      whichassemble_beta   = model%options%which_ho_assemble_beta
      whichassemble_taud   = model%options%which_ho_assemble_taud
+     whichassemble_bfric  = model%options%which_ho_assemble_bfric
      whichground          = model%options%which_ho_ground
      maxiter_nonlinear    = model%options%glissade_maxiter
 
@@ -1442,15 +1446,15 @@
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
     ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
     !
-    ! f_ground is set to a special non-physical value of -1 in cells without ice
-    ! f_pattyn is not needed in further calculations but is output as a diagnostic
+    ! f_ground is set to a special non-physical value of -1 in cells without ice.
+    ! f_flotation is not needed in further calculations but is output as a diagnostic.
     !------------------------------------------------------------------------------
 
     call glissade_grounded_fraction(nx,          ny,           &
                                     thck,        topg,         &
                                     eus,         ice_mask,     &
                                     whichground, f_ground,     &
-                                    f_pattyn)
+                                    f_flotation)
     
     !------------------------------------------------------------------------------
     ! Compute ice thickness and upper surface on staggered grid
@@ -1550,10 +1554,10 @@
           print*, ' '
        enddo       
        print*, ' '
-       print*, 'f_pattyn, rank =', rtest
+       print*, 'f_flotation, rank =', rtest
        do j = jtest+1, jtest-1, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_pattyn(i,j)
+             write(6,'(f10.4)',advance='no') f_flotation(i,j)
           enddo
           print*, ' '
        enddo       
@@ -1643,6 +1647,20 @@
                              iNodeIndex,   jNodeIndex,  kNodeIndex, &
                              iVertexIndex, jVertexIndex)
 !pw call t_stopf('glissade_get_vertex_geom')
+
+    ! Zero out the velocity for inactive vertices
+    do j = nhalo+1, ny-nhalo    ! locally owned vertices only
+       do i = nhalo+1, nx-nhalo
+          if (.not.active_vertex(i,j)) then
+             uvel(:,i,j) = 0.d0
+             vvel(:,i,j) = 0.d0
+             if (solve_2d) then
+                uvel_2d(i,j) = 0.d0
+                vvel_2d(i,j) = 0.d0
+             endif
+          endif
+       enddo
+    enddo
 
     ! Assign the appropriate local ID to vertices and nodes in the halo.
     ! NOTE: This works for single-processor runs with periodic BCs
@@ -2044,6 +2062,71 @@
           vbas(:,:) = vvel(nz,:,:)
        endif
 
+       if (verbose_beta .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'Before calcbeta:'
+          print*, ' '
+          print*, 'usrf field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') usrf(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'thck field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'topg field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') topg(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') f_flotation(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'f_ground field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') f_ground(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+       endif
+
        call calcbeta (whichbabc,                        &
                       dx,            dy,                &
                       nx,            ny,                &
@@ -2074,12 +2157,37 @@
        if (verbose_beta .and. this_rank==rtest) then
 
           print*, ' '
-          print*, 'beta field, itest, rank =', itest, rtest
-          do j = ny-1, 1, -1
+          print*, 'beta field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
-             do i = itest-4, itest+4
+             do i = itest-3, itest+3
                 write(6,'(e10.3)',advance='no') beta(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'Basal uvel field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(e10.3)',advance='no') uvel(nz,i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'Basal vvel field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(e10.3)',advance='no') vvel(nz,i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2222,8 +2330,9 @@
                 print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
                 print*, ' '
                 print*, 'beta_eff:'
-                do j = ny-1, 1, -1
+!!                do j = ny-1, 1, -1
 !!                   do i = 1, nx-1
+                do j = jtest-5, jtest+5, -1
                    do i = itest-5, itest+5
                       write(6,'(e10.3)',advance='no') beta_eff(i,j)
                    enddo
@@ -3272,8 +3381,24 @@
                                         nhalo,         active_cell,   &
                                         xVertex,       yVertex,       &
                                         uvel(nz,:,:),  vvel(nz,:,:),  &
-                                        beta,          bfricflx)
-                                        
+                                        beta,          whichassemble_bfric,  &
+                                        bfricflx)
+                         
+    !WHL - debug
+    if (verbose_bfric .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Basal friction, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+          do i = itest-3, itest+3
+             write(6,'(e10.3)',advance='no') bfricflx(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
     !------------------------------------------------------------------------------
     ! Compute the components of basal traction.
     !------------------------------------------------------------------------------
@@ -6096,7 +6221,8 @@
                                             nhalo,         active_cell,   &
                                             xVertex,       yVertex,       &
                                             uvel,          vvel,          &
-                                            beta,          bfricflx)
+                                            beta,          whichassemble_bfric,  &
+                                            bfricflx)
 
     !----------------------------------------------------------------
     ! Compute the heat flux due to basal friction, given the 2D basal
@@ -6110,6 +6236,16 @@
     ! The frictional heat flux (W/m^2) is given by q_b = tau_b * u_b,
     ! where tau_b and u_b are the magnitudes of the basal stress
     ! and velocity (e.g., Cuffey & Paterson, p. 418).
+    !
+    ! Note: There is a choice of two methods for this calculation:
+    !       (0) a finite-element method, summing over beta*(u^2 + v^2) at quadrature points
+    !       (1) a simple method, computing beta*(u^2 + v^2) at vertices
+    !       Method (0) should formally be more accurate, at least where the flow is smooth.
+    !       However, it can lead to inaccurate and hugely excessive frictional fluxes where
+    !        the flow transitions steeply from high beta/low velo to low beta/high velo
+    !        (e.g., at the edge of fjords). In this case there are QPs with relatively
+    !        high velocity combined with large beta. 
+    !       To choose method (1), set which_ho_assemble_bfric = 1 in the config file.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -6129,6 +6265,10 @@
     real(dp), dimension(nx-1,ny-1), intent(in) :: &
        uvel, vvel,          & ! basal velocity components at each vertex (m/yr)
        beta                   ! basal traction parameter (Pa/(m/yr))
+
+    integer, intent(in) ::  &
+       whichassemble_bfric    ! = 0 for standard finite element computation of basal friction
+                              ! = 1 for computation that uses only the local value of the basal friction at each vertex
 
     real(dp), dimension(nx,ny), intent(out) :: &
        bfricflx               ! basal heat flux from friction (W/m^2)
@@ -6150,78 +6290,110 @@
        beta_qp,         & ! beta at quadrature points
        sum_wqp            ! sum of weighting factors
 
+    logical, parameter :: bfricflx_finite_element = .false.  ! if true, do a finite-element summation
+                                                             ! if false, take beta*(u^2 + v^2) at active vertices
+                                                             ! (see comments above)
     ! initialize
     bfricflx(:,:) = 0.d0
 
-    ! Loop over local cells
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    if (whichassemble_bfric == HO_ASSEMBLE_BFRIC_STANDARD) then
+
+       ! do finite-element calculation (can be inaccurate at sharp transitions in beta and velocity)
+
+       ! Loop over local cells
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
        
-       if (active_cell(i,j)) then   ! ice is present
+             if (active_cell(i,j)) then   ! ice is present
 
-          ! Load x and y coordinates, basal velocity, and beta at cell vertices
+                ! Load x and y coordinates, basal velocity, and beta at cell vertices
 
-          do n = 1, nNodesPerElement_2d
+                do n = 1, nNodesPerElement_2d
 
-             ! Determine (i,j) for this vertex
-             ! The reason for the '3' is that node 3, in the NE corner of the grid cell, has index (i,j).
-             ! Indices for other nodes are computed relative to this vertex.
-             iVertex = i + ishift(3,n)
-             jVertex = j + jshift(3,n)
+                   ! Determine (i,j) for this vertex
+                   ! The reason for the '3' is that node 3, in the NE corner of the grid cell, has index (i,j).
+                   ! Indices for other nodes are computed relative to this vertex.
+                   iVertex = i + ishift(3,n)
+                   jVertex = j + jshift(3,n)
+                   
+                   x(n) = xVertex(iVertex,jVertex)
+                   y(n) = yVertex(iVertex,jVertex)
+                   u(n) = uvel(iVertex,jVertex)
+                   v(n) = vvel(iVertex,jVertex)
+                   b(n) = beta(iVertex,jVertex)
+                   
+                enddo
 
-             x(n) = xVertex(iVertex,jVertex)
-             y(n) = yVertex(iVertex,jVertex)
-             u(n) = uvel(iVertex,jVertex)
-             v(n) = vvel(iVertex,jVertex)
-             b(n) = beta(iVertex,jVertex)
+                sum_wqp = 0.d0
 
-          enddo
+                ! loop over quadrature points
+                do p = 1, nQuadPoints_2d
+                   
+                   ! Evaluate u, v and beta at this quadrature point
+                   
+                   u_qp = 0.d0
+                   v_qp = 0.d0
+                   beta_qp = 0.d0
+                   do n = 1, nNodesPerElement_2d
+                      u_qp = u_qp + phi_2d(n,p) * u(n)
+                      v_qp = v_qp + phi_2d(n,p) * v(n)
+                      beta_qp = beta_qp + phi_2d(n,p) * b(n)
+                   enddo
+                   
+                   ! Increment basal frictional heating
+                   
+                   bfricflx(i,j) = bfricflx(i,j) + wqp_2d(p) * beta_qp * (u_qp**2 + v_qp**2)
+                   sum_wqp = sum_wqp + wqp_2d(p)
+                   
+                   if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                      print*, ' '
+                      print*, 'Increment basal friction heating, i, j, p =', i, j, p
+                      print*, 'u, v, beta_qp =', u_qp, v_qp, beta_qp
+                      print*, 'local increment =', beta_qp * (u_qp**2 + v_qp**2) / scyr
+                   endif
+                   
+                enddo   ! nQuadPoints_2d
+                
+                ! Scale the result:
+                ! Divide by sum_wqp to get average of beta*(u^2 + v^2) over cell
+                ! Divide by scyr to convert Pa m/yr to Pa m/s = W/m^2
+                
+                bfricflx(i,j) = bfricflx(i,j) / (sum_wqp * scyr)
+                
+                if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+                   print*, 'beta, uvel, vvel:', beta(i,j), uvel(i,j), vvel(i,j)
+                endif
+                
+             endif      ! active_cell
+             
+          enddo         ! i
+       enddo            ! j
+       
+    else   ! whichassemble_bfric = HO_ASSEMBLE_BFRIC_LOCAL; local calculation at active vertices
 
-          sum_wqp = 0.d0
+       ! Loop over local vertices
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+       
+             if (active_cell(i,j)) then   ! ice is present
 
-          ! loop over quadrature points
-          do p = 1, nQuadPoints_2d
+                bfricflx(i,j) = beta(i,j) * (uvel(i,j)**2 + vvel(i,j)**2)
+                bfricflx(i,j) = bfricflx(i,j) / scyr   ! convert Pa m/yr to Pa m/s = W/m^2
 
-             ! Evaluate u, v and beta at this quadrature point
+                if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+                   print*, 'beta, uvel, vvel:', beta(i,j), uvel(i,j), vvel(i,j)
+                endif
+                
+             endif      ! active_cell
+             
+          enddo         ! i
+       enddo            ! j
 
-             u_qp = 0.d0
-             v_qp = 0.d0
-             beta_qp = 0.d0
-             do n = 1, nNodesPerElement_2d
-                u_qp = u_qp + phi_2d(n,p) * u(n)
-                v_qp = v_qp + phi_2d(n,p) * v(n)
-                beta_qp = beta_qp + phi_2d(n,p) * b(n)
-             enddo
-
-             ! Increment basal frictional heating
-
-             bfricflx(i,j) = bfricflx(i,j) + wqp_2d(p) * beta_qp * (u_qp**2 + v_qp**2)
-             sum_wqp = sum_wqp + wqp_2d(p)
-
-             if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Increment basal friction heating, i, j, p =', i, j, p
-                print*, 'u, v, beta_qp =', u_qp, v_qp, beta_qp
-                print*, 'local increment =', beta_qp * (u_qp**2 + v_qp**2) / scyr
-             endif
-
-          enddo   ! nQuadPoints_2d
-
-          ! Scale the result:
-          ! Divide by sum_wqp to get average of beta*(u^2 + v^2) over cell
-          ! Divide by scyr to convert Pa m/yr to Pa m/s = W/m^2
-
-          bfricflx(i,j) = bfricflx(i,j) / (sum_wqp * scyr) 
-
-          if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
-          endif
-
-       endif      ! active_cell
-
-    enddo         ! i
-    enddo         ! j
+    endif  ! whichassemble_bfric
 
     ! halo update
     call parallel_halo(bfricflx)
