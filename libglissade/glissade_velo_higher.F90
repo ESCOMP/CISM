@@ -772,6 +772,7 @@
        whichassemble_bfric, &   ! 0 = standard finite element assembly
                                 ! 1 = apply local value of basal friction at each vertex
        whichground,  &          ! option for computing grounded fraction of each cell
+       whichflotation_function,&! option for computing flotation function at and near each vertex
        maxiter_nonlinear        ! maximum number of nonlinear iterations
 
     !--------------------------------------------------------
@@ -1046,13 +1047,14 @@
      whichsparse          = model%options%which_ho_sparse
      whichapprox          = model%options%which_ho_approx
      whichprecond         = model%options%which_ho_precond
+     maxiter_nonlinear    = model%options%glissade_maxiter
      whichgradient        = model%options%which_ho_gradient
      whichgradient_margin = model%options%which_ho_gradient_margin
      whichassemble_beta   = model%options%which_ho_assemble_beta
      whichassemble_taud   = model%options%which_ho_assemble_taud
      whichassemble_bfric  = model%options%which_ho_assemble_bfric
      whichground          = model%options%which_ho_ground
-     maxiter_nonlinear    = model%options%glissade_maxiter
+     whichflotation_function = model%options%which_ho_flotation_function
 
     !--------------------------------------------------------
     ! Convert input variables to appropriate units for this solver.
@@ -1441,20 +1443,24 @@
     ! (requires that thck and topg are up to date in halo cells).
     ! This is used below to compute the basal stress BC.
     !
-    ! Three cases for whichground:
+    ! Three options for whichground:
     ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
-    ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
-    ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
+    ! (1) HO_GROUND_GLP:    0 <= f_ground <= 1 based on grounding-line parameterization
+    ! (2) HO_GROUND_ALL:    f_ground = 1 for all cells with ice
     !
-    ! f_ground is set to a special non-physical value of -1 in cells without ice.
+    ! Three options for whichflotation_function (applies to whichground = 0 or 1):
+    ! (0) HO_FLOTATION_FUNCTION_PATTYN:         f = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    ! (2) HO_FLOTATION_FUNCTION_OCEAN_CAVITY:   f = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating
+
     ! f_flotation is not needed in further calculations but is output as a diagnostic.
     !------------------------------------------------------------------------------
 
-    call glissade_grounded_fraction(nx,          ny,           &
-                                    thck,        topg,         &
-                                    eus,         ice_mask,     &
-                                    whichground, f_ground,     &
-                                    f_flotation)
+    call glissade_grounded_fraction(nx,          ny,                      &
+                                    thck,        topg,                    &
+                                    eus,         ice_mask,                &
+                                    whichground, whichflotation_function, &
+                                    f_ground,    f_flotation)
     
     !------------------------------------------------------------------------------
     ! Compute ice thickness and upper surface on staggered grid

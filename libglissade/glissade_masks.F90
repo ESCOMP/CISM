@@ -151,30 +151,38 @@
 
 !****************************************************************************
 
-  subroutine glissade_grounded_fraction(nx,          ny,        &
-                                        thck,        topg,      &
-                                        eus,         ice_mask,  &
-                                        whichground, f_ground,  &
-                                        f_flotation)
+  subroutine glissade_grounded_fraction(nx,          ny,                      &
+                                        thck,        topg,                    &
+                                        eus,         ice_mask,                &
+                                        whichground, whichflotation_function, &
+                                        f_ground,    f_flotation)
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded.
     ! This fraction is computed at vertices based on the thickness and
     !  topography of the four neighboring cell centers.
     !
-    ! Three cases, based on the value of whichground:
+    ! There are three options for computing the grounded fraction, based on the value of whichground:
     ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
-    !                    (similar to that of Pattyn 2006)
     ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
     !
-    ! Note: Both (0) and (1) rely on computing a flotation function at cell centers
+    ! Notes on whichground:
+    !       Both (0) and (1) rely on computing a flotation function at cell centers
     !       and interpolating it to vertices.  Method (0) stipulates that a vertex
     !       is floating if the flotation function has a value associated with floating.
     !       Method (1) interpolates the flotation function over the bounding box of
     !       each vertex and analytically integrates to compute the grounded and floating
     !       fractions.
     !
+    ! In addition, there are three options for the flotation function that is interpolated 
+    ! from cell centers to vertices as part of the computation of f_ground:
+    ! (0) f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    ! (1) f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    ! (2) f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating
+    ! These apply to whichground = 0 or 1; they are irrelevant for whichground = 2.
+    !
+    ! Notes on whichflotation_function:
     !       Results can be sensitive to the choice of flotation function.
     !       For instance, one such function, used by Pattyn et al. (2006) and Gladstone (2010), is 
     !           f = (-rhow*b) / (rhoi*H)
@@ -192,8 +200,13 @@
     !        then the vertex is deemed to be grounded (or mostly grounded), and excessive velocites 
     !        are less likely.
     !
-    !       As of Sept. 2015, the second function is the default, but the user can switch to the
-    !        first at compile time by setting f_flotation_pattyn = .true..
+    !       A third choice (suggested by Xylar Asay-Davis) is the following:
+    !           f = -rhoi*b - rhoi*H
+    !       If positive, this function is equal to the thickness of the ocean cavity beneath floating ice.
+    !       If negative, this function implies that the ice is grounded.
+    !       
+    !       Currently (as of Sept. 2015), the inverse Pattyn function (1) is the default, but the user can
+    !        change this by setting which_ho_flotation_function in the config file.
     !----------------------------------------------------------------
     
     !----------------------------------------------------------------
@@ -216,8 +229,10 @@
     integer, dimension(nx,ny), intent(in) ::   &
        ice_mask               ! = 1 for cells where ice is present (thk > thklim), else = 0
 
-    integer, intent(in) ::   &
-       whichground            ! option for computing f_ground
+    ! see comments above for more information about these options
+    integer, intent(in) ::     &
+       whichground,            &! option for computing f_ground
+       whichflotation_function  ! option for computing f_flotation
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
        f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
@@ -225,8 +240,8 @@
 
     real(dp), dimension(nx,ny), intent(out) :: &
        f_flotation            ! flotation function
-                              ! originally f_pattyn = (-rhow*b) / (rhoi*thck),
-                              ! but current default is (rhoi*thck) / (-rhow*b)
+                              ! originally f_pattyn = (-rhow*b) / (rhoi*thck), but added two more options
+                              ! see comments above
 
     !----------------------------------------------------------------
     ! Local variables
@@ -268,10 +283,7 @@
        eps10 = 1.d-10     ! small number
 
     !WHL - debug
-    integer, parameter :: it = 77, jt = 267, rtest = 1
-
-    !NOTE: Set f_flotation_pattyn = .true. to use Pattyn function (as in Pattyn and Gladstone papers)
-    logical, parameter :: f_flotation_pattyn = .false.
+    integer, parameter :: it = 1, jt = 1, rtest = 9999
 
     !TODO - Test MISMIP sensitivity to the value of this cap
     ! This needs to be big enough that one land-based cell at a vertex is sufficient to ground the others
@@ -293,22 +305,24 @@
     enddo
 
     ! Compute flotation function at cell centers
-    ! Note: For the default flotation function, f_flotation >= 1 for grounded ice, f_flotation < 1 for floating ice.
-    !       For the older Pattyn function, the reverse is true.
 
-    if (f_flotation_pattyn) then  ! Pattyn/Gladstone; floating for f_flotation > 1
+    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+
+       ! grounded if f_flotation <= 1, else floating
 
        do j = 1, ny
        do i = 1, nx
           if (ice_mask(i,j) == 1) then
              f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
           else
-             f_flotation(i,j) = 0.d0
+             f_flotation(i,j) = 0.d0  ! treat as grounded
           endif
        enddo
        enddo
 
-    else  ! new flotation function; floating for 0 <= f_flotation < 1
+    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+
+       ! grounded if f_flotation >= 1, else floating
 
        do j = 1, ny
           do i = 1, nx
@@ -329,12 +343,27 @@
           enddo
        enddo
 
-    endif  ! f_flotation_pattyn
+    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_OCEAN_CAVITY) then
+
+       ! grounded if f_flotation <= 0, else floating
+       ! if positive, f_flotation is the thickness of the ocean cavity beneath the ice shelf
+
+       do j = 1, ny
+          do i = 1, nx
+             if (ice_mask(i,j) == 1) then
+                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) - rhoi*thck(i,j)
+             else
+                f_flotation(i,j) = 0.d0
+             endif
+          enddo
+       enddo
+
+    endif  ! whichflotation_function
 
     ! Interpolate f_flotation to staggered mesh
 
     ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-    ! Will return stagf_flotation = 0 in ice-free regions
+    ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
 
     call glissade_stagger(nx,          ny,             &
                           f_flotation, stagf_flotation,   &
@@ -350,9 +379,9 @@
     case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
                              ! f_ground = 1 if stagf_flotation <=1, f_ground = 0 if stagf_flotation > 1
 
-       if (f_flotation_pattyn) then
+       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
 
-          ! Assume grounded if stagf_flotation <= 1, else floating
+          ! grounded if stagf_flotation <= 1, else floating
 
           do j = 1, ny-1
              do i = 1, nx-1
@@ -366,9 +395,9 @@
              enddo
           enddo
 
-       else  ! new flotation function
+       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
 
-          ! Assume grounded if stagf_flotation >= 1, else floating
+          ! grounded if stagf_flotation >= 1, else floating
 
           do j = 1, ny-1
              do i = 1, nx-1
@@ -381,14 +410,32 @@
                 endif
              enddo
           enddo
-          
-       endif   ! f_flotation_pattyn
 
-    case(HO_GROUND_GLP)      ! grounding-line parameterization based on Pattyn (2006, JGR)
+       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_OCEAN_CAVITY) then
+       
+          ! grounded if stagf_flotation <= 0, else floating
+
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (vmask(i,j) == 1) then
+                   if (stagf_flotation(i,j) <= 0.d0) then
+                      f_ground(i,j) = 1.d0
+                   else
+                      f_ground(i,j) = 0.d0
+                   endif
+                endif
+             enddo
+          enddo
+   
+       endif   ! whichflotation_function
+
+    case(HO_GROUND_GLP)      ! grounding-line parameterization
 
        ! Identify cells that contain floating ice
 
-       if (f_flotation_pattyn) then
+       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+
+          ! grounded if f_flotation <= 1, else floating
 
           do j = 1, ny
              do i = 1, nx
@@ -400,11 +447,27 @@
              enddo
           enddo
           
-       else  ! new flotation function
+       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
           
+          ! grounded if f_flotation >= 1, else floating
+
           do j = 1, ny
              do i = 1, nx
                 if (f_flotation(i,j) < 1.d0) then
+                   cfloat(i,j) = .true.
+                else
+                   cfloat(i,j) = .false.
+                endif
+             enddo
+          enddo
+          
+       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_OCEAN_CAVITY) then
+
+          ! grounded if f_flotation <= 0, else floating
+
+          do j = 1, ny
+             do i = 1, nx
+                if (f_flotation(i,j) > 0.d0) then
                    cfloat(i,j) = .true.
                 else
                    cfloat(i,j) = .false.
@@ -760,7 +823,7 @@
                        ! In this case, set f_ground = 0 or 1 based on stagf_flotation at vertex
                        !TODO - Possibly eliminate this branch of the 'if' by using replacement values in ice-free cells
 
-                   if (f_flotation_pattyn) then
+                   if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
 
                       if (stagf_flotation(i,j) <= 1.d0) then
                          f_ground(i,j) = 1.d0
@@ -768,14 +831,22 @@
                          f_ground(i,j) = 0.d0
                       endif
                       
-                   else  ! new flotation function
-                      
+                   elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+
                       if (stagf_flotation(i,j) >= 1.d0) then
                          f_ground(i,j) = 1.d0
                       else
                          f_ground(i,j) = 0.d0
                       endif
                       
+                   elseif (whichflotation_function == HO_FLOTATION_FUNCTION_OCEAN_CAVITY) then
+
+                      if (stagf_flotation(i,j) <= 0.d0) then
+                         f_ground(i,j) = 1.d0
+                      else
+                         f_ground(i,j) = 0.d0
+                      endif
+
                    endif
 
                 endif     ! ice_mask = 1 in all 4 neighboring cells

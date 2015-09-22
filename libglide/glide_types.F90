@@ -245,6 +245,10 @@ module glide_types
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
 
+  integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
+  integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
+  integer, parameter :: HO_FLOTATION_FUNCTION_OCEAN_CAVITY = 2
+
   integer, parameter :: HO_ICE_AGE_NONE = 0 
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
 
@@ -621,13 +625,22 @@ module glide_types
     !> \item[0] standard finite-element calculation summing over quadrature points
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
 
-    integer :: which_ho_ground = 0    
+    integer :: which_ho_ground = 0
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
+
+    integer :: which_ho_flotation_function = 1
+    !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
+    !> Not valid for other dycores
+    !> \begin{description}
+    !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !TODO - Consider changing the default after further testing (currently 1/f_pattyn)
 
     integer :: which_ho_ice_age = 1    
     !> Flag that indicates whether to compute a 3d ice age tracer
