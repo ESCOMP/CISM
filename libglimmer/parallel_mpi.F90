@@ -230,6 +230,16 @@ module parallel
      module procedure global_sum_real8_1d
   end interface
 
+  interface parallel_convert_haloed_to_nonhaloed
+     module procedure parallel_convert_haloed_to_nonhaloed_real4_2d
+     module procedure parallel_convert_haloed_to_nonhaloed_real8_2d
+  end interface parallel_convert_haloed_to_nonhaloed
+
+  interface parallel_convert_nonhaloed_to_haloed
+     module procedure parallel_convert_nonhaloed_to_haloed_real4_2d
+     module procedure parallel_convert_nonhaloed_to_haloed_real8_2d
+  end interface parallel_convert_nonhaloed_to_haloed
+  
   interface parallel_def_var
      module procedure parallel_def_var_dimids
      module procedure parallel_def_var_nodimids
@@ -2844,6 +2854,106 @@ contains
     if (main_task) parallel_close = nf90_close(ncid)
     call broadcast(parallel_close)
   end function parallel_close
+
+  subroutine parallel_convert_haloed_to_nonhaloed_real4_2d(input_with_halo, output_no_halo)
+    ! Given an input array that has halo cells, return an output array without halo cells
+    real(4),dimension(:,:), intent(in)  :: input_with_halo
+    real(4),dimension(:,:), intent(out) :: output_no_halo
+
+    if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
+       write(*,*) "Unexpected size for input_with_halo: ", &
+            size(input_with_halo,1), size(input_with_halo,2)
+       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
+       write(*,*) "Unexpected size for output_no_halo: ", &
+            size(output_no_halo,1), size(output_no_halo,2)
+       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    output_no_halo(1:own_ewn, 1:own_nsn) = &
+         input_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+  end subroutine parallel_convert_haloed_to_nonhaloed_real4_2d
+
+  subroutine parallel_convert_haloed_to_nonhaloed_real8_2d(input_with_halo, output_no_halo)
+    ! Given an input array that has halo cells, return an output array without halo cells
+    real(8),dimension(:,:), intent(in)  :: input_with_halo
+    real(8),dimension(:,:), intent(out) :: output_no_halo
+
+    if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
+       write(*,*) "Unexpected size for input_with_halo: ", &
+            size(input_with_halo,1), size(input_with_halo,2)
+       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
+       write(*,*) "Unexpected size for output_no_halo: ", &
+            size(output_no_halo,1), size(output_no_halo,2)
+       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    output_no_halo(1:own_ewn, 1:own_nsn) = &
+         input_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+  end subroutine parallel_convert_haloed_to_nonhaloed_real8_2d
+
+  subroutine parallel_convert_nonhaloed_to_haloed_real4_2d(input_no_halo, output_with_halo)
+    ! Given an input array without halo cells, return an output array with halo cells
+    real(4),dimension(:,:), intent(in)  :: input_no_halo
+    real(4),dimension(:,:), intent(out) :: output_with_halo
+    
+    if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
+       write(*,*) "Unexpected size for input_no_halo: ", &
+            size(input_no_halo,1), size(input_no_halo,2)
+       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
+       write(*,*) "Unexpected size for output_with_halo: ", &
+            size(output_with_halo,1), size(output_with_halo,2)
+       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    output_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = &
+         input_no_halo(1:own_ewn, 1:own_nsn)
+
+    call parallel_halo(output_with_halo)
+    
+  end subroutine parallel_convert_nonhaloed_to_haloed_real4_2d
+
+  subroutine parallel_convert_nonhaloed_to_haloed_real8_2d(input_no_halo, output_with_halo)
+    ! Given an input array without halo cells, return an output array with halo cells
+    real(8),dimension(:,:), intent(in)  :: input_no_halo
+    real(8),dimension(:,:), intent(out) :: output_with_halo
+    
+    if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
+       write(*,*) "Unexpected size for input_no_halo: ", &
+            size(input_no_halo,1), size(input_no_halo,2)
+       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
+       write(*,*) "Unexpected size for output_with_halo: ", &
+            size(output_with_halo,1), size(output_with_halo,2)
+       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    output_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = &
+         input_no_halo(1:own_ewn, 1:own_nsn)
+
+    call parallel_halo(output_with_halo)
+    
+  end subroutine parallel_convert_nonhaloed_to_haloed_real8_2d
 
   function parallel_create(path,cmode,ncid)
     implicit none

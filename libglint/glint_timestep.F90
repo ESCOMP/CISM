@@ -37,7 +37,7 @@ module glint_timestep
   !> timestep of a GLINT instance
 
   use glint_type
-  use glint_constants
+  use glad_constants
   use glimmer_global, only: dp
   implicit none
 

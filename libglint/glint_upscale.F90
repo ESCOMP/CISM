@@ -34,7 +34,7 @@
   ! Much of the actual work is done at a lower level, in glint_interp.F90.
 
   use glint_type
-  use glint_constants
+  use glad_constants
   use glimmer_global, only: dp
   implicit none
 

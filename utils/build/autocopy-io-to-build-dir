@@ -10,11 +10,14 @@
 # These will have the '.default' stripped from their names
 files=(libglide/glide_io.F90.default
        libglint/glint_io.F90.default
-       libglint/glint_mbal_io.F90.default)
+       libglint/glint_mbal_io.F90.default
+       libglad/glad_io.F90.default
+       libglad/glad_mbal_io.F90.default)
 
 echo
 echo "Automated copy of default versions of glide_io.F90,"
-echo "glint_io.F90, glint_mbal_io.F90 to build directory"
+echo "glint_io.F90, glint_mbal_io.F90, glad_io.F90, glad_mbal_io.F90"
+echo "to build directory"
 echo
 
 mkdir -p fortran_autogen_srcs

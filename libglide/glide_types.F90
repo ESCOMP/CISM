@@ -828,8 +828,8 @@ module glide_types
     integer, dimension(:,:), pointer  :: kinbcmask => null()    
 
     !> masks that specify where the outflow velocities on the global boundary should be set to zero
-    integer, dimension(:,:), pointer  :: umask_no_penetration
-    integer, dimension(:,:), pointer  :: vmask_no_penetration
+    integer, dimension(:,:), pointer  :: umask_no_penetration => null()
+    integer, dimension(:,:), pointer  :: vmask_no_penetration => null()
 
     !*sfp* mask on vel grid showing which dyn bc is applied at each grid cell (mainly for debugging)
     integer, dimension(:,:), pointer    :: dynbcmask => null()    
@@ -871,10 +871,6 @@ module glide_types
      real(dp),dimension(:,:),pointer :: acab      => null() !> Annual mass balance (m/y ice)
      real(dp),dimension(:,:),pointer :: acab_tavg => null() !> Annual mass balance (time average).
      real(dp),dimension(:,:),pointer :: artm      => null() !> Annual mean air temperature (degC)
-
-     !TODO - lati and loni are not currently used.  Are they needed?
-     real(dp),dimension(:,:),pointer :: lati     => null() !> Latitudes of model grid points 
-     real(dp),dimension(:,:),pointer :: loni     => null() !> Longitudes of model grid points
 
      real(dp) :: eus = 0.d0                                !> eustatic sea level
 
@@ -1424,8 +1420,6 @@ contains
     !> \begin{itemize}
     !> \item \texttt{acab(ewn,nsn))}
     !> \item \texttt{artm(ewn,nsn))}
-    !> \item \texttt{lati(ewn,nsn))}
-    !> \item \texttt{loni(ewn,nsn))}
     !> \end{itemize}
 
     !> In \texttt{model\%geomderv}:
@@ -1693,8 +1687,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%lati)     
-    call coordsystem_allocate(model%general%ice_grid, model%climate%loni)
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
@@ -1899,6 +1891,8 @@ contains
     if (associated(model%velocity%dynbcmask)) &
         deallocate(model%velocity%dynbcmask)
     if (associated(model%velocity%umask_no_penetration)) &
+        deallocate(model%velocity%umask_no_penetration)
+    if (associated(model%velocity%vmask_no_penetration)) &
         deallocate(model%velocity%vmask_no_penetration)
 
     !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
@@ -2036,10 +2030,6 @@ contains
         deallocate(model%climate%acab_tavg)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
-    if (associated(model%climate%lati)) &
-        deallocate(model%climate%lati)
-    if (associated(model%climate%loni)) &
-        deallocate(model%climate%loni)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
