@@ -828,8 +828,8 @@ module glide_types
     integer, dimension(:,:), pointer  :: kinbcmask => null()    
 
     !> masks that specify where the outflow velocities on the global boundary should be set to zero
-    integer, dimension(:,:), pointer  :: umask_no_penetration
-    integer, dimension(:,:), pointer  :: vmask_no_penetration
+    integer, dimension(:,:), pointer  :: umask_no_penetration => null()
+    integer, dimension(:,:), pointer  :: vmask_no_penetration => null()
 
     !*sfp* mask on vel grid showing which dyn bc is applied at each grid cell (mainly for debugging)
     integer, dimension(:,:), pointer    :: dynbcmask => null()    
@@ -1891,6 +1891,8 @@ contains
     if (associated(model%velocity%dynbcmask)) &
         deallocate(model%velocity%dynbcmask)
     if (associated(model%velocity%umask_no_penetration)) &
+        deallocate(model%velocity%umask_no_penetration)
+    if (associated(model%velocity%vmask_no_penetration)) &
         deallocate(model%velocity%vmask_no_penetration)
 
     !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
