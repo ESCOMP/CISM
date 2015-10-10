@@ -703,6 +703,7 @@
 
     real(dp)  ::   & 
        thklim, &                ! minimum ice thickness for active cells (m)
+       max_slope, &             ! maximum slope allowed for surface gradient computations (unitless)
        eus,  &                  ! eustatic sea level (m), = 0. by default
        ho_beta_const,  &        ! constant beta value (Pa/(m/yr)) for whichbabc = HO_BABC_CONSTANT
        efvs_constant            ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
@@ -1036,8 +1037,9 @@
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
-     thklim = model%numerics%thklim
-     eus    = model%climate%eus
+     thklim    = model%numerics%thklim
+     max_slope = model%paramets%max_slope
+     eus       = model%climate%eus
      ho_beta_const = model%paramets%ho_beta_const
      efvs_constant = model%paramets%efvs_constant
  
@@ -1496,6 +1498,13 @@
     !  the gradient.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
     !
+    ! Passing in max_slope ensures that the surface elevation gradient on the edge
+    !  between two cells does not exceed a prescribed value.
+    ! Although slope-limiting is not very physical, it helps prevent CFL violations
+    !  in regions of steep coastal topography. Some input Greenland data sets have
+    !  slopes of up to ~0.3 between adjacent grid cells, leading to very large velocities
+    !  even with a no-slip basal boundary condition. 
+    !
     ! Both the centered and upstream gradients are 2nd order accurate in space.
     ! The upstream gradient may be preferable for evolution problems using 
     !  whichapprox = HO_APPROX_BP or HO_APPROX_SIA, because in these cases
@@ -1516,19 +1525,21 @@
                                        ice_mask,                     &
                                        gradient_margin_in = whichgradient_margin, &
                                        usrf = usrf,                  &
-                                       land_mask = land_mask)
+                                       land_mask = land_mask,        &
+                                       max_slope = max_slope)
 
     else          ! 2nd order upstream
 
-       call glissade_upstream_gradient(nx,             ny,         &
-                                       dx,             dy,         &
-                                       usrf,                       &
-                                       dusrf_dx,       dusrf_dy,   &
-                                       ice_mask,                   &
-                                       accuracy_flag_in = 2,       &
+       call glissade_upstream_gradient(nx,             ny,           &
+                                       dx,             dy,           &
+                                       usrf,                         &
+                                       dusrf_dx,       dusrf_dy,     &
+                                       ice_mask,                     &
+                                       accuracy_flag_in = 2,         &
                                        gradient_margin_in = whichgradient_margin, &
-                                       usrf = usrf,                &
-                                       land_mask = land_mask)
+                                       usrf = usrf,                  &
+                                       land_mask = land_mask,        &
+                                       max_slope = max_slope)
 
     endif   ! whichgradient
 
@@ -2068,9 +2079,10 @@
           vbas(:,:) = vvel(nz,:,:)
        endif
 
-       if (verbose_beta .and. this_rank==rtest) then
+!!       if (verbose_beta .and. this_rank==rtest) then
+       if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
           print*, ' '
-          print*, 'Before calcbeta:'
+          print*, 'Before calcbeta, counter =', counter
           print*, ' '
           print*, 'usrf field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2114,7 +2126,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') f_flotation(i,j)
+                write(6,'(e10.3)',advance='no') f_flotation(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2160,7 +2172,8 @@
           print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
        endif
 
-       if (verbose_beta .and. this_rank==rtest) then
+!!       if (verbose_beta .and. this_rank==rtest) then
+       if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
 
           print*, ' '
           print*, 'beta field, itest, jtest, rank =', itest, jtest, rtest
@@ -2194,6 +2207,56 @@
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
                 write(6,'(e10.3)',advance='no') vvel(nz,i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          !TODO - Remove the remaining verbose_beta diagnostics?
+          !       They are not specific to beta but are useful for diagnosing CFL issues.
+          print*, ' '
+          print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(e10.3)',advance='no') uvel(1,i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'Sfc vvel field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(e10.3)',advance='no') vvel(1,i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'dusrf/dx field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') dusrf_dx(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') dusrf_dy(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2487,11 +2550,12 @@
              print*, 'Matrix row properties, j =', j
              print*, ' '
              print*, 'i, diag, max, min, sum:'
-             do i = 1, nx-1
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
                 print*, ' '
-                write(6,'(a8, i4, 4f20.12)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), &
+                write(6,'(a8, i4, 4f20.8)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), &
                                                    minval(Auu_2d(:,i,j)),   sum(Auu_2d(:,i,j))
-                write(6,'(a8, i4, 4f20.12)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), &
+                write(6,'(a8, i4, 4f20.8)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), &
                                                    minval(Auv_2d(:,i,j)),   sum(Auv_2d(:,i,j))
              enddo
 
@@ -3318,6 +3382,7 @@
                                      dusrf_dx,         dusrf_dy,        &
                                      flwa,             efvs,            &
                                      whichgradient_margin,              &
+                                     max_slope,                         &
                                      uvel,             vvel)
 
        call staggered_parallel_halo(uvel)
@@ -5323,6 +5388,7 @@
                                       dusrf_dx,         dusrf_dy,        &
                                       flwa,             efvs,            &
                                       whichgradient_margin,              &
+                                      max_slope,                         &
                                       uvel,             vvel)
 
     !----------------------------------------------------------------
@@ -5381,6 +5447,9 @@
                                 ! 0 = include all neighbor cells in gradient calculation
                                 ! 1 = include ice-covered and/or land cells
                                 ! 2 = include ice-covered cells only
+
+    real(dp), intent(in) ::  &
+       max_slope          ! maximum slope allowed for surface gradient computations (unitless)
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        uvel, vvel         ! velocity components (m/yr)
@@ -5682,7 +5751,8 @@
                                        dusrf_dx_edge,    dusrf_dy_edge,     &
                                        gradient_margin_in = whichgradient_margin, &
                                        ice_mask = ice_mask,                 &
-                                       land_mask = land_mask)
+                                       land_mask = land_mask,               &
+                                       max_slope = max_slope)
     endif
 
     if (verbose_L1L2 .and. this_rank==rtest) then

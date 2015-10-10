@@ -407,7 +407,7 @@ contains
        ! ------------------------------------------------------------------------        
 
        !WHL - debug
-       print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
+       if (main_task) print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
 
        call glissade_calve_ice(model%options%whichcalving,      &
                                model%options%calving_domain,    &
@@ -415,6 +415,7 @@ contains
                                model%isostasy%relx,             &
                                model%geometry%topg,             &
                                model%climate%eus,               &
+                               model%numerics%thklim,           &
                                model%calving%marine_limit,      &
                                model%calving%calving_fraction,  &
                                model%calving%calving_timescale, &
@@ -855,6 +856,7 @@ contains
                             model%isostasy%relx,             &
                             model%geometry%topg,             &
                             model%climate%eus,               &
+                            model%numerics%thklim,           &
                             model%calving%marine_limit,      &
                             model%calving%calving_fraction,  &
                             model%calving%calving_timescale, &

@@ -1293,6 +1293,13 @@ contains
        end if
 
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
+           model%options%which_ho_ground == HO_GROUND_NO_GLP .and. &
+           model%options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+          write(message,*) 'Warning, Pattyn flotation function with no GLP tends to be unstable; inverse Pattyn is more stable'
+          call write_log(message)
+       endif
+
+       if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
            (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
             model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then 
           write(message,*) 'ho_whichprecond         : ',model%options%which_ho_precond,  &
@@ -1355,6 +1362,7 @@ contains
     call GetValue(section,'default_flwa',     model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',    model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',       model%paramets%hydtim)
+    call GetValue(section,'max_slope',        model%paramets%max_slope)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -1476,6 +1484,11 @@ contains
     write(message,*) 'basal hydro time constant (yr): ', model%paramets%hydtim
     call write_log(message)
 
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+       write(message,*) 'max surface slope             : ', model%paramets%max_slope
+       call write_log(message)
+    end if       
+ 
     if (model%options%whichflwa == FLWA_CONST_FLWA) then
        write(message,*) 'constant flow factor (Pa^-n yr^-1):', model%paramets%default_flwa
        call write_log(message)

@@ -633,6 +633,7 @@ module glide_types
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
 
+    !TODO - Change default to linear function 2?  Change name to HO_FLOTATION_FUNCTION_LINEAR?
     integer :: which_ho_flotation_function = 1
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
     !> Not valid for other dycores
@@ -1289,7 +1290,10 @@ module glide_types
                                        ! = 0.5*A^(-1), where A = 2.140373 Pa^(-1) yr^(1) is the value used in ISMIP-HOM Test F
     real(dp) :: ho_beta_const = 10.d0  ! spatially uniform beta for HO dycores, Pa yr m^{-1} (gets scaled during init)
     real(dp) :: p_ocean_penetration = 0.0d0  ! p-exponent parameter for ocean penetration parameterization
-
+    real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
+                                       ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
+                                       !       in regions of rough coastal topography
+            
   end type glide_paramets
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

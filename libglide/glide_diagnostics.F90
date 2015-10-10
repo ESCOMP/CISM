@@ -516,7 +516,6 @@ contains
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max surface speed
-
     imax = 0
     jmax = 0
     max_spd_sfc = unphys_val
@@ -525,7 +524,7 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(1,i,j)**2   &
                    + model%velocity%vvel(1,i,j)**2)
-          if (model%geometry%thck(i,j) * thk0 > minthick .and. spd > max_spd_sfc) then
+          if (model%geomderv%stagthck(i,j)*thk0 > minthick .and. spd > max_spd_sfc) then
              max_spd_sfc = spd
              imax = i
              jmax = j
@@ -551,7 +550,7 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
                    + model%velocity%vvel(upn,i,j)**2)
-          if (model%geometry%thck(i,j) * thk0 > minthick  .and. spd > max_spd_bas) then
+          if (model%geomderv%stagthck(i,j)*thk0 > minthick  .and. spd > max_spd_bas) then
              max_spd_bas = spd
              imax = i
              jmax = j
