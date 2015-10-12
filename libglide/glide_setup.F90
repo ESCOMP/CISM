@@ -480,11 +480,12 @@ contains
     call GetValue(section,'ntem',model%numerics%ntem)
     call GetValue(section,'profile',model%numerics%profile_period)
 
-    call GetValue(section,'dt_diag',model%numerics%dt_diag)
     call GetValue(section,'idiag',model%numerics%idiag)
     call GetValue(section,'jdiag',model%numerics%jdiag)
 
-    !WHL - ndiag replaced by dt_diag, but retained for backward compatibility
+    !Note: Either dt_diag or ndiag can be specified in the config file.
+    !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
+    call GetValue(section,'dt_diag',model%numerics%dt_diag)
     call GetValue(section,'ndiag',model%numerics%ndiag)
 
   end subroutine handle_time
@@ -516,18 +517,10 @@ contains
     call write_log(message)
 
     if (model%numerics%dt_diag > 0.d0) then
-       write(message,*) 'diagnostic time (yr): ',model%numerics%dt_diag
+       write(message,*) 'diagnostic interval (years):',model%numerics%dt_diag
        call write_log(message)
-       !TODO - Verify that this mod statement works for real numbers.  Might need different logic.
-       if (mod(model%numerics%dt_diag, model%numerics%tinc) > 1.e-11) then
-          write(message,*) 'Warning: diagnostic interval does not divide evenly into ice timestep dt'
-          call write_log(message)
-       endif
-    endif
-
-    !WHL - ndiag replaced by dt_diag, but retained for backward compatibility
-    if (model%numerics%ndiag > 0) then
-       write(message,*) 'diag time (steps)   : ',model%numerics%ndiag
+    elseif (model%numerics%ndiag > 0) then
+       write(message,*) 'diagnostic interval (steps):',model%numerics%ndiag
        call write_log(message)
     endif
 

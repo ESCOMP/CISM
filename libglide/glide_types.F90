@@ -1170,11 +1170,10 @@ module glide_types
 
     integer :: profile_period = 100            ! profile frequency
 
-    !TODO - Compute ndiag as a function of dt_diag and pass to glide_diagnostics?
-    !       This is more robust than computing mods of real numbers. 
-
-    real(dp) :: dt_diag = 0.d0     ! diagnostic time interval (write diagnostics every dt_diag years)
-    integer  :: ndiag = -999       ! diagnostic period (write output every ndiag steps)
+    real(dp) :: dt_diag = 0.d0     ! diagnostic interval (write diagnostic output every dt_diag years)
+                                   ! dt_diag = 0 => never write diagnostic output
+    integer  :: ndiag = 0          ! diagnostic interval (write diagnostic output every ndiag timesteps)
+                                   ! ndiag = 0 => never write diagnostic output
     integer  :: idiag = 1          ! global grid indices for diagnostic point
     integer  :: jdiag = 1          ! 
     integer  :: idiag_local = 1    ! local grid indices for diagnostic point

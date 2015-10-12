@@ -53,7 +53,7 @@ contains
     type(glide_global_type), intent(in) :: model    ! model instance
     real(dp), intent(in)   :: time                  ! current time in years
 
-    integer, intent(in), optional :: tstep_count    ! current timestep
+    integer, intent(in) :: tstep_count    ! current timestep
 
     real(dp), intent(in), optional :: &
        minthick_in       ! ice thickness threshold (m) for including in diagnostics
@@ -66,15 +66,12 @@ contains
     real(dp), parameter ::   &
        eps = 1.0d-11
 
-    real(dp) ::   &
-       quotient, nint_quotient
-
     logical, parameter :: verbose_diagnostics = .false.
 
     if (present(minthick_in)) then
        minthick = minthick_in
     else
-       minthick = eps  
+       minthick = eps
     endif
 
     ! debug
@@ -87,42 +84,27 @@ contains
        print*, 'tstep_count =', tstep_count
     endif
        
-    !TODO - Make the write_diag criterion more robust; e.g., derive ndiag from dt_diag at initialization.
-    !       Then we would work with integers (tstep_count and ndiag) and avoid roundoff errors.
+    if (model%numerics%ndiag > 0) then
 
-    if (model%numerics%dt_diag > 0.d0) then                    ! usual case
-
-!!       if (mod(time,model%numerics%dt_diag)) < eps) then  ! not robust because of roundoff error
-
-       quotient = time/model%numerics%dt_diag
-       nint_quotient = nint(quotient)
-
-       if (main_task .and. verbose_diagnostics) then
-          print*, 'quotient, nint_quotient, diff:', quotient, nint_quotient, abs(quotient - real(nint_quotient,dp)) 
-       endif
-
-       if (abs(quotient - real(nint_quotient,dp)) < eps) then  ! time to write
+       if (mod(tstep_count, model%numerics%ndiag) == 0)  then    ! time to write
 
           call glide_write_diag(model,                 &
                                 time,                  &
                                 minthick)
        endif
 
-    elseif (present(tstep_count) .and. model%numerics%ndiag > 0) then  ! decide based on ndiag
-
-       if (mod(tstep_count, model%numerics%ndiag) == 0)  then          ! time to write
-          call glide_write_diag(model,                 &
-                                time,                  &
-                                minthick)
-       endif
-
-    endif    ! dt_diag > 0
+    endif    ! ndiag > 0
 
   end subroutine glide_write_diagnostics
  
 !--------------------------------------------------------------------------
 
   subroutine glide_init_diag (model)
+
+    ! Initialize model diagnostics for glide or glissade.
+    ! (1) Set ndiag based on dt_diag.  (Diagnostics are written every ndiag steps.)
+    ! (2) Find the local rank and indices of the global diagnostic point
+
 
     implicit none
 
@@ -133,6 +115,20 @@ contains
     ! local variables
 
     character(len=100) :: message
+
+    !-----------------------------------------------------------------
+    ! Given dt_diag, compute the interval ndiag of diagnostic output.
+    ! (Output is written every ndiag timesteps.)
+    ! NOTE: The ratio dt_diag/tinc is rounded to the nearest integer.
+    !-----------------------------------------------------------------
+
+    if (model%numerics%dt_diag > 0.0d0) then   ! dt_diag was specified in the config file; use it to compute ndiag
+
+       ! Note: tinc and dt_diag have units of years, whereas dt has model timeunits
+       model%numerics%ndiag = nint(model%numerics%dt_diag / model%numerics%tinc)
+       model%numerics%ndiag = max(model%numerics%ndiag, 1)  ! cannot write more often than once per timestep
+
+    endif
 
     !-----------------------------------------------------------------
     ! Find the local rank and indices of the global diagnostic point
