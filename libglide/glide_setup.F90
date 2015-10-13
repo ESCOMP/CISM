@@ -1974,7 +1974,9 @@ contains
         !TODO - Add C_space_factor to the restart file only if not = 1?
         call glide_add_to_restart_variable_list('C_space_factor')
       case default
-        ! Most other HO basal boundary conditions need the beta field  (although there are a few that don't)
+        ! Other HO basal boundary conditions may need the external beta field  (although there are a few that don't)
+        !Note: If using beta from an external file, then 'beta' here needs to be the fixed, external field,
+        !      and not the internal beta field that may have been weighted by the grounded fraction or otherwise adjusted.
         call glide_add_to_restart_variable_list('beta')
     end select
 

@@ -293,7 +293,7 @@ contains
        land_mask                ! = 1 for land cells, else = 0 (required for gradient_margin = HO_GRADIENT_ICE_LAND)
 
     real(dp), intent(in), optional :: &
-       max_slope               ! maximum slope allowed for surface gradient computations (unitless)
+       max_slope                ! maximum slope allowed for surface gradient computations (unitless)
 
     !--------------------------------------------------------
     ! Local variables
@@ -311,6 +311,10 @@ contains
 
     real(dp) :: df_dx_north, df_dx_south  ! df_dx at neighboring edges
     real(dp) :: df_dy_east, df_dy_west    ! df_dx at neighboring edges
+
+    !WHL - debug
+    real(dp) :: dfdx, dfdy
+    integer :: edge_count
 
     !--------------------------------------------------------
     !   Gradient at vertex(i,j) is based on f(i:i+1,j:j+1)
@@ -345,7 +349,7 @@ contains
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
 
-       ! mask for vertical edges
+       ! mask for east and west cell edges
        do j = 1, ny
           do i = 1, nx-1
              if (ice_mask(i,j)==1  .and. ice_mask(i+1,j)==1) then
@@ -356,7 +360,7 @@ contains
           enddo
        enddo
        
-       ! mask for horizontal edges
+       ! mask for north and south edges
        do j = 1, ny-1
           do i = 1, nx
              if (ice_mask(i,j)==1  .and. ice_mask(i,j+1)==1) then
@@ -368,6 +372,28 @@ contains
        enddo
        
     endif  ! gradient_margin
+
+    !WHL - debug - Count number of edges that require slope-limiting
+    if (present(max_slope)) then
+       edge_count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             dfdx = (field(i+1,j) - field(i,j)) / dx
+             if (abs(dfdx) > max_slope .and. edge_mask_x(i,j)) then
+                edge_count = edge_count + 1
+             endif
+             dfdy = (field(i,j+1) - field(i,j)) / dy
+             if (abs(dfdy) > max_slope .and. edge_mask_y(i,j)) then
+                edge_count = edge_count + 1
+             endif
+          enddo
+       enddo
+       edge_count = parallel_reduce_sum(edge_count)
+       if (main_task) then
+          print*, 'Number of edges:', (nx-2*nhalo)*(ny-2*nhalo)*2
+          print*, 'Limit slope: edge_count =', edge_count
+       endif
+    endif
 
     ! compute gradient at vertices by averaging gradient at adjacent edges
     ! ignore edges with edge_mask = 0
@@ -594,7 +620,7 @@ contains
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
 
-       ! mask for vertical edges
+       ! mask for east and west cell edges
        do j = 1, ny
           do i = 1, nx-1
              if (ice_mask(i,j)==1  .and. ice_mask(i+1,j)==1) then
@@ -605,7 +631,7 @@ contains
           enddo
        enddo
        
-       ! mask for horizontal edges
+       ! mask for north and south cell edges
        do j = 1, ny-1
           do i = 1, nx
              if (ice_mask(i,j)==1  .and. ice_mask(i,j+1)==1) then
@@ -1014,7 +1040,7 @@ contains
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
 
-       ! mask for vertical edges
+       ! mask for east and west cell edges
        do j = 1, ny
           do i = 1, nx-1
              if (ice_mask(i,j)==1  .and. ice_mask(i+1,j)==1) then
@@ -1025,7 +1051,7 @@ contains
           enddo
        enddo
        
-       ! mask for horizontal edges
+       ! mask for north and south cell edges
        do j = 1, ny-1
           do i = 1, nx
              if (ice_mask(i,j)==1  .and. ice_mask(i,j+1)==1) then
@@ -1166,7 +1192,7 @@ contains
 
  if (new_edgemask) then
 
-    ! compute mask for vertical edges
+    ! compute mask for east and west cell edges
     do j = 1, ny
        do i = 1, nx-1
           if (( ice_mask(i,j)==1 .and.  ice_mask(i+1,j)==1)  .or.  &
@@ -1179,7 +1205,7 @@ contains
        enddo
     enddo
     
-    ! compute mask for horizontal edges
+    ! compute mask for north and south cell edges
     do j = 1, ny-1
        do i = 1, nx
           if (( ice_mask(i,j)==1 .and.  ice_mask(i,j+1)==1)  .or.  &
@@ -1194,7 +1220,7 @@ contains
 
  else   ! old edge mask
 
-    ! compute mask for vertical edges
+    ! compute mask for east and west cell edges
     do j = 1, ny
        do i = 1, nx-1
            if ((ice_mask(i,j)==1  .and. ice_mask(i+1,j)==1)  .or.  &
@@ -1208,7 +1234,7 @@ contains
        enddo
     enddo
           
-    ! compute mask for horizontal edges
+    ! compute mask for north and south cell edges
     do j = 1, ny-1
        do i = 1, nx
           if ((ice_mask(i,j)==1  .and. ice_mask(i,j+1)==1)  .or.  &

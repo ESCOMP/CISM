@@ -150,6 +150,15 @@ data:          data%velocity%unstagbeta
 factor:        scale_beta
 load:          1
 
+#WHL - beta_internal is derived from beta, but may be weighted by f_ground or otherwise adjusted
+#      It can be written to history files but should not be read from restart files
+[beta_internal]
+dimensions:    time, y0, x0
+units:         Pa yr/m
+long_name:     weighted higher-order bed stress coefficient
+data:          data%velocity%beta_internal
+factor:        scale_beta
+
 [tauf]
 dimensions:    time, y0, x0
 units:         Pa
@@ -921,3 +930,4 @@ dimensions:    time
 units:         years
 long_name:     diffusive CFL maximum time step
 data:          data%numerics%diff_cfl_dt
+

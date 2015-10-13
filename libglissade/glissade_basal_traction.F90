@@ -105,15 +105,16 @@ contains
 
   real(dp), intent(in)                    :: dew, dns           ! m
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
-  real(dp), intent(in), dimension(:,:)    :: bwat     ! basal water depth (m)
-  real(dp), intent(in), dimension(:,:)    :: mintauf  ! till yield stress (Pa)
-  real(dp), intent(in)                    :: beta_const  ! spatially uniform beta (Pa yr/m)
-  type(glide_basal_physics), intent(in)   :: basal_physics  ! basal physics object
-  real(dp), intent(in), dimension(:,:)    :: flwa_basal  ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
-  real(dp), intent(in), dimension(:,:)    :: thck  ! ice thickness
-  integer, intent(in), dimension(:,:)     :: mask ! staggered grid mask
-  real(dp), intent(in), dimension(:,:)    :: beta_external   ! beta read from external file (Pa yr/m)
-  real(dp), intent(inout), dimension(:,:) :: beta  ! basal traction coefficient (Pa yr/m)
+  real(dp), intent(in), dimension(:,:)    :: bwat               ! basal water depth (m)
+  real(dp), intent(in), dimension(:,:)    :: mintauf            ! till yield stress (Pa)
+  real(dp), intent(in)                    :: beta_const         ! spatially uniform beta (Pa yr/m)
+  type(glide_basal_physics), intent(in)   :: basal_physics      ! basal physics object
+  real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
+  real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness
+  integer, intent(in), dimension(:,:)     :: mask               ! staggered grid mask
+  real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
+  real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
+                                                                ! Note: This is beta_internal in glissade
   real(dp), intent(in), dimension(:,:), optional :: f_ground   ! grounded ice fraction, 0 <= f_ground <= 1
 
   ! Local variables
@@ -146,6 +147,8 @@ contains
                                                                       ! NOTE: Units are Pa^{-n} yr^{-1}
   character(len=300) :: message
 
+  real(dp), parameter :: beta_grounded_min = 10.d0    ! minimum beta for grounded ice (Pa yr/m)
+                                                      ! TODO - Add beta_grounded_min to the parameters in glide_types?
   select case(whichbabc)
 
     case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
@@ -332,8 +335,20 @@ contains
    !  and make sure beta in these regions is 0. 
 
    if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
-      beta(:,:) = beta(:,:) * f_ground(:,:)
+
+      do ns = 1, nsn-1
+         do ew = 1, ewn-1 
+            beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+            ! Make sure beta > 0 for grounded ice
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) == 0.d0) then
+!!               print*, 'Reset beta: ew, ns, f_ground, beta:', ew, ns, f_ground(ew,ns), beta(ew,ns)
+               beta(ew,ns) = beta_grounded_min
+            endif
+         end do
+      end do
+
    else    ! set beta = 0 where Glide mask says the ice is floating
+
       do ns = 1, nsn-1
          do ew = 1, ewn-1 
             if (GLIDE_IS_FLOAT(mask(ew,ns))) then
@@ -341,6 +356,7 @@ contains
             endif
          end do
       end do
+
    endif   ! present(f_ground)
 
    ! Bug check: Make sure beta >= 0

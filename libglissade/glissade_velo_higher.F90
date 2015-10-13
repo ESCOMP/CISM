@@ -715,7 +715,7 @@
        bwat,                 &  ! basal water depth (m)
        mintauf,              &  ! till yield stress (Pa)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
-       beta_external,        &  ! beta from external file for whichbabc = HO_BABC_EXTERNAL_BETA
+       beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
        f_flotation,          &  ! flotation function = (rhoi*thck) / (-rhoo*(topg-eus)) by default
                                 ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
@@ -1008,7 +1008,7 @@
      flwa     => model%temper%flwa(:,:,:)
      efvs     => model%stress%efvs(:,:,:)
      beta     => model%velocity%beta(:,:)
-     beta_external => model%velocity%beta_external(:,:)
+     beta_internal => model%velocity%beta_internal(:,:)
      bfricflx => model%temper%bfricflx(:,:)
      bwat     => model%temper%bwat(:,:)
      mintauf  => model%basalproc%mintauf(:,:)
@@ -1071,7 +1071,7 @@
                                           eus,     thklim,        &
                                           flwa,    efvs,          &
                                           bwat,    mintauf,       &
-                                          beta,    ho_beta_const, &
+                                          ho_beta_const,          &
                                           btractx, btracty,       &
                                           uvel,    vvel,          &
                                           uvel_2d, vvel_2d)
@@ -1819,17 +1819,17 @@
 #endif
 
     !------------------------------------------------------------------------------
-    ! Initialize the basal traction parameter beta.
-    ! Note: beta is either read from an external file, or computed by calling calcbeta below.
-    !       For external beta (HO_BABC_EXTERNAL_BETA), we should not reinitialize here.
-    !       For a no-slip boundary condition (HO_BABC_NO_SLIP), beta is not computed,
-    !        so beta = 0 will be written to output.
+    ! Initialize the basal traction parameter, beta_internal.
+    ! Note: If beta is read from an external file, the external value should not be changed.
+    !        This value is saved in model%velocity%beta.
+    !       The glissade solver uses a beta field weighted by f_ground.
+    !        This field is stored in model%velocity%beta_internal and can change over time.
+    !       For a no-slip boundary condition (HO_BABC_NO_SLIP), beta_internal is not computed,
+    !        so beta_internal = 0 will be written to output.
     !------------------------------------------------------------------------------
 
-    if (whichbabc /= HO_BABC_EXTERNAL_BETA) then
-       beta(:,:) = 0.d0
-    endif
-       
+    beta_internal(:,:) = 0.d0
+
     !------------------------------------------------------------------------------
     ! Compute the factor A^(-1/n) appearing in the expression for effective viscosity.
     ! This factor is often denoted as B in the literature.
@@ -2053,19 +2053,17 @@
        ! (1) We could compute beta before the main outer loop if beta
        !     were assumed to be independent of velocity.  Computing beta here,
        !     however, allows for more general sliding laws.
-       ! (2) The input value of model%velocity%beta can change here depending on
-       !     the value of model%options%which_ho_babc.
-       ! (3) The units of the input arguments in calcbeta are assumed to be the
+       ! (2) The units of the input arguments in calcbeta are assumed to be the
        !       same as the Glissade units.
-       ! (4) The computed beta is weighted by f_ground, the grounded fraction at
-       !     each vertex.  With a GLP, f_ground is between 0 and 1 for vertices
-       !     adjacent to the GL, allowing for a smooth change in beta as the GL
-       !     advances and retreats.
-       ! (5) The basal velocity is a required input to calcbeta.  
+       ! (3) The computed beta (called beta_internal) is weighted by f_ground, 
+       !     the grounded fraction at each vertex.  With a GLP, f_ground is 
+       !     between 0 and 1 for vertices adjacent to the GL, allowing for a smooth 
+       !     change in beta as the GL advances and retreats.
+       ! (4) The basal velocity is a required input to calcbeta.  
        !     DIVA does not compute the basal velocity in the 2D matrix solve, 
        !     but computes the 3D velocity after each iteration so that
        !     uvel/vvel(nz,:,:) are available here.
-       ! (6) For which_ho_babc = HO_BABC_EXTERNAL_BETA, beta_external is passed in
+       ! (5) For which_ho_babc = HO_BABC_EXTERNAL_BETA, beta is passed in
        !     with dimensionless Glimmer units. Rather than incur roundoff errors by
        !     repeatedly multiplying and dividing by scaling constants, the conversion
        !     to Pa yr/m is done here in the argument list.
@@ -2081,6 +2079,7 @@
 
 !!       if (verbose_beta .and. this_rank==rtest) then
        if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
+
           print*, ' '
           print*, 'Before calcbeta, counter =', counter
           print*, ' '
@@ -2154,16 +2153,17 @@
                       model%basal_physics,              &
                       flwa(nz-1,:,:),                   &  ! basal flwa layer
                       thck,                             &
-                      stagmask,      beta_external*tau0/(vel0*scyr),&
-                      beta,                             &
+                      stagmask,                         &
+                      beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
+                      beta_internal,                    &  ! beta weighted by f_ground (intent out)
                       f_ground)
 
-       call staggered_parallel_halo(beta)
+       call staggered_parallel_halo(beta_internal)
 
        if (verbose_beta) then
-          maxbeta = maxval(beta(:,:))
+          maxbeta = maxval(beta_internal(:,:))
           maxbeta = parallel_reduce_max(maxbeta)
-          minbeta = minval(beta(:,:))
+          minbeta = minval(beta_internal(:,:))
           minbeta = parallel_reduce_min(minbeta)
        endif
 
@@ -2176,13 +2176,13 @@
        if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
 
           print*, ' '
-          print*, 'beta field, itest, jtest, rank =', itest, jtest, rtest
+          print*, 'Weighted beta field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') beta(i,j)
+                write(6,'(e10.3)',advance='no') beta_internal(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2388,7 +2388,7 @@
              if (whichbabc == HO_BABC_NO_SLIP) then
                 where (stag_omega > 0.d0) beta_eff = 1.d0 / stag_omega
              else   ! slip allowed at bed
-                beta_eff(:,:) = beta(:,:) / (1.d0 + beta(:,:)*stag_omega(:,:))
+                beta_eff(:,:) = beta_internal(:,:) / (1.d0 + beta_internal(:,:)*stag_omega(:,:))
              endif
 
              if (verbose_diva .and. this_rank==rtest) then
@@ -2420,11 +2420,11 @@
 
           else    ! L1L2, SSA
 
-             ! Incorporate basal sliding boundary conditions, based on beta
+             ! Incorporate basal sliding boundary conditions, based on beta_internal
 
              call basal_sliding_bc(nx,                ny,              &
                                    nNodeNeighbors_2d, nhalo,           &
-                                   active_cell,       beta,            &
+                                   active_cell,       beta_internal,   &
                                    xVertex,           yVertex,         &
                                    whichassemble_beta,                 &
                                    Auu_2d,            Avv_2d)
@@ -2602,14 +2602,14 @@
           if (verbose_matrix .and. this_rank==rtest) print*, 'Assembled the 3D stiffness matrix'
 
           !---------------------------------------------------------------------------
-          ! Incorporate basal sliding boundary conditions
+          ! Incorporate basal sliding boundary conditions, based on beta_internal
           !---------------------------------------------------------------------------
 
           if (whichbabc /= HO_BABC_NO_SLIP) then
 
              call basal_sliding_bc(nx,                  ny,              &
                                    nNodeNeighbors_3d,   nhalo,           &
-                                   active_cell,         beta,            &
+                                   active_cell,         beta_internal,   &
                                    xVertex,             yVertex,         &
                                    whichassemble_beta,                   &
                                    Auu(:,nz,:,:),       Avv(:,nz,:,:))
@@ -2788,7 +2788,7 @@
                                                  topg,                   &
                                                  flwa,    efvs,          &
                                                  bwat,    mintauf,       &
-                                                 beta,                   &
+                                                 beta_internal,          &
                                                  resid_u, resid_v,       &
                                                  bu,      bv,            &
                                                  uvel,    vvel,          &
@@ -3333,10 +3333,10 @@
 
     if (verbose_glp .and. this_rank==rtest) then 
        print*, ' '
-       print*, 'beta, rank =', rtest
+       print*, 'beta_internal, rank =', rtest
        do j = jtest+1, jtest-1, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') beta(i,j)
+             write(6,'(f10.2)',advance='no') beta_internal(i,j)
           enddo
           print*, ' '
        enddo       
@@ -3421,7 +3421,7 @@
           i = itest
           j = jtest
           print*, ' '
-          print*, 'i, j, beta, beta_eff:', i, j, beta(i,j), beta_eff(i,j)
+          print*, 'i, j, beta, beta_eff:', i, j, beta_internal(i,j), beta_eff(i,j)
        endif
 
     endif   ! whichapprox
@@ -3452,7 +3452,7 @@
                                         nhalo,         active_cell,   &
                                         xVertex,       yVertex,       &
                                         uvel(nz,:,:),  vvel(nz,:,:),  &
-                                        beta,          whichassemble_bfric,  &
+                                        beta_internal, whichassemble_bfric,  &
                                         bfricflx)
                          
     !WHL - debug
@@ -3474,8 +3474,8 @@
     ! Compute the components of basal traction.
     !------------------------------------------------------------------------------
 
-    btractx(:,:) = beta(:,:) * uvel(nz,:,:)
-    btracty(:,:) = beta(:,:) * vvel(nz,:,:)
+    btractx(:,:) = beta_internal(:,:) * uvel(nz,:,:)
+    btracty(:,:) = beta_internal(:,:) * vvel(nz,:,:)
 
     ! Debug prints
     if (verbose_velo .and. this_rank==rtest) then
@@ -3552,7 +3552,7 @@
                                            topg,                   &
                                            flwa,    efvs,          &
                                            bwat,    mintauf,       &
-                                           beta,                   &
+                                           beta_internal,          &
                                            resid_u, resid_v,       &
                                            bu,      bv,            &
                                            uvel,    vvel,          &
@@ -3575,7 +3575,7 @@
                                               eus,     thklim,         &
                                               flwa,    efvs,           &
                                               bwat,    mintauf,        &
-                                              beta,    ho_beta_const,  &
+                                              ho_beta_const,          &
                                               btractx, btracty,       &
                                               uvel,    vvel,          &
                                               uvel_2d, vvel_2d)
@@ -3605,7 +3605,6 @@
     real(dp), dimension(:,:), intent(inout)  ::  &
        bwat,  &                ! basal water depth (m)
        mintauf, &              ! till yield stress (Pa)
-       beta,  &                ! basal traction parameter (Pa/(m/yr))
        btractx, btracty,  &    ! components of basal traction (Pa)
        uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
 
@@ -3635,8 +3634,7 @@
     ! mintauf: rescale from dimensionless to Pa
     mintauf = mintauf * tau0
 
-    ! beta: rescale from dimensionless to Pa/(m/yr)
-    beta = beta * tau0/(vel0*scyr)
+    ! ho_beta_const: rescale from dimensionless to Pa/(m/yr)
     ho_beta_const = ho_beta_const * tau0/(vel0*scyr)
 
     ! basal traction: rescale from dimensionless to Pa
@@ -3657,7 +3655,7 @@
                                                topg,                    &
                                                flwa,    efvs,           &                                       
                                                bwat,    mintauf,        &
-                                               beta,                    &
+                                               beta_internal,           &
                                                resid_u, resid_v,        &
                                                bu,      bv,             &
                                                uvel,    vvel,           &
@@ -3685,7 +3683,7 @@
     real(dp), dimension(:,:), intent(inout)  ::  &
        bwat,  &                 ! basal water depth (m)
        mintauf,  &              ! till yield stress (Pa)
-       beta                     ! basal traction parameter (Pa/(m/yr))
+       beta_internal            ! basal traction parameter (Pa/(m/yr))
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel,    &         ! components of 3D velocity (m/yr)
@@ -3719,8 +3717,8 @@
     ! Convert mintauf from Pa to dimensionless units
     mintauf = mintauf / tau0
 
-    ! Convert beta from Pa/(m/yr) to dimensionless units
-    beta = beta / (tau0/(vel0*scyr))
+    ! Convert beta_internal from Pa/(m/yr) to dimensionless units
+    beta_internal = beta_internal / (tau0/(vel0*scyr))
 
     ! Convert velocity from m/yr to dimensionless units
     uvel = uvel / (vel0*scyr)
@@ -6341,6 +6339,7 @@
     real(dp), dimension(nx-1,ny-1), intent(in) :: &
        uvel, vvel,          & ! basal velocity components at each vertex (m/yr)
        beta                   ! basal traction parameter (Pa/(m/yr))
+                              ! typically = beta_internal (beta weighted by f_ground)
 
     integer, intent(in) ::  &
        whichassemble_bfric    ! = 0 for standard finite element computation of basal friction
@@ -7662,6 +7661,7 @@
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::    &
        beta                          ! basal traction field (Pa/(m/yr)) at cell vertices
+                                     ! typically = beta_internal (beta weighted by f_ground)
                                      ! = beta_eff for DIVA
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &

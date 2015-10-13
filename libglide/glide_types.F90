@@ -844,7 +844,7 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !>  basal traction (scaler field)
     real(dp),dimension(:,:,:),pointer :: btraction => null()    !> x(1,:,:) and y(2,:,:) "consistent" basal traction fields 
     real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m by default)
-    real(dp),dimension(:,:)  ,pointer :: beta_external => null()!> beta from external file (for which_ho_babc = HO_BABC_EXTERNAL_BETA)
+    real(dp),dimension(:,:)  ,pointer :: beta_internal => null()!> beta weighted by f_ground or otherwise adjusted (glissade only)
     real(dp),dimension(:,:)  ,pointer :: unstagbeta  => null()  !> basal shear coefficient on ice grid (Pa yr/m by default)
     real(dp),dimension(:,:)  ,pointer :: tau_x => null()        !> SIA basal shear stress, x-dir
     real(dp),dimension(:,:)  ,pointer :: tau_y => null()        !> SIA basal shear stress, y-dir
@@ -1616,13 +1616,13 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%velocity%tau_y)
     else   ! glam/glissade dycore
        call coordsystem_allocate(model%general%velo_grid, model%velocity%beta)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%beta_internal)
        call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
        ! Set beta and unstagbeta to physically unrealistic values so we can tell later 
        ! if these fields were read correctly from an input file
        model%velocity%beta(:,:) = unphys_val   ! unphys_val = -999.0d0
        model%velocity%unstagbeta(:,:) = unphys_val
 
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%beta_external)
        call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel_ho)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%dynbcmask)
@@ -1909,8 +1909,8 @@ contains
         deallocate(model%velocity%beta)
     if (associated(model%velocity%unstagbeta)) &
         deallocate(model%velocity%unstagbeta)
-    if (associated(model%velocity%beta_external)) &
-        deallocate(model%velocity%beta_external)
+    if (associated(model%velocity%beta_internal)) &
+        deallocate(model%velocity%beta_internal)
     if (associated(model%velocity%wvel_ho)) &
         deallocate(model%velocity%wvel_ho)
     if (associated(model%velocity%kinbcmask)) &
