@@ -662,6 +662,7 @@
     !----------------------------------------------------------------
 
     use glissade_basal_traction, only: calcbeta
+    use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -727,6 +728,7 @@
 
     real(dp), dimension(:,:,:), pointer ::  &
        uvel, vvel,  &           ! velocity components (m/yr)
+       temp,   &                ! ice temperature (deg C)
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
        efvs,   &                ! effective viscosity (Pa yr)
        resid_u, resid_v,   &    ! u and v components of residual Ax - b (Pa/m)
@@ -798,6 +800,16 @@
        floating_mask,        &! = 1 for cells where ice is present and is floating
        ocean_mask,           &! = 1 for cells where topography is below sea level and ice is absent
        land_mask              ! = 1 for cells where topography is above sea level
+
+    real(dp), dimension(nx,ny) ::  &
+       bedpmp                 ! basal pressure melting point temperature (deg C)
+
+    real(dp), dimension(nx-1,ny-1) :: &
+       stagbedtemp,         & ! basal ice temperature averaged to vertices (deg C)
+       stagbedpmp             ! bedpmp averaged to vertices (deg C)    
+
+    integer, dimension(nx-1,ny-1) :: &
+       pmp_mask               ! = 1 where bed is at pressure melting point, elsewhere = 0
 
     logical, dimension(nx,ny) ::     &
        active_cell            ! true for active cells (thck > thklim and border locally owned vertices)
@@ -1005,6 +1017,7 @@
      f_ground => model%geometry%f_ground(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
 
+     temp     => model%temper%temp
      flwa     => model%temper%flwa(:,:,:)
      efvs     => model%stress%efvs(:,:,:)
      beta     => model%velocity%beta(:,:)
@@ -1831,6 +1844,49 @@
     beta_internal(:,:) = 0.d0
 
     !------------------------------------------------------------------------------
+    ! For the HO_BABC_BETA_TPMP option (lower beta where the bed is at the pressure melting point),
+    ! compute the bed temperature and the bed pressure-melting-point temperature at vertices.
+    !------------------------------------------------------------------------------
+  
+    if (whichbabc == HO_BABC_BETA_TPMP) then
+
+       ! interpolate bed temperature to vertices
+       ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation
+
+       call glissade_stagger(nx,           ny,           &
+                             temp(nz,:,:), stagbedtemp,  &
+                             ice_mask,     stagger_margin_in = 1)
+       
+       ! compute pressure melting point temperature at bed
+       do j = 1, ny
+          do i = 1, nx
+             if (ice_mask(i,j) == 1) then
+                call glissade_pressure_melting_point(thck(i,j), bedpmp(i,j))
+             else
+                bedpmp(i,j) = 0.d0
+             endif
+          enddo
+       enddo
+
+       ! interpolate bed pmp temperature to vertices
+       call glissade_stagger(nx,           ny,           &
+                             bedpmp(:,:),  stagbedpmp(:,:), &
+                             ice_mask,     stagger_margin_in = 1)
+
+       ! compute a pmp mask at vertices; this mask is passed to calcbeta below
+       where (abs(stagbedpmp - stagbedtemp) < 1.d-3 .and. active_vertex)
+          pmp_mask = 1
+       elsewhere
+          pmp_mask = 0
+       endwhere
+
+    else    ! not HO_BABC_BETA_TPMP
+
+       pmp_mask(:,:) = 0
+
+    endif
+
+    !------------------------------------------------------------------------------
     ! Compute the factor A^(-1/n) appearing in the expression for effective viscosity.
     ! This factor is often denoted as B in the literature.
     ! Note: The rate factor (flwa = A) is assumed to have units of Pa^(-n) yr^(-1).
@@ -2142,7 +2198,7 @@
              write(6,*) ' '
           enddo          
 
-       endif
+       endif  ! verbose_beta
 
        call calcbeta (whichbabc,                        &
                       dx,            dy,                &
@@ -2156,7 +2212,8 @@
                       stagmask,                         &
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent out)
-                      f_ground)
+                      f_ground,                         &
+                      pmp_mask)                            ! needed for HO_BABC_BETA_TPMP option
 
        call staggered_parallel_halo(beta_internal)
 
@@ -2260,6 +2317,46 @@
              enddo
              write(6,*) ' '
           enddo          
+
+          if (whichbabc == HO_BABC_BETA_TPMP) then
+
+             print*, ' '
+             print*, 'stagbedtemp, itest, jtest, rank =', itest, jtest, rtest
+!!             do j = ny-1, 1, -1
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+!!                do i = 1, nx-1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') stagbedtemp(i,j)
+                enddo
+                write(6,*) ' '
+             enddo             
+
+             print*, ' '
+             print*, 'stagbedpmp, itest, jtest, rank =', itest, jtest, rtest
+!!             do j = ny-1, 1, -1
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+!!                do i = 1, nx-1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') stagbedpmp(i,j)
+                enddo
+                write(6,*) ' '
+             enddo             
+
+             print*, ' '
+             print*, 'pmp_mask, itest, jtest, rank =', itest, jtest, rtest
+!!             do j = ny-1, 1, -1
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+!!                do i = 1, nx-1
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') pmp_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo             
+
+          endif  ! HO_BABC_BETA_TPMP
 
           if (whichbabc == HO_BABC_YIELD_PICARD) then
              print*, ' '

@@ -183,7 +183,7 @@ module glide_types
   integer, parameter :: HO_DISP_FIRSTORDER = 1
 
   integer, parameter :: HO_BABC_CONSTANT = 0
-  integer, parameter :: HO_BABC_SIMPLE = 1
+  integer, parameter :: HO_BABC_BETA_TPMP = 1
   integer, parameter :: HO_BABC_YIELD_PICARD = 2
   integer, parameter :: HO_BABC_BETA_BWAT = 3
   integer, parameter :: HO_BABC_LARGE_BETA = 4
@@ -194,6 +194,7 @@ module glide_types
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
   integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
+  integer, parameter :: HO_BABC_SIMPLE = 12
 
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_JFNK = 1
@@ -501,7 +502,7 @@ module glide_types
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
     !> \item[0] spatially uniform value (low value of 10 Pa/yr by default)
-    !> \item[1] simple hard-coded pattern (useful for debugging)
+    !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
     !> \item[2] treat beta value as a till yield stress (in Pa) using Picard iteration 
     !> \item[3] linear (inverse) function of bwat 
     !> \item[4] very large value for beta to enforce no slip everywhere 
@@ -512,6 +513,7 @@ module glide_types
     !> \item[9] power law based using effective pressure
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
     !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
+    !> \item[12] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0

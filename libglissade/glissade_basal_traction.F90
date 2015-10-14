@@ -83,7 +83,8 @@ contains
                        flwa_basal,    thck,          &
                        mask,          beta_external, &
                        beta,                         &
-                       f_ground)
+                       f_ground,                     &
+                       pmp_mask)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -111,11 +112,12 @@ contains
   type(glide_basal_physics), intent(in)   :: basal_physics      ! basal physics object
   real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
   real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness
-  integer, intent(in), dimension(:,:)     :: mask               ! staggered grid mask
+  integer,  intent(in), dimension(:,:)    :: mask               ! staggered grid mask
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
                                                                 ! Note: This is beta_internal in glissade
-  real(dp), intent(in), dimension(:,:), optional :: f_ground   ! grounded ice fraction, 0 <= f_ground <= 1
+  real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
+  integer,  intent(in), dimension(:,:), optional :: pmp_mask    ! = 1 where bed is at pressure melting point, elsewhere = 0
 
   ! Local variables
 
@@ -167,6 +169,26 @@ contains
             beta(ew,ns) = 100.d0      ! Pa yr/m
          end do
       end do
+
+    case(HO_BABC_BETA_TPMP)     ! large value for frozen bed, lower value for bed at pressure melting point
+
+       ! Set beta = beta_const wherever the bed is at the pressure melting point temperature.
+       ! Elsewhere, set beta to a large value.
+
+       if (present(pmp_mask)) then
+          
+          where(pmp_mask == 1)
+             beta(:,:) = beta_const    ! constant that can be specified in config file; 10 Pa yr/m by default
+          elsewhere 
+             beta(:,:) = 1.d10         ! Pa yr/m
+          endwhere
+          
+       else
+
+          write(message,*) 'Must supply pressure-melting-point mask with HO_BABC_BETA_TPMP option'
+          call write_log(trim(message), GM_FATAL)
+
+       endif
 
     case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
                                 ! that plastic-till sliding behavior is enforced (see additional notes in documentation).

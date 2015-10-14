@@ -757,11 +757,11 @@ contains
          '0-order SIA                       ', &
          'first-order model (Blatter-Pattyn)' /)
 
-    character(len=*), dimension(0:11), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:12), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
-         'simple pattern of beta                           ', &
+         'beta depends on basal temp (melting or frozen)   ', &
          'till yield stress (Picard)                       ', &
-         'function of bwat                                 ', &
+         'beta is a function of bwat                       ', &
          'no slip (using large B^2)                        ', &
          'beta passed from CISM                            ', &
          'no slip (Dirichlet implementation)               ', &
@@ -769,7 +769,8 @@ contains
          'beta as in ISMIP-HOM test C                      ', &
          'power law using effective pressure               ', &
          'Coulomb friction law w/ effec press              ', &
-         'Coulomb friction law w/ effec press, const flwa_b' /)
+         'Coulomb friction law w/ effec press, const flwa_b', &
+         'simple pattern of beta                           ' /)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration  ', &
