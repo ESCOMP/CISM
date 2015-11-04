@@ -1427,8 +1427,8 @@ contains
     !> \item \texttt{ucondflx(ewn,nsn))}
     !> \item \texttt{lcondflx(ewn,nsn))}
     !> \item \texttt{dissipcol(ewn,nsn))}
-    !> \item \texttt{waterfrac(upn-1,ewn,nsn))}    ! for enthalpy scheme under construction
-    !> \item \texttt{enthalpy(0:upn,ewn,nsn))}    ! for enthalpy scheme under construction
+    !> \item \texttt{waterfrac(upn-1,ewn,nsn))}
+    !> \item \texttt{enthalpy(0:upn,ewn,nsn))}
     !> \end{itemize}
 
     !> In \texttt{model\%velocity}:

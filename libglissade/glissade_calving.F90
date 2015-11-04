@@ -193,7 +193,7 @@ contains
        if (calving_timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
           float_fraction_calve = 1.0d0
        else  ! calve a fraction of the column based on the calving time scale
-          float_fraction_calve = max(dt/calving_timescale, 1.0d0)
+          float_fraction_calve = min(dt/calving_timescale, 1.0d0)
        endif
        
     endif

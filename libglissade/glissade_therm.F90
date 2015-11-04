@@ -130,7 +130,7 @@ module glissade_therm
 
     ! Precompute some grid quantities used in the vertical temperature solve
  
-    allocate(dups(upn+1,2))
+    allocate(dups(upn+1,2))   !TODO - upn-1 instead?
     dups(:,:) = 0.0d0
 
     up = 1
@@ -275,6 +275,7 @@ module glissade_therm
        
     elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmpt_offset, linear profile in between
 
+       !TODO - Set to min(artm, 0)?
        temp(0) = artm
 
        call glissade_pressure_melting_point(thck, pmptemp_bed)
@@ -514,7 +515,7 @@ module glissade_therm
                                                        dups(:,:),                 &
                                                        floating_mask(ew,ns),      &
                                                        thck(ew,ns),               &
-                                                       temp(:,ew,ns),             &
+                                                       temp(:,ew,ns),             &  !TODO - 0:upn?
                                                        waterfrac(:,ew,ns),        &
                                                        enthalpy(0:upn,ew,ns),     &
                                                        dissip(:,ew,ns),           &
@@ -603,7 +604,7 @@ module glissade_therm
                 einit = einit * rhoi * shci * thck(ew,ns)
                 
                 ! compute matrix elements
-
+                !TODO - Pass dups?
                 call glissade_temperature_matrix_elements(dttem,                 &
                                                           upn,     stagsigma,    &
                                                           subd,    diag,         &
@@ -909,7 +910,6 @@ module glissade_therm
        else   ! frozen at bed
               ! maintain balance of heat sources and sinks
               ! (conductive flux, geothermal flux, and basal friction)
-              ! Note: Heat fluxes are positive down, so slterm <= 0 and bheatflx <= 0.
 
           ! Note: bheatflx is generally <= 0, since defined as positive down.
 
