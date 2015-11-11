@@ -380,7 +380,7 @@ contains
     ! TODO: Should call to calcbwat go here or in diagnostic solve routine? Make sure consistent with Glide.
     call calcbwat(model, &
                   model%options%whichbwat, &
-                  model%temper%bmlt, &
+                  model%temper%bmlt_ground, &
                   model%temper%bwat, &
                   model%temper%bwatflx, &
                   model%geometry%thck, &
@@ -488,7 +488,7 @@ contains
 
     ! temporary bmlt array
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
-       bmlt_continuity  ! = bmlt if basal mass balance is included in continuity equation
+       bmlt_continuity  ! = bmlt_ground + bmlt_float if basal mass balance is included in continuity equation
                         ! else = 0
 
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
@@ -561,8 +561,9 @@ contains
          if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
          ! Note: glissade_therm_driver uses SI units
-         !       Output arguments are temp, waterfrac and bmlt
+         !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
          call glissade_therm_driver (model%options%whichtemp,                                      &
+                                     model%options%whichbmlt_float,                                &
                                      model%numerics%dttem*tim0,                                    & ! s
                                      model%general%ewn,          model%general%nsn,                &
                                      model%general%upn,                                            &
@@ -571,17 +572,24 @@ contains
                                      model%numerics%sigma,       model%numerics%stagsigma,         &
                                      model%numerics%thklim*thk0, model%numerics%thklim_temp*thk0,  & ! m
                                      model%geometry%thck*thk0,                                     & ! m
-                                     model%geometry%topg*thk0,   model%climate%eus*thk0,           & ! m
+                                     model%geometry%topg*thk0,                                     & ! m
+                                     model%geometry%lsrf*thk0,                                     & ! m
+                                     model%climate%eus*thk0,                                       & ! m
                                      model%climate%artm,                                           & ! deg C    
                                      model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                      model%temper%dissip,                                          & ! deg/s
+                                     model%temper%bmlt_float_omega,                                & ! s-1
+                                     model%temper%bmlt_float_h0,                                   & ! m
+                                     model%temper%bmlt_float_z0,                                   & ! m
                                      model%temper%bwat*thk0,                                       & ! m
                                      model%temper%temp,                                            & ! deg C
                                      model%temper%waterfrac,                                       & ! unitless
-                                     model%temper%bmlt)                                              ! m/s on output
+                                     model%temper%bmlt_ground,                                     & ! m/s on output
+                                     model%temper%bmlt_float)                                        ! m/s on output
                                      
          ! convert bmlt from m/s to scaled model units
-         model%temper%bmlt = model%temper%bmlt * tim0/thk0
+         model%temper%bmlt_ground = model%temper%bmlt_ground * tim0/thk0
+         model%temper%bmlt_float  = model%temper%bmlt_float * tim0/thk0
                                      
       else
          if (main_task .and. verbose_glissade) print*, 'Call glissade_temp_driver'
@@ -594,7 +602,7 @@ contains
       ! Update basal hydrology, if needed
       call calcbwat( model,                                    &
                      model%options%whichbwat,                  &
-                     model%temper%bmlt,                        &
+                     model%temper%bmlt_ground,                 &
                      model%temper%bwat,                        &
                      model%temper%bwatflx,                     &
                      model%geometry%thck,                      &
@@ -667,7 +675,9 @@ contains
       call t_startf('glissade_transport_driver')
 
       if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
-         bmlt_continuity(:,:) = model%temper%bmlt(:,:) * thk0/tim0   ! convert to m/s
+         ! combine grounded and melting terms, convert to m/s
+         ! Note: bmlt_ground = 0 wherever the ice is floating, and bmlt_float = 0 wherever the ice is grounded
+         bmlt_continuity(:,:) = (model%temper%bmlt_ground(:,:) + model%temper%bmlt_float(:,:)) * thk0/tim0   
       else                                                           ! do not include bmlt in continuity equation
          bmlt_continuity(:,:) = 0.d0
       endif
@@ -1402,6 +1412,8 @@ contains
     ! Calculate wvel, assuming grid velocity is 0.
     ! This is calculated relative to ice sheet base, rather than a fixed reference location
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
+    ! Note: For glissade, wvel_ho is diagnostic only.
+    !       Pass in the basal melt rate for grounded ice only, as in Glide.
     call wvelintg(model%velocity%uvel,                        &
                   model%velocity%vvel,                        &
                   model%geomderv,                             &
@@ -1409,7 +1421,7 @@ contains
                   model%velowk,                               &
                   model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
                   model%geometry%thck,                        &
-                  model%temper%bmlt,                          &
+                  model%temper%bmlt_ground,                   &
                   model%velocity%wvel_ho)
     ! Note: halos may be wrong for wvel_ho, but since it is currently only used as an output diagnostic variable, that is OK.
 

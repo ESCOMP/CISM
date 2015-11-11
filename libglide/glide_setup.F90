@@ -554,6 +554,7 @@ contains
     call GetValue(section,'flow_law',model%options%whichflwa)
     call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'basal_water',model%options%whichbwat)
+    call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
@@ -708,6 +709,10 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
+    character(len=*), dimension(0:1), parameter :: which_bmlt_float = (/ &
+         'none                     ', &
+         'MISMIP+ melt rate profile' /)
+
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
 
@@ -736,7 +741,6 @@ contains
          'no calving at initialization    ', &
          'ice calves at initialization    ' /)
 
-    !TODO - Implement calving_domain = 2
     character(len=*), dimension(0:2), parameter :: domain_calving = (/ &
          'calving only at the ocean edge             ',  &
          'calving in all cells where criterion is met',  &
@@ -1081,11 +1085,18 @@ contains
     write(message,*) 'vertical_integration    : ',model%options%whichwvel,vertical_integration(model%options%whichwvel)
     call write_log(message)
 
+    if (model%options%whichbmlt_float < 0 .or. model%options%whichbmlt_float >= size(which_bmlt_float)) then
+       call write_log('Error, bmlt_float out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
+    call write_log(message)
+
     if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(b_mbal)) then
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
     end if
 
-    write(message,*) 'basal_mass_balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
+    write(message,*) 'basal mass balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
     call write_log(message)
 
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
@@ -1391,9 +1402,14 @@ contains
     ! ocean penetration parameterization parameter
     call GetValue(section,'p_ocean_penetration', model%paramets%p_ocean_penetration)
 
-    ! added for ismip-hom
+    ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
+
+    ! MISMIP+ basal melting parameters
+    call GetValue(section,'bmlt_float_omega', model%temper%bmlt_float_omega)
+    call GetValue(section,'bmlt_float_h0', model%temper%bmlt_float_h0)
+    call GetValue(section,'bmlt_float_z0', model%temper%bmlt_float_z0)
 
   end subroutine handle_parameters
 
@@ -1569,7 +1585,7 @@ contains
         call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
     endif
 
-    ! added for ismip-hom
+    ! ISMIP-HOM parameters
     if (model%numerics%periodic_offset_ew /= 0.d0) then
        write(message,*) 'periodic offset_ew (m)  :  ',model%numerics%periodic_offset_ew
        call write_log(message)
@@ -1578,6 +1594,16 @@ contains
     if (model%numerics%periodic_offset_ns /= 0.d0) then
        write(message,*) 'periodic offset_ns (m)  :  ',model%numerics%periodic_offset_ns
        call write_log(message)
+    endif
+
+    ! MISMIP+ basal melting parameters
+    if (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
+      write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%temper%bmlt_float_omega
+      call write_log(message)
+      write(message,*) 'bmlt_float_h0 (m)        :  ', model%temper%bmlt_float_h0
+      call write_log(message)
+      write(message,*) 'bmlt_float_z0 (m)        :  ', model%temper%bmlt_float_z0
+      call write_log(message)
     endif
 
     call write_log('')
@@ -1846,8 +1872,8 @@ contains
 
     !------------------------------------------------------------------------------------
 
-    !This was the restart list as of 1/11/13 using the old hot=1 systme in glide_vars.def:
-    !restart_variable_list=' lat  relx  tauf  thk  thkmask  topg  bheatflx  bmlt  bwat  uvel  vvel  wgrd  flwa  temp  litho_temp  age '
+    !This was the restart list as of 1/11/13 using the old hot=1 system in glide_vars.def:
+    !restart_variable_list=' lat  relx  tauf  thk  thkmask  topg  bheatflx  bmlt_ground  bwat  uvel  vvel  wgrd  flwa  temp  litho_temp  age '
 
     ! Start with a few variables that we always want - prognostic variables and b.c.
     ! topg - needed to reconstruct all other geometry fields

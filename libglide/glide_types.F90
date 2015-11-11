@@ -112,6 +112,9 @@ module glide_types
   integer, parameter :: BWATER_OCEAN_PENETRATION = 4   ! effective pressure calculation with pw=ocean pressure for grounding line parameterisation (Leguy, et al., TC, 2014)
   !integer, parameter :: BWATER_BASAL_PROC = 4  ! not currently supported
 
+  integer, parameter :: BMLT_FLOAT_NONE = 0
+  integer, parameter :: BMLT_FLOAT_MISMIP = 1
+
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
 
@@ -362,12 +365,20 @@ module glide_types
     !> \item[4] Calculated from till water content, in the basal processes module
     !> \end{description}
 
+    integer :: whichbmlt_float = 0
+
+    !> basal melt rate for floating ice:
+    !> \begin{description}
+    !> \item[0] Basal melt rate = 0 for floating ice
+    !> \item[1] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \end{description}
+
     integer :: basal_mbal = 0
 
-    !> basal melt rate:
+    !> basal mass balance:
     !> \begin{description}
-    !> \item[0] Basal melt rate not included in continuity equation
-    !> \item[1] Basal melt rate included in continuity equation
+    !> \item[0] Basal mass balance not included in continuity equation
+    !> \item[1] Basal mass balance included in continuity equation
     !> \end{description}
 
     integer :: gthf = 0
@@ -1005,8 +1016,8 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
-    real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt-rate (> 0 for melt, < 0 for freeze-on)
-    real(dp),dimension(:,:),  pointer :: bmlt_tavg => null() !> Basal melt-rate
+    real(dp),dimension(:,:),  pointer :: bmlt_ground =>null()!> Basal melt-rate for grounding ice (> 0 for melt, < 0 for freeze-on)
+    real(dp),dimension(:,:),  pointer :: bmlt_float => null()!> Basal melt rate for floating ice (> 0 for melt, < 0 for freeze-on) 
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point on velo grid
@@ -1025,6 +1036,12 @@ module glide_types
     integer  :: tpt     = 0      !> Pointer to time series data
     logical  :: first1  = .true. !>
     logical  :: newtemps = .false. !> new temperatures
+
+    ! prescribed constants for MISMIP+ melting experiments
+    real(dp) :: bmlt_float_omega = 0.2d0 / scyr    ! time scale for basal melting (s-1)
+    real(dp) :: bmlt_float_h0 = 75.d0              ! scale for sub-shelf cavity thickness (m)
+    real(dp) :: bmlt_float_z0 = 100.d0             ! scale for ice draft (m)
+
   end type glide_temper
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1232,7 +1249,6 @@ module glide_types
   type glide_thckwk
      real(dp),dimension(:,:),  pointer :: oldthck   => null()
      real(dp),dimension(:,:),  pointer :: oldthck2  => null()
-!!     real(dp),dimension(:,:),pointer :: float => null()   ! no longer used
      real(dp),dimension(:,:,:),pointer :: olds      => null()
      integer  :: nwhich  = 2
      real(dp) :: oldtime = 0.d0
@@ -1428,7 +1444,8 @@ contains
     !> \item \texttt{flwa(upn,ewn,nsn))}           !WHL - 2 choices
     !> \item \texttt{dissip(upn,ewn,nsn))}         !WHL - 2 choices
     !> \item \texttt{bwat(ewn,nsn))}
-    !> \item \texttt{bmlt(ewn,nsn))}
+    !> \item \texttt{bmlt_ground(ewn,nsn))}
+    !> \item \texttt{bmlt_float(ewn,nsn))}
     !> \item \texttt{bfricflx(ewn,nsn))}
     !> \item \texttt{ucondflx(ewn,nsn))}
     !> \item \texttt{lcondflx(ewn,nsn))}
@@ -1568,8 +1585,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwatflx)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_tavg)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_ground)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
@@ -1819,10 +1836,10 @@ contains
         deallocate(model%temper%bwatflx)
     if (associated(model%temper%stagbwat)) &
         deallocate(model%temper%stagbwat)
-    if (associated(model%temper%bmlt)) &
-        deallocate(model%temper%bmlt)
-    if (associated(model%temper%bmlt_tavg)) &
-        deallocate(model%temper%bmlt_tavg)
+    if (associated(model%temper%bmlt_ground)) &
+        deallocate(model%temper%bmlt_ground)
+    if (associated(model%temper%bmlt_float)) &
+        deallocate(model%temper%bmlt_float)
     if (associated(model%temper%bpmp)) &
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &
@@ -2027,8 +2044,6 @@ contains
         deallocate(model%thckwk%oldthck)
     if (associated(model%thckwk%oldthck2)) &
         deallocate(model%thckwk%oldthck2)
-!!    if (associated(model%thckwk%float)) &  ! no longer used
-!!        deallocate(model%thckwk%float)
 
     if (associated(model%geometry%ice_age)) &
         deallocate(model%geometry%ice_age)

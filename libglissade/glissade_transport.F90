@@ -338,8 +338,8 @@
       real(dp), dimension(nx,ny), intent(in) ::  &
          acab,    &             ! surface mass balance (m/s)
                                 ! (defined at horiz cell centers)
-         bmlt                   ! basal melt rate (m/s)
-                                ! positive for melting, negative for freeze-on
+         bmlt                   ! basal melt rate (m/s); positive for melting, negative for freeze-on
+                                ! includes melting for both grounded and floating ice
                                 ! (defined at horiz cell centers)
 
       integer, intent(in) ::  &
