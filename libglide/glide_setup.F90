@@ -762,7 +762,7 @@ contains
          '0-order SIA                       ', &
          'first-order model (Blatter-Pattyn)' /)
 
-    character(len=*), dimension(0:12), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:13), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
          'till yield stress (Picard)                       ', &
@@ -775,6 +775,7 @@ contains
          'power law using effective pressure               ', &
          'Coulomb friction law w/ effec press              ', &
          'Coulomb friction law w/ effec press, const flwa_b', &
+         'min of Coulomb stress and power-law stress (Tsai)', &
          'simple pattern of beta                           ' /)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
@@ -1169,7 +1170,9 @@ contains
        if (model%options%which_ho_babc < 0 .or. model%options%which_ho_babc >= size(ho_whichbabc)) then
           call write_log('Error, HO basal BC input out of range', GM_FATAL)
        end if
+
        ! unsupported ho-babc options
+       !TODO - Decide if some of these are now supported?
        if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
          call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        endif
@@ -1398,6 +1401,8 @@ contains
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%Coulomb_Bump_max_slope)
     call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%Coulomb_bump_wavelength)
     call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
+    call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_C)
+    call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
 
     ! ocean penetration parameterization parameter
     call GetValue(section,'p_ocean_penetration', model%paramets%p_ocean_penetration)
@@ -1557,7 +1562,7 @@ contains
 
     if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
         model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
-       write(message,*) 'C coefficient for Coulomb friction law : ', model%basal_physics%Coulomb_C
+       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%Coulomb_C
        call write_log(message)
        write(message,*) 'bed bump max. slope for Coulomb friction law : ', model%basal_physics%Coulomb_Bump_max_slope
        call write_log(message)
@@ -1568,6 +1573,15 @@ contains
           call write_log(message)
        endif
     end if
+
+    if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%Coulomb_C
+       call write_log(message)
+       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
+       call write_log(message)
+       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+    endif
 
     if (model%options%whichbwat == BWATER_OCEAN_PENETRATION) then
        write(message,*) 'p_ocean_penetration                : ', model%paramets%p_ocean_penetration
@@ -2000,6 +2014,7 @@ contains
         ! no restart variables needed
     end select
 
+    !TODO - Do effecpress and beta need to be restart variables?
     select case (options%which_ho_babc)
       case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
         ! These friction laws need effective pressure
@@ -2007,6 +2022,8 @@ contains
         !WHL - C_space_factor needs to be in restart file if not = 1 everywhere
         !TODO - Add C_space_factor to the restart file only if not = 1?
         call glide_add_to_restart_variable_list('C_space_factor')
+      case(HO_BABC_COULOMB_POWERLAW_TSAI)
+        call glide_add_to_restart_variable_list('effecpress')
       case default
         ! Other HO basal boundary conditions may need the external beta field  (although there are a few that don't)
         !Note: If using beta from an external file, then 'beta' here needs to be the fixed, external field,

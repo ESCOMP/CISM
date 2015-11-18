@@ -249,7 +249,8 @@ contains
 
     if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
          (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
-         (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) ) then
+         (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) .or. &
+         (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) ) then
 
         allocate(N_capped(model%general%ewn,model%general%nsn))
 

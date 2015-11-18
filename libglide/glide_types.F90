@@ -197,7 +197,8 @@ module glide_types
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
   integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
-  integer, parameter :: HO_BABC_SIMPLE = 12
+  integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
+  integer, parameter :: HO_BABC_SIMPLE = 13
 
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_JFNK = 1
@@ -524,7 +525,8 @@ module glide_types
     !> \item[9] power law based using effective pressure
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
     !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
-    !> \item[12] simple hard-coded pattern (useful for debugging)
+    !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
+    !> \item[13] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1051,18 +1053,31 @@ module glide_types
 
       ! see glissade_basal_traction.F90 for usage details
       ! Note: It may make sense to move effecpress to a hydrology model when one is available.
-      real(dp), dimension(:,:), pointer :: effecpress => null()  !< effective pressure  
-      real(dp), dimension(:,:), pointer :: effecpress_stag => null() !< effective pressure on staggered grid
-      real(dp), dimension(:,:), pointer :: C_space_factor => null()  !< spatial factor for basal shear stress (no dimension)
+      real(dp), dimension(:,:), pointer :: effecpress => null()          !< effective pressure  
+      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid
+      real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
       real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
-      real(dp) :: friction_powerlaw_k = 8.4d-9  !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  
-                   ! The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
+      real(dp) :: friction_powerlaw_k = 8.4d-9    !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  
+                                                  !< The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
+
       ! Parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
-      real(dp) :: Coulomb_C = 0.84d0*0.5d0        !< basal stress constant (no dimension)
-      real(dp) :: Coulomb_Bump_Wavelength = 2.0d0 !< bed rock wavelength at subgrid scale precision (m)
-      real(dp) :: Coulomb_Bump_max_slope = 0.5d0  !< maximum bed bump slope at subgrid scale precision (no dimension) 
-      real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for the Schoof (2005) Coulomb friction law, in units Pa^{-n} s^{-1} 
+      real(dp) :: Coulomb_C = 0.42d0              !< basal stress constant (no dimension)
+                                                  !< Pimentel et al. have Coulomb_C = 0.84*m_max, where m_max = Coulomb_Bump_max_slope
+      real(dp) :: Coulomb_bump_wavelength = 2.0d0 !< bed rock wavelength at subgrid scale precision (m)
+      real(dp) :: Coulomb_bump_max_slope = 0.5d0  !< maximum bed bump slope at subgrid scale precision (no dimension) 
+      real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for the Schoof (2005) Coulomb friction law, in units Pa^{-n} yr^{-1} 
                                                   !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
+
+      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI
+      ! The default values are from Asay-Davis et al. (2015).
+      ! The value of powerlaw_C suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
+      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
+      ! Note: The Tsai et al. Coulomb friction law uses Coulomb_C above, with
+      !       effective pressure N as in Leguy et al. (2014) with p_ocean_penetration = 1.
+      ! 
+      real(dp) :: powerlaw_C = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
+      real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
+      
   end type glide_basal_physics
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

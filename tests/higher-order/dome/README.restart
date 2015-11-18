@@ -18,6 +18,11 @@ Assume the standard config file is dome.config and runs for 10 years.
 > frequency = 5
 > name = dome.restart.nc
 
+Note: For the dome problem, velocities are zero on the global boundaries.  If velocities on global boundaries
+      are nonzero (as in MISMIP), you must add the following under [options]:
+
+restart_extend_velo = 1
+
 (2) Create a file called dome.config.5yr.continue.  Here is how it should differ from dome.config:
 
 < tstart = 0.

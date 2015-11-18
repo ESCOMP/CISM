@@ -75,7 +75,8 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
-  !WHL - for trying glissade_therm in place of glissade_temp
+  !WHL - for running glissade_therm in place of glissade_temp
+  !TODO - Remove old glissade_temp code
 !!  logical, parameter :: call_glissade_therm = .false.
   logical, parameter :: call_glissade_therm = .true.
 
@@ -398,9 +399,6 @@ contains
        ! Remove ice which should calve, depending on the value of whichcalving
        !TODO - Make sure we have done the necessary halo updates before calving
        ! ------------------------------------------------------------------------        
-
-       !WHL - debug
-       if (main_task) print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
 
        call glissade_calve_ice(model%options%whichcalving,      &
                                model%options%calving_domain,    &
@@ -780,16 +778,17 @@ contains
           print*, ' '
           print*, 'thck:'
           write(6,'(a6)',advance='no') '      '
-          do i = 1, model%general%ewn
-             !!             do i = itest-3, itest+3
-             write(6,'(i6)',advance='no') i
+!!          do i = 1, model%general%ewn
+          do i = itest-5, itest+5
+             write(6,'(i14)',advance='no') i
           enddo
           write(6,*) ' '
-          do j = model%general%nsn, 1, -1
+!!          do j = model%general%nsn, 1, -1
+          do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
-             do i = 1, model%general%ewn
-                !!                do i = itest-3, itest+3
-                write(6,'(f8.2)',advance='no') model%geometry%thck(i,j) * thk0
+!!             do i = 1, model%general%ewn
+             do i = itest-5, itest+5
+                write(6,'(f14.7)',advance='no') model%geometry%thck(i,j) * thk0
              enddo
              write(6,*) ' '
           enddo
@@ -797,16 +796,17 @@ contains
           k = 2
           print*, 'temp, k =', k
           write(6,'(a6)',advance='no') '      '
-          do i = 1, model%general%ewn
-             !!             do i = itest-3, itest+3
-             write(6,'(i6)',advance='no') i
+!!          do i = 1, model%general%ewn
+          do i = itest-5, itest+5
+             write(6,'(i14)',advance='no') i
           enddo
           write(6,*) ' '
-          do j = model%general%nsn, 1, -1
+!!          do j = model%general%nsn, 1, -1
+          do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
-             do i = 1, model%general%ewn
-                !!                do i = itest-3, itest+3
-                write(6,'(f8.3)',advance='no') model%temper%temp(k,i,j)
+!!             do i = 1, model%general%ewn
+               do i = itest-5, itest+5
+                write(6,'(f14.7)',advance='no') model%temper%temp(k,i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1004,7 +1004,6 @@ contains
          ice_mask,     &! = 1 where thck > thklim, else = 0
          floating_mask  ! = 1 where ice is floating, else = 0
 
-    !WHL - debug
     integer :: itest, jtest, rtest
 
     rtest = -999
@@ -1304,56 +1303,56 @@ contains
                                    model%temper%bfricflx(:,:) )
        endif
        
-       if (this_rank==rtest .and. verbose_glissade) then
-          i = itest
-          j = jtest
-          print*, 'itest, jtest =', i, j
-          print*, 'k, dissip (deg/yr):'
-          do k = 1, model%general%upn-1
-             print*, k, model%temper%dissip(k,i,j)*scyr
-          enddo
-          print*, 'ubas, vbas =', model%velocity%uvel(model%general%upn,i,j),  &
-                                  model%velocity%vvel(model%general%upn,i,j)
-          print*, 'btraction =',  model%velocity%btraction(:,i,j)
-          print*, 'bfricflx =', model%temper%bfricflx(i,j)
-
-          print*, ' '
-          print*, 'After glissade velocity solve: uvel, k = 1:'
-          write(6,'(a8)',advance='no') '          '
-          do i = 1, model%general%ewn-1
-!!          do i = itest-3, itest+3
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i8)',advance='no') j
-             do i = 1, model%general%ewn-1
-!!             do i = itest-3, itest+3
-                write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
-             enddo 
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'After glissade velocity solve: vvel, k = 1:'
-          write(6,'(a8)',advance='no') '          '
-          do i = 1, model%general%ewn-1
-!!          do i = itest-3, itest+3
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i8)',advance='no') j
-             do i = 1, model%general%ewn-1
-!!             do i = itest-3, itest+3
-                write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
-             enddo 
-             print*, ' '
-          enddo
-
-       endif  ! main_task & verbose_glissade
-
     endif     ! is_restart
+
+    if (this_rank==rtest .and. verbose_glissade) then
+       i = itest
+       j = jtest
+       print*, 'itest, jtest =', i, j
+       print*, 'k, dissip (deg/yr):'
+       do k = 1, model%general%upn-1
+          print*, k, model%temper%dissip(k,i,j)*scyr
+       enddo
+       print*, 'ubas, vbas =', model%velocity%uvel(model%general%upn,i,j),  &
+            model%velocity%vvel(model%general%upn,i,j)
+       print*, 'btraction =',  model%velocity%btraction(:,i,j)
+       print*, 'bfricflx =', model%temper%bfricflx(i,j)
+       print*, ' '
+       print*, 'After glissade velocity solve (or restart): uvel, k = 1:'
+       write(6,'(a8)',advance='no') '          '
+!!          do i = 1, model%general%ewn-1
+       do i = itest-5, itest+5
+          write(6,'(i12)',advance='no') i
+       enddo
+       print*, ' '
+!!          do j = model%general%nsn-1, 1, -1
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i8)',advance='no') j
+!!             do i = 1, model%general%ewn-1
+          do i = itest-5, itest+5
+             write(6,'(f12.6)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'After glissade velocity solve (or restart): vvel, k = 1:'
+       write(6,'(a8)',advance='no') '          '
+!!          do i = 1, model%general%ewn-1
+       do i = itest-5, itest+5
+          write(6,'(i12)',advance='no') i
+       enddo
+       print*, ' '
+!!          do j = model%general%nsn-1, 1, -1
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i8)',advance='no') j
+!!             do i = 1, model%general%ewn-1
+          do i = itest-5, itest+5
+             write(6,'(f12.6)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
+          enddo
+          print*, ' '
+       enddo
+       
+    endif  ! this_rank = rtest & verbose_glissade
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 

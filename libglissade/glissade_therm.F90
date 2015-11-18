@@ -491,7 +491,7 @@ module glissade_therm
 
              if (whichtemp == TEMP_ENTHALPY) then
 
-                ! Given temperature and waterfrac, compute enthalpy (dimension 0:upn).
+                ! Given temperature and waterfrac, compute enthalpy (dimension 0:upn)
                 ! Assume waterfrac = 0 at upper and lower surfaces.
 
                 call glissade_temp2enth(stagsigma(1:upn-1),                            &
@@ -867,7 +867,7 @@ module glissade_therm
 
     ! Compute subdiagonal, diagonal, and superdiagonal matrix elements
 
-    ! upper boundary: set to surface air temperature
+    ! upper boundary: set to surface temperature
 
     supd(1) = 0.0d0
     subd(1) = 0.0d0
@@ -1141,7 +1141,7 @@ module glissade_therm
     ! Compute subdiagonal, diagonal, and superdiagonal matrix elements
     ! Assume backward Euler time stepping
     
-    ! upper boundary: set to surface air temperature
+    ! upper boundary: set to surface air temperature*rhoi*shci
     supd(1) = 0.0d0
     subd(1) = 0.0d0
     diag(1) = 1.0d0
@@ -1362,7 +1362,7 @@ module glissade_therm
              ! Note: bmlt_ground > 0 for melting, < 0 for freeze-on
              !       bfricflx >= 0 by definition
              !       bheatflx is positive down, so usually bheatflx < 0 (with negative values contributing to melt)
-             !       lcondflx is positive down, so lcondflx < 0 for heat is flowing from the bed toward the surface
+             !       lcondflx is positive down, so lcondflx < 0 for heat flowing from the bed toward the surface
              !
              !       This equation allows for freeze-on (bmlt_ground < 0) if the conductive term
              !        (lcondflx, positive down) is carrying enough heat away from the boundary.  
@@ -1379,7 +1379,7 @@ module glissade_therm
              endif
 
              if (whichtemp == TEMP_ENTHALPY) then
-                bmlt_ground(ew,ns) = bflx / (lhci*rhoi - enthalpy(upn,ew,ns))
+                bmlt_ground(ew,ns) = bflx / (lhci*rhoi - enthalpy(upn,ew,ns))  !TODO - Use enthalpy in layer upn-1? 
              else
                 bmlt_ground(ew,ns) = bflx * melt_fact   ! m/s
              endif
@@ -1722,7 +1722,7 @@ module glissade_therm
           if (ice_mask(ew,ns) == 1) then
              geom_fact = (0.25d0*sum(stagthck(ew-1:ew,ns-1:ns)) * sqrt((0.25d0*sum(dusrfdew(ew-1:ew,ns-1:ns)))**2 &
                                                                      + (0.25d0*sum(dusrfdns(ew-1:ew,ns-1:ns)))**2))**p1
-             dissip(:,ew,ns) = geom_fact * sia_dissip_fact *   & 
+             dissip(:,ew,ns) = geom_fact * sia_dissip_fact(:) *   & 
                               (flwa(:,ew-1,ns-1) + flwa(:,ew-1,ns+1) + flwa(:,ew+1,ns+1) + flwa(:,ew+1,ns-1) + &
                               2.d0*(flwa(:,ew-1,ns)+flwa(:,ew+1,ns)+flwa(:,ew,ns-1)+flwa(:,ew,ns+1)) + &
                               4.d0*flwa(:,ew,ns))
