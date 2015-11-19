@@ -197,7 +197,8 @@ contains
     model%velowk%btrac_max   = model%paramets%btrac_max / model%velowk%trc0/scyr    
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
 
-    model%paramets%ho_beta_const = model%paramets%ho_beta_const / (tau0/(vel0*scyr))
+    model%velocity%ho_beta_const = model%velocity%ho_beta_const / (tau0/(vel0*scyr))
+    model%velocity%beta_grounded_min = model%velocity%beta_grounded_min / (tau0/(vel0*scyr))
 
   end subroutine glide_scale_params
 
@@ -1267,7 +1268,7 @@ contains
              call write_log('Error, ground option out of range for glissade dycore', GM_FATAL)
           end if
 
-          write(message,*) 'ho_whichflotation_function: ',model%options%which_ho_flotation_function,  &
+          write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
                             ho_whichflotation_function(model%options%which_ho_flotation_function)
           call write_log(message)
           if (model%options%which_ho_flotation_function < 0 .or. model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
@@ -1377,7 +1378,8 @@ contains
 
 !!    call GetValue(section,'sliding_constant',  model%climate%slidconst)  ! not currently used
 
-    call GetValue(section,'ho_beta_const',     model%paramets%ho_beta_const)
+    call GetValue(section,'ho_beta_const', model%velocity%ho_beta_const)
+    call GetValue(section,'beta_grounded_min', model%velocity%beta_grounded_min)
 
     ! Friction law parameters
     call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
@@ -1484,12 +1486,12 @@ contains
     end if       
  
     if (model%options%whichflwa == FLWA_CONST_FLWA) then
-       write(message,*) 'constant flow factor (Pa^-n yr^-1):', model%paramets%default_flwa
+       write(message,*) 'constant flow factor (Pa^-n yr^-1) :', model%paramets%default_flwa
        call write_log(message)
     end if
 
     if (model%options%which_ho_efvs == HO_EFVS_CONSTANT) then
-       write(message,*) 'constant effec viscosity (Pa yr):  ', model%paramets%efvs_constant
+       write(message,*) 'constant effec viscosity (Pa yr)   :', model%paramets%efvs_constant
        call write_log(message)
     end if
 
@@ -1497,7 +1499,7 @@ contains
         model%options%whichbtrc == BTRC_CONSTANT_BWAT .or.  &
         model%options%whichbtrc == BTRC_LINEAR_BMLT   .or.  &
         model%options%whichbtrc == BTRC_CONSTANT_TPMP) then
-       write(message,*) 'basal traction param (m/yr/Pa): ', model%paramets%btrac_const
+       write(message,*) 'basal traction param (m/yr/Pa)      : ', model%paramets%btrac_const
        call write_log(message)
     end if
 
@@ -1522,7 +1524,7 @@ contains
     end if
 
     if (model%options%which_ho_babc == HO_BABC_CONSTANT) then
-       write(message,*) 'uniform beta (Pa yr/m)        : ',model%paramets%ho_beta_const
+       write(message,*) 'uniform beta (Pa yr/m)        : ',model%velocity%ho_beta_const
        call write_log(message)
     end if
 
@@ -1552,10 +1554,15 @@ contains
     end if
 
     if (model%options%whichbwat == BWATER_OCEAN_PENETRATION) then
-      write(message,*) 'p_ocean_penetration : ', model%paramets%p_ocean_penetration
-      call write_log(message)
+       write(message,*) 'p_ocean_penetration                : ', model%paramets%p_ocean_penetration
+       call write_log(message)
     endif
 
+    if (model%velocity%beta_grounded_min > 0.d0) then
+       write(message,*) 'min beta for grounded ice (Pa yr/m): ', model%velocity%beta_grounded_min
+       call write_log(message)
+    endif
+    
     if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
                                         .or.                                                     &
         model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then

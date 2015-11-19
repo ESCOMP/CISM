@@ -84,7 +84,8 @@ contains
                        mask,          beta_external, &
                        beta,                         &
                        f_ground,                     &
-                       pmp_mask)
+                       pmp_mask,                     &
+                       beta_grounded_min)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -110,7 +111,7 @@ contains
   real(dp), intent(in), dimension(:,:)    :: mintauf            ! till yield stress (Pa)
   real(dp), intent(in)                    :: beta_const         ! spatially uniform beta (Pa yr/m)
   type(glide_basal_physics), intent(in)   :: basal_physics      ! basal physics object
-  real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1}
+  real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1})
   real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness
   integer,  intent(in), dimension(:,:)    :: mask               ! staggered grid mask
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
@@ -118,6 +119,7 @@ contains
                                                                 ! Note: This is beta_internal in glissade
   real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
   integer,  intent(in), dimension(:,:), optional :: pmp_mask    ! = 1 where bed is at pressure melting point, elsewhere = 0
+  real(dp), intent(in), optional          :: beta_grounded_min  ! minimum beta value for grounded ice (Pa m^{-1} yr)
 
   ! Local variables
 
@@ -149,8 +151,6 @@ contains
                                                                       ! NOTE: Units are Pa^{-n} yr^{-1}
   character(len=300) :: message
 
-  real(dp), parameter :: beta_grounded_min = 10.d0    ! minimum beta for grounded ice (Pa yr/m)
-                                                      ! TODO - Add beta_grounded_min to the parameters in glide_types?
   select case(whichbabc)
 
     case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
@@ -358,16 +358,7 @@ contains
 
    if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
 
-      do ns = 1, nsn-1
-         do ew = 1, ewn-1 
-            beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
-            ! Make sure beta > 0 for grounded ice
-            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) == 0.d0) then
-!!               print*, 'Reset beta: ew, ns, f_ground, beta:', ew, ns, f_ground(ew,ns), beta(ew,ns)
-               beta(ew,ns) = beta_grounded_min
-            endif
-         end do
-      end do
+      beta(:,:) = beta(:,:) * f_ground(:,:)
 
    else    ! set beta = 0 where Glide mask says the ice is floating
 
@@ -380,6 +371,25 @@ contains
       end do
 
    endif   ! present(f_ground)
+
+   ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
+   ! This could happen, for example, when reading beta from an external file.
+   ! To prevent this, set beta to a minimum value beneath grounded ice.
+   ! The default value of beta_grounded_min = 0.0, in which case this loop has no effect.
+   ! However, beta_grounded_min can be set to a nonzero value in the config file.
+  
+   if (present(f_ground) .and. present(beta_grounded_min)) then
+
+      do ns = 1, nsn-1
+         do ew = 1, ewn-1 
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < beta_grounded_min) then
+               beta(ew,ns) = beta_grounded_min
+!!               print*, 'Reset beta: ew, ns, f_ground, beta:', ew, ns, f_ground(ew,ns), beta(ew,ns)
+            endif
+         enddo
+      enddo
+
+   endif   ! present(f_ground) and present(beta_grounded_min)
 
    ! Bug check: Make sure beta >= 0
    ! This check will find negative values as well as NaNs

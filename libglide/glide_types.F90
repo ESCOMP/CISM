@@ -845,11 +845,18 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: bed_softness => null() !> bed softness parameter
     real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !>  basal traction (scaler field)
     real(dp),dimension(:,:,:),pointer :: btraction => null()    !> x(1,:,:) and y(2,:,:) "consistent" basal traction fields 
-    real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m by default)
+    real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: beta_internal => null()!> beta weighted by f_ground or otherwise adjusted (glissade only)
-    real(dp),dimension(:,:)  ,pointer :: unstagbeta  => null()  !> basal shear coefficient on ice grid (Pa yr/m by default)
+    real(dp),dimension(:,:)  ,pointer :: unstagbeta  => null()  !> basal shear coefficient on ice grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: tau_x => null()        !> SIA basal shear stress, x-dir
     real(dp),dimension(:,:)  ,pointer :: tau_y => null()        !> SIA basal shear stress, y-dir
+
+    !WHL - A reasonable value of beta_grounded_min might be 10 Pa yr/m.  
+    !      However, this choice is not BFB for the confined-shelf test case, so I am choosing a default value of 0 for now.
+    !      The default can be overridden in the config file.
+    !TODO: Set beta_grounded_min = 10?
+    real(dp) :: beta_grounded_min = 0.d0     !> minimum value of beta for grounded ice, Pa yr/m (glissade only; scaled during init)
+    real(dp) :: ho_beta_const = 10.d0        !> spatially uniform beta for HO dycores, Pa yr/m (scaled during init)
 
     !> mask that specifies where the velocity being read in should be held constant as a dirichlet condition
     integer, dimension(:,:), pointer  :: kinbcmask => null()    
@@ -1289,7 +1296,6 @@ module glide_types
                                        ! (would change to e.g. 4.6e-18 in EISMINT-ROSS case)
     real(dp) :: efvs_constant = 2336041.d0  ! value of efvs to use in constant efvs case, in units Pa yr
                                        ! = 0.5*A^(-1), where A = 2.140373 Pa^(-1) yr^(1) is the value used in ISMIP-HOM Test F
-    real(dp) :: ho_beta_const = 10.d0  ! spatially uniform beta for HO dycores, Pa yr m^{-1} (gets scaled during init)
     real(dp) :: p_ocean_penetration = 0.0d0  ! p-exponent parameter for ocean penetration parameterization
     real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
                                        ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
