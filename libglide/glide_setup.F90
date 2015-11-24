@@ -197,8 +197,13 @@ contains
     model%velowk%btrac_max   = model%paramets%btrac_max / model%velowk%trc0/scyr    
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
 
+    ! scale beta parameters
     model%velocity%ho_beta_const = model%velocity%ho_beta_const / (tau0/(vel0*scyr))
     model%velocity%beta_grounded_min = model%velocity%beta_grounded_min / (tau0/(vel0*scyr))
+
+    ! scale basal melting parameters (yr^{-1} -> s^{-1})
+    model%temper%bmlt_float_omega = model%temper%bmlt_float_omega / scyr
+    model%temper%bmlt_float_rate  = model%temper%bmlt_float_rate / scyr
 
   end subroutine glide_scale_params
 
@@ -709,8 +714,9 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:1), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:2), parameter :: which_bmlt_float = (/ &
          'none                     ', &
+         'constant                 ', &
          'MISMIP+ melt rate profile' /)
 
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
@@ -841,9 +847,9 @@ contains
          'f_ground = 1 for all active cells (glissade dycore)' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
-         'f_pattyn = (-rhow*b)/(rhoi*H)              ', &
-         '1/fpattyn = (rhoi*H)/(-rhow*b)             ', &
-         'ocean cavity thickness = (-rhow*b) - rhoi*H' /)
+         'f_pattyn = (-rhow*b)/(rhoi*H)  ', &
+         '1/fpattyn = (rhoi*H)/(-rhow*b) ', &
+         'linear = -rhow*b - rhoi*H      ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -1412,6 +1418,7 @@ contains
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
     ! MISMIP+ basal melting parameters
+    call GetValue(section,'bmlt_float_rate', model%temper%bmlt_float_rate)
     call GetValue(section,'bmlt_float_omega', model%temper%bmlt_float_omega)
     call GetValue(section,'bmlt_float_h0', model%temper%bmlt_float_h0)
     call GetValue(section,'bmlt_float_z0', model%temper%bmlt_float_z0)
@@ -1610,14 +1617,17 @@ contains
        call write_log(message)
     endif
 
-    ! MISMIP+ basal melting parameters
-    if (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
-      write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%temper%bmlt_float_omega
-      call write_log(message)
-      write(message,*) 'bmlt_float_h0 (m)        :  ', model%temper%bmlt_float_h0
-      call write_log(message)
-      write(message,*) 'bmlt_float_z0 (m)        :  ', model%temper%bmlt_float_z0
-      call write_log(message)
+    ! parameters for basal melting of floating ice (including MISMIP+)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
+       write(message,*) 'bmlt_float_rate (m/yr)   :  ', model%temper%bmlt_float_rate * scyr
+       call write_log(message)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
+       write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%temper%bmlt_float_omega * scyr
+       call write_log(message)
+       write(message,*) 'bmlt_float_h0 (m)        :  ', model%temper%bmlt_float_h0
+       call write_log(message)
+       write(message,*) 'bmlt_float_z0 (m)        :  ', model%temper%bmlt_float_z0
+       call write_log(message)
     endif
 
     call write_log('')
@@ -2014,13 +2024,24 @@ contains
         ! no restart variables needed
     end select
 
-    !TODO - Do effecpress and beta need to be restart variables?
+    ! basal melting option
+    select case (options%whichbmlt_float)
+       case (BMLT_FLOAT_CONSTANT)
+          ! bmlt_float_mask needs to be in restart file if not = 0 everywhere
+          ! TODO - Add bmlt_float_mask to the restart file only if not = 0 everywhere?
+          call glide_add_to_restart_variable_list('bmlt_float_mask')
+       case default
+          ! no restart variables needed
+    end select
+
+    ! basal sliding option
     select case (options%which_ho_babc)
       case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
         ! These friction laws need effective pressure
+         !TODO - Does effecpress need to be a restart variable?
         call glide_add_to_restart_variable_list('effecpress')
-        !WHL - C_space_factor needs to be in restart file if not = 1 everywhere
-        !TODO - Add C_space_factor to the restart file only if not = 1?
+        ! C_space_factor needs to be in restart file if not = 1 everywhere
+        !TODO - Add C_space_factor to the restart file only if not = 1 everywhere?
         call glide_add_to_restart_variable_list('C_space_factor')
       case(HO_BABC_COULOMB_POWERLAW_TSAI)
         call glide_add_to_restart_variable_list('effecpress')

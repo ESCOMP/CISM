@@ -113,7 +113,8 @@ module glide_types
   !integer, parameter :: BWATER_BASAL_PROC = 4  ! not currently supported
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
-  integer, parameter :: BMLT_FLOAT_MISMIP = 1
+  integer, parameter :: BMLT_FLOAT_CONSTANT = 1
+  integer, parameter :: BMLT_FLOAT_MISMIP = 2
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -252,7 +253,7 @@ module glide_types
 
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
-  integer, parameter :: HO_FLOTATION_FUNCTION_OCEAN_CAVITY = 2
+  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
 
   integer, parameter :: HO_ICE_AGE_NONE = 0 
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
@@ -371,7 +372,8 @@ module glide_types
     !> basal melt rate for floating ice:
     !> \begin{description}
     !> \item[0] Basal melt rate = 0 for floating ice
-    !> \item[1] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \item[1] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
+    !> \item[2] Basal melt rate for floating ice as prescribed for MISMIP+
     !> \end{description}
 
     integer :: basal_mbal = 0
@@ -612,7 +614,7 @@ module glide_types
     !> \item[2] Use info from ice-covered cells only
 
     !TODO: Change the default to 2nd order vertical remapping
-    ! WHL: Keeping this 1st order for now to avoid answer changes
+    ! WHL: Keeping this 1st order for now so that standard tests are BFB
     integer :: which_ho_vertical_remap = 0
     !> Flag that indicates the order of accuracy for vertical remapping
     !> \begin{description}
@@ -623,7 +625,7 @@ module glide_types
 
     !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation (which effectively smooths beta)
+    !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
     !> \item[1] apply local value of beta at each vertex
 
     integer :: which_ho_assemble_taud = 0
@@ -648,7 +650,7 @@ module glide_types
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
 
-    !TODO - Change default to linear function 2?  Change name to HO_FLOTATION_FUNCTION_LINEAR?
+    !TODO - Change default to linear function 2?
     integer :: which_ho_flotation_function = 1
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
     !> Not valid for other dycores
@@ -656,7 +658,6 @@ module glide_types
     !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
-    !TODO - Consider changing the default after further testing (currently 1/f_pattyn)
 
     integer :: which_ho_ice_age = 1    
     !> Flag that indicates whether to compute a 3d ice age tracer
@@ -1008,8 +1009,6 @@ module glide_types
     !
     !      If bheatflx is read from a data file, be careful about the sign!
     !      In input data, the geothermal heat flux is likely to be defined as positive upward.
-    !
-    !TODO: Create separate fields for basal melt beneath grounded and floating ice.
 
     real(dp),dimension(:,:,:),pointer :: temp => null()      !> 3D temperature field.
     real(dp),dimension(:,:),  pointer :: bheatflx => null()  !> basal heat flux (W/m^2) (geothermal, positive down)
@@ -1039,10 +1038,18 @@ module glide_types
     logical  :: first1  = .true. !>
     logical  :: newtemps = .false. !> new temperatures
 
-    ! prescribed constants for MISMIP+ melting experiments
-    real(dp) :: bmlt_float_omega = 0.2d0 / scyr    ! time scale for basal melting (s-1)
-    real(dp) :: bmlt_float_h0 = 75.d0              ! scale for sub-shelf cavity thickness (m)
-    real(dp) :: bmlt_float_z0 = 100.d0             ! scale for ice draft (m)
+    ! parameters and fields for MISMIP+ experiments with basal melting
+    ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
+    real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
+                                                   !> default value = 0.2 yr^{-1} for MISIMP+
+    real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)
+                                                   !> default value = 75 m for MISMIP+
+    real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
+                                                   !> default value = -100 m for MISMIP+
+    real(dp) :: bmlt_float_rate = 100.d0           !> constant melt rate (m/yr)
+                                                   !> default value = 100 m/yr for MISMIP+ experiment Ice2r
+    integer, dimension(:,:), pointer :: bmlt_float_mask => null()   !> switch off melt where mask = 1
+                                                                    !> mask = 1 where x < 480 km for MISMIP+ experiment Ice2r
 
   end type glide_temper
 
@@ -1461,6 +1468,7 @@ contains
     !> \item \texttt{bwat(ewn,nsn))}
     !> \item \texttt{bmlt_ground(ewn,nsn))}
     !> \item \texttt{bmlt_float(ewn,nsn))}
+    !> \item \texttt{bmlt_float_mask(ewn,nsn))}
     !> \item \texttt{bfricflx(ewn,nsn))}
     !> \item \texttt{ucondflx(ewn,nsn))}
     !> \item \texttt{lcondflx(ewn,nsn))}
@@ -1602,6 +1610,7 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_ground)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
@@ -1855,6 +1864,8 @@ contains
         deallocate(model%temper%bmlt_ground)
     if (associated(model%temper%bmlt_float)) &
         deallocate(model%temper%bmlt_float)
+    if (associated(model%temper%bmlt_float_mask)) &
+        deallocate(model%temper%bmlt_float_mask)
     if (associated(model%temper%bpmp)) &
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &

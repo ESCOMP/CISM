@@ -156,6 +156,7 @@ contains
   character(len=300) :: message
 
   !WHL - debug - for diagnostic output
+  integer, parameter :: itest = 450, jtest = 3
 !  integer, parameter :: itest = 560, jtest = 3
 !  integer, parameter :: itest = 1120, jtest = 3
 
@@ -436,7 +437,7 @@ contains
    if (present(f_ground) .and. present(beta_grounded_min)) then
 
       do ns = 1, nsn-1
-         do ew = 1, ewn-1 
+         do ew = 1, ewn-1
             if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < beta_grounded_min) then
                beta(ew,ns) = beta_grounded_min
 !!               print*, 'Reset beta: ew, ns, f_ground, beta:', ew, ns, f_ground(ew,ns), beta(ew,ns)

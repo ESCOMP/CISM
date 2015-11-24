@@ -15,8 +15,11 @@ Assume the standard config file is dome.config and runs for 10 years.
 > [CF output]
 > variables = restart
 > xtype = double
+> start = 5
 > frequency = 5
 > name = dome.restart.nc
+
+The 'start = 5' line is needed to ensure that restart fields are written only after year 5, and not at startup.
 
 Note: For the dome problem, velocities are zero on the global boundaries.  If velocities on global boundaries
       are nonzero (as in MISMIP), you must add the following under [options]:
@@ -35,14 +38,11 @@ restart_extend_velo = 1
 < time = 1
 ---
 > name = dome.restart.nc
-> time = 2
+> time = 1
 44c45,46
 < name = dome.out.nc
 ---
 > name = dome.5yr.continue.out.nc
-
-NOTE: 'time = 2' means to read the second time slice, i.e. the time slice written at the end of the first run.
-      Time slice 1 in dome.restart.nc contains the initial condition.
 
 (3) Run the standard 10-year evolving-dome test:
 

@@ -1469,8 +1469,8 @@
     ! Three options for whichflotation_function (applies to whichground = 0 or 1):
     ! (0) HO_FLOTATION_FUNCTION_PATTYN:         f = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
     ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    ! (2) HO_FLOTATION_FUNCTION_OCEAN_CAVITY:   f = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating
-
+    ! (2) HO_FLOTATION_FUNCTION_LINEAR:         f = -rhow*b - rhoi*H; <= 0 for grounded, > 0 for floating
+    !
     ! f_flotation is not needed in further calculations but is output as a diagnostic.
     !------------------------------------------------------------------------------
 
