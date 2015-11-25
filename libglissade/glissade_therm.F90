@@ -1582,7 +1582,7 @@ module glissade_therm
        ! compute melt rate based on bed depth and cavity thickness
        ! The MISMIP+ formula is as follows:
        !
-       ! bmlt_float = omega * tanh(H_c/H_0) * max(z_d - z_0, 0)
+       ! bmlt_float = omega * tanh(H_c/H_0) * max(z_0 - z_d, 0)
        !
        ! where H_c = lsrf - topg is the cavity thickness
        !       z_d = lsrf - eus is the ice draft
