@@ -75,7 +75,8 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
-  !WHL - for trying glissade_therm in place of glissade_temp
+  !WHL - for running glissade_therm in place of glissade_temp
+  !TODO - Remove old glissade_temp code
 !!  logical, parameter :: call_glissade_therm = .false.
   logical, parameter :: call_glissade_therm = .true.
 
@@ -308,15 +309,8 @@ contains
 
     endif  ! unstagbeta > 0
 
-    ! If the beta field has been read from an external file, then copy it to the beta_external array.
-    ! Thus we maintain a copy of the external beta field, allowing beta to be modified internally
-    !  based on whether or not ice is present and floating.
-
-    if (model%options%which_ho_babc == HO_BABC_EXTERNAL_BETA) then
-
-       model%velocity%beta_external(:,:) = model%velocity%beta(:,:)
-
-    endif
+    ! Note: If the beta field has been read from an external file, then model%velocity%beta should not be modified.
+    !       If beta is weighted by f_ground or otherwise modified, the modified field is model%velocity%beta_internal.
 
     ! The MISMIP 3D test case requires reading in a spatial factor that multiplies Coulomb_C.
     ! This factor is read in on the unstaggered grid, then interpolated to the staggered grid.
@@ -387,7 +381,7 @@ contains
     ! TODO: Should call to calcbwat go here or in diagnostic solve routine? Make sure consistent with Glide.
     call calcbwat(model, &
                   model%options%whichbwat, &
-                  model%temper%bmlt, &
+                  model%temper%bmlt_ground, &
                   model%temper%bwat, &
                   model%temper%bwatflx, &
                   model%geometry%thck, &
@@ -406,15 +400,13 @@ contains
        !TODO - Make sure we have done the necessary halo updates before calving
        ! ------------------------------------------------------------------------        
 
-       !WHL - debug
-       print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
-
        call glissade_calve_ice(model%options%whichcalving,      &
                                model%options%calving_domain,    &
                                model%geometry%thck,             &
                                model%isostasy%relx,             &
                                model%geometry%topg,             &
                                model%climate%eus,               &
+                               model%numerics%thklim,           &
                                model%calving%marine_limit,      &
                                model%calving%calving_fraction,  &
                                model%calving%calving_timescale, &
@@ -494,7 +486,7 @@ contains
 
     ! temporary bmlt array
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
-       bmlt_continuity  ! = bmlt if basal mass balance is included in continuity equation
+       bmlt_continuity  ! = bmlt_ground + bmlt_float if basal mass balance is included in continuity equation
                         ! else = 0
 
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
@@ -567,8 +559,9 @@ contains
          if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
          ! Note: glissade_therm_driver uses SI units
-         !       Output arguments are temp, waterfrac and bmlt
+         !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
          call glissade_therm_driver (model%options%whichtemp,                                      &
+                                     model%options%whichbmlt_float,                                &
                                      model%numerics%dttem*tim0,                                    & ! s
                                      model%general%ewn,          model%general%nsn,                &
                                      model%general%upn,                                            &
@@ -577,17 +570,26 @@ contains
                                      model%numerics%sigma,       model%numerics%stagsigma,         &
                                      model%numerics%thklim*thk0, model%numerics%thklim_temp*thk0,  & ! m
                                      model%geometry%thck*thk0,                                     & ! m
-                                     model%geometry%topg*thk0,   model%climate%eus*thk0,           & ! m
+                                     model%geometry%topg*thk0,                                     & ! m
+                                     model%geometry%lsrf*thk0,                                     & ! m
+                                     model%climate%eus*thk0,                                       & ! m
                                      model%climate%artm,                                           & ! deg C    
                                      model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                      model%temper%dissip,                                          & ! deg/s
+                                     model%temper%bmlt_float_rate,                                 & ! m/s
+                                     model%temper%bmlt_float_mask,                                 & ! 0 or 1
+                                     model%temper%bmlt_float_omega,                                & ! s-1
+                                     model%temper%bmlt_float_h0,                                   & ! m
+                                     model%temper%bmlt_float_z0,                                   & ! m
                                      model%temper%bwat*thk0,                                       & ! m
                                      model%temper%temp,                                            & ! deg C
                                      model%temper%waterfrac,                                       & ! unitless
-                                     model%temper%bmlt)                                              ! m/s on output
+                                     model%temper%bmlt_ground,                                     & ! m/s on output
+                                     model%temper%bmlt_float)                                        ! m/s on output
                                      
          ! convert bmlt from m/s to scaled model units
-         model%temper%bmlt = model%temper%bmlt * tim0/thk0
+         model%temper%bmlt_ground = model%temper%bmlt_ground * tim0/thk0
+         model%temper%bmlt_float  = model%temper%bmlt_float * tim0/thk0
                                      
       else
          if (main_task .and. verbose_glissade) print*, 'Call glissade_temp_driver'
@@ -600,7 +602,7 @@ contains
       ! Update basal hydrology, if needed
       call calcbwat( model,                                    &
                      model%options%whichbwat,                  &
-                     model%temper%bmlt,                        &
+                     model%temper%bmlt_ground,                 &
                      model%temper%bwat,                        &
                      model%temper%bwatflx,                     &
                      model%geometry%thck,                      &
@@ -673,7 +675,9 @@ contains
       call t_startf('glissade_transport_driver')
 
       if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
-         bmlt_continuity(:,:) = model%temper%bmlt(:,:) * thk0/tim0   ! convert to m/s
+         ! combine grounded and melting terms, convert to m/s
+         ! Note: bmlt_ground = 0 wherever the ice is floating, and bmlt_float = 0 wherever the ice is grounded
+         bmlt_continuity(:,:) = (model%temper%bmlt_ground(:,:) + model%temper%bmlt_float(:,:)) * thk0/tim0   
       else                                                           ! do not include bmlt in continuity equation
          bmlt_continuity(:,:) = 0.d0
       endif
@@ -776,16 +780,17 @@ contains
           print*, ' '
           print*, 'thck:'
           write(6,'(a6)',advance='no') '      '
-          do i = 1, model%general%ewn
-             !!             do i = itest-3, itest+3
-             write(6,'(i6)',advance='no') i
+!!          do i = 1, model%general%ewn
+          do i = itest-5, itest+5
+             write(6,'(i14)',advance='no') i
           enddo
           write(6,*) ' '
-          do j = model%general%nsn, 1, -1
+!!          do j = model%general%nsn, 1, -1
+          do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
-             do i = 1, model%general%ewn
-                !!                do i = itest-3, itest+3
-                write(6,'(f8.2)',advance='no') model%geometry%thck(i,j) * thk0
+!!             do i = 1, model%general%ewn
+             do i = itest-5, itest+5
+                write(6,'(f14.7)',advance='no') model%geometry%thck(i,j) * thk0
              enddo
              write(6,*) ' '
           enddo
@@ -793,16 +798,17 @@ contains
           k = 2
           print*, 'temp, k =', k
           write(6,'(a6)',advance='no') '      '
-          do i = 1, model%general%ewn
-             !!             do i = itest-3, itest+3
-             write(6,'(i6)',advance='no') i
+!!          do i = 1, model%general%ewn
+          do i = itest-5, itest+5
+             write(6,'(i14)',advance='no') i
           enddo
           write(6,*) ' '
-          do j = model%general%nsn, 1, -1
+!!          do j = model%general%nsn, 1, -1
+          do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
-             do i = 1, model%general%ewn
-                !!                do i = itest-3, itest+3
-                write(6,'(f8.3)',advance='no') model%temper%temp(k,i,j)
+!!             do i = 1, model%general%ewn
+               do i = itest-5, itest+5
+                write(6,'(f14.7)',advance='no') model%temper%temp(k,i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -855,6 +861,7 @@ contains
                             model%isostasy%relx,             &
                             model%geometry%topg,             &
                             model%climate%eus,               &
+                            model%numerics%thklim,           &
                             model%calving%marine_limit,      &
                             model%calving%calving_fraction,  &
                             model%calving%calving_timescale, &
@@ -999,7 +1006,6 @@ contains
          ice_mask,     &! = 1 where thck > thklim, else = 0
          floating_mask  ! = 1 where ice is floating, else = 0
 
-    !WHL - debug
     integer :: itest, jtest, rtest
 
     rtest = -999
@@ -1299,56 +1305,56 @@ contains
                                    model%temper%bfricflx(:,:) )
        endif
        
-       if (this_rank==rtest .and. verbose_glissade) then
-          i = itest
-          j = jtest
-          print*, 'itest, jtest =', i, j
-          print*, 'k, dissip (deg/yr):'
-          do k = 1, model%general%upn-1
-             print*, k, model%temper%dissip(k,i,j)*scyr
-          enddo
-          print*, 'ubas, vbas =', model%velocity%uvel(model%general%upn,i,j),  &
-                                  model%velocity%vvel(model%general%upn,i,j)
-          print*, 'btraction =',  model%velocity%btraction(:,i,j)
-          print*, 'bfricflx =', model%temper%bfricflx(i,j)
-
-          print*, ' '
-          print*, 'After glissade velocity solve: uvel, k = 1:'
-          write(6,'(a8)',advance='no') '          '
-          do i = 1, model%general%ewn-1
-!!          do i = itest-3, itest+3
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i8)',advance='no') j
-             do i = 1, model%general%ewn-1
-!!             do i = itest-3, itest+3
-                write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
-             enddo 
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'After glissade velocity solve: vvel, k = 1:'
-          write(6,'(a8)',advance='no') '          '
-          do i = 1, model%general%ewn-1
-!!          do i = itest-3, itest+3
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i8)',advance='no') j
-             do i = 1, model%general%ewn-1
-!!             do i = itest-3, itest+3
-                write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
-             enddo 
-             print*, ' '
-          enddo
-
-       endif  ! main_task & verbose_glissade
-
     endif     ! is_restart
+
+    if (this_rank==rtest .and. verbose_glissade) then
+       i = itest
+       j = jtest
+       print*, 'itest, jtest =', i, j
+       print*, 'k, dissip (deg/yr):'
+       do k = 1, model%general%upn-1
+          print*, k, model%temper%dissip(k,i,j)*scyr
+       enddo
+       print*, 'ubas, vbas =', model%velocity%uvel(model%general%upn,i,j),  &
+            model%velocity%vvel(model%general%upn,i,j)
+       print*, 'btraction =',  model%velocity%btraction(:,i,j)
+       print*, 'bfricflx =', model%temper%bfricflx(i,j)
+       print*, ' '
+       print*, 'After glissade velocity solve (or restart): uvel, k = 1:'
+       write(6,'(a8)',advance='no') '          '
+!!          do i = 1, model%general%ewn-1
+       do i = itest-5, itest+5
+          write(6,'(i12)',advance='no') i
+       enddo
+       print*, ' '
+!!          do j = model%general%nsn-1, 1, -1
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i8)',advance='no') j
+!!             do i = 1, model%general%ewn-1
+          do i = itest-5, itest+5
+             write(6,'(f12.6)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'After glissade velocity solve (or restart): vvel, k = 1:'
+       write(6,'(a8)',advance='no') '          '
+!!          do i = 1, model%general%ewn-1
+       do i = itest-5, itest+5
+          write(6,'(i12)',advance='no') i
+       enddo
+       print*, ' '
+!!          do j = model%general%nsn-1, 1, -1
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i8)',advance='no') j
+!!             do i = 1, model%general%ewn-1
+          do i = itest-5, itest+5
+             write(6,'(f12.6)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
+          enddo
+          print*, ' '
+       enddo
+       
+    endif  ! this_rank = rtest & verbose_glissade
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -1407,6 +1413,8 @@ contains
     ! Calculate wvel, assuming grid velocity is 0.
     ! This is calculated relative to ice sheet base, rather than a fixed reference location
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
+    ! Note: For glissade, wvel_ho is diagnostic only.
+    !       Pass in the basal melt rate for grounded ice only, as in Glide.
     call wvelintg(model%velocity%uvel,                        &
                   model%velocity%vvel,                        &
                   model%geomderv,                             &
@@ -1414,7 +1422,7 @@ contains
                   model%velowk,                               &
                   model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
                   model%geometry%thck,                        &
-                  model%temper%bmlt,                          &
+                  model%temper%bmlt_ground,                   &
                   model%velocity%wvel_ho)
     ! Note: halos may be wrong for wvel_ho, but since it is currently only used as an output diagnostic variable, that is OK.
 

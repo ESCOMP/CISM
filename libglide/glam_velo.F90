@@ -198,9 +198,9 @@ contains
                                   model%options%which_ho_resid,                               &
                                   model%options%which_ho_nonlinear,                           &
                                   model%options%which_ho_sparse,                              &
-                                  model%velocity%beta,                                        & 
-                                  model%velocity%beta_external,                               & 
-                                  model%paramets%ho_beta_const,                               &
+                                  model%velocity%beta_internal,                               &   ! beta weighted by f_ground
+                                  model%velocity%beta,                                        &   ! fixed, external beta 
+                                  model%velocity%ho_beta_const,                               &
                                   model%basalproc%mintauf,                                    &
                                   model%temper%bwat,                                          &
                                   model%basal_physics,                                        &
