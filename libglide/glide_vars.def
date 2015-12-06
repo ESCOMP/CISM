@@ -317,9 +317,18 @@ coordinates:   lon lat
 [calving]
 dimensions:    time, y1, x1
 units:         meter
-long_name:     ice margin calving
+long_name:     thickness of calving ice
 data:          data%calving%calving_thck
 factor:        thk0
+coordinates:   lon lat
+
+[calving_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     calving mask
+data:          data%calving%calving_mask
+load:          1
+type:          int
 coordinates:   lon lat
 
 [damage]

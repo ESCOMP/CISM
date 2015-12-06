@@ -747,15 +747,16 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
-    character(len=*), dimension(0:7), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:8), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
          'relaxed bedrock threshold       ', &
          'present bedrock threshold       ', &
-         'Huybrechts grounding-line scheme', &
+         'calving based on grid location  ', &
          'ice thickness threshold         ', &
-         'damage-based calving scheme     ' /) 
+         'damage-based calving scheme     ', & 
+         'Huybrechts grounding-line scheme' /) 
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1088,8 +1089,11 @@ contains
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold model is supported for Glissade dycore only', GM_FATAL)
        endif
+       if (model%options%whichcalving == CALVING_GRID_MASK) then
+          call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
+       endif
        if (model%options%whichcalving == CALVING_DAMAGE) then
-          call write_log('Error, calving damage model is supported for Glissade dycore only', GM_FATAL)
+          call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
@@ -1442,6 +1446,7 @@ contains
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
     call glimmer_set_msg_level(loglevel)
+
     call GetValue(section,'ice_limit',          model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
@@ -1451,6 +1456,9 @@ contains
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
+    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
+    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
@@ -1574,6 +1582,17 @@ contains
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
        write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
        call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_GRID_MASK) then
+       if (model%calving%calving_front_x > 0.0d0) then
+          write(message,*) 'x calving front (m)           : ', model%calving%calving_front_x
+          call write_log(message)
+       endif
+       if (model%calving%calving_front_y > 0.0d0) then
+          write(message,*) 'y calving front (m)           : ', model%calving%calving_front_y
+          call write_log(message)
+       endif
     endif
 
     if (model%options%whichcalving == CALVING_DAMAGE) then
@@ -2212,6 +2231,12 @@ contains
            ! restart needs to know bwat value
            call glide_add_to_restart_variable_list('bwat')
         end select
+
+        ! calving option for Glissade
+
+        if (options%whichcalving == CALVING_GRID_MASK) then
+           call glide_add_to_restart_variable_list('calving_mask')
+        endif
 
         ! other Glissade options
 

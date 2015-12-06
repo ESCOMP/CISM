@@ -51,6 +51,108 @@ contains
 
 !-------------------------------------------------------------------------------  
 
+  subroutine glissade_calving_mask_init(which_calving,                       &
+                                        dx,                dy,               &
+                                        calving_front_x,   calving_front_y,  &
+                                        calving_mask)
+
+    ! Compute an integer calving mask if needed for the CALVING_GRID_MASK option
+
+    ! Input/output arguments
+
+    integer,  intent(in) :: which_calving       !> option for calving law
+    real(dp), intent(in) :: dx, dy              !> cell dimensions in x and y directions (m)
+    real(dp), intent(in) :: calving_front_x     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
+    real(dp), intent(in) :: calving_front_y     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
+    integer, dimension(:,:), intent(inout) :: calving_mask   !> output mask: calve floating ice wherever the mask = 1
+
+    ! Local variables
+
+    real(dp) :: xcell, ycell     ! global cell center coordinates (m)
+    integer :: nx, ny            ! horizontal grid dimensions
+    integer :: i, j              ! local cell indices
+    integer :: iglobal, jglobal  ! global cell indices
+
+    nx = size(calving_mask,1)
+    ny = size(calving_mask,2)
+
+    if (which_calving == CALVING_GRID_MASK) then  ! calve where calving_mask = 1
+
+       ! Two possibilities to consider:
+       ! (1) The calving mask was read from an input file.
+       !     If so, then there should be at least one grid location where calving_mask = 1.
+       !     There is nothing more to do here.
+       ! (2) The calving mask was not read from an input file, but is determined here based on the values
+       !     of calving_front_x and calving_front_y.
+
+       if (maxval(calving_mask) > 0) then
+
+          ! calving_mask was read from the input file; do nothing
+
+       else   ! create calving_mask here
+
+          ! initialize
+          calving_mask(:,:) = 0   ! no calving by default
+
+          if (calving_front_x > 0.0d0) then
+
+             ! set calving_mask = 1 where abs(x) > calving_front_x
+
+             do j = 1, ny
+                do i = 1, nx
+
+                   ! find global i and j indices
+                   call parallel_globalindex(i, j, iglobal, jglobal)
+
+                   ! find cell center x coordinate
+                   xcell = (dble(iglobal) - 0.5d0) * dx
+
+                   ! set calving mask = 1 based on cell coordinates relative to the calving front
+                   ! Note: Using absolute value to support symmetry with respect to x = 0
+                   if (abs(xcell) > calving_front_x) then
+                      calving_mask(i,j) = 1
+                   endif
+
+                enddo   ! i
+             enddo   ! j
+
+          endif   ! calving_front_x > 0
+
+          if (calving_front_y > 0.0d0) then
+
+             ! set calving_mask = 1 where abs(y) > calving_front_y
+
+             do j = 1, ny
+                do i = 1, nx
+
+                   ! find global i and j indices
+                   call parallel_globalindex(i, j, iglobal, jglobal)
+
+                   ! find cell center y coordinate
+                   ycell = (dble(jglobal) - 0.5d0) * dy
+
+                   ! set calving mask = 1 based on cell coordinates relative to the calving front
+                   if (abs(ycell) > calving_front_y) then
+                      calving_mask(i,j) = 1
+                   endif
+
+                enddo   ! i
+             enddo   ! j
+
+          endif   ! calving_front_y > 0
+
+       endif   ! maxval(calving_mask) > 0
+
+    else  ! whichcalving /= CALVING_GRID_MASK
+
+       ! do nothing; other calving options do not require initialization
+
+    endif
+
+  end subroutine glissade_calving_mask_init
+
+!-------------------------------------------------------------------------------
+
   subroutine glissade_calve_ice(which_calving,     calving_domain,   &
                                 thck,              relx,             &
                                 topg,              eus,              &
@@ -60,6 +162,7 @@ contains
                                 calving_timescale,   &
                                 dt,                  &
                                 calving_minthck,     &
+                                calving_mask,        &
                                 damage,              &
                                 damage_threshold,    &
                                 damage_column,       &
@@ -97,7 +200,7 @@ contains
     real(dp), intent(in)                    :: dt                !> model timestep (used with calving_timescale)
     real(dp), intent(in)                    :: calving_minthck   !> min thickness of ice at marine edge before it calves;
                                                                  !> used with which_ho_calving = CALVING_THCK_THRESHOLD
-    
+    integer, dimension(:,:), intent(in)     :: calving_mask      !> integer mask: calve ice where mask = 1
 !    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
     real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
     real(dp), dimension(:,:), intent(out)   :: damage_column     !> 2D vertically integrated scalar damage parameter
@@ -383,7 +486,14 @@ contains
              calving_law_mask = .false.
           endwhere
 
-       !TODO - remove CALVING_HUYBRECHTS?
+       case(CALVING_GRID_MASK)     ! calve ice where the input calving mask = 1
+
+          where (calving_mask == 1)
+             calving_law_mask = .true.
+          elsewhere
+             calving_law_mask = .false.
+          endwhere
+
        case(CALVING_HUYBRECHTS)    ! Huybrechts grounding line scheme for Greenland initialization
 
        !WHL - Previously, this code assumed that eus and relx have units of meters.

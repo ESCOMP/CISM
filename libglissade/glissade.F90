@@ -105,10 +105,9 @@ contains
     use glissade_grid_operators, only: glissade_stagger
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
-    use felix_dycore_interface, only: felix_velo_init
+    use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
     use glimmer_paramets, only: thk0, len0, tim0
-
-    use glissade_calving, only: glissade_calve_ice
+    use felix_dycore_interface, only: felix_velo_init
 
     implicit none
 
@@ -470,14 +469,25 @@ contains
        endwhere
     endif
 
+    ! initialize the calving scheme as needed
+    ! currently, only the CALVING_GRID_MASK option requires initialization
+    ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0
+ 
+    if (model%options%whichcalving == CALVING_GRID_MASK) then
+       call glissade_calving_mask_init(model%options%whichcalving,                                    &
+                                       model%numerics%dew*len0,       model%numerics%dns*len0,        &
+                                       model%calving%calving_front_x, model%calving%calving_front_y,  &
+                                       model%calving%calving_mask)
+    endif
+
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
-        model%options%calving_init == CALVING_INIT_ON .and. &
-        model%options%is_restart == RESTART_FALSE) then
+         model%options%calving_init == CALVING_INIT_ON .and. &
+         model%options%is_restart == RESTART_FALSE) then
 
        ! ------------------------------------------------------------------------
-       ! Remove ice which should calve, depending on the value of whichcalving
+       ! Remove ice that should calve, depending on the value of whichcalving
        !TODO - Make sure we have done the necessary halo updates before calving
        ! ------------------------------------------------------------------------        
 
@@ -493,6 +503,7 @@ contains
                                model%calving%calving_timescale, &
                                model%numerics%dt,               &
                                model%calving%calving_minthck,   &
+                               model%calving%calving_mask,      &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
@@ -1213,6 +1224,7 @@ contains
                             model%calving%calving_timescale, &
                             model%numerics%dt,               &
                             model%calving%calving_minthck,   &
+                            model%calving%calving_mask,      &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &
                             model%calving%damage_column,     &

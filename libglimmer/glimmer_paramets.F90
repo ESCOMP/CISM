@@ -72,7 +72,7 @@ module glimmer_paramets
 
   ! unphysical value used for initializing certain variables (e.g., temperature) so we can tell
   ! later if they were read from an input file or otherwise computed correctly
-  real(dp), parameter :: unphys_val = -999.d0   
+  real(dp), parameter :: unphys_val = -999.d0
                                                 
 ! scaling parameters
 

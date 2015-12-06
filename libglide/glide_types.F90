@@ -53,6 +53,7 @@ module glide_types
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types
   use glimmer_physcon
+  use glimmer_paramets, only: unphys_val
 
   implicit none
 
@@ -151,9 +152,10 @@ module glide_types
   integer, parameter :: CALVING_FLOAT_FRACTION = 2
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
-  integer, parameter :: CALVING_HUYBRECHTS = 5
+  integer, parameter :: CALVING_GRID_MASK = 5
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
   integer, parameter :: CALVING_DAMAGE = 7
+  integer, parameter :: CALVING_HUYBRECHTS = 8
 
   !WHL - added an option to determine whether calving occurs at initialization
   integer, parameter :: CALVING_INIT_OFF = 0
@@ -456,10 +458,11 @@ module glide_types
     !>          certain water depth (variable "marine_limit" in glide_types)  
     !> \item[4] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glide_types)  
-    !> \item[5] Huybrechts grounding line scheme for Greenland initialization
+    !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Set thickness to zero if ice at marine margin is thinner than
     !>          a certain value (variable 'calving_minthck' in glide_types)
     !> \item[7] Calve ice that is sufficiently damaged
+    !> \item[8] Huybrechts grounding line scheme for Greenland initialization
     !> \end{description}
 
     integer :: calving_init = 0
@@ -468,7 +471,7 @@ module glide_types
     !> \item[1] Calve at initialization
     !> \end{description}
 
-    integer :: calving_domain = 0
+    integer :: calving_domain = 1
     !> \begin{description}
     !> \item[0] Calve only at ocean edge
     !> \item[1] Calve wherever the calving criterion is met
@@ -1022,11 +1025,12 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_calving
-     !> holds fields and paramters related to calving
+     !> holds fields and parameters related to calving
      !> Note: The 3D damage field is prognostic; the 2D damage_column field is diagnosed from the 3D damage field.
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !< scaled by thk0 like mass balance, thickness, etc.
-     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1
+     integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
      real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
   
      real(dp) :: marine_limit =    -200.d0  !> minimum value of topg/relx before floating ice calves
@@ -1038,6 +1042,9 @@ module glide_types
                                             !> if calving_timescale = 0, then calving_thck = thck
      real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
                                             !> (whichcalving = CALVING_THCK_THRESHOLD)
+     real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
+     real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
+                                            !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
 
@@ -1701,7 +1708,6 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
-    use glimmer_paramets, only: unphys_val
 
     implicit none
 
@@ -1946,8 +1952,12 @@ contains
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
+    if (model%options%whichcalving == CALVING_GRID_MASK) then
+       call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    elseif (model%options%whichcalving == CALVING_DAMAGE) then
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
+       call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
+    endif
 
     ! matrix solver arrays
 
@@ -2332,6 +2342,8 @@ contains
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
         deallocate(model%calving%calving_thck)
+    if (associated(model%calving%calving_mask)) &
+        deallocate(model%calving%calving_mask)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
     if (associated(model%calving%damage_column)) &
