@@ -302,12 +302,10 @@ class PrintNC_template(PrintVars):
             spaces=3
             self.stream.write("    if (.not.outfile%append) then\n")
         self.stream.write("%s    call write_log('Creating variable %s')\n"%(spaces*' ',var['name']))
-        self.stream.write("%s    status = parallel_def_var(NCO%%id,'%s',get_xtype(outfile,NF90_%s),(/%s/),%s)\n"%(spaces*' ',
-                                                                                                              var['name'],
-                                                                                                              var['type'].upper(), 
-                                                                                                              dimstring,
-                                                                                                              idstring
-                                                                                                              ))
+        self.stream.write("%s    status = parallel_def_var(NCO%%id,'%s',get_xtype(outfile,NF90_%s), &\n"%(spaces*' ',
+                                                                                                          var['name'],
+                                                                                                          var['type'].upper()))
+        self.stream.write("%s         (/%s/),%s)\n"%(spaces*' ', dimstring, idstring))
         self.stream.write("%s    call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces*' '))
         if 'factor' in var:
             if var['factor'] == 'noscale':
@@ -511,7 +509,8 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s       end if\n"%(spaces))
                 self.stream.write("%s       if (abs(scaling_factor-1.0d0).gt.1.d-17) then\n"%(spaces))
                 self.stream.write("%s          call write_log(\"scaling %s\",GM_DIAGNOSTIC)\n"%(spaces,var['name']))
-                self.stream.write("%s          %s = %s*scaling_factor\n"%(spaces,var['data'],var['data']))
+                self.stream.write("%s          %s = &\n"%(spaces,var['data']))
+                self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data'])
                 self.stream.write("%s       end if\n"%(spaces))
 
                 if  'level' in dims:
