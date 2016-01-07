@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Thu, 07 Jan 2016 22:29:13 +0000
+! Thu, 07 Jan 2016 22:34:43 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -399,7 +399,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable instant_acab was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable instant_acab was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -422,7 +423,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable instant_artm was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable instant_artm was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 

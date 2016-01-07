@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Thu, 07 Jan 2016 22:29:13 +0000
+! Thu, 07 Jan 2016 22:34:43 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -399,7 +399,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable C_space_factor was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable C_space_factor was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -424,7 +425,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable acab was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable acab was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -446,7 +448,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable adv_cfl_dt was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable adv_cfl_dt was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -471,7 +474,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable artm was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable artm was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -494,7 +498,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable beta was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable beta was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -517,7 +522,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable beta_internal was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable beta_internal was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -541,7 +547,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bfricflx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bfricflx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -565,7 +572,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bheatflx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bheatflx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -590,7 +598,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bmlt_float was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bmlt_float was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -614,7 +623,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bmlt_float_mask was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bmlt_float_mask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -639,7 +649,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bmlt_ground was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bmlt_ground was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -663,7 +674,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable btemp was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable btemp was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -686,7 +698,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable btractx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable btractx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -709,7 +722,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable btractx_extend was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable btractx_extend was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -732,7 +746,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable btracty was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable btracty was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -755,7 +770,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable btracty_extend was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable btracty_extend was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -778,7 +794,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable btrc was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable btrc was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -802,7 +819,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bwat was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bwat was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -826,7 +844,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable bwatflx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable bwatflx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -850,7 +869,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable calving was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable calving was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -873,7 +893,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable damage was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable damage was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -896,7 +917,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable damage_column was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable damage_column was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -918,7 +940,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable diff_cfl_dt was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable diff_cfl_dt was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -941,7 +964,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable diffu was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable diffu was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -965,7 +989,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable dissip was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable dissip was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -989,7 +1014,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable dissipstag was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable dissipstag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1013,7 +1039,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable dthckdtm was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable dthckdtm was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1037,7 +1064,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable dusrfdtm was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable dusrfdtm was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1059,7 +1087,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable dynbcmask was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable dynbcmask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1082,7 +1111,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable effecpress was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable effecpress was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1106,7 +1136,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable efvs was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable efvs was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1129,7 +1160,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable enthalpy was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable enthalpy was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1153,7 +1185,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable eus was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable eus was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1176,7 +1209,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable f_flotation was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable f_flotation was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1200,7 +1234,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable f_ground was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable f_ground was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1224,7 +1259,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable flwa was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable flwa was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1248,7 +1284,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable flwastag was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable flwastag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1272,7 +1309,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable gravity was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable gravity was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1295,7 +1333,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable iarea was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable iarea was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1318,7 +1357,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable iareaf was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable iareaf was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1341,7 +1381,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable iareag was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable iareag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1366,7 +1407,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable ice_age was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable ice_age was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1390,7 +1432,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable ice_mask was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable ice_mask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1414,7 +1457,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable ice_specific_heat was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable ice_specific_heat was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1438,7 +1482,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable ice_thermal_conductivity was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable ice_thermal_conductivity was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1461,7 +1506,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable ivol was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable ivol was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1483,7 +1529,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable kinbcmask was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable kinbcmask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1506,7 +1553,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable litho_temp was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable litho_temp was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1530,7 +1578,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable lsurf was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable lsurf was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1554,7 +1603,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable relx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable relx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1577,7 +1627,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable resid_u was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable resid_u was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1600,7 +1651,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable resid_v was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable resid_v was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1624,7 +1676,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable rho_ice was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable rho_ice was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1648,7 +1701,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable rho_seawater was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable rho_seawater was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1671,7 +1725,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable rhs_u was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable rhs_u was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1694,7 +1749,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable rhs_v was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable rhs_v was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1718,7 +1774,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable seconds_per_year was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable seconds_per_year was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1741,7 +1798,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable soft was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable soft was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1766,7 +1824,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable stagthk was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable stagthk was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1791,7 +1850,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable surftemp was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable surftemp was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1814,7 +1874,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tau_eff was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tau_eff was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1837,7 +1898,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tau_xx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tau_xx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1860,7 +1922,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tau_xy was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tau_xy was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1883,7 +1946,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tau_xz was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tau_xz was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1906,7 +1970,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tau_yy was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tau_yy was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1929,7 +1994,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tau_yz was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tau_yz was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1952,7 +2018,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable taudx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable taudx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1975,7 +2042,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable taudy was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable taudy was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1998,7 +2066,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tauf was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tauf was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2021,7 +2090,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable taux was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable taux was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2044,7 +2114,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable tauy was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tauy was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2068,7 +2139,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable temp was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable temp was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2092,7 +2164,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable tempstag was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable tempstag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2117,7 +2190,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable thk was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable thk was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2140,7 +2214,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable thkmask was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable thkmask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2165,7 +2240,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable topg was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable topg was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2189,7 +2265,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable ubas was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable ubas was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2212,7 +2289,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable uflx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable uflx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2235,7 +2313,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable unstagbeta was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable unstagbeta was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2260,7 +2339,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable usurf was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable usurf was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2284,7 +2364,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable uvel was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable uvel was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2308,7 +2389,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable uvel_2d was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable uvel_2d was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2332,7 +2414,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable uvel_2d_extend was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable uvel_2d_extend was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2356,7 +2439,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable uvel_extend was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable uvel_extend was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2380,7 +2464,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable vbas was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable vbas was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2404,7 +2489,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable velnorm was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable velnorm was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2427,7 +2513,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable vflx was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable vflx was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2451,7 +2538,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable vvel was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable vvel was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2475,7 +2563,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable vvel_2d was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable vvel_2d was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2499,7 +2588,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable vvel_2d_extend was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable vvel_2d_extend was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2523,7 +2613,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable vvel_extend was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable vvel_extend was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2546,7 +2637,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable waterfrac was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable waterfrac was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2570,7 +2662,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable wgrd was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable wgrd was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2594,7 +2687,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable wvel was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable wvel was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2618,7 +2712,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable wvel_ho was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable wvel_ho was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -3605,7 +3700,8 @@ contains
                data%general%x1*scaling_factor
        end if
     else
-    call write_log('Variable x1 was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable x1 was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3627,7 +3723,8 @@ contains
                data%general%y1*scaling_factor
        end if
     else
-    call write_log('Variable y1 was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable y1 was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3649,7 +3746,8 @@ contains
                data%basal_physics%C_space_factor*scaling_factor
        end if
     else
-    call write_log('Variable C_space_factor was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable C_space_factor was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3673,7 +3771,8 @@ contains
                data%climate%acab*scaling_factor
        end if
     else
-    call write_log('Variable acab was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable acab was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3695,7 +3794,8 @@ contains
                data%climate%artm*scaling_factor
        end if
     else
-    call write_log('Variable artm was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable artm was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3719,7 +3819,8 @@ contains
                data%velocity%beta*scaling_factor
        end if
     else
-    call write_log('Variable beta was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable beta was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3743,7 +3844,8 @@ contains
                data%temper%bfricflx*scaling_factor
        end if
     else
-    call write_log('Variable bfricflx was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable bfricflx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3767,7 +3869,8 @@ contains
                data%temper%bheatflx*scaling_factor
        end if
     else
-    call write_log('Variable bheatflx was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable bheatflx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3791,7 +3894,8 @@ contains
                data%temper%bmlt_float*scaling_factor
        end if
     else
-    call write_log('Variable bmlt_float was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable bmlt_float was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3813,7 +3917,8 @@ contains
                data%temper%bmlt_float_mask*scaling_factor
        end if
     else
-    call write_log('Variable bmlt_float_mask was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable bmlt_float_mask was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3837,7 +3942,8 @@ contains
                data%temper%bmlt_ground*scaling_factor
        end if
     else
-    call write_log('Variable bmlt_ground was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable bmlt_ground was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3861,7 +3967,8 @@ contains
                data%stress%btractx(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable btractx was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable btractx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3885,7 +3992,8 @@ contains
                data%stress%btractx_extend(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable btractx_extend was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable btractx_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3909,7 +4017,8 @@ contains
                data%stress%btracty(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable btracty was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable btracty was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3933,7 +4042,8 @@ contains
                data%stress%btracty_extend(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable btracty_extend was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable btracty_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3957,7 +4067,8 @@ contains
                data%temper%bwat*scaling_factor
        end if
     else
-    call write_log('Variable bwat was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable bwat was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -3981,7 +4092,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable damage was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable damage was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4007,7 +4119,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable dissip was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable dissip was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4033,7 +4146,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable dissipstag was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable dissipstag was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4055,7 +4169,8 @@ contains
                data%basal_physics%effecpress*scaling_factor
        end if
     else
-    call write_log('Variable effecpress was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable effecpress was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4081,7 +4196,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable efvs was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable efvs was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4107,7 +4223,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable flwa was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable flwa was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4133,7 +4250,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable flwastag was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable flwastag was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4159,7 +4277,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable ice_age was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable ice_age was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4181,7 +4300,8 @@ contains
                data%velocity%kinbcmask(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable kinbcmask was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable kinbcmask was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4203,7 +4323,8 @@ contains
                data%lithot%temp*scaling_factor
        end if
     else
-    call write_log('Variable litho_temp was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable litho_temp was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4227,7 +4348,8 @@ contains
                data%isostasy%relx*scaling_factor
        end if
     else
-    call write_log('Variable relx was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable relx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4251,7 +4373,8 @@ contains
                data%velocity%bed_softness*scaling_factor
        end if
     else
-    call write_log('Variable soft was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable soft was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4273,7 +4396,8 @@ contains
                data%climate%artm*scaling_factor
        end if
     else
-    call write_log('Variable surftemp was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable surftemp was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4297,7 +4421,8 @@ contains
                data%stress%taudx(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable taudx was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable taudx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4321,7 +4446,8 @@ contains
                data%stress%taudy(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable taudy was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable taudy was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4345,7 +4471,8 @@ contains
                data%basalproc%mintauf*scaling_factor
        end if
     else
-    call write_log('Variable tauf was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable tauf was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4369,7 +4496,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable temp was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable temp was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4393,7 +4521,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable tempstag was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable tempstag was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4417,7 +4546,8 @@ contains
                data%geometry%thck*scaling_factor
        end if
     else
-    call write_log('Variable thk was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable thk was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4439,7 +4569,8 @@ contains
                data%geometry%thkmask*scaling_factor
        end if
     else
-    call write_log('Variable thkmask was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable thkmask was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4463,7 +4594,8 @@ contains
                data%geometry%topg*scaling_factor
        end if
     else
-    call write_log('Variable topg was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable topg was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4487,7 +4619,8 @@ contains
                data%velocity%ubas*scaling_factor
        end if
     else
-    call write_log('Variable ubas was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable ubas was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4511,7 +4644,8 @@ contains
                data%velocity%unstagbeta*scaling_factor
        end if
     else
-    call write_log('Variable unstagbeta was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable unstagbeta was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4535,7 +4669,8 @@ contains
                data%geometry%usrf*scaling_factor
        end if
     else
-    call write_log('Variable usurf was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable usurf was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4561,7 +4696,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable uvel was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable uvel was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4585,7 +4721,8 @@ contains
                data%velocity%uvel_2d(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable uvel_2d was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable uvel_2d was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4609,7 +4746,8 @@ contains
                data%velocity%uvel_2d_extend(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable uvel_2d_extend was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable uvel_2d_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4635,7 +4773,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable uvel_extend was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable uvel_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4659,7 +4798,8 @@ contains
                data%velocity%vbas*scaling_factor
        end if
     else
-    call write_log('Variable vbas was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable vbas was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4685,7 +4825,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable vvel was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable vvel was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4709,7 +4850,8 @@ contains
                data%velocity%vvel_2d(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable vvel_2d was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable vvel_2d was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4733,7 +4875,8 @@ contains
                data%velocity%vvel_2d_extend(:,:)*scaling_factor
        end if
     else
-    call write_log('Variable vvel_2d_extend was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable vvel_2d_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4759,7 +4902,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable vvel_extend was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable vvel_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4783,7 +4927,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable waterfrac was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable waterfrac was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4809,7 +4954,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable wgrd was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable wgrd was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4835,7 +4981,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable wvel was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable wvel was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4861,7 +5008,8 @@ contains
           end if
        end do
     else
-    call write_log('Variable wvel_ho was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable wvel_ho was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if

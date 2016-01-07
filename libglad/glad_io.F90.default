@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Thu, 07 Jan 2016 22:29:13 +0000
+! Thu, 07 Jan 2016 22:34:43 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -259,7 +259,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable hflx_tavg was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable hflx_tavg was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -282,7 +283,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable lat was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable lat was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -305,7 +307,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
        end if
      else
-     call write_log('Variable lon was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable lon was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -328,7 +331,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable rofi_tavg was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable rofi_tavg was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -351,7 +355,8 @@ contains
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
        end if
      else
-     call write_log('Variable rofl_tavg was specified for output but it is &          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     call write_log('Variable rofl_tavg was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -650,7 +655,8 @@ contains
                data%hflx_tavg*scaling_factor
        end if
     else
-    call write_log('Variable hflx_tavg was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable hflx_tavg was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -672,7 +678,8 @@ contains
                data%lat*scaling_factor
        end if
     else
-    call write_log('Variable lat was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable lat was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -694,7 +701,8 @@ contains
                data%lon*scaling_factor
        end if
     else
-    call write_log('Variable lon was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable lon was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -716,7 +724,8 @@ contains
                data%rofi_tavg*scaling_factor
        end if
     else
-    call write_log('Variable rofi_tavg was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable rofi_tavg was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -738,7 +747,8 @@ contains
                data%rofl_tavg*scaling_factor
        end if
     else
-    call write_log('Variable rofl_tavg was specified for input but it is &         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    call write_log('Variable rofl_tavg was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
