@@ -314,10 +314,10 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, 'scale_factor',(%s))\n"%(spaces*' ',idstring,var['factor']))
         for attrib in var:
             if attrib not in NOATTRIB:
-                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '%s', '%s')\n"%(spaces*' ',
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '%s', &\n"%(spaces*' ',
                                                                                             idstring,
-                                                                                            attrib,
-                                                                                            var[attrib]))
+                                                                                            attrib))
+                self.stream.write("%s         '%s')\n"%(spaces*' ', var[attrib]))
         if not is_dimvar(var):
             self.stream.write("%s    if (glimmap_allocated(model%%projection)) then\n"%(spaces*' '))
             self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'grid_mapping',glimmer_nc_mapvarname)\n"%(spaces*' ',idstring))
