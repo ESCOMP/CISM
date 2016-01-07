@@ -511,7 +511,9 @@ contains
 
           ew=1
           if (model%geometry%thck_index(ew,ns) /= 0) then
-             call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,ns), 1d0)
+             call sparse_insert_val(model%solver_data%matrix, &
+                  model%geometry%thck_index(ew,ns), &
+                  model%geometry%thck_index(ew,ns), 1d0)
              !EIB! old way
              !call putpcgc(model%solver_data,1.0d0, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,ns))
              if (calc_rhs) then
@@ -522,7 +524,9 @@ contains
 
           ew=model%general%ewn
           if (model%geometry%thck_index(ew,ns) /= 0) then
-             call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,ns), 1d0)
+             call sparse_insert_val(model%solver_data%matrix, &
+                  model%geometry%thck_index(ew,ns), &
+                  model%geometry%thck_index(ew,ns), 1d0)
              !EIB! old way
              !call putpcgc(model%solver_data,1.0d0, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,ns))
              if (calc_rhs) then
@@ -600,11 +604,16 @@ contains
       integer, intent(in) :: nsm,ns,nsp  ! ns index to lower, central, upper node
 
       !fill matrix using the new API
-      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ewm,ns), sumd(1)) ! point (ew-1,ns)
-      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ewp,ns), sumd(2)) ! point (ew+1,ns)
-      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,nsm), sumd(3)) ! point (ew,ns-1)
-      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,nsp), sumd(4)) ! point (ew,ns+1)
-      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), model%geometry%thck_index(ew,ns),  1d0 + sumd(5))! point (ew,ns)
+      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), &
+           model%geometry%thck_index(ewm,ns), sumd(1)) ! point (ew-1,ns)
+      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), &
+           model%geometry%thck_index(ewp,ns), sumd(2)) ! point (ew+1,ns)
+      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), &
+           model%geometry%thck_index(ew,nsm), sumd(3)) ! point (ew,ns-1)
+      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), &
+           model%geometry%thck_index(ew,nsp), sumd(4)) ! point (ew,ns+1)
+      call sparse_insert_val(model%solver_data%matrix, model%geometry%thck_index(ew,ns), &
+           model%geometry%thck_index(ew,ns),  1d0 + sumd(5))! point (ew,ns)
 
     !EIB! old way
       ! fill sparse matrix

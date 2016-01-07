@@ -1629,8 +1629,9 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
-         call parallel_stop(__FILE__,__LINE__)
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
+       call parallel_stop(__FILE__,__LINE__)
     endif
 
     if (outflow_bc) then
@@ -1674,7 +1675,8 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -1719,7 +1721,8 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -1771,7 +1774,8 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -1832,7 +1836,8 @@ contains
 
     ! unknown grid
     if (size(a,2)/=local_ewn .or. size(a,3)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       write(*,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
 
