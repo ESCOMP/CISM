@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Thu, 07 Jan 2016 22:34:43 +0000
+! Thu, 07 Jan 2016 22:42:27 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -252,8 +252,10 @@ contains
        status = parallel_def_var(NCO%id,'ablt',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'ablation')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter (water)/year')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'ablation')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter (water)/year')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -276,8 +278,10 @@ contains
        status = parallel_def_var(NCO%id,'arng',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'air temperature half-range')
-       status = parallel_put_att(NCO%id, varid, 'units', 'degreeC')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'air temperature half-range')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'degreeC')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -300,9 +304,12 @@ contains
        status = parallel_def_var(NCO%id,'global_orog',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'orographic elevation provided by global model')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'surface_altitude')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'orographic elevation provided by global model')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'surface_altitude')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -325,8 +332,10 @@ contains
        status = parallel_def_var(NCO%id,'hflx_tavg',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'heat flux to ice surface')
-       status = parallel_put_att(NCO%id, varid, 'units', 'W m-2')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'heat flux to ice surface')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'W m-2')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -349,8 +358,10 @@ contains
        status = parallel_def_var(NCO%id,'inmask',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'downscaling mask')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'downscaling mask')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -373,9 +384,12 @@ contains
        status = parallel_def_var(NCO%id,'local_orog',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'orographic elevation provided by local model')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'surface_altitude')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'orographic elevation provided by local model')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'surface_altitude')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -398,8 +412,10 @@ contains
        status = parallel_def_var(NCO%id,'outmask',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'upscaling mask')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'upscaling mask')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -422,9 +438,12 @@ contains
        status = parallel_def_var(NCO%id,'prcp',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'precipitation')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'lwe_precipitation_rate')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter (water)/year')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'precipitation')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'lwe_precipitation_rate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter (water)/year')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -447,8 +466,10 @@ contains
        status = parallel_def_var(NCO%id,'rofi_tavg',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'solid calving flux')
-       status = parallel_put_att(NCO%id, varid, 'units', 'kg m-2 s-1')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'solid calving flux')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'kg m-2 s-1')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -471,8 +492,10 @@ contains
        status = parallel_def_var(NCO%id,'rofl_tavg',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'liquid runoff flux')
-       status = parallel_put_att(NCO%id, varid, 'units', 'kg m-2 s-1')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'liquid runoff flux')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'kg m-2 s-1')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -495,8 +518,10 @@ contains
        status = parallel_def_var(NCO%id,'siced',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'superimposed ice depth')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'superimposed ice depth')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -519,9 +544,12 @@ contains
        status = parallel_def_var(NCO%id,'snowd',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'snow depth')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'surface_snow_thickness')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'snow depth')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'surface_snow_thickness')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')

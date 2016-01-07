@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Thu, 07 Jan 2016 22:34:44 +0000
+! Thu, 07 Jan 2016 22:42:28 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -296,10 +296,14 @@ contains
        status = parallel_def_var(NCO%id,'level',get_xtype(outfile,NF90_FLOAT), &
             (/level_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'formula_terms', 'sigma: level topo: topg thick: thk')
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'sigma layers')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'land_ice_sigma_coordinate')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'formula_terms', &
+            'sigma: level topo: topg thick: thk')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'sigma layers')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_sigma_coordinate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
      end if
 
     !     lithoz -- vertical coordinate of lithosphere layer
@@ -308,8 +312,10 @@ contains
        status = parallel_def_var(NCO%id,'lithoz',get_xtype(outfile,NF90_FLOAT), &
             (/lithoz_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'vertical coordinate of lithosphere layer')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'vertical coordinate of lithosphere layer')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
      end if
 
     !     staglevel -- stag sigma layers
@@ -318,10 +324,14 @@ contains
        status = parallel_def_var(NCO%id,'staglevel',get_xtype(outfile,NF90_FLOAT), &
             (/staglevel_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'positive', 'down')
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'stag sigma layers')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'land_ice_stag_sigma_coordinate')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'positive', &
+            'down')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'stag sigma layers')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_stag_sigma_coordinate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
      end if
 
     !     stagwbndlevel -- stag sigma layers with boundaries
@@ -330,10 +340,14 @@ contains
        status = parallel_def_var(NCO%id,'stagwbndlevel',get_xtype(outfile,NF90_FLOAT), &
             (/stagwbndlevel_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'positive', 'down')
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'stag sigma layers with boundaries')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'land_ice_stag_sigma_coordinate_with_bnd')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'positive', &
+            'down')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'stag sigma layers with boundaries')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_stag_sigma_coordinate_with_bnd')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
      end if
 
     !     x0 -- Cartesian x-coordinate, velocity grid
@@ -342,9 +356,12 @@ contains
        status = parallel_def_var(NCO%id,'x0',get_xtype(outfile,NF90_FLOAT), &
             (/x0_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'Cartesian x-coordinate, velocity grid')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'projection_x_coordinate')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'Cartesian x-coordinate, velocity grid')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'projection_x_coordinate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
      end if
 
     !     x1 -- Cartesian x-coordinate
@@ -353,9 +370,12 @@ contains
        status = parallel_def_var(NCO%id,'x1',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'Cartesian x-coordinate')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'projection_x_coordinate')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'Cartesian x-coordinate')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'projection_x_coordinate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
      end if
 
     !     y0 -- Cartesian y-coordinate, velocity grid
@@ -364,9 +384,12 @@ contains
        status = parallel_def_var(NCO%id,'y0',get_xtype(outfile,NF90_FLOAT), &
             (/y0_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'Cartesian y-coordinate, velocity grid')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'projection_y_coordinate')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'Cartesian y-coordinate, velocity grid')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'projection_y_coordinate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
      end if
 
     !     y1 -- Cartesian y-coordinate
@@ -375,9 +398,12 @@ contains
        status = parallel_def_var(NCO%id,'y1',get_xtype(outfile,NF90_FLOAT), &
             (/y1_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'Cartesian y-coordinate')
-       status = parallel_put_att(NCO%id, varid, 'standard_name', 'projection_y_coordinate')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'Cartesian y-coordinate')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'projection_y_coordinate')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
      end if
 
     !     instant_ablt -- instantaneous ablation
@@ -392,8 +418,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_ablt',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous ablation')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous ablation')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -416,8 +444,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_acab',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous mass-balance')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous mass-balance')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -440,8 +470,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_artm',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous air temperature')
-       status = parallel_put_att(NCO%id, varid, 'units', 'degC')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous air temperature')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'degC')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -464,8 +496,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_humidity',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous humidity')
-       status = parallel_put_att(NCO%id, varid, 'units', '1')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous humidity')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -488,8 +522,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_lwdown',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous lw down')
-       status = parallel_put_att(NCO%id, varid, 'units', 'W/m2')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous lw down')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'W/m2')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -512,8 +548,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_prcp',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous precip')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous precip')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -536,8 +574,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_psurf',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous surface pressure')
-       status = parallel_put_att(NCO%id, varid, 'units', 'Pa')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous surface pressure')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'Pa')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -560,8 +600,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_siced',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'superimposed ice depth')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'superimposed ice depth')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -584,8 +626,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_snowd',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'snow depth')
-       status = parallel_put_att(NCO%id, varid, 'units', 'meter')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'snow depth')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -608,8 +652,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_swdown',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous sw down')
-       status = parallel_put_att(NCO%id, varid, 'units', 'W/m2')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous sw down')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'W/m2')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -632,8 +678,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_xwind',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous x-wind')
-       status = parallel_put_att(NCO%id, varid, 'units', 'm/s')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous x-wind')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'm/s')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -656,8 +704,10 @@ contains
        status = parallel_def_var(NCO%id,'instant_ywind',get_xtype(outfile,NF90_FLOAT), &
             (/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', 'instantaneous y-wind')
-       status = parallel_put_att(NCO%id, varid, 'units', 'm/s')
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'instantaneous y-wind')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'm/s')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
