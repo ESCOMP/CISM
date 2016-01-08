@@ -4171,8 +4171,10 @@
                       kNode = k + kshift(7,n)
          
                       ! Add the ds/dx and ds/dy terms to the load vector for this node                   
-                      loadu(kNode,iNode,jNode) = loadu(kNode,iNode,jNode) - rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdx_qp * phi_3d(n,p)
-                      loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdy_qp * phi_3d(n,p)
+                      loadu(kNode,iNode,jNode) = loadu(kNode,iNode,jNode) - &
+                           rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdx_qp * phi_3d(n,p)
+                      loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - &
+                           rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdy_qp * phi_3d(n,p)
 
                       if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
                          print*, ' '
