@@ -113,6 +113,8 @@ contains
     allocate(model%tempwk%dupa(model%general%upn),model%tempwk%dupb(model%general%upn))
     allocate(model%tempwk%dupc(model%general%upn))
 
+    allocate(model%tempwk%wphi(model%general%ewn,model%general%nsn))
+
     model%tempwk%advconst(1) = HORIZ_ADV*model%numerics%dttem / (16.0d0 * model%numerics%dew)
     model%tempwk%advconst(2) = HORIZ_ADV*model%numerics%dttem / (16.0d0 * model%numerics%dns)
 

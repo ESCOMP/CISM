@@ -62,8 +62,6 @@ contains
 
        case(BWATER_FLUX)    ! steady-state routing using flux calculation
 
-          allocate(model%tempwk%wphi(model%general%ewn,model%general%nsn))
-
           model%tempwk%watvel = model%paramets%hydtim * tim0 / (scyr * len0)
           estimate = (0.2d0 * model%tempwk%watvel) / min(model%numerics%dew,model%numerics%dns)
           call find_dt_wat(model%numerics%dttem,estimate,model%tempwk%dt_wat,model%tempwk%nwat) 
