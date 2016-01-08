@@ -43,7 +43,8 @@ module NAME_io
 
   implicit none
 
-  private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
+  private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
+       is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
 
   character(310), save :: restart_variable_list=''    ! list of variables needed for a restart
 !TODO change 310 to a variable - see glimmer_ncdf.F90 in the definition for type glimmer_nc_stat for other instances of this value.
