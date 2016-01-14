@@ -298,8 +298,9 @@ contains
        powerlaw_p = 3.0d0
        powerlaw_q = 1.0d0
 
-       beta(:,:) = basal_physics%friction_powerlaw_k**(-1.0d0/powerlaw_p) * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p)    &
-              * dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 )**(1.0d0/powerlaw_p-1.0d0)
+       beta(:,:) = basal_physics%friction_powerlaw_k**(-1.0d0/powerlaw_p) &
+            * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p) &
+            * dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 )**(1.0d0/powerlaw_p-1.0d0)
 
     case(HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
 
@@ -344,8 +345,9 @@ contains
       ! Compute beta
       ! gn = Glen's n from physcon module
       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
-      beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
-             (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+      beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * &
+           basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
+           (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
 
       ! Limit for numerical stability
       where (beta > 1.0d8)

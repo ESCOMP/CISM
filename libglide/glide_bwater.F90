@@ -92,9 +92,11 @@ contains
 
     type(glide_global_type),intent(inout) :: model
     integer, intent(in) :: which
-    real(dp), dimension(:,:), intent(inout) :: bwat, wphi, bwatflx
+    real(dp), dimension(:,:), intent(inout) :: bwat, bwatflx
     real(dp), dimension(:,:), intent(in) :: bmlt_ground, thck, topg, btem
     logical, dimension(:,:), intent(in) :: floater
+    ! wphi needs to be declared a pointer because it may be null in the caller
+    real(dp), dimension(:,:), intent(inout), pointer :: wphi
 
     real(dp), dimension(2), parameter :: &
          blim = (/ 0.00001 / thk0, 0.001 / thk0 /)

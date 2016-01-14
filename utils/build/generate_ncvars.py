@@ -302,12 +302,10 @@ class PrintNC_template(PrintVars):
             spaces=3
             self.stream.write("    if (.not.outfile%append) then\n")
         self.stream.write("%s    call write_log('Creating variable %s')\n"%(spaces*' ',var['name']))
-        self.stream.write("%s    status = parallel_def_var(NCO%%id,'%s',get_xtype(outfile,NF90_%s),(/%s/),%s)\n"%(spaces*' ',
-                                                                                                              var['name'],
-                                                                                                              var['type'].upper(), 
-                                                                                                              dimstring,
-                                                                                                              idstring
-                                                                                                              ))
+        self.stream.write("%s    status = parallel_def_var(NCO%%id,'%s',get_xtype(outfile,NF90_%s), &\n"%(spaces*' ',
+                                                                                                          var['name'],
+                                                                                                          var['type'].upper()))
+        self.stream.write("%s         (/%s/),%s)\n"%(spaces*' ', dimstring, idstring))
         self.stream.write("%s    call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces*' '))
         if 'factor' in var:
             if var['factor'] == 'noscale':
@@ -316,10 +314,10 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, 'scale_factor',(%s))\n"%(spaces*' ',idstring,var['factor']))
         for attrib in var:
             if attrib not in NOATTRIB:
-                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '%s', '%s')\n"%(spaces*' ',
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '%s', &\n"%(spaces*' ',
                                                                                             idstring,
-                                                                                            attrib,
-                                                                                            var[attrib]))
+                                                                                            attrib))
+                self.stream.write("%s         '%s')\n"%(spaces*' ', var[attrib]))
         if not is_dimvar(var):
             self.stream.write("%s    if (glimmap_allocated(model%%projection)) then\n"%(spaces*' '))
             self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'grid_mapping',glimmer_nc_mapvarname)\n"%(spaces*' ',idstring))
@@ -329,7 +327,8 @@ class PrintNC_template(PrintVars):
             self.stream.write("%s    end if\n"%(spaces*' '))
 
             self.stream.write("%s  else\n"%(spaces*' ')) # MJH 10/21/13
-            self.stream.write("%s  call write_log('Variable "%(spaces*' ') + var['name'] + " was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)\n") # MJH 10/21/13
+            self.stream.write("%s  call write_log('Variable "%(spaces*' ') + var['name'] + " was specified for output but it is &\n")
+            self.stream.write("%s       &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)\n"%(spaces*' ')) # MJH 10/21/13
             self.stream.write("%s  end if\n"%(spaces*' '))   # MJH 10/21/13
 
             self.stream.write("%s  end if\n"%(spaces*' '))
@@ -511,7 +510,8 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s       end if\n"%(spaces))
                 self.stream.write("%s       if (abs(scaling_factor-1.0d0).gt.1.d-17) then\n"%(spaces))
                 self.stream.write("%s          call write_log(\"scaling %s\",GM_DIAGNOSTIC)\n"%(spaces,var['name']))
-                self.stream.write("%s          %s = %s*scaling_factor\n"%(spaces,var['data'],var['data']))
+                self.stream.write("%s          %s = &\n"%(spaces,var['data']))
+                self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data']))
                 self.stream.write("%s       end if\n"%(spaces))
 
                 if  'level' in dims:
@@ -526,7 +526,8 @@ class PrintNC_template(PrintVars):
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13
-                self.stream.write("    call write_log('Variable " + var['name'] + " was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)\n") # MJH 10/21/13
+                self.stream.write("    call write_log('Variable " + var['name'] + " was specified for input but it is &\n")
+                self.stream.write("         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)\n") # MJH 10/21/13
                 self.stream.write("    end if\n\n")  # MJH 10/21/13
                 
                 self.stream.write("    end if\n\n")

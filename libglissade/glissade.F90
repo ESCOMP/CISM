@@ -297,7 +297,8 @@ contains
                model%options%which_ho_babc /= HO_BABC_ISHOMC) then  ! interpolate to staggered grid
        call write_log('Interpolating beta from unstaggered (unstagbeta) to staggered grid (beta)')
        if (maxval(model%velocity%beta) > 0.0d0 ) then
-          call write_log('Warning: the input "beta" field will be overwritten with values interpolated from the input "unstagbeta" field!')
+          call write_log('Warning: the input "beta" field will be overwritten with values interpolated from the input &
+               &"unstagbeta" field!')
        endif
 
        ! do a halo update and interpolate to the staggered grid
