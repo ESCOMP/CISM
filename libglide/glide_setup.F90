@@ -1792,10 +1792,10 @@ contains
 
     ! parameters for basal melting of floating ice (including MISMIP+)
     if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
-       write(message,*) 'bmlt_float_rate (m/yr)   : ', model%temper%bmlt_float_rate * scyr
+       write(message,*) 'bmlt_float_rate (m/yr)   :  ', model%temper%bmlt_float_rate
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
-       write(message,*) 'bmlt_float_omega (yr^-1) : ', model%temper%bmlt_float_omega * scyr
+       write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%temper%bmlt_float_omega
        call write_log(message)
        write(message,*) 'bmlt_float_h0 (m)        : ', model%temper%bmlt_float_h0
        call write_log(message)
