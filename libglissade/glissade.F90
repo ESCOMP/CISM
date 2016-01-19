@@ -379,7 +379,7 @@ contains
        endwhere
     endif
 
-    ! Initial solve of calcbwat
+    ! Initial solve of basal water
     ! TODO: Should call to calcbwat go here or in diagnostic solve routine? Make sure consistent with Glide.
     call calcbwat(model, &
                   model%options%whichbwat, &
@@ -1125,19 +1125,8 @@ contains
     ! Halo update for flwa
     call parallel_halo(model%temper%flwa)
 
-    ! ------------------------------------------------------------------------ 
-    ! ------------------------------------------------------------------------ 
-    ! 2. Second part of diagnostic solve: 
-    !    Now that geometry- and temperature-related diagnostic fields are updated, 
-    !    solve velocity.
-    ! ------------------------------------------------------------------------ 
-    ! ------------------------------------------------------------------------ 
+    if (model%numerics%time == model%numerics%tstart) then
 
-    ! Do not solve velocity for initial time on a restart because that breaks an exact restart.
-
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
-  
        ! If necessary, copy some restart fields from the extended staggered mesh to the
        ! standard staggered mesh.
        !
@@ -1155,11 +1144,11 @@ contains
  
        if  ( (maxval(abs(model%velocity%uvel_extend)) /= 0.0d0) .or. & 
              (maxval(abs(model%velocity%vvel_extend)) /= 0.0d0) ) then
-          call write_log('Using uvel_extend, vvel_extend from restart file at initial time')
+          call write_log('Using uvel_extend, vvel_extend from input or restart file at initial time')
           model%velocity%uvel(:,:,:) = model%velocity%uvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
           model%velocity%vvel(:,:,:) = model%velocity%vvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
        else
-          call write_log('Using uvel, vvel from restart file at initial time')
+          call write_log('Using uvel, vvel from input or restart file at initial time')
        endif
 
        call staggered_parallel_halo(model%velocity%uvel)
@@ -1173,11 +1162,11 @@ contains
 
           if  ( (maxval(abs(model%velocity%uvel_2d_extend)) /= 0.0d0) .or. & 
                 (maxval(abs(model%velocity%vvel_2d_extend)) /= 0.0d0) ) then
-             call write_log('Using uvel_2d_extend, vvel_2d_extend from restart file at initial time')
+             call write_log('Using uvel_2d_extend, vvel_2d_extend from input or restart file at initial time')
              model%velocity%uvel_2d(:,:) = model%velocity%uvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
              model%velocity%vvel_2d(:,:) = model%velocity%vvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
           else
-             call write_log('Using uvel_2d, vvel_2d from restart file at initial time')
+             call write_log('Using uvel_2d, vvel_2d from input or restart file at initial time')
           endif
 
           if  ( (maxval(abs(model%stress%btractx_extend)) /= 0.0d0) .or. & 
@@ -1188,7 +1177,7 @@ contains
 
           if (this_rank==model%numerics%rdiag_local) then
              print*, ' '
-             print*, 'After restart, before halo update: uvel_2d:'
+             print*, 't = tstart, before halo update: uvel_2d:'
              i1 = max(model%numerics%idiag_local-5, 1)
              i2 = min(model%numerics%idiag_local+5, model%general%ewn-1)
              do i = i1, i2
@@ -1213,7 +1202,9 @@ contains
           if (this_rank==model%numerics%rdiag_local) then
              print*, ' '
              print*, 'After halo update: uvel_2d:'
-             do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+             i1 = max(model%numerics%idiag_local-5, 1)
+             i2 = min(model%numerics%idiag_local+5, model%general%ewn-1)
+             do i = i1, i2
                 write(6,'(i8)',advance='no') i
              enddo
              print*, ' '
@@ -1228,9 +1219,26 @@ contains
 
        endif   ! DIVA approx
              
-    else  ! not a restart
+    endif   ! time = tstart
 
-       ! If this is not a restart or we are not at the initial time, then proceed normally.
+    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------ 
+    ! 2. Second part of diagnostic solve: 
+    !    Now that geometry- and temperature-related diagnostic fields are updated, 
+    !    solve velocity.
+    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------ 
+
+    ! Do not solve velocity for initial time on a restart because that breaks an exact restart.
+
+    if ( (model%options%is_restart == RESTART_TRUE) .and. &
+         (model%numerics%time == model%numerics%tstart) ) then
+  
+       ! Do nothing, because solving for velocity will break exact restart
+
+    else
+
+       ! If this is not a restart or we are not at the initial time, then proceed normally
 
        if ( (model%numerics%time == model%numerics%tstart) .and. &
          ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 
