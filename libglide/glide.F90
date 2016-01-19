@@ -546,7 +546,7 @@ contains
                         model%general%ewn, &
                         model%general%nsn)
 
-       elseif (model%options%whichbtrc == BTRC_CONSTANT_TPMP) then
+       elseif (model%options%whichbtrc == BTRC_CONSTANT_BPMP) then
 
           call stagvarb(model%temper%temp(model%general%upn,1:model%general%ewn,1:model%general%nsn), &
                         model%temper%stagbtemp ,&

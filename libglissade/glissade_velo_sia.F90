@@ -280,7 +280,7 @@
                              bwat(:,:),    stagbwat(:,:),   &
                              ice_mask,     stagger_margin_in = 1)
 
-    elseif (whichbtrc == BTRC_CONSTANT_TPMP) then
+    elseif (whichbtrc == BTRC_CONSTANT_BPMP) then
 
        call glissade_stagger(nx,           ny,         &
                              temp(nz,:,:), stagbtemp,  &
@@ -713,7 +713,7 @@
                    btrc(i,j) = 0.d0
                 end if
 
-             case(BTRC_CONSTANT_TPMP)
+             case(BTRC_CONSTANT_BPMP)
 
                 ! constant where basal temperature equal to pressure melting point, else = 0
                 ! This is the actual condition for EISMINT-2 experiment H, which may not be 

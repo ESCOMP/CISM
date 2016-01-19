@@ -185,21 +185,20 @@ contains
     !       Currently the scaling for eus (like relx and topg) is handled automatically in glide_io.F90.
     !       Would need to handle eus scaling separately if reading from config file.
 
+    ! scale calving parameters
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
 
+    ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
     model%numerics%periodic_offset_ns = model%numerics%periodic_offset_ns / thk0
 
+    ! scale glide basal traction parameters
     model%velowk%trc0   = vel0 * len0 / (thk0**2)
     model%velowk%btrac_const = model%paramets%btrac_const/model%velowk%trc0/scyr
     model%velowk%btrac_max   = model%paramets%btrac_max / model%velowk%trc0/scyr    
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
-
-    ! scale beta parameters
-    model%velocity%ho_beta_const = model%velocity%ho_beta_const / (tau0/(vel0*scyr))
-    model%velocity%beta_grounded_min = model%velocity%beta_grounded_min / (tau0/(vel0*scyr))
 
     ! scale basal melting parameters (yr^{-1} -> s^{-1})
     model%temper%bmlt_float_omega = model%temper%bmlt_float_omega / scyr
@@ -774,7 +773,7 @@ contains
          'till yield stress (Picard)                       ', &
          'beta is a function of bwat                       ', &
          'no slip (using large B^2)                        ', &
-         'beta passed from CISM                            ', &
+         'beta from external file                          ', &
          'no slip (Dirichlet implementation)               ', &
          'till yield stress (Newton)                       ', &
          'beta as in ISMIP-HOM test C                      ', &
@@ -1069,7 +1068,7 @@ contains
 
     !WHL - Currently, not all basal traction options are supported for the Glissade SIA solver
     if (model%options%whichdycore == DYCORE_GLISSADE .and. model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
-       if (model%options%whichbtrc > BTRC_CONSTANT_TPMP) then
+       if (model%options%whichbtrc > BTRC_CONSTANT_BPMP) then
           call write_log('Error, slip_coeff out of range for Glissade dycore',GM_FATAL)
        end if
     endif
@@ -1376,6 +1375,7 @@ contains
     call glimmer_set_msg_level(loglevel)
     call GetValue(section,'ice_limit',        model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',   model%numerics%thklim_temp)
+    call GetValue(section,'pmp_offset',       model%temper%pmp_offset)
     call GetValue(section,'marine_limit',     model%calving%marine_limit)
     call GetValue(section,'calving_fraction', model%calving%calving_fraction)
     call GetValue(section,'calving_timescale',model%calving%calving_timescale)
@@ -1409,10 +1409,12 @@ contains
 
 !!    call GetValue(section,'sliding_constant',  model%climate%slidconst)  ! not currently used
 
-    call GetValue(section,'ho_beta_const', model%velocity%ho_beta_const)
-    call GetValue(section,'beta_grounded_min', model%velocity%beta_grounded_min)
+    call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
+    call GetValue(section,'ho_beta_const', model%basal_physics%ho_beta_const)
+    call GetValue(section,'ho_beta_small', model%basal_physics%ho_beta_small)
+    call GetValue(section,'ho_beta_large', model%basal_physics%ho_beta_large)
 
-    ! Friction law parameters
+    ! basal physics parameters
     call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
     call GetValue(section, 'coulomb_c', model%basal_physics%Coulomb_C)
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%Coulomb_Bump_max_slope)
@@ -1420,9 +1422,7 @@ contains
     call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
     call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_C)
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
-
-    ! ocean penetration parameterization parameter
-    call GetValue(section,'p_ocean_penetration', model%paramets%p_ocean_penetration)
+    call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -1537,7 +1537,7 @@ contains
     if (model%options%whichbtrc == BTRC_CONSTANT      .or.  &
         model%options%whichbtrc == BTRC_CONSTANT_BWAT .or.  &
         model%options%whichbtrc == BTRC_LINEAR_BMLT   .or.  &
-        model%options%whichbtrc == BTRC_CONSTANT_TPMP) then
+        model%options%whichbtrc == BTRC_CONSTANT_BPMP) then
        write(message,*) 'basal traction param (m/yr/Pa)      : ', model%paramets%btrac_const
        call write_log(message)
     end if
@@ -1562,23 +1562,22 @@ contains
        call write_log(message)
     end if
 
-    if (model%options%which_ho_babc == HO_BABC_CONSTANT) then
-       write(message,*) 'uniform beta (Pa yr/m)        : ',model%velocity%ho_beta_const
+    if (model%options%which_ho_babc == HO_BABC_BETA_CONSTANT) then
+       write(message,*) 'uniform beta (Pa yr/m)        : ',model%basal_physics%ho_beta_const
        call write_log(message)
-    end if
-
-    if (model%options%which_ho_babc == HO_BABC_ISHOMC) then
+    elseif (model%options%which_ho_babc == HO_BABC_BETA_BPMP) then
+       write(message,*) 'large (frozen) beta (Pa yr/m) : ',model%basal_physics%ho_beta_large
+       call write_log(message)
+       write(message,*) 'small (thawed) beta (Pa yr/m) : ',model%basal_physics%ho_beta_small
+       call write_log(message)
+    elseif (model%options%which_ho_babc == HO_BABC_ISHOMC) then
        if (model%general%ewn /= model%general%nsn) then
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
-    endif
-
-    if (model%options%which_ho_babc == HO_BABC_POWERLAW) then
+    elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
        call write_log(message)
-    end if
-
-    if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
+    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
         model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
        write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%Coulomb_C
        call write_log(message)
@@ -1590,9 +1589,7 @@ contains
           write(message,*) 'constant basal flwa for Coulomb friction law : ', model%basal_physics%flwa_basal
           call write_log(message)
        endif
-    end if
-
-    if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
        write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%Coulomb_C
        call write_log(message)
        write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
@@ -1602,12 +1599,12 @@ contains
     endif
 
     if (model%options%whichbwat == BWATER_OCEAN_PENETRATION) then
-       write(message,*) 'p_ocean_penetration                : ', model%paramets%p_ocean_penetration
+       write(message,*) 'p_ocean_penetration                : ', model%basal_physics%p_ocean_penetration
        call write_log(message)
     endif
 
-    if (model%velocity%beta_grounded_min > 0.d0) then
-       write(message,*) 'min beta for grounded ice (Pa yr/m): ', model%velocity%beta_grounded_min
+    if (model%basal_physics%beta_grounded_min > 0.d0) then
+       write(message,*) 'min beta for grounded ice (Pa yr/m): ', model%basal_physics%beta_grounded_min
        call write_log(message)
     endif
     

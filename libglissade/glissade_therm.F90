@@ -91,11 +91,11 @@ module glissade_therm
 
 !****************************************************    
 
-  subroutine glissade_init_therm (temp_init, is_restart,     &
-                                  ewn,       nsn,     upn,   &
-                                  sigma,     stagsigma,      &
-                                  thck,      artm,           &
-                                  temp)
+  subroutine glissade_init_therm (temp_init,  is_restart,     &
+                                  ewn,        nsn,     upn,   &
+                                  sigma,      stagsigma,      &
+                                  thck,       artm,           &
+                                  pmp_offset, temp)
 
     ! initialization subroutine for higher-order dycores, where temperature is defined at
     ! the midpoint of each layer plus the upper and lower surfaces
@@ -119,12 +119,17 @@ module glissade_therm
          thck,            &! ice thickness (m)
          artm              ! surface air temperature (deg C)
 
+    real(dp), intent(in) :: &
+         pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
+
     real(dp), dimension(0:,:,:), intent(inout) ::  &
          temp              ! ice temperature
                            ! intent(inout) because it might have been read already from an input file,
                            !  but otherwise is set in this subroutine
          
     ! Local variables
+
+    character(len=100) :: message
 
     integer :: up, ns, ew
 
@@ -201,11 +206,13 @@ module glissade_therm
                                  
        if (temp_init == TEMP_INIT_ZERO) then
           call write_log('Initializing ice temperature to 0 deg C')
-       elseif (temp_init==TEMP_INIT_ARTM) then ! initialize ice column temperature to min(artm, 0 C)
+       elseif (temp_init == TEMP_INIT_ARTM) then ! initialize ice column temperature to min(artm, 0 C)
           call write_log('Initializing ice temperature to the surface air temperature')
        elseif (temp_init == TEMP_INIT_LINEAR) then ! initialize ice column temperature with a linear profile:
                                                                  ! T = artm at the surface, and T <= Tpmp at the bed
           call write_log('Initializing ice temperature to a linear profile in each column')
+          write(message,*) 'Offset from pressure melting point temperature =', pmp_offset
+          call write_log(message)
        else
           call write_log('Error: invalid temp_init option in glissade_init_therm. It is possible that the temperature' &
                       // 'was not read correctly from the input file, resulting in unphysical values', GM_FATAL)
@@ -213,9 +220,9 @@ module glissade_therm
 
        do ns = 1, nsn
           do ew = 1, ewn
-             call glissade_init_temp_column(temp_init,      stagsigma(:),      &
-                                            artm(ew,ns),    thck(ew,ns),       &
-                                            temp(:,ew,ns) )
+             call glissade_init_temp_column(temp_init,    stagsigma(:),   &
+                                            artm(ew,ns),  thck(ew,ns),    &
+                                            pmp_offset,   temp(:,ew,ns) )
           end do
        end do
        
@@ -225,9 +232,9 @@ module glissade_therm
 
 !=======================================================================
 
-  subroutine glissade_init_temp_column(temp_init,                 &
-                                       stagsigma,   artm,         &
-                                       thck,        temp)
+  subroutine glissade_init_temp_column(temp_init,   stagsigma,    &
+                                       artm,        thck,         &
+                                       pmp_offset,  temp)
 
     ! Initialize temperatures in a column based on the value of temp_init.
     ! Three possibilities:
@@ -235,27 +242,30 @@ module glissade_therm
     ! (2) Set ice temperature in column to surface air temperature (TEMP_INIT_ARTM)
     ! (3) Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
     !     at the bed (TEMP_INIT_LINEAR). 
-    !     A local parameter (pmpt_offset) controls how far below Tpmp the initial bed temp is set.
+    !     A config parameter (pmp_offset) controls how far below Tpmp the initial bed temp is set.
     !
     ! In/out arguments
  
     integer, intent(in) :: temp_init          ! option for temperature initialization
 
-    real(dp), dimension(:), intent(in)     :: stagsigma  ! staggered vertical coordinate
-                                                         ! includes layer midpoints, but not top and bottom surfaces
-    real(dp), intent(in)                   :: artm   ! surface air temperature (deg C)
-    real(dp), intent(in)                   :: thck   ! ice thickness
-    real(dp), dimension(0:), intent(inout) :: temp   ! ice column temperature (deg C)
-                                                     ! Note first index of zero
-    
+    real(dp), dimension(:), intent(in) ::  &
+         stagsigma               ! staggered vertical coordinate; includes layer midpoints, but not top and bottom surfaces
+
+    real(dp), intent(in) :: &
+         artm,                &  ! surface air temperature (deg C)
+         thck,                &  ! ice thickness
+         pmp_offset              ! offset of initial Tbed from pressure melting point temperature (deg C)
+                                 ! Note: pmp_offset is positive for Tbed < bpmp
+
+    real(dp), dimension(0:), intent(inout) :: &
+         temp                    ! ice column temperature (deg C)
+                                 ! Note first index of zero
+
     ! Local variables and parameters
 
     real(dp) :: pmptemp_bed                           ! pressure melting point temp at the bed
     real(dp), dimension(size(stagsigma)) :: pmptemp   ! pressure melting point temp thru the column
     integer :: upn                                    ! number of vertical levels (deduced from temp array)
-
-    real(dp), parameter :: pmpt_offset = 2.d0  ! offset of initial Tbed from pressure melting point temperature (deg C)
-                                               ! Note: pmtp_offset is positive for T < Tpmp
 
     upn = size(temp) - 1     ! temperature array has dimension (0:model%general%upn)
 
@@ -266,27 +276,28 @@ module glissade_therm
        temp(:) = 0.d0
 
     elseif (temp_init == TEMP_INIT_ARTM) then    ! initialize ice-covered areas to the min of artm and 0 C
-                                               ! set ice-free areas to T = 0 C
+                                                ! set ice-free areas to T = 0 C
+
        if (thck > 0.0d0) then
           temp(:) = min(0.0d0, artm)
        else
           temp(:) = 0.d0
        endif
        
-    elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmpt_offset, linear profile in between
+    elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmp_offset, linear profile in between
 
        !TODO - Set to min(artm, 0)?
        temp(0) = artm
 
        call glissade_pressure_melting_point(thck, pmptemp_bed)
-       temp(upn) = pmptemp_bed - pmpt_offset
+       temp(upn) = pmptemp_bed - pmp_offset
 
        temp(1:upn-1) = temp(0) + (temp(upn) - temp(0))*stagsigma(:)
                                
-       ! Make sure T <= Tpmp - pmpt_offset in column interior
+       ! Make sure T <= Tpmp - pmp_offset in column interior
 
        call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
-       temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmpt_offset)
+       temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmp_offset)
 
     endif
 

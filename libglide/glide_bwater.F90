@@ -203,7 +203,7 @@ contains
 
     case(BWATER_OCEAN_PENETRATION)
 
-       ocean_p = model%paramets%p_ocean_penetration
+       ocean_p = model%basal_physics%p_ocean_penetration
 
          !WHL - Reorganized the calculation a bit; the older version is commented out here
 !!       allocate(Haf(model%general%ewn,model%general%nsn))

@@ -252,6 +252,7 @@ contains
                                 model%numerics%sigma,       model%numerics%stagsigma,  &
                                 model%geometry%thck*thk0,                              & ! m
                                 model%climate%artm,                                    & ! deg C
+                                model%temper%pmp_offset,                               & ! deg C
                                 model%temper%temp)                                       ! deg C
     else
        call glissade_init_temp(model)
@@ -1018,12 +1019,11 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k
+    integer :: i, j, k, i1, i2
+    integer :: itest, jtest, rtest
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          ice_mask,     &! = 1 where thck > thklim, else = 0
          floating_mask  ! = 1 where ice is floating, else = 0
-
-    integer :: itest, jtest, rtest
 
     rtest = -999
     itest = 1
@@ -1189,13 +1189,15 @@ contains
           if (this_rank==model%numerics%rdiag_local) then
              print*, ' '
              print*, 'After restart, before halo update: uvel_2d:'
-             do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+             i1 = max(model%numerics%idiag_local-5, 1)
+             i2 = min(model%numerics%idiag_local+5, model%general%ewn-1)
+             do i = i1, i2
                 write(6,'(i8)',advance='no') i
              enddo
              print*, ' '
              do j = model%general%nsn-1, 1, -1
                 write(6,'(i4)',advance='no') j
-                do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
+                do i = i1, i2
                    write(6,'(f8.2)',advance='no') model%velocity%uvel_2d(i,j) * (vel0*scyr)
                 enddo
                 print*, ' '
@@ -1248,7 +1250,7 @@ contains
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
        if (model%options%which_ho_babc == HO_BABC_YIELD_PICARD) then
-          call staggered_parallel_halo_extrapolate(model%basalproc%mintauf)
+          call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf)
        endif
 
        ! Call the appropriate velocity solver
@@ -1443,6 +1445,18 @@ contains
                   model%velocity%wvel_ho)
     ! Note: halos may be wrong for wvel_ho, but since it is currently only used as an output diagnostic variable, that is OK.
 
+    ! If beta is not passed in from an external file, then copy beta_internal to beta.
+    ! Note: beta_internal, which is weighted by the grounded ice fraction, is the actual beta field
+    !        in the glissade velocity calculation.  But if users specify 'beta' instead of
+    !        'beta_internal' as an output field, this copy ensures that they get the output
+    !         they expect.
+    !       The copy would break exact restart, however, if beta is read from an external file.
+    !        In that case, users must specify 'beta_internal' to see the weighted beta field.
+
+    if (model%options%which_ho_babc /= HO_BABC_BETA_EXTERNAL) then
+       model%velocity%beta(:,:) = model%velocity%beta_internal(:,:)
+    endif
+ 
     !TODO - I don't think we need to update ubas, vbas, or velnorm, since these are diagnostic only
     !       Also, I don't think efvs is needed in the halo.
     call staggered_parallel_halo(model%velocity%velnorm)

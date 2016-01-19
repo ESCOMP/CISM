@@ -1711,8 +1711,8 @@
 
       do j = jlo-1, jhi
       do i = ilo-1, ihi
-         worka(i,j)= upwind(phi(i,j),phi(i+1,j),uee(i,j),dy)
-         workb(i,j)= upwind(phi(i,j),phi(i,j+1),vnn(i,j),dx)
+         worka(i,j) = upwind(phi(i,j),phi(i+1,j),uee(i,j),dy)
+         workb(i,j) = upwind(phi(i,j),phi(i,j+1),vnn(i,j),dx)
       enddo
       enddo
 

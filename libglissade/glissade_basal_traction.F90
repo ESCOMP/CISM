@@ -41,23 +41,8 @@
   !
   ! However, the units are Pa if beta is treated as a till yield stress.
   !
-  ! Current options are as follows:
-  ! 
-  ! [0] constant value of 10 Pa/(m/yr) (useful for debugging)
-  ! [1] simple hard-coded pattern (useful for debugging)
-  ! [2] treat beta value as a till yield stress (in Pa) using Picard iteration 
-  ! [3] linear (inverse) function of basal water depth (bwat) 
-  ! [4] very large value for beta to enforce no slip everywhere 
-  ! [5] beta field passed in from .nc input file as part of standard i/o
-  ! [6] no slip everywhere (using Dirichlet BC rather than large beta)
-  ! [7] treat beta value as till yield stress (in Pa) using Newton-type iteration (in devel.)
-  ! [8] set beta as prescribed for ISMIP-HOM test C (serial only)
-  ! [9] power law that uses effective pressure
-  ! [10] Coulomb friction law of Schoof (2005)
-  ! [11] Coulomb friction law of Schoof (2005) with prescribed value of A = flwa at bed
-  ! [12] Friction law of Tsai et al. (2015): minimum of power-law stress and Coulomb stress
-
-  ! TODO - Renumber HO_BABC options so that, for example, the no-slip options have small numbers?
+  ! See glide_types.F90 for the meaning of the various options.
+  !
   !-----------------------------------------------------------------------------
 
   use glimmer_paramets, only : dp
@@ -80,14 +65,11 @@ contains
                        dew,           dns,           &
                        ewn,           nsn,           &
                        thisvel,       othervel,      &
-                       bwat,          beta_const,    &
-                       mintauf,       basal_physics, &
+                       basal_physics,                &
                        flwa_basal,    thck,          &
                        mask,          beta_external, &
                        beta,                         &
-                       f_ground,                     &
-                       pmp_mask,                     &
-                       beta_grounded_min)
+                       f_ground)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -109,9 +91,6 @@ contains
 
   real(dp), intent(in)                    :: dew, dns           ! m
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
-  real(dp), intent(in), dimension(:,:)    :: bwat               ! basal water depth (m)
-  real(dp), intent(in), dimension(:,:)    :: mintauf            ! till yield stress (Pa)
-  real(dp), intent(in)                    :: beta_const         ! spatially uniform beta (Pa yr/m)
   type(glide_basal_physics), intent(in)   :: basal_physics      ! basal physics object
   real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1})
   real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness
@@ -120,8 +99,6 @@ contains
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
                                                                 ! Note: This is beta_internal in glissade
   real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
-  integer,  intent(in), dimension(:,:), optional :: pmp_mask    ! = 1 where bed is at pressure melting point, elsewhere = 0
-  real(dp), intent(in), optional          :: beta_grounded_min  ! minimum beta value for grounded ice (Pa m^{-1} yr)
 
   ! Local variables
 
@@ -162,85 +139,39 @@ contains
 
   select case(whichbabc)
 
-    case(HO_BABC_CONSTANT)  ! spatially uniform value; useful for debugging and test cases
+    case(HO_BABC_BETA_CONSTANT)   ! spatially uniform beta value; useful for debugging and test cases
 
-!      beta(:,:) = 10.d0       ! This is the default value (Pa yr/m)
-      beta(:,:) = beta_const   ! Pa yr/m
+          beta(:,:) = basal_physics%ho_beta_const  ! Pa yr/m
 
-    case(HO_BABC_SIMPLE)    ! simple pattern; also useful for debugging and test cases
-                            ! (here, a strip of weak bed surrounded by stronger bed to simulate an ice stream)
+    case(HO_BABC_BETA_BPMP)  ! large value for frozen bed, lower value for bed at pressure melting point
 
-      beta(:,:) = 1.d4        ! Pa yr/m
-
-      !TODO - Change this loop to work in parallel (set beta on the global grid and scatter to local)
-      do ns = 5, nsn-5
-         do ew = 1, ewn-1
-            beta(ew,ns) = 100.d0      ! Pa yr/m
-         end do
-      end do
-
-    case(HO_BABC_BETA_TPMP)     ! large value for frozen bed, lower value for bed at pressure melting point
-
-       ! Set beta = beta_const wherever the bed is at the pressure melting point temperature.
-       ! Elsewhere, set beta to a large value.
-
-       if (present(pmp_mask)) then
-          
-          where(pmp_mask == 1)
-             beta(:,:) = beta_const    ! constant that can be specified in config file; 10 Pa yr/m by default
+          where(basal_physics%bpmp_mask == 1)      ! bed is at pressure melting point
+             beta(:,:) = basal_physics%ho_beta_small    ! Pa yr/m
           elsewhere 
-             beta(:,:) = 1.d10         ! Pa yr/m
+             beta(:,:) = basal_physics%ho_beta_large    ! Pa yr/m
           endwhere
-          
-       else
-
-          write(message,*) 'Must supply pressure-melting-point mask with HO_BABC_BETA_TPMP option'
-          call write_log(trim(message), GM_FATAL)
-
-       endif
 
     case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
                                 ! that plastic-till sliding behavior is enforced (see additional notes in documentation).
 
-      !!! NOTE: Eventually, this option will provide the till yield stress as calculate from the basal processes
-      !!! submodel. Currently, to enable sliding over plastic till, simple specify the value of "beta" as 
-      !!! if it were the till yield stress (in units of Pascals).
+      !!! NOTE: Eventually, this option could provide the till yield stress as calculate from the basal processes submodel.
+      !!!       Currently, to enable sliding over plastic till, simply specify the value of "beta" as 
+      !!!       if it were the till yield stress (in units of Pascals).
       
-      beta(:,:) = mintauf(:,:) &                                                         ! plastic yield stress (Pa)
+      beta(:,:) = basal_physics%mintauf(:,:) &                                           ! plastic yield stress (Pa)
                          / dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 + (smallnum)**2 )   ! velocity components (m/yr)
 
       !!! since beta is updated here, communicate that info to halos
       call staggered_parallel_halo(beta)
 
-    case(HO_BABC_BETA_BWAT)  ! set value of beta as proportional to value of bwat                                         
+    !WHL - Removed the unused BETA_BWAT option
 
-      !NOTE: This parameterization has not been scientifically tested.
-      !TODO - Test option HO_BABC_BETA_BWAT
-      !       Where do these constants come from?
-      C = 10.d0   ! Does this assume that bwat is in units of m or dimensionless?
-      m = 1.d0
+    case(HO_BABC_BETA_LARGE)      ! frozen (u=v=0) ice-bed interface
 
-      allocate(unstagbeta(ewn,nsn))
+       !Note: This option is redundant in that it could be implemented using HO_BETA_CONST
+       !      But keeping it for historical reasons since many config files use it
 
-      unstagbeta(:,:) = 200.d0   ! Pa yr/m
-                                 ! This setting ensures that the parameterization does nothing.  Remove it?
-
-      where ( bwat > 0.d0 .and. unstagbeta > 200.d0 )
-          unstagbeta = C / ( bwat**m )
-      endwhere
-
-      ! average beta from unstag grid onto stag grid
-      beta = 0.5d0 * ( unstagbeta(1:ewn-1,:) + unstagbeta(2:ewn,:) )
-      beta = 0.5d0 * ( unstagbeta(:,1:nsn-1) + unstagbeta(:,2:nsn) )
-   
-      deallocate(unstagbeta) 
-
-    !Note: This is redundant in that it could be implemented by using HO_BETA_CONST with beta_const = 1.d10
-    !      But keeping it for historical reasons since many config files use it
-
-    case(HO_BABC_LARGE_BETA)      ! frozen (u=v=0) ice-bed interface
-
-      beta(:,:) = 1.d10           ! Pa yr/m
+       beta(:,:) = basal_physics%ho_beta_large      ! Pa yr/m  (= 1.0d10 by default)
 
     case(HO_BABC_ISHOMC)          ! prescribe according to ISMIP-HOM test C
 
@@ -268,7 +199,7 @@ contains
           enddo
        enddo
 
-    case(HO_BABC_EXTERNAL_BETA)   ! use value passed in externally from CISM
+    case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file
 
        ! set beta to the prescribed external value
        ! Note: This assumes that beta_external has units of Pa yr/m on input.
@@ -400,6 +331,18 @@ contains
           enddo   ! ew
        enddo   ! ns
 
+    case(HO_BABC_SIMPLE)    ! simple pattern; also useful for debugging and test cases
+                            ! (here, a strip of weak bed surrounded by stronger bed to simulate an ice stream)
+
+      beta(:,:) = 1.d4        ! Pa yr/m
+
+      !TODO - Change this loop to work in parallel (set beta on the global grid and scatter to local)
+      do ns = 5, nsn-5
+         do ew = 1, ewn-1
+            beta(ew,ns) = 100.d0      ! Pa yr/m
+         end do
+      end do
+
     case default
        ! do nothing
 
@@ -436,18 +379,17 @@ contains
    ! The default value of beta_grounded_min = 0.0, in which case this loop has no effect.
    ! However, beta_grounded_min can be set to a nonzero value in the config file.
   
-   if (present(f_ground) .and. present(beta_grounded_min)) then
+   if (present(f_ground)) then
 
       do ns = 1, nsn-1
          do ew = 1, ewn-1
-            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < beta_grounded_min) then
-               beta(ew,ns) = beta_grounded_min
-!!               print*, 'Reset beta: ew, ns, f_ground, beta:', ew, ns, f_ground(ew,ns), beta(ew,ns)
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
+               beta(ew,ns) = basal_physics%beta_grounded_min
             endif
          enddo
       enddo
 
-   endif   ! present(f_ground) and present(beta_grounded_min)
+   endif   ! present(f_ground)
 
    ! Bug check: Make sure beta >= 0
    ! This check will find negative values as well as NaNs
@@ -462,6 +404,9 @@ contains
       end do
    end do
    
+   ! halo update
+   call staggered_parallel_halo(beta)
+
  end subroutine calcbeta
 
 !***********************************************************************
