@@ -3533,7 +3533,8 @@
     !------------------------------------------------------------------------------
 
     call compute_basal_friction_heatflx(nx,            ny,            &
-                                        nhalo,         active_cell,   &
+                                        nhalo,                        &
+                                        active_cell,   active_vertex, &
                                         xVertex,       yVertex,       &
                                         uvel(nz,:,:),  vvel(nz,:,:),  &
                                         beta_internal, whichassemble_bfric,  &
@@ -3542,7 +3543,7 @@
     !WHL - debug
     if (verbose_bfric .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Basal friction, itest, jtest, rank =', itest, jtest, rtest
+       print*, 'Basal friction (W/m2), itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
@@ -6371,7 +6372,8 @@
 !****************************************************************************
 
   subroutine compute_basal_friction_heatflx(nx,            ny,            &
-                                            nhalo,         active_cell,   &
+                                            nhalo,                        &
+                                            active_cell,   active_vertex, &
                                             xVertex,       yVertex,       &
                                             uvel,          vvel,          &
                                             beta,          whichassemble_bfric,  &
@@ -6412,6 +6414,9 @@
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell            ! true if cell contains ice and borders a locally owned vertex
 
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       active_vertex          ! true for vertices of active cells
+
     real(dp), dimension(nx-1,ny-1), intent(in) :: &
        xVertex, yVertex       ! x and y coordinates of each vertex (m)
 
@@ -6425,7 +6430,7 @@
                               ! = 1 for computation that uses only the local value of the basal friction at each vertex
 
     real(dp), dimension(nx,ny), intent(out) :: &
-       bfricflx               ! basal heat flux from friction (W/m^2)
+       bfricflx               ! basal heat flux from friction (W/m^2), computed at cell centers
 
     !----------------------------------------------------------------
     ! Local variables
@@ -6433,6 +6438,9 @@
 
     integer :: i, j, n, p
     integer :: iVertex, jVertex
+
+    real(dp), dimension(nx-1,ny-1) :: &
+         stagbfricflx     ! basal heat flux from friction, computed at vertices
 
     real(dp), dimension(nNodesPerElement_2d) ::   &
        x, y,            & ! spatial coordinates of nodes
@@ -6527,25 +6535,44 @@
        
     else   ! whichassemble_bfric = HO_ASSEMBLE_BFRIC_LOCAL; local calculation at active vertices
 
-       ! Loop over local vertices
-       do j = nhalo+1, ny-nhalo
-          do i = nhalo+1, nx-nhalo
+       ! compute frictional heating at vertices
+
+       stagbfricflx(:,:) = 0.d0
+
+       do j = 1, ny-1
+          do i = 1, nx-1
        
-             if (active_cell(i,j)) then   ! ice is present
+             if (active_vertex(i,j)) then
 
-                bfricflx(i,j) = beta(i,j) * (uvel(i,j)**2 + vvel(i,j)**2)
-                bfricflx(i,j) = bfricflx(i,j) / scyr   ! convert Pa m/yr to Pa m/s = W/m^2
+                stagbfricflx(i,j) = beta(i,j) * (uvel(i,j)**2 + vvel(i,j)**2)
+                stagbfricflx(i,j) = stagbfricflx(i,j) / scyr   ! convert Pa m/yr to Pa m/s = W/m^2
 
-                if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
-                   print*, 'beta, uvel, vvel:', beta(i,j), uvel(i,j), vvel(i,j)
-                endif
-                
              endif      ! active_cell
              
           enddo         ! i
        enddo            ! j
+
+       ! interpolate from vertices to cell centers
+       ! Note: The optional arguments vmask and stagger_margin_in are not included.
+       !       This means that zero values at inactive vertices are included in the average
+       !       for a given cell.
+
+       call glissade_unstagger(nx,            ny,               &
+                               stagbfricflx,  bfricflx)
+
+       if (verbose_bfric .and. this_rank==rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+          print*, ' '
+          print*, 'i, j, beta, uvel, vvel, stagbfricflx:'
+          do j = jtest-1, jtest
+             do i = itest-1, itest
+                print*, i, j, beta(i,j), uvel(i,j), vvel(i,j), stagbfricflx(i,j)
+             enddo
+          enddo
+       endif
 
     endif  ! whichassemble_bfric
 

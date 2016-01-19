@@ -741,8 +741,8 @@ module glissade_therm
                    print*, 'Energy imbalance =', efinal - einit - delta_e
                    print*, ' '
                    print*, 'Basal fluxes:'
-                   print*, 'ffric =', bfricflx(ew,ns)
-                   print*, 'fgeo =', -bheatflx(ew,ns)
+                   print*, 'bfricflx =', bfricflx(ew,ns)
+                   print*, 'bheatflx =', -bheatflx(ew,ns)
                    print*, 'flux for bottom melting =', bfricflx(ew,ns) - bheatflx(ew,ns) + lcondflx(ew,ns)
                 endif   ! verbose_column
 
