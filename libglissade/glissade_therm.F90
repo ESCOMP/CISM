@@ -317,6 +317,7 @@ module glissade_therm
                                    artm,                              &
                                    bheatflx,        bfricflx,         &
                                    dissip,                            &
+                                   pmp_threshold,                     &
                                    bmlt_float_rate, bmlt_float_mask,  &
                                    bmlt_float_omega,                  &
                                    bmlt_float_h0,   bmlt_float_z0,    &
@@ -370,6 +371,9 @@ module glissade_therm
          
     real(dp), dimension(:,:,:), intent(in) ::  &
          dissip            ! interior heat dissipation (deg/s)
+
+    real(dp), intent(in) ::  &
+         pmp_threshold       ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     ! The remaining input arguments support basal melting for MISMIP+ experiments
     integer, dimension(:,:), intent(in) ::  &
@@ -556,6 +560,8 @@ module glissade_therm
                                                        dissip(:,ew,ns),           &
                                                        bheatflx(ew,ns),           &
                                                        bfricflx(ew,ns),           &
+                                                       bwat(ew,ns),               &
+                                                       pmp_threshold,             &
                                                        alpha_enth,                &
                                                        verbose_column)
                 
@@ -649,7 +655,9 @@ module glissade_therm
                                                           temp(:,ew,ns),         &
                                                           dissip(:,ew,ns),       &
                                                           bheatflx(ew,ns),       &
-                                                          bfricflx(ew,ns))
+                                                          bfricflx(ew,ns),       &
+                                                          bwat(ew,ns),           &
+                                                          pmp_threshold)
                 
                 if (verbose_column) then
                    print*, 'After matrix elements, i, j =', ew,ns
@@ -815,6 +823,7 @@ module glissade_therm
                                        waterfrac,        enthalpy,        &
                                        bfricflx,         bheatflx,        &
                                        lcondflx,         bwat,            &
+                                       pmp_threshold,                     &
                                        bmlt_ground)
 
     ! Calculate the basal melt rate for floating ice.
@@ -873,27 +882,35 @@ module glissade_therm
                                                   floating_mask,                &
                                                   thck,         temp,           &
                                                   dissip,                       &
-                                                  bheatflx,     bfricflx)
+                                                  bheatflx,     bfricflx,       &
+                                                  bwat,         pmp_threshold)
 
     ! compute matrix elements for the tridiagonal solve
 
     use glimmer_physcon,  only : rhoi, grav, coni
 
     ! Note: Matrix elements (subd, supd, diag, rhsd) are indexed from 1 to upn+1,
-    !             whereas temperature is indexed from 0 to upn.
-    !            The first row of the matrix is the equation for temp(0,ew,ns),
-    !             the second row is the equation for temp(1,ew,ns), and so on.
+    !        whereas temperature is indexed from 0 to upn.
+    !       The first row of the matrix is the equation for temp(0,ew,ns),
+    !        the second row is the equation for temp(1,ew,ns), and so on.
 
     real(dp), intent(in) :: dttem       ! time step (s)
     integer, intent(in) :: upn          ! number of layer interfaces
     real(dp), dimension(upn-1), intent(in) :: stagsigma    ! sigma coordinate at temp nodes
+
     real(dp), dimension(:), intent(out) :: subd, diag, supd, rhsd
+
     integer, intent(in) :: floating_mask
     real(dp), intent(in) ::  thck       ! ice thickness (m)
+
     real(dp), dimension(0:upn), intent(in) ::  temp     ! ice temperature (deg C)
     real(dp), dimension(upn-1), intent(in) :: dissip     ! interior heat dissipation (deg/s)
     real(dp), intent(in) :: bheatflx    ! geothermal flux (W m-2), positive down
     real(dp), intent(in) :: bfricflx    ! basal friction heat flux (W m-2), >= 0
+    real(dp), intent(in) :: bwat        ! basal water thickness (m)
+
+    real(dp), intent(in) :: &
+         pmp_threshold       ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     ! local variables
 
@@ -934,8 +951,10 @@ module glissade_therm
     endif    ! crank_nicolson
 
     ! basal boundary:
-    ! for grounded ice, a heat flux is applied
-    ! for floating ice, the basal temperature is held constant
+    ! For floating ice, the basal temperature is held constant.
+    ! For grounded ice, a heat flux is applied. The bed temperature is held at pmptemp if it is already
+    !  at or near pmptemp or if basal water is present; else the bed temperature is computed based on
+    !  a balance of fluxes.
 
     !NOTE: This lower BC is different from the one in glide_temp.
     !      If T(upn) < T_pmp, then require dT/dsigma = H/k * (G + taub*ubas)
@@ -947,13 +966,14 @@ module glissade_therm
        supd(upn+1) = 0.0d0
        subd(upn+1) = 0.0d0
        diag(upn+1) = 1.0d0
-       rhsd(upn+1) = temp(upn) 
+       rhsd(upn+1) = temp(upn)
 
     else    ! grounded ice
 
        call glissade_pressure_melting_point(thck, pmptemp_bed)
 
-       if (abs(temp(upn) - pmptemp_bed) < 0.001d0) then
+!!       if (abs(temp(upn) - pmptemp_bed) < 0.001d0) then
+       if (temp(upn) >= pmptemp_bed - pmp_threshold .or. bwat > 0.0d0) then
 
           ! hold basal temperature at pressure melting point
 
@@ -998,6 +1018,7 @@ module glissade_therm
                                                temp,      waterfrac,        &
                                                enthalpy,  dissip,           &
                                                bheatflx,  bfricflx,         &
+                                               bwat,      pmp_threshold,    &
                                                alpha_enth,                  &
                                                verbose_column_in)
 
@@ -1010,20 +1031,29 @@ module glissade_therm
     ! The first row of the matrix is the equation for enthalpy(0),
     ! the last row is the equation for enthalpy(upn), and so on.
 
-    !I/O variables
+    ! input/output variables
     real(dp), intent(in) :: dttem       ! time step (s)
     integer, intent(in) :: upn          ! number of layer interfaces
     real(dp), dimension(upn-1), intent(in) :: stagsigma    ! sigma coordinate at temp/enthalpy nodes
+
     real(dp), dimension(:,:), intent(in) :: dups   ! vertical grid quantities
     real(dp), dimension(:), intent(out) :: subd, diag, supd, rhsd
+
     integer, intent(in) :: floating_mask
     real(dp), intent(in) :: thck        ! ice thickness (m)
+
     real(dp), dimension(0:upn), intent(in) :: temp       ! temperature (deg C)
     real(dp), dimension(upn-1), intent(in) :: waterfrac  ! water fraction (unitless)
     real(dp), dimension(0:upn), intent(in) :: enthalpy   ! specific enthalpy (J/m^3)
     real(dp), dimension(upn-1), intent(in) :: dissip     ! interior heat dissipation (deg/s)
+
     real(dp), intent(in) :: bheatflx   ! geothermal flux (W m-2), positive down
     real(dp), intent(in) :: bfricflx   ! basal friction heat flux (W m-2), >= 0
+    real(dp), intent(in) :: bwat       ! basal water thickness (m)
+
+    real(dp), intent(in) :: &
+         pmp_threshold           ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
+
     real(dp), dimension(:), intent(out) :: alpha_enth  ! half-node diffusivity (m^2/s) for enthalpy
 	                                               ! located halfway between temperature points
 
@@ -1183,7 +1213,7 @@ module glissade_therm
     diag(1) = 1.0d0
     rhsd(1) = min(0.0d0,temp(0)) * rhoi*shci
   
-    ! ice interior. layers 1:upn-1  (matrix elements 2:upn)
+    ! ice interior, layers 1:upn-1  (matrix elements 2:upn)
 
     fact = dttem / thck**2
 
@@ -1196,8 +1226,10 @@ module glissade_therm
     ! For an enthalpy calc, we want just phi, hence dissip * rhoi * shci
 	
     ! basal boundary:
-    ! for grounded ice, a heat flux is applied
-    ! for floating ice, the basal temperature is held constant
+    ! For floating ice, the basal temperature is held constant.
+    ! For grounded ice, a heat flux is applied. The bed temperature is held at pmptemp if it is already
+    !  at or near pmptemp or if basal water is present; else the bed temperature is computed based on 
+    !  a balance of fluxes.
 
     !NOTE: This lower BC is different from the one in glide_temp.
     !      If T(upn) < T_pmp, then require dT/dsigma = H/k * (G + taub*ubas)
@@ -1225,7 +1257,8 @@ module glissade_therm
 
     !WHL - Not sure whether this condition is ideal.
     !      It implies that the enthalpy at the bed (upn) = enthalpy in layer (upn-1). 
-       if (abs(temp(upn-1) - pmptemp(upn-1)) < 0.001d0) then   
+!!       if (abs(temp(upn-1) - pmptemp(upn-1)) < 0.001d0) then   
+       if (temp(upn-1) >=  pmptemp(upn-1) - pmp_threshold .or. bwat > 0.0d0) then
        
           subd(upn+1) = -1.0d0
           supd(upn+1) =  0.0d0 
@@ -1238,7 +1271,8 @@ module glissade_therm
           endif
 
        !Zero-Thickness Basal Temperate Boundary Layer
-       elseif (abs(temp(upn) -  pmptemp_bed) < 0.001d0) then  ! melting
+!!       elseif (abs(temp(upn) -  pmptemp_bed) < 0.001d0) then  ! melting
+       elseif (temp(upn) >= pmptemp_bed - pmp_threshold) then  ! melting
           
           ! hold basal temperature at pressure melting point
           supd(upn+1) = 0.0d0
@@ -1251,7 +1285,7 @@ module glissade_therm
              print*, 'basal BC: branch 2 (zero-thck BL)'
           endif
           
-       else  
+       else
           
           !WHL - debug
           if (verbose_column) then
@@ -1299,6 +1333,7 @@ module glissade_therm
                                            waterfrac,        enthalpy,        &
                                            bfricflx,         bheatflx,        &
                                            lcondflx,         bwat,            &
+                                           pmp_threshold,                     &
                                            bmlt_ground)
 
     ! Compute the rate of basal melting for grounded ice.
@@ -1338,6 +1373,9 @@ module glissade_therm
     integer, dimension(:,:), intent(in) ::  &
          ice_mask,             & ! = 1 where ice exists (thck > thklim_temp), else = 0
          floating_mask           ! = 1 where ice is floating, else = 0
+
+    real(dp), intent(in) :: &
+         pmp_threshold           ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     real(dp), dimension(:,:), intent(out):: &
          bmlt_ground             ! basal melt rate for grounded ice (m/s)
@@ -1479,14 +1517,17 @@ module glissade_therm
              call glissade_pressure_melting_point(thck(ew,ns), pmptemp_bed)
              temp(upn,ew,ns) = min (temp(upn,ew,ns), pmptemp_bed)
 
-             ! If freeze-on was computed above (bmlt < 0) and Tbed = Tpmp but no basal water is present, then set T(upn) < Tpmp.
-             ! Note: In the matrix element subroutines, we solve for Tbed (instead of holding it at Tpmp) when Tbed < -0.001.
-             !       With an offset here of 0.01, we will solve for T_bed at the next timestep.
+             ! If freeze-on was computed above (bmlt_ground < 0) and Tbed = pmptemp but no basal water is present, then set T(upn) < pmptemp.
+             ! Note: In the matrix element subroutines, we solve for Tbed (instead of holding it at pmptemp) when Tbed < pmptemp - pmp_threshold.
+             !       With an offset here of 2*pmp_threshold, we will likely solve for T_bed at the next timestep.
+             !       (The factor of 2 is somewhat arbitrary.)
              ! Note: I don't think energy conservation is violated here, because no energy is associated with
              !       the infinitesimally thin layer at the bed.
 
              if (bmlt_ground(ew,ns) < 0.d0 .and. bwat(ew,ns)==0.d0 .and. temp(upn,ew,ns) >= pmptemp_bed) then
-                temp(upn,ew,ns) = pmptemp_bed - 0.01d0
+!!                temp(upn,ew,ns) = pmptemp_bed - 0.01d0
+                temp(upn,ew,ns) = pmptemp_bed - 2.0d0*pmp_threshold
+                bmlt_ground(ew,ns) = 0.d0   ! Set freeze-on to zero since no water is present
              endif
 
           endif   ! ice is present and grounded

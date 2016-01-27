@@ -706,7 +706,8 @@
        thklim,               &  ! minimum ice thickness for active cells (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
-       efvs_constant            ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
+       efvs_constant,        &  ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
+       pmp_threshold            ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     real(dp), dimension(:,:), pointer ::  &
        thck,                 &  ! ice thickness (m)
@@ -783,10 +784,6 @@
     real(dp), parameter :: &
          resid_target = 1.0d-04   ! assume velocity fields have converged below this resid 
 
-    real(dp), parameter :: &
-         pmp_threshold = 1.0d-03  ! bed is assumed thawed where stagbedtemp - stagbedpmp < pmp_threshold (degrees)
-                                  !TODO - Test model sensitivity to pmp_threshold
-  
     !--------------------------------------------------------
     ! Local variables
     !--------------------------------------------------------
@@ -1050,6 +1047,7 @@
      max_slope = model%paramets%max_slope
      eus       = model%climate%eus
      efvs_constant = model%paramets%efvs_constant
+     pmp_threshold = model%temper%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
      whichefvs            = model%options%which_ho_efvs
@@ -1868,8 +1866,7 @@
        ! compute a bed pmp mask at vertices; this mask is passed to calcbeta below
        ! Note: The bed is considered thawed if the interpolated bed temperature is
        !       within pmp_threshold of the interpolated pmp temperature.
-       !       Currently, pmp_threshold = 0.001 degrees by default.
-       where (stagbedpmp - stagbedtemp < pmp_threshold .and. active_vertex)
+       where (stagbedtemp >= stagbedpmp - pmp_threshold .and. active_vertex)
           model%basal_physics%bpmp_mask = 1
        endwhere
 

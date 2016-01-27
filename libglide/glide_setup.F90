@@ -1376,6 +1376,7 @@ contains
     call GetValue(section,'ice_limit',        model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',   model%numerics%thklim_temp)
     call GetValue(section,'pmp_offset',       model%temper%pmp_offset)
+    call GetValue(section,'pmp_threshold',    model%temper%pmp_threshold)
     call GetValue(section,'marine_limit',     model%calving%marine_limit)
     call GetValue(section,'calving_fraction', model%calving%calving_fraction)
     call GetValue(section,'calving_timescale',model%calving%calving_timescale)
@@ -1463,6 +1464,8 @@ contains
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then
        write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
+       call write_log(message)
+       write(message,*) 'pmp threshold for temperature (deg C) : ', model%temper%pmp_threshold
        call write_log(message)
     endif
 

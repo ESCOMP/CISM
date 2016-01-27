@@ -1027,7 +1027,9 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
-    real(dp) :: pmp_offset = 2.0d0    ! offset of initial Tbed from pressure melting point temperature (deg C)
+    real(dp) :: pmp_offset = 2.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
+
+    real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     !TODO - Remove some of the following from the derived type
     integer  :: niter   = 0   

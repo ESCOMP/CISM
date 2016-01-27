@@ -578,6 +578,7 @@ contains
                                      model%climate%artm,                                           & ! deg C    
                                      model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                      model%temper%dissip,                                          & ! deg/s
+                                     model%temper%pmp_threshold,                                   & ! deg C
                                      model%temper%bmlt_float_rate,                                 & ! m/s
                                      model%temper%bmlt_float_mask,                                 & ! 0 or 1
                                      model%temper%bmlt_float_omega,                                & ! s-1

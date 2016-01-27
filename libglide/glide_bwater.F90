@@ -192,8 +192,12 @@ contains
 
     case(BWATER_CONST)
 
-       ! Use a constant thickness of water, to force Tpmp.
-       bwat(:,:) = const_bwat / thk0
+       ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
+       where (thck > model%numerics%thklim)
+          bwat(:,:) = const_bwat / thk0
+       elsewhere
+          bwat(:,:) = 0.0d0
+       endwhere
 
 !!    case(BWATER_BASAL_PROC)   ! not currently supported
 
