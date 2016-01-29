@@ -51,7 +51,7 @@ parser.add_argument('-o','--out-dir', default='reg_test',
 parser.add_argument('-f','--force', action='store_true',
         help="Supress any warning about possibly overwriting test data.")
 parser.add_argument('--timing', action='store_true',
-        help="Run the timing test. This is needed for creating a new benchmark dataset. This is needed for creating a new benchmark dataset. Selecting this option will force the --performance option to true as well.")
+        help="Run the timing test. This is needed for creating a new benchmark dataset. Selecting this option will force the --performance option to true as well.")
 
 #NOTE: These last two are just for personal desktop/laptop type machines. 
 #      --performance is always turned on for HPC systems, and tests are
@@ -157,8 +157,35 @@ def main():
     cache_new = data_dir+os.sep+cache_root+cache_mod+cache_ext
     
     subprocess.check_call("cp "+cache_file+" "+cache_new, shell=True)
-    
 
+    # check for GPTL if timing or performance is on
+    args.GPTLflag = None
+    if args.performance:
+        with open(cache_new, 'r') as cf:
+            for line in cf:
+                if 'CISM_USE_GPTL_INSTRUMENTATION' in line:
+                    args.GPTLflag = line.strip().split('=')[-1]
+                    break
+        print(args.GPTLflag)
+        
+        if args.GPTLflag == "OFF":
+            print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 
+            print(  "WARNING: CISM was not build with GPTL\n")
+            print(  "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+            print(  "Performance runs cannot be analyzed without GPTL. ")
+            print(  "Either rebuild CISM with GPTL or rerun BATS without the performance or timing option.")
+            print("\nExiting...")
+            sys.exit(1)
+        elif args.GPTLflag != "ON":
+            print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 
+            print(  "WARNING: Could not determine if CISM")
+            print(  "was build with GPTL or not.\n")
+            print(  "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+            print(  "Performance runs cannot be analyzed via LIVVkit without GPTL. ")
+            print(  "Either rebuild CISM with GPTL or rerun BATS without the performance or timing option.")
+            print("\nExiting...")
+            sys.exit(1)
+                    
     if isHPC:
         print("\nPreparing HPC batch jobs")
         print(  "========================\n")
