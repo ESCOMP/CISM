@@ -166,7 +166,6 @@ def main():
                 if 'CISM_USE_GPTL_INSTRUMENTATION' in line:
                     args.GPTLflag = line.strip().split('=')[-1]
                     break
-        print(args.GPTLflag)
         
         if args.GPTLflag == "OFF":
             print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 

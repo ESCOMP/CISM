@@ -2,6 +2,24 @@ import os
 import sys
 import errno
 import fnmatch
+import argparse
+ 
+# small helper function so argparse will understand unsigned integers
+def unsigned_int(x):
+    x = int(x)
+    if x < 0:
+        raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
+    return x
+
+#NOTE: this parser is used to find the directory names needed for the reg_test
+#      tree structure. The DOF and PROCESSOR directory levels are determined by
+#      the individual test options defined in the util.dicts module
+run_parser = argparse.ArgumentParser(prog='RUN',add_help=False)
+run_parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=0, 
+        help="Run in parallel using N processors.")
+run_parser.add_argument('--scale', type=unsigned_int, default=0, 
+        help="Change the degrees of freedom.")
+
 
 def recursive_glob(tree, pattern):
     matches = []
@@ -55,8 +73,13 @@ def mkdir_p(path):
 def mkdir_test(args, test_dict):
     """
     Sets up a regression testing data directory that looks like:
-        + platform-compiler
-            + test
+        reg_test
+        |-- PLATFORM-COMPILER
+            |-- ICE-MODEL
+                |-- TEST-CASE
+                    |-- DOF (degrees of freedom)
+                        |-- PROCESSORS
+                            |-- files.ext
     """
 
     mod_list = path_modifier_list(args)
@@ -64,8 +87,11 @@ def mkdir_test(args, test_dict):
     mod_dir = ''
     if mod_list:
         mod_dir = "-"+str.join("-", mod_list)
-    
-    data_dir = args.out_dir+os.sep+args.platform+'-'+args.compiler+mod_dir
+   
+    #TODO: ice_model will be a indicator for which particular ice-sheet model was used.
+    #      right now, this is a rather moot point as BATS only works for CISM-GLISADE
+    ice_model = "CISM-glissade"
+    data_dir = args.out_dir+os.sep+args.platform+'-'+args.compiler+mod_dir+os.sep+ice_model
     
 
     # make the output directories softly
@@ -83,18 +109,38 @@ def mkdir_test(args, test_dict):
 
 
     for case in test_dict:
-        case_dir = os.path.normpath(data_dir+os.sep+str.split(case," ")[0])
+        case_dir = os.path.normpath(data_dir+os.sep+str.split(str.split(case," ")[0],"/")[-1])
+        run_script, mod_dict = test_dict[case]
         
-        mkdir_p(case_dir)
-        if not args.force and os.listdir(case_dir):
+        run_args = run_parser.parse_args(['--scale', '0', '-n', '1'])
+        run_case_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+
+        mkdir_p(run_case_dir)
+        if not args.force and os.listdir(run_case_dir):
             print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 
             print(  "WARNING: Test data already exists in:")
-            print("\n"+case_dir+"\n")
+            print("\n"+run_case_dir+"\n")
             print(  "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
             print(  "Some data may be overwritten. Either specify a different test directory, or ")
             print(  "re-run with the -f or --force option to ignore existing data.")
             print("\nExiting...")
             sys.exit(1)
+        
+        if args.performance and mod_dict:
+            for mod in mod_dict:
+                run_args = run_parser.parse_args(mod_dict[mod].split())
+                run_case_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+
+                mkdir_p(run_case_dir)
+                if not args.force and os.listdir(run_case_dir):
+                    print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 
+                    print(  "WARNING: Test data already exists in:")
+                    print("\n"+run_case_dir+"\n")
+                    print(  "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+                    print(  "Some data may be overwritten. Either specify a different test directory, or ")
+                    print(  "re-run with the -f or --force option to ignore existing data.")
+                    print("\nExiting...")
+                    sys.exit(1)
 
 
     return data_dir

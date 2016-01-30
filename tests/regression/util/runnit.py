@@ -20,35 +20,26 @@ def personal(args, cism_driver, data_dir, test_dict):
     test_run = {}
     for case in test_dict:
         case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+case_dir)
+        case_data_dir = os.path.normpath(data_dir+os.sep+str.split(str.split(case," ")[0],"/")[-1])
         run_script, mod_dict = test_dict[case]
+        
+        run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
+        case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
         
         mod_list = paths.file_modifier_list(args)
         mod_arg = ""
         if mod_list:
             mod_arg = " -m "+str.join("-", mod_list)
 
-        if args.tmod and mod_dict:
-            # run the default case that also have performance runs for timing
-            case_data_dir += os.sep+'timing'
-            paths.mkdir_p(case_data_dir)
-
 
         # run default test
         test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir),
-                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+' -n 1' ]
-        
-        if args.tmod:
-            test_commands.extend(["cd "+os.path.normpath(case_data_dir),
-                'find ./ -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\;', 
-                "exit"])
-        else:
-            test_commands.append("exit")
+                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+' -n 1',
+                         "exit"]
         
         #print(str.join(" ; ",test_commands))
-        if not args.tmod or (args.tmod and mod_dict):
-            print("   Spawning "+case+" test default...")
-            test_run[case] = subprocess.Popen(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
+        print("   Spawning "+case+" test default...")
+        test_run[case] = subprocess.Popen(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
 
 
         
@@ -56,16 +47,12 @@ def personal(args, cism_driver, data_dir, test_dict):
         if args.performance and mod_dict:
             for mod in mod_dict:
                 print("   Spawning "+case+" test "+mod+"...")
+                run_args = paths.run_parser.parse_args(mod_dict[mod].split())
+                case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
                 
                 test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)+" ",
-                                 "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+" "+mod_dict[mod] ]
-
-                if args.tmod:
-                    test_commands.extend(["cd "+os.path.normpath(case_data_dir),
-                        'find ./ -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\;',
-                        "exit"])
-                else:
-                    test_commands.append("exit")
+                                 "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod],
+                                 "exit"]
                 
                 #print(str.join(" ; ",test_commands))
                 test_run[case+' '+mod] = subprocess.Popen(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
