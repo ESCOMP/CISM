@@ -8,7 +8,8 @@ import argparse
 def unsigned_int(x):
     x = int(x)
     if x < 0:
-        raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
+        raise argparse.ArgumentTypeError("This argument is an unsigned int type!"+ 
+                "Should be an integer greater than or equal to zero.")
     return x
 
 #NOTE: this parser is used to find the directory names needed for the reg_test
