@@ -24,16 +24,18 @@ def personal(args, cism_driver, data_dir, test_dict):
 
     test_run = {}
     for case in test_dict:
-        case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+str.split(case_dir,"/")[-1])
+        case_split = str.split(case," ")
+        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
         run_script, mod_dict = test_dict[case]
         
-        run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
-        case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+        run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+        case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+        if run_args.sizes:
+            case_run_dir += os.sep+'z'+str(run_args.sizes)
         
 
         # run default test
-        test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir),
+        test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0]),
                          "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+' -n 1',
                          "exit"]
         
@@ -47,10 +49,12 @@ def personal(args, cism_driver, data_dir, test_dict):
         if args.performance and mod_dict:
             for mod in mod_dict:
                 print("   Spawning "+case+" test "+mod+"...")
-                run_args = paths.run_parser.parse_args(mod_dict[mod].split())
-                case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                if run_args.sizes:
+                    case_run_dir += os.sep+'z'+str(run_args.sizes)
                 
-                test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)+" ",
+                test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])+" ",
                                  "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod],
                                  "exit"]
                 
@@ -113,7 +117,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     platform_dict = dicts.hpc_dict[args.platform]
     perf_large_dict = dicts.perf_dict
 
-    jobs_dir = data_dir+os.sep+'jobs'
+    jobs_dir = data_dir+os.sep+'all_jobs'
     paths.mkdir_p(jobs_dir)
 
     # get file name modifier
@@ -126,13 +130,15 @@ def hpc(args, cism_driver, data_dir, test_dict):
     timing_commands = []
 
     for case in test_dict:
-        case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+str.split(case_dir,"/")[-1])
-        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)
+        case_split = str.split(case," ")
+        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
+        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])
         run_script, mod_dict = test_dict[case]
         
-        run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
-        case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+        run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+        case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+        if run_args.sizes:
+            case_run_dir += os.sep+'z'+str(run_args.sizes)
 
         print("   Setting up "+case+" tests")
         test_commands = ["cd "+cism_test_dir,
@@ -145,9 +151,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
         # run performance tests (always do this for hpc systems)
         if mod_dict:
             for mod in mod_dict:
-                
-                run_args = paths.run_parser.parse_args(mod_dict[mod].split())
-                case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                if run_args.sizes:
+                    case_run_dir += os.sep+'z'+str(run_args.sizes)
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
@@ -166,16 +173,20 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 else:
                     timing_mod = " -m t"+str(rnd)
                 
-                run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
-                case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                if run_args.sizes:
+                    case_run_dir += os.sep+'z'+str(run_args.sizes)
                 
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 timing_commands.extend(["cd "+cism_test_dir, 
                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
 
                 for mod in mod_dict:
-                    run_args = paths.run_parser.parse_args(mod_dict[mod].split())
-                    case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                    run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                    case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                    if run_args.sizes:
+                        case_run_dir += os.sep+'z'+str(run_args.sizes)
                 
                     timing_commands.extend(["cd "+cism_test_dir, 
                             "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
@@ -210,16 +221,18 @@ def hpc(args, cism_driver, data_dir, test_dict):
     large_timing_commands = []
     
     for case in perf_large_dict:
-        case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+str.split(case_dir,"/")[-1])
-        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)
+        case_split = str.split(case," ")
+        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
+        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])
         run_script, mod_dict = perf_large_dict[case]
         
 
         if mod_dict:
             for mod in mod_dict:
-                run_args = paths.run_parser.parse_args(mod_dict[mod].split())
-                case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                if run_args.sizes:
+                    case_run_dir += os.sep+'z'+str(run_args.sizes)
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
@@ -237,16 +250,20 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 else:
                     timing_mod = " -m t"+str(rnd)
                 
-                run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
-                case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                if run_args.sizes:
+                    case_run_dir += os.sep+'z'+str(run_args.sizes)
                 
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 large_timing_commands.extend(["cd "+cism_test_dir, 
                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
 
                 for mod in mod_dict:
-                    run_args = paths.run_parser.parse_args(mod_dict[mod].split())
-                    case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                    run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                    case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                    if run_args.sizes:
+                        case_run_dir += os.sep+'z'+str(run_args.sizes)
                     
                     large_timing_commands.extend(["cd "+cism_test_dir, 
                             "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])

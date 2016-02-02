@@ -20,6 +20,8 @@ run_parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, defau
         help="Run in parallel using N processors.")
 run_parser.add_argument('--scale', type=unsigned_int, default=0, 
         help="Change the degrees of freedom.")
+run_parser.add_argument('--sizes', type=unsigned_int, metavar='KM',
+        help="Change the domain size.")
 
 
 def recursive_glob(tree, pattern):
@@ -77,10 +79,12 @@ def mkdir_test(args, test_dict):
         reg_test
         |-- PLATFORM-COMPILER
             |-- ICE-MODEL
-                |-- TEST-CASE
-                    |-- DOF (degrees of freedom)
-                        |-- PROCESSORS
-                            |-- files.ext
+                |-- TEST
+                    |-- CASE
+                        |-- DOF (degrees of freedom)
+                            |-- PROCESSORS
+                                |-- [OPTIONAL TEST SPECIFIC DIRS]
+                                    |-- files.ext
     """
 
     mod_list = path_modifier_list(args)
@@ -110,17 +114,20 @@ def mkdir_test(args, test_dict):
 
 
     for case in test_dict:
-        case_dir = os.path.normpath(data_dir+os.sep+str.split(str.split(case," ")[0],"/")[-1])
+        case_split = str.split(case," ")
+        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
         run_script, mod_dict = test_dict[case]
         
-        run_args = run_parser.parse_args(['--scale', '0', '-n', '1'])
-        run_case_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+        run_args, ignore_args = run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+        case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+        if run_args.sizes:
+            case_run_dir += os.sep+'z'+str(run_args.sizes)
 
-        mkdir_p(run_case_dir)
-        if not args.force and os.listdir(run_case_dir):
+        mkdir_p(case_run_dir)
+        if not args.force and os.listdir(case_run_dir):
             print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 
             print(  "WARNING: Test data already exists in:")
-            print("\n"+run_case_dir+"\n")
+            print("\n"+case_run_dir+"\n")
             print(  "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
             print(  "Some data may be overwritten. Either specify a different test directory, or ")
             print(  "re-run with the -f or --force option to ignore existing data.")
@@ -129,14 +136,16 @@ def mkdir_test(args, test_dict):
         
         if args.performance and mod_dict:
             for mod in mod_dict:
-                run_args = run_parser.parse_args(mod_dict[mod].split())
-                run_case_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                run_args, ignore_args = run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+                if run_args.sizes:
+                    case_run_dir += os.sep+'z'+str(run_args.sizes)
 
-                mkdir_p(run_case_dir)
-                if not args.force and os.listdir(run_case_dir):
+                mkdir_p(case_run_dir)
+                if not args.force and os.listdir(case_run_dir):
                     print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n") 
                     print(  "WARNING: Test data already exists in:")
-                    print("\n"+run_case_dir+"\n")
+                    print("\n"+case_run_dir+"\n")
                     print(  "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
                     print(  "Some data may be overwritten. Either specify a different test directory, or ")
                     print(  "re-run with the -f or --force option to ignore existing data.")
