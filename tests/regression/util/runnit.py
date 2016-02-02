@@ -86,24 +86,20 @@ def create_job(args, job_name, p_replace, run_commands):
     Create the job script for the HPC queues.
     """
 
-    base_job = open('util/job.template','r') 
-    job_file = open(job_name, 'w')
-    for line in base_job:
-        for src, target in p_replace.iteritems():
-            line = line.replace(src, target)
-        job_file.write(line)
+    with open(job_name, 'w') as job_file:
+        with open('util/job.template','r') as base_job: 
+            for line in base_job:
+                for src, target in p_replace.iteritems():
+                    line = line.replace(src, target)
+                job_file.write(line)
 
-    job_file.write("\n")
-    job_file.write("# THE RUN COMMANDS:\n")
-    
-    for command in run_commands:
-        job_file.write(command)
+        job_file.write("\n")
+        job_file.write("# THE RUN COMMANDS:\n")
+        
+        for command in run_commands:
+            job_file.write(command)
 
-    job_file.write("\nwait \n# FINISH\n")
-
-    base_job.close()
-    job_file.close()
-
+        job_file.write("\nwait \n# FINISH\n")
 
 
 def hpc(args, cism_driver, data_dir, test_dict):
@@ -127,7 +123,6 @@ def hpc(args, cism_driver, data_dir, test_dict):
         mod_arg = " -m "+str.join("-", mod_list)
 
     timing_exports = set()
-    timing_dirs = set()
     timing_commands = []
 
     for case in test_dict:
@@ -174,7 +169,6 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
                 case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
                 
-                timing_dirs.add(case_run_dir)
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 timing_commands.extend(["cd "+cism_test_dir, 
                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
@@ -196,10 +190,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # get the default and small perf run commands
     small_run_commands = []
     for rf in small_run_files:
-        rfo = open(rf,'r')
-        rfo.next() # skip shebang
-        for command in rfo:
-            small_run_commands.append(command)
+        with open(rf,'r') as rfo:
+            rfo.next() # skip shebang
+            for command in rfo:
+                small_run_commands.append(command)
 
     ## set all aprun commands to background
     #small_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in small_run_commands ]
@@ -246,7 +240,6 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 run_args = paths.run_parser.parse_args(['--scale', '0', '-n', '1'])
                 case_run_dir = case_data_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
                 
-                timing_dirs.add(case_run_dir)
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 large_timing_commands.extend(["cd "+cism_test_dir, 
                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
@@ -269,10 +262,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # get the  large perf run commands
     large_run_commands = []
     for rf in large_run_files:
-        rfo = open(rf,'r')
-        rfo.next() # skip shebang
-        for command in rfo:
-            large_run_commands.append(command)
+        with open(rf,'r') as rfo:
+            rfo.next() # skip shebang
+            for command in rfo:
+                large_run_commands.append(command)
 
     # set all aprun commands to background
     #large_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in large_run_commands ]
@@ -309,10 +302,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # get the small timing run commands
             small_timing_run_commands = []
             for rf in subset_run_files:
-                rfo = open(rf,'r')
-                rfo.next() # skip shebang
-                for command in rfo:
-                    small_timing_run_commands.append(command)
+                with open(rf,'r') as rfo:
+                    rfo.next() # skip shebang
+                    for command in rfo:
+                        small_timing_run_commands.append(command)
 
             # set all aprun commands to background
             #small_timing_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in small_timing_run_commands ]
@@ -345,10 +338,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # get the large timing run commands
             large_timing_run_commands = []
             for rf in subset_run_files:
-                rfo = open(rf,'r')
-                rfo.next() # skip shebang
-                for command in rfo:
-                    large_timing_run_commands.append(command)
+                with open(rf,'r') as rfo:
+                    rfo.next() # skip shebang
+                    for command in rfo:
+                        large_timing_run_commands.append(command)
 
             # set all aprun commands to background
             #large_timing_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in large_timing_run_commands ]
@@ -369,33 +362,27 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
         # create a script to submit all batch jobs
         sub_script_script = data_dir+os.sep+"submit_all_jobs.bash" 
-        sub_script_file = open(sub_script_script,'w') 
-        
-        sub_script_file.write('#!/bin/bash \n \n')
-        sub_script_file.write('qsub '+small_job_name+'\n \n')
-        sub_script_file.write('qsub '+large_job_name+'\n \n')
-        if args.timing:
-            for sm_jb in small_timing_jobs:
-                sub_script_file.write('qsub '+sm_jb+'\n \n')
-            for lg_jb in large_timing_jobs:
-                sub_script_file.write('qsub '+lg_jb+'\n \n')
+        with open(sub_script_script,'w') as sub_script_file:
+            sub_script_file.write('#!/bin/bash \n \n')
+            sub_script_file.write('qsub '+small_job_name+'\n \n')
+            sub_script_file.write('qsub '+large_job_name+'\n \n')
+            if args.timing:
+                for sm_jb in small_timing_jobs:
+                    sub_script_file.write('qsub '+sm_jb+'\n \n')
+                for lg_jb in large_timing_jobs:
+                    sub_script_file.write('qsub '+lg_jb+'\n \n')
 
-        sub_script_file.close()
         os.chmod(sub_script_script, 0o755)   # uses an octal number!
         
         
         # create a script to clean out the timing directory.
         clean_script = data_dir+os.sep+"clean_timing.bash" 
-        clean_file = open(clean_script,'w') 
-        
-        clean_file.write('#!/bin/bash \n')
-        for dr in timing_dirs:
-            clean_file.write("cd "+dr+" \n")
-            #FIXME: will clean out all the files. Need to add check for -t1... 
-            #clean_file.write('find ./ -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\; \n')
+        with open(clean_script,'w') as clean_file:
+            clean_file.write('#!/bin/bash \n')
+            clean_file.write("cd "+data_dir+" \n")
+            clean_file.write('find ./ -iname "*-t[0-9]*" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\; \n')
             clean_file.write(" \n")
 
-        clean_file.close()
         os.chmod(clean_script, 0o755)   # uses an octal number!
 
 

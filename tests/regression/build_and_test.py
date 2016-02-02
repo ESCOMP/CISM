@@ -212,7 +212,10 @@ def main():
 
             # turn timing modifier off now that we're done.
             args.tmod = None
-            
+            # clean unecessary timing files
+            subprocess.check_call('cd '+data_dir+
+                    ' ; find ./ -iname "*-t[0-9]*" -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\; \n',
+                    shell=True)
     
         print("\nAll regression tests finished.")
         print(  "==============================")
