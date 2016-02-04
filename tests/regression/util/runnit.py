@@ -29,9 +29,7 @@ def personal(args, cism_driver, data_dir, test_dict):
         run_script, mod_dict = test_dict[case]
         
         run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
-        case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-        if run_args.sizes:
-            case_run_dir += os.sep+'z'+str(run_args.sizes)
+        case_run_dir = paths.case_run_directory(case_dir, run_args)
         
 
         # run default test
@@ -50,9 +48,7 @@ def personal(args, cism_driver, data_dir, test_dict):
             for mod in mod_dict:
                 print("   Spawning "+case+" test "+mod+"...")
                 run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
-                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                if run_args.sizes:
-                    case_run_dir += os.sep+'z'+str(run_args.sizes)
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])+" ",
                                  "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod],
@@ -136,9 +132,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         run_script, mod_dict = test_dict[case]
         
         run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
-        case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-        if run_args.sizes:
-            case_run_dir += os.sep+'z'+str(run_args.sizes)
+        case_run_dir = paths.case_run_directory(case_dir, run_args)
 
         print("   Setting up "+case+" tests")
         test_commands = ["cd "+cism_test_dir,
@@ -152,9 +146,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         if mod_dict:
             for mod in mod_dict:
                 run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
-                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                if run_args.sizes:
-                    case_run_dir += os.sep+'z'+str(run_args.sizes)
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
@@ -174,9 +166,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
                     timing_mod = " -m t"+str(rnd)
                 
                 run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
-                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                if run_args.sizes:
-                    case_run_dir += os.sep+'z'+str(run_args.sizes)
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 timing_commands.extend(["cd "+cism_test_dir, 
@@ -184,9 +174,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
                 for mod in mod_dict:
                     run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
-                    case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                    if run_args.sizes:
-                        case_run_dir += os.sep+'z'+str(run_args.sizes)
+                    case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                     timing_commands.extend(["cd "+cism_test_dir, 
                             "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
@@ -230,9 +218,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         if mod_dict:
             for mod in mod_dict:
                 run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
-                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                if run_args.sizes:
-                    case_run_dir += os.sep+'z'+str(run_args.sizes)
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
@@ -251,9 +237,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
                     timing_mod = " -m t"+str(rnd)
                 
                 run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
-                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                if run_args.sizes:
-                    case_run_dir += os.sep+'z'+str(run_args.sizes)
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 large_timing_commands.extend(["cd "+cism_test_dir, 
@@ -261,9 +245,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
                 for mod in mod_dict:
                     run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
-                    case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                    if run_args.sizes:
-                        case_run_dir += os.sep+'z'+str(run_args.sizes)
+                    case_run_dir = paths.case_run_directory(case_dir, run_args)
                     
                     large_timing_commands.extend(["cd "+cism_test_dir, 
                             "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])

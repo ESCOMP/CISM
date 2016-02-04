@@ -72,6 +72,11 @@ def mkdir_p(path):
             pass
         else: raise
 
+def case_run_directory(case_dir, run_args):
+    case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+    if run_args.sizes:
+        case_run_dir += os.sep+'z'+str(run_args.sizes)
+    return case_run_dir
 
 def mkdir_test(args, test_dict):
     """
@@ -119,9 +124,7 @@ def mkdir_test(args, test_dict):
         run_script, mod_dict = test_dict[case]
         
         run_args, ignore_args = run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
-        case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-        if run_args.sizes:
-            case_run_dir += os.sep+'z'+str(run_args.sizes)
+        case_run_dir = case_run_directory(case_dir, run_args)
 
         mkdir_p(case_run_dir)
         if not args.force and os.listdir(case_run_dir):
@@ -137,9 +140,7 @@ def mkdir_test(args, test_dict):
         if args.performance and mod_dict:
             for mod in mod_dict:
                 run_args, ignore_args = run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
-                case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
-                if run_args.sizes:
-                    case_run_dir += os.sep+'z'+str(run_args.sizes)
+                case_run_dir = case_run_directory(case_dir, run_args)
 
                 mkdir_p(case_run_dir)
                 if not args.force and os.listdir(case_run_dir):
