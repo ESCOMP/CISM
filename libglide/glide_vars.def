@@ -414,6 +414,16 @@ standard_name: land_ice_surface_specific_mass_balance_flux_correction
 coordinates:   lon lat
 load:          1
 
+[no_advance_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     cells where advance is not allowed
+data:          data%climate%no_advance_mask
+type:          int
+standard_name: land_ice_no_advance_mask
+coordinates:   lon lat
+load:          1
+
 #WHL: scale_bflux = -1, to reverse sign convention from + up to + down
 [bheatflx]
 dimensions:    time, y1, x1

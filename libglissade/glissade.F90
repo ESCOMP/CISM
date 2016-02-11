@@ -757,6 +757,21 @@ contains
        ! (acab is intent(in) above so need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
 
+       ! Eliminate ice from cells where mask prohibits it
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (model%climate%no_advance_mask(i,j) == 1) then
+                model%geometry%thck(i,j) = 0.0
+                ! Also zero these tracer values just to keep things clean
+                model%temper%temp(:,i,j) = 0.0
+                model%temper%waterfrac(:,i,j) = 0.0
+                model%temper%enthalpy(:,i,j) = 0.0
+                model%geometry%ice_age(:,i,j) = 0.0
+                model%calving%damage(:,i,j) = 0.0
+             endif
+          enddo
+       enddo
+
        if (model%options%whichtemp == TEMP_ENTHALPY) then
 
           ! Derive new temperature and waterfrac from enthalpy (will be correct in halo cells)
