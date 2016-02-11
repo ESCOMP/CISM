@@ -919,6 +919,7 @@ module glide_types
      real(dp),dimension(:,:),pointer :: acab      => null() !> Annual mass balance (m/y ice)
      real(dp),dimension(:,:),pointer :: acab_tavg => null() !> Annual mass balance (time average).
      real(dp),dimension(:,:),pointer :: artm      => null() !> Annual mean air temperature (degC)
+     real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
 
      real(dp) :: eus = 0.d0                                !> eustatic sea level
 
@@ -1763,6 +1764,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
@@ -2106,6 +2108,8 @@ contains
         deallocate(model%climate%acab_tavg)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
+    if (associated(model%climate%flux_correction)) &
+        deallocate(model%climate%flux_correction)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

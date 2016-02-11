@@ -719,6 +719,7 @@ contains
       ! temporary in/out arrays in SI units (m)                               
       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
       acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
+      acab_unscaled(:,:) = acab_unscaled(:,:) + model%climate%flux_correction(:,:) * thk0/tim0 ! add in flux correction here
 
       do sc = 1, model%numerics%subcyc
 
@@ -752,9 +753,9 @@ contains
 
        enddo     ! subcycling
 
-       ! convert thck and acab back to scaled units
+       ! convert thck back to scaled units
+       ! (acab is intent(in) above so need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-       model%climate%acab(:,:) = acab_unscaled(:,:) / (thk0/tim0)
 
        if (model%options%whichtemp == TEMP_ENTHALPY) then
 
