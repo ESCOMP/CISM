@@ -111,7 +111,7 @@ hopper_dict = {
 
 
 titan_dict = {
-        'PBS_A': 'cli106',
+        'PBS_A': 'cli106ice',
         'PBS_q': 'batch',
         'PBS_N': 'reg_test_all',
         'PBS_RES': 'nodes',
