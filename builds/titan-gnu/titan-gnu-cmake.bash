@@ -23,30 +23,28 @@ export CRAY_CPU_TARGET=istanbul
 source $MODULESHOME/init/bash
 
 module unload cmake
-module unload hdf5 cray-hdf5 
-module unload cray-hdf5-parallel
-module unload netcdf
+module unload hdf5-parallel/cray
 module unload python
 module unload cray-shmem
-module unload cray-mpich cray-mpich2
-module unload netcdf-hdf5parallel cray-netcdf-hdf5parallel cray-parallel-netcdf cray-hdf5-parallel
+module unload cray-mpich 
 module unload boost 
-module unload gcc
 module unload PrgEnv-cray PrgEnv-gnu PrgEnv-intel PrgEnv-pathscale PrgEnv-pgi
 
+
 module load modules
-module load cmake/2.8.11.2
-module load PrgEnv-gnu/5.2.40
+module load cmake
 module unload gcc
+module load gcc
+module load cray-hdf5-parallel
+module load PrgEnv-gnu
 module load cray-shmem
 module load cray-mpich
-module load gcc/4.8.2
-module load cray-hdf5-parallel/1.8.13
 module load cray-netcdf-hdf5parallel/4.3.2
 module load python
-module load boost/1.57.0
+module load boost
 
-echo module list
+echo "\nmodule list"
+module list
 
 # remove old build data:
 rm -f ./CMakeCache.txt
@@ -81,7 +79,7 @@ cmake \
   -D CISM_TRILINOS_ALBANY_DIR=/lustre/atlas/world-shared/cli900/cesm/software/Trilinos/Trilinos-11.12.1_gptl/titan-gnu-ci-nophal/install \
 \
   -D CISM_GPTL_DIR=/lustre/atlas/world-shared/cli900/cesm/software/libgptl/libgptl-titan-gnu \
-  -D CISM_NETCDF_DIR=/opt/cray/netcdf-hdf5parallel/4.3.2/GNU/48 \
+  -D CISM_NETCDF_DIR=/opt/cray/netcdf-hdf5parallel/4.3.2/GNU/49 \
 \
   -D CMAKE_INSTALL_PREFIX:PATH=$cism_top/builds/titan-gnu/install \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
