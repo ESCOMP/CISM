@@ -661,7 +661,7 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta
+    use glissade_basal_traction, only: calcbeta, calc_effective_pressure
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -714,6 +714,7 @@
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
+       bwat,                 &  ! basal water thickness (m)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
@@ -750,6 +751,7 @@
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
+       whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
        whichresid, &            ! option for method of calculating residual
@@ -1018,6 +1020,7 @@
      beta_internal => model%velocity%beta_internal(:,:)
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
+     bwat     => model%temper%bwat(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1050,6 +1053,7 @@
      pmp_threshold = model%temper%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
+     whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
      whichsparse          = model%options%which_ho_sparse
@@ -1074,8 +1078,8 @@
      !TODO - Remove mintauf from argument list when BFB requirement is relaxed
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           thck,    usrf,          &
-                                          topg,                   &
-                                          eus,     thklim,        &
+                                          topg,    eus,           &
+                                          bwat,    thklim,        &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
                                           model%basal_physics%mintauf, &
@@ -1184,6 +1188,7 @@
 !    call parallel_halo(topg)
 !    call parallel_halo(usrf)
 !    call parallel_halo(flwa)
+!    call parallel_halo(bwat)
 
     !------------------------------------------------------------------------------
     ! Setup for higher-order solver: Compute nodal geometry, allocate storage, etc.
@@ -1831,8 +1836,36 @@
     beta_internal(:,:) = 0.d0
 
     !------------------------------------------------------------------------------
+    ! Compute the effective pressure N at the bed.
+    ! Although N is not needed for all sliding options, it is computed here just in case.
+    ! Note: effective pressure is part of the basal_physics derived type.
+    !------------------------------------------------------------------------------
+
+    ! compute the pressure melting point temperature at the bed 
+    ! (used for which_ho_effecpress = HO_EFFECPRESS_BPMP)
+
+    do j = 1, ny
+       do i = 1, nx
+          if (ice_mask(i,j) == 1) then
+             call glissade_pressure_melting_point(thck(i,j), bpmp(i,j))
+          else
+             bpmp(i,j) = 0.d0
+          endif
+       enddo
+    enddo
+
+    call calc_effective_pressure(whicheffecpress,           &
+                                 nx,            ny ,        &
+                                 model%basal_physics,       &
+                                 ice_mask,                  &
+                                 bpmp(:,:) - temp(nz,:,:),  &
+                                 bwat,                      &
+                                 thck,          topg,       &
+                                 eus)
+
+    !------------------------------------------------------------------------------
     ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
-    ! the pressure melting point and beta is lower.
+    ! the pressure melting point, resulting in lower traction.
     !------------------------------------------------------------------------------
 
     ! initialize to 0 everywhere
@@ -2122,7 +2155,7 @@
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. mod(counter-1,30)==0) then
 
           print*, ' '
           print*, 'Before calcbeta, counter =', counter
@@ -2169,7 +2202,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') f_flotation(i,j)
+                write(6,'(f10.3)',advance='no') f_flotation(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2186,6 +2219,90 @@
              write(6,*) ' '
           enddo          
 
+          print*, ' '
+          print*, 'dusrf/dx field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') dusrf_dx(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') dusrf_dy(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') bpmp(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'btemp field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') temp(nz,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'bpmp - btemp field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') bpmp(i,j) - temp(nz,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.0)',advance='no') model%basal_physics%effecpress(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'effecpress_stag field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.0)',advance='no') model%basal_physics%effecpress_stag(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
        endif  ! verbose_beta
 
        call calcbeta (whichbabc,                        &
@@ -2198,6 +2315,7 @@
                       stagmask,                         &
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent out)
+                      topg,          eus,               &
                       f_ground)
 
        if (verbose_beta) then
@@ -2213,7 +2331,7 @@
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. mod(counter-1,30)==0) then
 
           print*, ' '
           print*, 'Weighted beta field, itest, jtest, rank =', itest, jtest, rtest
@@ -2222,7 +2340,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') beta_internal(i,j)
+                write(6,'(f10.0)',advance='no') beta_internal(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2234,7 +2352,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') uvel(nz,i,j)
+                write(6,'(f10.2)',advance='no') uvel(nz,i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2246,13 +2364,11 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') vvel(nz,i,j)
+                write(6,'(f10.2)',advance='no') vvel(nz,i,j)
              enddo
              write(6,*) ' '
           enddo          
 
-          !TODO - Remove the remaining verbose_beta diagnostics?
-          !       They are not specific to beta but are useful for diagnosing CFL issues.
           print*, ' '
           print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2260,7 +2376,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') uvel(1,i,j)
+                write(6,'(f10.2)',advance='no') uvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2272,31 +2388,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') vvel(1,i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
-
-          print*, ' '
-          print*, 'dusrf/dx field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') dusrf_dx(i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
-
-          print*, ' '
-          print*, 'dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') dusrf_dy(i,j)
+                write(6,'(f10.2)',advance='no') vvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2866,7 +2958,7 @@
           call t_startf('glissade_velo_higher_scale_outp')
           !TODO - Remove mintauf from argument list when BFB requirement is relaxed
           call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                                 topg,                   &
+                                                 topg,    bwat,          &
                                                  flwa,    efvs,          &
                                                  beta_internal,          &
                                                  resid_u, resid_v,       &
@@ -3578,6 +3670,7 @@
           enddo
           print*, ' '
        enddo       
+
        print*, ' '
        print*, 'max(uvel, vvel) =', maxval(uvel), maxval(vvel)
        print*, ' '
@@ -3590,6 +3683,7 @@
           print*, k, uvel(k,i,j), vvel(k,i,j)
        enddo
        if (solve_2d) print*, '2D velo:', uvel_2d(i,j), vvel_2d(i,j)
+
     endif  ! verbose_velo
 
     !------------------------------------------------------------------------------
@@ -3631,7 +3725,7 @@
 
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                           topg,                   &
+                                           topg,    bwat,          &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -3653,8 +3747,8 @@
 
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
                                               thck,    usrf,          &
-                                              topg,                   &
-                                              eus,     thklim,        &
+                                              topg,    eus,           &
+                                              bwat,    thklim,        &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
                                               mintauf,                &
@@ -3672,7 +3766,8 @@
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
        usrf,                &  ! upper surface elevation
-       topg                    ! elevation of topography
+       topg,                &  ! elevation of topography
+       bwat                    ! basal water thickness
 
     real(dp), intent(inout) ::   &
        eus,  &                 ! eustatic sea level (= 0 by default)
@@ -3702,6 +3797,7 @@
     usrf = usrf * thk0
     topg = topg * thk0
     eus  = eus  * thk0
+    bwat = bwat * thk0
     thklim = thklim * thk0
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
@@ -3728,7 +3824,7 @@
 !****************************************************************************
 
   subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
-                                               topg,                    &
+                                               topg,    bwat,           &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -3750,7 +3846,8 @@
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
        usrf,                 &  ! upper surface elevation
-       topg                     ! elevation of topography
+       topg,                 &  ! elevation of topography
+       bwat                     ! basal water thickness
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -3782,6 +3879,7 @@
     thck = thck / thk0
     usrf = usrf / thk0
     topg = topg / thk0
+    bwat = bwat / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)

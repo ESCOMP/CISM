@@ -109,8 +109,8 @@ module glide_types
   integer, parameter :: BWATER_LOCAL = 1
   integer, parameter :: BWATER_FLUX  = 2
   integer, parameter :: BWATER_CONST = 3
-  integer, parameter :: BWATER_OCEAN_PENETRATION = 4   ! effective pressure calculation with pw=ocean pressure for grounding line parameterisation (Leguy, et al., TC, 2014)
-  !integer, parameter :: BWATER_BASAL_PROC = 4  ! not currently supported
+  ! option 4 is deprecated; if selected, the code will throw a fatal error
+  integer, parameter :: BWATER_OCEAN_PENETRATION = 4
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_CONSTANT = 1
@@ -189,7 +189,7 @@ module glide_types
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
   integer, parameter :: HO_BABC_YIELD_PICARD = 2
-  integer, parameter :: HO_BABC_BETA_BWAT = 3   !TODO - Remove or replace this deprecated option
+  integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 3
   integer, parameter :: HO_BABC_BETA_LARGE = 4
   integer, parameter :: HO_BABC_BETA_EXTERNAL = 5
   integer, parameter :: HO_BABC_NO_SLIP = 6
@@ -200,6 +200,11 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
   integer, parameter :: HO_BABC_SIMPLE = 13
+
+  integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
+  integer, parameter :: HO_EFFECPRESS_BPMP = 1
+  integer, parameter :: HO_EFFECPRESS_BWAT = 2
+  integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
 
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_JFNK = 1
@@ -364,7 +369,6 @@ module glide_types
     !> \item[1] Compute from local basal water balance 
     !> \item[2] Compute the basal water flux, then find depth via calculation
     !> \item[3] Set to constant (10 m) everywhere, to force T = Tpmp.
-    !> \item[4] Calculated from till water content, in the basal processes module
     !> \end{description}
 
     integer :: whichbmlt_float = 0
@@ -518,7 +522,7 @@ module glide_types
     !> \item[0] spatially uniform value (low value of 10 Pa/yr by default)
     !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
     !> \item[2] treat beta value as a till yield stress (in Pa) using Picard iteration 
-    !> \item[3] deprecated babc option; currently does nothing
+    !> \item[3] pseudo-plastic basal sliding law; can model linear, power-law or plastic behavior
     !> \item[4] very large value for beta to enforce no slip everywhere 
     !> \item[5] beta field passed in from .nc input file as part of standard i/o
     !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
@@ -531,11 +535,22 @@ module glide_types
     !> \item[13] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
+    integer :: which_ho_effecpress = 0
+    !> Flag that describes effective pressure calculation for HO dyn core: 
+    !> \begin{description}
+    !> \item[0] N = overburden pressure, rhoi*grav*thck
+    !> \item[1] N is reduced where the bed is at or near the pressure melting point
+    !> \item[2] N is reduced where basal water is present
+    !> \item[3] N is reduced due to connection of subglacial water to the ocean
+    !> \end{description}
+
     integer :: which_ho_nonlinear = 0
     !> Flag that indicates method for solving the nonlinear iteration when solving 
     !> the first-order momentum balance
+    !> \begin{description}
     !> \item[0] use the standard Picard iteration
     !> \item[1] use Jacobian Free Newton Krylov (JFNK) method
+    !> \end{description}
 
     integer :: which_ho_resid = 3
     !> Flag that indicates method for computing residual in PP dyn core: 
@@ -545,7 +560,7 @@ module glide_types
     !> \item[2] mean value
     !> \item[3] L2 norm of system residual, Ax-b=resid
     !> \item[4] L2 norm of system residual relative to rhs, |Ax-b|/|b|
-    !> \begin{description}
+    !> \end{description}
 
     integer :: which_ho_sparse = 0
     !> Flag that indicates method for solving the sparse linear system
@@ -621,13 +636,6 @@ module glide_types
     !> \item[0] first-order accurate in the vertical direction
     !> \item[1] second-order accurate in the vertical direction
 
-    integer :: which_ho_assemble_beta = 0
-
-    !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
-    !> \begin{description}
-    !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
-    !> \item[1] apply local value of beta at each vertex
-
     integer :: which_ho_assemble_taud = 0
 
     !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
@@ -635,6 +643,14 @@ module glide_types
     !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
     !> \item[1] apply local value of driving stress at each vertex
 
+    integer :: which_ho_assemble_beta = 0
+
+    !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
+    !> \item[1] apply local value of beta at each vertex
+
+    !TODO - Change default method to (1), which is more stable.  This will give BFB changes.
     integer :: which_ho_assemble_bfric = 0
 
     !> Flag that describes how the basal friction heat flux is computed in the glissade finite-element calculation
@@ -1079,10 +1095,33 @@ module glide_types
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid
      real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
+
+     ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
+     real(dp) :: effecpress_delta = 0.02d0             !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
+     real(dp) :: effecpress_bpmp_threshold = 0.1d0     !< temperature range over which N ramps from a small value to full overburden (deg C)
+     real(dp) :: effecpress_bwat_threshold = 1.0d0     !< basal water thickness range over which N ramps from a small value to full overburden (m)
+     real(dp) :: p_ocean_penetration = 0.0d0           !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
+
+     ! parameters for pseudo-plastic sliding law (based on PISM)
+     ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
+     ! where the yield stress tau_c = tan(phi) * N
+     ! N = effective pressure
+
+     real(dp) :: pseudo_plastic_q = 0.5d0        !< exponent for pseudo-plastic law (unitless), 0 <= q <= 1
+                                                 !< q = 1 => linear sliding law; q = 0 => plastic; intermediate values => power law
+     real(dp) :: pseudo_plastic_u0 = 100.d0      !< threshold velocity for pseudo-plastic law (m/yr)
+
+     ! The following 4 parameters give a linear increase in phi between elevations bedmin and bedmax
+     real(dp) :: pseudo_plastic_phimin =    5.d0 !< min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
+     real(dp) :: pseudo_plastic_phimax =   40.d0 !< max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
+     real(dp) :: pseudo_plastic_bedmin = -700.d0 !< bed elevation (m) below which phi = phimin
+     real(dp) :: pseudo_plastic_bedmax =  700.d0 !< bed elevation (m) above which phi = phimax
+
+     ! parameters for friction powerlaw
      real(dp) :: friction_powerlaw_k = 8.4d-9    !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  
                                                  !< The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
 
-     ! Parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
+     ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
      real(dp) :: Coulomb_C = 0.42d0              !< basal stress constant (no dimension)
                                                  !< Pimentel et al. have Coulomb_C = 0.84*m_max, where m_max = Coulomb_Bump_max_slope
      real(dp) :: Coulomb_bump_wavelength = 2.0d0 !< bed rock wavelength at subgrid scale precision (m)
@@ -1100,8 +1139,6 @@ module glide_types
      real(dp) :: powerlaw_C = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
       
-     real(dp) :: p_ocean_penetration = 0.0d0  ! p-exponent parameter for ocean penetration parameterization
-
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed..
      real(dp),dimension(:,:)  ,pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model

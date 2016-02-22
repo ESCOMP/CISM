@@ -123,7 +123,19 @@ contains
     !TODO - Is glimmer_version_char sitll needed?
     character(len=100), external :: glimmer_version_char
 
-    integer :: i, j
+    integer :: i, j, k
+
+    !WHL - debug
+    integer :: itest, jtest, rtest
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
 
     call write_log(trim(glimmer_version_char()))
 
@@ -501,9 +513,6 @@ contains
     integer :: ewn, nsn, upn
     
     !WHL - debug
-    real(dp) :: thck_west, thck_east, dthck, u_west, u_east
-
-    !WHL - debug
     integer :: itest, jtest, rtest
 
     rtest = -999
@@ -564,6 +573,7 @@ contains
          !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
          call glissade_therm_driver (model%options%whichtemp,                                      &
                                      model%options%whichbmlt_float,                                &
+                                     model%options%temp_init,                                      &
                                      model%numerics%dttem*tim0,                                    & ! s
                                      model%general%ewn,          model%general%nsn,                &
                                      model%general%upn,                                            &
@@ -579,6 +589,7 @@ contains
                                      model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                      model%temper%dissip,                                          & ! deg/s
                                      model%temper%pmp_threshold,                                   & ! deg C
+                                     model%temper%pmp_offset,                                      & ! deg C
                                      model%temper%bmlt_float_rate,                                 & ! m/s
                                      model%temper%bmlt_float_mask,                                 & ! 0 or 1
                                      model%temper%bmlt_float_omega,                                & ! s-1
@@ -620,7 +631,9 @@ contains
     ! Halo updates
     !------------------------------------------------------------------------ 
 
-    call parallel_halo(model%temper%bwat)    !TODO: not sure halo update is needed for bwat
+    ! Note: bwat is needed in halos to compute effective pressure
+    !       if which_ho_effecpress = HO_EFFECPRESS_BWAT
+    call parallel_halo(model%temper%bwat)
 
     ! ------------------------------------------------------------------------ 
     ! Calculate flow evolution by various different methods
@@ -814,7 +827,7 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          k = 2
+          k = model%general%upn
           print*, 'temp, k =', k
           write(6,'(a6)',advance='no') '      '
 !!          do i = 1, model%general%ewn
@@ -1148,8 +1161,9 @@ contains
           call write_log('Using uvel_extend, vvel_extend from input or restart file at initial time')
           model%velocity%uvel(:,:,:) = model%velocity%uvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
           model%velocity%vvel(:,:,:) = model%velocity%vvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
-       else
-          call write_log('Using uvel, vvel from input or restart file at initial time')
+!       elseif ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 
+!                (maxval(abs(model%velocity%vvel)) /= 0.0d0) ) then
+!          call write_log('Using uvel, vvel from input or restart file at initial time')
        endif
 
        call staggered_parallel_halo(model%velocity%uvel)
@@ -1166,8 +1180,9 @@ contains
              call write_log('Using uvel_2d_extend, vvel_2d_extend from input or restart file at initial time')
              model%velocity%uvel_2d(:,:) = model%velocity%uvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
              model%velocity%vvel_2d(:,:) = model%velocity%vvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
-          else
-             call write_log('Using uvel_2d, vvel_2d from input or restart file at initial time')
+!          elseif ( (maxval(abs(model%velocity%uvel_2d)) /= 0.0d0) .or. & 
+!                   (maxval(abs(model%velocity%vvel_2d)) /= 0.0d0) ) then
+!             call write_log('Using uvel_2d, vvel_2d from input or restart file at initial time')
           endif
 
           if  ( (maxval(abs(model%stress%btractx_extend)) /= 0.0d0) .or. & 
@@ -1176,47 +1191,10 @@ contains
              model%stress%btracty(:,:) = model%stress%btracty_extend(1:model%general%ewn-1,1:model%general%nsn-1)
           endif
 
-          if (this_rank==model%numerics%rdiag_local) then
-             print*, ' '
-             print*, 't = tstart, before halo update: uvel_2d:'
-             i1 = max(model%numerics%idiag_local-5, 1)
-             i2 = min(model%numerics%idiag_local+5, model%general%ewn-1)
-             do i = i1, i2
-                write(6,'(i8)',advance='no') i
-             enddo
-             print*, ' '
-             do j = model%general%nsn-1, 1, -1
-                write(6,'(i4)',advance='no') j
-                do i = i1, i2
-                   write(6,'(f8.2)',advance='no') model%velocity%uvel_2d(i,j) * (vel0*scyr)
-                enddo
-                print*, ' '
-             enddo
-          endif
-
           call staggered_parallel_halo(model%velocity%uvel_2d)
           call staggered_parallel_halo(model%velocity%vvel_2d)
           call staggered_parallel_halo(model%stress%btractx)
           call staggered_parallel_halo(model%stress%btracty)
-
-
-          if (this_rank==model%numerics%rdiag_local) then
-             print*, ' '
-             print*, 'After halo update: uvel_2d:'
-             i1 = max(model%numerics%idiag_local-5, 1)
-             i2 = min(model%numerics%idiag_local+5, model%general%ewn-1)
-             do i = i1, i2
-                write(6,'(i8)',advance='no') i
-             enddo
-             print*, ' '
-             do j = model%general%nsn-1, 1, -1
-                write(6,'(i4)',advance='no') j
-                do i = model%numerics%idiag_local-5, model%numerics%idiag_local+5
-                   write(6,'(f8.2)',advance='no') model%velocity%uvel_2d(i,j) * (vel0*scyr)
-                enddo
-                print*, ' '
-             enddo
-          endif
 
        endif   ! DIVA approx
              

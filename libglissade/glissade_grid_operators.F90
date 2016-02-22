@@ -390,8 +390,8 @@ contains
        enddo
        edge_count = parallel_reduce_sum(edge_count)
        if (main_task) then
-          print*, 'Number of edges:', (nx-2*nhalo)*(ny-2*nhalo)*2
-          print*, 'Limit slope: edge_count =', edge_count
+!          print*, 'Number of edges:', (nx-2*nhalo)*(ny-2*nhalo)*2
+!          print*, 'Limit slope: edge_count =', edge_count
        endif
     endif
 

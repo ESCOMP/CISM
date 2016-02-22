@@ -133,6 +133,12 @@ module glissade_therm
 
     integer :: up, ns, ew
 
+    !WHL - option to overwrite initial temperature in input file
+    !      Can be useful is working with an input file that includes initial temperatures,
+    !       but we want to set a linear temperature profile instead
+    !TODO - Make this a config option?
+    logical, parameter :: overwrite_input_temps = .false.
+
     ! Precompute some grid quantities used in the vertical temperature solve
  
     allocate(dups(upn+1,2))   !TODO - upn-1 instead?
@@ -188,8 +194,10 @@ module glissade_therm
 
        call write_log('Initializing ice temperature from the restart file')
 
-    elseif ( minval(temp) > (-1.0d0 * trpt) ) then  ! temperature has been read from an input file
-                                                    ! Note: trpt = 273.15 K
+    !WHL - debug - option to overwrite input file
+!!    elseif ( minval(temp) > (-1.0d0 * trpt) ) then  ! temperature has been read from an input file
+    elseif ( minval(temp) > (-1.0d0 * trpt) .and. .not.overwrite_input_temps) then  ! temperature has been read from an input file
+                                                      ! Note: trpt = 273.15 K
 
        ! Temperature has already been initialized from an input file.
        ! (We know this because the default initial temps of unphys_val -999 have been overwritten.)
@@ -253,7 +261,7 @@ module glissade_therm
 
     real(dp), intent(in) :: &
          artm,                &  ! surface air temperature (deg C)
-         thck,                &  ! ice thickness
+         thck,                &  ! ice thickness (m)
          pmp_offset              ! offset of initial Tbed from pressure melting point temperature (deg C)
                                  ! Note: pmp_offset is positive for Tbed < bpmp
 
@@ -273,33 +281,35 @@ module glissade_therm
 
     if (temp_init == TEMP_INIT_ZERO) then        ! set T = 0 C
        
-       temp(:) = 0.d0
+       temp(:) = 0.0d0
 
     elseif (temp_init == TEMP_INIT_ARTM) then    ! initialize ice-covered areas to the min of artm and 0 C
-                                                ! set ice-free areas to T = 0 C
 
-       if (thck > 0.0d0) then
-          temp(:) = min(0.0d0, artm)
-       else
-          temp(:) = 0.d0
-       endif
+       temp(:) = min(0.0d0, artm)
        
     elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmp_offset, linear profile in between
 
-       !TODO - Set to min(artm, 0)?
-       temp(0) = artm
+       if (thck > 0.0d0) then
 
-       call glissade_pressure_melting_point(thck, pmptemp_bed)
-       temp(upn) = pmptemp_bed - pmp_offset
+          temp(0) = min(0.0d0, artm)
 
-       temp(1:upn-1) = temp(0) + (temp(upn) - temp(0))*stagsigma(:)
+          call glissade_pressure_melting_point(thck, pmptemp_bed)
+          temp(upn) = pmptemp_bed - pmp_offset
+
+          temp(1:upn-1) = temp(0) + (temp(upn) - temp(0))*stagsigma(:)
                                
-       ! Make sure T <= Tpmp - pmp_offset in column interior
+          ! Make sure T <= Tpmp - pmp_offset in column interior
 
-       call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
-       temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmp_offset)
+          call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
+          temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmp_offset)
 
-    endif
+       else
+
+          temp(:) = min(0.0d0, artm)
+
+       endif  ! thck > 0
+
+    endif  ! temp_init
 
   end subroutine glissade_init_temp_column
 
@@ -307,6 +317,7 @@ module glissade_therm
 
   subroutine glissade_therm_driver(whichtemp,                         &
                                    whichbmlt_float,                   &
+                                   temp_init,                         &
                                    dttem,                             &
                                    ewn,             nsn,       upn,   &
                                    itest,           jtest,     rtest, &
@@ -318,6 +329,7 @@ module glissade_therm
                                    bheatflx,        bfricflx,         &
                                    dissip,                            &
                                    pmp_threshold,                     &
+                                   pmp_offset,                        &
                                    bmlt_float_rate, bmlt_float_mask,  &
                                    bmlt_float_omega,                  &
                                    bmlt_float_h0,   bmlt_float_z0,    &
@@ -347,6 +359,9 @@ module glissade_therm
          whichbmlt_float       ! option for computing basal melt rate for floating ice
 
     integer, intent(in) ::   &
+         temp_init             ! option for initializing the temperature (used for thin ice)
+
+    integer, intent(in) ::   &
          ewn, nsn, upn,      & ! grid dimensions
          itest, jtest, rtest   ! coordinates of diagnostic point
  
@@ -373,7 +388,11 @@ module glissade_therm
          dissip            ! interior heat dissipation (deg/s)
 
     real(dp), intent(in) ::  &
-         pmp_threshold       ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
+         pmp_threshold     ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
+
+    real(dp), intent(in) ::  &
+         pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
+                           ! used here to set the temperature in columns with thck < thklim_temp
 
     ! The remaining input arguments support basal melting for MISMIP+ experiments
     integer, dimension(:,:), intent(in) ::  &
@@ -774,32 +793,32 @@ module glissade_therm
           call write_log(message,GM_FATAL)
        endif
 
-       ! Set temperature of thin ice to the air temperature and set ice-free nodes to zero
+       ! Set the temperature of thin ice, using the same procedure as that for computing initial temperature profiles.
+       ! (For example, of temperature is initialized with a linear profile, then thin ice will have a linear profile.)
+       ! Set the temperature in ice-free cells to the min of artm and 0 C.
 
        do ns = 1, nsn
           do ew = 1, ewn
-
-              if (thck(ew,ns) <= thklim_temp) then
-                 temp(:,ew,ns) = min(0.d0, artm(ew,ns))
-              endif
-
-              !TODO - Maybe it should be done in the following way, so that the temperature profile for thin ice
-              !       is consistent with the temp_init option, with T = 0 for ice-free cells.
 
              ! NOTE: Calling this subroutine will maintain a sensible temperature profile
              !        for thin ice, but in general does *not* conserve energy.
              !       To conserve energy, we need either thklim_temp = 0, or some additional
              !        energy accounting and correction.
  
-!             if (thck(ew,ns) <= thklim_temp) then
-!                call glissade_init_temp_column(temp_init,         &
-!                                               stagsigma(:),     &
-!                                               artm(ew,ns)),      &
-!                                               thck(ew,ns),      &
-!                                               temp(:,ew,ns) )
-!             else if (model%geometry%thkmask(ew,ns) < 0) then
-!                temp(:,ew,ns) = 0.d0
-!             end if
+             if (thck(ew,ns) == 0.0d0) then
+
+                temp(:,ew,ns) = min(0.0d0, artm(ew,ns))
+
+             elseif (thck(ew,ns) <= thklim_temp) then
+
+                call glissade_init_temp_column(temp_init,        &
+                                               stagsigma(:),     &
+                                               artm(ew,ns),      &
+                                               thck(ew,ns),      &
+                                               pmp_offset,       &
+                                               temp(:,ew,ns) )
+
+             end if
 
           end do
        end do
@@ -1518,15 +1537,13 @@ module glissade_therm
              temp(upn,ew,ns) = min (temp(upn,ew,ns), pmptemp_bed)
 
              ! If freeze-on was computed above (bmlt_ground < 0) and Tbed = pmptemp but no basal water is present, then set T(upn) < pmptemp.
-             ! Note: In the matrix element subroutines, we solve for Tbed (instead of holding it at pmptemp) when Tbed < pmptemp - pmp_threshold.
-             !       With an offset here of 2*pmp_threshold, we will likely solve for T_bed at the next timestep.
-             !       (The factor of 2 is somewhat arbitrary.)
-             ! Note: I don't think energy conservation is violated here, because no energy is associated with
+             ! Specifically, set Tbed to the temperature of the layer nearest the bed.
+             ! In most cases, Tbed will then be computed instead of prescribed during the next time step. 
+             ! Note: Energy conservation is not violated here, because no energy is associated with
              !       the infinitesimally thin layer at the bed.
 
              if (bmlt_ground(ew,ns) < 0.d0 .and. bwat(ew,ns)==0.d0 .and. temp(upn,ew,ns) >= pmptemp_bed) then
-!!                temp(upn,ew,ns) = pmptemp_bed - 0.01d0
-                temp(upn,ew,ns) = pmptemp_bed - 2.0d0*pmp_threshold
+                temp(upn,ew,ns) = temp(upn-1,ew,ns)
                 bmlt_ground(ew,ns) = 0.d0   ! Set freeze-on to zero since no water is present
              endif
 
