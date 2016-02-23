@@ -2740,7 +2740,7 @@
                                                 Auu,             Auv,               &
                                                 Avu,             Avv,               &
                                                 bu,              bv)
-          call t_startf('glissade_dirichlet_3d')
+          call t_stopf('glissade_dirichlet_3d')
           
           !---------------------------------------------------------------------------
           ! Halo updates for matrices
