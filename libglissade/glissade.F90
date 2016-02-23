@@ -719,6 +719,7 @@ contains
       ! temporary in/out arrays in SI units (m)                               
       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
       acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
+      acab_unscaled(:,:) = acab_unscaled(:,:) + model%climate%flux_correction(:,:) * thk0/tim0 ! add in flux correction here
 
       do sc = 1, model%numerics%subcyc
 
@@ -752,9 +753,24 @@ contains
 
        enddo     ! subcycling
 
-       ! convert thck and acab back to scaled units
+       ! convert thck back to scaled units
+       ! (acab is intent(in) above so need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-       model%climate%acab(:,:) = acab_unscaled(:,:) / (thk0/tim0)
+
+       ! Eliminate ice from cells where mask prohibits it
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (model%climate%no_advance_mask(i,j) == 1) then
+                model%geometry%thck(i,j) = 0.0
+                ! Also zero these tracer values just to keep things clean
+                model%temper%temp(:,i,j) = 0.0
+                model%temper%waterfrac(:,i,j) = 0.0
+                model%temper%enthalpy(:,i,j) = 0.0
+                model%geometry%ice_age(:,i,j) = 0.0
+                model%calving%damage(:,i,j) = 0.0
+             endif
+          enddo
+       enddo
 
        if (model%options%whichtemp == TEMP_ENTHALPY) then
 
