@@ -186,6 +186,10 @@ module glide_types
   integer, parameter :: HO_DISP_SIA = 0
   integer, parameter :: HO_DISP_FIRSTORDER = 1
 
+  integer, parameter :: HO_THERMAL_BEFORE_TRANSPORT = 0
+  integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
+  integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
+  
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
   integer, parameter :: HO_BABC_YIELD_PICARD = 2
@@ -380,6 +384,7 @@ module glide_types
     !> \item[2] Basal melt rate for floating ice as prescribed for MISMIP+
     !> \end{description}
 
+    !TODO - Change default basal_mbal to 1?
     integer :: basal_mbal = 0
 
     !> basal mass balance:
@@ -513,6 +518,13 @@ module glide_types
     !> \item[0] for 0-order SIA approx
     !> \item[1] for first-order dissipation (Blatter-Pattyn)
     !>      
+    !> \end{description}
+
+    integer :: which_ho_thermal_timestep = 0
+    !> \begin{description}
+    !> \item[0] vertical thermal solve before transport solve
+    !> \item[1] vertical thermal solve after transport solve
+    !> \item[2] vertical thermal solve split; both before and after transport solve
     !> \end{description}
 
     integer :: which_ho_babc = 4

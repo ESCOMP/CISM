@@ -596,25 +596,26 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type) :: model
     
-    call GetValue(section, 'which_ho_efvs',      model%options%which_ho_efvs)
-    call GetValue(section, 'which_ho_disp',      model%options%which_ho_disp)
-    call GetValue(section, 'which_ho_babc',      model%options%which_ho_babc)
-    call GetValue(section, 'which_ho_effecpress',model%options%which_ho_effecpress)
-    call GetValue(section, 'which_ho_resid',     model%options%which_ho_resid)
-    call GetValue(section, 'which_ho_nonlinear', model%options%which_ho_nonlinear)
-    call GetValue(section, 'which_ho_sparse',    model%options%which_ho_sparse)
-    call GetValue(section, 'which_ho_approx',    model%options%which_ho_approx)
-    call GetValue(section, 'which_ho_precond',   model%options%which_ho_precond)
-    call GetValue(section, 'which_ho_gradient',  model%options%which_ho_gradient)
-    call GetValue(section, 'which_ho_gradient_margin', model%options%which_ho_gradient_margin)
-    call GetValue(section, 'which_ho_vertical_remap',  model%options%which_ho_vertical_remap)
-    call GetValue(section, 'which_ho_assemble_beta',   model%options%which_ho_assemble_beta)
-    call GetValue(section, 'which_ho_assemble_taud',   model%options%which_ho_assemble_taud)
-    call GetValue(section, 'which_ho_assemble_bfric',  model%options%which_ho_assemble_bfric)
-    call GetValue(section, 'which_ho_ground',    model%options%which_ho_ground)
+    call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
+    call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
+    call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
+    call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
+    call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
+    call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
+    call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
+    call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
+    call GetValue(section, 'which_ho_approx',             model%options%which_ho_approx)
+    call GetValue(section, 'which_ho_precond',            model%options%which_ho_precond)
+    call GetValue(section, 'which_ho_gradient',           model%options%which_ho_gradient)
+    call GetValue(section, 'which_ho_gradient_margin',    model%options%which_ho_gradient_margin)
+    call GetValue(section, 'which_ho_vertical_remap',     model%options%which_ho_vertical_remap)
+    call GetValue(section, 'which_ho_assemble_beta',      model%options%which_ho_assemble_beta)
+    call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
+    call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
+    call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
-    call GetValue(section, 'which_ho_ice_age',   model%options%which_ho_ice_age)
-    call GetValue(section, 'glissade_maxiter',   model%options%glissade_maxiter)
+    call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
+    call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
 
   end subroutine handle_ho_options
 
@@ -765,6 +766,11 @@ contains
          'no dissipation                    ', &
          '0-order SIA                       ', &
          'first-order model (Blatter-Pattyn)' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_whichthermal_timestep = (/ &
+         'vertical thermal solve before transport    ', &
+         'vertical thermal solve after transport     ', &
+         'vertical thermal solve split into two parts' /)
 
     character(len=*), dimension(0:13), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
@@ -1176,6 +1182,13 @@ contains
        call write_log(message)
        if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(ho_whichdisp)-1) then
           call write_log('Error, HO dissipation input out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'ho_whichthermal_timestep: ',model%options%which_ho_thermal_timestep,  &
+                         ho_whichthermal_timestep(model%options%which_ho_thermal_timestep)
+       call write_log(message)
+       if (model%options%which_ho_thermal_timestep < 0 .or. model%options%which_ho_thermal_timestep >= size(ho_whichthermal_timestep)) then
+          call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
        end if
 
        write(message,*) 'ho_whichbabc            : ',model%options%which_ho_babc,  &
@@ -1616,6 +1629,12 @@ contains
        if (model%options%which_ho_assemble_bfric == HO_ASSEMBLE_BFRIC_STANDARD) then
           call write_log('WARNING: local bfric assembly is recommended for the pseudo-plastic sliding law')
           write(message,*) 'Set which_ho_assemble_bfric =', HO_ASSEMBLE_BFRIC_LOCAL
+          call write_log(message, GM_WARNING)
+       endif
+       if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
+          call write_log('WARNING: Best to do vertical thermal solve after transport for the pseudo-plastic sliding law')
+          write(message,*) 'Set which_ho_thermal_timestep to one of the following values:', &
+               HO_THERMAL_AFTER_TRANSPORT, HO_THERMAL_SPLIT_TIMESTEP
           call write_log(message, GM_WARNING)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_ISHOMC) then

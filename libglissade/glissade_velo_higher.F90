@@ -1839,20 +1839,10 @@
     ! Compute the effective pressure N at the bed.
     ! Although N is not needed for all sliding options, it is computed here just in case.
     ! Note: effective pressure is part of the basal_physics derived type.
+    ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
+    !       just before the velocity solve. Then they will be consistent with the
+    !       current thickness field.
     !------------------------------------------------------------------------------
-
-    ! compute the pressure melting point temperature at the bed 
-    ! (used for which_ho_effecpress = HO_EFFECPRESS_BPMP)
-
-    do j = 1, ny
-       do i = 1, nx
-          if (ice_mask(i,j) == 1) then
-             call glissade_pressure_melting_point(thck(i,j), bpmp(i,j))
-          else
-             bpmp(i,j) = 0.d0
-          endif
-       enddo
-    enddo
 
     call calc_effective_pressure(whicheffecpress,           &
                                  nx,            ny ,        &
@@ -1875,22 +1865,10 @@
 
        ! interpolate bed temperature to vertices
        ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation
-
        call glissade_stagger(nx,           ny,           &
                              temp(nz,:,:), stagbedtemp,  &
                              ice_mask,     stagger_margin_in = 1)
        
-       ! compute pressure melting point temperature at the bed
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                call glissade_pressure_melting_point(thck(i,j), bpmp(i,j))
-             else
-                bpmp(i,j) = 0.d0
-             endif
-          enddo
-       enddo
-
        ! interpolate bed pmp temperature to vertices
        call glissade_stagger(nx,           ny,           &
                              bpmp(:,:),    stagbedpmp(:,:), &
