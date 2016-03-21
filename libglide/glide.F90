@@ -152,6 +152,8 @@ contains
 !       Old Glide does not include this variable.
     character(len=100), external :: glimmer_version_char
 
+    character(len=100) :: message
+
     integer, parameter :: my_nhalo = 0   ! no halo layers for Glide dycore
 
 !!!Old Glide has this:
@@ -257,13 +259,18 @@ contains
        ! set uniform basal heat flux (positive down)
        model%temper%bheatflx = model%paramets%geot
 
-!WHL - debug
-!       print*, ' '
-!       print*, 'Use uniform bheatflx'
-!       print*, 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
-
     endif
  
+    ! Make sure the basal heat flux follows the positive-down sign convention                                                                                
+    if (maxval(model%temper%bheatflx) > 0.0d0) then
+       write(message,*) 'Error, Input basal heat flux has positive values: '
+       call write_log(trim(message))
+       write(message,*) 'maxval =', maxval(model%temper%bheatflx)
+       call write_log(trim(message))
+       write(message,*) 'Basal heat flux is defined as positive down, so should be <= 0 on input'
+       call write_log(trim(message), GM_FATAL)
+    endif
+
     !TODO - Change subroutine names to glide_init_velo, glide_init_thck
 
     ! initialise velocity calc

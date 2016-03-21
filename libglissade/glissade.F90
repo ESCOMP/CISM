@@ -120,8 +120,10 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    !TODO - Is glimmer_version_char sitll needed?
+    !TODO - Is glimmer_version_char still needed?
     character(len=100), external :: glimmer_version_char
+
+    character(len=100) :: message
 
     integer :: i, j, k
 
@@ -230,6 +232,16 @@ contains
        ! set uniform basal heat flux (positive down)
        model%temper%bheatflx = model%paramets%geot
 
+    endif
+
+    ! Make sure the basal heat flux follows the positive-down sign convention
+    if (maxval(model%temper%bheatflx) > 0.0d0) then
+       write(message,*) 'Error, Input basal heat flux has positive values: '
+       call write_log(trim(message))
+       write(message,*) 'this_rank, maxval =', this_rank, maxval(model%temper%bheatflx)
+       call write_log(trim(message))
+       write(message,*) 'Basal heat flux is defined as positive down, so should be <= 0 on input'
+       call write_log(trim(message), GM_FATAL)
     endif
 
     ! initialise glissade components
@@ -1285,7 +1297,6 @@ contains
        ! Compute the pressure melting point temperature, which is needed
        ! by certain basal sliding laws.
 
-       write(6,*) 'Compute bpmp!!!!!'
        do j = 1, model%general%nsn
           do i = 1, model%general%ewn
              call glissade_pressure_melting_point(model%geometry%thck(i,j) * thk0, &

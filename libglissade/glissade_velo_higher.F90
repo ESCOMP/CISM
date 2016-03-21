@@ -5244,7 +5244,7 @@
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
              call compute_integrals_diva(nz,               sigma,                &
-                                         thck(i,j),        efvs_qp(:,:),  &
+                                         thck(i,j),        efvs_qp(:,:),         &
                                          omega_k(:,i,j),   omega(i,j),           &
                                          i, j)
 
@@ -5490,6 +5490,9 @@
 
     !----------------------------------------------------------------
     ! Compute the 3D velocity field
+    ! TODO: Try computing u_b from beta*u_b = beta_eff*u_av.
+    !       Will the answer be much different? Will convergence be faster?
+    !       Here, btractx is lagged; btractx = old value of beta*u_b
     !----------------------------------------------------------------
 
     do j = 1, ny-1

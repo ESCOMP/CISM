@@ -136,6 +136,8 @@
          ! start with temperature/enthalpy
          ! Note: temp/enthalpy values at upper surface (k=0) and lower surface (k=upn) are not transported,
          !       but these values are applied to new accumulation at either surface (in glissade_add_smb)
+         ! TODO: Set tracers_usrf to min(artm, 0.0) instead of temp(0) for the case that a cell
+         !       is currently ice-free with temp(0) = 0?
 
          if (model%options%whichtemp == TEMP_PROGNOSTIC) then
 
