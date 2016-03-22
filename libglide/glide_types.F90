@@ -93,6 +93,7 @@ module glide_types
   integer, parameter :: TEMP_INIT_ZERO = 0
   integer, parameter :: TEMP_INIT_ARTM = 1
   integer, parameter :: TEMP_INIT_LINEAR = 2
+  integer, parameter :: TEMP_INIT_ADVECTIVE_DIFFUSIVE = 3
 
   integer, parameter :: FLWA_CONST_FLWA = 0
   integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
@@ -339,6 +340,7 @@ module glide_types
     !> \item[0] Initialize temperature to 0 C
     !> \item[1] Initialize temperature to surface air temperature
     !> \item[2] Initialize temperature with a linear profile in each column
+    !> \item[3] Initialize temperature with an advective-diffusive balance in each column
     !> \end{description}
 
     !> Method for calculating flow factor $A$:

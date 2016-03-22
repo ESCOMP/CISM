@@ -112,7 +112,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use felix_dycore_interface, only: felix_velo_init
     use glide_bwater
-    use glimmer_paramets, only: thk0
+    use glimmer_paramets, only: thk0, tim0
 
     use glissade_calving, only: glissade_calve_ice
 
@@ -126,18 +126,6 @@ contains
     character(len=100) :: message
 
     integer :: i, j, k
-
-    !WHL - debug
-    integer :: itest, jtest, rtest
-
-    rtest = -999
-    itest = 1
-    jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
-    endif
 
     call write_log(trim(glimmer_version_char()))
 
@@ -244,7 +232,10 @@ contains
        call write_log(trim(message), GM_FATAL)
     endif
 
-    ! initialise glissade components
+    ! initialize model diagnostics
+    call glide_init_diag(model)
+
+    ! initialize glissade components
 
     ! Update some variables in halo cells
     ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly (if not read from input file).
@@ -273,9 +264,13 @@ contains
        call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
                                 model%general%ewn,          model%general%nsn,         &
                                 model%general%upn,                                     &
+                                model%numerics%idiag_local, model%numerics%jdiag_local,&
+                                model%numerics%rdiag_local,                            &
                                 model%numerics%sigma,       model%numerics%stagsigma,  &
                                 model%geometry%thck*thk0,                              & ! m
                                 model%climate%artm,                                    & ! deg C
+                                model%climate%acab*thk0/tim0,                          & ! m/s
+                                model%temper%bheatflx,                                 & ! W/m^2, positive down
                                 model%temper%pmp_offset,                               & ! deg C
                                 model%temper%temp)                                       ! deg C
     else
@@ -383,10 +378,6 @@ contains
     ! of an error without needing to pass the whole thing around to every
     ! function that might cause an error
     call register_model(model)
-
-    ! initialise model diagnostics                                                                                           \
-
-    call glide_init_diag(model)
 
     ! optional unit tests
 
@@ -687,7 +678,6 @@ contains
                                    model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                    model%temper%dissip,                                          & ! deg/s
                                    model%temper%pmp_threshold,                                   & ! deg C
-                                   model%temper%pmp_offset,                                      & ! deg C
                                    model%temper%bmlt_float_rate,                                 & ! m/s
                                    model%temper%bmlt_float_mask,                                 & ! 0 or 1
                                    model%temper%bmlt_float_omega,                                & ! s-1
