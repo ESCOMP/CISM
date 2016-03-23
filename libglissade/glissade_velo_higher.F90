@@ -661,7 +661,7 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta
+    use glissade_basal_traction, only: calcbeta, calc_effective_pressure
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -706,16 +706,15 @@
        thklim,               &  ! minimum ice thickness for active cells (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
-       ho_beta_const,        &  ! constant beta value (Pa/(m/yr)) for whichbabc = HO_BABC_CONSTANT
-       beta_grounded_min,    &  ! minimum beta value (Pa/(m/yr)) for grounded ice
-       efvs_constant            ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
+       efvs_constant,        &  ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
+       pmp_threshold            ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     real(dp), dimension(:,:), pointer ::  &
        thck,                 &  ! ice thickness (m)
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
-       bwat,                 &  ! basal water depth (m)
-       mintauf,              &  ! till yield stress (Pa)
+       bpmp,                 &  ! pressure melting point temperature (C)
+       bwat,                 &  ! basal water thickness (m)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
@@ -752,6 +751,7 @@
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
+       whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
        whichresid, &            ! option for method of calculating residual
@@ -783,7 +783,8 @@
     ! Local parameters
     !--------------------------------------------------------
 
-    real(dp), parameter :: resid_target = 1.0d-04   ! assume velocity fields have converged below this resid 
+    real(dp), parameter :: &
+         resid_target = 1.0d-04   ! assume velocity fields have converged below this resid 
 
     !--------------------------------------------------------
     ! Local variables
@@ -802,15 +803,9 @@
        ocean_mask,           &! = 1 for cells where topography is below sea level and ice is absent
        land_mask              ! = 1 for cells where topography is above sea level
 
-    real(dp), dimension(nx,ny) ::  &
-       bedpmp                 ! basal pressure melting point temperature (deg C)
-
     real(dp), dimension(nx-1,ny-1) :: &
-       stagbedtemp,         & ! basal ice temperature averaged to vertices (deg C)
-       stagbedpmp             ! bedpmp averaged to vertices (deg C)    
-
-    integer, dimension(nx-1,ny-1) :: &
-       pmp_mask               ! = 1 where bed is at pressure melting point, elsewhere = 0
+       stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
+       stagbedpmp             ! bed pmp temperature averaged to vertices (deg C)    
 
     logical, dimension(nx,ny) ::     &
        active_cell            ! true for active cells (thck > thklim and border locally owned vertices)
@@ -1024,8 +1019,8 @@
      beta     => model%velocity%beta(:,:)
      beta_internal => model%velocity%beta_internal(:,:)
      bfricflx => model%temper%bfricflx(:,:)
+     bpmp     => model%temper%bpmp(:,:)
      bwat     => model%temper%bwat(:,:)
-     mintauf  => model%basalproc%mintauf(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1054,11 +1049,11 @@
      thklim    = model%numerics%thklim
      max_slope = model%paramets%max_slope
      eus       = model%climate%eus
-     ho_beta_const = model%velocity%ho_beta_const
-     beta_grounded_min = model%velocity%beta_grounded_min
      efvs_constant = model%paramets%efvs_constant
- 
+     pmp_threshold = model%temper%pmp_threshold
+
      whichbabc            = model%options%which_ho_babc
+     whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
      whichsparse          = model%options%which_ho_sparse
@@ -1080,15 +1075,14 @@
     !--------------------------------------------------------
 
 !pw call t_startf('glissade_velo_higher_scale_input')
+     !TODO - Remove mintauf from argument list when BFB requirement is relaxed
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           thck,    usrf,          &
-                                          topg,                   &
-                                          eus,     thklim,        &
+                                          topg,    eus,           &
+                                          bwat,    thklim,        &
                                           flwa,    efvs,          &
-                                          bwat,    mintauf,       &
-                                          ho_beta_const,          &
-                                          beta_grounded_min,      &
                                           btractx, btracty,       &
+                                          model%basal_physics%mintauf, &
                                           uvel,    vvel,          &
                                           uvel_2d, vvel_2d)
 !pw call t_stopf('glissade_velo_higher_scale_input')
@@ -1194,11 +1188,7 @@
 !    call parallel_halo(topg)
 !    call parallel_halo(usrf)
 !    call parallel_halo(flwa)
-
-!    if (whichbabc == HO_BABC_YIELD_PICARD) then
-!       call staggered_parallel_halo(mintauf)   
-!       call staggered_parallel_halo_extrapolate(mintauf)
-!    endif
+!    call parallel_halo(bwat)
 
     !------------------------------------------------------------------------------
     ! Setup for higher-order solver: Compute nodal geometry, allocate storage, etc.
@@ -1541,7 +1531,7 @@
                                        ice_mask,                     &
                                        gradient_margin_in = whichgradient_margin, &
                                        usrf = usrf,                  &
-                                       land_mask = land_mask,        &
+                                       floating_mask = floating_mask,&
                                        max_slope = max_slope)
 
     else          ! 2nd order upstream
@@ -1554,7 +1544,7 @@
                                        accuracy_flag_in = 2,         &
                                        gradient_margin_in = whichgradient_margin, &
                                        usrf = usrf,                  &
-                                       land_mask = land_mask,        &
+                                       floating_mask = floating_mask,&
                                        max_slope = max_slope)
 
     endif   ! whichgradient
@@ -1665,7 +1655,6 @@
     !  of active cells).
     ! Count the number of owned active nodes on this processor, and assign a 
     !  unique local ID to each such node.
-    !TODO - Move Trilinos- and SLAP-specific computations to a different subroutine?
     !------------------------------------------------------------------------------
 
 !pw call t_startf('glissade_get_vertex_geom')
@@ -1847,47 +1836,52 @@
     beta_internal(:,:) = 0.d0
 
     !------------------------------------------------------------------------------
-    ! For the HO_BABC_BETA_TPMP option (lower beta where the bed is at the pressure melting point),
-    ! compute the bed temperature and the bed pressure-melting-point temperature at vertices.
+    ! Compute the effective pressure N at the bed.
+    ! Although N is not needed for all sliding options, it is computed here just in case.
+    ! Note: effective pressure is part of the basal_physics derived type.
+    ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
+    !       just before the velocity solve. Then they will be consistent with the
+    !       current thickness field.
     !------------------------------------------------------------------------------
+
+    call calc_effective_pressure(whicheffecpress,           &
+                                 nx,            ny ,        &
+                                 model%basal_physics,       &
+                                 ice_mask,                  &
+                                 bpmp(:,:) - temp(nz,:,:),  &
+                                 bwat,                      &
+                                 thck,          topg,       &
+                                 eus)
+
+    !------------------------------------------------------------------------------
+    ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
+    ! the pressure melting point, resulting in lower traction.
+    !------------------------------------------------------------------------------
+
+    ! initialize to 0 everywhere
+    model%basal_physics%bpmp_mask(:,:) = 0
   
-    if (whichbabc == HO_BABC_BETA_TPMP) then
+    if (whichbabc == HO_BABC_BETA_BPMP) then
 
        ! interpolate bed temperature to vertices
        ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation
-
        call glissade_stagger(nx,           ny,           &
                              temp(nz,:,:), stagbedtemp,  &
                              ice_mask,     stagger_margin_in = 1)
        
-       ! compute pressure melting point temperature at bed
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                call glissade_pressure_melting_point(thck(i,j), bedpmp(i,j))
-             else
-                bedpmp(i,j) = 0.d0
-             endif
-          enddo
-       enddo
-
        ! interpolate bed pmp temperature to vertices
        call glissade_stagger(nx,           ny,           &
-                             bedpmp(:,:),  stagbedpmp(:,:), &
+                             bpmp(:,:),    stagbedpmp(:,:), &
                              ice_mask,     stagger_margin_in = 1)
 
-       ! compute a pmp mask at vertices; this mask is passed to calcbeta below
-       where (abs(stagbedpmp - stagbedtemp) < 1.d-3 .and. active_vertex)
-          pmp_mask = 1
-       elsewhere
-          pmp_mask = 0
+       ! compute a bed pmp mask at vertices; this mask is passed to calcbeta below
+       ! Note: The bed is considered thawed if the interpolated bed temperature is
+       !       within pmp_threshold of the interpolated pmp temperature.
+       where (stagbedtemp >= stagbedpmp - pmp_threshold .and. active_vertex)
+          model%basal_physics%bpmp_mask = 1
        endwhere
 
-    else    ! not HO_BABC_BETA_TPMP
-
-       pmp_mask(:,:) = 0
-
-    endif
+    endif   ! HO_BABC_BETA_BPMP
 
     !------------------------------------------------------------------------------
     ! Compute the factor A^(-1/n) appearing in the expression for effective viscosity.
@@ -2111,7 +2105,8 @@
        ! Notes:
        ! (1) We could compute beta before the main outer loop if beta
        !     were assumed to be independent of velocity.  Computing beta here,
-       !     however, allows for more general sliding laws.
+       !     however, allows for more general sliding laws where beta depends
+       !     on the velocity.
        ! (2) The units of the input arguments in calcbeta are assumed to be the
        !     same as the Glissade units.
        ! (3) The computed beta (called beta_internal) is weighted by f_ground, 
@@ -2120,12 +2115,13 @@
        !     change in beta as the GL advances and retreats.
        ! (4) The basal velocity is a required input to calcbeta.  
        !     DIVA does not compute the basal velocity in the 2D matrix solve, 
-       !     but computes the 3D velocity after each iteration so that
+       !     but computes the full 3D velocity after each iteration so that
        !     uvel/vvel(nz,:,:) are available here.
-       ! (5) For which_ho_babc = HO_BABC_EXTERNAL_BETA, beta is passed in
-       !     with dimensionless Glimmer units. Rather than incur roundoff errors by
+       ! (5) For which_ho_babc = HO_BABC_BETA_EXTERNAL, beta currently has
+       !     dimensionless Glimmer units. Rather than incur roundoff errors by
        !     repeatedly multiplying and dividing by scaling constants, the conversion
        !     to Pa yr/m is done here in the argument list.
+       ! (6) Subroutine calcbeta includes a halo update for beta_internal at the end.
        !-------------------------------------------------------------------
 
        if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then
@@ -2137,7 +2133,7 @@
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. mod(counter-1,30)==0) then
 
           print*, ' '
           print*, 'Before calcbeta, counter =', counter
@@ -2184,7 +2180,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') f_flotation(i,j)
+                write(6,'(f10.3)',advance='no') f_flotation(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2201,25 +2197,104 @@
              write(6,*) ' '
           enddo          
 
+          print*, ' '
+          print*, 'dusrf/dx field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') dusrf_dx(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') dusrf_dy(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') bpmp(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'btemp field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') temp(nz,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'bpmp - btemp field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') bpmp(i,j) - temp(nz,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.0)',advance='no') model%basal_physics%effecpress(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'effecpress_stag field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.0)',advance='no') model%basal_physics%effecpress_stag(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
        endif  ! verbose_beta
 
        call calcbeta (whichbabc,                        &
                       dx,            dy,                &
                       nx,            ny,                &
                       ubas,          vbas,              &
-                      bwat,          ho_beta_const,     &
-                      mintauf,                          &
                       model%basal_physics,              &
                       flwa(nz-1,:,:),                   &  ! basal flwa layer
                       thck,                             &
                       stagmask,                         &
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent out)
-                      f_ground,                         &
-                      pmp_mask,                         &  ! needed for HO_BABC_BETA_TPMP option
-                      beta_grounded_min)
-
-       call staggered_parallel_halo(beta_internal)
+                      topg,          eus,               &
+                      f_ground)
 
        if (verbose_beta) then
           maxbeta = maxval(beta_internal(:,:))
@@ -2234,7 +2309,7 @@
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. mod(counter,5)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. mod(counter-1,30)==0) then
 
           print*, ' '
           print*, 'Weighted beta field, itest, jtest, rank =', itest, jtest, rtest
@@ -2243,7 +2318,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') beta_internal(i,j)
+                write(6,'(f10.0)',advance='no') beta_internal(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2255,7 +2330,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') uvel(nz,i,j)
+                write(6,'(f10.2)',advance='no') uvel(nz,i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2267,13 +2342,11 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') vvel(nz,i,j)
+                write(6,'(f10.2)',advance='no') vvel(nz,i,j)
              enddo
              write(6,*) ' '
           enddo          
 
-          !TODO - Remove the remaining verbose_beta diagnostics?
-          !       They are not specific to beta but are useful for diagnosing CFL issues.
           print*, ' '
           print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2281,7 +2354,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') uvel(1,i,j)
+                write(6,'(f10.2)',advance='no') uvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2293,74 +2366,50 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(e10.3)',advance='no') vvel(1,i,j)
+                write(6,'(f10.2)',advance='no') vvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo          
 
-          print*, ' '
-          print*, 'dusrf/dx field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') dusrf_dx(i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
-
-          print*, ' '
-          print*, 'dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') dusrf_dy(i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
-
-          if (whichbabc == HO_BABC_BETA_TPMP) then
+          if (whichbabc == HO_BABC_BETA_BPMP) then
 
              print*, ' '
-             print*, 'stagbedtemp, itest, jtest, rank =', itest, jtest, rtest
+             print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
 !!             do j = ny-1, 1, -1
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                do i = 1, nx-1
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') stagbedtemp(i,j)
+                   write(6,'(f10.5)',advance='no') stagbedtemp(i,j)
                 enddo
                 write(6,*) ' '
-             enddo             
+             enddo
 
              print*, ' '
-             print*, 'stagbedpmp, itest, jtest, rank =', itest, jtest, rtest
+             print*, 'staggered bed pmp, itest, jtest, rank =', itest, jtest, rtest
 !!             do j = ny-1, 1, -1
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                do i = 1, nx-1
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') stagbedpmp(i,j)
+                   write(6,'(f10.5)',advance='no') stagbedpmp(i,j)
                 enddo
                 write(6,*) ' '
-             enddo             
+             enddo 
 
              print*, ' '
-             print*, 'pmp_mask, itest, jtest, rank =', itest, jtest, rtest
+             print*, 'bpmp_mask, itest, jtest, rank =', itest, jtest, rtest
 !!             do j = ny-1, 1, -1
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                do i = 1, nx-1
                 do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') pmp_mask(i,j)
+                   write(6,'(i10)',advance='no') model%basal_physics%bpmp_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo             
 
-          endif  ! HO_BABC_BETA_TPMP
+          endif  ! HO_BABC_BETA_BPMP
 
           if (whichbabc == HO_BABC_YIELD_PICARD) then
              print*, ' '
@@ -2368,7 +2417,7 @@
              do j = ny-1, 1, -1
                 write(6,'(i6)',advance='no') j
                 do i = 1, nx-1
-                   write(6,'(e10.3)',advance='no') mintauf(i,j)
+                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -2885,16 +2934,17 @@
           vvel(:,:,:) = 0.d0
 
           call t_startf('glissade_velo_higher_scale_outp')
+          !TODO - Remove mintauf from argument list when BFB requirement is relaxed
           call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                                 topg,                   &
+                                                 topg,    bwat,          &
                                                  flwa,    efvs,          &
-                                                 bwat,    mintauf,       &
                                                  beta_internal,          &
                                                  resid_u, resid_v,       &
                                                  bu,      bv,            &
                                                  uvel,    vvel,          &
                                                  uvel_2d, vvel_2d,       &
                                                  btractx, btracty,       &
+                                                 model%basal_physics%mintauf,    &
                                                  taudx,   taudy,         &
                                                  tau_xz,  tau_yz,        &
                                                  tau_xx,  tau_yy,        &
@@ -3473,7 +3523,7 @@
                                      nz,               sigma,           &
                                      dx,               dy,              &
                                      nhalo,                             &
-                                     ice_mask,         land_mask,       &
+                                     ice_mask,         floating_mask,   &
                                      active_cell,      active_vertex,   &
                                      umask_dirichlet(nz,:,:),           &
                                      vmask_dirichlet(nz,:,:),           &
@@ -3550,7 +3600,8 @@
     !------------------------------------------------------------------------------
 
     call compute_basal_friction_heatflx(nx,            ny,            &
-                                        nhalo,         active_cell,   &
+                                        nhalo,                        &
+                                        active_cell,   active_vertex, &
                                         xVertex,       yVertex,       &
                                         uvel(nz,:,:),  vvel(nz,:,:),  &
                                         beta_internal, whichassemble_bfric,  &
@@ -3559,7 +3610,7 @@
     !WHL - debug
     if (verbose_bfric .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Basal friction, itest, jtest, rank =', itest, jtest, rtest
+       print*, 'Basal friction (W/m2), itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
@@ -3597,6 +3648,7 @@
           enddo
           print*, ' '
        enddo       
+
        print*, ' '
        print*, 'max(uvel, vvel) =', maxval(uvel), maxval(vvel)
        print*, ' '
@@ -3609,6 +3661,7 @@
           print*, k, uvel(k,i,j), vvel(k,i,j)
        enddo
        if (solve_2d) print*, '2D velo:', uvel_2d(i,j), vvel_2d(i,j)
+
     endif  ! verbose_velo
 
     !------------------------------------------------------------------------------
@@ -3650,15 +3703,15 @@
 
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                           topg,                   &
+                                           topg,    bwat,          &
                                            flwa,    efvs,          &
-                                           bwat,    mintauf,       &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
                                            bu,      bv,            &
                                            uvel,    vvel,          &
                                            uvel_2d, vvel_2d,       &
                                            btractx, btracty,       &
+                                           model%basal_physics%mintauf,    &
                                            taudx,   taudy,         &
                                            tau_xz,  tau_yz,        &
                                            tau_xx,  tau_yy,        &
@@ -3672,13 +3725,11 @@
 
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
                                               thck,    usrf,          &
-                                              topg,                   &
-                                              eus,     thklim,        &
+                                              topg,    eus,           &
+                                              bwat,    thklim,        &
                                               flwa,    efvs,          &
-                                              bwat,    mintauf,       &
-                                              ho_beta_const,          &
-                                              beta_grounded_min,      &
                                               btractx, btracty,       &
+                                              mintauf,                &
                                               uvel,    vvel,          &
                                               uvel_2d, vvel_2d)
 
@@ -3693,23 +3744,24 @@
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
        usrf,                &  ! upper surface elevation
-       topg                    ! elevation of topography
+       topg,                &  ! elevation of topography
+       bwat                    ! basal water thickness
 
     real(dp), intent(inout) ::   &
        eus,  &                 ! eustatic sea level (= 0 by default)
-       thklim,  &              ! minimum ice thickness for active cells
-       ho_beta_const, &        ! constant beta value (Pa/(m/yr)) for whichbabc = HO_BABC_CONSTANT
-       beta_grounded_min       ! minimum beta value (Pa/(m/yr)) for grounded ice
+       thklim                  ! minimum ice thickness for active cells
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &               ! flow factor in units of Pa^(-n) yr^(-1)
        efvs                    ! effective viscosity (Pa yr)
 
     real(dp), dimension(:,:), intent(inout)  ::  &
-       bwat,  &                ! basal water depth (m)
-       mintauf, &              ! till yield stress (Pa)
        btractx, btracty,  &    ! components of basal traction (Pa)
        uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
+
+    !TODO - Remove mintauf from the argument list when BFB restriction is relaxed
+    real(dp), dimension(:,:), intent(inout) ::  &
+         mintauf
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! components of 3D velocity (m/yr)
@@ -3723,6 +3775,7 @@
     usrf = usrf * thk0
     topg = topg * thk0
     eus  = eus  * thk0
+    bwat = bwat * thk0
     thklim = thklim * thk0
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
@@ -3731,19 +3784,12 @@
     ! effective viscosity: rescale from dimensionless to Pa yr
     efvs = efvs * (evs0/scyr)
 
-    ! bwat: rescale from dimensionless to m
-    bwat = bwat * thk0
-
-    ! mintauf: rescale from dimensionless to Pa
-    mintauf = mintauf * tau0
-
-    ! beta_parameters: rescale from dimensionless to Pa/(m/yr)
-    ho_beta_const = ho_beta_const * tau0/(vel0*scyr)
-    beta_grounded_min = beta_grounded_min * tau0/(vel0*scyr)
-
     ! basal traction: rescale from dimensionless to Pa
     btractx = btractx * tau0
     btracty = btracty * tau0
+
+    ! yield stress: rescale from dimensionless to Pa
+    mintauf = mintauf * tau0
 
     ! ice velocity: rescale from dimensionless to m/yr
     uvel = uvel * (vel0*scyr)
@@ -3756,15 +3802,15 @@
 !****************************************************************************
 
   subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
-                                               topg,                    &
+                                               topg,    bwat,           &
                                                flwa,    efvs,           &                                       
-                                               bwat,    mintauf,        &
                                                beta_internal,           &
                                                resid_u, resid_v,        &
                                                bu,      bv,             &
                                                uvel,    vvel,           &
                                                uvel_2d, vvel_2d,        &
                                                btractx, btracty,        &
+                                               mintauf,                 &
                                                taudx,   taudy,          &
                                                tau_xz,  tau_yz,         &
                                                tau_xx,  tau_yy,         &
@@ -3778,15 +3824,14 @@
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
        usrf,                 &  ! upper surface elevation
-       topg                     ! elevation of topography
+       topg,                 &  ! elevation of topography
+       bwat                     ! basal water thickness
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
        efvs                     ! effective viscosity (Pa yr)
 
     real(dp), dimension(:,:), intent(inout)  ::  &
-       bwat,  &                 ! basal water depth (m)
-       mintauf,  &              ! till yield stress (Pa)
        beta_internal            ! basal traction parameter (Pa/(m/yr))
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
@@ -3799,6 +3844,10 @@
        btractx, btracty,       &! components of basal traction (Pa)
        taudx,   taudy           ! components of driving stress (Pa)
 
+    !TODO - Remove mintauf from the argument list when BFB restriction is relaxed
+    real(dp), dimension(:,:), intent(inout) ::  &
+         mintauf
+
     real(dp), dimension(:,:,:), intent(inout) ::  &
        tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
        tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
@@ -3808,18 +3857,13 @@
     thck = thck / thk0
     usrf = usrf / thk0
     topg = topg / thk0
+    bwat = bwat / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)
 
     ! Convert effective viscosity from Pa yr to dimensionless units
     efvs = efvs / (evs0/scyr)
-
-    ! Convert bwat from m to dimensionless units
-    bwat = bwat / thk0
-
-    ! Convert mintauf from Pa to dimensionless units
-    mintauf = mintauf / tau0
 
     ! Convert beta_internal from Pa/(m/yr) to dimensionless units
     beta_internal = beta_internal / (tau0/(vel0*scyr))
@@ -3847,6 +3891,9 @@
     tau_yy  = tau_yy/tau0
     tau_xy  = tau_xy/tau0
     tau_eff = tau_eff/tau0
+
+    ! yield stress: rescale from Pa to dimensionless units
+    mintauf = mintauf / tau0
 
   end subroutine glissade_velo_higher_scale_output
 
@@ -5197,7 +5244,7 @@
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
              call compute_integrals_diva(nz,               sigma,                &
-                                         thck(i,j),        efvs_qp(:,:),  &
+                                         thck(i,j),        efvs_qp(:,:),         &
                                          omega_k(:,i,j),   omega(i,j),           &
                                          i, j)
 
@@ -5443,6 +5490,9 @@
 
     !----------------------------------------------------------------
     ! Compute the 3D velocity field
+    ! TODO: Try computing u_b from beta*u_b = beta_eff*u_av.
+    !       Will the answer be much different? Will convergence be faster?
+    !       Here, btractx is lagged; btractx = old value of beta*u_b
     !----------------------------------------------------------------
 
     do j = 1, ny-1
@@ -5483,7 +5533,7 @@
                                       nz,               sigma,           &
                                       dx,               dy,              &
                                       nhalo,                             &
-                                      ice_mask,         land_mask,       &
+                                      ice_mask,         floating_mask,   &
                                       active_cell,      active_vertex,   &
                                       umask_dirichlet,  vmask_dirichlet, &
                                       xVertex,          yVertex,         &
@@ -5518,7 +5568,7 @@
 
     integer, dimension(nx,ny), intent(in) ::  &
        ice_mask,        & ! = 1 for cells where ice is present (thk > thklim), else = 0
-       land_mask          ! = 1 for cells where topography is above sea level
+       floating_mask      ! = 1 for cells where ice is present and floating
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -5855,7 +5905,7 @@
                                        dusrf_dx_edge,    dusrf_dy_edge,     &
                                        gradient_margin_in = whichgradient_margin, &
                                        ice_mask = ice_mask,                 &
-                                       land_mask = land_mask,               &
+                                       floating_mask = floating_mask,       &
                                        max_slope = max_slope)
     endif
 
@@ -6398,7 +6448,8 @@
 !****************************************************************************
 
   subroutine compute_basal_friction_heatflx(nx,            ny,            &
-                                            nhalo,         active_cell,   &
+                                            nhalo,                        &
+                                            active_cell,   active_vertex, &
                                             xVertex,       yVertex,       &
                                             uvel,          vvel,          &
                                             beta,          whichassemble_bfric,  &
@@ -6439,6 +6490,9 @@
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell            ! true if cell contains ice and borders a locally owned vertex
 
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       active_vertex          ! true for vertices of active cells
+
     real(dp), dimension(nx-1,ny-1), intent(in) :: &
        xVertex, yVertex       ! x and y coordinates of each vertex (m)
 
@@ -6452,7 +6506,7 @@
                               ! = 1 for computation that uses only the local value of the basal friction at each vertex
 
     real(dp), dimension(nx,ny), intent(out) :: &
-       bfricflx               ! basal heat flux from friction (W/m^2)
+       bfricflx               ! basal heat flux from friction (W/m^2), computed at cell centers
 
     !----------------------------------------------------------------
     ! Local variables
@@ -6460,6 +6514,9 @@
 
     integer :: i, j, n, p
     integer :: iVertex, jVertex
+
+    real(dp), dimension(nx-1,ny-1) :: &
+         stagbfricflx     ! basal heat flux from friction, computed at vertices
 
     real(dp), dimension(nNodesPerElement_2d) ::   &
        x, y,            & ! spatial coordinates of nodes
@@ -6554,25 +6611,44 @@
        
     else   ! whichassemble_bfric = HO_ASSEMBLE_BFRIC_LOCAL; local calculation at active vertices
 
-       ! Loop over local vertices
-       do j = nhalo+1, ny-nhalo
-          do i = nhalo+1, nx-nhalo
+       ! compute frictional heating at vertices
+
+       stagbfricflx(:,:) = 0.d0
+
+       do j = 1, ny-1
+          do i = 1, nx-1
        
-             if (active_cell(i,j)) then   ! ice is present
+             if (active_vertex(i,j)) then
 
-                bfricflx(i,j) = beta(i,j) * (uvel(i,j)**2 + vvel(i,j)**2)
-                bfricflx(i,j) = bfricflx(i,j) / scyr   ! convert Pa m/yr to Pa m/s = W/m^2
+                stagbfricflx(i,j) = beta(i,j) * (uvel(i,j)**2 + vvel(i,j)**2)
+                stagbfricflx(i,j) = stagbfricflx(i,j) / scyr   ! convert Pa m/yr to Pa m/s = W/m^2
 
-                if (verbose_bfric .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
-                   print*, 'beta, uvel, vvel:', beta(i,j), uvel(i,j), vvel(i,j)
-                endif
-                
              endif      ! active_cell
              
           enddo         ! i
        enddo            ! j
+
+       ! interpolate from vertices to cell centers
+       ! Note: The optional arguments vmask and stagger_margin_in are not included.
+       !       This means that zero values at inactive vertices are included in the average
+       !       for a given cell.
+
+       call glissade_unstagger(nx,            ny,               &
+                               stagbfricflx,  bfricflx)
+
+       if (verbose_bfric .and. this_rank==rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+          print*, ' '
+          print*, 'i, j, beta, uvel, vvel, stagbfricflx:'
+          do j = jtest-1, jtest
+             do i = itest-1, itest
+                print*, i, j, beta(i,j), uvel(i,j), vvel(i,j), stagbfricflx(i,j)
+             enddo
+          enddo
+       endif
 
     endif  ! whichassemble_bfric
 

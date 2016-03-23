@@ -1046,7 +1046,7 @@ contains
           end do
        end do
 
-    case(BTRC_CONSTANT_TPMP)
+    case(BTRC_CONSTANT_BPMP)
        ! constant where basal temperature equal to pressure melting point, else = 0
        ! This is the actual condition for EISMINT-2 experiment H, which may not be 
        ! the same as case BTRC_CONSTANT_BWAT above, depending on the hydrology

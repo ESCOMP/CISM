@@ -163,7 +163,7 @@ factor:        scale_beta
 dimensions:    time, y0, x0
 units:         Pa
 long_name:     higher-order basal yield stress
-data:          data%basalproc%mintauf
+data:          data%basal_physics%mintauf
 factor:        scale_tau
 load:          1
 
@@ -424,13 +424,12 @@ standard_name: land_ice_no_advance_mask
 coordinates:   lon lat
 load:          1
 
-#WHL: scale_bflux = -1, to reverse sign convention from + up to + down
+#WHL: Note sign convention: positive downward
 [bheatflx]
 dimensions:    time, y1, x1
 units:         watt/meter2
-long_name:     upward basal heat flux
+long_name:     downward basal heat flux
 data:          data%temper%bheatflx
-factor:        scale_bflx
 load:          1
 coordinates:   lon lat
 
@@ -781,7 +780,7 @@ load:          1
 
 [enthalpy]
 dimensions:    time, stagwbndlevel, y1, x1
-units:         J/m^3
+units:         J/m3
 long_name:     specific enthalpy
 data:          data%temper%enthalpy(up,:,:)
 coordinates:   lon lat
@@ -834,6 +833,14 @@ standard_name: land_ice_temperature_stag
 # hot=0 because we do not want the stag version to be in the hotvars definition.
 # The conversion to stag happens if needed in check_for_tempstag.
 load:          1
+coordinates:   lon lat
+
+[bpmp]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     basal pressure melting point temperature
+data:          data%temper%bpmp
+standard_name: pressure_melting_point_temperature
 coordinates:   lon lat
 
 [litho_temp]
