@@ -832,9 +832,9 @@ contains
          'upstream gradient (glissade dycore)      ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichgradient_margin = (/ &
-         'all neighbor cells in gradient (glissade dycore)         ', &
-         'ice-covered &/or land cells in gradient (glissade dycore)', &
-         'only ice-covered cells in gradient (glissade dycore)     ' /)
+         'land-based boundary condition for gradient (glissade dycore) ', &
+         'hybrid boundary condition for gradient (glissade dycore)     ', &
+         'shelf-based boundary condition for gradient (glissade dycore)' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
          'first-order accurate  ', &

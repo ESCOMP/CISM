@@ -1531,7 +1531,7 @@
                                        ice_mask,                     &
                                        gradient_margin_in = whichgradient_margin, &
                                        usrf = usrf,                  &
-                                       land_mask = land_mask,        &
+                                       floating_mask = floating_mask,&
                                        max_slope = max_slope)
 
     else          ! 2nd order upstream
@@ -1544,7 +1544,7 @@
                                        accuracy_flag_in = 2,         &
                                        gradient_margin_in = whichgradient_margin, &
                                        usrf = usrf,                  &
-                                       land_mask = land_mask,        &
+                                       floating_mask = floating_mask,&
                                        max_slope = max_slope)
 
     endif   ! whichgradient
@@ -3523,7 +3523,7 @@
                                      nz,               sigma,           &
                                      dx,               dy,              &
                                      nhalo,                             &
-                                     ice_mask,         land_mask,       &
+                                     ice_mask,         floating_mask,   &
                                      active_cell,      active_vertex,   &
                                      umask_dirichlet(nz,:,:),           &
                                      vmask_dirichlet(nz,:,:),           &
@@ -5533,7 +5533,7 @@
                                       nz,               sigma,           &
                                       dx,               dy,              &
                                       nhalo,                             &
-                                      ice_mask,         land_mask,       &
+                                      ice_mask,         floating_mask,   &
                                       active_cell,      active_vertex,   &
                                       umask_dirichlet,  vmask_dirichlet, &
                                       xVertex,          yVertex,         &
@@ -5568,7 +5568,7 @@
 
     integer, dimension(nx,ny), intent(in) ::  &
        ice_mask,        & ! = 1 for cells where ice is present (thk > thklim), else = 0
-       land_mask          ! = 1 for cells where topography is above sea level
+       floating_mask      ! = 1 for cells where ice is present and floating
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -5905,7 +5905,7 @@
                                        dusrf_dx_edge,    dusrf_dy_edge,     &
                                        gradient_margin_in = whichgradient_margin, &
                                        ice_mask = ice_mask,                 &
-                                       land_mask = land_mask,               &
+                                       floating_mask = floating_mask,       &
                                        max_slope = max_slope)
     endif
 
