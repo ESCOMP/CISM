@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Fri, 08 Jan 2016 19:15:11 +0000
+! Fri, 04 Mar 2016 17:13:37 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -1345,6 +1345,35 @@ contains
      end if
      end if
 
+    !     flux_correction -- flux correction applied in addition to acab
+    pos = index(NCO%vars,' flux_correction ')
+    status = parallel_inq_varid(NCO%id,'flux_correction',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+15) = '               '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%climate%flux_correction)) then
+       call write_log('Creating variable flux_correction')
+       status = parallel_def_var(NCO%id,'flux_correction',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scale_acab))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'flux correction applied in addition to acab')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_surface_specific_mass_balance_flux_correction')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter/year')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable flux_correction was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     flwa -- Pre-exponential flow law parameter
     pos = index(NCO%vars,' flwa ')
     status = parallel_inq_varid(NCO%id,'flwa',varid)
@@ -1717,6 +1746,34 @@ contains
        end if
      else
      call write_log('Variable lsurf was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     no_advance_mask -- cells where advance is not allowed
+    pos = index(NCO%vars,' no_advance_mask ')
+    status = parallel_inq_varid(NCO%id,'no_advance_mask',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+15) = '               '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%climate%no_advance_mask)) then
+       call write_log('Creating variable no_advance_mask')
+       status = parallel_def_var(NCO%id,'no_advance_mask',get_xtype(outfile,NF90_INT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'cells where advance is not allowed')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_no_advance_mask')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable no_advance_mask was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -3248,6 +3305,13 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    status = parallel_inq_varid(NCO%id,'flux_correction',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%climate%flux_correction, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'flwa',varid)
     if (status .eq. nf90_noerr) then
        do up=1,NCO%nlevel
@@ -3349,6 +3413,13 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%geometry%lsrf, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'no_advance_mask',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%climate%no_advance_mask, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -4453,6 +4524,31 @@ contains
 
     end if
 
+    status = parallel_inq_varid(NCI%id,'flux_correction',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%climate%flux_correction)) then
+       call write_log('  Loading flux_correction')
+       status = distributed_get_var(NCI%id, varid, &
+            data%climate%flux_correction, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0/(scale_acab)
+       else
+          scaling_factor = scaling_factor/(scale_acab)
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling flux_correction",GM_DIAGNOSTIC)
+          data%climate%flux_correction = &
+               data%climate%flux_correction*scaling_factor
+       end if
+    else
+    call write_log('Variable flux_correction was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
     status = parallel_inq_varid(NCI%id,'flwa',varid)
     if (status .eq. nf90_noerr) then
     if (is_enabled(data%temper%flwa)) then
@@ -4575,6 +4671,29 @@ contains
        end if
     else
     call write_log('Variable litho_temp was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'no_advance_mask',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%climate%no_advance_mask)) then
+       call write_log('  Loading no_advance_mask')
+       status = distributed_get_var(NCI%id, varid, &
+            data%climate%no_advance_mask, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling no_advance_mask",GM_DIAGNOSTIC)
+          data%climate%no_advance_mask = &
+               data%climate%no_advance_mask*scaling_factor
+       end if
+    else
+    call write_log('Variable no_advance_mask was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -6074,6 +6193,28 @@ contains
     data%geometry%f_ground = inarray
   end subroutine glide_set_f_ground
 
+  subroutine glide_get_flux_correction(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (scale_acab)*(data%climate%flux_correction)
+  end subroutine glide_get_flux_correction
+
+  subroutine glide_set_flux_correction(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%climate%flux_correction = inarray/(scale_acab)
+  end subroutine glide_set_flux_correction
+
   subroutine glide_get_gravity(data,outarray)
     use glimmer_scales
     use glimmer_paramets
@@ -6293,6 +6434,28 @@ contains
 
     data%geometry%lsrf = inarray/(thk0)
   end subroutine glide_set_lsurf
+
+  subroutine glide_get_no_advance_mask(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    integer, dimension(:,:), intent(out) :: outarray
+
+    outarray = data%climate%no_advance_mask
+  end subroutine glide_get_no_advance_mask
+
+  subroutine glide_set_no_advance_mask(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    integer, dimension(:,:), intent(in) :: inarray
+
+    data%climate%no_advance_mask = inarray
+  end subroutine glide_set_no_advance_mask
 
   subroutine glide_get_relx(data,outarray)
     use glimmer_scales
