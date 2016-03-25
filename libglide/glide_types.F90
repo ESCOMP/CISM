@@ -939,13 +939,20 @@ module glide_types
 
   type glide_climate
      !> Holds fields used to drive the model
-     real(dp),dimension(:,:),pointer :: acab      => null() !> Annual mass balance (m/y ice)
-     real(dp),dimension(:,:),pointer :: acab_tavg => null() !> Annual mass balance (time average).
-     real(dp),dimension(:,:),pointer :: artm      => null() !> Annual mean air temperature (degC)
+     real(dp),dimension(:,:),pointer :: acab            => null() !> Annual mass balance (m/y ice)
+     real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Annual mass balance (time average).
+     real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Annual mass balance anomaly (m/y ice)
+     real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
-     integer,dimension(:,:),pointer :: no_advance_mask  => null() !> mask of region where advance is not allowed (any ice reaching these locations is eliminated)
+     integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
+                                                                  !> (any ice reaching these locations is eliminated)
 
-     real(dp) :: eus = 0.d0                                !> eustatic sea level
+     real(dp) :: eus = 0.d0                         !> eustatic sea level
+     real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
+                                                    !> If set to zero, then the anomaly is applied immediately.
+                                                    !> The initMIP value is 40 yr.
+     real(dp) :: prescribed_acab_value = 0.0d0      !> acab value to apply in grid cells where the input acab = 0
+                                                    !> Can be used in standalone runs to force melting where acab is not computed
 
   end type glide_climate
 
@@ -1823,6 +1830,7 @@ contains
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
@@ -2170,6 +2178,8 @@ contains
         deallocate(model%climate%acab)
     if (associated(model%climate%acab_tavg)) &
         deallocate(model%climate%acab_tavg)
+    if (associated(model%climate%acab_anomaly)) &
+        deallocate(model%climate%acab_anomaly)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%flux_correction)) &

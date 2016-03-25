@@ -100,6 +100,7 @@ contains
     !TODO - Remove glissade_temp
     use glissade_temp, only: glissade_init_temp
     use glissade_therm, only: glissade_init_therm
+    use glissade_transport, only: glissade_add_prescribed_acab
     use glimmer_scales
     use glide_mask
     use isostasy
@@ -234,6 +235,28 @@ contains
 
     ! initialize model diagnostics
     call glide_init_diag(model)
+
+    ! If the SMB is prescribed for regions where the input SMB = 0, then apply this value.
+    ! This may be appropriate for standalone runs forced by modeled SMB (e.g., from RACMO)
+    !  that is not computed outside present-day ice sheet boundaries.
+    ! Note: It assumes that SMB value of 0.0 are non-physical.
+    !       It may be more robust to supply a special value where SMB is not computed.
+
+    if (model%climate%prescribed_acab_value /= 0.0d0) then
+
+!!       print*, 'Setting acab = prescribed value (m/yr):', model%climate%prescribed_acab_value * scyr*thk0/tim0
+
+       call glissade_add_prescribed_acab(model%climate%acab,  &
+                                         model%climate%prescribed_acab_value)
+
+    endif
+
+!!    if (this_rank == model%numerics%rdiag_local) then
+!!       i = model%numerics%idiag_local
+!!       j = model%numerics%jdiag_local
+!!       print*, ' '
+!!       print*, 'this_rank, i, j, new acab:', this_rank, i, j, model%climate%acab(i,j) * scyr*thk0/tim0
+!!    endif
 
     ! initialize glissade components
 
@@ -749,7 +772,8 @@ contains
     use glissade_transport, only: glissade_transport_driver, &
                                   glissade_check_cfl,  &
                                   glissade_transport_setup_tracers, &
-                                  glissade_transport_finish_tracers
+                                  glissade_transport_finish_tracers, &
+                                  glissade_add_acab_anomaly
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
     implicit none
@@ -774,6 +798,9 @@ contains
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
        bmlt_continuity  ! = bmlt_ground + bmlt_float if basal mass balance is included in continuity equation
                         ! else = 0
+
+    real(dp) :: previous_time       ! time (yr) at the start of this time step
+                                    ! (The input time is the time at the end of the step.)
 
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
                                     ! set to true for EVOL_UPWIND, else = false
@@ -885,6 +912,32 @@ contains
        thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
        acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
        acab_unscaled(:,:) = acab_unscaled(:,:) + model%climate%flux_correction(:,:) * thk0/tim0 ! add in flux correction here
+
+       ! If an SMB anomaly is being prescribed, then add it to the temporary acab array.
+
+!!       print*, 'maxval(acab_anomaly):', maxval(model%climate%acab_anomaly)
+!!       print*, 'minval(acab_anomaly):', minval(model%climate%acab_anomaly)
+
+       if (maxval(abs(model%climate%acab_anomaly)) /= 0.0d0) then
+
+          ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+          !       This is the reason for passing the previous time to the subroutine.
+          previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+          call glissade_add_acab_anomaly(acab_unscaled,                         &   ! m/s
+                                         model%climate%acab_anomaly*thk0/tim0,  &   ! convert to m/s for input
+                                         model%climate%acab_anomaly_timescale,  &   ! yr
+                                         previous_time)                             ! yr
+
+          !WHL - debug
+!!          if (this_rank==rtest) then
+!!             i = model%numerics%idiag
+!!             j = model%numerics%jdiag
+!!             print*, 'i, j, total anomaly (m/yr), previous_time, new acab (m/yr):', &
+!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, acab_unscaled(i,j)*scyr
+!!          endif
+
+       endif
 
        do sc = 1, model%numerics%subcyc
 

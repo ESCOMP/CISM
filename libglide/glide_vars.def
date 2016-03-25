@@ -404,6 +404,16 @@ coordinates:   lon lat
 #average:       1
 load:          1
 
+[acab_anomaly]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     accumulation, ablation rate anomaly
+data:          data%climate%acab_anomaly
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_anomaly
+coordinates:   lon lat
+load:          1
+
 [flux_correction]
 dimensions:    time, y1, x1
 units:         meter/year

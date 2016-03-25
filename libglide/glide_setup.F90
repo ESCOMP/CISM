@@ -204,6 +204,9 @@ contains
     model%temper%bmlt_float_omega = model%temper%bmlt_float_omega / scyr
     model%temper%bmlt_float_rate  = model%temper%bmlt_float_rate / scyr
 
+    ! scale SMB parameters
+    model%climate%prescribed_acab_value = model%climate%prescribed_acab_value*tim0/(scyr*thk0)
+
   end subroutine glide_scale_params
 
 !-------------------------------------------------------------------------
@@ -1471,6 +1474,10 @@ contains
     call GetValue(section,'bmlt_float_h0', model%temper%bmlt_float_h0)
     call GetValue(section,'bmlt_float_z0', model%temper%bmlt_float_z0)
 
+    ! initMIP parameters
+    call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
+    call GetValue(section,'prescribed_acab_value', model%climate%prescribed_acab_value)
+
   end subroutine handle_parameters
 
 !--------------------------------------------------------------------------------
@@ -1614,13 +1621,13 @@ contains
        call write_log(message)
        write(message,*) 'pseudo-plastic u0             : ',model%basal_physics%pseudo_plastic_u0
        call write_log(message)
-       write(message,*) 'pseudo-plastic phi_min (deg) : ',model%basal_physics%pseudo_plastic_phimin
+       write(message,*) 'pseudo-plastic phi_min (deg)  : ',model%basal_physics%pseudo_plastic_phimin
        call write_log(message)
-       write(message,*) 'pseudo-plastic phi_max (deg) : ',model%basal_physics%pseudo_plastic_phimax
+       write(message,*) 'pseudo-plastic phi_max (deg)  : ',model%basal_physics%pseudo_plastic_phimax
        call write_log(message)
-       write(message,*) 'pseudo-plastic bed min (m)   : ',model%basal_physics%pseudo_plastic_bedmin
+       write(message,*) 'pseudo-plastic bed min (m)    : ',model%basal_physics%pseudo_plastic_bedmin
        call write_log(message)
-       write(message,*) 'pseudo-plastic bed max (m)   : ',model%basal_physics%pseudo_plastic_bedmax
+       write(message,*) 'pseudo-plastic bed max (m)    : ',model%basal_physics%pseudo_plastic_bedmax
        call write_log(message)
        if (model%options%which_ho_assemble_beta == HO_ASSEMBLE_BETA_STANDARD) then
           call write_log('WARNING: local beta assembly is recommended for the pseudo-plastic sliding law')
@@ -1713,6 +1720,17 @@ contains
        write(message,*) 'bmlt_float_h0 (m)        :  ', model%temper%bmlt_float_h0
        call write_log(message)
        write(message,*) 'bmlt_float_z0 (m)        :  ', model%temper%bmlt_float_z0
+       call write_log(message)
+    endif
+
+    ! initMIP parameters
+    if (model%climate%acab_anomaly_timescale > 0.0d0) then
+       write(message,*) 'acab_anomaly_timescale (yr)   :  ', model%climate%acab_anomaly_timescale
+       call write_log(message)
+    endif
+
+    if (model%climate%prescribed_acab_value /= 0.0d0) then
+       write(message,*) 'prescribed_acab_value (m/yr)  :  ', model%climate%prescribed_acab_value
        call write_log(message)
     endif
 
