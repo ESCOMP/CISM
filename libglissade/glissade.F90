@@ -1086,7 +1086,6 @@ contains
 
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
-
   end subroutine glissade_transport_solve
 
 !=======================================================================
@@ -1099,6 +1098,7 @@ contains
 
     use parallel
 
+    use glimmer_paramets, only: thk0, tim0
     use glissade_calving, only: glissade_calve_ice
     use glide_mask, only: glide_set_mask
 
@@ -1572,12 +1572,51 @@ contains
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
 
-    ! compute the velocity norm and basal velocity (for diagnostic output)
+    ! Calculate wvel, assuming grid velocity is 0.
+    ! This is calculated relative to the ice sheet base, rather than a fixed reference location.
+    ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
+    ! Note: For glissade, wvel is diagnostic only.
+    !       Pass in the basal melt rate for grounded ice only, as in Glide.
+    call wvelintg(model%velocity%uvel,                        &
+                  model%velocity%vvel,                        &
+                  model%geomderv,                             &
+                  model%numerics,                             &
+                  model%velowk,                               &
+                  model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
+                  model%geometry%thck,                        &
+                  model%temper%bmlt_ground,                   &
+                  model%velocity%wvel)
+    ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.
 
-    k = model%general%upn
-    model%velocity%ubas(:,:) = model%velocity%uvel(k,:,:)
-    model%velocity%vbas(:,:) = model%velocity%vvel(k,:,:)
+    ! compute the velocity norm (for diagnostic output)
     model%velocity%velnorm(:,:,:) = sqrt(model%velocity%uvel(:,:,:)**2 + model%velocity%vvel(:,:,:)**2)
+
+    ! compute the mean velocity
+
+    model%velocity%uvel_mean(:,:) = 0.0d0
+    model%velocity%vvel_mean(:,:) = 0.0d0
+
+    k = 1    ! top surface velocity associated with top half of layer 1
+    model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
+                                  + model%numerics%stagsigma(k) * model%velocity%uvel(k,:,:)
+    model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
+                                  + model%numerics%stagsigma(k) * model%velocity%vvel(k,:,:)
+
+    do k = 2, model%general%upn-1
+       model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
+                                     + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
+       model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
+                                     + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+    enddo
+
+    k = model%general%upn  ! basal velocity associated with bottom half of layer (upn-1)
+    model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
+                                  + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
+    model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
+                                  + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+
+    ! magnitude of basal traction
+    model%stress%btract(:,:) = sqrt(model%stress%btractx(:,:)**2 + model%stress%btracty(:,:)**2)
 
     ! Copy uvel and vvel to arrays uvel_extend and vvel_extend.
     ! These arrays have horizontal dimensions (nx,ny) instead of (nx-1,ny-1).
@@ -1618,22 +1657,6 @@ contains
 
     endif
 
-    ! Calculate wvel, assuming grid velocity is 0.
-    ! This is calculated relative to ice sheet base, rather than a fixed reference location
-    ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
-    ! Note: For glissade, wvel_ho is diagnostic only.
-    !       Pass in the basal melt rate for grounded ice only, as in Glide.
-    call wvelintg(model%velocity%uvel,                        &
-                  model%velocity%vvel,                        &
-                  model%geomderv,                             &
-                  model%numerics,                             &
-                  model%velowk,                               &
-                  model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
-                  model%geometry%thck,                        &
-                  model%temper%bmlt_ground,                   &
-                  model%velocity%wvel_ho)
-    ! Note: halos may be wrong for wvel_ho, but since it is currently only used as an output diagnostic variable, that is OK.
-
     ! If beta is not passed in from an external file, then copy beta_internal to beta.
     ! Note: beta_internal, which is weighted by the grounded ice fraction, is the actual beta field
     !        in the glissade velocity calculation.  But if users specify 'beta' instead of
@@ -1652,6 +1675,50 @@ contains
     call staggered_parallel_halo(model%velocity%ubas)
     call staggered_parallel_halo(model%velocity%vbas)
     call parallel_halo(model%stress%efvs)
+
+    !------------------------------------------------------------------------
+    ! Diagnose some quantities that are not velocity-dependent, but may be desired for output
+    !------------------------------------------------------------------------
+
+    ! surface, basal and calving mass fluxes
+    ! positive for mass gain, negative for mass loss
+    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab(:,:)*thk0/tim0
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt_float(:,:) - model%temper%bmlt_ground(:,:)) * thk0/tim0
+    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+
+    ! real-valued masks
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          if (ice_mask(i,j) == 1) then
+             model%geometry%ice_mask(i,j) = 1.0d0
+             if (floating_mask(i,j) == 1) then
+                model%geometry%floating_mask(i,j) = 1.0d0
+                model%geometry%grounded_mask(i,j) = 0.0d0
+             else
+                model%geometry%grounded_mask(i,j) = 1.0d0
+                model%geometry%floating_mask(i,j) = 0.0d0
+             endif
+          else  ! ice_mask = 0
+             model%geometry%ice_mask(i,j) = 0.0d0
+             model%geometry%grounded_mask(i,j) = 0.0d0
+             model%geometry%floating_mask(i,j) = 0.0d0
+          endif
+       enddo
+    enddo
+
+    ! thickness tendency dH/dt from one step to the next
+    ! Note: This diagnostic will not be correct on the first step of a restart
+    if (model%numerics%time > model%numerics%tstart) then
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) &
+                                          / model%numerics%dt
+             model%geometry%thck_old(i,j) = model%geometry%thck(i,j)
+          enddo
+       enddo
+    else
+       model%geometry%dthck_dt(:,:) = 0.0d0
+    endif
 
   end subroutine glissade_diagnostic_variable_solve
 
