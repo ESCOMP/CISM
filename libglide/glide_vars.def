@@ -963,7 +963,7 @@ coordinates:   lon lat
 
 [sfc_mbal_flux]
 dimensions:    time, y1, x1
-units:         kg/m^2/s
+units:         kg/m2/s
 long_name:     surface mass balance flux
 data:          data%geometry%sfc_mbal_flux
 standard_name: land_ice_surface_specific_mass_balance_flux
@@ -972,7 +972,7 @@ average:       1
 
 [basal_mbal_flux]
 dimensions:    time, y1, x1
-units:         kg/m^2/s
+units:         kg/m2/s
 long_name:     basal mass balance flux
 data:          data%geometry%basal_mbal_flux
 standard_name: land_ice_basal_specific_mass_balance_flux
@@ -981,7 +981,7 @@ average:       1
 
 [calving_flux]
 dimensions:    time, y1, x1
-units:         kg/m^2/s
+units:         kg/m2/s
 long_name:     calving flux
 data:          data%geometry%calving_flux
 standard_name: land_ice_specific_mass_flux_due_to_calving
