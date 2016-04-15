@@ -421,7 +421,7 @@ contains
     ! TODO: Should call to calcbwat go here or in diagnostic solve routine? Make sure consistent with Glide.
     call calcbwat(model, &
                   model%options%whichbwat, &
-                  model%temper%bmlt_ground, &
+                  model%temper%bmlt, &
                   model%temper%bwat, &
                   model%temper%bwatflx, &
                   model%geometry%thck, &
@@ -710,12 +710,10 @@ contains
                                    model%temper%temp,                                            & ! deg C
                                    model%temper%waterfrac,                                       & ! unitless
                                    model%temper%bpmp,                                            & ! deg C
-                                   model%temper%bmlt_ground,                                     & ! m/s on output
-                                   model%temper%bmlt_float)                                        ! m/s on output
+                                   model%temper%bmlt)                                              ! m/s on output
                                      
        ! convert bmlt from m/s to scaled model units
-       model%temper%bmlt_ground = model%temper%bmlt_ground * tim0/thk0
-       model%temper%bmlt_float  = model%temper%bmlt_float * tim0/thk0
+       model%temper%bmlt = model%temper%bmlt * tim0/thk0
        
     else
 
@@ -731,7 +729,7 @@ contains
     ! Update basal hydrology, if needed
     call calcbwat( model,                                    &
                    model%options%whichbwat,                  &
-                   model%temper%bmlt_ground,                 &
+                   model%temper%bmlt,                        &
                    model%temper%bwat,                        &
                    model%temper%bwatflx,                     &
                    model%geometry%thck,                      &
@@ -796,7 +794,7 @@ contains
 
     ! temporary bmlt array
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
-       bmlt_continuity  ! = bmlt_ground + bmlt_float if basal mass balance is included in continuity equation
+       bmlt_continuity  ! = bmlt if basal mass balance is included in continuity equation
                         ! else = 0
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
@@ -873,9 +871,8 @@ contains
        call t_startf('glissade_transport_driver')
 
        if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
-         ! combine grounded and melting terms, convert to m/s
-         ! Note: bmlt_ground = 0 wherever the ice is floating, and bmlt_float = 0 wherever the ice is grounded
-          bmlt_continuity(:,:) = (model%temper%bmlt_ground(:,:) + model%temper%bmlt_float(:,:)) * thk0/tim0   
+          ! convert to m/s
+          bmlt_continuity(:,:) = model%temper%bmlt(:,:) * thk0/tim0
        else                                                           ! do not include bmlt in continuity equation
           bmlt_continuity(:,:) = 0.d0
        endif
@@ -1584,7 +1581,7 @@ contains
                   model%velowk,                               &
                   model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
                   model%geometry%thck,                        &
-                  model%temper%bmlt_ground,                   &
+                  model%temper%bmlt,                          &
                   model%velocity%wvel)
     ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.
 
@@ -1683,7 +1680,7 @@ contains
     ! surface, basal and calving mass fluxes
     ! positive for mass gain, negative for mass loss
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab(:,:)*thk0/tim0
-    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt_float(:,:) - model%temper%bmlt_ground(:,:)) * thk0/tim0
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
     ! real-valued masks

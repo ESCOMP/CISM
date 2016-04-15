@@ -1069,8 +1069,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
-    real(dp),dimension(:,:),  pointer :: bmlt_ground =>null()!> Basal melt-rate for grounding ice (> 0 for melt, < 0 for freeze-on)
-    real(dp),dimension(:,:),  pointer :: bmlt_float => null()!> Basal melt rate for floating ice (> 0 for melt, < 0 for freeze-on) 
+    real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
@@ -1552,8 +1551,7 @@ contains
     !> \item \texttt{flwa(upn,ewn,nsn))}           !WHL - 2 choices
     !> \item \texttt{dissip(upn,ewn,nsn))}         !WHL - 2 choices
     !> \item \texttt{bwat(ewn,nsn))}
-    !> \item \texttt{bmlt_ground(ewn,nsn))}
-    !> \item \texttt{bmlt_float(ewn,nsn))}
+    !> \item \texttt{bmlt(ewn,nsn))}
     !> \item \texttt{bmlt_float_mask(ewn,nsn))}
     !> \item \texttt{bfricflx(ewn,nsn))}
     !> \item \texttt{ucondflx(ewn,nsn))}
@@ -1695,8 +1693,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwatflx)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_ground)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
@@ -1961,10 +1958,8 @@ contains
         deallocate(model%temper%bwatflx)
     if (associated(model%temper%stagbwat)) &
         deallocate(model%temper%stagbwat)
-    if (associated(model%temper%bmlt_ground)) &
-        deallocate(model%temper%bmlt_ground)
-    if (associated(model%temper%bmlt_float)) &
-        deallocate(model%temper%bmlt_float)
+    if (associated(model%temper%bmlt)) &
+        deallocate(model%temper%bmlt)
     if (associated(model%temper%bmlt_float_mask)) &
         deallocate(model%temper%bmlt_float_mask)
     if (associated(model%temper%bpmp)) &

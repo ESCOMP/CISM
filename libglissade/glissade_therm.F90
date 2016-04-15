@@ -519,7 +519,7 @@ module glissade_therm
                                    bwat,                              &
                                    temp,            waterfrac,        &
                                    bpmp,                              &
-                                   bmlt_ground,     bmlt_float)
+                                   bmlt)
 
     ! Calculate the new ice temperature by one of several methods:
     ! (0) set to surface air temperature
@@ -592,8 +592,7 @@ module glissade_therm
 
     real(dp), dimension(:,:), intent(out) ::  &
          bpmp,            &! basal pressure melting point temperature (deg C)
-         bmlt_ground,     &! basal melt rate for grounded ice (m/s), > 0 for melting
-         bmlt_float        ! basal melt rate for floating ice (m/s), > 0 for melting
+         bmlt              ! basal melt rate (m/s), > 0 for melting
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -629,6 +628,10 @@ module glissade_therm
          ucondflx,     & ! conductive heat flux (W/m^2) at upper sfc (positive down)
          lcondflx,     & ! conductive heat flux (W/m^2) at lower sfc (positive down)
          dissipcol       ! total heat dissipation rate (W/m^2) in column (>= 0)
+
+    real(dp), dimension(ewn,nsn) ::  &
+         bmlt_ground,     &! basal melt rate for grounded ice (m/s), > 0 for melting
+         bmlt_float        ! basal melt rate for floating ice (m/s), > 0 for melting
 
     integer :: ew, ns, up
     integer :: i, j, k
@@ -1045,7 +1048,11 @@ module glissade_therm
                                       bmlt_float_rate,  bmlt_float_mask, &
                                       bmlt_float_omega,                  &
                                       bmlt_float_h0,    bmlt_float_z0,   &
-                                      bmlt_ground,      bmlt_float)
+                                      bmlt_float)
+
+    ! Combine bmlt_ground and bmlt_float into one array
+
+    bmlt(:,:) = bmlt_ground(:,:) + bmlt_float(:,:)
 
     ! Check for temperatures that are physically unrealistic.
     ! Thresholds are set at the top of this module.
@@ -1640,7 +1647,8 @@ module glissade_therm
 
              ! Add internal melting associated with waterfrac > max_waterfrac (1%)
              ! Note: It is possible to have internal melting for floating ice.
-             !       If so, this melting will be switched later from bmlt_ground to bmlt_float.
+             !       Rather than have a separate calculation in subroutine glissade_basal_melting_float,
+             !        internal melting for all ice (both grounded and floating) is computed here. 
 
              if (ice_mask(ew,ns) == 1) then  ! ice is present
 
@@ -1677,7 +1685,8 @@ module glissade_therm
 
              ! Add internal melting associated with T > Tpmp
              ! Note: It is possible to have internal melting for floating ice.
-             !       If so, this melting will be switched later from bmlt_ground to bmlt_float.
+             !       Rather than have a separate calculation in subroutine glissade_basal_melting_float,
+             !        internal melting for all ice (both grounded and floating) is computed here. 
 
              if (ice_mask(ew,ns) == 1) then  ! ice is present
 
@@ -1744,7 +1753,7 @@ module glissade_therm
                                           bmlt_float_rate,  bmlt_float_mask, &
                                           bmlt_float_omega,                  &
                                           bmlt_float_h0,    bmlt_float_z0,   &
-                                          bmlt_ground,      bmlt_float)
+                                          bmlt_float)
 
     ! Compute the rate of basal melting for floating ice.
 
@@ -1781,9 +1790,6 @@ module glissade_therm
     ! Note: bmlt_ground is passed in because it includes any internal melting for floating ice.
     !       Where such melting has occurred, it is transferred from bmlt_ground to bmlt_float.
  
-    real(dp), dimension(:,:), intent(inout):: &
-         bmlt_ground          ! basal melt rate for grounded ice (m/s)
-               
     real(dp), dimension(:,:), intent(out):: &
          bmlt_float           ! basal melt rate for floating ice (m/s)
 
@@ -1860,20 +1866,6 @@ module glissade_therm
        enddo   ! ns
 
     endif   ! whichbmlt_float
-
-    ! If any internal melting was computed for floating ice, it was put in the array bmlt_ground.
-    ! Transfer it to bmlt_float.
-
-    do ns = 1, nsn
-       do ew = 1, ewn
-
-          if (ice_mask(ew,ns) == 1 .and. floating_mask(ew,ns) == 1 .and. bmlt_ground(ew,ns) /= 0.d0) then
-             bmlt_float(ew,ns) = bmlt_float(ew,ns) + bmlt_ground(ew,ns)
-             bmlt_ground(ew,ns) = 0.d0
-          endif
-
-       enddo
-    enddo
 
   end subroutine glissade_basal_melting_float
 

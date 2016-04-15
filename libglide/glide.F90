@@ -531,13 +531,13 @@ contains
                               model%geomderv%dusrfdns, &
                               model%velocity%ubas, &
                               model%velocity%vbas, &
-                              model%temper%bmlt_ground, &
+                              model%temper%bmlt, &
                               GLIDE_IS_FLOAT(model%geometry%thkmask))
 
           ! Note: calcbwat computes stagbwat
           call calcbwat(model, &
                         model%options%whichbwat, &
-                        model%temper%bmlt_ground, &
+                        model%temper%bmlt, &
                         model%temper%bwat, &
                         model%temper%bwatflx, &
                         model%geometry%thck, &
@@ -801,7 +801,7 @@ contains
        ! Update hydrology, if needed ------------------------------------------------
        call calcbwat(model, &
                      model%options%whichbwat, &
-                     model%temper%bmlt_ground, &
+                     model%temper%bmlt, &
                      model%temper%bwat, &
                      model%temper%bwatflx, &
                      model%geometry%thck, &

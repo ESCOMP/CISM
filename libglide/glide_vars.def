@@ -512,24 +512,13 @@ data:          data%temper%bheatflx
 load:          1
 coordinates:   lon lat
 
-[bmlt_ground]
+[bmlt]
 dimensions:    time, y1, x1
 units:         meter/year
-long_name:     basal melt rate for grounded ice
-data:          data%temper%bmlt_ground
+long_name:     basal melt rate
+data:          data%temper%bmlt
 factor:        scale_acab
-standard_name: land_ice_basal_melt_rate_grounded
-load:          1
-coordinates:   lon lat
-#average:       1
-
-[bmlt_float]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate for floating ice
-data:          data%temper%bmlt_float
-factor:        scale_acab
-standard_name: land_ice_basal_melt_rate_floating
+standard_name: land_ice_basal_melt_rate
 load:          1
 coordinates:   lon lat
 #average:       1

@@ -547,7 +547,7 @@ contains
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
                                       model%climate%acab(:,:),                              &
-                                      model%temper%bmlt_ground(:,:),                        &
+                                      model%temper%bmlt(:,:),                               &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
