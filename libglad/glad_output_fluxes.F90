@@ -102,8 +102,14 @@ contains
 
     !--------------------------------------------------------------------
     ! Accumulate liquid runoff (basal melting)
-    ! Note: This is basal melting for grounded ice only.
-    !       Basal melting for floating ice will typically be an input from the coupler, not an output.
+    ! Note: There can be basal melting beneath either grounded ice or floating ice.
+    !       Basal melt beneath floating ice will typically be an input from the coupler
+    !        (computed based on sub-ice-shelf ocean temperature and salinity).
+    !       If so, then we are simply passing it out again here.
+    !       But the output bmlt from floating ice could differ from the input if either
+    !       (1) floating ice melts entirely before using up the potential melt, or
+    !       (2) some floating ice melts internally.
+    !       In these cases, we will need to be careful that heat and water are conserved.
     !--------------------------------------------------------------------
                        
     ! Note on units: model%temper%bmlt has dimensionless units of ice thickness per unit time
@@ -112,7 +118,7 @@ contains
 
     ! Convert to kg/m^2/s
     output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:)  &
-         + model%temper%bmlt_ground(:,:) * thk0/tim0 * rhoi
+         + model%temper%bmlt(:,:) * thk0/tim0 * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

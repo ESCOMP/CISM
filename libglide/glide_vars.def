@@ -183,6 +183,14 @@ data:          data%stress%btracty(:,:)
 factor:        scale_tau
 load:          1
 
+[btract]
+dimensions:    time, y0, x0
+units:         Pa
+long_name:     basal traction (magnitude)
+data:          data%stress%btract(:,:)
+factor:        scale_tau
+load:          1
+
 [btractx_extend]
 dimensions:    time, y1, x1
 units:         Pa
@@ -199,25 +207,53 @@ data:          data%stress%btracty_extend(:,:)
 factor:        scale_tau
 load:          1
 
+[usfc]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     surface velocity in x direction
+data:          data%velocity%uvel(1,1:data%general%ewn-1,1:data%general%nsn-1)
+factor:        scale_uvel
+standard_name: land_ice_surface_x_velocity
+
+[vsfc]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     surface velocity in y direction
+data:          data%velocity%vvel(1,1:data%general%ewn-1,1:data%general%nsn-1)
+factor:        scale_uvel
+standard_name: land_ice_surface_y_velocity
+
+[wsfc]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     surface velocity in z direction
+data:          data%velocity%wvel(1,1:data%general%ewn,1:data%general%nsn)
+factor:        scale_uvel
+standard_name: land_ice_surface_z_velocity
+
 [ubas]
 dimensions:    time, y0, x0
 units:         meter/year
 long_name:     basal slip velocity in x direction
-data:          data%velocity%ubas
+data:          data%velocity%uvel(data%general%upn,1:data%general%ewn-1,1:data%general%nsn-1)
 factor:        scale_uvel
 standard_name: land_ice_basal_x_velocity
-load:          1
-#average:       1
 
 [vbas]
 dimensions:    time, y0, x0
 units:         meter/year
 long_name:     basal slip velocity in y direction
-data:          data%velocity%vbas
+data:          data%velocity%vvel(data%general%upn,1:data%general%ewn-1,1:data%general%nsn-1)
 factor:        scale_uvel
 standard_name: land_ice_basal_y_velocity
-load:          1
-#average:       1
+
+[wbas]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal velocity in z direction
+data:          data%velocity%wvel(data%general%upn,1:data%general%ewn,1:data%general%nsn)
+factor:        scale_uvel
+standard_name: land_ice_basal_z_velocity
 
 [taux]
 dimensions:    time, y0, x0
@@ -292,33 +328,59 @@ long_name:     vertically integrated ice damage
 data:          data%calving%damage_column
 coordinates:   lon lat
 
-[ivol]
-dimensions:    time
-units:         km3
-factor:        thk0*len0*len0*1.e-9
-long_name:     ice volume
-data:          data%geometry%ivol
-
 [iarea]
 dimensions:    time
-units:         km2
+units:         m2
 long_name:     area covered by ice 
-factor:        len0*len0*1.e-6
 data:          data%geometry%iarea
 
 [iareag]
 dimensions:    time
-units:         km2
+units:         m2
 long_name:     area covered by grounded ice 
-factor:        len0*len0*1.e-6
 data:          data%geometry%iareag
 
 [iareaf]
 dimensions:    time
-units:         km2
+units:         m2
 long_name:     area covered by floating ice 
-factor:        len0*len0*1.e-6
 data:          data%geometry%iareaf
+
+[ivol]
+dimensions:    time
+units:         m3
+long_name:     ice volume
+data:          data%geometry%ivol
+
+[imass]
+dimensions:    time
+units:         kg
+long_name:     ice mass
+data:          data%geometry%imass
+
+[imass_above_flotation]
+dimensions:    time
+units:         kg
+long_name:     ice mass above flotation
+data:          data%geometry%imass_above_flotation
+
+[total_smb_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total surface mass balance flux
+data:          data%geometry%total_smb_flux
+
+[total_bmb_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total basal mass balance flux
+data:          data%geometry%total_bmb_flux
+
+[total_calving_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total calving mass balance flux
+data:          data%geometry%total_calving_flux
 
 [thkmask]
 dimensions:    time, y1, x1
@@ -358,24 +420,6 @@ standard_name: bedrock_altitude
 coordinates:   lon lat
 
 ## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
-#[floating_mask]
-#dimensions:    time, y1, x1
-#units:         1
-#long_name:     real-valued mask denoting grounded/floating 
-#data:          data%geometry%floating_mask
-#factor:        1.0
-#coordinates:   lon lat
-
-# D. Martin added - fields that need to be passed to POP for ice-ocean coupling
-[ice_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     real-valued mask denoting ice (1) or no ice (0)
-data:          data%geometry%ice_mask
-factor:        1.0
-coordinates:   lon lat
-
-## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 #[lower_cell_loc]
 #dimensions:    time, y1, x1
 #units:         meter
@@ -393,6 +437,32 @@ coordinates:   lon lat
 #factor:        1.0
 #coordinates:   lon lat
 
+# D. Martin added - fields that need to be passed to POP for ice-ocean coupling
+[ice_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     real-valued mask for ice (1) or no ice (0)
+data:          data%geometry%ice_mask
+factor:        1.0
+coordinates:   lon lat
+
+## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
+[floating_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     real-valued mask for floating ice 
+data:          data%geometry%floating_mask
+factor:        1.0
+coordinates:   lon lat
+
+[grounded_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     real-valued mask for grounded ice
+data:          data%geometry%grounded_mask
+factor:        1.0
+coordinates:   lon lat
+
 [acab]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -401,7 +471,16 @@ data:          data%climate%acab
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance
 coordinates:   lon lat
-#average:       1
+load:          1
+
+[acab_anomaly]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     accumulation, ablation rate anomaly
+data:          data%climate%acab_anomaly
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_anomaly
+coordinates:   lon lat
 load:          1
 
 [flux_correction]
@@ -433,24 +512,13 @@ data:          data%temper%bheatflx
 load:          1
 coordinates:   lon lat
 
-[bmlt_ground]
+[bmlt]
 dimensions:    time, y1, x1
 units:         meter/year
-long_name:     basal melt rate for grounded ice
-data:          data%temper%bmlt_ground
+long_name:     basal melt rate
+data:          data%temper%bmlt
 factor:        scale_acab
-standard_name: land_ice_basal_melt_rate_grounded
-load:          1
-coordinates:   lon lat
-#average:       1
-
-[bmlt_float]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate for floating ice
-data:          data%temper%bmlt_float
-factor:        scale_acab
-standard_name: land_ice_basal_melt_rate_floating
+standard_name: land_ice_basal_melt_rate
 load:          1
 coordinates:   lon lat
 #average:       1
@@ -511,7 +579,7 @@ dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     annual mean air temperature
 data:          data%climate%artm
-standard_name: surface_temperature
+standard_name: surface_air_temperature
 cell_methods:  time: mean
 coordinates:   lon lat
 load:          1
@@ -519,10 +587,9 @@ load:          1
 [surftemp]
 dimensions:    time, y1, x1
 units:         degree_Celsius
-long_name:     annual mean surface temperature
-data:          data%climate%artm
+long_name:     surface ice temperature (NOTE: Glissade only)
+data:          data%temper%temp(0,1:data%general%ewn,1:data%general%nsn)
 standard_name: surface_temperature
-cell_methods:  time: mean
 coordinates:   lon lat
 load:          1
 
@@ -549,6 +616,15 @@ long_name:     tendency of ice thickness (NOTE: Glide only)
 data:          data%geomderv%dthckdtm
 factor:        scale_acab
 coordinates:   lon lat
+
+[dthck_dt]
+dimensions:    time, y1,x1
+units:         meter/year
+long_name:     tendency of ice thickness (NOTE: Glissade only)
+data:          data%geometry%dthck_dt
+factor:        scale_acab
+coordinates:   lon lat
+average:       1
 
 [uvel]
 dimensions:    time, level, y0, x0
@@ -621,6 +697,22 @@ data:          data%velocity%vvel_2d_extend(:,:)
 factor:        scale_uvel
 standard_name: land_ice_y_velocity_2d
 load:          1
+
+[uvel_mean]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     vertical mean ice velocity in x direction
+data:          data%velocity%uvel_mean
+factor:        scale_uvel
+standard_name: land_ice_vertical_mean_x_velocity
+
+[vvel_mean]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     vertical mean ice velocity in y direction
+data:          data%velocity%vvel_mean
+factor:        scale_uvel
+standard_name: land_ice_vertical_mean_y_velocity
 
 [resid_u]
 dimensions:     time, level, y0, x0
@@ -752,15 +844,6 @@ factor:        scale_wvel
 coordinates:   lon lat
 load:          1
 
-[wvel_ho]
-dimensions:    time, level, y1, x1
-units:         meter/year
-long_name:     vertical ice velocity relative to ice sheet base from higher-order model (NOTE: Glam only)
-data:          data%velocity%wvel_ho(up,:,:)
-factor:        scale_wvel
-coordinates:   lon lat
-load:          1
-
 [wgrd]
 dimensions:    time, level, y1, x1
 units:         meter/year
@@ -877,6 +960,33 @@ data:          data%geometry%f_ground
 standard_name: grounded_fraction
 load:          0
 coordinates:   lon lat
+
+[sfc_mbal_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     surface mass balance flux
+data:          data%geometry%sfc_mbal_flux
+standard_name: land_ice_surface_specific_mass_balance_flux
+coordinates:   lon lat
+average:       1
+
+[basal_mbal_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     basal mass balance flux
+data:          data%geometry%basal_mbal_flux
+standard_name: land_ice_basal_specific_mass_balance_flux
+coordinates:   lon lat
+average:       1
+
+[calving_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     calving flux
+data:          data%geometry%calving_flux
+standard_name: land_ice_specific_mass_flux_due_to_calving
+coordinates:   lon lat
+average:       1
 
 #TODO - Are these gline fields needed?
 #[gl_ew]

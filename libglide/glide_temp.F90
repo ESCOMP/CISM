@@ -619,7 +619,7 @@ contains
                            model%geomderv%dusrfdns, &
                            model%velocity%ubas, &
                            model%velocity%vbas, &
-                           model%temper%bmlt_ground, &
+                           model%temper%bmlt, &
                            GLIDE_IS_FLOAT(model%geometry%thkmask))
 
        ! Transform basal temperature and pressure melting point onto velocity grid
@@ -923,12 +923,12 @@ contains
                             thck,        stagthck,      &
                             dusrfdew,    dusrfdns,      &
                             ubas,        vbas,          &
-                            bmlt_ground, floater)
+                            bmlt,        floater)
 
     type(glide_global_type) :: model
     real(dp), dimension(:,0:,0:), intent(in) :: temp
     real(dp), dimension(:,:), intent(in) :: thck,  stagthck, dusrfdew, dusrfdns, ubas, vbas  
-    real(dp), dimension(:,:), intent(inout) :: bmlt_ground   ! scaled basal rate, m/s * tim0/thk0
+    real(dp), dimension(:,:), intent(inout) :: bmlt          ! scaled basal rate, m/s * tim0/thk0
                                                              ! > 0 for melting, < 0 for freeze-on
     logical, dimension(:,:), intent(in) :: floater
 
@@ -961,7 +961,7 @@ contains
                 !*sfp* NOTE that multiplication by this term has been moved up from below
                 slterm = model%tempwk%f(4) * slterm 
 
-                bmlt_ground(ew,ns) = 0.0d0
+                bmlt(ew,ns) = 0.0d0
 
                 !*sfp* changed this so that 'slterm' is multiplied by f(4) const. above ONLY for the 0-order SIA case,
                 ! since for the HO and SSA cases a diff. const. needs to be used
@@ -979,7 +979,7 @@ contains
                 up = model%general%upn - 1
 
                 do while (abs(temp(up,ew,ns)-pmptemp(up)) < 1.d-3 .and. up >= 3)
-                   bmlt_ground(ew,ns) = bmlt_ground(ew,ns) + newmlt
+                   bmlt(ew,ns) = bmlt(ew,ns) + newmlt
                    newmlt = model%tempwk%f(3) * model%tempwk%dupc(up) * thck(ew,ns) * model%temper%dissip(up,ew,ns)
                    up = up - 1
                 end do
@@ -987,18 +987,18 @@ contains
                 up = up + 1
 
                 if (up == model%general%upn) then
-                   bmlt_ground(ew,ns) = newmlt - &
+                   bmlt(ew,ns) = newmlt - &
                         model%tempwk%f(1) * ( (temp(up-2,ew,ns) - pmptemp(up-2)) * model%tempwk%dupa(up) &
                         + (temp(up-1,ew,ns) - pmptemp(up-1)) * model%tempwk%dupb(up) ) / thck(ew,ns) 
                 else
-                   bmlt_ground(ew,ns) = bmlt_ground(ew,ns) + max(0.d0, newmlt - &
+                   bmlt(ew,ns) = bmlt(ew,ns) + max(0.d0, newmlt - &
                         model%tempwk%f(1) * ( (temp(up-2,ew,ns) - pmptemp(up-2)) * model%tempwk%dupa(up) &
                         + (temp(up-1,ew,ns) - pmptemp(up-1)) * model%tempwk%dupb(up) ) / thck(ew,ns)) 
                 end if
 
              else
 
-                bmlt_ground(ew,ns) = 0.d0
+                bmlt(ew,ns) = 0.d0
 
              end if
 
@@ -1007,7 +1007,7 @@ contains
           ! do nothing because the plume model will have written the bmlt field
           else
 
-              bmlt_ground(ew,ns) = 0.d0
+              bmlt(ew,ns) = 0.d0
 
           end if
        end do
@@ -1017,8 +1017,8 @@ contains
 
     if (model%options%periodic_ew) then
        do ns = 2,model%general%nsn-1
-          bmlt_ground(1,ns) = bmlt_ground(model%general%ewn-1,ns)
-          bmlt_ground(model%general%ewn,ns) = bmlt_ground(2,ns)
+          bmlt(1,ns) = bmlt(model%general%ewn-1,ns)
+          bmlt(model%general%ewn,ns) = bmlt(2,ns)
        end do
     end if
 

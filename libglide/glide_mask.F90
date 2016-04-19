@@ -40,7 +40,7 @@ module glide_mask
 
 contains
 
-!TODO - Remove iarea and ivol calculation?  They can be computed elsewhere.
+!TODO - Remove iarea and ivol calculations?  They are now computed in glide_write_diag..
 
 !TODO - Write a new subroutine (in addition to glide_set_mask) to compute mask for staggered grid?
 !       This subroutine is now called from glissade_velo_driver with stagthck and stagtopg
@@ -223,7 +223,10 @@ contains
   end subroutine augment_kinbc_mask
 
   subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
+
     use parallel
+    use glimmer_paramets, only : len0, thk0
+
     implicit none
     real(dp), dimension(:,:) :: thck
     real(dp) :: dew, dns, thklim
@@ -252,12 +255,16 @@ contains
        ivol  = sum(2)
     endif
 
+    ! convert from model units to SI units
+    iarea = iarea*len0*len0
+    ivol = ivol*len0*len0*thk0
+
   end subroutine get_area_vol
  
   subroutine calc_iareaf_iareag(dew, dns, mask, iareaf, iareag, exec_serial)
     
     use parallel
-
+    use glimmer_paramets, only : len0 
     implicit none
     real(dp), intent(in) :: dew, dns
     real(dp), intent(out) :: iareaf, iareag
@@ -297,6 +304,10 @@ contains
        iareaf = sum(1)
        iareag = sum(2)
     endif
+
+    ! convert from model units to SI units (m^2)
+    iareag = iareag*len0*len0
+    iareaf = iareaf*len0*len0
 
   end subroutine calc_iareaf_iareag
 

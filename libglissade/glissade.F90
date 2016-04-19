@@ -100,6 +100,7 @@ contains
     !TODO - Remove glissade_temp
     use glissade_temp, only: glissade_init_temp
     use glissade_therm, only: glissade_init_therm
+    use glissade_transport, only: glissade_add_prescribed_acab
     use glimmer_scales
     use glide_mask
     use isostasy
@@ -234,6 +235,28 @@ contains
 
     ! initialize model diagnostics
     call glide_init_diag(model)
+
+    ! If the SMB is prescribed for regions where the input SMB = 0, then apply this value.
+    ! This may be appropriate for standalone runs forced by modeled SMB (e.g., from RACMO)
+    !  that is not computed outside present-day ice sheet boundaries.
+    ! Note: It assumes that SMB value of 0.0 are non-physical.
+    !       It may be more robust to supply a special value where SMB is not computed.
+
+    if (model%climate%prescribed_acab_value /= 0.0d0) then
+
+!!       print*, 'Setting acab = prescribed value (m/yr):', model%climate%prescribed_acab_value * scyr*thk0/tim0
+
+       call glissade_add_prescribed_acab(model%climate%acab,  &
+                                         model%climate%prescribed_acab_value)
+
+    endif
+
+!!    if (this_rank == model%numerics%rdiag_local) then
+!!       i = model%numerics%idiag_local
+!!       j = model%numerics%jdiag_local
+!!       print*, ' '
+!!       print*, 'this_rank, i, j, new acab:', this_rank, i, j, model%climate%acab(i,j) * scyr*thk0/tim0
+!!    endif
 
     ! initialize glissade components
 
@@ -398,7 +421,7 @@ contains
     ! TODO: Should call to calcbwat go here or in diagnostic solve routine? Make sure consistent with Glide.
     call calcbwat(model, &
                   model%options%whichbwat, &
-                  model%temper%bmlt_ground, &
+                  model%temper%bmlt, &
                   model%temper%bwat, &
                   model%temper%bwatflx, &
                   model%geometry%thck, &
@@ -687,12 +710,10 @@ contains
                                    model%temper%temp,                                            & ! deg C
                                    model%temper%waterfrac,                                       & ! unitless
                                    model%temper%bpmp,                                            & ! deg C
-                                   model%temper%bmlt_ground,                                     & ! m/s on output
-                                   model%temper%bmlt_float)                                        ! m/s on output
+                                   model%temper%bmlt)                                              ! m/s on output
                                      
        ! convert bmlt from m/s to scaled model units
-       model%temper%bmlt_ground = model%temper%bmlt_ground * tim0/thk0
-       model%temper%bmlt_float  = model%temper%bmlt_float * tim0/thk0
+       model%temper%bmlt = model%temper%bmlt * tim0/thk0
        
     else
 
@@ -708,7 +729,7 @@ contains
     ! Update basal hydrology, if needed
     call calcbwat( model,                                    &
                    model%options%whichbwat,                  &
-                   model%temper%bmlt_ground,                 &
+                   model%temper%bmlt,                        &
                    model%temper%bwat,                        &
                    model%temper%bwatflx,                     &
                    model%geometry%thck,                      &
@@ -749,7 +770,8 @@ contains
     use glissade_transport, only: glissade_transport_driver, &
                                   glissade_check_cfl,  &
                                   glissade_transport_setup_tracers, &
-                                  glissade_transport_finish_tracers
+                                  glissade_transport_finish_tracers, &
+                                  glissade_add_acab_anomaly
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
     implicit none
@@ -772,8 +794,11 @@ contains
 
     ! temporary bmlt array
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
-       bmlt_continuity  ! = bmlt_ground + bmlt_float if basal mass balance is included in continuity equation
+       bmlt_continuity  ! = bmlt if basal mass balance is included in continuity equation
                         ! else = 0
+
+    real(dp) :: previous_time       ! time (yr) at the start of this time step
+                                    ! (The input time is the time at the end of the step.)
 
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
                                     ! set to true for EVOL_UPWIND, else = false
@@ -846,9 +871,8 @@ contains
        call t_startf('glissade_transport_driver')
 
        if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
-         ! combine grounded and melting terms, convert to m/s
-         ! Note: bmlt_ground = 0 wherever the ice is floating, and bmlt_float = 0 wherever the ice is grounded
-          bmlt_continuity(:,:) = (model%temper%bmlt_ground(:,:) + model%temper%bmlt_float(:,:)) * thk0/tim0   
+          ! convert to m/s
+          bmlt_continuity(:,:) = model%temper%bmlt(:,:) * thk0/tim0
        else                                                           ! do not include bmlt in continuity equation
           bmlt_continuity(:,:) = 0.d0
        endif
@@ -885,6 +909,32 @@ contains
        thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
        acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
        acab_unscaled(:,:) = acab_unscaled(:,:) + model%climate%flux_correction(:,:) * thk0/tim0 ! add in flux correction here
+
+       ! If an SMB anomaly is being prescribed, then add it to the temporary acab array.
+
+!!       print*, 'maxval(acab_anomaly):', maxval(model%climate%acab_anomaly)
+!!       print*, 'minval(acab_anomaly):', minval(model%climate%acab_anomaly)
+
+       if (maxval(abs(model%climate%acab_anomaly)) /= 0.0d0) then
+
+          ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+          !       This is the reason for passing the previous time to the subroutine.
+          previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+          call glissade_add_acab_anomaly(acab_unscaled,                         &   ! m/s
+                                         model%climate%acab_anomaly*thk0/tim0,  &   ! convert to m/s for input
+                                         model%climate%acab_anomaly_timescale,  &   ! yr
+                                         previous_time)                             ! yr
+
+          !WHL - debug
+!!          if (this_rank==rtest) then
+!!             i = model%numerics%idiag
+!!             j = model%numerics%jdiag
+!!             print*, 'i, j, total anomaly (m/yr), previous_time, new acab (m/yr):', &
+!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, acab_unscaled(i,j)*scyr
+!!          endif
+
+       endif
 
        do sc = 1, model%numerics%subcyc
 
@@ -1033,7 +1083,6 @@ contains
 
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
-
   end subroutine glissade_transport_solve
 
 !=======================================================================
@@ -1046,6 +1095,7 @@ contains
 
     use parallel
 
+    use glimmer_paramets, only: thk0, tim0
     use glissade_calving, only: glissade_calve_ice
     use glide_mask, only: glide_set_mask
 
@@ -1519,12 +1569,51 @@ contains
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
 
-    ! compute the velocity norm and basal velocity (for diagnostic output)
+    ! Calculate wvel, assuming grid velocity is 0.
+    ! This is calculated relative to the ice sheet base, rather than a fixed reference location.
+    ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
+    ! Note: For glissade, wvel is diagnostic only.
+    !       Pass in the basal melt rate for grounded ice only, as in Glide.
+    call wvelintg(model%velocity%uvel,                        &
+                  model%velocity%vvel,                        &
+                  model%geomderv,                             &
+                  model%numerics,                             &
+                  model%velowk,                               &
+                  model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
+                  model%geometry%thck,                        &
+                  model%temper%bmlt,                          &
+                  model%velocity%wvel)
+    ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.
 
-    k = model%general%upn
-    model%velocity%ubas(:,:) = model%velocity%uvel(k,:,:)
-    model%velocity%vbas(:,:) = model%velocity%vvel(k,:,:)
+    ! compute the velocity norm (for diagnostic output)
     model%velocity%velnorm(:,:,:) = sqrt(model%velocity%uvel(:,:,:)**2 + model%velocity%vvel(:,:,:)**2)
+
+    ! compute the mean velocity
+
+    model%velocity%uvel_mean(:,:) = 0.0d0
+    model%velocity%vvel_mean(:,:) = 0.0d0
+
+    k = 1    ! top surface velocity associated with top half of layer 1
+    model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
+                                  + model%numerics%stagsigma(k) * model%velocity%uvel(k,:,:)
+    model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
+                                  + model%numerics%stagsigma(k) * model%velocity%vvel(k,:,:)
+
+    do k = 2, model%general%upn-1
+       model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
+                                     + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
+       model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
+                                     + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+    enddo
+
+    k = model%general%upn  ! basal velocity associated with bottom half of layer (upn-1)
+    model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
+                                  + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
+    model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
+                                  + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+
+    ! magnitude of basal traction
+    model%stress%btract(:,:) = sqrt(model%stress%btractx(:,:)**2 + model%stress%btracty(:,:)**2)
 
     ! Copy uvel and vvel to arrays uvel_extend and vvel_extend.
     ! These arrays have horizontal dimensions (nx,ny) instead of (nx-1,ny-1).
@@ -1565,22 +1654,6 @@ contains
 
     endif
 
-    ! Calculate wvel, assuming grid velocity is 0.
-    ! This is calculated relative to ice sheet base, rather than a fixed reference location
-    ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
-    ! Note: For glissade, wvel_ho is diagnostic only.
-    !       Pass in the basal melt rate for grounded ice only, as in Glide.
-    call wvelintg(model%velocity%uvel,                        &
-                  model%velocity%vvel,                        &
-                  model%geomderv,                             &
-                  model%numerics,                             &
-                  model%velowk,                               &
-                  model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
-                  model%geometry%thck,                        &
-                  model%temper%bmlt_ground,                   &
-                  model%velocity%wvel_ho)
-    ! Note: halos may be wrong for wvel_ho, but since it is currently only used as an output diagnostic variable, that is OK.
-
     ! If beta is not passed in from an external file, then copy beta_internal to beta.
     ! Note: beta_internal, which is weighted by the grounded ice fraction, is the actual beta field
     !        in the glissade velocity calculation.  But if users specify 'beta' instead of
@@ -1599,6 +1672,50 @@ contains
     call staggered_parallel_halo(model%velocity%ubas)
     call staggered_parallel_halo(model%velocity%vbas)
     call parallel_halo(model%stress%efvs)
+
+    !------------------------------------------------------------------------
+    ! Diagnose some quantities that are not velocity-dependent, but may be desired for output
+    !------------------------------------------------------------------------
+
+    ! surface, basal and calving mass fluxes
+    ! positive for mass gain, negative for mass loss
+    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab(:,:)*thk0/tim0
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt(:,:)) * thk0/tim0
+    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+
+    ! real-valued masks
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          if (ice_mask(i,j) == 1) then
+             model%geometry%ice_mask(i,j) = 1.0d0
+             if (floating_mask(i,j) == 1) then
+                model%geometry%floating_mask(i,j) = 1.0d0
+                model%geometry%grounded_mask(i,j) = 0.0d0
+             else
+                model%geometry%grounded_mask(i,j) = 1.0d0
+                model%geometry%floating_mask(i,j) = 0.0d0
+             endif
+          else  ! ice_mask = 0
+             model%geometry%ice_mask(i,j) = 0.0d0
+             model%geometry%grounded_mask(i,j) = 0.0d0
+             model%geometry%floating_mask(i,j) = 0.0d0
+          endif
+       enddo
+    enddo
+
+    ! thickness tendency dH/dt from one step to the next
+    ! Note: This diagnostic will not be correct on the first step of a restart
+    if (model%numerics%time > model%numerics%tstart) then
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) &
+                                          / model%numerics%dt
+             model%geometry%thck_old(i,j) = model%geometry%thck(i,j)
+          enddo
+       enddo
+    else
+       model%geometry%dthck_dt(:,:) = 0.0d0
+    endif
 
   end subroutine glissade_diagnostic_variable_solve
 
