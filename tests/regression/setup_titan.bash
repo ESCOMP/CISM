@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 
+# WARNING: this will break in the future.
+# Default modules no longer work, so versioned modules.
+
+
+# Latest numpy is needed, and it only works with gnu.
+module unload PrgEnv-pgi PrgEnv-gnu
+module load PrgEnv-gnu
+
 module load python
-module load python_numpy
-module load python_scipy
+module load python_numpy/1.9.2
+module load python_scipy/0.15.1
 module load python_matplotlib
-module load python_netcdf4
+
+# Only one version of matplot lib, and it load numpy 1.7.1
+# along side 1.9.2 for some reason. Just unloading it works.
+module unload python_numpy/1.7.1
+
+module load python_netcdf4/1.1.7
 module load cray-netcdf-hdf5parallel
 
 module list
