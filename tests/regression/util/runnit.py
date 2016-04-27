@@ -25,7 +25,7 @@ def personal(args, cism_driver, data_dir, test_dict):
     test_run = {}
     for case in test_dict:
         case_split = str.split(case," ")
-        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
+        case_dir = os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1])
         run_script, mod_dict = test_dict[case]
         
         run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
@@ -33,7 +33,7 @@ def personal(args, cism_driver, data_dir, test_dict):
         
 
         # run default test
-        test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0]),
+        test_commands = ["cd "+os.path.join(args.cism_dir, 'tests', case_split[0]),
                          "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+' -n 1',
                          "exit"]
         
@@ -50,7 +50,7 @@ def personal(args, cism_driver, data_dir, test_dict):
                 run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
                 case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
-                test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])+" ",
+                test_commands = ["cd "+os.path.join(args.cism_dir, 'tests', case_split[0])+" ",
                                  "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod],
                                  "exit"]
                 
@@ -113,7 +113,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     platform_dict = dicts.hpc_dict[args.platform]
     perf_large_dict = dicts.perf_dict
 
-    jobs_dir = data_dir+os.sep+'all_jobs'
+    jobs_dir = os.path.join(data_dir, 'all_jobs')
     paths.mkdir_p(jobs_dir)
 
     # get file name modifier
@@ -127,8 +127,8 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
     for case in test_dict:
         case_split = str.split(case," ")
-        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
-        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])
+        case_dir = os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1])
+        cism_test_dir = os.path.join(args.cism_dir, 'tests', case_split[0])
         run_script, mod_dict = test_dict[case]
         
         run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
@@ -200,7 +200,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # create the default and small perf job script.
     platform_dict['PBS_N'] = 'small'
 
-    small_job_name = jobs_dir+os.sep+args.platform+'_job.small'
+    small_job_name = os.path.join(jobs_dir, args.platform+'_job.small')
     create_job(args, small_job_name, platform_dict, small_run_commands)
     
     # ----------------------------------------
@@ -210,8 +210,8 @@ def hpc(args, cism_driver, data_dir, test_dict):
     
     for case in perf_large_dict:
         case_split = str.split(case," ")
-        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
-        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_split[0])
+        case_dir = os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1])
+        cism_test_dir = os.path.join(args.cism_dir, 'tests', case_split[0])
         run_script, mod_dict = perf_large_dict[case]
         
 
@@ -277,7 +277,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     else:
         platform_dict['RES_NUM'] = '16'
     
-    large_job_name = jobs_dir+os.sep+args.platform+'_job.large'
+    large_job_name = os.path.join(jobs_dir, args.platform+'_job.large')
     create_job(args, large_job_name, platform_dict, large_run_commands)
 
     if args.timing:
@@ -317,7 +317,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
             else:
                 platform_dict['RES_NUM'] = '1'
             
-            small_timing_job_name = jobs_dir+os.sep+args.platform+'_job.small_timing_'+str(rnd)
+            small_timing_job_name = os.path.join(jobs_dir, args.platform+'_job.small_timing_'+str(rnd))
             create_job(args, small_timing_job_name, platform_dict, small_timing_run_commands)
             small_timing_jobs.add(small_timing_job_name)
 
@@ -354,13 +354,13 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 platform_dict['PBS_walltime'] = '00:20:00'
                 platform_dict['RES_NUM'] = '16'
             
-            large_timing_job_name = jobs_dir+os.sep+args.platform+'_job.large_timing_'+str(rnd)
+            large_timing_job_name = os.path.join(jobs_dir, args.platform+'_job.large_timing_'+str(rnd))
             create_job(args, large_timing_job_name, platform_dict, large_timing_run_commands)
             large_timing_jobs.add(large_timing_job_name)
 
 
         # create a script to submit all batch jobs
-        sub_script_script = data_dir+os.sep+"submit_all_jobs.bash" 
+        sub_script_script = os.path.join(data_dir, "submit_all_jobs.bash")
         with open(sub_script_script,'w') as sub_script_file:
             sub_script_file.write('#!/bin/bash \n \n')
             sub_script_file.write('qsub '+small_job_name+'\n \n')
@@ -375,7 +375,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         
         
         # create a script to clean out the timing directory.
-        clean_script = data_dir+os.sep+"clean_timing.bash" 
+        clean_script = os.path.join(data_dir, "clean_timing.bash")
         with open(clean_script,'w') as clean_file:
             clean_file.write('#!/bin/bash \n')
             clean_file.write("cd "+data_dir+" \n")

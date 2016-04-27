@@ -37,9 +37,9 @@ parser.add_argument('-p','--platform', default='linux',
 parser.add_argument('-c','--compiler', default='gnu', 
         help="The compiler.\n")
 
-parser.add_argument('-i','--cism-dir', default=os.pardir+os.sep+os.pardir,
+parser.add_argument('-i','--cism-dir', default=os.path.join(os.pardir, os.pardir),
         help="Location of the CISM source code.")
-parser.add_argument('-b','--build-dir',default=os.getcwd()+os.sep+'build',
+parser.add_argument('-b','--build-dir',default=os.path.join(os.getcwd(), 'build'),
         help="Location to build CISM.")
 parser.add_argument('-j', type=unsigned_int, default='8',
         help="Number of processors to use when making CISM.")
@@ -94,7 +94,7 @@ def main():
     args = paths.make_absolute(args)
     cmake_dir, cmake_file = paths.cmake(args)
     paths.mkdir_p(args.build_dir)
-    cism_driver = args.build_dir+os.sep+'cism_driver'+os.sep+'cism_driver'
+    cism_driver = os.path.join(args.build_dir, 'cism_driver', 'cism_driver')
 
     # always run performance tests on HPC systems.
     if args.platform.lower() in dicts.hpc_dict.keys():
@@ -130,7 +130,7 @@ def main():
         prep_commands = ["cd "+args.build_dir,
                          #TODO: turn on args.library option.
                          #"export "+trilinos_string,
-                         "source "+cmake_dir+os.sep+cmake_file+" "+args.cism_dir,
+                         "source "+os.path.join(cmake_dir, cmake_file)+" "+args.cism_dir,
                          "make -j "+str(args.j),
                          "exit"]
 
@@ -153,8 +153,8 @@ def main():
     
     cache_root = "CMakeCache"
     cache_ext = ".txt"
-    cache_file = args.build_dir+os.sep+cache_root+cache_ext
-    cache_new = data_dir+os.sep+cache_root+cache_mod+cache_ext
+    cache_file = os.path.join(args.build_dir, cache_root+cache_ext)
+    cache_new = os.path.join(data_dir, cache_root+cache_mod+cache_ext)
     
     subprocess.check_call("cp "+cache_file+" "+cache_new, shell=True)
 

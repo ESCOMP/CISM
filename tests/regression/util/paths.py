@@ -73,7 +73,7 @@ def mkdir_p(path):
         else: raise
 
 def case_run_directory(case_dir, run_args):
-    case_run_dir = case_dir+os.sep+'s'+str(run_args.scale)+os.sep+'p'+str(run_args.parallel)
+    case_run_dir = os.path.join(case_dir, 's'+str(run_args.scale), 'p'+str(run_args.parallel))
     if run_args.sizes:
         case_run_dir += os.sep+'z'+str(run_args.sizes)
     return case_run_dir
@@ -101,7 +101,7 @@ def mkdir_test(args, test_dict):
     #TODO: ice_model will be a indicator for which particular ice-sheet model was used.
     #      right now, this is a rather moot point as BATS only works for CISM-GLISADE
     ice_model = "CISM-glissade"
-    data_dir = args.out_dir+os.sep+args.platform+'-'+args.compiler+mod_dir+os.sep+ice_model
+    data_dir = os.path.join(args.out_dir, args.platform+'-'+args.compiler+mod_dir, ice_model)
     
 
     # make the output directories softly
@@ -160,12 +160,12 @@ def mkdir_test(args, test_dict):
 def cmake(args):
     #TODO: turn on args.dycore option.
     #if args.dycore:
-    #    cmake_dir = args.cism_dir+os.sep+'builds'+os.sep+args.platform+'-'+args.compiler+'-'+str.split(args.dycore,"-")[0]
+    #    cmake_dir = os.path.join(args.cism_dir, 'builds', args.platform+'-'+args.compiler+'-'+str.split(args.dycore,"-")[0])
     #    cmake_file = args.platform+'-'+args.compiler+'-'+args.dycore+'-cmake.bash'
     #else:
-    #    cmake_dir = args.cism_dir+os.sep+'builds'+os.sep+args.platform+'-'+args.compiler
+    #    cmake_dir = os.path.join(args.cism_dir, 'builds', args.platform+'-'+args.compiler)
     #    cmake_file = args.platform+'-'+args.compiler+'-cmake.bash'
-    cmake_dir = args.cism_dir+os.sep+'builds'+os.sep+args.platform+'-'+args.compiler
+    cmake_dir = os.path.join(args.cism_dir, 'builds', args.platform+'-'+args.compiler)
     cmake_file = args.platform+'-'+args.compiler+'-cmake.bash'
 
     
@@ -175,7 +175,7 @@ def cmake(args):
         print("   See the cmake builds directory for supported platform-compiler combinations.")
         sys.exit(1)
 
-    if not args.skip_build and not os.path.isfile(cmake_dir+os.sep+cmake_file):
+    if not args.skip_build and not os.path.isfile(os.path.join(cmake_dir, cmake_file)):
         print("ERROR: cannot find your cmake file: "+cmake_file)
         print("   Looked for the cmake file in: "+cmake_dir)
         sys.exit(1)
