@@ -82,13 +82,13 @@ keep_empty = {}
 #        example: ('runISMIP_HOM.py -r a --size 20', dome_perf_small)
 test_dict = {
         'higher-order/dome dome': ('runDome.py', dome_perf_small),
-        'higher-order/shelf confined': ('runShelfConfined.py', shelfConfined_perf_small),
-        'higher-order/shelf circular': ('runShelfCircular.py', shelfConfined_perf_small),
-        'higher-order/ismip-hom 20 a': ('runISMIP_HOM.py -r a --size 20', ismip_perf_small),
-        'higher-order/ismip-hom 20 c': ('runISMIP_HOM.py -r c --size 20', keep_empty),
-        'higher-order/ismip-hom 80 a': ('runISMIP_HOM.py -r a --size 80', keep_empty),
-        'higher-order/ismip-hom 80 c': ('runISMIP_HOM.py -r c --size 80', keep_empty),
-        'higher-order/ismip-hom 100 f': ('runISMIP_HOM.py -r f --size 100', keep_empty),
+        'higher-order/shelf shelf-confined': ('runShelfConfined.py', shelfConfined_perf_small),
+        'higher-order/shelf shelf-circular': ('runShelfCircular.py', shelfConfined_perf_small),
+        'higher-order/ismip-hom 20 ismip-hom-a': ('runISMIP_HOM.py -r a --size 20', ismip_perf_small),
+        'higher-order/ismip-hom 20 ismip-hom-c': ('runISMIP_HOM.py -r c --size 20', keep_empty),
+        'higher-order/ismip-hom 80 ismip-hom-a': ('runISMIP_HOM.py -r a --size 80', keep_empty),
+        'higher-order/ismip-hom 80 ismip-hom-c': ('runISMIP_HOM.py -r c --size 80', keep_empty),
+        'higher-order/ismip-hom 100 ismip-hom-f': ('runISMIP_HOM.py -r f --size 100', keep_empty),
         'higher-order/stream stream': ('runStream.py', stream_perf_small),
         }
 

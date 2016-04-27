@@ -120,7 +120,7 @@ def mkdir_test(args, test_dict):
 
     for case in test_dict:
         case_split = str.split(case," ")
-        case_dir = os.path.normpath(data_dir+os.sep+str.split(case_split[0],"/")[-1]+os.sep+case_split[-1])
+        case_dir = os.path.normpath(os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1]))
         run_script, mod_dict = test_dict[case]
         
         run_args, ignore_args = run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
