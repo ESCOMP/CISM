@@ -274,7 +274,6 @@ contains
     real(dp),optional,intent(in) :: standard_parallel            !< standard parallel 1
     real(dp),optional,intent(in) :: standard_parallel_2          !< standard parallel 2
 
-
     if (associated(cfp%laea))  deallocate(cfp%laea)
     if (associated(cfp%aea))   deallocate(cfp%aea)
     if (associated(cfp%lcc))   deallocate(cfp%lcc)
@@ -451,5 +450,108 @@ contains
     params%ik0 = 1.d0/params%k0
 
   end subroutine glimmap_stere_init
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  !> compute local scale factors for stereographic projection
+  subroutine glimmap_stere_scale_factor(params, dx, dy)
+
+    ! Compute scale factors for each grid cell.
+    ! The scale factors describe the distortion of distances in a stereographic projection.
+    !
+    ! This code is adapted a Matlab script provided by Heiko Goelzer, based on this reference:
+    ! J. P. Snyder (1987): Map Projections--A Working Manual, US Geological Survey Professional Paper 1395.
+    !
+    ! Note: This subroutine cannot be called until after the 2D scale_factor array has been allocated.
+
+    use glimmer_log
+    use glimmer_physcon, only: pi, rearth
+    use parallel, only: parallel_globalindex, parallel_reduce_max, parallel_reduce_min
+
+    type(proj_stere),intent(inout) :: params
+
+    real(dp), intent(in) :: dx, dy   ! grid resolution in x and y (m)
+
+    ! Local variables
+
+    real(dp) :: lat_c, lon_c        ! latitude and longitude of projection origin (degrees)
+    real(dp) :: delta_x, delta_y    ! displacement of lower left corner relative to projection origin (m)
+    real(dp) :: deg2rad             ! conversion factor for degrees to radians
+    real(dp) :: f                   ! flattening of ellipse
+    real(dp) :: ecc                 ! eccentricity of ellipse
+
+    real(dp) :: lambda_0            ! longitude of projection origin (radians)
+    real(dp) :: phi_c               ! latitude of projection origin (radians)
+    real(dp) :: x, y                ! x and y relative to projection origin (m)
+    real(dp) :: rho                 ! distance from projection origin (m)
+    real(dp) :: m_c, t_c, t         ! coefficients in Snyder formulas
+    real(dp) :: lambda, phi, xi, m  ! more coefficients
+    real(dp) :: max_scale_factor, min_scale_factor  ! diagnostic info
+
+    integer :: ewn, nsn             ! local grid dimensions
+    integer :: i, j                 ! local horizontal grid indices
+    integer :: iglobal, jglobal     ! global horizontal grid indices
+
+    character(len=100) :: message
+
+    ewn = size(params%scale_factor,1)
+    nsn = size(params%scale_factor,2)
+
+    ! latitude and longitude of projection origin
+    lat_c = params%standard_parallel
+    lon_c = params%longitude_of_central_meridian
+
+    ! lower left corner of grid is located at (delta_x,delta_y) relative to projection origin
+    delta_x = -params%false_easting
+    delta_y = -params%false_northing
+
+    deg2rad = pi/180.d0   ! degrees to radians
+
+    f = 1.0d0 / 298.257d0        ! flatness parameter (Snyder p. 12)
+    ecc = sqrt(2.d0*f - f**2)    ! eccentricity
+
+    lambda_0 = deg2rad * lon_c
+    phi_c = deg2rad * lat_c
+
+    m_c = cos(phi_c) / (1.d0 - ecc**2 * (sin(phi_c))**2)**0.5  ! Eq. 14-15
+    t_c = tan(pi/4.d0 - phi_c/2.d0) / ( ((1.d0 - ecc*sin(phi_c)) / (1.d0 + ecc*sin(phi_c)))**(ecc/2.d0) )  ! Eq. 15-9
+
+    params%scale_factor(:,:) = 1.d0   ! initialize to sensible default
+
+    do j = 1, nsn
+       do i = 1, ewn
+
+          call parallel_globalindex(i, j, iglobal, jglobal)
+
+          ! compute x and y at cell center, relative to the projection origin
+          x = delta_x + (real(iglobal,dp)-0.5d0)*dx
+          y = delta_y + (real(jglobal,dp)-0.5d0)*dy
+
+          ! compute other coefficients from Snyder
+          rho = sqrt(x**2 + y**2)       ! Eq. 20-18
+          t = rho * t_c/(rearth*m_c)    ! Eq. 21-40   !Note: This works only if lat_c /= 90 deg?
+          xi = pi/2.d0 - 2.d0*atan(t)   ! Eq. 7-13
+
+          phi = (xi + (ecc**2/2.d0 + 5.d0*ecc**4/24.d0 + ecc**6/12.d0 + 13.d0*ecc**8/360.d0) * sin(2.d0*xi) + &
+               (7.d0*ecc**4/48.d0 + 29.d0*ecc**6/120.d0 + 811.d0*ecc**8/11520.d0) * sin(4.d0*xi) + &
+               (7.d0*ecc**6/120.d0 + 81.d0*ecc**8/1120.d0) * sin(6.d0*xi) + &
+               (4279.d0*ecc**8/161280.d0) * sin(8.d0*xi))   ! Eq. 3-5
+
+          lambda = (lambda_0 + atan2(x,(-y)))               ! Eq. 20-16
+
+          m = cos(phi)/(1.d0-ecc**2 * (sin(phi))**2)**0.5   ! Eq. 14-15
+
+          params%scale_factor(i,j) = rho/(rearth*m)         ! Eq. 21-32 (k = scale_factor)
+
+       enddo
+    enddo
+
+    call write_log ('Computed scale factors for polar stereographic projection')
+    max_scale_factor = parallel_reduce_max(maxval(params%scale_factor))
+    min_scale_factor = parallel_reduce_min(minval(params%scale_factor))
+    write(message,*) 'max, min scale_factor:', max_scale_factor, min_scale_factor
+    call write_log(trim(message))
+
+  end subroutine glimmap_stere_scale_factor
 
 end module glimmer_map_init

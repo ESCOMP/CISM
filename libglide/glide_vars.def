@@ -328,6 +328,13 @@ long_name:     vertically integrated ice damage
 data:          data%calving%damage_column
 coordinates:   lon lat
 
+[scale_factor]
+dimensions:    time, y1, x1
+units:         unitless
+long_name:     scale factor for stereographic map projection
+data:          data%projection%stere%scale_factor
+coordinates:   lon lat
+  
 [iarea]
 dimensions:    time
 units:         m2
@@ -460,6 +467,14 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     real-valued mask for grounded ice
 data:          data%geometry%grounded_mask
+factor:        1.0
+coordinates:   lon lat
+
+[ice_mask_stag]
+dimensions:    time, y0, x0
+units:         1
+long_name:     real-valued mask on staggered grid for ice (1) or no ice (0)
+data:          data%geometry%ice_mask_stag
 factor:        1.0
 coordinates:   lon lat
 

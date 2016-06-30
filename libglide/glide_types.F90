@@ -784,8 +784,8 @@ module glide_types
     real(dp),dimension(:,:),pointer :: lower_cell_temp => null() !> temperature in the cell located at lower_cell_loc
     real(dp),dimension(:,:),pointer :: ice_mask => null()        !> = 1.0 where ice is present, else = 0.0
     real(dp),dimension(:,:),pointer :: floating_mask => null()   !> = 1.0 where ice is present and floating, else = 0.0
-
     real(dp),dimension(:,:),pointer :: grounded_mask => null()   !> = 1.0 where ice is present and grounded, else = 0.0
+    real(dp),dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1.0 where ice is present on staggered grid, else = 0.0
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -1810,6 +1810,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
+    call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
 
@@ -1891,6 +1892,11 @@ contains
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
+    endif
+
+    ! projection arrays
+    if (associated(model%projection%stere)) then
+       call coordsystem_allocate(model%general%ice_grid, model%projection%stere%scale_factor)
     endif
 
     ! The remaining arrays are not currently used
@@ -2168,6 +2174,8 @@ contains
        deallocate(model%geometry%floating_mask)
     if (associated(model%geometry%grounded_mask)) &
        deallocate(model%geometry%grounded_mask)
+    if (associated(model%geometry%ice_mask_stag)) &
+       deallocate(model%geometry%ice_mask_stag)
     if (associated(model%geometry%lower_cell_loc)) &
        deallocate(model%geometry%lower_cell_loc)
     if (associated(model%geometry%lower_cell_temp)) &
@@ -2267,6 +2275,13 @@ contains
         deallocate(model%isostasy%load)
     if (associated(model%isostasy%load_factors)) &
         deallocate(model%isostasy%load_factors)
+
+    ! projection arrays
+    if (associated(model%projection%stere)) then
+       if (associated(model%projection%stere%scale_factor)) then
+          deallocate(model%projection%stere%scale_factor)
+       endif
+    endif
 
     ! The remaining arrays are not currently used
     ! phaml arrays

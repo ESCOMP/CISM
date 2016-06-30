@@ -158,13 +158,31 @@ contains
     ! initialize
     calving_thck(:,:) = 0.d0
 
-    if (which_calving == CALVING_NONE) then  ! do nothing
-       return
-    endif
-
     nx = size(thck,1)
     ny = size(thck,2)
     nz = size(sigma)
+
+
+    if (which_calving == CALVING_NONE) then
+
+       ! remove floating islands (if desired) and return
+
+       if (remove_floating_islands) then
+
+          if (verbose_calving .and. main_task) then
+             print*, 'Remove floating islands'
+          endif
+
+          call glissade_remove_floating_islands(&
+               thck,              relx,        &
+               topg,              eus,         &
+               thklim,            calving_thck)
+
+       endif
+
+       return
+
+    endif
 
     allocate (cell_mask(nx,ny))
     allocate (calving_law_mask(nx,ny))
@@ -218,7 +236,7 @@ contains
     !        from previously protected cells.
 
     if (which_calving == CALVING_THCK_THRESHOLD) then  ! calve floating ice thinner than calving_minthck
-                                                       ! (if more than one cell away from the actice ice margin)
+                                                           ! (if more than one cell away from the actice ice margin)
        ! get masks
        ! Note: Floating ice is considered active only if thck > calving_minthck
 
@@ -673,8 +691,9 @@ contains
     allocate (color(nx,ny))
 
     ! calculate masks
-    ! Note: A limit of 0.0 does not work because it counts very thin floating cells as active.
-    !       Then the algorithm can fail to identify floating regions that are dynamically isolated.
+    ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
+    !       Then the algorithm can fail to identify floating regions that should be removed
+    !       (since they are separated from any cells that are truly active).
 
     call glissade_calculate_masks(nx,            ny,            &
                                   thck,                         &
@@ -720,7 +739,7 @@ contains
              enddo
           enddo
           
-       else  ! count > 1; check for halo cells that were just filled on neighbor processors
+       else  ! count > 1; first check for halo cells that were just filled on neighbor processors
 
           call parallel_halo(color)
 
@@ -781,7 +800,7 @@ contains
              print*, 'Remove floating island: task, i, j =', this_rank, i, j
              calving_thck(i,j) = thck(i,j)
              thck(i,j) = 0.0d0
-             !WHL - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
+             !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
           endif
        enddo
     enddo

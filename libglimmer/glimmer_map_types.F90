@@ -106,6 +106,9 @@ module glimmer_map_types
      real(dp) :: ik0                                !< inverse of k0
      real(dp) :: sinp                               !< sin of latitude_of_projection_origin
      real(dp) :: cosp                               !< cos of latitude_of_projection_origin
+     !WHL - Added local scale factor for stereographic projections.
+     ! TODO: Add scale factor for other projections?
+     real(dp), dimension(:,:), pointer :: scale_factor => null()   !< scale factor for each grid cell
   end type proj_stere
 
   ! Global mapping parameters ----------------------------------

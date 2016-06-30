@@ -106,7 +106,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use felix_dycore_interface, only: felix_velo_init
     use glide_bwater
-    use glimmer_paramets, only: thk0, tim0
+    use glimmer_paramets, only: thk0, len0, tim0
 
     use glissade_calving, only: glissade_calve_ice
 
@@ -162,6 +162,18 @@ contains
 
     ! allocate arrays
     call glide_allocarr(model)
+
+    ! Compute scale factors for stereogphic map projection.
+    ! Note: Not yet enabled for other map projections.
+    ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
+
+    if (associated(model%projection%stere)) then
+
+       call glimmap_stere_scale_factor(model%projection%stere,  &
+                                       model%numerics%dew*len0, &
+                                       model%numerics%dns*len0)
+
+    endif
 
     ! set masks at global boundary for no-penetration boundary conditions
     ! this subroutine includes a halo update
@@ -1667,6 +1679,8 @@ contains
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
     ! real-valued masks
+
+    ! unstaggered grid
     do j = 1, model%general%nsn
        do i = 1, model%general%ewn
           if (ice_mask(i,j) == 1) then
@@ -1682,6 +1696,19 @@ contains
              model%geometry%ice_mask(i,j) = 0.0d0
              model%geometry%grounded_mask(i,j) = 0.0d0
              model%geometry%floating_mask(i,j) = 0.0d0
+          endif
+       enddo
+    enddo
+
+    ! staggered grid
+    ! set ice_mask_stag = 1.0 at vertices with ice_mask = 1 in any neighbor cell
+    do j = 1, model%general%nsn - 1
+       do i = 1, model%general%ewn - 1
+          if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or. &
+              ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1) then
+             model%geometry%ice_mask_stag(i,j) = 1.0d0
+          else
+             model%geometry%ice_mask_stag(i,j) = 0.0d0
           endif
        enddo
     enddo
