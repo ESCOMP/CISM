@@ -905,10 +905,12 @@ contains
 
        endif    ! TEMP_ENTHALPY
 
-       ! temporary in/out arrays in SI units (m)                               
-       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
-       acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
-       acab_unscaled(:,:) = acab_unscaled(:,:) + model%climate%flux_correction(:,:) * thk0/tim0 ! add in flux correction here
+       ! Set the corrected acab field
+       ! Typically, acab_corrected = acab, but sometimes it includes a time-dependent flux correction or anomaly.
+       ! Note that acab itself does not change in time.
+       ! TODO: Combine flux_correction and acab_anomaly into a single field?
+
+       model%climate%acab_corrected(:,:) = model%climate%acab(:,:) + model%climate%flux_correction(:,:)
 
        ! If an SMB anomaly is being prescribed, then add it to the temporary acab array.
 
@@ -921,8 +923,8 @@ contains
           !       This is the reason for passing the previous time to the subroutine.
           previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
-          call glissade_add_acab_anomaly(acab_unscaled,                         &   ! m/s
-                                         model%climate%acab_anomaly*thk0/tim0,  &   ! convert to m/s for input
+          call glissade_add_acab_anomaly(model%climate%acab_corrected,          &   ! scaled model units
+                                         model%climate%acab_anomaly,            &   ! scaled model units 
                                          model%climate%acab_anomaly_timescale,  &   ! yr
                                          previous_time)                             ! yr
 
@@ -931,10 +933,14 @@ contains
 !!             i = model%numerics%idiag
 !!             j = model%numerics%jdiag
 !!             print*, 'i, j, total anomaly (m/yr), previous_time, new acab (m/yr):', &
-!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, acab_unscaled(i,j)*scyr
+!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%climate%acab_corrected(i,j)
 !!          endif
 
        endif
+
+       ! temporary in/out arrays in SI units (m)
+       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
+       acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
        do sc = 1, model%numerics%subcyc
 
@@ -976,7 +982,7 @@ contains
        enddo     ! subcycling
 
        ! convert thck back to scaled units
-       ! (acab is intent(in) above so need to scale it back)
+       ! (acab_unscaled is intent(in) above, so no need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
 
        ! Eliminate ice from cells where mask prohibits it
@@ -1013,7 +1019,7 @@ contains
           print*, ' '
           print*, 'After glissade_transport_driver:'
           print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-          print*, 'max, min acab (m/yr) =', maxval(model%climate%acab)*scale_acab, minval(model%climate%acab)*scale_acab
+          print*, 'max, min acab (m/yr) =', maxval(model%climate%acab_corrected)*scale_acab, minval(model%climate%acab_corrected)*scale_acab
           print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
           print*, 'thklim =', model%numerics%thklim * thk0
           print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
@@ -1675,7 +1681,7 @@ contains
 
     ! surface, basal and calving mass fluxes
     ! positive for mass gain, negative for mass loss
-    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab(:,:)*thk0/tim0
+    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_corrected(:,:)*thk0/tim0
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 

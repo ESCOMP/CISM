@@ -956,12 +956,17 @@ module glide_types
   ! Note on acab_tavg: This is the average value of acab over an output interval.
   !                    If 'average = 1' in the acab entry of glide_vars.def, then acab_tavg is automatically
   !                     accumulated and averaged during runtime, without any additional code needed.
+  !
+  ! Note on acab_corrected: Optionally, acab can be supplemented with a flux correction or an anomaly.
+  !                         The background field, acab, does not include the corrections.
+  !                         Write acab_corrected to the output file to see the modified SMB field.
 
   type glide_climate
      !> Holds fields used to drive the model
      real(dp),dimension(:,:),pointer :: acab            => null() !> Annual mass balance (m/y ice)
      real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Annual mass balance (time average).
      real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Annual mass balance anomaly (m/y ice)
+     real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Annual mass balance with flux or anomaly corrections (m/y ice)
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
@@ -1861,6 +1866,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
@@ -2235,6 +2241,8 @@ contains
         deallocate(model%climate%acab_tavg)
     if (associated(model%climate%acab_anomaly)) &
         deallocate(model%climate%acab_anomaly)
+    if (associated(model%climate%acab_corrected)) &
+        deallocate(model%climate%acab_corrected)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%flux_correction)) &

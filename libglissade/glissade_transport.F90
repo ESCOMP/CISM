@@ -1413,11 +1413,11 @@
                                        time)
 
     real(dp), dimension(:,:), intent(inout) ::  &
-         acab           !> unadjusted SMB on input (m/yr)
+         acab           !> unadjusted SMB on input
                         !> SMB including the anomaly on output
 
     real(dp), dimension(:,:), intent(in) ::   &
-         acab_anomaly   !> anomalous SMB (m/yr) to be added to the input value
+         acab_anomaly   !> anomalous SMB to be added to the input value
 
     real(dp), intent(in) ::  &
          acab_anomaly_timescale   !> number of years over which the SMB anomaly is phased in linearly

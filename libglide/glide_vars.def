@@ -488,6 +488,15 @@ standard_name: land_ice_surface_specific_mass_balance
 coordinates:   lon lat
 load:          1
 
+[acab_corrected]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     corrected accumulation, ablation rate
+data:          data%climate%acab_corrected
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_corrected
+coordinates:   lon lat
+
 [acab_anomaly]
 dimensions:    time, y1, x1
 units:         meter/year
