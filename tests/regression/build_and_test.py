@@ -32,10 +32,10 @@ def unsigned_int(x):
         raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
     return x
 
-parser.add_argument('-p','--platform', default='linux',  
-        help="Your computer platform.")
-parser.add_argument('-c','--compiler', default='gnu', 
-        help="The compiler.\n")
+parser.add_argument('-p','--platform', default='linux-gnu',  
+        help="A dash seperated string of your platform, compiler, and library specification."
+            +" BATS will look for a CISM build directory specified by this string (or the longest subset of the string),"
+            +" and a `*-cmake.bash` build script with this string as a prefix.")
 
 parser.add_argument('-i','--cism-dir', default=os.path.join(os.pardir, os.pardir),
         help="Location of the CISM source code.")
@@ -61,19 +61,10 @@ parser.add_argument('--performance', action='store_true',
 parser.add_argument('--sleep', type=unsigned_int, default=30,
         help="Number of seconds to sleep between checks on running tests. Only used on personal machines, when HPC platforms are detected, BATS does not run the tests and just creates the batch jobs.")
 
-#TODO: Use these options to turn on and off dycores/trilinos in build (is there already),
-#      And then update the [dycore, which_ho_sparse, which_ho_nonlinear] options
-#      in the config files (still todo -- option will need to be added to the 
-#      test files run*.py.
-#           --dycore option is used in util.paths
-#           --library option is used here and in util.paths
-#           Uncomment them when turning back on.
-#parser.add_argument('--dycore', 
-#        help="The dycore used. May be a '-' separated list for special cases. \n"
-#            +"   Example: bisicles \n"
-#            +"   Special: bisicles-petsc-python")
-#parser.add_argument('--library',
-#        help="Use an external solver library like trilinos.")
+#TODO: Use options to turn on and off dycores/trilinos in build ,
+#      And then update the [dycore, which_ho_sparse, which_ho_nonlinear]
+#      options in the config files (still todo -- option will need to be added
+#      to the test files run*.py).
 
 
 # sets up the default options in args. Will be overwritten when running in
@@ -92,12 +83,11 @@ def main():
 
     # setup the needed paths
     args = paths.make_absolute(args)
-    cmake_dir, cmake_file = paths.cmake(args)
     paths.mkdir_p(args.build_dir)
     cism_driver = os.path.join(args.build_dir, 'cism_driver', 'cism_driver')
 
     # always run performance tests on HPC systems.
-    if args.platform.lower() in dicts.hpc_dict.keys():
+    if args.platform.lower().split("-")[0] in dicts.hpc_dict.keys():
         isHPC = True
         args.performance = True
     else:
@@ -108,15 +98,15 @@ def main():
         args.performance = True
 
     if not args.skip_build:
+        args = paths.cmake(args)
         print("\nPreparing to build CISM")
         print(  "=======================")
           
         print("Build options:")
         print("   Platform: "+args.platform)
-        print("   Compiler: "+args.compiler)
         print("-----------------------")
-        print("cmake directory: "+cmake_dir)
-        print("cmake file: "+cmake_file)
+        print("cmake directory: "+args.cmake_dir)
+        print("cmake file: "+args.cmake_file)
         
         print("\nBuilding CISM")
         print(  "=============\n")
@@ -130,7 +120,7 @@ def main():
         prep_commands = ["cd "+args.build_dir,
                          #TODO: turn on args.library option.
                          #"export "+trilinos_string,
-                         "source "+os.path.join(cmake_dir, cmake_file)+" "+args.cism_dir,
+                         "source "+os.path.join(args.cmake_dir, args.cmake_file)+" "+args.cism_dir,
                          "make -j "+str(args.j),
                          "exit"]
 
@@ -145,17 +135,10 @@ def main():
    
     print(  "   Copying CMake cache into regression test directory.")
     
-    mod_list = paths.file_modifier_list(args)
-
-    cache_mod = ""
-    if mod_list:
-        cache_mod = "-"+str.join("-", mod_list)
-    
-    cache_root = "CMakeCache"
-    cache_ext = ".txt"
-    cache_file = os.path.join(args.build_dir, cache_root+cache_ext)
-    cache_new = os.path.join(data_dir, cache_root+cache_mod+cache_ext)
-    
+    cache_name = "CMakeCache.txt"
+    cache_file = os.path.join(args.build_dir, cache_name)
+    cache_new = os.path.join(data_dir, cache_name)
+   
     subprocess.check_call("cp "+cache_file+" "+cache_new, shell=True)
 
     # check for GPTL if timing or performance is on

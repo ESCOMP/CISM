@@ -110,7 +110,8 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # ----------------------
     # Setup all run commands
     # ----------------------
-    platform_dict = dicts.hpc_dict[args.platform]
+    platform_key = args.platform.split("-")[0]
+    platform_dict = dicts.hpc_dict[platform_key]
     perf_large_dict = dicts.perf_dict
 
     jobs_dir = os.path.join(data_dir, 'all_jobs')
@@ -200,7 +201,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # create the default and small perf job script.
     platform_dict['PBS_N'] = 'small'
 
-    small_job_name = os.path.join(jobs_dir, args.platform+'_job.small')
+    small_job_name = os.path.join(jobs_dir, platform_key+'_job.small')
     create_job(args, small_job_name, platform_dict, small_run_commands)
     
     # ----------------------------------------
@@ -272,12 +273,12 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # create the default job script.
     platform_dict['PBS_N'] = 'large'
     platform_dict['PBS_walltime'] = '01:00:00'
-    if args.platform.lower() == 'hopper':
+    if platform_key.lower() == 'hopper':
         platform_dict['RES_NUM'] = str(11*24)
     else:
         platform_dict['RES_NUM'] = '16'
     
-    large_job_name = os.path.join(jobs_dir, args.platform+'_job.large')
+    large_job_name = os.path.join(jobs_dir, platform_key+'_job.large')
     create_job(args, large_job_name, platform_dict, large_run_commands)
 
     if args.timing:
@@ -312,12 +313,12 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # create the default job script.
             platform_dict['PBS_N'] = 'small_timing_'+str(rnd)
             platform_dict['PBS_walltime'] = '1:00:00'
-            if args.platform.lower() == 'hopper':
+            if platform_key.lower() == 'hopper':
                 platform_dict['RES_NUM'] = str(1*24)
             else:
                 platform_dict['RES_NUM'] = '1'
             
-            small_timing_job_name = os.path.join(jobs_dir, args.platform+'_job.small_timing_'+str(rnd))
+            small_timing_job_name = os.path.join(jobs_dir, platform_key+'_job.small_timing_'+str(rnd))
             create_job(args, small_timing_job_name, platform_dict, small_timing_run_commands)
             small_timing_jobs.add(small_timing_job_name)
 
@@ -347,14 +348,14 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
             # create the default job script.
             platform_dict['PBS_N'] = 'large_timing_'+str(rnd)
-            if args.platform.lower() == 'hopper':
+            if platform_key.lower() == 'hopper':
                 platform_dict['PBS_walltime'] = '20:00'
                 platform_dict['RES_NUM'] = str(11*24)
             else:
                 platform_dict['PBS_walltime'] = '00:20:00'
                 platform_dict['RES_NUM'] = '16'
             
-            large_timing_job_name = os.path.join(jobs_dir, args.platform+'_job.large_timing_'+str(rnd))
+            large_timing_job_name = os.path.join(jobs_dir, platform_key+'_job.large_timing_'+str(rnd))
             create_job(args, large_timing_job_name, platform_dict, large_timing_run_commands)
             large_timing_jobs.add(large_timing_job_name)
 
