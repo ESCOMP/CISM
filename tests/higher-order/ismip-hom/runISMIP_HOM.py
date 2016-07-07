@@ -35,8 +35,9 @@ def unsigned_int(x):
     Allows argparse to understand unsigned integers. 
     """
     x = int(x)
-    if x < 1:
-        raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
+    if x < 0:
+        raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer "
+                                        +"greater than or equal to zero.")
     return x
 
 parser.add_argument('-c','--config', default='./ismip-hom.config', 
@@ -76,7 +77,9 @@ parser.add_argument('--scale', type=unsigned_int, default=0,
 #FIXME: do we need a valid range here?
 parser.add_argument('--sizes', nargs='*', default=defaultSizes, type=unsigned_int, metavar='KM', 
         help="List (separated by spaces) the domain sizes to run. Recommended sizes: 5, 10, 20, 40, 80 and 160 km. "
-            +"Note: sizes will only be applied to experiments a though e. Experiment f has only one size (100 km). ")
+            +"Note: sizes will only be applied to experiments a though e. Experiment f has only one size (100 km) "
+            +"but may be run with different slip ratios (0 and 1). As such, the size descriptor in the Exp. f file "
+            +"names will reflect this slip ratio. ")
 parser.add_argument('--vertical', type=unsigned_int,
         help="Override the vertical grid size (upn) in the config file.")
 
@@ -182,7 +185,11 @@ def main():
             dx = float(size)*1000./float(nx)
             dy = float(size)*1000./float(ny)
 
-            res = str(size).zfill(4)
+            if experiment == 'f':
+                res = '0000'
+            else:
+                res = str(size).zfill(4)
+            
             if args.parallel > 0:
                 mod = '-'+experiment+args.modifier+'.'+res+'.p'+str(args.parallel).zfill(3)
             else:

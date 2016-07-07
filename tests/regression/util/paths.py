@@ -56,7 +56,7 @@ def mkdir_p(path):
 
 def case_run_directory(case_dir, run_args):
     case_run_dir = os.path.join(case_dir, 's'+str(run_args.scale), 'p'+str(run_args.parallel))
-    if run_args.sizes:
+    if run_args.sizes is not None:
         case_run_dir += os.sep+'z'+str(run_args.sizes)
     return case_run_dir
 
