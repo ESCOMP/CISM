@@ -362,7 +362,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         # create a script to submit all batch jobs
         sub_script_script = os.path.join(data_dir, "submit_all_jobs.bash")
         with open(sub_script_script,'w') as sub_script_file:
-            sub_script_file.write('#!/bin/bash \n \n')
+            sub_script_file.write('#!/usr/bin/env bash \n \n')
             sub_script_file.write('qsub '+small_job_name+'\n \n')
             sub_script_file.write('qsub '+large_job_name+'\n \n')
             if args.timing:
@@ -377,7 +377,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         # create a script to clean out the timing directory.
         clean_script = os.path.join(data_dir, "clean_timing.bash")
         with open(clean_script,'w') as clean_file:
-            clean_file.write('#!/bin/bash \n')
+            clean_file.write('#!/usr/bin/env bash \n \n')
             clean_file.write("cd "+data_dir+" \n")
             clean_file.write('find ./ -iname "*-t[0-9]*" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\; \n')
             clean_file.write(" \n")

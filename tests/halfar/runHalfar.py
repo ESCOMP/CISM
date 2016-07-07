@@ -317,7 +317,7 @@ def main():
         run_script = args.output_dir+os.sep+root+mod+".run" 
         
         with open(run_script,'w') as run_file:
-            run_file.write('#!/bin/bash \n')
+            run_file.write('#!/usr/bin/env bash \n \n')
             for command in commands_all:
                 run_file.write(command+" \n")
 

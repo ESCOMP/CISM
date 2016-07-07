@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 # Copyright (C) 2005, 2006, 2007, 2009, 2010
 # Glimmer-CISM contributors - see AUTHORS file for list of contributors
