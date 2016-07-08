@@ -154,13 +154,15 @@ def get_experiments_and_sizes(pattern):
     if matching_f_tests:
         experiments.add('f')
         matching = list(set(matching) - set(matching_f_tests))
+        if not matching:
+            matching = matching_f_tests
     
     for match in matching:
         mt = os.path.basename(match)
         ex, mod, sz, pr = split_file_name(mt)
         sizes.add(sz)
         experiments.add(ex)
-  
+
     return (list(experiments), list(sizes))
 
 
@@ -302,19 +304,29 @@ def main():
                 # They appear to be on the x1,y1 grid in their metadata but are actually on the x0,y0 grid.
                 # The additional row/column include the first halo value past ewn/nsn.
                 # That value is valid at both 0.0 and 1.0 on the non-dimensional coordinate system.
-                # Matrix manipulations for each test case below are done to create a larger matrix that goes from 0.0 to 1.0, inclusive.
-                # NOTE: The cases below are only writing [x,y,u,v] to the text file.  This is the minimum needed to compare to other models.
-                # In the future, the other additional fields specified in section 4 of http://homepages.ulb.ac.be/~fpattyn/ismip/ismiphom.pdf
-                # can be added.  wvel and the stresses are on the x1,y1 grid, so they would need to be interpolated to the x0,y0 grid
-                # since we are using that as the coordinate system in the text files.
+                # Matrix manipulations for each test case below are done to create a larger matrix that goes 
+                # from 0.0 to 1.0, inclusive.
+                #
+                # NOTE: The cases below are only writing [x,y,u,v] to the text file.  This is the
+                # minimum needed to compare to other models.  In the future, the other additional
+                # fields specified in section 4 of
+                #     http://homepages.ulb.ac.be/~fpattyn/ismip/ismiphom.pdf 
+                # can be added.  wvel and the stresses are on the x1,y1 grid, so they would need to
+                # be interpolated to the x0,y0 grid since we are using that as the coordinate system
+                # in the text files.
 
                 # Open the netCDF file that was written by CISM
 
                 # Standard filename format used by both scripts
                 if experiment == 'f': 
                     size = 100
+                    res = 0
+                else:
+                    res = size
+               
                 
-                out_file = pattern.replace('-?','-'+experiment).replace('????',str(size).zfill(4))
+
+                out_file = pattern.replace('-?','-'+experiment).replace('????',str(res).zfill(4))
                 netCDFfile = NetCDFFile(out_file,'r')
                 if netCDF_module == 'Scientific.IO.NetCDF':
                     velscale = netCDFfile.variables['uvel_extend'].scale_factor
@@ -460,12 +472,14 @@ def main():
         # Loop over the sizes requested on the command line
         for i, size in enumerate(map(int,sizes)):
             try:
+                res = size
                 if experiment == 'f': 
                     if size != 100 or len(sizes) > 1:
                         print 'NOTE: Experiment f uses a domain size of 100 km only'
                     size = 100
-                
-                out_file = pattern.replace('-?','-'+experiment).replace('????',str(size).zfill(4))
+                    res = 0
+
+                out_file = pattern.replace('-?','-'+experiment).replace('????',str(res).zfill(4))
 
                 # Create the plot axes for this domain size
                 if len(sizes) == 1:
@@ -610,7 +624,8 @@ def main():
             # this is because the velocities and usrf are on different grids, so it is difficult to include them
             # both in the standard ISMIP-HOM text file format that has a single x,y coord. system
             size = 100
-            out_file = pattern.replace('-?','-'+experiment).replace('????',str(size).zfill(4))
+            res = 0
+            out_file = pattern.replace('-?','-'+experiment).replace('????',str(res).zfill(4))
             netCDFfile = NetCDFFile(out_file,'r')
             if netCDF_module == 'Scientific.IO.NetCDF':
                 thkscale = netCDFfile.variables['thk'].scale_factor

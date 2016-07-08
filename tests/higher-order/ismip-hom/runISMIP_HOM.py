@@ -48,7 +48,7 @@ parser.add_argument('--hpc', action='store_true',
         help="Shortcuts parallel run command lookup for High Performance Computing Systems. Will set run command to `time apirun -n N`.")
 parser.add_argument('-m', '--modifier', metavar='MOD', default='',
         help="Add a modifier to file names. FILE.EX will become FILE.MOD.EX")
-parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=0, 
+parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=1, 
         help="Run in parallel using N processors.")
 parser.add_argument('-o', '--output-dir', default='./output',
         help="Write all created files here.")
