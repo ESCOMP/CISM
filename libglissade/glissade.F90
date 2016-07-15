@@ -677,6 +677,7 @@ contains
 
     real(dp), intent(in) :: dt   ! time step (s)
 
+    call t_startf('glissade_therm_driver')
     if (call_glissade_therm) then
 
        if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
