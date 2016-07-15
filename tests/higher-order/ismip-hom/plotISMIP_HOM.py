@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 This script plots the results of running ISMIP-HOM experiments using Glimmer.

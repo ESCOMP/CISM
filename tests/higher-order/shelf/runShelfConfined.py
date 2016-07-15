@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 #FIXME: More detailed description of this test case!!!
 """

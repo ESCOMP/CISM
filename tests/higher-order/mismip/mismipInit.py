@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # This script runs the mismip experiment on a linear downward sloping bed.
 # Files are written in the "output" subdirectory.
 

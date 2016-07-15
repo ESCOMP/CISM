@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 #NOTE: This is an annotated copy of the tests/higher-order/dome/runDome.py
 #      script. You should play around with the dome test case first so that you

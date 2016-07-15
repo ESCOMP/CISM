@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 This script runs an experiment for an ice sheet with a "dome" shape on a flat
