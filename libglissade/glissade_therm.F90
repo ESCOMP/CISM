@@ -634,7 +634,7 @@ module glissade_therm
          bmlt_float        ! basal melt rate for floating ice (m/s), > 0 for melting
 
     integer :: ew, ns, up
-    integer :: i, j, k
+    integer :: k
 
     logical :: lstop = .false.   ! flag for energy conservation error
     integer :: istop, jstop      ! local location of energy conservation error
@@ -674,7 +674,7 @@ module glissade_therm
           if (ice_mask_temp(ew,ns) == 1) then
              call glissade_pressure_melting_point(thck(ew,ns), bpmp(ew,ns))
           else
-             bpmp(i,j) = 0.d0
+             bpmp(ew,ns) = 0.d0
           endif
        enddo
     enddo
