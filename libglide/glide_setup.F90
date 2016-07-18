@@ -1002,8 +1002,8 @@ contains
 
     ! unsupported temperature options
     if (model%options%whichtemp == TEMP_ENTHALPY) then
-      call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently scientifically supported.  &
-           &USE AT YOUR OWN RISK.', GM_WARNING)
+      call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently &
+           &scientifically supported. USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
     if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temp_init)) then
@@ -1191,7 +1191,8 @@ contains
        write(message,*) 'ho_whichthermal_timestep: ',model%options%which_ho_thermal_timestep,  &
                          ho_whichthermal_timestep(model%options%which_ho_thermal_timestep)
        call write_log(message)
-       if (model%options%which_ho_thermal_timestep < 0 .or. model%options%which_ho_thermal_timestep >= size(ho_whichthermal_timestep)) then
+       if (model%options%which_ho_thermal_timestep < 0 .or. &
+            model%options%which_ho_thermal_timestep >= size(ho_whichthermal_timestep)) then
           call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
        end if
 
