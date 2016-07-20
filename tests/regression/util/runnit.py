@@ -360,21 +360,21 @@ def hpc(args, cism_driver, data_dir, test_dict):
             large_timing_jobs.add(large_timing_job_name)
 
 
-        # create a script to submit all batch jobs
-        sub_script_script = os.path.join(data_dir, "submit_all_jobs.bash")
-        with open(sub_script_script,'w') as sub_script_file:
-            sub_script_file.write('#!/usr/bin/env bash \n \n')
-            sub_script_file.write('qsub '+small_job_name+'\n \n')
-            sub_script_file.write('qsub '+large_job_name+'\n \n')
-            if args.timing:
-                for sm_jb in small_timing_jobs:
-                    sub_script_file.write('qsub '+sm_jb+'\n \n')
-                for lg_jb in large_timing_jobs:
-                    sub_script_file.write('qsub '+lg_jb+'\n \n')
+    # create a script to submit all batch jobs
+    sub_script_script = os.path.join(data_dir, "submit_all_jobs.bash")
+    with open(sub_script_script,'w') as sub_script_file:
+        sub_script_file.write('#!/usr/bin/env bash \n \n')
+        sub_script_file.write('qsub '+small_job_name+'\n \n')
+        sub_script_file.write('qsub '+large_job_name+'\n \n')
+        if args.timing:
+            for sm_jb in small_timing_jobs:
+                sub_script_file.write('qsub '+sm_jb+'\n \n')
+            for lg_jb in large_timing_jobs:
+                sub_script_file.write('qsub '+lg_jb+'\n \n')
 
-        os.chmod(sub_script_script, 0o755)   # uses an octal number!
+    os.chmod(sub_script_script, 0o755)   # uses an octal number!
         
-        
+    if args.timing:
         # create a script to clean out the timing directory.
         clean_script = os.path.join(data_dir, "clean_timing.bash")
         with open(clean_script,'w') as clean_file:
@@ -399,8 +399,11 @@ def hpc(args, cism_driver, data_dir, test_dict):
     if args.timing:
         for lg_jb in large_timing_jobs:
             print(  "      "+lg_jb)
-        print("\n   Submit all jobs with this script:")
-        print(  "      "+sub_script_script)
+    
+    print("\n   Submit all jobs with this script:")
+    print(  "      "+sub_script_script)
+    
+    if args.timing:
         print("\n   Created script to clean out timing directory:")
         print(  "      "+clean_script)
         print("\n      Run this script after ALL jobs finish to remove every unneeded file in the timing directories.")
