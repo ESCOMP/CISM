@@ -63,6 +63,7 @@ module glide_temp
 
   use glide_types
   use glimmer_global, only : dp 
+  use glimmer_log
 
   !TODO - Remove 'oldglide' logic when comparisons are complete  
   use glimmer_paramets, only : oldglide
@@ -81,13 +82,13 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
     use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_log
     use parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
 
     integer, parameter :: p1 = gn + 1  
     integer :: up, ns, ew
+    character(len=200) :: message
 
     !TODO - Change VERT_DIFF, etc. to integers?
     if (VERT_DIFF==0.)   call write_log('Vertical diffusion is switched off')
@@ -266,6 +267,10 @@ contains
              end do
           end do
 
+       else
+          write(message,*) 'ERROR: glide does not support temp_init = ', model%options%temp_init
+          call write_log(message, GM_FATAL)
+
        endif ! model%options%temp_init
 
     endif    ! restart file, input file, or other options
@@ -318,6 +323,7 @@ contains
 
   ! Local variables and parameters
 
+  character(len=200) :: message
   real(dp) :: tbed                           ! initial temperature at bed
   real(dp) :: pmptb                          ! pressure melting point temp at the bed
   real(dp), dimension(size(sigma)) :: pmpt   ! pressure melting point temp thru the column
@@ -354,6 +360,10 @@ contains
 
      call calcpmpt(pmpt(:), thck, sigma(:))
      temp(:) = min(temp(:), pmpt(:) - pmpt_offset)
+
+  case default
+     write(message,*) 'ERROR: glide does not support temp_init = ', temp_init
+     call write_log(message, GM_FATAL)
 
   end select
 
