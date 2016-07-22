@@ -122,6 +122,10 @@ contains
       endif
     endif
 
+    ! read glad configuration
+    call glad_i_readconfig(instance, config)
+    call glad_i_printconfig(instance)
+
     if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
 
        ! initialise the model
@@ -143,11 +147,6 @@ contains
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
 
     instance%glide_time = instance%model%numerics%tstart
-
-    ! read glad configuration
-
-    call glad_i_readconfig(instance, config)    
-    call glad_i_printconfig(instance)    
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file (specific to glad - other configs,
