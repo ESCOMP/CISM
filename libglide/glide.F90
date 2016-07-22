@@ -375,7 +375,7 @@ contains
 
 !=======================================================================
 
-  subroutine glide_init_state_diagnostic(model)
+  subroutine glide_init_state_diagnostic(model, evolve_ice)
 
     ! Calculate diagnostic variables for the initial model state
     ! This provides calculation of output fields at time 0
@@ -396,8 +396,16 @@ contains
     use glide_grid_operators
 
     type(glide_global_type), intent(inout) :: model     ! model instance
+    logical, intent(in), optional :: evolve_ice         ! whether ice evolution is turned on (if not present, assumed true)
 
     integer :: i, j
+    logical :: l_evolve_ice  ! local version of evolve_ice
+
+    if (present(evolve_ice)) then
+       l_evolve_ice = evolve_ice
+    else
+       l_evolve_ice = .true.
+    end if
 
     if (model%options%is_restart == RESTART_TRUE) then
        ! On a restart, just assign the basal velocity from uvel/vvel (which are restart variables)
@@ -412,7 +420,7 @@ contains
     ! ***Part 1: Make geometry consistent with calving law, if desired
     ! ------------------------------------------------------------------------       
 
-       if (model%options%calving_init == CALVING_INIT_ON) then
+       if (l_evolve_ice .and. model%options%calving_init == CALVING_INIT_ON) then
 
           !WHL - debug
           print*, 'Calving at initialization, whichcalving =', model%options%whichcalving

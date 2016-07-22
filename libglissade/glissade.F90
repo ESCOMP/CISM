@@ -88,7 +88,7 @@ contains
 
 !=======================================================================
 
-  subroutine glissade_initialise(model)
+  subroutine glissade_initialise(model, evolve_ice)
 
     ! initialise Glissade model instance
 
@@ -120,6 +120,7 @@ contains
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
+    logical, intent(in), optional :: evolve_ice       ! whether ice evolution is turned on (if not present, assumed true)
 
     !TODO - Is glimmer_version_char still needed?
     character(len=100), external :: glimmer_version_char
@@ -127,6 +128,13 @@ contains
     character(len=100) :: message
 
     integer :: i, j, k
+    logical :: l_evolve_ice  ! local version of evolve_ice
+
+    if (present(evolve_ice)) then
+       l_evolve_ice = evolve_ice
+    else
+       l_evolve_ice = .true.
+    end if
 
     call write_log(trim(glimmer_version_char()))
 
@@ -432,7 +440,8 @@ contains
 
     ! initial calving, if desired
     ! Note: Do this only for a cold start, not for a restart
-    if (model%options%calving_init == CALVING_INIT_ON .and. &
+    if (l_evolve_ice .and. &
+        model%options%calving_init == CALVING_INIT_ON .and. &
         model%options%is_restart == RESTART_FALSE) then
 
        ! ------------------------------------------------------------------------
