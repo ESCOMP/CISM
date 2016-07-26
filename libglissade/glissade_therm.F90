@@ -87,15 +87,22 @@ module glissade_therm
 
     real(dp), dimension(:,:), allocatable :: dups   ! vertical grid quantities
 
+    ! local parameter for debugging
+    logical, parameter:: verbose_therm = .false.  ! set to true for diagnostic column output
+
   contains
 
 !****************************************************    
 
-  subroutine glissade_init_therm (temp_init, is_restart,     &
-                                  ewn,       nsn,     upn,   &
-                                  sigma,     stagsigma,      &
-                                  thck,      artm,           &
-                                  temp)
+  subroutine glissade_init_therm (temp_init,  is_restart,        &
+                                  ewn,        nsn,        upn,   &
+                                  itest,      jtest,      rtest, &
+                                  sigma,      stagsigma,         &
+                                  thck,                          &
+                                  artm,                          &
+                                  acab,                          &
+                                  bheatflx,                      &
+                                  pmp_offset, temp)
 
     ! initialization subroutine for higher-order dycores, where temperature is defined at
     ! the midpoint of each layer plus the upper and lower surfaces
@@ -109,7 +116,9 @@ module glissade_therm
          temp_init,       &! method for initializing the temperature
          is_restart        ! = 1 if restarting, else = 0
 
-    integer, intent(in) :: ewn, nsn, upn     ! grid dimensions
+    integer, intent(in) :: &
+         ewn, nsn, upn,      & ! grid dimensions
+         itest, jtest, rtest   ! coordinates of diagnostic point
 
     real(dp), dimension(:), intent(in) ::   &
          sigma,           &! vertical coordinate, located at layer interfaces
@@ -117,7 +126,12 @@ module glissade_therm
 
     real(dp), dimension(:,:), intent(in) ::  &
          thck,            &! ice thickness (m)
-         artm              ! surface air temperature (deg C)
+         artm,            &! surface air temperature (deg C)
+         acab,            &! surface mass balance (m/s)
+         bheatflx          ! basal heat flux (W/m^2), positive down
+
+    real(dp), intent(in) :: &
+         pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
 
     real(dp), dimension(0:,:,:), intent(inout) ::  &
          temp              ! ice temperature
@@ -126,7 +140,17 @@ module glissade_therm
          
     ! Local variables
 
+    character(len=100) :: message
+
     integer :: up, ns, ew
+
+    logical :: verbose_column    ! if true, then write diagnostic info for the column
+
+    !WHL - option to overwrite initial temperature in input file
+    !      Can be useful is working with an input file that includes initial temperatures,
+    !       but we want to set a linear temperature profile instead
+    !TODO - Make this a config option?
+    logical, parameter :: overwrite_input_temps = .false.
 
     ! Precompute some grid quantities used in the vertical temperature solve
  
@@ -159,19 +183,23 @@ module glissade_therm
     endif
 
     !==== Initialize ice temperature.============
-    ! Five possibilities:
-    ! (1) Set ice temperature to 0 C everywhere in column (TEMP_INIT_ZERO)
-    ! (2) Set ice temperature to surface air temperature everywhere in column (TEMP_INIT_ARTM)
+    ! Six possibilities:
+    ! (1) Set ice temperature to 0 C everywhere in column (TEMP_INIT_ZERO).
+    ! (2) Set ice temperature to surface air temperature everywhere in column (TEMP_INIT_ARTM).
     ! (3) Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
-    !     at the bed (TEMP_INIT_LINEAR). 
+    !     at the bed (TEMP_INIT_LINEAR).
     !     A parameter (pmpt_offset) controls how far below Tpmp the initial bed temp is set.
-    ! (4) Read ice temperature from an initial input file.
-    ! (5) Read ice temperature from a restart file.
+    ! (4) Set up a temperature profile based on advective-diffusive balance, with T = artm
+    !     at the surface and dT/dz = -F_geo/k at the bed (TEMP_INIT_ADVECTIVE_DIFFUSIVE).
+    !     The temperature at each level is capped at the value computed by method (3).
+    ! (5) Read ice temperature from an initial input file.
+    ! (6) Read ice temperature from a restart file.
     !
     ! The default is (2).
-    ! If restarting, we always do (5).
-    ! If not restarting and the temperature field is present in the input file, we do (4).
-    ! If (4) or (5), then the temperature field should already have been read from a file,
+    ! Method (4) may be optimal for reducing spinup time in the interior of large ice sheets.
+    ! If not restarting and the temperature field is present in the input file, we do (5).
+    ! If restarting, we always do (6).
+    ! If (5) or (6), then the temperature field should already have been read from a file,
     !  and the rest of this subroutine will do nothing.
     ! Otherwise, the initial temperature is controlled by model%options%temp_init,
     !  which can be read from the config file.
@@ -183,8 +211,10 @@ module glissade_therm
 
        call write_log('Initializing ice temperature from the restart file')
 
-    elseif ( minval(temp) > (-1.0d0 * trpt) ) then  ! temperature has been read from an input file
-                                                    ! Note: trpt = 273.15 K
+    !WHL - debug - option to overwrite input file
+!!    elseif ( minval(temp) > (-1.0d0 * trpt) ) then  ! temperature has been read from an input file
+    elseif ( minval(temp) > (-1.0d0 * trpt) .and. .not.overwrite_input_temps) then  ! temperature has been read from an input file
+                                                      ! Note: trpt = 273.15 K
 
        ! Temperature has already been initialized from an input file.
        ! (We know this because the default initial temps of unphys_val -999 have been overwritten.)
@@ -201,11 +231,18 @@ module glissade_therm
                                  
        if (temp_init == TEMP_INIT_ZERO) then
           call write_log('Initializing ice temperature to 0 deg C')
-       elseif (temp_init==TEMP_INIT_ARTM) then ! initialize ice column temperature to min(artm, 0 C)
+       elseif (temp_init == TEMP_INIT_ARTM) then   ! initialize ice column temperature to min(artm, 0 C)
           call write_log('Initializing ice temperature to the surface air temperature')
        elseif (temp_init == TEMP_INIT_LINEAR) then ! initialize ice column temperature with a linear profile:
-                                                                 ! T = artm at the surface, and T <= Tpmp at the bed
+                                                   ! T = artm at the surface, and T <= Tpmp at the bed
           call write_log('Initializing ice temperature to a linear profile in each column')
+          write(message,*) 'Offset from pressure melting point temperature =', pmp_offset
+          call write_log(message)
+       elseif (temp_init == TEMP_INIT_ADVECTIVE_DIFFUSIVE) then  ! initialize ice column temperature based on advective-diffusive balance
+                                                                 ! T = artm at the surface, and dT/dz = -F_geo/k at the bed
+          call write_log('Initializing ice temperature based on advective-diffusive balance in each column')
+          write(message,*) 'Offset from pressure melting point temperature =', pmp_offset
+          call write_log(message)
        else
           call write_log('Error: invalid temp_init option in glissade_init_therm. It is possible that the temperature' &
                       // 'was not read correctly from the input file, resulting in unphysical values', GM_FATAL)
@@ -213,9 +250,25 @@ module glissade_therm
 
        do ns = 1, nsn
           do ew = 1, ewn
-             call glissade_init_temp_column(temp_init,      stagsigma(:),      &
-                                            artm(ew,ns),    thck(ew,ns),       &
-                                            temp(:,ew,ns) )
+
+             if (verbose_therm .and. this_rank==rtest .and. ew==itest .and. ns==jtest) then
+                verbose_column = .true.
+                print*, ' '
+                print*, 'Initial temperature diagnostics: rank, i, j =', this_rank, ew, ns
+             else
+                verbose_column = .false.
+             endif
+
+             call glissade_init_temp_column(temp_init,          &
+                                            stagsigma(:),       &
+                                            thck(ew,ns),        &
+                                            artm(ew,ns),        &
+                                            acab(ew,ns),        &
+                                            bheatflx(ew,ns),    &
+                                            pmp_offset,         &
+                                            temp(:,ew,ns),      &
+                                            verbose_column)
+
           end do
        end do
        
@@ -225,37 +278,62 @@ module glissade_therm
 
 !=======================================================================
 
-  subroutine glissade_init_temp_column(temp_init,                 &
-                                       stagsigma,   artm,         &
-                                       thck,        temp)
+  subroutine glissade_init_temp_column(temp_init,     &
+                                       stagsigma,     &
+                                       thck,          &
+                                       artm,          &
+                                       acab,          &
+                                       bheatflx,      &
+                                       pmp_offset,    &
+                                       temp,          &
+                                       verbose_column)
+
+    use glimmer_physcon, only : pi, rhoi, shci, coni
 
     ! Initialize temperatures in a column based on the value of temp_init.
-    ! Three possibilities:
-    ! (1) Set ice temperature in column to 0 C (TEMP_INIT_ZERO)
-    ! (2) Set ice temperature in column to surface air temperature (TEMP_INIT_ARTM)
+    ! Four possibilities:
+    ! (1) Set ice temperature in column to 0 C (TEMP_INIT_ZERO).
+    ! (2) Set ice temperature in column to surface air temperature (TEMP_INIT_ARTM).
     ! (3) Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
     !     at the bed (TEMP_INIT_LINEAR). 
-    !     A local parameter (pmpt_offset) controls how far below Tpmp the initial bed temp is set.
+    !     A config parameter (pmp_offset) controls how far below Tpmp the initial bed temp is set.
+    ! (4) Set up a temperature profile based on advective-diffusive balance, with T = artm
+    !     at the surface and dT/dz = -F_geo/k at the bed (TEMP_INIT_ADVECTIVE_DIFFUSIVE).
+    !     The temperature at each level is capped at the value computed by method (3).
     !
     ! In/out arguments
  
     integer, intent(in) :: temp_init          ! option for temperature initialization
 
-    real(dp), dimension(:), intent(in)     :: stagsigma  ! staggered vertical coordinate
-                                                         ! includes layer midpoints, but not top and bottom surfaces
-    real(dp), intent(in)                   :: artm   ! surface air temperature (deg C)
-    real(dp), intent(in)                   :: thck   ! ice thickness
-    real(dp), dimension(0:), intent(inout) :: temp   ! ice column temperature (deg C)
-                                                     ! Note first index of zero
-    
+    real(dp), dimension(:), intent(in) ::  &
+         stagsigma               ! staggered vertical coordinate; includes layer midpoints, but not top and bottom surfaces
+
+    real(dp), intent(in) :: &
+         artm,                &  ! surface air temperature (deg C)
+         thck,                &  ! ice thickness (m)
+         acab,                &  ! surface mass balance (m/s)
+         bheatflx,            &  ! basal heat flux (W/m^2), positive down
+         pmp_offset              ! minimum offset of initial Tbed from pressure melting point temperature (deg C)
+                                 ! Note: pmp_offset is positive for Tbed < bpmp
+
+    real(dp), dimension(0:), intent(inout) :: &
+         temp                    ! ice column temperature (deg C)
+                                 ! Note first index of zero
+
+    logical, intent(in) :: verbose_column    ! if true, then write diagnostic info for the column
+
     ! Local variables and parameters
 
     real(dp) :: pmptemp_bed                           ! pressure melting point temp at the bed
     real(dp), dimension(size(stagsigma)) :: pmptemp   ! pressure melting point temp thru the column
-    integer :: upn                                    ! number of vertical levels (deduced from temp array)
+    real(dp) :: erf_sfc, erf_k                        ! error function evaluated at surface and in layers
+    real(dp) :: length_scale                          ! length scale for advective-diffusive balance
+                                                      ! length_scale^2 = 2 * k * H / (rhoi * ci * b)
+    real(dp) :: temp_advective_diffusive              ! temperature computed based on advective-diffusive balance
+    real(dp) :: factor
 
-    real(dp), parameter :: pmpt_offset = 2.d0  ! offset of initial Tbed from pressure melting point temperature (deg C)
-                                               ! Note: pmtp_offset is positive for T < Tpmp
+    integer :: upn                                    ! number of vertical levels (deduced from temp array)
+    integer :: k
 
     upn = size(temp) - 1     ! temperature array has dimension (0:model%general%upn)
 
@@ -263,39 +341,167 @@ module glissade_therm
 
     if (temp_init == TEMP_INIT_ZERO) then        ! set T = 0 C
        
-       temp(:) = 0.d0
+       temp(:) = 0.0d0
 
     elseif (temp_init == TEMP_INIT_ARTM) then    ! initialize ice-covered areas to the min of artm and 0 C
-                                               ! set ice-free areas to T = 0 C
-       if (thck > 0.0d0) then
-          temp(:) = min(0.0d0, artm)
-       else
-          temp(:) = 0.d0
-       endif
+
+       temp(:) = min(0.0d0, artm)
        
-    elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmpt_offset, linear profile in between
+    elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmp_offset, linear profile in between
 
-       !TODO - Set to min(artm, 0)?
-       temp(0) = artm
+       if (thck > 0.0d0) then
 
-       call glissade_pressure_melting_point(thck, pmptemp_bed)
-       temp(upn) = pmptemp_bed - pmpt_offset
+          temp(0) = min(0.0d0, artm)
 
-       temp(1:upn-1) = temp(0) + (temp(upn) - temp(0))*stagsigma(:)
+          call glissade_pressure_melting_point(thck, pmptemp_bed)
+          temp(upn) = pmptemp_bed - pmp_offset
+
+          temp(1:upn-1) = temp(0) + (temp(upn) - temp(0))*stagsigma(:)
                                
-       ! Make sure T <= Tpmp - pmpt_offset in column interior
+          ! Make sure T <= Tpmp - pmp_offset in column interior
 
-       call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
-       temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmpt_offset)
+          call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
+          temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmp_offset)
 
-    endif
+       else
+
+          temp(:) = min(0.0d0, artm)
+
+       endif  ! thck > 0
+
+    elseif (temp_init == TEMP_INIT_ADVECTIVE_DIFFUSIVE) then
+
+       ! Where acab > 0, assume a balance between advection and diffusion in the column:
+       !
+       ! w dT/dz = k/(rhoi*ci) * d2T/dz2
+       !
+       ! where w = vertical velocity = -b * (z_s - z) / H
+       !       H = z_s - z_b = thck
+       !       b = surface mass balance = acab
+       !
+       ! with boundary conditions Tsfc = artm at z = z_s
+       !                          dT/dZ|b = -F_geo/k at z = z_b
+       !
+       ! where F_geo = geothermal heat flux = -bheatflx
+       !
+       ! This has an exact solution (see Cuffey & Paterson, Physics of Glaciers, 2010, Section 9.5.1):
+       !
+       ! T(z) = Tsfc + 1/2 * sqrt(pi) * (z*) * dT/dz|b * [erf((z-z_b)/z*) - erf(H/z*)]
+       !
+       ! where erf(z) = error function = (2/sqrt(pi)) * int_0^z [exp(-y^2)] dy
+       !   and z* is a length scale given by z*^2 = (2 * k * H) / (rhoi * ci * b)
+       !
+       ! The resulting temperature profile is typical of the ice divide, where horizontal advection is small.
+       !
+       ! The temperature is not allowed to exceed the linear value that would be computed using method (3).
+       !
+       ! Where acab <= 0, we use the linear profile of method 3.
+       ! If acab is not supplied in the input file, then it is initialized to zero,
+       ! and the temperature profile will default to linear.
+       !
+       ! The purpose of this option is to reduce the spinup time by prescribing initial temperatures
+       !  that are a good approximation of the steady-state values near the ice divide.
+       ! If the initial temperatures are too warm in the upper layers of the ice interior
+       !  (as may be the case with a linear profile), we can have thawing where the bed should be frozen.
+
+       if (thck > 0.0d0) then
+
+          ! Initialize the column to a linear profile as for TEMP_INIT_LINEAR
+          temp(0) = min(0.0d0, artm)
+
+          call glissade_pressure_melting_point(thck, pmptemp_bed)
+          temp(upn) = pmptemp_bed - pmp_offset
+
+          temp(1:upn-1) = temp(0) + (temp(upn) - temp(0))*stagsigma(:)
+
+          ! Make sure T <= Tpmp - pmp_offset in column interior
+
+          call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
+          temp(1:upn-1) = min(temp(1:upn-1), pmptemp(1:upn-1) - pmp_offset)
+
+          if (acab > 0.0d0) then   ! SMB is positive; switch to the advective-diffusive balance
+
+             length_scale = sqrt( (2.0d0*coni*thck)/(rhoi*shci*acab) )
+             factor = 0.5d0 * sqrt(pi) * length_scale * (bheatflx/coni)  ! note bheatflx <= 0
+ 
+             !TODO - Evaluate the error function using the Fortran intrinsic erf(x)?
+             !       This function is supported in Fortran 2008 (and the Gnu compiler)
+             !        but might not be portable to all compilers.
+
+!             erf_sfc = erf(thck/length_scale)  ! might not be portable
+             erf_sfc = error_function(thck/length_scale)   ! use hand-coded function instead
+
+             do k = 1, upn-1
+!                erf_k = erf ( thck/length_scale * (1.0d0 - stagsigma(k)))  ! might not be portable
+                erf_k = error_function( thck/length_scale * (1.0d0 - stagsigma(k)))
+                temp_advective_diffusive = temp(0) + factor * (erf_k - erf_sfc)
+                temp(k) = min(temp(k), temp_advective_diffusive)
+             enddo
+
+             ! bottom surface
+             k = upn
+             erf_k = 0.0d0
+             temp_advective_diffusive = temp(0) + factor * (erf_k - erf_sfc)
+             temp(k) = min(temp(k), temp_advective_diffusive)
+
+          endif   ! acab > 0
+
+       else
+
+          temp(:) = min(0.0d0, artm)
+
+       endif  ! thck > 0
+
+       if (verbose_column) then
+          print*, 'thck (m), acab (m/yr), artm(deg C) =', thck, acab*scyr, artm
+          print*, ' '
+          print*, 'Initial temperature profile: k, temperature:'
+          do k = 0, upn
+             print*, k, temp(k)
+          enddo
+       endif
+
+    endif  ! temp_init
 
   end subroutine glissade_init_temp_column
 
 !=======================================================================
 
+  function error_function(x)
+
+    use glimmer_physcon, only : pi
+
+    real(dp) :: x
+    real(dp) :: error_function
+
+    ! Approximate the error function erf(x) using an analytic formula from Wikipedia:
+    ! 
+    ! erf(x) = sgn(x) * sqrt {1 - exp[-x^2 * (4/pi + a*x^2) / (1 + a*x^2)] }
+    !
+    ! where a = 8*(pi-3) / (3*pi*(4-pi))
+    !
+    ! According to Wikipedia (21 March 2016):
+    ! "This is designed to be very accurate in a neighborhood of 0 and a neighborhood of infinity, 
+    !  and the error is less than 0.00035 for all x."
+    ! I verified this statement by comparing results to the intrinsic erf(x) provided with the Gnu compiler.
+
+    real(dp) :: a, exp_factor
+
+    a = 8.d0 * (pi - 3.d0) / (3.d0 * pi * (4.d0 - pi))
+
+    exp_factor = -x**2 * (4.d0/pi + a*x**2) / (1.d0 + a*x**2)
+
+    error_function = sqrt(1.d0 - exp(exp_factor))
+
+    if (x < 0.d0) error_function = -error_function
+
+  end function error_function
+
+!=======================================================================
+
   subroutine glissade_therm_driver(whichtemp,                         &
                                    whichbmlt_float,                   &
+                                   temp_init,                         &
                                    dttem,                             &
                                    ewn,             nsn,       upn,   &
                                    itest,           jtest,     rtest, &
@@ -306,12 +512,14 @@ module glissade_therm
                                    artm,                              &
                                    bheatflx,        bfricflx,         &
                                    dissip,                            &
+                                   pmp_threshold,                     &
                                    bmlt_float_rate, bmlt_float_mask,  &
                                    bmlt_float_omega,                  &
                                    bmlt_float_h0,   bmlt_float_z0,    &
                                    bwat,                              &
                                    temp,            waterfrac,        &
-                                   bmlt_ground,     bmlt_float)
+                                   bpmp,                              &
+                                   bmlt)
 
     ! Calculate the new ice temperature by one of several methods:
     ! (0) set to surface air temperature
@@ -333,6 +541,9 @@ module glissade_therm
     integer, intent(in) ::   &
          whichtemp,          & ! option for computing temperature
          whichbmlt_float       ! option for computing basal melt rate for floating ice
+
+    integer, intent(in) ::   &
+         temp_init             ! option for initializing the temperature (used for thin ice)
 
     integer, intent(in) ::   &
          ewn, nsn, upn,      & ! grid dimensions
@@ -360,6 +571,9 @@ module glissade_therm
     real(dp), dimension(:,:,:), intent(in) ::  &
          dissip            ! interior heat dissipation (deg/s)
 
+    real(dp), intent(in) ::  &
+         pmp_threshold     ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
+
     ! The remaining input arguments support basal melting for MISMIP+ experiments
     integer, dimension(:,:), intent(in) ::  &
          bmlt_float_mask      ! = 1 where melting is masked out, else = 0
@@ -377,8 +591,8 @@ module glissade_therm
          waterfrac         ! internal water fraction (unitless)
 
     real(dp), dimension(:,:), intent(out) ::  &
-         bmlt_ground,     &! basal melt rate for grounded ice (m/s), > 0 for melting
-         bmlt_float        ! basal melt rate for floating ice (m/s), > 0 for melting
+         bpmp,            &! basal pressure melting point temperature (deg C)
+         bmlt              ! basal melt rate (m/s), > 0 for melting
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -415,15 +629,18 @@ module glissade_therm
          lcondflx,     & ! conductive heat flux (W/m^2) at lower sfc (positive down)
          dissipcol       ! total heat dissipation rate (W/m^2) in column (>= 0)
 
+    real(dp), dimension(ewn,nsn) ::  &
+         bmlt_ground,     &! basal melt rate for grounded ice (m/s), > 0 for melting
+         bmlt_float        ! basal melt rate for floating ice (m/s), > 0 for melting
+
     integer :: ew, ns, up
     integer :: i, j, k
-
-    logical, parameter:: verbose_therm = .false.  ! set to true for diagnostic column output
-    logical :: verbose_column
 
     logical :: lstop = .false.   ! flag for energy conservation error
     integer :: istop, jstop      ! local location of energy conservation error
     integer :: istop_global, jstop_global    ! global location of energy conservation error
+
+    logical :: verbose_column    ! if true, then write diagnostic info for the column
 
     !------------------------------------------------------------------------------------
     ! Compute the new temperature profile in each column
@@ -448,6 +665,20 @@ module glissade_therm
                             eus,          thklim_temp,  &
                             ice_mask_temp)
       
+    ! Compute basal pressure melting point temperature
+    ! (needed for temperature/enthalpy calculation below, and also needed later for
+    !  certain basal sliding laws)
+
+    do ns = 1, nsn
+       do ew = 1, ewn
+          if (ice_mask_temp(ew,ns) == 1) then
+             call glissade_pressure_melting_point(thck(ew,ns), bpmp(ew,ns))
+          else
+             bpmp(i,j) = 0.d0
+          endif
+       enddo
+    enddo
+
     select case(whichtemp)
 
     case(TEMP_SURFACE_AIR_TEMP)  ! Set column to surface air temperature ------------------
@@ -539,12 +770,15 @@ module glissade_therm
                                                        dups(:,:),                 &
                                                        floating_mask(ew,ns),      &
                                                        thck(ew,ns),               &
+                                                       bpmp(ew,ns),               &
                                                        temp(:,ew,ns),             &  !TODO - 0:upn?
                                                        waterfrac(:,ew,ns),        &
                                                        enthalpy(0:upn,ew,ns),     &
                                                        dissip(:,ew,ns),           &
                                                        bheatflx(ew,ns),           &
                                                        bfricflx(ew,ns),           &
+                                                       bwat(ew,ns),               &
+                                                       pmp_threshold,             &
                                                        alpha_enth,                &
                                                        verbose_column)
                 
@@ -635,10 +869,13 @@ module glissade_therm
                                                           supd,    rhsd,         &            
                                                           floating_mask(ew,ns),  &
                                                           thck(ew,ns),           &
+                                                          bpmp(ew,ns),           &
                                                           temp(:,ew,ns),         &
                                                           dissip(:,ew,ns),       &
                                                           bheatflx(ew,ns),       &
-                                                          bfricflx(ew,ns))
+                                                          bfricflx(ew,ns),       &
+                                                          bwat(ew,ns),           &
+                                                          pmp_threshold)
                 
                 if (verbose_column) then
                    print*, 'After matrix elements, i, j =', ew,ns
@@ -730,8 +967,8 @@ module glissade_therm
                    print*, 'Energy imbalance =', efinal - einit - delta_e
                    print*, ' '
                    print*, 'Basal fluxes:'
-                   print*, 'ffric =', bfricflx(ew,ns)
-                   print*, 'fgeo =', -bheatflx(ew,ns)
+                   print*, 'bfricflx =', bfricflx(ew,ns)
+                   print*, 'bheatflx =', -bheatflx(ew,ns)
                    print*, 'flux for bottom melting =', bfricflx(ew,ns) - bheatflx(ew,ns) + lcondflx(ew,ns)
                 endif   ! verbose_column
 
@@ -755,32 +992,20 @@ module glissade_therm
           call write_log(message,GM_FATAL)
        endif
 
-       ! Set temperature of thin ice to the air temperature and set ice-free nodes to zero
+       ! Set the temperature of thin ice columns where the temperature is not computed above.
+       ! NOTE: This procedure will maintain a sensible temperature profile for thin ice,
+       !        but in general does *not* conserve energy.
+       !       To conserve energy, we need either thklim_temp = 0, or some additional
+       !        energy accounting and correction.
 
        do ns = 1, nsn
           do ew = 1, ewn
 
-              if (thck(ew,ns) <= thklim_temp) then
-                 temp(:,ew,ns) = min(0.d0, artm(ew,ns))
-              endif
+             if (thck(ew,ns) <= thklim_temp) then
 
-              !TODO - Maybe it should be done in the following way, so that the temperature profile for thin ice
-              !       is consistent with the temp_init option, with T = 0 for ice-free cells.
+                temp(:,ew,ns) = min(0.0d0, artm(ew,ns))
 
-             ! NOTE: Calling this subroutine will maintain a sensible temperature profile
-             !        for thin ice, but in general does *not* conserve energy.
-             !       To conserve energy, we need either thklim_temp = 0, or some additional
-             !        energy accounting and correction.
- 
-!             if (thck(ew,ns) <= thklim_temp) then
-!                call glissade_init_temp_column(temp_init,         &
-!                                               stagsigma(:),     &
-!                                               artm(ew,ns)),      &
-!                                               thck(ew,ns),      &
-!                                               temp(:,ew,ns) )
-!             else if (model%geometry%thkmask(ew,ns) < 0) then
-!                temp(:,ew,ns) = 0.d0
-!             end if
+             endif
 
           end do
        end do
@@ -800,10 +1025,12 @@ module glissade_therm
                                        upn,                               &
                                        sigma,            stagsigma,       &
                                        ice_mask,         floating_mask,   &
-                                       thck,             temp,            &
-                                       waterfrac,        enthalpy,        &
+                                       thck,             bpmp,            &
+                                       temp,             waterfrac,       &
+                                       enthalpy,                          &
                                        bfricflx,         bheatflx,        &
                                        lcondflx,         bwat,            &
+                                       pmp_threshold,                     &
                                        bmlt_ground)
 
     ! Calculate the basal melt rate for floating ice.
@@ -821,7 +1048,11 @@ module glissade_therm
                                       bmlt_float_rate,  bmlt_float_mask, &
                                       bmlt_float_omega,                  &
                                       bmlt_float_h0,    bmlt_float_z0,   &
-                                      bmlt_ground,      bmlt_float)
+                                      bmlt_float)
+
+    ! Combine bmlt_ground and bmlt_float into one array
+
+    bmlt(:,:) = bmlt_ground(:,:) + bmlt_float(:,:)
 
     ! Check for temperatures that are physically unrealistic.
     ! Thresholds are set at the top of this module.
@@ -860,33 +1091,41 @@ module glissade_therm
                                                   subd,         diag,           &
                                                   supd,         rhsd,           &
                                                   floating_mask,                &
-                                                  thck,         temp,           &
-                                                  dissip,                       &
-                                                  bheatflx,     bfricflx)
+                                                  thck,         bpmp,           &
+                                                  temp,         dissip,         &
+                                                  bheatflx,     bfricflx,       &
+                                                  bwat,         pmp_threshold)
 
     ! compute matrix elements for the tridiagonal solve
 
     use glimmer_physcon,  only : rhoi, grav, coni
 
     ! Note: Matrix elements (subd, supd, diag, rhsd) are indexed from 1 to upn+1,
-    !             whereas temperature is indexed from 0 to upn.
-    !            The first row of the matrix is the equation for temp(0,ew,ns),
-    !             the second row is the equation for temp(1,ew,ns), and so on.
+    !        whereas temperature is indexed from 0 to upn.
+    !       The first row of the matrix is the equation for temp(0,ew,ns),
+    !        the second row is the equation for temp(1,ew,ns), and so on.
 
     real(dp), intent(in) :: dttem       ! time step (s)
     integer, intent(in) :: upn          ! number of layer interfaces
     real(dp), dimension(upn-1), intent(in) :: stagsigma    ! sigma coordinate at temp nodes
+
     real(dp), dimension(:), intent(out) :: subd, diag, supd, rhsd
+
     integer, intent(in) :: floating_mask
     real(dp), intent(in) ::  thck       ! ice thickness (m)
-    real(dp), dimension(0:upn), intent(in) ::  temp     ! ice temperature (deg C)
+    real(dp), intent(in) ::  bpmp       ! basal pressure melting point temperature (deg C)
+
+    real(dp), dimension(0:upn), intent(in) :: temp       ! ice temperature (deg C)
     real(dp), dimension(upn-1), intent(in) :: dissip     ! interior heat dissipation (deg/s)
     real(dp), intent(in) :: bheatflx    ! geothermal flux (W m-2), positive down
     real(dp), intent(in) :: bfricflx    ! basal friction heat flux (W m-2), >= 0
+    real(dp), intent(in) :: bwat        ! basal water thickness (m)
+
+    real(dp), intent(in) :: &
+         pmp_threshold       ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     ! local variables
 
-    real(dp) :: pmptemp_bed  ! pressure melting temp at bed
     real(dp) :: fact
     real(dp) :: dsigbot      ! bottom layer thicknes in sigma coords
 
@@ -923,8 +1162,10 @@ module glissade_therm
     endif    ! crank_nicolson
 
     ! basal boundary:
-    ! for grounded ice, a heat flux is applied
-    ! for floating ice, the basal temperature is held constant
+    ! For floating ice, the basal temperature is held constant.
+    ! For grounded ice, a heat flux is applied. The bed temperature is held at bpmp if it is already
+    !  at or near bpmp or if basal water is present; else the bed temperature is computed based on
+    !  a balance of fluxes.
 
     !NOTE: This lower BC is different from the one in glide_temp.
     !      If T(upn) < T_pmp, then require dT/dsigma = H/k * (G + taub*ubas)
@@ -936,20 +1177,18 @@ module glissade_therm
        supd(upn+1) = 0.0d0
        subd(upn+1) = 0.0d0
        diag(upn+1) = 1.0d0
-       rhsd(upn+1) = temp(upn) 
+       rhsd(upn+1) = temp(upn)
 
     else    ! grounded ice
 
-       call glissade_pressure_melting_point(thck, pmptemp_bed)
-
-       if (abs(temp(upn) - pmptemp_bed) < 0.001d0) then
+       if (temp(upn) >= bpmp - pmp_threshold .or. bwat > 0.0d0) then
 
           ! hold basal temperature at pressure melting point
 
           supd(upn+1) = 0.0d0
           subd(upn+1) = 0.0d0
           diag(upn+1) = 1.0d0
-          rhsd(upn+1) = pmptemp_bed
+          rhsd(upn+1) = bpmp
 
        else   ! frozen at bed
               ! maintain balance of heat sources and sinks
@@ -983,10 +1222,11 @@ module glissade_therm
                                                subd,      diag,             &
                                                supd,      rhsd,             &
                                                dups,      floating_mask,    &
-                                               thck,                        &
+                                               thck,      bpmp,             &
                                                temp,      waterfrac,        &
                                                enthalpy,  dissip,           &
                                                bheatflx,  bfricflx,         &
+                                               bwat,      pmp_threshold,    &
                                                alpha_enth,                  &
                                                verbose_column_in)
 
@@ -999,20 +1239,30 @@ module glissade_therm
     ! The first row of the matrix is the equation for enthalpy(0),
     ! the last row is the equation for enthalpy(upn), and so on.
 
-    !I/O variables
+    ! input/output variables
     real(dp), intent(in) :: dttem       ! time step (s)
     integer, intent(in) :: upn          ! number of layer interfaces
     real(dp), dimension(upn-1), intent(in) :: stagsigma    ! sigma coordinate at temp/enthalpy nodes
+
     real(dp), dimension(:,:), intent(in) :: dups   ! vertical grid quantities
     real(dp), dimension(:), intent(out) :: subd, diag, supd, rhsd
+
     integer, intent(in) :: floating_mask
     real(dp), intent(in) :: thck        ! ice thickness (m)
+    real(dp), intent(in) :: bpmp        ! basal pressure melting point temperature (deg C)
+
     real(dp), dimension(0:upn), intent(in) :: temp       ! temperature (deg C)
     real(dp), dimension(upn-1), intent(in) :: waterfrac  ! water fraction (unitless)
     real(dp), dimension(0:upn), intent(in) :: enthalpy   ! specific enthalpy (J/m^3)
     real(dp), dimension(upn-1), intent(in) :: dissip     ! interior heat dissipation (deg/s)
+
     real(dp), intent(in) :: bheatflx   ! geothermal flux (W m-2), positive down
     real(dp), intent(in) :: bfricflx   ! basal friction heat flux (W m-2), >= 0
+    real(dp), intent(in) :: bwat       ! basal water thickness (m)
+
+    real(dp), intent(in) :: &
+         pmp_threshold           ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
+
     real(dp), dimension(:), intent(out) :: alpha_enth  ! half-node diffusivity (m^2/s) for enthalpy
 	                                               ! located halfway between temperature points
 
@@ -1025,7 +1275,6 @@ module glissade_therm
     real(dp) :: fact ! coefficient in tridiag
     integer  :: up
     real(dp), dimension(1:upn-1) :: pmptemp    ! pressure melting point temp in interior (deg C)
-    real(dp) :: pmptemp_bed                    ! pressure melting point temp at bed (deg C)
     real(dp), dimension(0:upn) :: enth_T       ! temperature part of specific enthalpy (J/m^3)
     real(dp) :: denth    ! enthalpy difference between adjacent layers
     real(dp) :: denth_T  ! difference in temperature component of enthalpy between adjacent layers
@@ -1046,9 +1295,9 @@ module glissade_therm
     alphai = coni / rhoi / shci
     alpha0 = alphai / 100.0d0
 	
-    ! find pmptemp for this column (interior nodes and boundary)
+    ! find pmptemp for this column
+    ! Note: The basal pmp temperature (bpmp) is an input argument
     call glissade_pressure_melting_point_column(thck, stagsigma(1:upn-1), pmptemp(1:upn-1))
-    call glissade_pressure_melting_point(thck, pmptemp_bed)
 
     !WHL - debug                                                                                                                       
     if (verbose_column) then
@@ -1062,7 +1311,7 @@ module glissade_therm
                enthalpy(up)/(rhoi*shci), pmptemp(up)
        enddo
        up = upn
-       print*, up, temp(up), 0.d0, enthalpy(up)/(rhoi*shci), pmptemp_bed
+       print*, up, temp(up), 0.d0, enthalpy(up)/(rhoi*shci), bpmp
     endif
 
     !WHL - Commenting out the following and replacing it with a new way of computing alpha.
@@ -1172,7 +1421,7 @@ module glissade_therm
     diag(1) = 1.0d0
     rhsd(1) = min(0.0d0,temp(0)) * rhoi*shci
   
-    ! ice interior. layers 1:upn-1  (matrix elements 2:upn)
+    ! ice interior, layers 1:upn-1  (matrix elements 2:upn)
 
     fact = dttem / thck**2
 
@@ -1185,8 +1434,10 @@ module glissade_therm
     ! For an enthalpy calc, we want just phi, hence dissip * rhoi * shci
 	
     ! basal boundary:
-    ! for grounded ice, a heat flux is applied
-    ! for floating ice, the basal temperature is held constant
+    ! For floating ice, the basal temperature is held constant.
+    ! For grounded ice, a heat flux is applied. The bed temperature is held at bpmp if it is already
+    !  at or near bpmp or if basal water is present; else the bed temperature is computed based on 
+    !  a balance of fluxes.
 
     !NOTE: This lower BC is different from the one in glide_temp.
     !      If T(upn) < T_pmp, then require dT/dsigma = H/k * (G + taub*ubas)
@@ -1207,14 +1458,14 @@ module glissade_therm
           up = upn-1
           print*, 'temp(upn-1), pmptemp(upn-1):', temp(up), pmptemp(up)
           up = upn
-          print*, 'temp(upn), pmptemp(upn):', temp(up), pmptemp_bed
+          print*, 'temp(upn), pmptemp(upn):', temp(up), bpmp
        endif
 
     ! Positive-Thickness Basal Temperate Boundary Layer
 
     !WHL - Not sure whether this condition is ideal.
     !      It implies that the enthalpy at the bed (upn) = enthalpy in layer (upn-1). 
-       if (abs(temp(upn-1) - pmptemp(upn-1)) < 0.001d0) then   
+       if (temp(upn-1) >=  pmptemp(upn-1) - pmp_threshold .or. bwat > 0.0d0) then
        
           subd(upn+1) = -1.0d0
           supd(upn+1) =  0.0d0 
@@ -1227,20 +1478,20 @@ module glissade_therm
           endif
 
        !Zero-Thickness Basal Temperate Boundary Layer
-       elseif (abs(temp(upn) -  pmptemp_bed) < 0.001d0) then  ! melting
+       elseif (temp(upn) >= bpmp - pmp_threshold) then  ! melting
           
           ! hold basal temperature at pressure melting point
           supd(upn+1) = 0.0d0
           subd(upn+1) = 0.0d0
           diag(upn+1) = 1.0d0
-          rhsd(upn+1) = pmptemp_bed * rhoi * shci
+          rhsd(upn+1) = bpmp * rhoi * shci
           
           !WHL - debug
           if (verbose_column) then
              print*, 'basal BC: branch 2 (zero-thck BL)'
           endif
           
-       else  
+       else
           
           !WHL - debug
           if (verbose_column) then
@@ -1284,10 +1535,12 @@ module glissade_therm
                                            upn,                               &
                                            sigma,            stagsigma,       &
                                            ice_mask,         floating_mask,   &
-                                           thck,             temp,            &
-                                           waterfrac,        enthalpy,        &
+                                           thck,             bpmp,            &
+                                           temp,             waterfrac,       &
+                                           enthalpy,                          &
                                            bfricflx,         bheatflx,        &
                                            lcondflx,         bwat,            &
+                                           pmp_threshold,                     &
                                            bmlt_ground)
 
     ! Compute the rate of basal melting for grounded ice.
@@ -1319,6 +1572,7 @@ module glissade_therm
 
     real(dp), dimension(:,:),    intent(in) :: &
          thck,                 & ! ice thickness (m)
+         bpmp,                 & ! basal pressure melting point temperature (deg C)
          bfricflx,             & ! basal frictional heating flux (W m-2), >= 0
          bheatflx,             & ! geothermal heating flux (W m-2), positive down
          lcondflx,             & ! heat conducted from ice interior to bed (W m-2), positive down
@@ -1327,6 +1581,9 @@ module glissade_therm
     integer, dimension(:,:), intent(in) ::  &
          ice_mask,             & ! = 1 where ice exists (thck > thklim_temp), else = 0
          floating_mask           ! = 1 where ice is floating, else = 0
+
+    real(dp), intent(in) :: &
+         pmp_threshold           ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     real(dp), dimension(:,:), intent(out):: &
          bmlt_ground             ! basal melt rate for grounded ice (m/s)
@@ -1340,7 +1597,6 @@ module glissade_therm
 
     integer :: up, ew, ns
     real(dp), dimension(upn-1)  :: pmptemp   ! pressure melting point temp in ice interior
-    real(dp) :: pmptemp_bed   ! pressure melting point temp at bed
     real(dp) :: layer_thck    ! layer thickness (m)
     real(dp) :: melt_energy   ! energy available for internal melting (J/m^2)
     real(dp) :: internal_melt_rate   ! internal melt rate, transferred to bed (m/s)
@@ -1391,7 +1647,8 @@ module glissade_therm
 
              ! Add internal melting associated with waterfrac > max_waterfrac (1%)
              ! Note: It is possible to have internal melting for floating ice.
-             !       If so, this melting will be switched later from bmlt_ground to bmlt_float.
+             !       Rather than have a separate calculation in subroutine glissade_basal_melting_float,
+             !        internal melting for all ice (both grounded and floating) is computed here. 
 
              if (ice_mask(ew,ns) == 1) then  ! ice is present
 
@@ -1428,7 +1685,8 @@ module glissade_therm
 
              ! Add internal melting associated with T > Tpmp
              ! Note: It is possible to have internal melting for floating ice.
-             !       If so, this melting will be switched later from bmlt_ground to bmlt_float.
+             !       Rather than have a separate calculation in subroutine glissade_basal_melting_float,
+             !        internal melting for all ice (both grounded and floating) is computed here. 
 
              if (ice_mask(ew,ns) == 1) then  ! ice is present
 
@@ -1465,17 +1723,17 @@ module glissade_therm
 
           if (ice_mask(ew,ns) == 1 .and. floating_mask(ew,ns) == 0) then  ! ice is present and grounded
 
-             call glissade_pressure_melting_point(thck(ew,ns), pmptemp_bed)
-             temp(upn,ew,ns) = min (temp(upn,ew,ns), pmptemp_bed)
+             temp(upn,ew,ns) = min (temp(upn,ew,ns), bpmp(ew,ns))
 
-             ! If freeze-on was computed above (bmlt < 0) and Tbed = Tpmp but no basal water is present, then set T(upn) < Tpmp.
-             ! Note: In the matrix element subroutines, we solve for Tbed (instead of holding it at Tpmp) when Tbed < -0.001.
-             !       With an offset here of 0.01, we will solve for T_bed at the next timestep.
-             ! Note: I don't think energy conservation is violated here, because no energy is associated with
+             ! If freeze-on was computed above (bmlt_ground < 0) and Tbed = pmptemp but no basal water is present, then set T(upn) < pmptemp.
+             ! Specifically, set Tbed to the temperature of the layer nearest the bed.
+             ! In most cases, Tbed will then be computed instead of prescribed during the next time step. 
+             ! Note: Energy conservation is not violated here, because no energy is associated with
              !       the infinitesimally thin layer at the bed.
 
-             if (bmlt_ground(ew,ns) < 0.d0 .and. bwat(ew,ns)==0.d0 .and. temp(upn,ew,ns) >= pmptemp_bed) then
-                temp(upn,ew,ns) = pmptemp_bed - 0.01d0
+             if (bmlt_ground(ew,ns) < 0.d0 .and. bwat(ew,ns)==0.d0 .and. temp(upn,ew,ns) >= bpmp(ew,ns)) then
+                temp(upn,ew,ns) = temp(upn-1,ew,ns)
+                bmlt_ground(ew,ns) = 0.d0   ! Set freeze-on to zero since no water is present
              endif
 
           endif   ! ice is present and grounded
@@ -1495,7 +1753,7 @@ module glissade_therm
                                           bmlt_float_rate,  bmlt_float_mask, &
                                           bmlt_float_omega,                  &
                                           bmlt_float_h0,    bmlt_float_z0,   &
-                                          bmlt_ground,      bmlt_float)
+                                          bmlt_float)
 
     ! Compute the rate of basal melting for floating ice.
 
@@ -1532,9 +1790,6 @@ module glissade_therm
     ! Note: bmlt_ground is passed in because it includes any internal melting for floating ice.
     !       Where such melting has occurred, it is transferred from bmlt_ground to bmlt_float.
  
-    real(dp), dimension(:,:), intent(inout):: &
-         bmlt_ground          ! basal melt rate for grounded ice (m/s)
-               
     real(dp), dimension(:,:), intent(out):: &
          bmlt_float           ! basal melt rate for floating ice (m/s)
 
@@ -1611,20 +1866,6 @@ module glissade_therm
        enddo   ! ns
 
     endif   ! whichbmlt_float
-
-    ! If any internal melting was computed for floating ice, it was put in the array bmlt_ground.
-    ! Transfer it to bmlt_float.
-
-    do ns = 1, nsn
-       do ew = 1, ewn
-
-          if (ice_mask(ew,ns) == 1 .and. floating_mask(ew,ns) == 1 .and. bmlt_ground(ew,ns) /= 0.d0) then
-             bmlt_float(ew,ns) = bmlt_float(ew,ns) + bmlt_ground(ew,ns)
-             bmlt_ground(ew,ns) = 0.d0
-          endif
-
-       enddo
-    enddo
 
   end subroutine glissade_basal_melting_float
 

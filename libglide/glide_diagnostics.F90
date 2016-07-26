@@ -50,10 +50,12 @@ contains
 
     ! input/output arguments
 
-    type(glide_global_type), intent(in) :: model    ! model instance
-    real(dp), intent(in)   :: time                  ! current time in years
+    ! Note: model is intent(inout) so that some global diagnostics can be computed below
+    type(glide_global_type), intent(inout) :: model    ! model instance
 
-    integer, intent(in) :: tstep_count    ! current timestep
+    real(dp), intent(in) :: time          ! current time in years
+
+    integer,  intent(in) :: tstep_count   ! current timestep
 
     real(dp), intent(in), optional :: &
        minthick_in       ! ice thickness threshold (m) for including in diagnostics
@@ -181,7 +183,9 @@ contains
  
     ! input/output arguments
 
-    type(glide_global_type), intent(in) :: model    ! model instance
+    ! Note: model is intent(inout) so that some global diagnostics can be computed here 
+    type(glide_global_type), intent(inout) :: model ! model instance
+
     real(dp),  intent(in) :: time                   ! current time in years
     real(dp), intent(in)  :: &
          minthick          ! ice thickness threshold (m) for including in diagnostics
@@ -189,13 +193,27 @@ contains
     ! local variables
 
     real(dp) ::                         &
-         tot_area,                      &    ! total ice area (km^2)
-         tot_volume,                    &    ! total ice volume (km^3)
+         tot_area,                      &    ! total ice area (m^2)
+         tot_area_ground,               &    ! total area of grounded ice (m^2)
+         tot_area_float,                &    ! total area of floating ice (m^2)
+         area_cell,                     &    ! cell area
+         tot_volume,                    &    ! total ice volume (m^3)
+         tot_mass,                      &    ! total ice mass (kg)
+         tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
+         thck_floating,                 &    ! thickness of floating ice
+         thck_above_flotation,          &    ! thickness above flotation
          tot_energy,                    &    ! total ice energy (J)
+         tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
+         tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
+         tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
+         tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
+         tot_calving,                   &    ! total calving rate (m^3/yr)
          mean_thck,                     &    ! mean ice thickness (m)
          mean_temp,                     &    ! mean ice temperature (deg C)
          mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
          mean_bmlt,                     &    ! mean basal melt (m/yr)
+         mean_calving,                  &    ! mean calving (m/yr)
          max_thck, max_thck_global,     &    ! max ice thickness (m)
          max_temp, max_temp_global,     &    ! max ice temperature (deg C)
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
@@ -207,6 +225,10 @@ contains
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
          bheatflx_diag, level
+
+    integer, dimension(model%general%ewn,model%general%nsn) ::  &
+         ice_mask,     &! = 1 where ice is present with thck > minthick, else = 0
+         floating_mask  ! = 1 where ice is present and floating, else = 0
 
     real(dp), dimension(model%general%upn) ::  &
          temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
@@ -250,6 +272,26 @@ contains
     end if
 
     !-----------------------------------------------------------------
+    ! Compute some masks that are useful for diagnostics
+    !-----------------------------------------------------------------
+
+    do j = 1, nsn
+       do i = 1, ewn
+          if (model%geometry%thck(i,j)*thk0 > minthick) then
+             ice_mask(i,j) = 1
+             if (model%geometry%topg(i,j) - model%climate%eus < (-rhoi/rhoo)*model%geometry%thck(i,j)) then
+                floating_mask(i,j) = 1
+             else
+                floating_mask(i,j) = 0
+             endif
+          else
+             ice_mask(i,j) = 0
+             floating_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    !-----------------------------------------------------------------
     ! Compute and write global diagnostics
     !-----------------------------------------------------------------
  
@@ -260,24 +302,39 @@ contains
     call write_log(' ')
 
     ! total ice area (m^2)
- 
+
     tot_area = 0.d0
+    tot_area_ground = 0.d0
+    tot_area_float = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
-             tot_area = tot_area + model%numerics%dew * model%numerics%dns
+          if (ice_mask(i,j) == 1) then
+             area_cell = model%numerics%dew * model%numerics%dns
+             tot_area = tot_area + area_cell
+             if (floating_mask(i,j) == 1) then
+                tot_area_float = tot_area_float + area_cell
+             else
+                tot_area_ground = tot_area_ground + area_cell
+             endif
           endif
        enddo
     enddo
+
     tot_area = tot_area * len0**2
     tot_area = parallel_reduce_sum(tot_area)
+
+    tot_area_ground = tot_area_ground * len0**2
+    tot_area_ground = parallel_reduce_sum(tot_area_ground)
+
+    tot_area_float = tot_area_float * len0**2
+    tot_area_float = parallel_reduce_sum(tot_area_float)
 
     ! total ice volume (m^3)
  
     tot_volume = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
+          if (ice_mask(i,j) == 1) then
              tot_volume = tot_volume + model%geometry%thck(i,j)  &
                                      * model%numerics%dew * model%numerics%dns
           endif
@@ -286,13 +343,42 @@ contains
     tot_volume = tot_volume * thk0 * len0**2
     tot_volume = parallel_reduce_sum(tot_volume)
 
+    ! total ice mass (kg)
+    tot_mass = tot_volume * rhoi
+
+    ! total ice mass above flotation (kg)
+    tot_mass_above_flotation = 0.d0
+
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (ice_mask(i,j) == 1) then
+             if (floating_mask(i,j) == 0) then  ! grounded ice
+                if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
+                   thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! thickness of ice that is exactly floating
+                   thck_above_flotation = model%geometry%thck(i,j) - thck_floating
+                   tot_mass_above_flotation = tot_mass_above_flotation    &
+                                            + thck_above_flotation * model%numerics%dew * model%numerics%dns
+                else   ! grounded above sea level
+                   tot_mass_above_flotation = tot_mass_above_flotation    &
+                                            + model%geometry%thck(i,j) * model%numerics%dew * model%numerics%dns
+
+                endif
+             endif
+          endif
+       enddo
+    enddo
+
+    tot_mass_above_flotation = tot_mass_above_flotation * thk0 * len0**2  ! convert to m^3
+    tot_mass_above_flotation = tot_mass_above_flotation * rhoi            ! convert from m^3 to kg
+    tot_mass_above_flotation = parallel_reduce_sum(tot_mass_above_flotation)
+
     ! total ice energy relative to T = 0 deg C (J)
  
     tot_energy = 0.d0
     if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical
        do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
+          if (ice_mask(i,j) == 1) then
              do k = 1, upn-1
                 tot_energy = tot_energy +   &
                              model%geometry%thck(i,j) * model%temper%temp(k,i,j)    &
@@ -306,7 +392,7 @@ contains
     else   ! temps are unstaggered in vertical
        do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
+          if (ice_mask(i,j) == 1) then
              ! upper half-layer, T = upper sfc temp
              tot_energy = tot_energy +   &
                           model%geometry%thck(i,j) * model%temper%temp(1,i,j)  &
@@ -347,59 +433,129 @@ contains
        mean_temp = 0.d0
     endif
  
-    ! mean surface accumulation/ablation rate (m/yr)
+    ! total surface accumulation/ablation rate (m^3/yr)
  
-    mean_acab = 0.d0
+    tot_acab = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
-             mean_acab = mean_acab + model%climate%acab(i,j)  &
-                                   * model%numerics%dew * model%numerics%dns
-          endif
+          tot_acab = tot_acab + model%climate%acab(i,j)  &
+                              * model%numerics%dew * model%numerics%dns
        enddo
     enddo
-    mean_acab = mean_acab * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
-    mean_acab = parallel_reduce_sum(mean_acab)
 
+    tot_acab = tot_acab * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
+    tot_acab = parallel_reduce_sum(tot_acab)
+
+    ! total surface mass balance flux (kg/s)
+    tot_smb_flux = tot_acab * rhoi / scyr   ! convert m^3/yr to kg/s
+
+    ! mean accumulation/ablation rate (m/yr)
+    ! Note: This will be only approximate if some ice has melted completely during the time step
     if (tot_area > eps) then
-       mean_acab = mean_acab/tot_area    ! divide by total area to get m/yr
+       mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
     else
        mean_acab = 0.d0
     endif
 
-    ! mean basal melting rate (positive for ice loss)
-    ! TODO - Separate into bmlt_ground and bmlt_float?
+    ! total basal melting rate (positive for ice loss)
 
-    mean_bmlt = 0.d0
+    tot_bmlt = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
-             mean_bmlt = mean_bmlt + (model%temper%bmlt_ground(i,j) + model%temper%bmlt_float(i,j))  &
-                                    * model%numerics%dew * model%numerics%dns
-          endif
+             tot_bmlt = tot_bmlt + model%temper%bmlt(i,j) &
+                                 * model%numerics%dew * model%numerics%dns
        enddo
     enddo
 
-    mean_bmlt = mean_bmlt * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
-    mean_bmlt = parallel_reduce_sum(mean_bmlt)
+    tot_bmlt = tot_bmlt * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
+    tot_bmlt = parallel_reduce_sum(tot_bmlt)
 
+    ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
+    tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
+
+    ! mean basal melt rate (m/yr)
+    ! Note: This will be only approximate if some ice has melted completely during the time step
     if (tot_area > eps) then
-       mean_bmlt = mean_bmlt/tot_area    ! divide by total area to get m/yr
+       mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
     else
        mean_bmlt = 0.d0
     endif
 
-    ! write global sums and means
+    ! total calving rate
+    ! Recall that calving_thck is the scaled thickness of ice calving in one time step;
+    !  divide by dt to convert to a rate
+
+    tot_calving = 0.d0
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          tot_calving = tot_calving + model%calving%calving_thck(i,j) / model%numerics%dt  &
+                                    * model%numerics%dew * model%numerics%dns
+       enddo
+    enddo
+
+    tot_calving = tot_calving * scyr * thk0 / tim0 * len0**2  ! convert to m^3/yr
+    tot_calving = parallel_reduce_sum(tot_calving)
+
+    ! total calving mass balance flux (kg/s, negative for ice loss by calving)
+    tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
+
+    ! mean calving rate (m/yr)
+    ! Note: This will be only approximate if some ice has melted completely during the time step
+    if (tot_area > eps) then
+       mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
+    else
+       mean_calving = 0.d0
+    endif
+
+    ! copy some global scalars to the geometry derived type
+    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
+
+    model%geometry%iarea  = tot_area
+    model%geometry%iareag = tot_area_ground
+    model%geometry%iareaf = tot_area_float
+    model%geometry%ivol   = tot_volume
+    model%geometry%imass  = tot_mass
+    model%geometry%imass_above_flotation  = tot_mass_above_flotation
+    model%geometry%total_smb_flux = tot_smb_flux
+    model%geometry%total_bmb_flux = tot_bmb_flux
+    model%geometry%total_calving_flux = tot_calving_flux
+
+    ! write global sums and means to log file
 
     write(message,'(a25,e24.16)') 'Total ice area (km^2)    ',   &
-                                   tot_area*1.0d-6    ! convert to km^2
+                                   tot_area*1.0d-6           ! convert to km^2
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Grounded ice area (km^2) ',   &
+                                   tot_area_ground*1.0d-6    ! convert to km^2
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Floating ice area (km^2) ',   &
+                                   tot_area_float*1.0d-6     ! convert to km^2
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     write(message,'(a25,e24.16)') 'Total ice volume (km^3)  ',   &
-                                   tot_volume*1.0d-9  ! convert to km^3
+                                   tot_volume*1.0d-9         ! convert to km^3
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
+                                   tot_mass                  ! kg
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Mass above flotation (kg)',   &
+                                   tot_mass_above_flotation  ! kg
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     write(message,'(a25,e24.16)') 'Total ice energy (J)     ', tot_energy
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck
@@ -408,11 +564,14 @@ contains
     write(message,'(a25,f24.16)') 'Mean temperature (C)     ', mean_temp
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab     
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+!    write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
+!    call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Mean basal melt (m/yr)   ', mean_bmlt
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+!    write(message,'(a25,e24.16)') 'Mean basal melt (m/yr)   ', mean_bmlt
+!    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!    write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
+!    call write_log(trim(message), type = GM_DIAGNOSTIC)
     
     ! Find various global maxes and mins
 
@@ -456,7 +615,7 @@ contains
     max_temp =  unphys_val
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
+          if (ice_mask(i,j) == 1) then
             do k = ktop, kbed
                 if (model%temper%temp(k,i,j) > max_temp) then
                    max_temp = model%temper%temp(k,i,j)
@@ -488,7 +647,7 @@ contains
     min_temp = 999.d0  ! arbitrary large positive number
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          if (model%geometry%thck(i,j) * thk0 > minthick) then
+          if (ice_mask(i,j) == 1) then
              do k = ktop, kbed
                 if (model%temper%temp(k,i,j) < min_temp) then
                    min_temp = model%temper%temp(k,i,j)
@@ -596,7 +755,7 @@ contains
           relx_diag = model%isostasy%relx(i,j)*thk0
           artm_diag = model%climate%artm(i,j)
           acab_diag = model%climate%acab(i,j) * thk0*scyr/tim0
-          bmlt_diag = (model%temper%bmlt_ground(i,j) + model%temper%bmlt_float(i,j)) * thk0*scyr/tim0
+          bmlt_diag = model%temper%bmlt(i,j) * thk0*scyr/tim0
           bwat_diag = model%temper%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
        

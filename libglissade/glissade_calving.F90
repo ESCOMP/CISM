@@ -47,6 +47,8 @@ module glissade_calving
 
   !WHL - debug
   logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
+
 !!  logical, parameter :: remove_floating_islands = .false.
   logical, parameter :: remove_floating_islands = .true.
 
@@ -127,6 +129,7 @@ contains
     !       but can be extended to include all ice-covered cells (CALVING_DOMAIN_EVERYWHERE), or
     !       cells connected to the ocean through other cells that meet the calving criterion
     !       (CALVING_DOMAIN_OCEAN_CONNECT).
+    ! TODO: Change the default to calving_domain_everywhere?
 
     logical, dimension(:,:), allocatable   ::  &
          calving_law_mask,   & ! = T where the calving law permits calving, else = F
@@ -215,7 +218,7 @@ contains
     !        from previously protected cells.
 
     if (which_calving == CALVING_THCK_THRESHOLD) then  ! calve floating ice thinner than calving_minthck
-                                                           ! (if more than one cell away from the actice ice margin)
+                                                       ! (if more than one cell away from the actice ice margin)
        ! get masks
        ! Note: Floating ice is considered active only if thck > calving_minthck
 
@@ -266,13 +269,13 @@ contains
           do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
              do i = itest-2, itest+2
-                write(6,'(e10.3)',advance='no') thck(i,j)
+                write(6,'(e10.3)',advance='no') thck(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
 
           print*, ' '
-          print*, 'is_active, itest, jtest, rank =', itest, jtest, rtest
+          print*, 'is active for calving, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
              do i = itest-2, itest+2
@@ -282,7 +285,7 @@ contains
           enddo
 
           print*, ' '
-          print*, 'is_floating, itest, jtest, rank =', itest, jtest, rtest
+          print*, 'is floating, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
              do i = itest-2, itest+2
@@ -292,7 +295,7 @@ contains
           enddo
 
           print*, ' '
-          print*, 'is_margin, itest, jtest, rank =', itest, jtest, rtest
+          print*, 'is margin, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+2, jtest-2, -1
              write(6,'(i6)',advance='no') j
              do i = itest-2, itest+2
@@ -327,6 +330,7 @@ contains
           !NOTE: The Glide version of CALVING_FLOAT_ZERO calves all floating ice.
           !      Glissade calves floating ice only in the calving domain, which is CALVING_DOMAIN_OCEAN_EDGE by default.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
+          !TODO: Change the default to calving_domain_everywhere?
 
        case(CALVING_RELX_THRESHOLD)   ! set thickness to zero if relaxed bedrock is below a given level
 
@@ -573,7 +577,7 @@ contains
                 !WHL TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
  
                 if (verbose_calving .and. this_rank==rtest) then
-                   print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, calving_thck(i,j)
+                   print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, calving_thck(i,j)*thk0
                 endif
 
             endif

@@ -50,7 +50,8 @@
     private
 
     public :: glissade_transport_driver, glissade_check_cfl, &
-              glissade_transport_setup_tracers, glissade_transport_finish_tracers
+              glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
+              glissade_add_prescribed_acab, glissade_add_acab_anomaly
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -136,6 +137,8 @@
          ! start with temperature/enthalpy
          ! Note: temp/enthalpy values at upper surface (k=0) and lower surface (k=upn) are not transported,
          !       but these values are applied to new accumulation at either surface (in glissade_add_smb)
+         ! TODO: Set tracers_usrf to min(artm, 0.0) instead of temp(0) for the case that a cell
+         !       is currently ice-free with temp(0) = 0?
 
          if (model%options%whichtemp == TEMP_PROGNOSTIC) then
 
@@ -1370,6 +1373,94 @@
 
 !----------------------------------------------------------------------
 
+  subroutine glissade_add_prescribed_acab(acab,  &
+                                          prescribed_acab_value)
+
+    real(dp), dimension(:,:), intent(inout) ::  &
+         acab           !> unadjusted SMB on input (model units)
+                        !> SMB filled in with the prescribed value on output
+
+    real(dp), intent(in) ::  &
+         prescribed_acab_value    !> acab value applied where input value = 0.0
+
+    integer :: ewn, nsn
+    integer :: i, j
+
+    ! Note: This subroutine assumes that SMB value of 0.0 are non-physical
+    !       (i.e., not computed by the model supplying the SMB field).
+    !       It may be more robust to supply a special value where SMB is not computed.
+
+    ewn = size(acab,1)
+    nsn = size(acab,2)
+
+    do j = 1, nsn
+       do i = 1, ewn
+
+          if (acab(i,j) == 0.0d0) then
+             acab(i,j) = prescribed_acab_value
+          endif
+
+       enddo
+    enddo
+
+  end subroutine glissade_add_prescribed_acab
+
+!----------------------------------------------------------------------
+
+  subroutine glissade_add_acab_anomaly(acab,                    &
+                                       acab_anomaly,            &
+                                       acab_anomaly_timescale,  &
+                                       time)
+
+    real(dp), dimension(:,:), intent(inout) ::  &
+         acab           !> unadjusted SMB on input (m/yr)
+                        !> SMB including the anomaly on output
+
+    real(dp), dimension(:,:), intent(in) ::   &
+         acab_anomaly   !> anomalous SMB (m/yr) to be added to the input value
+
+    real(dp), intent(in) ::  &
+         acab_anomaly_timescale   !> number of years over which the SMB anomaly is phased in linearly
+
+    real(dp), intent(in) :: &
+         time                     !> model time in years
+                                  !> Note: Should be the time at the start of the time step, not the end
+
+    integer :: ewn, nsn
+    integer :: i, j
+    real(dp) :: acab_fraction
+
+    ewn = size(acab,1)
+    nsn = size(acab,2)
+
+    ! Given the model time, compute the fraction of the SMB anomaly to be applied now
+    ! Note: Following initMIP protocols, the SMB anomaly is applied in annual step functions
+    !       starting at the end of the first year.
+
+    if (time > acab_anomaly_timescale) then
+
+       ! apply the full anomaly
+       acab_fraction = 1.0d0
+
+    else
+
+       ! truncate the number of years and divide by the timescale
+       acab_fraction = floor(time,dp) / acab_anomaly_timescale
+
+    endif
+
+    ! apply the anomaly
+
+    do j = 1, nsn
+       do i = 1, ewn
+          acab(i,j) = acab(i,j) + acab_fraction*acab_anomaly(i,j)
+       enddo
+    enddo
+
+  end subroutine glissade_add_acab_anomaly
+
+!----------------------------------------------------------------------
+
     subroutine glissade_vertical_remap(nx,        ny,        &
                                        nlyr,      nhalo,     &
                                        sigma,     hlyr,      &
@@ -1711,8 +1802,8 @@
 
       do j = jlo-1, jhi
       do i = ilo-1, ihi
-         worka(i,j)= upwind(phi(i,j),phi(i+1,j),uee(i,j),dy)
-         workb(i,j)= upwind(phi(i,j),phi(i,j+1),vnn(i,j),dx)
+         worka(i,j) = upwind(phi(i,j),phi(i+1,j),uee(i,j),dy)
+         workb(i,j) = upwind(phi(i,j),phi(i,j+1),vnn(i,j),dx)
       enddo
       enddo
 

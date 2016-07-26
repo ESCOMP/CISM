@@ -8,6 +8,14 @@
 module unload PrgEnv-pgi PrgEnv-gnu
 module load PrgEnv-gnu
 
+# WARNING: this will break in the future.
+# Default modules no longer work, so versioned modules.
+
+
+# Latest numpy is needed, and it only works with gnu.
+module unload PrgEnv-pgi PrgEnv-gnu
+module load PrgEnv-gnu
+
 module load python
 module load python_numpy/1.9.2
 module load python_scipy/0.15.1

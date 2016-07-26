@@ -605,7 +605,7 @@ contains
                       model%velowk,                               &
                       model%velocity%wgrd(model%general%upn,:,:), &
                       model%geometry%thck,                        &
-                      model%temper%bmlt_ground,                   &
+                      model%temper%bmlt,                          &
                       model%velocity%wvel)
 
      case(VERTINT_KINEMATIC_BC)     ! Vertical integration constrained so kinematic upper BC obeyed.
@@ -617,7 +617,7 @@ contains
                       model%velowk,                               &
                       model%velocity%wgrd(model%general%upn,:,:), &
                       model%geometry%thck,                        &
-                      model%temper%bmlt_ground,                   &
+                      model%temper%bmlt,                          &
                       model%velocity%wvel)
 
         call chckwvel(model%numerics,                             &
@@ -1046,7 +1046,7 @@ contains
           end do
        end do
 
-    case(BTRC_CONSTANT_TPMP)
+    case(BTRC_CONSTANT_BPMP)
        ! constant where basal temperature equal to pressure melting point, else = 0
        ! This is the actual condition for EISMINT-2 experiment H, which may not be 
        ! the same as case BTRC_CONSTANT_BWAT above, depending on the hydrology
@@ -1066,7 +1066,7 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             stagbmlt = 0.25d0*sum(model%temper%bmlt_ground(ew:ew+1,ns:ns+1))
+             stagbmlt = 0.25d0*sum(model%temper%bmlt(ew:ew+1,ns:ns+1))
              
              if (stagbmlt > 0.0d0) then
                 btrc(ew,ns) = min(model%velowk%btrac_max, &

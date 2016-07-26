@@ -543,7 +543,7 @@ contains
   subroutine glissade_enthalpy_calcbmlt(model,                  &
                                         temp,        waterfrac, &
                                         stagsigma,   thck,      &
-                                        bmlt_ground, floater)
+                                        bmlt,        floater)
 
     ! Compute the amount of basal melting.
     ! The basal melting computed here is applied to the ice thickness
@@ -553,7 +553,7 @@ contains
     ! water content above 1% and draining it to the bed.
     ! 
     ! Note: Since this module is deprecated, the calculation has not been updated
-    !       to include bmlt_float.
+    !       to include the floating part of bmlt.
 
     use glimmer_physcon, only: shci, rhoi, lhci
     use glimmer_paramets, only : thk0, tim0
@@ -564,7 +564,7 @@ contains
     real(dp), dimension(1:,:,:), intent(inout) :: waterfrac
     real(dp), dimension(0:),     intent(in) :: stagsigma
     real(dp), dimension(:,:),    intent(in) :: thck
-    real(dp), dimension(:,:),    intent(out):: bmlt_ground  ! scaled melt rate (m/s * tim0/thk0)
+    real(dp), dimension(:,:),    intent(out):: bmlt         ! scaled melt rate (m/s * tim0/thk0)
                                                             ! > 0 for melting, < 0 for freeze-on
     logical,  dimension(:,:),    intent(in) :: floater
 
@@ -574,7 +574,7 @@ contains
     real(dp) :: internal_melt_rate   ! rate of internal melt sent to the bed (m/s)
     integer :: up, ew, ns
 
-    bmlt_ground(:,:) = 0.0d0
+    bmlt(:,:) = 0.0d0
 
     do ns = 2, model%general%nsn-1
        do ew = 2, model%general%ewn-1
@@ -595,7 +595,7 @@ contains
              !       What should we do if bwat = 0?
 
              bflx = model%temper%bfricflx(ew,ns) + model%temper%lcondflx(ew,ns) - model%temper%bheatflx(ew,ns)
-             bmlt_ground(ew,ns) = bflx * model%tempwk%f(2)   ! f(2) = tim0 / (thk0 * lhci * rhoi)
+             bmlt(ew,ns) = bflx * model%tempwk%f(2)   ! f(2) = tim0 / (thk0 * lhci * rhoi)
 
              ! Add internal melting associated with waterfrac > waterfrac_max (1%)
              ! Note: glissade_calcpmpt does not compute pmpt at the top surface or the bed.
@@ -609,7 +609,7 @@ contains
                    hmlt = (waterfrac(up,ew,ns) - 0.01d0) * (model%geometry%thck(ew,ns) * thk0)  &
                         * (model%numerics%sigma(up+1) - model%numerics%sigma(up))     ! m
                    internal_melt_rate = hmlt / (model%numerics%dttem * tim0)          ! m/s
-                   bmlt_ground(ew,ns) = bmlt_ground(ew,ns) + internal_melt_rate * tim0/thk0
+                   bmlt(ew,ns) = bmlt(ew,ns) + internal_melt_rate * tim0/thk0
                    waterfrac(up,ew,ns) = 0.01d0
                 endif
              enddo
@@ -627,7 +627,7 @@ contains
              ! Note: Energy is not exactly conserved here.
 
              up = model%general%upn  ! basal level
-             if (bmlt_ground(ew,ns) < 0.d0 .and. model%temper%bwat(ew,ns)==0.d0 .and. temp(up,ew,ns) >= pmptemp(up)) then
+             if (bmlt(ew,ns) < 0.d0 .and. model%temper%bwat(ew,ns)==0.d0 .and. temp(up,ew,ns) >= pmptemp(up)) then
                 temp(up,ew,ns) = pmptemp(up) - 0.01d0
              endif
 

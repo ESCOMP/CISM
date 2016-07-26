@@ -345,11 +345,11 @@ def main():
                         wvelscale = 1.0
                     
                     usurf = netCDFfile.variables['usurf'][-1,:,:] * thkscale  # get last time level
-                    usurfStag = (usurf[1:,1:] + usurf[1:,:-1] + usurf[:-1,:-1] + usurf[:-1, :-1]) / 4.0
+                    usurfStag = (usurf[1:,1:] + usurf[1:,:-1] + usurf[:-1,:-1] + usurf[:-1, 1:]) / 4.0
                     uvelS = netCDFfile.variables['uvel'][-1,0,:,:] * velscale  # top level of last time
                     vvelS = netCDFfile.variables['vvel'][-1,0,:,:] * velscale  # top level of last time
                     wvelS = netCDFfile.variables['wvel_ho'][-1,0,:,:] * wvelscale  # top level of last time
-                    wvelStag = (wvelS[1:,1:] + wvelS[1:,:-1] + wvelS[:-1,:-1] + wvelS[:-1, :-1]) / 4.0
+                    wvelStag = (wvelS[1:,1:] + wvelS[1:,:-1] + wvelS[:-1,:-1] + wvelS[:-1, 1:]) / 4.0
                     x0 = netCDFfile.variables['x0'][:]
                     y0 = netCDFfile.variables['y0'][:]
                     # calculate rotated xprime coordinates along the surface - xx, yy are used by code below to write the output

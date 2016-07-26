@@ -173,7 +173,7 @@
 
     integer, dimension(nx,ny) ::     &
        ice_mask,            & ! = 1 where ice is present, else = 0
-       land_mask              ! = 1 for cells where topography is above sea level
+       floating_mask          ! = 1 for cells where ice is present and floating
 
     integer :: i, j, k
 
@@ -238,15 +238,15 @@
 
     !------------------------------------------------------------------------------
     ! Compute masks: 
-    ! (1) ice mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
-    ! (2) land mask = 1 in cells where topography is at or above sea level
+    ! (1) ice_mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
+    ! (2) floating_mask = 1 in cells where ice is present and floating
     !------------------------------------------------------------------------------
 
     call glissade_get_masks(nx,          ny,         &
                             thck,        topg,       &
                             eus,         thklim,     &
                             ice_mask,                &
-                            land_mask = land_mask)
+                            floating_mask = floating_mask)
 
     !------------------------------------------------------------------------------
     ! Compute staggered variables
@@ -280,7 +280,7 @@
                              bwat(:,:),    stagbwat(:,:),   &
                              ice_mask,     stagger_margin_in = 1)
 
-    elseif (whichbtrc == BTRC_CONSTANT_TPMP) then
+    elseif (whichbtrc == BTRC_CONSTANT_BPMP) then
 
        call glissade_stagger(nx,           ny,         &
                              temp(nz,:,:), stagbtemp,  &
@@ -321,7 +321,7 @@
                                     ice_mask,               &
                                     gradient_margin_in = whichgradient_margin, &
                                     usrf = usrf,            &
-                                    land_mask = land_mask)
+                                    floating_mask = floating_mask)
 
     if (verbose .and. main_task) then
        print*, ' '
@@ -441,7 +441,7 @@
                                     usrf,     stagthck,      &
                                     dusrf_dx, dusrf_dy,      &
                                     stagflwa,                &
-                                    ice_mask, land_mask,     &
+                                    ice_mask, floating_mask, &
                                     whichgradient_margin,    &
                                     ubas,     vbas,          &
                                     uvel,     vvel)
@@ -713,7 +713,7 @@
                    btrc(i,j) = 0.d0
                 end if
 
-             case(BTRC_CONSTANT_TPMP)
+             case(BTRC_CONSTANT_BPMP)
 
                 ! constant where basal temperature equal to pressure melting point, else = 0
                 ! This is the actual condition for EISMINT-2 experiment H, which may not be 
@@ -760,7 +760,7 @@
                                         usrf,     stagthck,     &
                                         dusrf_dx, dusrf_dy,     &
                                         stagflwa,               &
-                                        ice_mask, land_mask,    &
+                                        ice_mask, floating_mask,&
                                         whichgradient_margin,   &
                                         ubas,     vbas,         &
                                         uvel,     vvel)
@@ -795,7 +795,7 @@
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask,              & ! = 1 where ice is present, else = 0
-       land_mask                ! = 1 for cells where topography is above sea level
+       floating_mask            ! = 1 for cells where ice is present and floating
 
     integer, intent(in) ::   &
        whichgradient_margin     ! option for computing gradient at ice margin
@@ -905,7 +905,7 @@
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     gradient_margin_in = whichgradient_margin, &
                                     ice_mask = ice_mask,              &
-                                    land_mask = land_mask,            &
+                                    floating_mask = floating_mask,    &
                                     usrf = usrf)
     
     do k = nz-1, 1, -1
