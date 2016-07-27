@@ -676,6 +676,8 @@ contains
     type(glide_global_type), intent(inout) :: model   ! model instance
 
     real(dp), intent(in) :: dt   ! time step (s)
+    
+    call t_startf('glissade_therm_driver')
 
     if (call_glissade_therm) then
 
