@@ -84,8 +84,8 @@ contains
      
   use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
-  use parallel, only: nhalo
-  use parallel, only: this_rank  ! for debugging
+  use parallel, only: nhalo, this_rank
+!!  use parallel, only: parallel_globalindex  ! for debugging
 
   implicit none
 
@@ -152,8 +152,8 @@ contains
 
   character(len=300) :: message
 
-  !WHL - debug - for diagnostic output
-!  integer, parameter :: itest = 100, jtest = 100, rtest = 1
+  !WHL - debug
+!!  integer :: istop, jstop
 
   select case(whichbabc)
 
@@ -291,23 +291,33 @@ contains
           call write_log('Invalid value for beta. See log file for details.', GM_FATAL)
        end if
 
-    case(HO_BABC_POWERLAW)   ! A power law that uses effective pressure
+    case(HO_BABC_POWERLAW)   ! a simple power law
+       !   Assume taub = C * ub^(1/m)
+       ! implying beta = C * ub^(1/m - 1) 
+       ! m should be a positive exponent
+
+       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
+       beta(:,:) = basal_physics%powerlaw_C * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
+
+    case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
+       !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
        ! See Cuffey & Paterson, Physics of Glaciers, 4th Ed. (2010), p. 240, eq. 7.17
        ! This is based on Weertman's classic sliding relation (1957) augmented by the bed-separation index described by Bindschadler (1983)
        !   ub = k taub^p N^-q
        ! rearranging for taub gives:
        !   taub = k^(-1/p) ub^(1/p) N^(q/p)
 
-       ! p and q should be _positive_ exponents
-       ! TODO: powerlaw_p and powerlaw_q could be turned into config parameters instead of hard-coded
-       ! If p/=1, this is nonlinear in velocity
+       ! p and q should be _positive_ exponents. If p/=1, this is nonlinear in velocity.
        ! Cuffey & Paterson recommend p=3 and q=1, and k dependent on thermal & mechanical properties of ice and inversely on bed roughness.   
+       !TODO - Change powerlaw_p to powerlaw_m, and make powerlaw_q a config parameter
+
        powerlaw_p = 3.0d0
        powerlaw_q = 1.0d0
 
+       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
        beta(:,:) = basal_physics%friction_powerlaw_k**(-1.0d0/powerlaw_p) &
             * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p) &
-            * dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 )**(1.0d0/powerlaw_p-1.0d0)
+            * speed(:,:)**(1.0d0/powerlaw_p - 1.0d0)
 
     case(HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
 
@@ -474,7 +484,12 @@ contains
          if (beta(ew,ns) >= 0.d0) then
             ! do nothing
          else
-            write(message,*) 'Invalid beta value in calcbeta: ew, ns, beta:', ew, ns, beta(ew,ns)
+            !WHL - debug
+!!            call parallel_globalindex(ew, ns, istop, jstop)
+!!            write(message,*) 'Global indices:', istop, jstop
+!!            call write_log(trim(message))
+            write(message,*) 'Invalid beta value in calcbeta: this_rank, ew, ns, beta:', &
+                 this_rank, ew, ns, beta(ew,ns)
             call write_log(trim(message), GM_FATAL)
          endif
       end do

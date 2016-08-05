@@ -37,7 +37,7 @@ long_name:     Cartesian x-coordinate
 axis: X
 data:          data%general%x1
 dimlen:        global_ewn
-load:1
+load:          1
 
 [y1]
 dimensions:    y1
@@ -46,7 +46,7 @@ long_name:     Cartesian y-coordinate
 axis:          Y
 data:          data%general%y1
 dimlen:        global_nsn
-load:1
+load:          1
 
 [level]
 dimensions:    level

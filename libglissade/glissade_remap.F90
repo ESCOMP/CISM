@@ -1198,13 +1198,11 @@ module glissade_remap
       enddo
 
       !TODO - Write error message to the log file.
-      !       I think this will require broadcasting istop and jstop to main_task.
-      !       For now, just print an error message locally.
 
       if (l_stop) then
          call parallel_globalindex(istop, jstop, istop_global, jstop_global)
          call broadcast(istop_global, proc=this_rank)
-         call broadcast(istop_global, proc=this_rank)
+         call broadcast(jstop_global, proc=this_rank)
          i = istop
          j = jstop
 !         write (message,*) 'Process:',this_rank

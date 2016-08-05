@@ -395,7 +395,7 @@ contains
 
     if (maxval(model%basal_physics%C_space_factor) > tiny(0.d0)) then  ! C_space_factor was read in
 
-       print*, 'stagger C'
+       if (main_task) print*, 'stagger Coulomb spatial factor C'
        ! do a halo update and interpolate to the staggered grid
        ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
        call parallel_halo(model%basal_physics%C_space_factor)

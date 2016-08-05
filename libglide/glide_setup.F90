@@ -788,7 +788,7 @@ contains
          'vertical thermal solve after transport     ', &
          'vertical thermal solve split into two parts' /)
 
-    character(len=*), dimension(0:13), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:14), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
          'till yield stress (Picard)                       ', &
@@ -798,10 +798,11 @@ contains
          'no slip (Dirichlet implementation)               ', &
          'till yield stress (Newton)                       ', &
          'beta as in ISMIP-HOM test C                      ', &
-         'power law using effective pressure               ', &
+         'power law                                        ', &
          'Coulomb friction law w/ effec press              ', &
          'Coulomb friction law w/ effec press, const flwa_b', &
          'min of Coulomb stress and power-law stress (Tsai)', &
+         'power law using effective pressure               ', &
          'simple pattern of beta                           ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
@@ -1244,7 +1245,7 @@ contains
          call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
               &USE AT YOUR OWN RISK.', GM_WARNING)
        endif
-       if (model%options%which_ho_babc == HO_BABC_POWERLAW) then
+       if (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
          call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
               &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        endif
@@ -1717,7 +1718,9 @@ contains
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
-       write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
+       call write_log(message)
+       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
         model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
@@ -1737,6 +1740,10 @@ contains
        write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+    elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
+       !TODO - Use powerlaw_C instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
+       write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
        call write_log(message)
     endif
 

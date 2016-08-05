@@ -9343,7 +9343,7 @@
                             Auu( m, k,   i,   j   ) = avg_val
                             Auu(mm, k+kA,i+iA,j+jA) = avg_val
                          else
-                            print*, 'WARNING: Auu is not symmetric: i, j, k, iA, jA, kA =', i, j, k, iA, jA, kA
+                            print*, 'WARNING: Auu is not symmetric: this_rank, i, j, k, iA, jA, kA =', this_rank, i, j, k, iA, jA, kA
                             print*, 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                            stop
                          endif
@@ -9367,7 +9367,7 @@
                             Auv( m, k,   i,   j   ) = avg_val
                             Avu(mm, k+kA,i+iA,j+jA) = avg_val
                          else
-                            print*, 'WARNING: Auv is not equal to (Avu)^T, i, j, k, iA, jA, kA =', i, j, k, iA, jA, kA
+                            print*, 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, k, iA, jA, kA =', this_rank, i, j, k, iA, jA, kA
                             print*, 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                            stop
                          endif
@@ -9411,7 +9411,7 @@
                             Avv( m, k,   i,   j   ) = avg_val
                             Avv(mm, k+kA,i+iA,j+jA) = avg_val
                          else
-                            print*, 'WARNING: Avv is not symmetric: i, j, k, iA, jA, kA =', i, j, k, iA, jA, kA
+                            print*, 'WARNING: Avv is not symmetric: this_rank, i, j, k, iA, jA, kA =', this_rank, i, j, k, iA, jA, kA
                             print*, 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                            stop
                          endif
@@ -9435,7 +9435,7 @@
                             Avu( m, k,   i,   j   ) = avg_val
                             Auv(mm, k+kA,i+iA,j+jA) = avg_val
                          else
-                            print*, 'WARNING: Avu is not equal to (Auv)^T, i, j, k, iA, jA, kA =', i, j, k, iA, jA, kA
+                            print*, 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, k, iA, jA, kA =', this_rank, i, j, k, iA, jA, kA
                             print*, 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                            stop
                          endif
@@ -9571,7 +9571,7 @@
                       Auv( m,   i,   j) = avg_val
                       Avu(mm,i+iA,j+jA) = avg_val
                    else
-                      print*, 'WARNING: Auv is not equal to (Avu)^T, i, j, iA, jA =', i, j, iA, jA
+                      print*, 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                      stop
                    endif
@@ -9609,7 +9609,7 @@
                       Avv( m,   i,   j) = avg_val
                       Avv(mm,i+iA,j+jA) = avg_val
                    else
-                      print*, 'WARNING: Avv is not symmetric: i, j, iA, jA =', i, j, iA, jA
+                      print*, 'WARNING: Avv is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                      stop
                    endif
@@ -9633,7 +9633,7 @@
                       Avu( m,   i,   j) = avg_val
                       Auv(mm,i+iA,j+jA) = avg_val
                    else
-                      print*, 'WARNING: Avu is not equal to (Auv)^T, i, j, iA, jA =', i, j, iA, jA
+                      print*, 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                      stop
                    endif

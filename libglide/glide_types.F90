@@ -116,8 +116,8 @@ module glide_types
   integer, parameter :: BWATER_OCEAN_PENETRATION = 4
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
-  integer, parameter :: BMLT_FLOAT_CONSTANT = 1
-  integer, parameter :: BMLT_FLOAT_MISMIP = 2
+  integer, parameter :: BMLT_FLOAT_MISMIP = 1
+  integer, parameter :: BMLT_FLOAT_CONSTANT = 2
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -201,6 +201,7 @@ module glide_types
   integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
   integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
   
+  !TODO - Deprecate the last two options? Rarely if ever used.
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
   integer, parameter :: HO_BABC_YIELD_PICARD = 2
@@ -214,7 +215,8 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
   integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
-  integer, parameter :: HO_BABC_SIMPLE = 13
+  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
+  integer, parameter :: HO_BABC_SIMPLE = 14
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -567,11 +569,12 @@ module glide_types
     !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
     !> \item[7] treat beta value as till yield stress (in Pa) using Newton-type iteration (in development)
     !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
-    !> \item[9] power law based using effective pressure
+    !> \item[9] power law
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
     !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
     !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
-    !> \item[13] simple hard-coded pattern (useful for debugging)
+    !> \item[13] power law using effective pressure
+    !> \item[14] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
     integer :: which_ho_bwat = 0

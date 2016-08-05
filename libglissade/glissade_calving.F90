@@ -87,7 +87,7 @@ contains
 
        if (maxval(calving_mask) > 0) then
 
-          ! calving_mask was read from the input file; do nothing
+          ! calving_mask was read from the input file; do not need to compute a mask here
 
        else   ! create calving_mask here
 

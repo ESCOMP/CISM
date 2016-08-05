@@ -305,7 +305,7 @@
     logical :: adjacent   ! true if two grounded vertices are adjacent (rather than opposite)
 
     real(dp), parameter :: &
-       eps10 = 1.d-10     ! small number
+       eps06 = 1.d-06     ! small number
 
     !WHL - debug
     integer, parameter :: it = 1, jt = 1, rtest = 9999
@@ -628,7 +628,7 @@
                       !
                       ! Note: We cannot have bc = 0, because f_flotation varies in both x and y
 
-                      if (abs(d) > eps10) then
+                      if (abs(d*(1.d0-a)/(b*c)) > eps06) then
                          f_corner = ((b*c - a*d + d) * log(1.d0 + d*(1.d0 - a)/(b*c)) - (1.d0 - a)*d) / (d*d)
                       else
                          f_corner = (a - 1.d0)*(a - 1.d0) / (2.d0*b*c)
@@ -751,8 +751,8 @@
                          ! Note: We cannot have c = 0, because the passage of the GL
                          !       through the region from left to right implies variation in y.
                          
-                         if (abs(d) > eps10) then
-                            f_trapezoid = ((b*c - a*d + d) * log(1 + d/c) - b*d) / (d*d)
+                         if (abs(d/c) > eps06) then   ! the usual case
+                            f_trapezoid = ((b*c - a*d + d) * log(1.d0 + d/c) - b*d) / (d*d)
                          else
                             f_trapezoid = -(2.d0*a + b - 2.d0) / (2.d0*c)
                          endif
@@ -801,7 +801,7 @@
                             print*, 'Pattern 3: i, j, bc + d(1-a) =', i, j, b*c + d*(1.d0-a)
                          endif
 
-                         if (abs(b*c + d*(1.d0-a)) > eps10) then  ! the usual case
+                         if (abs(d*(1.d0-a)/(b*c)) > eps06) then  ! the usual case
                             f_corner1 = ((b*c - a*d + d) * log(1.d0 + d*(1.d0-a)/(b*c)) - (1.d0-a)*d) / (d*d)
                             f_corner2 = ((b*c - a*d + d) * log((b*c + d*(1.d0-a))/((b+d)*(c+d)))  &
                                       + d*(a + b + c + d - 1)) / (d*d)
