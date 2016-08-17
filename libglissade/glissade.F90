@@ -968,6 +968,8 @@ contains
                                          thck_unscaled(:,:),                                   &
                                          acab_unscaled(:,:),                                   &
                                          bmlt_continuity(:,:),                                 &
+                                         model%climate%acab_applied(:,:),                      &
+                                         model%temper%bmlt_applied(:,:),                       &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -984,6 +986,10 @@ contains
        ! convert thck back to scaled units
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
+
+       ! convert applied mass balance back to scaled units
+       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:) / (thk0/tim0) 
+       model%temper%bmlt_applied(:,:) = model%temper%bmlt_applied(:,:) / (thk0/tim0) 
 
        ! Eliminate ice from cells where mask prohibits it
        do j = 1, model%general%nsn
@@ -1681,8 +1687,8 @@ contains
 
     ! surface, basal and calving mass fluxes
     ! positive for mass gain, negative for mass loss
-    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_corrected(:,:)*thk0/tim0
-    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt(:,:)) * thk0/tim0
+    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
     ! real-valued masks

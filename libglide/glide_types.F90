@@ -771,6 +771,8 @@ module glide_types
     !> see glide_mask.f90 for possible values
 
     ! mass fluxes at each surface
+    ! Note: sfc_mbal_flux and basal_mbal_flux are not strictly needed, since they are equal to acab_applied and bmlt_applied
+    !       multipled by a constant. For some applications, however, it may be useful to output the mass balance in SI units.
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from acab
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt_float and bmlt_ground
@@ -967,6 +969,8 @@ module glide_types
      real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Annual mass balance (time average).
      real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Annual mass balance anomaly (m/y ice)
      real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Annual mass balance with flux or anomaly corrections (m/y ice)
+     real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Annual mass balance applied to ice (m/y ice)
+                                                                  !> = 0 for ice-free cells with acab < 0
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
@@ -1076,6 +1080,8 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
     real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
+    real(dp),dimension(:,:),  pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
+                                                             !> = 0 for ice-free cells with bmlt > 0
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
@@ -1700,6 +1706,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwatflx)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_applied)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
@@ -1867,6 +1874,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_corrected)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
@@ -1973,6 +1981,8 @@ contains
         deallocate(model%temper%stagbwat)
     if (associated(model%temper%bmlt)) &
         deallocate(model%temper%bmlt)
+    if (associated(model%temper%bmlt_applied)) &
+        deallocate(model%temper%bmlt_applied)
     if (associated(model%temper%bmlt_float_mask)) &
         deallocate(model%temper%bmlt_float_mask)
     if (associated(model%temper%bpmp)) &
@@ -2243,6 +2253,8 @@ contains
         deallocate(model%climate%acab_anomaly)
     if (associated(model%climate%acab_corrected)) &
         deallocate(model%climate%acab_corrected)
+    if (associated(model%climate%acab_applied)) &
+        deallocate(model%climate%acab_applied)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%flux_correction)) &

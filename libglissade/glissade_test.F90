@@ -548,6 +548,8 @@ contains
                                       model%geometry%thck(:,:),                             &
                                       model%climate%acab(:,:),                              &
                                       model%temper%bmlt(:,:),                               &
+                                      model%climate%acab_applied(:,:),                      &
+                                      model%temper%bmlt_applied(:,:),                       &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &

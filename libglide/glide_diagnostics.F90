@@ -448,7 +448,7 @@ contains
     tot_acab = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          tot_acab = tot_acab + model%climate%acab(i,j) * cell_area(i,j)
+          tot_acab = tot_acab + model%climate%acab_applied(i,j) * cell_area(i,j)
        enddo
     enddo
 
@@ -471,7 +471,7 @@ contains
     tot_bmlt = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-             tot_bmlt = tot_bmlt + model%temper%bmlt(i,j) * cell_area(i,j)
+             tot_bmlt = tot_bmlt + model%temper%bmlt_applied(i,j) * cell_area(i,j)
        enddo
     enddo
 

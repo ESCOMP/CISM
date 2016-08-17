@@ -497,6 +497,15 @@ factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_corrected
 coordinates:   lon lat
 
+[acab_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied accumulation, ablation rate
+data:          data%climate%acab_applied
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_applied
+coordinates:   lon lat
+
 [acab_anomaly]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -546,6 +555,15 @@ standard_name: land_ice_basal_melt_rate
 load:          1
 coordinates:   lon lat
 #average:       1
+
+[bmlt_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied basal melt rate
+data:          data%temper%bmlt_applied
+factor:        scale_acab
+standard_name: land_ice_basal_melt_rate_applied
+coordinates:   lon lat
 
 [bmlt_float_mask]
 dimensions:    time, y1, x1

@@ -296,6 +296,7 @@
                                          uvel,         vvel,         &
                                          thck,                       &
                                          acab,         bmlt,         &
+                                         acab_applied, bmlt_applied, &
                                          ntracers,     tracers,      &
                                          tracers_usrf, tracers_lsrf, &
                                          vert_remap_accuracy,        &
@@ -344,6 +345,12 @@
          bmlt                   ! basal melt rate (m/s); positive for melting, negative for freeze-on
                                 ! includes melting for both grounded and floating ice
                                 ! (defined at horiz cell centers)
+
+      real(dp), dimension(nx,ny), intent(out) ::  &
+         acab_applied,    &     ! surface mass balance applied to ice (m/s)
+                                ! = 0 for ice-free cells where acab < 0
+         bmlt_applied           ! basal melt rate applied to ice (m/s)
+                                ! = 0 for ice-free cells where bmlt > 0
 
       integer, intent(in) ::  &
          ntracers               ! number of tracers to be transported
@@ -713,6 +720,8 @@
                             tracers_lsrf(:,:,:),   &
                             acab(:,:),             &
                             bmlt(:,:),             &
+                            acab_applied(:,:),     &
+                            bmlt_applied(:,:),     &
                             melt_potential )
 
 !      print*, ' '
@@ -813,6 +822,7 @@
                                       errflag,       0.d0,        &  ! ignore melt potential for this check
                                       ntracers,                   &
                                       mtsum_init,    mtsum_final)
+
             if (errflag) then
                write(message,*) 'WARNING: Conservation error in glissade_vertical_remap'
 !               call write_log(message,GM_FATAL)      ! uncomment if conservation errors should never happen
@@ -1203,12 +1213,13 @@
 
 !----------------------------------------------------------------------
 
-    subroutine glissade_add_smb(nx,          ny,          &
-                                nlyr,        ntracer,     &
-                                nhalo,       dt,          &
-                                thck_layer,  tracer,      &
-                                tracer_usrf, tracer_lsrf, &
-                                acab,        bmlt,        &
+    subroutine glissade_add_smb(nx,           ny,          &
+                                nlyr,         ntracer,     &
+                                nhalo,        dt,          &
+                                thck_layer,   tracer,      &
+                                tracer_usrf,  tracer_lsrf, &
+                                acab,         bmlt,        &
+                                acab_applied, bmlt_applied,&
                                 melt_potential)
 
       ! Adjust the layer thickness based on the surface and basal mass balance
@@ -1241,6 +1252,14 @@
          bmlt                   ! basal melt rate (m/s)
                                 ! > 0 for melting, < 0 for freeze-on
 
+      real(dp), intent(out), dimension(nx,ny) :: &
+         acab_applied           ! surface mass balance applied to ice (m/s)
+                                ! = 0 in ice-free regions where acab < 0
+
+      real(dp), intent(out), dimension(nx,ny) :: &
+         bmlt_applied           ! basal melt rate applied to ice (m/s)
+                                ! = 0 in ice-free regions where bmlt > 0
+
       real(dp), intent(out) :: &
          melt_potential   ! total thickness (m) of additional ice that could be melted
                           ! by available acab/bmlt in columns that are completely melted
@@ -1268,6 +1287,13 @@
             bed_accum = 0.d0
             bed_ablat = 0.d0
             
+            ! initialize the applied surface and basal mass balance
+            ! These terms are adjusted below if energy is available for melting
+            !  when no ice is present.
+
+            acab_applied(i,j) = acab(i,j)
+            bmlt_applied(i,j) = bmlt(i,j)
+
             ! Add surface accumulation/ablation to ice thickness
             ! Also modify tracers conservatively.
 
@@ -1308,14 +1334,18 @@
                   endif
                enddo
 
+               ! Adjust acab_applied if energy is still available for melting
+               ! Also accumulate the remaining melt energy 
+
                if (sfc_ablat > 0.d0) then
+                  acab_applied(i,j) = acab_applied(i,j) + sfc_ablat/dt  ! acab_applied is less negative than acab
                   melt_potential = melt_potential + sfc_ablat
                endif
 
-            endif  ! acab > 0
-
             !TODO - Figure out how to handle excess energy given by melt_potential.
             !       Include in the heat flux passed back to CLM?
+
+            endif  ! acab > 0
 
             ! Note: It is possible that we could have residual energy remaining for surface ablation
             ! while ice is freezing on at the bed, in which case the surface ablation should
@@ -1358,7 +1388,11 @@
                   endif
                enddo
   
+               ! Adjust bmlt_applied if energy is still available for melting
+               ! Also accumulate the remaining melt energy 
+
                if (bed_ablat > 0.d0) then
+                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat/dt  ! bmlt_applied is less than bmlt
                   melt_potential = melt_potential + bed_ablat
                endif
 
