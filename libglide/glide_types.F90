@@ -402,8 +402,8 @@ module glide_types
     !> basal melt rate for floating ice:
     !> \begin{description}
     !> \item[0] Basal melt rate = 0 for floating ice
-    !> \item[1] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
-    !> \item[2] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \item[1] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
     !> \end{description}
 
     !TODO - Change default basal_mbal to 1?
@@ -1157,15 +1157,16 @@ module glide_types
     ! parameters and fields for MISMIP+ experiments with basal melting
     ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
     real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
-                                                   !> default value = 0.2 yr^{-1} for MISIMP+
+                                                   !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
     real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)
-                                                   !> default value = 75 m for MISMIP+
+                                                   !> default value = 75 m for MISMIP+ Ice1r
     real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
-                                                   !> default value = -100 m for MISMIP+
+                                                   !> default value = -100 m for MISMIP+ Ice1r
+
     real(dp) :: bmlt_float_rate = 100.d0           !> constant melt rate (m/yr)
-                                                   !> default value = 100 m/yr for MISMIP+ experiment Ice2r
-    integer, dimension(:,:), pointer :: bmlt_float_mask => null()   !> switch off melt where mask = 1
-                                                                    !> mask = 1 where x < 480 km for MISMIP+ experiment Ice2r
+                                                   !> default value = 100 m/yr for MISMIP+ Ice2r
+    real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
+                                                   !> set to 480 km for MISMIP+ Ice2r
 
   end type glide_temper
 
@@ -1216,7 +1217,7 @@ module glide_types
      real(dp) :: pseudo_plastic_bedmax =  700.d0 !< bed elevation (m) above which phi = phimax
 
      ! parameters for friction powerlaw
-     real(dp) :: friction_powerlaw_k = 8.4d-9    !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  
+     real(dp) :: friction_powerlaw_k = 8.4d-9    !< coefficient (m y^-1 Pa^-2) for the friction power law based on effective pressure
                                                  !< The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
 
      ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
@@ -1635,7 +1636,6 @@ contains
     !> \item \texttt{dissip(upn,ewn,nsn))}         !WHL - 2 choices
     !> \item \texttt{bwat(ewn,nsn))}
     !> \item \texttt{bmlt(ewn,nsn))}
-    !> \item \texttt{bmlt_float_mask(ewn,nsn))}
     !> \item \texttt{bfricflx(ewn,nsn))}
     !> \item \texttt{ucondflx(ewn,nsn))}
     !> \item \texttt{lcondflx(ewn,nsn))}

@@ -1521,10 +1521,11 @@ contains
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
     ! MISMIP+ basal melting parameters
-    call GetValue(section,'bmlt_float_rate', model%temper%bmlt_float_rate)
     call GetValue(section,'bmlt_float_omega', model%temper%bmlt_float_omega)
     call GetValue(section,'bmlt_float_h0', model%temper%bmlt_float_h0)
     call GetValue(section,'bmlt_float_z0', model%temper%bmlt_float_z0)
+    call GetValue(section,'bmlt_float_rate', model%temper%bmlt_float_rate)
+    call GetValue(section,'bmlt_float_xlim', model%temper%bmlt_float_xlim)
 
     ! initMIP parameters
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
@@ -1800,6 +1801,8 @@ contains
     ! parameters for basal melting of floating ice (including MISMIP+)
     if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
        write(message,*) 'bmlt_float_rate (m/yr)   :  ', model%temper%bmlt_float_rate
+       call write_log(message)
+       write(message,*) 'bmlt_float_xlim (m)      :  ', model%temper%bmlt_float_xlim
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
        write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%temper%bmlt_float_omega
@@ -2266,16 +2269,6 @@ contains
         call glide_add_to_restart_variable_list('waterfrac')
       case default
         ! no restart variables needed
-    end select
-
-    ! basal melting option
-    select case (options%whichbmlt_float)
-       case (BMLT_FLOAT_CONSTANT)
-          ! bmlt_float_mask needs to be in restart file if not = 0 everywhere
-          ! TODO - Add bmlt_float_mask to the restart file only if not = 0 everywhere?
-          call glide_add_to_restart_variable_list('bmlt_float_mask')
-       case default
-          ! no restart variables needed
     end select
 
     ! basal sliding option

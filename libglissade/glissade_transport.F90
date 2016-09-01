@@ -298,6 +298,7 @@
                                          thck,                       &
                                          acab,         bmlt,         &
                                          acab_applied, bmlt_applied, &
+                                         cell_mask,                  &
                                          ntracers,     tracers,      &
                                          tracers_usrf, tracers_lsrf, &
                                          vert_remap_accuracy,        &
@@ -352,6 +353,8 @@
                                 ! = 0 for ice-free cells where acab < 0
          bmlt_applied           ! basal melt rate applied to ice (m/s)
                                 ! = 0 for ice-free cells where bmlt > 0
+      integer, dimension(nx,ny), intent(in) :: &
+         cell_mask              ! integer mask encoding cell properties 
 
       integer, intent(in) ::  &
          ntracers               ! number of tracers to be transported
@@ -715,6 +718,7 @@
       call glissade_add_smb(nx,       ny,          &
                             nlyr,     ntracers,    &
                             nhalo,    dt,          &
+                            cell_mask,             &
                             thck_layer(:,:,:),     &
                             tracers(:,:,:,:),      &
                             tracers_usrf(:,:,:),   &
@@ -1217,11 +1221,17 @@
     subroutine glissade_add_smb(nx,           ny,          &
                                 nlyr,         ntracer,     &
                                 nhalo,        dt,          &
+                                cell_mask,                &
                                 thck_layer,   tracer,      &
                                 tracer_usrf,  tracer_lsrf, &
                                 acab,         bmlt,        &
                                 acab_applied, bmlt_applied,&
                                 melt_potential)
+
+      use glissade_masks, only: mask_is_ocean
+
+      !WHL - debug
+      use glimmer_paramets, only: thk0
 
       ! Adjust the layer thickness based on the surface and basal mass balance
 
@@ -1235,6 +1245,9 @@
 
       real(dp), intent(in) ::   &
          dt                     ! time step (s)
+
+      integer, dimension(nx,ny), intent(in) :: &
+         cell_mask              ! integer mask encoding cell properties 
 
       real(dp), dimension (nx,ny,nlyr), intent(inout) ::     &
          thck_layer             ! ice layer thickness
@@ -1277,6 +1290,10 @@
 
       character(len=100) :: message
 
+      !WHL - debug
+      integer, parameter :: itest = 250, jtest = 21
+!!      integer, parameter :: itest = 223, jtest = 13
+      
       melt_potential = 0.d0
 
       do j = 1+nhalo, ny-nhalo
@@ -1302,20 +1319,29 @@
 
                sfc_accum = acab(i,j)*dt
 
-               ! adjust mass-tracer product for the top layer
+               if (mask_is_ocean(cell_mask(i,j))) then     ! no accumulation in open ocean
 
-               do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
+                  ! TODO - Is this the correct treatment of the melt potential for accumulation over the ocean?
+                  melt_potential = melt_potential - sfc_accum
 
-                  thck_tracer(i,j,nt,1) = thck_layer(i,j,1) * tracer(i,j,nt,1)  &
-                                        + sfc_accum * tracer_usrf(i,j,nt)
+               else  ! not ocean; accumulate ice
 
-               enddo  ! ntracer
+                  ! adjust mass-tracer product for the top layer
 
-               ! new top layer thickess
-               thck_layer(i,j,1) = thck_layer(i,j,1) + sfc_accum
+                  do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
 
-               ! new tracer values in top layer
-               tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
+                     thck_tracer(i,j,nt,1) = thck_layer(i,j,1) * tracer(i,j,nt,1)  &
+                                           + sfc_accum * tracer_usrf(i,j,nt)
+
+                  enddo  ! ntracer
+
+                  ! new top layer thickess
+                  thck_layer(i,j,1) = thck_layer(i,j,1) + sfc_accum
+
+                  ! new tracer values in top layer
+                  tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
+
+               endif   ! mask_is_ocean
 
             elseif (acab(i,j) < 0.d0) then   ! ablation in one or more layers            
 

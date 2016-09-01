@@ -1443,6 +1443,7 @@
     ! (2) floating mask = 1 in cells where ice is present and is floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
+    !TODO: Compute these masks before the velocity solve and pass them in?
     !------------------------------------------------------------------------------
 
     call glissade_get_masks(nx,          ny,         &

@@ -775,11 +775,12 @@ contains
                                 model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                 model%temper%dissip,                                          & ! deg/s
                                 model%temper%pmp_threshold,                                   & ! deg C
-                                model%temper%bmlt_float_rate,                                 & ! m/s
-                                model%temper%bmlt_float_mask,                                 & ! 0 or 1
                                 model%temper%bmlt_float_omega,                                & ! s-1
                                 model%temper%bmlt_float_h0,                                   & ! m
                                 model%temper%bmlt_float_z0,                                   & ! m
+                                model%temper%bmlt_float_rate,                                 & ! m/s
+                                model%general%x1,                                             & ! m
+                                model%temper%bmlt_float_xlim,                                 & ! m
                                 model%temper%bwat*thk0,                                       & ! m
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
@@ -844,6 +845,7 @@ contains
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
                                   glissade_add_acab_anomaly
+    use glissade_masks, only: glissade_calculate_masks
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
     implicit none
@@ -859,6 +861,9 @@ contains
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
        thck_unscaled,      &! ice thickness (m)
        acab_unscaled        ! surface mass balance (m/s)
+
+    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+       cell_mask            ! integer mask encoding cell properties
 
     ! temporary variables needed to reset geometry for the EVOL_NO_THICKNESS option
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_old
@@ -1031,6 +1036,18 @@ contains
           ! (includes a halo update for tracers)
           call glissade_transport_setup_tracers (model)
 
+
+          ! compute a cell mask
+          ! (used to mask out accumulation over ice-free ocean cells)
+
+          call glissade_calculate_masks(model%general%ewn,          model%general%nsn, &
+                                        thck_unscaled,                &
+                                        model%geometry%topg * thk0,   &
+                                        model%climate%eus * thk0,     &
+                                        0.d0,                         &  ! thklim_ground
+                                        0.d0,                         &  ! thklim_float
+                                        cell_mask)
+
           ! Call the transport driver subroutine.
           ! (includes a halo update for thickness: thck_unscaled in this case)
           !
@@ -1051,6 +1068,7 @@ contains
                                          bmlt_continuity(:,:),                                 &
                                          model%climate%acab_applied(:,:),                      &
                                          model%temper%bmlt_applied(:,:),                       &
+                                         cell_mask(:,:),                                       &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -1311,7 +1329,7 @@ contains
     use glam_velo, only: glam_velo_driver, glam_basal_friction
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_grounded_fraction
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
@@ -1400,6 +1418,38 @@ contains
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask,            floating_mask)
+
+    ! ------------------------------------------------------------------------
+    ! Compute the fraction of grounded ice in each cell
+    ! (requires that thck and topg are up to date in halo cells).
+    ! This is used in the velocity solver to compute the basal stress BC.
+    !
+    ! Three options for whichground:
+    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
+    ! (1) HO_GROUND_GLP:    0 <= f_ground <= 1 based on grounding-line parameterization
+    ! (2) HO_GROUND_ALL:    f_ground = 1 for all cells with ice
+    ! 
+    ! Three options for whichflotation_function (applies to whichground = 0 or 1):
+    ! (0) HO_FLOTATION_FUNCTION_PATTYN:         f = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    ! (2) HO_FLOTATION_FUNCTION_LINEAR:         f = -rhow*b - rhoi*H; <= 0 for grounded, > 0 for floating
+    !
+    ! f_flotation is not needed in velocity calculations but is output as a diagnostic.
+    !
+    ! Computing f_ground here ensures that it is always available as a diagnostic, even if
+    ! the velocity solver is not called (e.g., on the first time step of a restart).
+    ! ------------------------------------------------------------------------
+
+    call glissade_grounded_fraction(model%general%ewn,             &
+                                    model%general%nsn,             &
+                                    model%geometry%thck*thk0,      &
+                                    model%geometry%topg*thk0,      &
+                                    model%climate%eus*thk0,        &
+                                    ice_mask,                      &
+                                    model%options%which_ho_ground, &
+                                    model%options%which_ho_flotation_function, &
+                                    model%geometry%f_ground,       &
+                                    model%geometry%f_flotation)
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -1520,7 +1570,7 @@ contains
     if ( (model%options%is_restart == RESTART_TRUE) .and. &
          (model%numerics%time == model%numerics%tstart) ) then
   
-       ! Do nothing, because solving for velocity will break exact restart
+       ! Do not solve for velocity, because this would break exact restart
 
     else
 

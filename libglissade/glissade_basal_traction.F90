@@ -113,25 +113,24 @@ contains
 
   real(dp) :: smallnum = 1.0d-2  ! m/yr
 
-  ! SFP added for making beta a function of basal water flux 
-  real(dp), dimension(:,:), allocatable :: unstagbeta
-  real(dp) :: C, m
-
   real(dp) :: Ldomain   ! size of full domain
   real(dp) :: omega     ! frequency of beta field
   real(dp) :: dx, dy
   integer :: ilo, ihi, jlo, jhi  ! limits of beta field for ISHOM C case
   integer :: ew, ns
 
+  real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
+
   ! variables for power law
   real(dp) :: powerlaw_p, powerlaw_q
 
   ! variables for Coulomb friction law
-  real(dp) :: Coulomb_C   ! friction coefficient (unitless)
+  real(dp) :: Coulomb_C   ! Coulomb law friction coefficient (unitless)
+  real(dp) :: powerlaw_C  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
   real(dp) :: lambda_max  ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max       ! maximum bed obstacle slope (unitless)
+  real(dp) :: m           ! exponent m in power law
   real(dp), dimension(size(beta,1), size(beta,2)) :: big_lambda       ! bedrock characteristics
-  real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
   integer,  dimension(size(thck,1), size(thck,2)) :: imask            ! ice grid mask  1=ice, 0=no ice
   real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
                                                                       ! Note: Units are Pa^{-n} yr^{-1}
@@ -149,6 +148,7 @@ contains
   real(dp) :: phimin, phimax ! min and max values of phi for pseudo-plastic law (degrees)
   real(dp) :: bedmin, bedmax ! bed elevations (m) below which phi = phimin and above which phi = phimax
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
+  real(dp) :: numerator, denominator
 
   character(len=300) :: message
 
@@ -319,59 +319,93 @@ contains
             * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p) &
             * speed(:,:)**(1.0d0/powerlaw_p - 1.0d0)
 
-    case(HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
+    case(HO_BABC_COULOMB_FRICTION)
 
       ! Basal stress representation using Coulomb friction law
       ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
 
-      ! Set up parameters needed for the friction law
-      m_max = basal_physics%Coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
-      lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
-      Coulomb_C = basal_physics%Coulomb_C                ! basal shear stress factor (Pa (m^-1 y)^1/3)
+       ! Set up parameters needed for the friction law
+       m_max = basal_physics%Coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
+       lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
+       Coulomb_C = basal_physics%Coulomb_C                ! basal shear stress factor (Pa (m^-1 y)^1/3)
 
-      ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
+       ! Need flwa of the basal layer on the staggered grid
+       !TODO - Pass in ice_mask instead of computing imask here?
+       !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
+       where (thck > 0.0)
+          imask = 1
+       elsewhere
+          imask = 0
+       end where
+       call glissade_stagger(ewn,         nsn,               &
+                             flwa_basal,  flwa_basal_stag,   &
+                             imask,       stagger_margin_in = 1)
+       ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
 
-      if (whichbabc == HO_BABC_COULOMB_FRICTION) then
+       ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
+       big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
 
-         ! Need flwa of the basal layer on the staggered grid
-         !TODO - Pass in ice_mask instead of computing imask here?
-         !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
-         where (thck > 0.0)
-            imask = 1
-         elsewhere
-            imask = 0
-         end where
-         call glissade_stagger(ewn,         nsn,               &
-                               flwa_basal,  flwa_basal_stag,   &
-                               imask,       stagger_margin_in = 1)
-         ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
+       ! Note: For MISMIP3D, Coulomb_C is multiplied by a spatial factor (C_space_factor) which is
+       !       read in during initialization. This factor is typically between 0 and 1.
+       !       If this factor is not present in the input file, it is set to 1 everywhere.
 
-         big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
+       ! Compute beta
+       ! gn = Glen's n from physcon module
+       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
+       beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * &
+            basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
+            (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
 
-      else   ! which babc = HO_BABC_COULOMB_CONST_BASAL_FLWA; use a constant value of basal flwa
-             ! NOTE: Units of flwa_basal are Pa{-n} yr{-1}
+       ! Limit for numerical stability
+       !TODO - Is limiting needed?
+       where (beta > 1.0d8)
+          beta = 1.0d8
+       end where
 
-         big_lambda(:,:) = (lambda_max / m_max) * basal_physics%flwa_basal
+    case(HO_BABC_COULOMB_CONST_BASAL_FLWA) 
 
-      endif
+       ! Use a constant value of basal flwa.
+       ! This allows several Coulomb parameters (lambda_max, m_max and flwa_basal)
+       !  to be combined into a single parameter powerlaw_C, as in the Tsai power law below.
+       !
+       ! The equation for tau_b = beta * u_b is
+       ! 
+       !                    powerlaw_C * Coulomb_C * N
+       ! tau_b = ---------------------------------------------- u_b^{1/m}
+       !         [powerlaw_C^m * u_b + (Coulomb_C * N)^m]^{1/m}
+       !
+       ! where m = powerlaw_m
+       !
+       ! This is the second modified basal traction law in MISMIP+. See Eq. 11 of Asay-Davis et al. (2016).
+       ! Note: powerlaw_C corresponds to beta^2 in their notation, and Coulomb_C corresponds to alpha^2.
 
-      ! Note: For MISMIP3D, Coulomb_C is multiplied by a spatial factor (C_space_factor) which is
-      !       read in during initialization. This factor is typically between 0 and 1.
-      !       If this factor is not present in the input file, it is set to 1 everywhere.
+       powerlaw_C = basal_physics%powerlaw_C
+       Coulomb_C = basal_physics%Coulomb_C
+       m = basal_physics%powerlaw_m
 
-      ! Compute beta
-      ! gn = Glen's n from physcon module
-      speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
-      beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * &
-           basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
-           (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
 
-      ! Limit for numerical stability
-      where (beta > 1.0d8)
-         beta = 1.0d8
-      end where
+             speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
 
-      !WHL - debug - Write values along a flowline
+             numerator = powerlaw_C * Coulomb_C * basal_physics%effecpress_stag(ew,ns)
+             denominator = ( powerlaw_C**m * speed(ew,ns) +  &
+                             (Coulomb_C * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+
+             beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
+
+          enddo
+       enddo
+
+       !TODO - Verify that the results are similar to Tsai
+
+       ! Limit for numerical stability
+       !TODO - Is limiting needed?
+       where (beta > 1.0d8)
+          beta = 1.0d8
+       end where
+
+       !WHL - debug - Write values along a flowline
 !      write(6,*) ' '
 !      write(6,*) 'Apply Coulomb friction: i, j, speed, N_stag, beta, taub:'
 !      ns = jtest
@@ -387,7 +421,8 @@ contains
       ! (2) Coulomb friction:   tau_b = Coulomb_C * N
       !                             N = effective pressure = rhoi*g*(H - H_f)
       !                           H_f = flotation thickness = (rhow/rhoi)*(eus-topg)
-      ! This value of N is obtained by setting basal_water = BWATER_OCEAN_PENETRATION = 4 with p_ocean_penetration = 1.0 in the config file.
+      ! This value of N is obtained by setting basal_water = BWATER_OCEAN_PENETRATION = 4 
+      !  with p_ocean_penetration = 1.0 in the config file.
       ! The other parameters (powerlaw_C, powerlaw_m and Coulomb_C) can also be set in the config file. 
 
        !WHL - debug - write out basal stresses
