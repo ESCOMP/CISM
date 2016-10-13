@@ -339,7 +339,7 @@ def main():
                     alpha = -3.0 * pi/180  # defined in run script
                     if netCDF_module == 'Scientific.IO.NetCDF':
                         thkscale = netCDFfile.variables['thk'].scale_factor
-                        wvelscale = netCDFfile.variables['wvel_ho'].scale_factor
+                        wvelscale = netCDFfile.variables['wvel'].scale_factor
                     else:
                         thkscale = 1.0
                         wvelscale = 1.0
@@ -348,7 +348,7 @@ def main():
                     usurfStag = (usurf[1:,1:] + usurf[1:,:-1] + usurf[:-1,:-1] + usurf[:-1, 1:]) / 4.0
                     uvelS = netCDFfile.variables['uvel'][-1,0,:,:] * velscale  # top level of last time
                     vvelS = netCDFfile.variables['vvel'][-1,0,:,:] * velscale  # top level of last time
-                    wvelS = netCDFfile.variables['wvel_ho'][-1,0,:,:] * wvelscale  # top level of last time
+                    wvelS = netCDFfile.variables['wvel'][-1,0,:,:] * wvelscale  # top level of last time
                     wvelStag = (wvelS[1:,1:] + wvelS[1:,:-1] + wvelS[:-1,:-1] + wvelS[:-1, 1:]) / 4.0
                     x0 = netCDFfile.variables['x0'][:]
                     y0 = netCDFfile.variables['y0'][:]

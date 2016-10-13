@@ -243,7 +243,7 @@ def main():
                 # Not sure yet how much longer than that to eliminate those.
                 config_parser.set('time', 'tend', '400.0')
                 # Include flwa, efvs and the CFL variables to the output file
-                config_parser.set('CF output', 'variables', 'uvel vvel uvel_extend vvel_extend uvel_icegrid vvel_icegrid topg thk usurf wvel_ho velnorm efvs adv_cfl_dt diff_cfl_dt')  
+                config_parser.set('CF output', 'variables', 'uvel vvel uvel_extend vvel_extend uvel_icegrid vvel_icegrid topg thk usurf wvel velnorm efvs adv_cfl_dt diff_cfl_dt')  
                 # we don't want to output a whole lot of time levels, but want to be able to see we've reached SS.
                 config_parser.set('CF output', 'frequency', '25.0')  
 
