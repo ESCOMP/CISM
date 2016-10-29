@@ -118,6 +118,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
+  integer, parameter :: BMLT_FLOAT_MISOMIP = 3
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -404,6 +405,7 @@ module glide_types
     !> \item[0] Basal melt rate = 0 for floating ice
     !> \item[1] Basal melt rate for floating ice as prescribed for MISMIP+
     !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
+    !> \item[3] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
     !> \end{description}
 
     !TODO - Change default basal_mbal to 1?
@@ -744,11 +746,6 @@ module glide_types
     !> \item[2] Fast calculation, using Tulaczyk empirical parametrization
     !> \end{description}
 
-    !integer :: use_plume = 0   !! Option to be supported in future releases
-    !> \begin{description}
-    !> \item[0] standard bmlt calculation
-    !> \item[1] use plume to calculate bmlt
-    !> \end{description}
 
   end type glide_options
 
@@ -811,7 +808,7 @@ module glide_types
     !       multipled by a constant. For some applications, however, it may be useful to output the mass balance in SI units.
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from acab
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt_float and bmlt_ground
+    real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux_tavg =>null() !> basal mass balance (kg m^-2 s^-1, time average)
     real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> surface mass balance (kg m^-2 s^-1), diagnosed from calving_thck
     real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> surface mass balance (kg m^-2 s^-1, time average)
@@ -1085,7 +1082,8 @@ module glide_types
      real(dp), dimension(2) :: airt = (/ -3.15d0, 1.d-2 /)  
 
      !> mass balance parameterisation:
-     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.05d-5, 450.0d3 /)
+!!     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.05d-5, 450.0d3 /)
+     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.0d-5, 450.0d3 /)
 
      !> EISMINT time-dep climate forcing period, switched off when set to 0
      real(dp) :: period = 0.d0
@@ -1153,22 +1151,69 @@ module glide_types
     logical  :: first1  = .true. !>
     logical  :: newtemps = .false. !> new temperatures
 
-    !TODO - Put these parameters in a new basal melting derived type?
-    ! parameters and fields for MISMIP+ experiments with basal melting
-    ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
-    real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
-                                                   !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
-    real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)
-                                                   !> default value = 75 m for MISMIP+ Ice1r
-    real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
-                                                   !> default value = -100 m for MISMIP+ Ice1r
-
-    real(dp) :: bmlt_float_rate = 100.d0           !> constant melt rate (m/yr)
-                                                   !> default value = 100 m/yr for MISMIP+ Ice2r
-    real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
-                                                   !> set to 480 km for MISMIP+ Ice2r
-
   end type glide_temper
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_bmltfloat
+
+     !> Holds fields and parameters relating to basal melting of floating ice
+     !> Many of these are associated with a 2D plume model
+     !> Entrainment/detrainment rates are computed with units of m/s but output with m/yr
+     real(dp),dimension(:,:), pointer :: bmlt_float => null()    !> basal melt rate for floating ice (> 0 for melt, < 0 for freeze-on)
+     real(dp),dimension(:,:), pointer :: T_basal => null()       !> basal ice temperature; at freezing point (deg C)
+     real(dp),dimension(:,:), pointer :: S_basal => null()       !> basal salinity; at freezing point (psu)
+     real(dp),dimension(:,:), pointer :: u_plume => null()       !> x component of plume velocity at cell centers (m/s)
+     real(dp),dimension(:,:), pointer :: v_plume => null()       !> y component of plume velocity at cell centers (m/s)
+                                                                 !> Note: Plume velocities are prognosed on edges, then interpolated
+                                                                 !>       to cell centers for diagnostics 
+     real(dp),dimension(:,:), pointer :: u_plume_Cgrid => null() !> x component of plume velocity on C grid edges (m/s)
+     real(dp),dimension(:,:), pointer :: v_plume_Cgrid => null() !> y component of plume velocity on C grid edges (m/s)
+     real(dp),dimension(:,:), pointer :: D_plume => null()       !> plume thickness (m)
+     real(dp),dimension(:,:), pointer :: ustar_plume => null()   !> plume friction velocity (m/s) on ice grid
+     real(dp),dimension(:,:), pointer :: drho_plume => null()    !> density difference between plume and ambient ocean (kg/m3)
+     real(dp),dimension(:,:), pointer :: T_plume => null()       !> plume temperature (deg C)
+     real(dp),dimension(:,:), pointer :: S_plume => null()       !> plume salinity (psu)
+     real(dp),dimension(:,:), pointer :: entrainment => null()   !> entrainment rate from ambient ocean to plume (positive up)
+     real(dp),dimension(:,:), pointer :: detrainment => null()   !> detrainment rate from plume to ambient ocean (positive down)
+     real(dp),dimension(:,:), pointer :: divDu_plume => null()   !> divergence of D_plume*u_plume
+     real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
+     real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
+
+     ! MISMIP+ parameters for Ice1 experiments
+     ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
+     real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
+                                                    !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
+     real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)
+                                                    !> default value = 75 m for MISMIP+ Ice1r
+     real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
+                                                    !> default value = -100 m for MISMIP+ Ice1r
+
+     ! MISMIP+ parameters for Ice2 experiments
+     !TODO - Rename bmlt_float_rate -> bmlt_float_const?
+     real(dp) :: bmlt_float_rate = 0.d0             !> constant melt rate (m/yr)
+                                                    !> set to 100 m/yr for MISMIP+ Ice2r
+     real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
+                                                    !> set to 480 km for MISMIP+ Ice2r
+
+     ! MISOMIP parameters
+     ! Note: T0, Tbot, S0, Sbot, gammaT and gammaS can be set in the config file.
+     !       - T0, Tbot, S0 and Sbot are prescribed for cold and warm profiles.
+     !       - gammaT is to be tuned to give a bmlt_float of the desired mean value.
+     !       - gammaS should equal gammaS/35.
+     real(dp) :: T0 = -1.9d0             !> sea surface temperature (deg C)
+     real(dp) :: Tbot =  1.0d0           !> temperature at the sea floor, warm profile (deg C)
+!     real(dp) :: Tbot = -1.9d0          !> temperature at the sea floor, cold profile (deg C)
+     real(dp) :: S0 = 33.8d0             !> sea surface salinity (psu)
+     real(dp) :: Sbot = 34.7d0           !> salinity at the sea floor, warm profile (psu)
+!     real(dp) :: Sbot = 34.55d0         !> salinity at the sea floor, cold profile (psu)
+     real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
+                                         !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
+     real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
+                                         !> for MISOMIP, should be set to gammaT/35 
+     real(dp) :: zbed_deep = -720.d0     !> min sea floor elevation (m)
+
+  end type glide_bmltfloat
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1179,7 +1224,7 @@ module glide_types
      !WHL - A reasonable value of beta_grounded_min might be 100 Pa yr/m.  
      !      However, this choice is not BFB for the confined-shelf test case, so I am choosing a default value of 0 for now.
      !      The default can be overridden in the config file.
-     !TODO: Set beta_grounded_min = 10 Pa yr/m
+     !TODO: Set beta_grounded_min = 100 Pa yr/m
      real(dp) :: beta_grounded_min = 0.d0   !> minimum value of beta for grounded ice, Pa yr/m (glissade only; scaled during init)
      
      real(dp) :: ho_beta_const = 1000.d0    !> spatially uniform beta for HO dycores, Pa yr/m (scaled during init)
@@ -1601,7 +1646,8 @@ module glide_types
     type(eismint_climate_type) :: eismint_climate
     type(glide_calving)  :: calving
     type(glide_temper)   :: temper
-    type(glide_basal_physics)  :: basal_physics
+    type(glide_basal_physics):: basal_physics
+    type(glide_bmltfloat)  :: bmltfloat
     type(glide_lithot_type) :: lithot
     type(glide_funits)   :: funits
     type(glide_numerics) :: numerics
@@ -1642,6 +1688,27 @@ contains
     !> \item \texttt{dissipcol(ewn,nsn))}
     !> \item \texttt{waterfrac(upn-1,ewn,nsn))}
     !> \item \texttt{enthalpy(0:upn,ewn,nsn))}
+    !> \end{itemize}
+
+    !> In \texttt{model\%bmltfloat}:
+    !> \begin{itemize}
+    !> \item \texttt{bmlt_float(ewn,nsn)}
+    !> \item \texttt{T_basal(ewn,nsn)}
+    !> \item \texttt{S_basal(ewn,nsn)}
+    !> \item \texttt{u_plume(ewn,nsn)}
+    !> \item \texttt{v_plume(ewn,nsn)}
+    !> \item \texttt{u_plume_Cgrid(ewn,nsn)}
+    !> \item \texttt{v_plume_Cgrid(ewn,nsn)}
+    !> \item \texttt{D_plume(ewn,nsn)}
+    !> \item \texttt{ustar_plume(ewn,nsn)}
+    !> \item \texttt{drho_plume(ewn,nsn)}
+    !> \item \texttt{T_plume(ewn,nsn)}
+    !> \item \texttt{S_plume(ewn,nsn)}
+    !> \item \texttt{entrainment(ewn,nsn)}
+    !> \item \texttt{detrainment(ewn,nsn)}
+    !> \item \texttt{divDu_plume(ewn,nsn)}
+    !> \item \texttt{T_ambient(ewn,nsn)}
+    !> \item \texttt{S_ambient(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%velocity}:
@@ -1941,6 +2008,27 @@ contains
 
     endif  ! glam/glissade
 
+    ! bmltfloat arrays
+    call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%bmlt_float)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%T_basal)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%S_basal)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%u_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%v_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%u_plume_Cgrid)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%v_plume_Cgrid)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%D_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%ustar_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%drho_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%T_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%S_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%entrainment)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%detrainment)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%divDu_plume)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%T_ambient)
+       call coordsystem_allocate(model%general%ice_grid, model%bmltfloat%S_ambient)
+    endif
+
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
@@ -2218,6 +2306,43 @@ contains
         deallocate(model%basal_physics%C_space_factor_stag)
     if (associated(model%basal_physics%mintauf)) &
        deallocate(model%basal_physics%mintauf)
+
+    ! bmltfloat arrays
+
+    if (associated(model%bmltfloat%bmlt_float)) &
+        deallocate(model%bmltfloat%bmlt_float)
+    if (associated(model%bmltfloat%T_basal)) &
+        deallocate(model%bmltfloat%T_basal)
+    if (associated(model%bmltfloat%S_basal)) &
+        deallocate(model%bmltfloat%S_basal)
+    if (associated(model%bmltfloat%u_plume)) &
+        deallocate(model%bmltfloat%u_plume)
+    if (associated(model%bmltfloat%v_plume)) &
+        deallocate(model%bmltfloat%v_plume)
+    if (associated(model%bmltfloat%u_plume_Cgrid)) &
+        deallocate(model%bmltfloat%u_plume_Cgrid)
+    if (associated(model%bmltfloat%v_plume_Cgrid)) &
+        deallocate(model%bmltfloat%v_plume_Cgrid)
+    if (associated(model%bmltfloat%D_plume)) &
+        deallocate(model%bmltfloat%D_plume)
+    if (associated(model%bmltfloat%ustar_plume)) &
+        deallocate(model%bmltfloat%ustar_plume)
+    if (associated(model%bmltfloat%drho_plume)) &
+        deallocate(model%bmltfloat%drho_plume)
+    if (associated(model%bmltfloat%T_plume)) &
+        deallocate(model%bmltfloat%T_plume)
+    if (associated(model%bmltfloat%S_plume)) &
+        deallocate(model%bmltfloat%S_plume)
+    if (associated(model%bmltfloat%entrainment)) &
+        deallocate(model%bmltfloat%entrainment)
+    if (associated(model%bmltfloat%detrainment)) &
+        deallocate(model%bmltfloat%detrainment)
+    if (associated(model%bmltfloat%divDu_plume)) &
+        deallocate(model%bmltfloat%divDu_plume)
+    if (associated(model%bmltfloat%T_ambient)) &
+        deallocate(model%bmltfloat%T_ambient)
+    if (associated(model%bmltfloat%S_ambient)) &
+        deallocate(model%bmltfloat%S_ambient)
 
     ! geometry arrays
 

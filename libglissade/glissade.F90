@@ -70,7 +70,7 @@ module glissade
   logical, parameter :: verbose_glissade = .false.
 !!  logical, parameter :: verbose_glissade = .true.
 
-  ! Change either of the following logical parameters to true to carry out simple tests
+  ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.   ! if true, call test_transport subroutine
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
@@ -146,7 +146,6 @@ contains
        ! Note: In this case, halo updates are treated the same as for periodic BC
        !       In addition, we set masks that are used to zero out the outflow velocities in the Glissade velocity solvers
        !       The no-penetration BC is not supported for the Glam solver
-       print*, this_rank, 'GLOBAL_BC:', 'no_penetration'
        call distributed_grid(model%general%ewn, model%general%nsn)
     else
        call distributed_grid(model%general%ewn, model%general%nsn)
@@ -736,9 +735,10 @@ contains
 
     use parallel
 
-    use glimmer_paramets, only: tim0, thk0
+    use glimmer_paramets, only: tim0, thk0, len0
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat
+    use glissade_bmlt_float, only: glissade_basal_melting_float
 
     implicit none
 
@@ -751,14 +751,13 @@ contains
        bmlt_unscaled,          & ! basal melt rate (m/s)
        bwat_unscaled             ! basal water thickness (m)
 
-    call t_startf('glissade_therm_driver')
+    call t_startf('glissade_thermal_solve')
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
     call glissade_therm_driver (model%options%whichtemp,                                      &
-                                model%options%whichbmlt_float,                                &
                                 model%options%temp_init,                                      &
                                 dt,                                                           & ! s
                                 model%general%ewn,          model%general%nsn,                &
@@ -766,7 +765,7 @@ contains
                                 model%numerics%idiag_local, model%numerics%jdiag_local,       &
                                 model%numerics%rdiag_local,                                   &
                                 model%numerics%sigma,       model%numerics%stagsigma,         &
-                                model%numerics%thklim*thk0, model%numerics%thklim_temp*thk0,  & ! m
+                                model%numerics%thklim_temp*thk0,                              & ! m
                                 model%geometry%thck*thk0,                                     & ! m
                                 model%geometry%topg*thk0,                                     & ! m
                                 model%geometry%lsrf*thk0,                                     & ! m
@@ -775,12 +774,6 @@ contains
                                 model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                 model%temper%dissip,                                          & ! deg/s
                                 model%temper%pmp_threshold,                                   & ! deg C
-                                model%temper%bmlt_float_omega,                                & ! s-1
-                                model%temper%bmlt_float_h0,                                   & ! m
-                                model%temper%bmlt_float_z0,                                   & ! m
-                                model%temper%bmlt_float_rate,                                 & ! m/s
-                                model%general%x1,                                             & ! m
-                                model%temper%bmlt_float_xlim,                                 & ! m
                                 model%temper%bwat*thk0,                                       & ! m
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
@@ -789,15 +782,35 @@ contains
                                      
     model%temper%newtemps = .true.
 
-    call t_stopf('glissade_therm_driver')
+    ! Compute the basal melt rate for floating ice
+    ! Note: model%bmltfloat is a derived type with various fields and parameters (all with SI units)
+
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
+
+    call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
+                                      model%general%ewn,          model%general%nsn,                &
+                                      model%numerics%dew*len0,    model%numerics%dns*len0,          &
+                                      model%numerics%idiag_local, model%numerics%jdiag_local,       &
+                                      model%numerics%rdiag_local,                                   &
+                                      model%general%x1,                                             & ! m
+                                      model%geometry%thck*thk0,                                     & ! m
+                                      model%geometry%lsrf*thk0,                                     & ! m
+                                      model%geometry%topg*thk0,                                     & ! m
+                                      model%climate%eus*thk0,                                       & ! m
+                                      model%bmltfloat)
+
+    ! Add bmlt_float to the bmlt array.
+    ! For grounded ice, bmlt is computed in glissade_therm_driver.
+    model%temper%bmlt(:,:) = model%temper%bmlt(:,:) + model%bmltfloat%bmlt_float(:,:)
+
+    ! Update basal hydrology, if needed
+    ! Note: glissade_calcbwat uses SI units
+
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_calcbwat'
 
     ! convert bwat to SI units for input to glissade_calcbwat
     bwat_unscaled(:,:) = model%temper%bwat(:,:) * thk0
 
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_calcbwat'
-
-    ! Update basal hydrology, if needed
-    ! Note: glissade_calcbwat uses SI units
     call glissade_calcbwat(model%options%which_ho_bwat,      &
                            model%basal_physics,              &
                            dt,                               &  ! s
@@ -817,6 +830,8 @@ contains
     ! Note: bwat is needed in halos to compute effective pressure
     !       if which_ho_effecpress = HO_EFFECPRESS_BWAT
     call parallel_halo(model%temper%bwat)
+
+    call t_stopf('glissade_thermal_solve')
     
   end subroutine glissade_thermal_solve
 
@@ -1337,6 +1352,9 @@ contains
     use glam_grid_operators, only: glam_geometry_derivs
     use felix_dycore_interface, only: felix_velo_driver
 
+    !WHL - debug
+    use glissade_bmlt_float, only: glissade_basal_melting_float
+
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -1556,6 +1574,26 @@ contains
        endif   ! DIVA approx
              
     endif   ! time = tstart
+
+    !WHL - debug - Uncomment to put a bmlt_float calculation in the diagnostic solve.
+    !              Then can debug plume model without doing two full velocity solves.
+    !TODO - Remove this code?
+!    if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float, diagnostic'
+
+    ! Compute the basal melt rate for floating ice
+    ! Note: model%bmltfloat is a derived type with various fields and parameters (all with SI units)
+
+!    call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
+!                                      model%general%ewn,          model%general%nsn,                &
+!                                      model%numerics%dew*len0,    model%numerics%dns*len0,          &
+!                                      model%numerics%idiag_local, model%numerics%jdiag_local,       &
+!                                      model%numerics%rdiag_local,                                   &
+!                                      model%general%x1,                                             & ! m
+!                                      model%geometry%thck*thk0,                                     & ! m
+!                                      model%geometry%lsrf*thk0,                                     & ! m
+!                                      model%geometry%topg*thk0,                                     & ! m
+!                                      model%climate%eus*thk0,                                       & ! m
+!                                      model%bmltfloat)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -1827,9 +1865,12 @@ contains
     call staggered_parallel_halo(model%velocity%vbas)
     call parallel_halo(model%stress%efvs)
 
-    !------------------------------------------------------------------------
+    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------ 
+    ! 4. Fourth part of diagnostic solve: 
     ! Diagnose some quantities that are not velocity-dependent, but may be desired for output
-    !------------------------------------------------------------------------
+    ! ------------------------------------------------------------------------
+    ! ------------------------------------------------------------------------
 
     ! basal ice temperature
     ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
