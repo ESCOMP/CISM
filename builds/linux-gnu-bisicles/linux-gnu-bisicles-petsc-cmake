@@ -29,9 +29,10 @@ echo "Doing CMake Configuration step"
 #setenv NETCDF_HOME /home/loren/users/dmartin/util/netcdf/netcdf-4.1.2 
 #setenv NETCDF_HOME /usr/local/netcdf 
 setenv NETCDF_HOME ${NETCDFHOME}
+setenv NETCDFF_HOME ${NETCDFFHOME}
 
 cmake \
-  -D CISM_NETCDF_DIR=${NETCDFHOME} \
+  -D CISM_NETCDF_DIR=${NETCDF_HOME} \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
   -D CISM_ENABLE_BISICLES=ON \
   -D CISM_ENABLE_FELIX=OFF \
@@ -50,12 +51,12 @@ cmake \
   -D CMAKE_Fortran_COMPILER=/usr/bin/mpif90 \
 \
   -D CISM_HDF5_LIB_DIR=${ANAG_HDF5_DIR}/lib \
-  -D CISM_HDF5_LIBS="-lnetcdff -lnetcdf -lhdf5 -lhdf5_hl -lz -lstdc++" \
+  -D CISM_HDF5_LIBS="-lnetcdff -lhdf5 -lhdf5_hl -lz -lstdc++" \
   -D CMAKE_PREFIX_PATH="${ANAG_HDF5_DIR}" \
 \
   -D CMAKE_CXX_FLAGS:STRING="-g" \
   -D CISM_Fortran_FLAGS:STRING="-g  -ffree-line-length-none -fno-range-check -DNO_RESCALE" \
-  -D CISM_EXTRA_LIBS:STRING="-L$PETSC_DIR/$PETSC_ARCH/lib -lpetsc -llapack -lblas -lhdf5" \
+  -D CISM_EXTRA_LIBS:STRING="-L$PETSC_DIR/$PETSC_ARCH/lib -lpetsc -llapack -lblas -lhdf5 " \
   -D BISICLES_INTERFACE_DIR=$PWD/../../../BISICLES/CISM-interface/interface \
   -D BISICLES_LIB_SUBDIR=libgnu \
  ../..
