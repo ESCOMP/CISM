@@ -207,7 +207,9 @@ contains
     status = parallel_put_att(NCO%id, NCO%timevar, 'long_name', 'Model time')
     status = parallel_put_att(NCO%id, NCO%timevar, 'standard_name', 'time')
     status = parallel_put_att(NCO%id, NCO%timevar, 'units', 'year since 1-1-1 0:0:0')
-    status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'none')
+    ! CISM currently assumes a noleap calendar - exactly 365 days. For now, we hard-code
+    ! this assumption in the calendar attribute.
+    status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'noleap')
 
     ! adding projection info
     if (glimmap_allocated(model%projection)) then
