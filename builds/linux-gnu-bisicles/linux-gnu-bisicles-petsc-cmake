@@ -51,7 +51,7 @@ cmake \
   -D CMAKE_Fortran_COMPILER=/usr/bin/mpif90 \
 \
   -D CISM_HDF5_LIB_DIR=${ANAG_HDF5_DIR}/lib \
-  -D CISM_HDF5_LIBS="-lnetcdff -lhdf5 -lhdf5_hl -lz -lstdc++" \
+  -D CISM_HDF5_LIBS="-lnetcdff -lnetcdf -lhdf5 -lhdf5_hl -lz -lstdc++" \
   -D CMAKE_PREFIX_PATH="${ANAG_HDF5_DIR}" \
 \
   -D CMAKE_CXX_FLAGS:STRING="-g" \
