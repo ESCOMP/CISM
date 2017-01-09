@@ -29,9 +29,10 @@ echo "Doing CMake Configuration step"
 #setenv NETCDF_HOME /home/loren/users/dmartin/util/netcdf/netcdf-4.1.2 
 #setenv NETCDF_HOME /usr/local/netcdf 
 setenv NETCDF_HOME ${NETCDFHOME}
+setenv NETCDFF_HOME ${NETCDFFHOME}
 
 cmake \
-  -D CISM_NETCDF_DIR=${NETCDFHOME} \
+  -D CISM_NETCDF_DIR=${NETCDF_HOME} \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
   -D CISM_ENABLE_BISICLES=ON \
   -D CISM_ENABLE_FELIX=OFF \
