@@ -56,7 +56,7 @@ cmake \
 \
   -D CMAKE_CXX_FLAGS:STRING="-g" \
   -D CISM_Fortran_FLAGS:STRING="-g  -ffree-line-length-none -fno-range-check -DNO_RESCALE" \
-  -D CISM_EXTRA_LIBS:STRING="-llapack -lblas -lhdf5" \
+  -D CISM_EXTRA_LIBS:STRING="-llapack -lblas -lhdf5 -lhdf5_hl" \
   -D BISICLES_INTERFACE_DIR=$PWD/../../../BISICLES/CISM-interface/interface \
   -D BISICLES_LIB_SUBDIR=libgnu \
  ../..
