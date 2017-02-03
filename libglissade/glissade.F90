@@ -163,15 +163,15 @@ contains
     ! allocate arrays
     call glide_allocarr(model)
 
-    ! Compute scale factors for stereogphic map projection.
+    ! Compute area scale factors for stereographic map projection.
     ! Note: Not yet enabled for other map projections.
     ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
 
     if (associated(model%projection%stere)) then
 
-       call glimmap_stere_scale_factor(model%projection%stere,  &
-                                       model%numerics%dew*len0, &
-                                       model%numerics%dns*len0)
+       call glimmap_stere_area_factor(model%projection%stere,  &
+                                      model%numerics%dew*len0, &
+                                      model%numerics%dns*len0)
 
     endif
 

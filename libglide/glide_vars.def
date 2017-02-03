@@ -328,11 +328,11 @@ long_name:     vertically integrated ice damage
 data:          data%calving%damage_column
 coordinates:   lon lat
 
-[scale_factor]
+[area_factor]
 dimensions:    time, y1, x1
 units:         unitless
-long_name:     scale factor for stereographic map projection
-data:          data%projection%stere%scale_factor
+long_name:     area scale factor for stereographic map projection
+data:          data%projection%stere%area_factor
 coordinates:   lon lat
   
 [iarea]

@@ -266,11 +266,11 @@ contains
     allocate(cell_area(ewn,nsn))
     cell_area(:,:) = model%numerics%dew * model%numerics%dns
 
-    if (associated(model%projection%stere)) then   ! divide cell area by scale_factor^2
+    if (associated(model%projection%stere)) then   ! divide cell area by area_factor^2
        do j = 1, nsn
           do i = 1, ewn
-             if (model%projection%stere%scale_factor(i,j) > 0.0d0) then
-                cell_area(i,j) = cell_area(i,j) / model%projection%stere%scale_factor(i,j)**2
+             if (model%projection%stere%area_factor(i,j) > 0.0d0) then
+                cell_area(i,j) = cell_area(i,j) / model%projection%stere%area_factor(i,j)**2
              endif
           enddo
        enddo
