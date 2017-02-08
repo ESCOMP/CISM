@@ -310,7 +310,7 @@ contains
     integer, dimension(nx,ny), intent(in), optional ::        &
        floating_mask,         & ! = 1 for cells where ice is present and floating, else = 0
        land_mask                ! = 1 for land cells, else = 0
-                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID)
+                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID
 
     real(dp), intent(in), optional :: &
        max_slope                ! maximum slope allowed for surface gradient computations (unitless)
@@ -378,15 +378,16 @@ contains
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
 
-       if (present(floating_mask) .and. present(usrf)) then
+       if (present(floating_mask) .and. present(land_mask) .and. present(usrf)) then
 
           call glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
                                                         ice_mask,                &
                                                         floating_mask,           &
+                                                        land_mask,               &
                                                         usrf,                    &
                                                         edge_mask_x, edge_mask_y)
        else
-          call write_log('Must pass in floating_mask and usrf to use this gradient_margin option', GM_FATAL)
+          call write_log('Must pass in floating_mask, land_mask and usrf to use this gradient_margin option', GM_FATAL)
        endif   ! present(floating_mask), etc.
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID2) then
@@ -631,7 +632,7 @@ contains
        do j = ny-1, 1, -1
 !!          do i = 1, nx-1
           do i = 1, nx/2
-             write(6,'(f9.6)',advance='no') df_dx(i,j)
+             write(6,'(f8.4)',advance='no') df_dx(i,j)
           enddo
           print*, ' '
        enddo
@@ -641,7 +642,7 @@ contains
        do j = ny-1, 1, -1
 !!          do i = 1, nx-1
           do i = 1, nx/2
-             write(6,'(f9.6)',advance='no') df_dy(i,j)
+             write(6,'(f8.4)',advance='no') df_dy(i,j)
           enddo
           print*, ' '
        enddo
@@ -725,7 +726,7 @@ contains
        accuracy_flag_in         ! = 1 for 1st order, 2 for 2nd order
 
     integer, dimension(nx,ny), intent(in), optional ::        &
-       floating_mask,        &  ! = 1 where ice is present and floating, else = 0
+       floating_mask,         & ! = 1 where ice is present and floating, else = 0
        land_mask                ! = 1 for land cells, else = 0
                                 ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID
 
@@ -804,15 +805,16 @@ contains
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
 
-       if (present(floating_mask)) then
+       if (present(floating_mask) .and. present(land_mask)) then
 
           call glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
                                                         ice_mask,                &
                                                         floating_mask,           &
+                                                        land_mask,               &
                                                         usrf,                    &
                                                         edge_mask_x, edge_mask_y)
        else
-          call write_log('Must pass in floating_mask to use this gradient_margin option', GM_FATAL)
+          call write_log('Must pass in floating_mask and land_mask to use this gradient_margin option', GM_FATAL)
        endif   ! present(floating_mask)
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID2) then
@@ -1226,7 +1228,7 @@ contains
        print*, 'upstream df_dx:'
        do j = ny-2, 2, -1
           do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') df_dx(i,j)
+             write(6,'(f8.4)',advance='no') df_dx(i,j)
           enddo
           print*, ' '
        enddo
@@ -1235,7 +1237,7 @@ contains
        print*, 'upstream df_dy:'
        do j = ny-2, 2, -1
           do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') df_dy(i,j)
+             write(6,'(f8.4)',advance='no') df_dy(i,j)
           enddo
           print*, ' '
        enddo
@@ -1380,15 +1382,16 @@ contains
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
 
-       if (present(floating_mask) .and. present(usrf)) then
+       if (present(floating_mask) .and. present(land_mask) .and. present(usrf)) then
 
           call glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
                                                         ice_mask,                &
                                                         floating_mask,           &
+                                                        land_mask,               &
                                                         usrf,                    &
                                                         edge_mask_x, edge_mask_y)
        else
-          call write_log('Must pass in floating mask and usrf to use this gradient_margin option', GM_FATAL)
+          call write_log('Must pass in floating mask, land_mask and usrf to use this gradient_margin option', GM_FATAL)
        endif   ! present(floating_mask), etc.
 
     elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID2) then
@@ -1566,6 +1569,7 @@ contains
   subroutine glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
                                                       ice_mask,                &
                                                       floating_mask,           &
+                                                      land_mask,               &
                                                       usrf,                    &
                                                       edge_mask_x, edge_mask_y)
     
@@ -1577,14 +1581,17 @@ contains
     !
     ! The mask is set to true at all edges where either
     ! (1) Both adjacent cells are ice-covered.
-    ! (2) One cell is ice-covered and grounded, and lies above the other cell.
+    ! (2) One cell is ice-covered and grounded, and lies above an ice-free land cell.
     !
-    ! The mask is set to false where a floating cell is adjacent to an ice-free ocean cell,
-    ! or where an ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
+    ! The mask is set to false where an ice-covered cell is adjacent to an ice-free ocean cell,
+    !  or where an ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
     !
     ! The intent is to give a reasonable gradient at both land-terminating and marine-terminating margins.
     ! At land-terminating margins the gradient is nonzero (except for the nunatak case),
-    ! and at marine-terminating margins the gradient is zero (unless the ice-covered cell is grounded).
+    !  and at marine-terminating margins the gradient is zero.
+    ! Note: In earlier code versions, the marine-terminating gradient could be nonzero if the ice-covered
+    !       cell was grounded. By setting it to zero, we are assuming that the margin is a vertical cliff
+    !       face, whether the ice-covered cell is grounded or floating. 
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -1596,7 +1603,8 @@ contains
    
     integer, dimension(nx,ny), intent(in) ::        &
        ice_mask,              & ! = 1 where ice is present, else = 0
-       floating_mask            ! = 1 where ice is present and floating, else = 0
+       floating_mask,         & ! = 1 where ice is present and floating, else = 0
+       land_mask                ! = 1 for land cells, else = 0
 
     real(dp), dimension(nx,ny), intent(in)  ::       &
        usrf                     ! ice surface elevation
@@ -1617,10 +1625,10 @@ contains
     do j = 1, ny
        do i = 1, nx-1
 
-          ! check for ice in both adjacent cells, or grounded ice in one cell lying above the other cell
+          ! check for ice in both adjacent cells, or grounded ice in one cell lying above ice-free land
           if ( (ice_mask(i,j)==1   .and.  ice_mask(i+1,j)==1)     .or.  &
-               (ice_mask(i,j)==1   .and.  floating_mask(i,j)==0   .and. usrf(i,j)   > usrf(i+1,j)) .or.  &
-               (ice_mask(i+1,j)==1 .and.  floating_mask(i+1,j)==0 .and. usrf(i+1,j) > usrf(i,j)) ) then
+               (ice_mask(i,j)==1   .and. floating_mask(i,j)==0   .and. land_mask(i+1,j)==1 .and. usrf(i,j)   > usrf(i+1,j)) .or.  &
+               (ice_mask(i+1,j)==1 .and. floating_mask(i+1,j)==0 .and. land_mask(i,j)==1   .and. usrf(i+1,j) > usrf(i,j)) ) then
 
              edge_mask_x(i,j) = .true.
 
@@ -1636,10 +1644,10 @@ contains
     do j = 1, ny-1
        do i = 1, nx
 
-          ! check for ice in both adjacent cells, or grounded ice in one cell lying above the other cell
+          ! check for ice in both adjacent cells, or grounded ice in one cell lying above ice-free land
           if ( (ice_mask(i,j)==1   .and.  ice_mask(i,j+1)==1)      .or.  &
-               (ice_mask(i,j)==1   .and.  floating_mask(i,j)==0   .and. usrf(i,j)   > usrf(i,j+1)) .or.  &
-               (ice_mask(i,j+1)==1 .and.  floating_mask(i,j+1)==0 .and. usrf(i,j+1) > usrf(i,j)) ) then
+               (ice_mask(i,j)==1   .and.  floating_mask(i,j)==0   .and. land_mask(i,j+1)==1 .and. usrf(i,j)   > usrf(i,j+1)) .or.  &
+               (ice_mask(i,j+1)==1 .and.  floating_mask(i,j+1)==0 .and. land_mask(i,j)==1   .and. usrf(i,j+1) > usrf(i,j)) ) then
 
              edge_mask_y(i,j) = .true.
 

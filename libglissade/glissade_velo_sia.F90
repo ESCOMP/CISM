@@ -328,7 +328,7 @@
                                     thck = thck,            &
                                     thklim_in = thklim,     &
                                     usrf = usrf,            &
-                                    floating_mask = floating_mask,  &
+                                    floating_mask = floating_mask, &
                                     land_mask = land_mask)
 
     if (verbose .and. main_task) then
@@ -909,10 +909,10 @@
 
     ! Compute ice velocity components at cell edges (u at E edge, v at N edge; relative to bed).
     ! Then interpolate the edge velocities to cell vertices.
-    ! Note: By default, whichgradient_margin = HO_GRADIENT_MARGIN_ICE_LAND = 1, which generally
+    ! Note: By default, whichgradient_margin = HO_GRADIENT_MARGIN_HYBRID = 1, which generally
     !       works well for shallow-ice problems.  Using HO_GRADIENT_MARGIN_ALL = 0 gives
-    !       identical results for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
-    !       is likely to give less accurate results.
+    !       the same results as option 1 for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
+    !       is designed for marine-based margins and is likely to give less accurate results here.
     ! See comments above the call to glissade_centered_gradient.
     !TODO - Pass in max_slope and thck_gradient_ramp parameters?
 

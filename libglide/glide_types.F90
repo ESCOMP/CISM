@@ -456,7 +456,7 @@ module glide_types
     !> Calving: 
     !> \begin{description} 
     !> \item[0] No calving 
-    !> \item[1] Set thickness to zero if floating 
+    !> \item[1] Set thickness to zero if floating
     !> \item[2] Lose a fraction of floating ice at marine margin
     !> \item[3] Set thickness to zero if relaxed bedrock is more than a
     !>          certain water depth (variable "marine_limit" in glide_types)  
@@ -1047,6 +1047,12 @@ module glide_types
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
+     logical  :: remove_floating_islands = .true. !> if true, then check for and remove floating ice islands
+                                                  !> These are connected regions with zero basal traction and no connection to grounded ice.
+                                                  !> TODO: Make remove_floating_islands a namelist variable?
+                                                  !>       Safer to make it true, but not necessary for all applications
+     real(dp) :: floating_path_minthck = 0.0d0    !> minimum thickness (m) of path connecting floating ice back to grounded ice
+                                                  !> Can set to a nonzero value (> thklim) to remove floating peninsulas with active but thin ice
 
   end type glide_calving
 

@@ -503,6 +503,8 @@ contains
                                model%numerics%dt,               &
                                model%calving%calving_minthck,   &
                                model%calving%calving_mask,      &
+                               model%calving%remove_floating_islands, &
+                               model%calving%floating_path_minthck,   &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
@@ -1258,6 +1260,8 @@ contains
                             model%numerics%dt,               &
                             model%calving%calving_minthck,   &
                             model%calving%calving_mask,      &
+                            model%calving%remove_floating_islands, &
+                            model%calving%floating_path_minthck,   &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &
                             model%calving%damage_column,     &

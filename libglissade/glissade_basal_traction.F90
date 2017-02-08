@@ -175,7 +175,7 @@ contains
        !
        ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
        ! where the yield stress tau_c = tan(phi) * N
-       ! N = effective pressure, computed in subroutine calculate_effective_pressure
+       ! N = effective pressure, computed in subroutine calc_effective_pressure
        ! q, u0 and phi are user-configurable parameters:
        !    q = exponent (q = 1 for linear sliding, q = 0 for a plastic bed, 0 < q < 1 for power-law behavior), default = 1/3
        !    u0 = threshold velocity (the velocity at which tau_b = tau_c), default = 100 m/yr

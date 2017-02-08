@@ -191,6 +191,7 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
+    model%calving%floating_path_minthck = model%calving%floating_path_minthck / thk0
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -1460,7 +1461,7 @@ contains
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'floating_path_minthck', model%calving%floating_path_minthck)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
@@ -1614,6 +1615,11 @@ contains
 
     if (model%calving%calving_timescale > 0.0d0) then
        write(message,*) 'calving time scale (yr)       : ', model%calving%calving_timescale
+       call write_log(message)
+    endif
+
+    if (model%calving%floating_path_minthck > 0.0d0) then
+       write(message,*) 'minthck for floating path (m) : ', model%calving%floating_path_minthck
        call write_log(message)
     endif
 

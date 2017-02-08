@@ -33,6 +33,9 @@ module glissade_calving
   use glimmer_global, only: dp
   use parallel
 
+  !WHL - debug
+  use glimmer_paramets, only: thk0
+
   implicit none
 
   ! colors for fill subroutine
@@ -156,23 +159,24 @@ contains
   subroutine glissade_calve_ice(which_calving,     calving_domain,   &
                                 thck,              relx,             &
                                 topg,              eus,              &
-                                thklim,              &
-                                marine_limit,        &
-                                calving_fraction,    &    
-                                calving_timescale,   &
-                                dt,                  &
-                                calving_minthck,     &
-                                calving_mask,        &
-                                damage,              &
-                                damage_threshold,    &
-                                damage_column,       &
-                                sigma,               &
+                                thklim,                  &
+                                marine_limit,            &
+                                calving_fraction,        &
+                                calving_timescale,       &
+                                dt,                      &
+                                calving_minthck,         &
+                                calving_mask,            &
+                                remove_floating_islands, &
+                                floating_path_minthck,   &
+                                damage,                  &
+                                damage_threshold,        &
+                                damage_column,           &
+                                sigma,                   &
                                 calving_thck)
 
     ! Calve ice according to one of several methods
 
     use glissade_masks
-    use glimmer_paramets, only: thk0
 
     implicit none
 
@@ -200,7 +204,9 @@ contains
     real(dp), intent(in)                    :: dt                !> model timestep (used with calving_timescale)
     real(dp), intent(in)                    :: calving_minthck   !> min thickness of ice at marine edge before it calves;
                                                                  !> used with which_ho_calving = CALVING_THCK_THRESHOLD
-    integer, dimension(:,:), intent(in)     :: calving_mask      !> integer mask: calve ice where mask = 1
+    integer,  dimension(:,:), intent(in)    :: calving_mask      !> integer mask: calve ice where mask = 1
+    logical,  intent(in)                    :: remove_floating_islands !> if true, then remove floating ice islands
+    real(dp), intent(in)                    :: floating_path_minthck   !> min thickness along path from floating ice back to grounded ice
 !    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
     real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
     real(dp), dimension(:,:), intent(out)   :: damage_column     !> 2D vertically integrated scalar damage parameter
@@ -276,10 +282,17 @@ contains
              print*, 'Remove floating islands'
           endif
 
+          ! Set the thickness thresholds for cells to be counted as active.
+          ! Floating regions will be identified as ice islands unless they are connected to grounded ice
+          !  along a path consisting only of active cells (i.e., cells with thk > thklim).
+          ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
+          !       Then the algorithm can fail to identify floating regions that should be removed.
+
           call glissade_remove_floating_islands(&
-               thck,              relx,        &
-               topg,              eus,         &
-               thklim,            calving_thck)
+               thck,          relx,                  &
+               topg,          eus,                   &
+               thklim,        floating_path_minthck, &
+               calving_thck)
 
        endif
 
@@ -642,7 +655,7 @@ contains
                            (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
                          if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                             ! assign the fill color to this cell, and recursively fill neighbor cells
-                            call glissade_fill(nx,  ny,  i,  j,  color)
+                            call glissade_fill(nx, ny, i, j, color)
                          endif
                       endif
                    enddo
@@ -759,11 +772,22 @@ contains
        if (verbose_calving .and. main_task) then
           print*, 'Remove floating islands'
        endif
-       
+
+       ! Set the thickness thresholds for cells to be counted as active.
+       ! Floating regions will be identified as ice islands unless they are connected to grounded ice
+       !  along a path consisting only of active cells (i.e., cells with thk > thklim).
+       ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
+       !       Then the algorithm can fail to identify floating regions that should be removed.
+       ! Note: Optionally, we can specify a larger thickness threshold for floating ice, called
+       !       floating_path_minthck. In other words, for a floating cell or region not to be removed,
+       !       it must be connected to grounded ice via a path consisting of active grounded cells
+       !       and/or active floating cells thicker than floating_path_minthck. 
+
        call glissade_remove_floating_islands(&
-            thck,              relx,        &
-            topg,              eus,         &
-            thklim,            calving_thck)
+            thck,          relx,                  &
+            topg,          eus,                   &
+            thklim,        floating_path_minthck, &
+            calving_thck)
 
     endif
 
@@ -784,32 +808,35 @@ contains
 !---------------------------------------------------------------------------
 
   subroutine glissade_remove_floating_islands(&
-       thck,              relx,        &
-       topg,              eus,         &
-       thklim,            calving_thck)
+       thck,          relx,                  &
+       topg,          eus,                   &
+       thklim,        floating_path_minthck, &
+       calving_thck)
 
     ! Remove any floating ice islands. 
         
     ! The method is as follows: Initialize each cell to have either the initial color
-    !  (if ice is present) or the boundary color (if no ice is present).
-    ! Then loop through the cells on the processor. For each grounded ice cell,
+    !  (if active ice is present) or the boundary color (if no ice is present).
+    !  "Active" means that thck > thklim.
+    ! Then loop through the cells on the processor. For each active grounded ice cell,
     !  assign the fill color and then recursively assign the fill color to any
-    !  cells with which it is connected (i.e., it shares an edge).
+    !  active cells with which it is connected (i.e., it shares an edge).
     ! Repeat the loop several times to allow communication between adjacent
     !  processors via halo updates.
-    ! Any ice-covered cells that still have the initial color are floating
-    !  ice islands.  Remove this ice and add it to the calving field. 
+    ! Any active cells that still have the initial color are floating ice islands.
+    ! Remove this ice and add it to the calving field.
 
     use glissade_masks
     use glimmer_paramets, only: thk0
 
-    real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness
-    real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
-    real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
-    real(dp), intent(in)                    :: eus               !> eustatic sea level
-    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active ice
-    real(dp), dimension(:,:), intent(inout) :: calving_thck      !> thickness lost due to calving in each grid cell;
-                                                                 !> on output, includes ice in floating islands
+    real(dp), dimension(:,:), intent(inout) :: thck     !> ice thickness
+    real(dp), dimension(:,:), intent(in)    :: relx     !> relaxed bedrock topography
+    real(dp), dimension(:,:), intent(in)    :: topg     !> present bedrock topography
+    real(dp), intent(in)      :: eus                    !> eustatic sea level
+    real(dp), intent(in)      :: thklim                 !> minimum thickness for dynamically active ice
+    real(dp), intent(in)      :: floating_path_minthck  !> minimum thickness along path from floating ice back to grounded ice
+    real(dp), dimension(:,:), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
+                                                              !> on output, includes ice in floating islands
 
     integer :: nx, ny      ! horizontal grid dimensions
 
@@ -854,9 +881,13 @@ contains
        enddo
     enddo
 
-    ! Loop through cells, identifying cells that contain grounded ice.
+    ! Loop through cells, identifying active cells with grounded ice.
     ! Fill each grounded cell and then recursively fill neighbor cells, whether grounded or not.
     ! We may have to do this several times to incorporate connections between neighboring processors.
+
+    ! Note: Calling glissade_fill with the optional 'thck' and 'floating_path_minthck' arguments
+    !       means that the cell must have thck > floating_path_minthck in order for neighbor cells 
+    !       to be filled recursively.
 
     maxcount_fill = max(ewtasks,nstasks)
 
@@ -873,7 +904,7 @@ contains
                 if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                       ! assign the fill color to this cell, and recursively fill neighbor cells
-                      call glissade_fill(nx,  ny,  i,  j,  color)
+                      call glissade_fill(nx, ny, i, j, color, thck, floating_path_minthck)
                    endif
                 endif
              enddo
@@ -886,33 +917,28 @@ contains
           ! west halo layer
           i = nhalo
           do j = 1, ny
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i+1, j, color)
+             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i+1, j, color, thck, floating_path_minthck)
           enddo
 
           ! east halo layers
           i = nx - nhalo + 1
           do j = 1, ny
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i-1, j, color)
+             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i-1, j, color, thck, floating_path_minthck)
           enddo
 
           ! south halo layer
           j = nhalo
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j+1, color)
+             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j+1, color, thck, floating_path_minthck)
           enddo
 
           ! north halo layer
           j = ny-nhalo+1
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color)
+             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color, thck, floating_path_minthck)
           enddo
 
        endif  ! count = 1
-
-       !WHL - debug
-       if (verbose_calving .and. main_task) then
-          print*, 'glissade floating island fill, count =', count
-       endif
 
        sum_fill_local = 0
        do j = nhalo+1, ny-nhalo
@@ -930,9 +956,8 @@ contains
 
     enddo  ! count
 
-    ! Any cells that still have the initial color are part of floating ice islands.
+    ! Any active cells that still have the initial color are part of floating ice islands.
     ! Remove ice in these cells, adding it to the calving field.
-
     do j = 1, ny
        do i = 1, nx
           if (color(i,j) == initial_color) then
@@ -955,26 +980,51 @@ contains
 
 !****************************************************************************
 
-  recursive subroutine glissade_fill(nx,  ny,  i,  j,  color)
+  recursive subroutine glissade_fill(nx,  ny,   &
+                                     i,   j,    &
+                                     color,     &
+                                     thck,      &
+                                     floating_path_minthck)
 
     ! Given a domain with an initial color, a boundary color and a fill color,
     ! assign the fill color to all cells that either (1) are prescribed to have
     ! the fill color or (2) are connected to cells with the fill color.
 
-    integer, intent(in) :: nx, ny             ! domain size
-    integer, intent(in) :: i, j               ! horizontal indices of current cell
-    integer, dimension(nx,ny) :: color        ! color field
+    integer, intent(in) :: nx, ny                       ! domain size
+    integer, intent(in) :: i, j                         ! horizontal indices of current cell
+
+    integer, dimension(nx,ny), intent(inout) :: &
+         color                                          ! color (initial, fill or boundary)
+
+    real(dp), dimension(nx,ny), intent(in), optional :: &
+         thck                                           ! ice thickness
+
+    real(dp), intent(in), optional :: &
+         floating_path_minthck     ! min thickness along path from floating ice back to grounded ice
+
+    !Note: If a cell is active and floating, but thck < floating_path_minthck,
+    !       then fill this cell but do not call glissade_fill recursively.
+    !      This is a method of removing long peninsulas of active but thin ice
+    !       (thklim < thck < floating_path_minthck), which can have unrealistically
+    !       large ice speeds.
 
     if (color(i,j) /= fill_color .and. color(i,j) /= boundary_color) then
 
        ! assign the fill color to this cell
        color(i,j) = fill_color
 
-       ! recursively call this subroutine for each neighbor to see if it should be filled       
-       if (i > 1)  call glissade_fill(nx, ny, i-1, j,   color)
-       if (i < nx) call glissade_fill(nx, ny, i+1, j,   color)
-       if (j > 1)  call glissade_fill(nx, ny, i,   j-1, color)
-       if (j < ny) call glissade_fill(nx, ny, i,   j+1, color)
+       if (present(thck) .and. present(floating_path_minthck)) then
+          if (thck(i,j) < floating_path_minthck) then
+             print*, 'Skip recursion: i, j, thck, minthck =', i, j, thck(i,j), floating_path_minthck
+             return    ! skip the recursion
+          endif
+       endif
+
+       ! recursively call this subroutine for each neighbor to see if it should be filled
+       if (i > 1)  call glissade_fill(nx, ny, i-1, j,   color, thck, floating_path_minthck)
+       if (i < nx) call glissade_fill(nx, ny, i+1, j,   color, thck, floating_path_minthck)
+       if (j > 1)  call glissade_fill(nx, ny, i,   j-1, color, thck, floating_path_minthck)
+       if (j < ny) call glissade_fill(nx, ny, i,   j+1, color, thck, floating_path_minthck)
 
     endif
 

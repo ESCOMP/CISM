@@ -278,6 +278,10 @@
     real(dp), dimension(nx-1,ny-1) :: &
        stagf_flotation           ! f_flotation interpolated to staggered grid
 
+    real(dp), dimension(nx,ny) :: &
+       unstagf_flotation     ! stagf_flotation interpolated to unstaggered grid
+                             ! basically a smoothed version of f_flotation
+
     real(dp) :: a, b, c, d       ! coefficients in bilinear interpolation
                                  ! f(x,y) = a + b*x + c*y + d*x*y
 
@@ -336,13 +340,13 @@
        ! grounded if f_flotation <= 1, else floating
 
        do j = 1, ny
-       do i = 1, nx
-          if (ice_mask(i,j) == 1) then
-             f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
-          else
-             f_flotation(i,j) = 0.d0  ! treat as grounded
-          endif
-       enddo
+          do i = 1, nx
+             if (ice_mask(i,j) == 1) then
+                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
+             else
+                f_flotation(i,j) = 0.d0  ! treat as grounded
+             endif
+          enddo
        enddo
 
     elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
@@ -386,7 +390,7 @@
 
     endif  ! whichflotation_function
 
-    ! initialize f_ground
+    ! Initialize f_ground
     f_ground(:,:) = 0.d0
 
     ! Compute f_ground according to the value of whichground
@@ -435,14 +439,29 @@
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization
 
-       ! Interpolate f_flotation to staggered mesh
-
+       ! Interpolate f_flotation to the staggered mesh
        ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
        ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
 
        call glissade_stagger(nx,          ny,             &
                              f_flotation, stagf_flotation,   &
                              ice_mask,    stagger_margin_in = 1)
+
+       ! Interpolate stagf_flotation back to the unstaggered mesh, giving a smoothed version of f_flotation.
+       ! For stagger_margin_in = 1, only vertices with vmask = 1 are included in the interpolation.
+       ! This smoothed field is used to provide approximate values of f_flotation in ice-free cells,
+       !  for purposes of bilinear interpolation in the GLP. In ice-covered cells, the smoothed field is ignored.
+       ! Note: glissade_unstagger includes a halo update for the unstaggered field.
+
+       call glissade_unstagger(nx,              ny,                  &
+                               stagf_flotation, unstagf_flotation,   &
+                               vmask,           stagger_margin_in = 1)
+
+       do j = 1, ny
+          do i = 1, nx
+             if (ice_mask(i,j) == 0) f_flotation(i,j) = unstagf_flotation(i,j)
+          enddo
+       enddo
 
        ! Identify cells that contain floating ice
 
@@ -510,14 +529,7 @@
 
              if (vmask(i,j) == 1) then  ! ice is present in at least one neighboring cell
 
-                !WHL TODO: Another option here would be to use the largest grounded value in place of the missing values.
-
-                if (ice_mask(i,j+1)==1 .and. ice_mask(i+1,j+1)==1 .and.  &
-                    ice_mask(i,j)  ==1 .and. ice_mask(i+1,j)  ==1) then
-
-                   ! ice is present in all 4 neighboring cells; interpolate f_flotation to find f_ground
-
-                   ! Count the number of floating cells surrounding this vertex
+                   ! First count the number of floating cells surrounding this vertex
 
                    nfloat = 0
                    if (cfloat(i,j))     nfloat = nfloat + 1
@@ -835,37 +847,6 @@
 
                    endif     ! nfloat
 
-                else   ! one or more neighboring cells is ice-free, so bilinear interpolation is not possible
-                       ! In this case, set f_ground = 0 or 1 based on stagf_flotation at vertex
-                       !TODO - Possibly eliminate this branch of the 'if' by using replacement values in ice-free cells
-
-                   if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-                      if (stagf_flotation(i,j) <= 1.d0) then
-                         f_ground(i,j) = 1.d0
-                      else
-                         f_ground(i,j) = 0.d0
-                      endif
-                      
-                   elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-
-                      if (stagf_flotation(i,j) >= 1.d0) then
-                         f_ground(i,j) = 1.d0
-                      else
-                         f_ground(i,j) = 0.d0
-                      endif
-                      
-                   elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-
-                      if (stagf_flotation(i,j) <= 0.d0) then
-                         f_ground(i,j) = 1.d0
-                      else
-                         f_ground(i,j) = 0.d0
-                      endif
-
-                   endif
-
-                endif     ! ice_mask = 1 in all 4 neighboring cells
              endif        ! vmask = 1
           enddo           ! i
        enddo              ! j
