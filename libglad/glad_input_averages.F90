@@ -55,8 +55,6 @@ module glad_input_averages
 
      integer :: av_start_time = 0  ! Value of time from the last occasion averaging was restarted (hours)
      integer :: av_steps      = 0  ! Number of times glimmer has been called in current round of averaging
-     integer :: next_av_start = 0  ! Time when we expect next averaging to start
-     logical :: new_av = .true.    ! Set to true if the next correct call starts a new averaging round
      
      real(dp),pointer,dimension(:,:) :: tot_qsmb => null()  ! running total surface mass balance (kg m-2 s-1)
      real(dp),pointer,dimension(:,:) :: tot_tsfc => null()  ! running total surface temperature (deg C)
@@ -73,7 +71,6 @@ contains
 
   subroutine initialize_glad_input_averages(glad_inputs, ewn, nsn, next_av_start)
     ! Initialize a glad_inputs instance
-    
     type(glad_input_averages_type), intent(inout) :: glad_inputs
 
     ! dimensions of local grid
@@ -86,7 +83,7 @@ contains
     allocate(glad_inputs%tot_qsmb(ewn,nsn));  glad_inputs%tot_qsmb = 0.d0
     allocate(glad_inputs%tot_tsfc(ewn,nsn));  glad_inputs%tot_tsfc = 0.d0
 
-    glad_inputs%next_av_start = next_av_start
+    glad_inputs%av_start_time = next_av_start
   end subroutine initialize_glad_input_averages
 
   integer function get_av_start_time(glad_inputs)
@@ -98,23 +95,15 @@ contains
     
   subroutine accumulate_averages(glad_inputs, qsmb, tsfc, time)
     ! Accumulate averages based on one set of inputs.
-    !
     ! Should be called every time we have new inputs from the climate model.
-    
     type(glad_input_averages_type), intent(inout) :: glad_inputs
     real(dp),dimension(:,:),intent(in)  :: qsmb     ! flux of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)  :: tsfc     ! surface ground temperature (C)
     integer, intent(in) :: time  ! Current model time
     
-    if (glad_inputs%new_av) then
-       call start_new_averaging_period(glad_inputs, time)
-    end if
-
     glad_inputs%tot_qsmb(:,:) = glad_inputs%tot_qsmb(:,:) + qsmb(:,:)
     glad_inputs%tot_tsfc(:,:) = glad_inputs%tot_tsfc(:,:) + tsfc(:,:)
-    
     glad_inputs%av_steps = glad_inputs%av_steps + 1
-    
   end subroutine accumulate_averages
 
   subroutine calculate_averages(glad_inputs, qsmb, tsfc)
@@ -129,7 +118,6 @@ contains
 
   subroutine reset_glad_input_averages(glad_inputs, next_av_start)
     ! Resets this glad_inputs instance
-    !
     ! Should be called at the end of an averaging period, in order to prepare for the
     ! next averaging period
     type(glad_input_averages_type), intent(inout) :: glad_inputs
@@ -137,39 +125,8 @@ contains
 
     glad_inputs%tot_qsmb(:,:) = 0.d0
     glad_inputs%tot_tsfc(:,:) = 0.d0
-
     glad_inputs%av_steps      = 0
-    glad_inputs%new_av        = .true.
-    glad_inputs%next_av_start = next_av_start
+    glad_inputs%av_start_time = next_av_start
   end subroutine reset_glad_input_averages
     
-  subroutine start_new_averaging_period(glad_inputs, time)
-    ! Should be called the first time accumulate_averages is called for a new averaging
-    ! period. Sets some flags appropriately in this case.
-    !
-    ! Also performs some error checking to make sure we're not calling GLAD at an
-    ! unexpected time.
-
-    type(glad_input_averages_type), intent(inout) :: glad_inputs
-    integer, intent(in) :: time  ! Current model time
-
-    character(len=100) :: message
-    
-    if (GLC_DEBUG .and. main_task) then
-       write (stdout,*) 'Accumulating averages, current time (hr) =', time
-       write (stdout,*) 'av_start_time =', glad_inputs%av_start_time
-       write (stdout,*) 'next_av_start =', glad_inputs%next_av_start
-       write (stdout,*) 'new_av =', glad_inputs%new_av
-    end if
-
-    if (time == glad_inputs%next_av_start) then
-       glad_inputs%av_start_time = time
-       glad_inputs%new_av = .false.
-    else
-       write(message,*) 'Unexpected calling of GLAD at time ', time
-       call write_log(message,GM_FATAL,__FILE__,__LINE__)
-    end if
-
-  end subroutine start_new_averaging_period
-
 end module glad_input_averages

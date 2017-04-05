@@ -246,7 +246,7 @@ contains
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index)
+  subroutine glad_initialize_instance(params, instance_index, av_start_time_restart)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -255,8 +255,9 @@ contains
     
     ! Subroutine argument declarations --------------------------------------------------------
 
-    type(glad_params),              intent(inout) :: params          !> parameters to be set
-    integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
+    type(glad_params) , intent(inout)        :: params          !> parameters to be set
+    integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
+    integer           , intent(in), optional :: av_start_time_restart
 
     ! Internal variables -----------------------------------------------------------------------
 
@@ -271,10 +272,17 @@ contains
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
          instance_config, params%gcm_fileunit)
 
-    call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
-                                params%start_time,   params%time_step,        &
-                                params%gcm_restart,  params%gcm_restart_file, &
-                                params%gcm_fileunit )
+    if (present(av_start_time_restart)) then
+       call glad_i_initialise_gcm(instance_config,       params%instances(instance_index), &
+                                  av_start_time_restart, params%time_step,        &
+                                  params%gcm_restart   , params%gcm_restart_file, &
+                                  params%gcm_fileunit )
+    else
+       call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
+                                  params%start_time,   params%time_step,        &
+                                  params%gcm_restart,  params%gcm_restart_file, &
+                                  params%gcm_fileunit )
+    end if
 
   end subroutine glad_initialize_instance
 
@@ -534,7 +542,7 @@ contains
                       qsmb,           tsfc,                  &
                       ice_covered,    topo,                  &
                       rofi,           rofl,           hflx,  &
-                      ice_sheet_grid_mask,                   &
+                      ice_sheet_grid_mask, valid_inputs,     &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
@@ -572,6 +580,7 @@ contains
     real(dp),dimension(:,:),intent(inout) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
+    logical                ,intent(in)    :: valid_inputs ! glad inputs are valid
 
     logical,optional,intent(out)   :: output_flag     ! Set true if outputs are set
     logical,optional,intent(out)   :: ice_tstep       ! Set when an ice dynamic timestep has been done
@@ -597,17 +606,19 @@ contains
     if (present(output_flag)) output_flag = .false.
     if (present(ice_tstep))   ice_tstep = .false.
 
-    ! Accumulate input fields for later averaging
+       ! Accumulate input fields for later averaging
 
-    ewn = get_ewn(params%instances(instance_index)%model)
-    nsn = get_nsn(params%instances(instance_index)%model)
-    allocate(qsmb_haloed(ewn,nsn))
-    allocate(tsfc_haloed(ewn,nsn))
-    call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
-    call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
+    if (valid_inputs) then
+       ewn = get_ewn(params%instances(instance_index)%model)
+       nsn = get_nsn(params%instances(instance_index)%model)
+       allocate(qsmb_haloed(ewn,nsn))
+       allocate(tsfc_haloed(ewn,nsn))
+       call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
+       call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
 
-    call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-         qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
+       call accumulate_averages(params%instances(instance_index)%glad_inputs, &
+            qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
+    end if
 
     ! ---------------------------------------------------------
     ! If this is a mass balance timestep, prepare global fields, and do a timestep
@@ -627,7 +638,22 @@ contains
             'Incomplete forcing of GLAD mass-balance time-step detected at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
        
-    else if (time - av_start_time + params%time_step == params%tstep_mbal) then
+    else if (time - av_start_time + params%time_step == params%tstep_mbal) then  
+
+       ! BUG - on restart valid_inputs comes a year after the last period and not at the end
+       ! of the coupling interval
+       ! Add error check here
+       if  (.not. valid_inputs) then
+          write(message,*) &
+               'Valid_inputs cannot be .false. if trying to do a mass balance time step'
+          call write_log(message,GM_FATAL,__FILE__,__LINE__)
+       else
+          write(stdout,*)' Taking a glad time step'
+          write(stdout,*)'   time          = ',time
+          write(stdout,*)'   av_start_time = ',av_start_time
+          write(stdout,*)'   time_step     = ',params%time_step
+          write(stdout,*)'   tstep_mbal    = ',params%tstep_mbal
+       end if
 
        ! Set output_flag
 
@@ -647,10 +673,14 @@ contains
 
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
-
-          call calculate_averages(params%instances(instance_index)%glad_inputs, &
+          call calculate_averages(&
+               params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
                tsfc = params%instances(instance_index)%artm)
+
+          ! Skip calculating averages since averages are now done in the coupler
+          ! params%instances(instance_index)%acab(:,:) = qsmb_haloed(:,:)
+          ! params%instances(instance_index)%artm(:,:) = tsfc_haloed(:,:) 
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -664,9 +694,7 @@ contains
                params%tstep_mbal * hours2seconds / 1000.d0
 
           if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glad time step, instance', instance_index
-          call glad_i_tstep_gcm(time,                  &
-               params%instances(instance_index),   &
-               icets)
+          call glad_i_tstep_gcm(time, params%instances(instance_index), icets)
 
           call calculate_average_output_fluxes( &
                params%instances(instance_index)%glad_output_fluxes, &
@@ -678,7 +706,6 @@ contains
                ice_covered, topo, rofi, rofl, hflx, &
                ice_sheet_grid_mask)
           
-
           ! Set flag
           if (present(ice_tstep)) then
              ice_tstep = (ice_tstep .or. icets)
