@@ -640,14 +640,13 @@ contains
        
     else if (time - av_start_time + params%time_step == params%tstep_mbal) then  
 
-       ! BUG - on restart valid_inputs comes a year after the last period and not at the end
-       ! of the coupling interval
-       ! Add error check here
        if  (.not. valid_inputs) then
           write(message,*) &
                'Valid_inputs cannot be .false. if trying to do a mass balance time step'
           call write_log(message,GM_FATAL,__FILE__,__LINE__)
-       else
+       end if
+
+       if (GLC_DEBUG .and. main_task) then
           write(stdout,*)' Taking a glad time step'
           write(stdout,*)'   time          = ',time
           write(stdout,*)'   av_start_time = ',av_start_time
@@ -677,10 +676,6 @@ contains
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
                tsfc = params%instances(instance_index)%artm)
-
-          ! Skip calculating averages since averages are now done in the coupler
-          ! params%instances(instance_index)%acab(:,:) = qsmb_haloed(:,:)
-          ! params%instances(instance_index)%artm(:,:) = tsfc_haloed(:,:) 
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
