@@ -715,6 +715,7 @@
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
        bwat,                 &  ! basal water thickness (m)
+       bmlt,                 &  ! basal melt rate (m/yr)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
@@ -1021,6 +1022,7 @@
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
      bwat     => model%temper%bwat(:,:)
+     bmlt     => model%temper%bmlt(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1079,7 +1081,8 @@
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           thck,    usrf,          &
                                           topg,    eus,           &
-                                          bwat,    thklim,        &
+                                          thklim,                 &
+                                          bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
                                           model%basal_physics%mintauf, &
@@ -1849,7 +1852,7 @@
                                  model%basal_physics,       &
                                  ice_mask,                  &
                                  bpmp(:,:) - temp(nz,:,:),  &
-                                 bwat,                      &
+                                 bwat,          bmlt,       &
                                  thck,          topg,       &
                                  eus)
 
@@ -2936,7 +2939,8 @@
           call t_startf('glissade_velo_higher_scale_outp')
           !TODO - Remove mintauf from argument list when BFB requirement is relaxed
           call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                                 topg,    bwat,          &
+                                                 topg,                   &
+                                                 bwat,    bmlt,          &
                                                  flwa,    efvs,          &
                                                  beta_internal,          &
                                                  resid_u, resid_v,       &
@@ -3703,7 +3707,8 @@
 
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                           topg,    bwat,          &
+                                           topg,                   &
+                                           bwat,    bmlt,          &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -3726,7 +3731,8 @@
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
                                               thck,    usrf,          &
                                               topg,    eus,           &
-                                              bwat,    thklim,        &
+                                              thklim,                 &
+                                              bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
                                               mintauf,                &
@@ -3745,7 +3751,8 @@
        thck,                &  ! ice thickness
        usrf,                &  ! upper surface elevation
        topg,                &  ! elevation of topography
-       bwat                    ! basal water thickness
+       bwat,                &  ! basal water thickness
+       bmlt                    ! basal melt rate
 
     real(dp), intent(inout) ::   &
        eus,  &                 ! eustatic sea level (= 0 by default)
@@ -3775,8 +3782,11 @@
     usrf = usrf * thk0
     topg = topg * thk0
     eus  = eus  * thk0
-    bwat = bwat * thk0
     thklim = thklim * thk0
+    bwat = bwat * thk0
+
+    ! basal melt rate: rescale from dimensionless to m/s
+    bmlt = bmlt * thk0/tim0
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
     flwa = flwa * (vis0*scyr)
@@ -3802,7 +3812,8 @@
 !****************************************************************************
 
   subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
-                                               topg,    bwat,           &
+                                               topg,                    &
+                                               bwat,    bmlt,           &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -3825,7 +3836,8 @@
        thck,                 &  ! ice thickness
        usrf,                 &  ! upper surface elevation
        topg,                 &  ! elevation of topography
-       bwat                     ! basal water thickness
+       bwat,                 &  ! basal water thickness
+       bmlt                     ! basal melt rate
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -3858,6 +3870,9 @@
     usrf = usrf / thk0
     topg = topg / thk0
     bwat = bwat / thk0
+
+    ! Convert basal melt rate from m/s to dimensionless units
+    bmlt = bmlt / (thk0/tim0)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)

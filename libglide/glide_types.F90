@@ -209,8 +209,9 @@ module glide_types
 
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
-  integer, parameter :: HO_EFFECPRESS_BWAT = 2
+  integer, parameter :: HO_EFFECPRESS_BMLT = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
+  integer, parameter :: HO_EFFECPRESS_BWAT = 4
 
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_JFNK = 1
@@ -555,8 +556,9 @@ module glide_types
     !> \begin{description}
     !> \item[0] N = overburden pressure, rhoi*grav*thck
     !> \item[1] N is reduced where the bed is at or near the pressure melting point
-    !> \item[2] N is reduced where basal water is present
+    !> \item[2] N is reduced where there is melting at the bed
     !> \item[3] N is reduced due to connection of subglacial water to the ocean
+    !> \item[4] N is reduced where basal water is present
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1152,6 +1154,7 @@ module glide_types
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0             !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
      real(dp) :: effecpress_bpmp_threshold = 0.1d0     !< temperature range over which N ramps from a small value to full overburden (deg C)
+     real(dp) :: effecpress_bmlt_threshold = 1.d0/scyr !< basal melting range over which N ramps from a small value to full overburden (m/s)
      real(dp) :: effecpress_bwat_threshold = 1.0d0     !< basal water thickness range over which N ramps from a small value to full overburden (m)
      real(dp) :: p_ocean_penetration = 0.0d0           !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
