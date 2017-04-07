@@ -261,6 +261,7 @@ contains
 
     ! Internal variables -----------------------------------------------------------------------
 
+    integer :: forcing_start_time
     type(ConfigSection), pointer :: instance_config
     
     ! Begin subroutine code --------------------------------------------------------------------
@@ -273,16 +274,15 @@ contains
          instance_config, params%gcm_fileunit)
 
     if (present(av_start_time_restart)) then
-       call glad_i_initialise_gcm(instance_config,       params%instances(instance_index), &
-                                  av_start_time_restart, params%time_step,        &
-                                  params%gcm_restart   , params%gcm_restart_file, &
-                                  params%gcm_fileunit )
+       forcing_start_time = av_start_time_restart
     else
-       call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
-                                  params%start_time,   params%time_step,        &
-                                  params%gcm_restart,  params%gcm_restart_file, &
-                                  params%gcm_fileunit )
+       forcing_start_time = params%start_time
     end if
+
+    call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
+                               forcing_start_time,  params%time_step,        &
+                               params%gcm_restart,  params%gcm_restart_file, &
+                               params%gcm_fileunit )
 
   end subroutine glad_initialize_instance
 
