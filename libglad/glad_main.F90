@@ -246,7 +246,7 @@ contains
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index, av_start_time_restart)
+  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -257,7 +257,7 @@ contains
 
     type(glad_params) , intent(inout)        :: params          !> parameters to be set
     integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
-    integer           , intent(in), optional :: av_start_time_restart
+    integer           , intent(in), optional :: my_forcing_start_time
 
     ! Internal variables -----------------------------------------------------------------------
 
@@ -273,8 +273,8 @@ contains
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
          instance_config, params%gcm_fileunit)
 
-    if (present(av_start_time_restart)) then
-       forcing_start_time = av_start_time_restart
+    if (present(my_forcing_start_time)) then
+       forcing_start_time = my_forcing_start_time
     else
        forcing_start_time = params%start_time
     end if
