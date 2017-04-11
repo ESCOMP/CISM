@@ -439,7 +439,7 @@ contains
                   model%tempwk%wphi)
 
     ! initial calving, if desired
-    ! Note: Do this only for a cold start, not for a restart
+    ! Note: Do this only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
         model%options%calving_init == CALVING_INIT_ON .and. &
         model%options%is_restart == RESTART_FALSE) then
