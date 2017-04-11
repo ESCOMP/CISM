@@ -584,15 +584,6 @@ cell_methods:  time: mean
 coordinates:   lon lat
 load:          1
 
-[surftemp]
-dimensions:    time, y1, x1
-units:         degree_Celsius
-long_name:     surface ice temperature (NOTE: Glissade only)
-data:          data%temper%temp(0,1:data%general%ewn,1:data%general%nsn)
-standard_name: surface_temperature
-coordinates:   lon lat
-load:          1
-
 [btemp]
 dimensions:    time, y1, x1
 units:         degree_Celsius

@@ -89,6 +89,7 @@ contains
     ! Internal
 
     integer :: config_fileunit
+    logical :: do_ice_evolution
 
     config_fileunit = 99
     if (present(gcm_config_unit)) then
@@ -122,18 +123,26 @@ contains
       endif
     endif
 
+    ! read glad configuration
+    call glad_i_readconfig(instance, config)
+    call glad_i_printconfig(instance)
+
+    do_ice_evolution = (instance%evolve_ice == EVOLVE_ICE_TRUE)
+
     if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
 
        ! initialise the model
        call glide_initialise(instance%model)
 
        ! compute the initial diagnostic state
-       call glide_init_state_diagnostic(instance%model)
+       call glide_init_state_diagnostic(instance%model, &
+            evolve_ice = do_ice_evolution)
 
     else       ! glam/glissade HO dycore     
 
        ! initialise the model
-       call glissade_initialise(instance%model)
+       call glissade_initialise(instance%model, &
+            evolve_ice = do_ice_evolution)
 
        ! compute the initial diagnostic state
        call glissade_diagnostic_variable_solve(instance%model)
@@ -143,11 +152,6 @@ contains
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
 
     instance%glide_time = instance%model%numerics%tstart
-
-    ! read glad configuration
-
-    call glad_i_readconfig(instance, config)    
-    call glad_i_printconfig(instance)    
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file (specific to glad - other configs,
