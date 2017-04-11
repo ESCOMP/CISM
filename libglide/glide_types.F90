@@ -349,11 +349,11 @@ module glide_types
     integer :: whichflwa = 2
 
     !> \begin{description} 
-    !> \item[0] Set equal to $1\times 10^{-16}\,\mathrm{yr}^{-1}
+    !> \item[0] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
     !> \item[1] \emph{Paterson and Budd} relationship, 
     !> with temperature set to $-5^{\circ}\mathrm{C}$ 
-    !> \item[2] \emph{Paterson and Budd} relationship 
-    !> \,\mathrm{Pa}^{-n}$
+    !> \item[2] \emph{Paterson and Budd} relationship
+    !> \item[3] Read flwa/flwastag from file
     !> \end{description}
 
     integer :: whichbtrc = 0
