@@ -1295,9 +1295,6 @@ contains
                               model%paramets%flow_enhancement_factor,   &
                               model%temper%waterfrac(:,:,:))
 
-    ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
-    model%temper%flwa(:,:,:) = model%temper%flwa(:,:,:) / vis0
-
     !TODO - flwa halo update not needed?
     ! Halo update for flwa
     call parallel_halo(model%temper%flwa)
