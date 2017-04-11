@@ -2305,6 +2305,8 @@ module glissade_therm
 
     end select
 
+    ! This logic assumes that the input flwa is already in dimensionless model units.
+    ! TODO: Make a different assumption about input units?
     if (whichflwa /= FLWA_INPUT) then
        ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
        flwa(:,:,:) = flwa(:,:,:) / vis0
