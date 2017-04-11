@@ -75,11 +75,6 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
-  !WHL - for running glissade_therm in place of glissade_temp
-  !TODO - Remove old glissade_temp code
-!!  logical, parameter :: call_glissade_therm = .false.
-  logical, parameter :: call_glissade_therm = .true.
-
 contains
 
 !=======================================================================
@@ -97,8 +92,6 @@ contains
     use glide_setup
     use glimmer_ncio
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
-    !TODO - Remove glissade_temp
-    use glissade_temp, only: glissade_init_temp
     use glissade_therm, only: glissade_init_therm
     use glissade_transport, only: glissade_add_prescribed_acab
     use glimmer_scales
@@ -282,23 +275,18 @@ contains
     !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
     call init_velo(model)
 
-    !TODO - Remove glissade_init_temp option
-    if (call_glissade_therm) then
-       call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
-                                model%general%ewn,          model%general%nsn,         &
-                                model%general%upn,                                     &
-                                model%numerics%idiag_local, model%numerics%jdiag_local,&
-                                model%numerics%rdiag_local,                            &
-                                model%numerics%sigma,       model%numerics%stagsigma,  &
-                                model%geometry%thck*thk0,                              & ! m
-                                model%climate%artm,                                    & ! deg C
-                                model%climate%acab*thk0/tim0,                          & ! m/s
-                                model%temper%bheatflx,                                 & ! W/m^2, positive down
-                                model%temper%pmp_offset,                               & ! deg C
-                                model%temper%temp)                                       ! deg C
-    else
-       call glissade_init_temp(model)
-    endif
+    call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
+                             model%general%ewn,          model%general%nsn,         &
+                             model%general%upn,                                     &
+                             model%numerics%idiag_local, model%numerics%jdiag_local,&
+                             model%numerics%rdiag_local,                            &
+                             model%numerics%sigma,       model%numerics%stagsigma,  &
+                             model%geometry%thck*thk0,                              & ! m
+                             model%climate%artm,                                    & ! deg C
+                             model%climate%acab*thk0/tim0,                          & ! m/s
+                             model%temper%bheatflx,                                 & ! W/m^2, positive down
+                             model%temper%pmp_offset,                               & ! deg C
+                             model%temper%temp)                                       ! deg C
 
     ! Initialize basal hydrology model, if enabled
     call bwater_init(model)
@@ -666,8 +654,6 @@ contains
     use parallel
 
     use glimmer_paramets, only: tim0, thk0
-    !TODO - Remove glissade_temp option; use glissade_therm only
-    use glissade_temp, only: glissade_temp_driver
     use glissade_therm, only: glissade_therm_driver
     use glide_bwater, only: calcbwat
 
@@ -677,51 +663,42 @@ contains
 
     real(dp), intent(in) :: dt   ! time step (s)
 
-    if (call_glissade_therm) then
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
-       if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
-
-       ! Note: glissade_therm_driver uses SI units
-       !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
-       call glissade_therm_driver (model%options%whichtemp,                                      &
-                                   model%options%whichbmlt_float,                                &
-                                   model%options%temp_init,                                      &
-                                   dt,                                                           & ! s
-                                   model%general%ewn,          model%general%nsn,                &
-                                   model%general%upn,                                            &
-                                   model%numerics%idiag_local, model%numerics%jdiag_local,       &
-                                   model%numerics%rdiag_local,                                   &
-                                   model%numerics%sigma,       model%numerics%stagsigma,         &
-                                   model%numerics%thklim*thk0, model%numerics%thklim_temp*thk0,  & ! m
-                                   model%geometry%thck*thk0,                                     & ! m
-                                   model%geometry%topg*thk0,                                     & ! m
-                                   model%geometry%lsrf*thk0,                                     & ! m
-                                   model%climate%eus*thk0,                                       & ! m
-                                   model%climate%artm,                                           & ! deg C    
-                                   model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
-                                   model%temper%dissip,                                          & ! deg/s
-                                   model%temper%pmp_threshold,                                   & ! deg C
-                                   model%temper%bmlt_float_rate,                                 & ! m/s
-                                   model%temper%bmlt_float_mask,                                 & ! 0 or 1
-                                   model%temper%bmlt_float_omega,                                & ! s-1
-                                   model%temper%bmlt_float_h0,                                   & ! m
-                                   model%temper%bmlt_float_z0,                                   & ! m
-                                   model%temper%bwat*thk0,                                       & ! m
-                                   model%temper%temp,                                            & ! deg C
-                                   model%temper%waterfrac,                                       & ! unitless
-                                   model%temper%bpmp,                                            & ! deg C
-                                   model%temper%bmlt)                                              ! m/s on output
+    ! Note: glissade_therm_driver uses SI units
+    !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
+    call glissade_therm_driver (model%options%whichtemp,                                      &
+                                model%options%whichbmlt_float,                                &
+                                model%options%temp_init,                                      &
+                                dt,                                                           & ! s
+                                model%general%ewn,          model%general%nsn,                &
+                                model%general%upn,                                            &
+                                model%numerics%idiag_local, model%numerics%jdiag_local,       &
+                                model%numerics%rdiag_local,                                   &
+                                model%numerics%sigma,       model%numerics%stagsigma,         &
+                                model%numerics%thklim*thk0, model%numerics%thklim_temp*thk0,  & ! m
+                                model%geometry%thck*thk0,                                     & ! m
+                                model%geometry%topg*thk0,                                     & ! m
+                                model%geometry%lsrf*thk0,                                     & ! m
+                                model%climate%eus*thk0,                                       & ! m
+                                model%climate%artm,                                           & ! deg C    
+                                model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
+                                model%temper%dissip,                                          & ! deg/s
+                                model%temper%pmp_threshold,                                   & ! deg C
+                                model%temper%bmlt_float_rate,                                 & ! m/s
+                                model%temper%bmlt_float_mask,                                 & ! 0 or 1
+                                model%temper%bmlt_float_omega,                                & ! s-1
+                                model%temper%bmlt_float_h0,                                   & ! m
+                                model%temper%bmlt_float_z0,                                   & ! m
+                                model%temper%bwat*thk0,                                       & ! m
+                                model%temper%temp,                                            & ! deg C
+                                model%temper%waterfrac,                                       & ! unitless
+                                model%temper%bpmp,                                            & ! deg C
+                                model%temper%bmlt)                                              ! m/s on output
                                      
-       ! convert bmlt from m/s to scaled model units
-       model%temper%bmlt = model%temper%bmlt * tim0/thk0
+    ! convert bmlt from m/s to scaled model units
+    model%temper%bmlt = model%temper%bmlt * tim0/thk0
        
-    else
-
-       !TODO - Remove glissade_temp option
-       if (main_task .and. verbose_glissade) print*, 'Call glissade_temp_driver'
-       call glissade_temp_driver(model, model%options%whichtemp)
-
-    endif
     call t_stopf('glissade_therm_driver')
     
     model%temper%newtemps = .true.
@@ -1201,7 +1178,6 @@ contains
     use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: scyr
     use glide_thck, only: glide_calclsrf
-    use glissade_temp, only: glissade_calcflwa
     use glam_velo, only: glam_velo_driver, glam_basal_friction
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
@@ -1276,7 +1252,7 @@ contains
     !Note - The fields computed by glam_geometry_derivs are not required by
     !       the Glissade velocity solver (which computes them internally).  
     !       However, some of the fields (stagthck, dusrfdew and dusrfdns) 
-    !       are needed during the next timestep by glissade_temp
+    !       are needed during the next timestep by glissade_therm
     !       if we're doing shallow-ice dissipation.
     !TODO - Replace this glam_geometry_derivs call with calls to Glissade subroutines?
     !       (The glam_velo driver includes its own call to glam_geometry_derivs.) 
