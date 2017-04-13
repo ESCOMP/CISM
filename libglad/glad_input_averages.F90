@@ -66,7 +66,8 @@ module glad_input_averages
   public :: accumulate_averages
   public :: calculate_averages
   public :: reset_glad_input_averages
-  
+  public :: averages_okay_to_restart
+
 contains
 
   subroutine initialize_glad_input_averages(glad_inputs, ewn, nsn, next_av_start)
@@ -128,5 +129,16 @@ contains
     glad_inputs%av_steps      = 0
     glad_inputs%av_start_time = next_av_start
   end subroutine reset_glad_input_averages
-    
+
+  pure logical function averages_okay_to_restart(glad_inputs)
+    ! Returns true if this is an okay time to write a restart file based on these
+    ! glad_inputs, false if not.
+    !
+    ! It is not an okay time to write a restart file if we have some accumulated averages,
+    ! since we currently do not write these partial averages to restart files.
+    type(glad_input_averages_type), intent(in) :: glad_inputs
+
+    averages_okay_to_restart = (glad_inputs%av_steps == 0)
+  end function averages_okay_to_restart
+
 end module glad_input_averages

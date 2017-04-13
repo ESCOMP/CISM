@@ -43,7 +43,7 @@ module glad_main
   use glimmer_filenames, only : process_path
   use parallel, only: main_task
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
-       calculate_averages, reset_glad_input_averages
+       calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   
   use glimmer_paramets, only: stdout, GLC_DEBUG
 
@@ -112,6 +112,8 @@ module glad_main
   public :: glad_get_areas
   
   public :: glad_gcm
+
+  public :: glad_okay_to_restart
 
   public :: end_glad
   
@@ -722,6 +724,39 @@ contains
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
 
   end subroutine glad_gcm
+
+  !===================================================================
+
+  pure logical function glad_okay_to_restart(instance)
+
+    ! Returns true if this is an okay time to write a restart file, false if not.
+    !
+    ! e.g., if we know that we're in the middle of a mass balance time step, with some
+    ! accumulated averages, then it is NOT an okay time to write a restart file, because
+    ! we currently do not write these partial averages to restart files.
+
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_instance), intent(in) :: instance
+
+    ! Internal variables -----------------------------------------------------------------------
+
+    logical :: okay_to_restart
+
+    ! Begin subroutine code --------------------------------------------------------------------
+
+    okay_to_restart = .true.
+
+    if (.not. averages_okay_to_restart(instance%glad_inputs)) then
+       okay_to_restart = .false.
+    end if
+
+    ! NOTE(wjs, 2017-04-13) There may be other conditions that should be included here,
+    ! particularly related to the accumulations in glad_mbal_coupling. I'm not sure
+    ! exactly how that works and how we should account for that in this check.
+
+    glad_okay_to_restart = okay_to_restart
+  end function glad_okay_to_restart
 
   !===================================================================
 
