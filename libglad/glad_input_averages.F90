@@ -36,11 +36,17 @@ module glad_input_averages
   ! Note that this module has some functionality in common with glad_mbal_coupling, but
   ! they are used at different stages in the time loops.
 
-  ! NOTE(wjs, 2015-03-17) Most or all of the functionality here could be removed if we
-  ! performed all of the necessary temporal averaging in the climate model, with coupling
-  ! to the CISM code only happening once per mass balance time step. If we do that, we
-  ! should probably add checks to ensure that the model is really just being called when
-  ! it's time for a mass balance time step.
+  ! The accumulate_averages routine does NOT need to be called every time glad is called,
+  ! if time-averaging is occurring at a higher level (e.g., in the coupler). However, the
+  ! expectation is that the averaging frequency divides evenly into the mass balance time
+  ! step frequency. In addition, each input gets equal weighting, so we are assuming all
+  ! inputs apply over the same time interval.
+
+  ! If accumulate_averages is called multiple times within a mass balance time step, then
+  ! you cannot restart in the middle of a mass balance time step. (More precisely: You
+  ! cannot restart after accumulate_averages has been called one or more times, but
+  ! before the mass balance time step occurs.) You can check if it's an okay time to
+  ! write a restart file by calling averages_okay_to_restart.
 
   use glimmer_global, only : dp
   use glimmer_paramets, only: GLC_DEBUG, stdout
