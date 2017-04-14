@@ -59,7 +59,7 @@ module glimmer_paramets
 
 ! logical flag to turn on special DEBUG output (related to test points), false by default
 
-  logical :: GLC_DEBUG = .true.
+  logical :: GLC_DEBUG = .false.
 
 !TODO: Redefine scaling parameters to have SI or similar units?
 !      Considered removing these parameters from the code, but may be too much work.
