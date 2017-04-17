@@ -793,11 +793,12 @@ contains
          'min of Coulomb stress and power-law stress (Tsai)', &
          'simple pattern of beta                           ' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whicheffecpress = (/ &
-         'full overburden pressure                          ', &
-         'reduced effecpress near pressure melting point    ', &
-         'reduced effecpress with increasing basal water    ', &
-         'reduced effecpress where bed is connected to ocean' /)
+    character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
+         'full overburden pressure                             ', &
+         'reduced effecpress near pressure melting point       ', &
+         'reduced effecpress where there is melting at the bed ', &
+         'reduced effecpress where bed is connected to ocean   ', &
+         'reduced effecpress with increasing basal water       '/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration  ', &
