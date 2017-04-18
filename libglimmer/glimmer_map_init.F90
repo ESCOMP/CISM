@@ -454,7 +454,7 @@ contains
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !> compute local area scale factors for stereographic projection
-  subroutine glimmap_stere_area_factor(params, dx, dy)
+  subroutine glimmap_stere_area_factor(params, ewn, nsn, dx, dy)
 
     ! Compute area scale factors for each grid cell.
     ! These scale factors describe the distortion of areas in a stereographic projection.
@@ -462,7 +462,8 @@ contains
     ! This code is adapted a Matlab script provided by Heiko Goelzer, based on this reference:
     ! J. P. Snyder (1987): Map Projections--A Working Manual, US Geological Survey Professional Paper 1395.
     !
-    ! Note: This subroutine cannot be called until after the 2D area_factor array has been allocated.
+    ! Note: This subroutine should not be called until the input file has been read in,
+    !       and we have the relevant grid info (ewn, nsn, dx, dy).
 
     use glimmer_log
     use glimmer_physcon, only: pi, rearth
@@ -470,7 +471,8 @@ contains
 
     type(proj_stere),intent(inout) :: params
 
-    real(dp), intent(in) :: dx, dy   ! grid resolution in x and y (m)
+    integer, intent(in) :: ewn, nsn  ! grid dimensions in x and y
+    real(dp), intent(in) :: dx, dy   ! grid cell size in x and y (m)
 
     ! Local variables
 
@@ -485,17 +487,21 @@ contains
     real(dp) :: x, y                ! x and y relative to projection origin (m)
     real(dp) :: rho                 ! distance from projection origin (m)
     real(dp) :: m_c, t_c, t         ! coefficients in Snyder formulas
-    real(dp) :: lambda, phi, xi, m  ! more coefficients
+    real(dp) :: phi, xi, m          ! more coefficients
     real(dp) :: max_area_factor, min_area_factor  ! diagnostic info
 
-    integer :: ewn, nsn             ! local grid dimensions
     integer :: i, j                 ! local horizontal grid indices
     integer :: iglobal, jglobal     ! global horizontal grid indices
 
     character(len=100) :: message
 
-    ewn = size(params%area_factor,1)
-    nsn = size(params%area_factor,2)
+    ! allocate the area_factor array and set it to a sensible default
+    ! NOTE: If model%projection%stere is not allocated, then area_factor will not be allocated.
+    !       In this case, area_factor should not be listed as an output variable in the config file; 
+    !        else the code will segfault in glide_io_create.
+
+    allocate(params%area_factor(ewn,nsn))
+    params%area_factor(:,:) = 1.0d0
 
     ! latitude and longitude of projection origin
     lat_c = params%standard_parallel
@@ -505,19 +511,20 @@ contains
     delta_x = -params%false_easting
     delta_y = -params%false_northing
 
+    ! compute some factors needed for the area_factor calculation
+
     deg2rad = pi/180.d0   ! degrees to radians
 
     f = 1.0d0 / 298.257d0        ! flatness parameter (Snyder p. 12)
     ecc = sqrt(2.d0*f - f**2)    ! eccentricity
 
-    lambda_0 = deg2rad * lon_c
+!!    lambda_0 = deg2rad * lon_c   !WHL - lambda0 is not needed to compute area_factor
     phi_c = deg2rad * lat_c
 
     m_c = cos(phi_c) / (1.d0 - ecc**2 * (sin(phi_c))**2)**0.5d0   ! Eq. 14-15
     t_c = tan(pi/4.d0 - phi_c/2.d0) / ( ((1.d0 - ecc*sin(phi_c)) / (1.d0 + ecc*sin(phi_c)))**(ecc/2.d0) )  ! Eq. 15-9
 
-    params%area_factor(:,:) = 1.d0   ! initialize to sensible default
-
+    ! compute area_factor for each grid cell
     do j = 1, nsn
        do i = 1, ewn
 
@@ -529,7 +536,17 @@ contains
 
           ! compute other coefficients from Snyder
           rho = sqrt(x**2 + y**2)       ! Eq. 20-18
-          t = rho * t_c/(rearth*m_c)    ! Eq. 21-40   !Note: This works only if lat_c /= 90 deg?
+
+          if (abs(lat_c - 90.d0) < 1.d-6) then
+             write(message,*) 'WARNING: Area factors may not be correct for lon_c = 90 deg; testing needed'
+             call write_log(trim(message))
+             ! Note: Snyder defines k0 ~ 1 and includes a factor or rearth in the denominator
+             !       Glimmer defines k0 ~ rearth
+             t = rho * sqrt((1.d0+ecc)**(1.d0+ecc) * (1.d0+ecc)**(1.d0-ecc)) / (2.d0*params%k0)  ! Eq. 21-39
+          else  ! lat_c /= 90.d0) then
+             t = rho * t_c/(rearth*m_c)    ! Eq. 21-40
+          endif
+
           xi = pi/2.d0 - 2.d0*atan(t)   ! Eq. 7-13
 
           phi = (xi + (ecc**2/2.d0 + 5.d0*ecc**4/24.d0 + ecc**6/12.d0 + 13.d0*ecc**8/360.d0) * sin(2.d0*xi) + &
@@ -537,11 +554,9 @@ contains
                (7.d0*ecc**6/120.d0 + 81.d0*ecc**8/1120.d0) * sin(6.d0*xi) + &
                (4279.d0*ecc**8/161280.d0) * sin(8.d0*xi))     ! Eq. 3-5
 
-          lambda = (lambda_0 + atan2(x,(-y)))                 ! Eq. 20-16
+          m = cos(phi) / (1.d0 - (ecc**2)*(sin(phi))**2)**0.5d0   ! Eq. 14-15
 
-          m = cos(phi)/(1.d0-ecc**2 * (sin(phi))**2)**0.5d0   ! Eq. 14-15
-
-          params%area_factor(i,j) = rho/(rearth*m)            ! Eq. 21-32 (k = area_factor)
+          params%area_factor(i,j) = rho/(rearth*m)      ! Eq. 21-32 (k = area_factor)
 
        enddo
     enddo

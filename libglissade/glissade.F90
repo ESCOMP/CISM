@@ -163,18 +163,6 @@ contains
     ! allocate arrays
     call glide_allocarr(model)
 
-    ! Compute area scale factors for stereographic map projection.
-    ! Note: Not yet enabled for other map projections.
-    ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
-
-    if (associated(model%projection%stere)) then
-
-       call glimmap_stere_area_factor(model%projection%stere,  &
-                                      model%numerics%dew*len0, &
-                                      model%numerics%dns*len0)
-
-    endif
-
     ! set masks at global boundary for no-penetration boundary conditions
     ! this subroutine includes a halo update
     if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
@@ -193,6 +181,21 @@ contains
 
     ! read first time slice
     call glide_io_readall(model,model)
+
+    ! Compute area scale factors for stereographic map projection.
+    ! This should be done after reading the input file, in case the input file contains mapping info.
+    ! Note: Not yet enabled for other map projections.
+    ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
+
+    if (associated(model%projection%stere)) then
+
+       call glimmap_stere_area_factor(model%projection%stere,  &
+                                      model%general%ewn,       &
+                                      model%general%nsn,       &
+                                      model%numerics%dew*len0, &
+                                      model%numerics%dns*len0)
+
+    endif
 
     ! Write projection info to log
     call glimmap_printproj(model%projection)

@@ -1912,13 +1912,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
     endif
 
-    ! projection arrays
-    ! NOTE: If model%projection%stere is not allocated, then area_factor should not be listed
-    !       as an output variable; else the code will segfault in glide_io_create.
-    if (associated(model%projection%stere)) then
-       call coordsystem_allocate(model%general%ice_grid, model%projection%stere%area_factor)
-    endif
-
     ! The remaining arrays are not currently used
     ! phaml arrays
 !!    call coordsystem_allocate(model%general%ice_grid, model%phaml%init_phaml)

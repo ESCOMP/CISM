@@ -143,6 +143,7 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
+    use glimmer_paramets, only: len0
 
     use parallel, only: distributed_grid
 
@@ -206,6 +207,21 @@ contains
 
     ! read first time slice
     call glide_io_readall(model,model)
+
+    ! Compute area scale factors for stereographic map projection.
+    ! This should be done after reading the input file, in case the input file contains mapping info.
+    ! Note: Not yet enabled for other map projections.
+    ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
+
+    if (associated(model%projection%stere)) then
+
+       call glimmap_stere_area_factor(model%projection%stere,  &
+                                      model%general%ewn,       &
+                                      model%general%nsn,       &
+                                      model%numerics%dew*len0, &
+                                      model%numerics%dns*len0)
+
+    endif
 
     ! write projection info to log
     call glimmap_printproj(model%projection)
