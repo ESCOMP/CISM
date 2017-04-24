@@ -43,7 +43,7 @@ module glad_main
   use glimmer_filenames, only : process_path
   use parallel, only: main_task
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
-       calculate_averages, reset_glad_input_averages
+       calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   
   use glimmer_paramets, only: stdout, GLC_DEBUG
 
@@ -112,6 +112,8 @@ module glad_main
   public :: glad_get_areas
   
   public :: glad_gcm
+
+  public :: glad_okay_to_restart
 
   public :: end_glad
   
@@ -246,7 +248,7 @@ contains
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index)
+  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -255,11 +257,13 @@ contains
     
     ! Subroutine argument declarations --------------------------------------------------------
 
-    type(glad_params),              intent(inout) :: params          !> parameters to be set
-    integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
+    type(glad_params) , intent(inout)        :: params          !> parameters to be set
+    integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
+    integer           , intent(in), optional :: my_forcing_start_time
 
     ! Internal variables -----------------------------------------------------------------------
 
+    integer :: forcing_start_time
     type(ConfigSection), pointer :: instance_config
     
     ! Begin subroutine code --------------------------------------------------------------------
@@ -271,10 +275,16 @@ contains
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
          instance_config, params%gcm_fileunit)
 
+    if (present(my_forcing_start_time)) then
+       forcing_start_time = my_forcing_start_time
+    else
+       forcing_start_time = params%start_time
+    end if
+
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
-                                params%start_time,   params%time_step,        &
-                                params%gcm_restart,  params%gcm_restart_file, &
-                                params%gcm_fileunit )
+                               forcing_start_time,  params%time_step,        &
+                               params%gcm_restart,  params%gcm_restart_file, &
+                               params%gcm_fileunit )
 
   end subroutine glad_initialize_instance
 
@@ -534,7 +544,7 @@ contains
                       qsmb,           tsfc,                  &
                       ice_covered,    topo,                  &
                       rofi,           rofl,           hflx,  &
-                      ice_sheet_grid_mask,                   &
+                      ice_sheet_grid_mask, valid_inputs,     &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
@@ -572,6 +582,7 @@ contains
     real(dp),dimension(:,:),intent(inout) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
+    logical                ,intent(in)    :: valid_inputs ! glad inputs are valid
 
     logical,optional,intent(out)   :: output_flag     ! Set true if outputs are set
     logical,optional,intent(out)   :: ice_tstep       ! Set when an ice dynamic timestep has been done
@@ -597,17 +608,19 @@ contains
     if (present(output_flag)) output_flag = .false.
     if (present(ice_tstep))   ice_tstep = .false.
 
-    ! Accumulate input fields for later averaging
+       ! Accumulate input fields for later averaging
 
-    ewn = get_ewn(params%instances(instance_index)%model)
-    nsn = get_nsn(params%instances(instance_index)%model)
-    allocate(qsmb_haloed(ewn,nsn))
-    allocate(tsfc_haloed(ewn,nsn))
-    call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
-    call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
+    if (valid_inputs) then
+       ewn = get_ewn(params%instances(instance_index)%model)
+       nsn = get_nsn(params%instances(instance_index)%model)
+       allocate(qsmb_haloed(ewn,nsn))
+       allocate(tsfc_haloed(ewn,nsn))
+       call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
+       call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
 
-    call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-         qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
+       call accumulate_averages(params%instances(instance_index)%glad_inputs, &
+            qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
+    end if
 
     ! ---------------------------------------------------------
     ! If this is a mass balance timestep, prepare global fields, and do a timestep
@@ -627,7 +640,21 @@ contains
             'Incomplete forcing of GLAD mass-balance time-step detected at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
        
-    else if (time - av_start_time + params%time_step == params%tstep_mbal) then
+    else if (time - av_start_time + params%time_step == params%tstep_mbal) then  
+
+       if  (.not. valid_inputs) then
+          write(message,*) &
+               'Valid_inputs cannot be .false. if trying to do a mass balance time step'
+          call write_log(message,GM_FATAL,__FILE__,__LINE__)
+       end if
+
+       if (GLC_DEBUG .and. main_task) then
+          write(stdout,*)' Taking a glad time step'
+          write(stdout,*)'   time          = ',time
+          write(stdout,*)'   av_start_time = ',av_start_time
+          write(stdout,*)'   time_step     = ',params%time_step
+          write(stdout,*)'   tstep_mbal    = ',params%tstep_mbal
+       end if
 
        ! Set output_flag
 
@@ -647,8 +674,8 @@ contains
 
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
-
-          call calculate_averages(params%instances(instance_index)%glad_inputs, &
+          call calculate_averages(&
+               params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
                tsfc = params%instances(instance_index)%artm)
 
@@ -664,9 +691,7 @@ contains
                params%tstep_mbal * hours2seconds / 1000.d0
 
           if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glad time step, instance', instance_index
-          call glad_i_tstep_gcm(time,                  &
-               params%instances(instance_index),   &
-               icets)
+          call glad_i_tstep_gcm(time, params%instances(instance_index), icets)
 
           call calculate_average_output_fluxes( &
                params%instances(instance_index)%glad_output_fluxes, &
@@ -678,7 +703,6 @@ contains
                ice_covered, topo, rofi, rofl, hflx, &
                ice_sheet_grid_mask)
           
-
           ! Set flag
           if (present(ice_tstep)) then
              ice_tstep = (ice_tstep .or. icets)
@@ -700,6 +724,39 @@ contains
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
 
   end subroutine glad_gcm
+
+  !===================================================================
+
+  pure logical function glad_okay_to_restart(instance)
+
+    ! Returns true if this is an okay time to write a restart file, false if not.
+    !
+    ! e.g., if we know that we're in the middle of a mass balance time step, with some
+    ! accumulated averages, then it is NOT an okay time to write a restart file, because
+    ! we currently do not write these partial averages to restart files.
+
+    ! Subroutine argument declarations --------------------------------------------------------
+
+    type(glad_instance), intent(in) :: instance
+
+    ! Internal variables -----------------------------------------------------------------------
+
+    logical :: okay_to_restart
+
+    ! Begin subroutine code --------------------------------------------------------------------
+
+    okay_to_restart = .true.
+
+    if (.not. averages_okay_to_restart(instance%glad_inputs)) then
+       okay_to_restart = .false.
+    end if
+
+    ! NOTE(wjs, 2017-04-13) There may be other conditions that should be included here,
+    ! particularly related to the accumulations in glad_mbal_coupling. I'm not sure
+    ! exactly how that works and how we should account for that in this check.
+
+    glad_okay_to_restart = okay_to_restart
+  end function glad_okay_to_restart
 
   !===================================================================
 
