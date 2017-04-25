@@ -251,11 +251,11 @@ contains
     type(glimmer_nc_output), pointer :: outfile    
     type(glide_global_type) :: model
     logical forcewrite
-    real(dp),optional :: time
+    real(dp),optional :: time  ! time in years
 
     character(len=msglen) :: message
     integer status
-    real(dp) :: sub_time
+    real(dp) :: sub_time  ! local version of time (years)
 
     real(dp), parameter :: eps = 1.d-11
 
