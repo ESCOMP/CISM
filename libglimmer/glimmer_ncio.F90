@@ -142,7 +142,7 @@ contains
 
   end subroutine glimmer_nc_openappend
 
-  subroutine glimmer_nc_createfile(outfile,model)
+  subroutine glimmer_nc_createfile(outfile, model, baseline_year)
     !> create a new netCDF file
     use parallel
     use glimmer_log
@@ -155,11 +155,24 @@ contains
     !> structure containg output netCDF descriptor
     type(glide_global_type) :: model
     !> the model instance
+    integer, intent(in), optional :: baseline_year
+    !> baseline year to use for time units - i.e., the year to use in the string,
+    !> 'common_year since YYYY-01-01'
+    !> if not provided, use year 1 (0001)
 
     ! local variables
+    integer, parameter :: time_units_len = 128
     integer status
     integer mapid
+    integer :: sub_baseline_year  ! local version of baseline_year
+    character(len=time_units_len) :: time_units
     character(len=msglen) message
+
+    if (present(baseline_year)) then
+       sub_baseline_year = baseline_year
+    else
+       sub_baseline_year = 1
+    end if
 
     ! create new netCDF file
     !WHL - Changed the following line to support large netCDF output files
@@ -211,8 +224,11 @@ contains
          'Model time - internal representation')
     status = parallel_put_att(NCO%id, NCO%internal_timevar, 'standard_name', 'time')
     ! CISM currently assumes a noleap calendar - exactly 365 days. For now, we hard-code
-    ! this assumption in the units (CF/Udunits defines common_year to be 365 days,
-    ! whereas year means 365.242198781 days) and the calendar attribute.
+    ! this assumption in the units (by hard-coding that we're using units of common_year:
+    ! CF/Udunits defines common_year to be 365 days, whereas year means 365.242198781
+    ! days) and the calendar attribute.
+    !
+    ! For internal time, the baseline year is meaningless - so arbitrarily use year 1.
     status = parallel_put_att(NCO%id, NCO%internal_timevar, 'units', 'common_year since 1-1-1 0:0:0')
     status = parallel_put_att(NCO%id, NCO%internal_timevar, 'calendar', 'noleap')
 
@@ -222,10 +238,14 @@ contains
     status = parallel_put_att(NCO%id, NCO%timevar, 'long_name', 'Model time')
     status = parallel_put_att(NCO%id, NCO%timevar, 'standard_name', 'time')
     ! CISM currently assumes a noleap calendar - exactly 365 days. For now, we hard-code
-    ! this assumption in the units (CF/Udunits defines common_year to be 365 days,
-    ! whereas year means 365.242198781 days) and the calendar attribute.
-    ! FIXME(wjs, 2017-04-28) Allow different baseline date here
-    status = parallel_put_att(NCO%id, NCO%timevar, 'units', 'common_year since 1-1-1 0:0:0')
+    ! this assumption in the units (by hard-coding that we're using units of common_year:
+    ! CF/Udunits defines common_year to be 365 days, whereas year means 365.242198781
+    ! days) and the calendar attribute.
+    !
+    ! For time units, we write the year in YYYY format (but allowing for more digits if
+    ! sub_baseline_year is greater than 9999).
+    write(time_units,'(a,i0.4,a)') 'common_year since ', sub_baseline_year, '-01-01 0:0:0'
+    status = parallel_put_att(NCO%id, NCO%timevar, 'units', time_units)
     status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'noleap')
 
     ! adding projection info
