@@ -261,7 +261,7 @@ contains
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
   end subroutine glimmer_nc_createfile
 
-  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time)
+  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time)
     !> check if we should write to file
     use parallel
     use glimmer_log
@@ -271,11 +271,14 @@ contains
     type(glimmer_nc_output), pointer :: outfile    
     type(glide_global_type) :: model
     logical forcewrite
-    real(dp),optional :: time  ! time in years
+    real(dp),optional :: time  ! time in years (written to 'internal_time')
+    real(dp),optional :: external_time  ! time in years (written to 'time') (if not present, uses the same time as internal_time)
+    ! external_time only has an effect if it's present in the first call to this routine for a given time
 
     character(len=msglen) :: message
     integer status
     real(dp) :: sub_time  ! local version of time (years)
+    real(dp) :: sub_external_time  ! local version of external_time (years)
 
     real(dp), parameter :: eps = 1.d-11
 
@@ -284,6 +287,12 @@ contains
        sub_time=time
     else
        sub_time=model%numerics%time
+    end if
+
+    if (present(external_time)) then
+       sub_external_time = external_time
+    else
+       sub_external_time = sub_time
     end if
 
     ! check if we are still in define mode and if so leave it
@@ -317,9 +326,7 @@ contains
           ! write time
           status = parallel_put_var(NCO%id,NCO%internal_timevar,sub_time,(/outfile%timecounter/))
           call nc_errorhandle(__FILE__,__LINE__,status)
-          ! FIXME(wjs, 2017-04-28) Allow providing some different time: Another optional
-          ! argument for external_time. If absent, use sub_time for this.
-          status = parallel_put_var(NCO%id,NCO%timevar,sub_time,(/outfile%timecounter/))
+          status = parallel_put_var(NCO%id,NCO%timevar,sub_external_time,(/outfile%timecounter/))
           call nc_errorhandle(__FILE__,__LINE__,status)
           NCO%just_processed = .TRUE.         
        end if
