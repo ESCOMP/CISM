@@ -315,7 +315,7 @@ contains
                                     mbts,             idts,             &
                                     force_start,      force_dt,         &
                                     gcm_restart,      gcm_restart_file, &
-                                    gcm_config_unit)
+                                    gcm_config_unit,  test_coupling)
 
     ! Initialise a GLINT ice model instance for GCM coupling
 
@@ -351,6 +351,7 @@ contains
     logical,     optional, intent(in)    :: gcm_restart      ! logical flag to read from a restart file
     character(*),optional, intent(in)    :: gcm_restart_file ! restart filename for restart
     integer,     optional, intent(in)    :: gcm_config_unit  ! fileunit for reading config files
+    logical,     optional, intent(in)    :: test_coupling    ! if true, force frequent coupling for testing purposes
 
     ! Internal
 
@@ -475,11 +476,13 @@ contains
 
     ! If flag set to force frequent coupling (for testing purposes),
     ! then decrease all coupling timesteps to very short intervals
-    if (instance%test_coupling) then
-       instance%mbal_accum%mbal%tstep = 24
-       instance%mbal_accum_time =       24
-       instance%ice_tstep =             24
-    endif
+    if (present(test_coupling)) then
+       if (test_coupling) then
+          instance%mbal_accum%mbal%tstep = 24
+          instance%mbal_accum_time =       24
+          instance%ice_tstep =             24
+       end if
+    end if
 
     instance%mbal_tstep = instance%mbal_accum%mbal%tstep
 
