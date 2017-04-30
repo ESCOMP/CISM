@@ -248,7 +248,8 @@ contains
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time)
+  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time, &
+       test_coupling)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -260,6 +261,7 @@ contains
     type(glad_params) , intent(inout)        :: params          !> parameters to be set
     integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
     integer           , intent(in), optional :: my_forcing_start_time
+    logical           , intent(in), optional :: test_coupling   !> if true, force frequent coupling for testing purposes
 
     ! Internal variables -----------------------------------------------------------------------
 
@@ -284,7 +286,7 @@ contains
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
                                forcing_start_time,  params%time_step,        &
                                params%gcm_restart,  params%gcm_restart_file, &
-                               params%gcm_fileunit )
+                               params%gcm_fileunit, test_coupling )
 
   end subroutine glad_initialize_instance
 

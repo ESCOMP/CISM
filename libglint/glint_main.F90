@@ -434,7 +434,7 @@ contains
                                params%need_winds,  params%enmabal,          &
                                params%start_time,  params%time_step,        &
                                params%gcm_restart, params%gcm_restart_file, &
-                               params%gcm_fileunit )
+                               params%gcm_fileunit)
 
        params%total_coverage = params%total_coverage + params%instances(i)%frac_coverage
        params%total_cov_orog = params%total_cov_orog + params%instances(i)%frac_cov_orog
@@ -590,7 +590,8 @@ contains
                                   icemask_coupled_fluxes,         &
                                   ghflx,        gmask,            &
                                   gcm_restart,  gcm_restart_file, &
-                                  gcm_debug,    gcm_fileunit)
+                                  gcm_debug,    gcm_fileunit,     &
+                                  test_coupling)
 
     ! Initialise the model for runs coupled to a GCM.
     ! For a multi-processor run, the main task should specify lats & longs spanning
@@ -639,6 +640,7 @@ contains
                                                                   ! (currently assumed to be CESM)
     logical,                  optional,intent(in)  :: gcm_debug   ! logical flag from GCM to output debug information
     integer,                  optional,intent(in)  :: gcm_fileunit! fileunit for reading config files
+    logical,                  optional,intent(in)  :: test_coupling ! if true, force frequent coupling for testing purposes
 
     ! Internal variables -----------------------------------------------------------------------
 
@@ -822,7 +824,7 @@ contains
                                    mbts(i),             idts(i),                 &
                                    params%start_time,   params%time_step,        &
                                    params%gcm_restart,  params%gcm_restart_file, &
-                                   params%gcm_fileunit )
+                                   params%gcm_fileunit, test_coupling )
 
        params%total_coverage = params%total_coverage + params%instances(i)%frac_coverage
 

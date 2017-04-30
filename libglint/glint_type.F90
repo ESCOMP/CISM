@@ -172,8 +172,6 @@ module glint_type
      !> \item[2] Use parameterization of Roe and Lindzen
      !> \end{description}
 
-     logical :: test_coupling = .false.
-
      integer :: use_mpint = 0
    
      !> Flag to control if mean-preserving interpolation is used
@@ -401,7 +399,6 @@ contains
        call GetValue(section,'evolve_ice',instance%evolve_ice)
        call GetValue(section,'precip_mode',instance%whichprecip)
        call GetValue(section,'acab_mode',instance%whichacab)
-       call GetValue(section,'test_coupling',instance%test_coupling)       
        call GetValue(section,'ice_albedo',instance%ice_albedo)
        call GetValue(section,'lapse_rate',instance%lapse_rate)
        instance%data_lapse_rate=instance%lapse_rate
@@ -497,8 +494,6 @@ contains
     call write_log(message)
     write(message,*) 'acab_mode (0 = GCM SMB, 1 = PDD):',instance%whichacab
     call write_log(message)
-    write(message,*) 'test_coupling:                   ',instance%test_coupling
-    call write_log(message)    
 
     if (instance%evolve_ice == EVOLVE_ICE_FALSE) then
        call write_log('The ice sheet state will not evolve after initialization')
