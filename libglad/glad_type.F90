@@ -94,8 +94,6 @@ module glad_type
      !> \item[0] The ice sheet cannot evolve; hold fixed at initial state
      !> \item[1] The ice sheet can evolve
 
-     logical :: test_coupling = .false.
-
      ! Latitude & longitude of model grid points
      real(dp), dimension(:,:), pointer :: lat(:,:) => null()
      real(dp), dimension(:,:), pointer :: lon(:,:) => null()
@@ -193,7 +191,6 @@ contains
     call GetSection(config,section,'GLAD climate')
     if (associated(section)) then
        call GetValue(section,'evolve_ice',instance%evolve_ice)
-       call GetValue(section,'test_coupling',instance%test_coupling)       
        call GetValue(section,'mbal_accum_time',mbal_time_temp)
        call GetValue(section,'ice_tstep_multiply',instance%ice_tstep_multiply)
     end if
@@ -279,8 +276,6 @@ contains
     call write_log('-------------')
     write(message,*) 'evolve_ice (0=fixed, 1=evolve):  ',instance%evolve_ice
     call write_log(message)
-    write(message,*) 'test_coupling:                   ',instance%test_coupling
-    call write_log(message)    
 
     if (instance%evolve_ice == EVOLVE_ICE_FALSE) then
        call write_log('The ice sheet state will not evolve after initialization')
