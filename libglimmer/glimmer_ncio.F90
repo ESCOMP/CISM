@@ -130,8 +130,10 @@ contains
     write(message,*) '  Starting output at ',outfile%next_write,' and write every ',outfile%freq,' years'
     call write_log(trim(message))
     
-    ! Get time varid
-    status = parallel_inq_varid(NCO%id,'time',NCO%timevar)
+    ! Get time and internal_time varids
+    status = parallel_inq_varid(NCO%id,glimmer_nc_internal_time_varname,NCO%internal_timevar)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_inq_varid(NCO%id,glimmer_nc_time_varname,NCO%timevar)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
     ! Put dataset into define mode
@@ -140,7 +142,7 @@ contains
 
   end subroutine glimmer_nc_openappend
 
-  subroutine glimmer_nc_createfile(outfile,model)
+  subroutine glimmer_nc_createfile(outfile, model, baseline_year)
     !> create a new netCDF file
     use parallel
     use glimmer_log
@@ -153,11 +155,24 @@ contains
     !> structure containg output netCDF descriptor
     type(glide_global_type) :: model
     !> the model instance
+    integer, intent(in), optional :: baseline_year
+    !> baseline year to use for time units - i.e., the year to use in the string,
+    !> 'common_year since YYYY-01-01'
+    !> if not provided, use year 1 (0001)
 
     ! local variables
+    integer, parameter :: time_units_len = 128
     integer status
     integer mapid
+    integer :: sub_baseline_year  ! local version of baseline_year
+    character(len=time_units_len) :: time_units
     character(len=msglen) message
+
+    if (present(baseline_year)) then
+       sub_baseline_year = baseline_year
+    else
+       sub_baseline_year = 1
+    end if
 
     ! create new netCDF file
     !WHL - Changed the following line to support large netCDF output files
@@ -196,20 +211,41 @@ contains
     ! defining time dimension and variable
     status = parallel_def_dim(NCO%id,'time',NF90_UNLIMITED,NCO%timedim)
     call nc_errorhandle(__FILE__,__LINE__,status)
+
     !     time -- Model time
-    call write_log('Creating variable time')
-    !EIB! lanl version
-    !status = nf90_def_var(NCO%id,'time',NF90_FLOAT,(/NCO%timedim/),NCO%timevar)
-    !EIB! gc2 version
-    status = parallel_def_var(NCO%id,'time',outfile%default_xtype,(/NCO%timedim/),NCO%timevar)
-    !EIB! pick one and consistant
+    ! (see note in glimmer_ncdf regarding the reason for having separate 'internal_time'
+    ! vs. 'time' variables)
+    call write_log('Creating variables internal_time and time')
+
+    status = parallel_def_var(NCO%id,glimmer_nc_internal_time_varname,&
+         outfile%default_xtype,(/NCO%timedim/),NCO%internal_timevar)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_put_att(NCO%id, NCO%internal_timevar, 'long_name', &
+         'Model time - internal representation')
+    status = parallel_put_att(NCO%id, NCO%internal_timevar, 'standard_name', 'time')
+    ! CISM currently assumes a noleap calendar - exactly 365 days. For now, we hard-code
+    ! this assumption in the units (by hard-coding that we're using units of common_year:
+    ! CF/Udunits defines common_year to be 365 days, whereas year means 365.242198781
+    ! days) and the calendar attribute.
+    !
+    ! For internal time, the baseline year is meaningless - so arbitrarily use year 1.
+    status = parallel_put_att(NCO%id, NCO%internal_timevar, 'units', 'common_year since 1-1-1 0:0:0')
+    status = parallel_put_att(NCO%id, NCO%internal_timevar, 'calendar', 'noleap')
+
+    status = parallel_def_var(NCO%id,glimmer_nc_time_varname,&
+         outfile%default_xtype,(/NCO%timedim/),NCO%timevar)
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_put_att(NCO%id, NCO%timevar, 'long_name', 'Model time')
     status = parallel_put_att(NCO%id, NCO%timevar, 'standard_name', 'time')
     ! CISM currently assumes a noleap calendar - exactly 365 days. For now, we hard-code
-    ! this assumption in the units (CF/Udunits defines common_year to be 365 days,
-    ! whereas year means 365.242198781 days) and the calendar attribute.
-    status = parallel_put_att(NCO%id, NCO%timevar, 'units', 'common_year since 1-1-1 0:0:0')
+    ! this assumption in the units (by hard-coding that we're using units of common_year:
+    ! CF/Udunits defines common_year to be 365 days, whereas year means 365.242198781
+    ! days) and the calendar attribute.
+    !
+    ! For time units, we write the year in YYYY format (but allowing for more digits if
+    ! sub_baseline_year is greater than 9999).
+    write(time_units,'(a,i0.4,a)') 'common_year since ', sub_baseline_year, '-01-01 0:0:0'
+    status = parallel_put_att(NCO%id, NCO%timevar, 'units', time_units)
     status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'noleap')
 
     ! adding projection info
@@ -225,7 +261,7 @@ contains
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
   end subroutine glimmer_nc_createfile
 
-  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time)
+  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time)
     !> check if we should write to file
     use parallel
     use glimmer_log
@@ -235,11 +271,14 @@ contains
     type(glimmer_nc_output), pointer :: outfile    
     type(glide_global_type) :: model
     logical forcewrite
-    real(dp),optional :: time
+    real(dp),optional :: time  ! time in years (written to 'internal_time')
+    real(dp),optional :: external_time  ! time in years (written to 'time') (if not present, uses the same time as internal_time)
+    ! external_time only has an effect if it's present in the first call to this routine for a given time
 
     character(len=msglen) :: message
     integer status
-    real(dp) :: sub_time
+    real(dp) :: sub_time  ! local version of time (years)
+    real(dp) :: sub_external_time  ! local version of external_time (years)
 
     real(dp), parameter :: eps = 1.d-11
 
@@ -248,6 +287,12 @@ contains
        sub_time=time
     else
        sub_time=model%numerics%time
+    end if
+
+    if (present(external_time)) then
+       sub_external_time = external_time
+    else
+       sub_external_time = sub_time
     end if
 
     ! check if we are still in define mode and if so leave it
@@ -279,7 +324,9 @@ contains
           outfile%next_write = outfile%next_write + outfile%freq
           NCO%processsed_time = sub_time
           ! write time
-          status = parallel_put_var(NCO%id,NCO%timevar,sub_time,(/outfile%timecounter/))
+          status = parallel_put_var(NCO%id,NCO%internal_timevar,sub_time,(/outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_var(NCO%id,NCO%timevar,sub_external_time,(/outfile%timecounter/))
           call nc_errorhandle(__FILE__,__LINE__,status)
           NCO%just_processed = .TRUE.         
        end if
@@ -380,15 +427,20 @@ contains
     status = parallel_inq_dimid(NCI%id, 'time', NCI%timedim)
     call nc_errorhandle(__FILE__,__LINE__,status)
     ! get id of time variable
-    status = parallel_inq_varid(NCI%id,'time',NCI%timevar)
+    status = parallel_inq_varid(NCI%id,glimmer_nc_internal_time_varname,NCI%internal_timevar)
+    ! BACKWARDS_COMPATIBILITY(wjs, 2017-04-28) Older files may not have 'internal_time',
+    ! so if we can't find that variable, fall back on 'time'.
+    if (status /= NF90_NOERR) then
+       status = parallel_inq_varid(NCI%id,glimmer_nc_time_varname,NCI%internal_timevar)
+    end if
     call nc_errorhandle(__FILE__,__LINE__,status)
-    
+
     ! getting length of time dimension and allocating memory for array containing times
     status = parallel_inquire_dimension(NCI%id,NCI%timedim,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
     allocate(infile%times(dimsize))
     infile%nt=dimsize
-    status = parallel_get_var(NCI%id,NCI%timevar,infile%times)
+    status = parallel_get_var(NCI%id,NCI%internal_timevar,infile%times)
 
     ! setting the size of the level and staglevel dimension
     NCI%nlevel = model%general%upn
