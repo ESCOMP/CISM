@@ -48,6 +48,12 @@ module glimmer_ncdf
   character(len=*), parameter :: glimmer_nc_mapvarname = 'mapping'
   !> name of the grid mapping variable
 
+  character(len=*), parameter :: glimmer_nc_internal_time_varname = 'internal_time'
+  !> name of the time variable for internal use
+
+  character(len=*), parameter :: glimmer_nc_time_varname = 'time'
+  !> name of the time variable for external use
+
   real(dp), parameter :: glimmer_nc_max_time=1.d10
   !> maximum time that can be written
 
@@ -73,8 +79,32 @@ module glimmer_ncdf
 
      integer timedim
      !> id of time dimension
-     integer timevar
-     !> id of time variable 
+
+     ! There are two time variables:
+     !
+     ! - 'internal_time' stores CISM's internal time variable, relative to the starting
+     !   point of this simulation plus the amount of time that elapsed leading up to the
+     !   restart file (if any)
+     !
+     ! - 'time' stores a more externally-useful version of time; for climate model runs,
+     !   this should agree with the climate model's time
+     !
+     ! The reason for having these two different variables is: There can be roundoff-level
+     ! differences upon restart if the internal time variable is modified upon restart. So
+     ! it is important that this variable is maintained exactly as is when reading a
+     ! restart file. However, maintaining this value as is isn't always the right thing
+     ! to do in terms of the climate model's time, so we sometimes need a separate
+     ! variable to represent that time.
+     !
+     ! NOTE(wjs, 2017-04-26) It's possible that, with some more thought, these two
+     ! variables could be combined into one. But having two variables seemed like the
+     ! easiest and least error-prone solution for now.
+
+     integer :: internal_timevar
+     !> id of internal time variable
+     integer :: timevar
+     !> id of time variable for external purposes
+
 
      ! TODO - Create a variable for vars length so it can be made longer (Matt has this implemented in his subglacial hydrology branch)
      !        Apply it here for vars, vars_copy and to restart_variable_list in glimmer_ncparams.F90
@@ -302,17 +332,18 @@ contains
 
     type(glimmer_nc_stat) :: stat
 
-    print*,'define_mode:    ',stat%define_mode
-    print*,'just_processed: ',stat%just_processed
-    print*,'processsed_time:',stat%processsed_time
-    print*,'filename:       ',stat%filename
-    print*,'id:             ',stat%id
-    print*,'nlevel:         ',stat%nlevel
-    print*,'nstaglevel:     ',stat%nstaglevel
-    print*,'nstagwbndlevel: ',stat%nstagwbndlevel
-    print*,'timedim:        ',stat%timedim
-    print*,'timevar:        ',stat%timevar
-    print*,'vars:           ',trim(stat%vars)
+    print*,'define_mode:     ',stat%define_mode
+    print*,'just_processed:  ',stat%just_processed
+    print*,'processsed_time: ',stat%processsed_time
+    print*,'filename:        ',stat%filename
+    print*,'id:              ',stat%id
+    print*,'nlevel:          ',stat%nlevel
+    print*,'nstaglevel:      ',stat%nstaglevel
+    print*,'nstagwbndlevel:  ',stat%nstagwbndlevel
+    print*,'timedim:         ',stat%timedim
+    print*,'internal_timevar:',stat%internal_timevar
+    print*,'timevar:         ',stat%timevar
+    print*,'vars:            ',trim(stat%vars)
 
   end subroutine nc_print_stat
 
