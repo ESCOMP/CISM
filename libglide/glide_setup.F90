@@ -569,7 +569,6 @@ contains
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
-    call GetValue(section,'topo_is_relaxed',model%options%whichrelaxed)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
     call GetValue(section,'ioparams',model%funits%ncfile)
@@ -1141,10 +1140,6 @@ contains
 
     write(message,*) 'isostasy                : ',model%options%isostasy,isostasy(model%options%isostasy)
     call write_log(message)
-
-    if (model%options%whichrelaxed==1) then
-       call write_log('First topo time slice has relaxed bedrock topography')
-    end if
 
     if (model%options%periodic_ew) then
        if (model%options%whichevol == EVOL_ADI) then
@@ -1852,17 +1847,12 @@ contains
 
     call GetValue(section,'lithosphere',model%isostasy%lithosphere)
     call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
+    call GetValue(section,'whichrelaxed',model%isostasy%whichrelaxed)
     call GetValue(section,'relaxed_tau',model%isostasy%relaxed_tau)
-    call GetValue(section,'update',model%isostasy%period)
+    call GetValue(section,'period',model%isostasy%period)
 
     !NOTE: This value used to be in a separate section ('elastic lithosphere')
-    !      Now part of 'isostasy' section
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
-
-!!    call GetSection(config,section,'elastic lithosphere')
-!!    if (associated(section)) then
-!!       call GetValue(section,'flexural_rigidity',isos%rbel%d)
-!!    end if
 
   end subroutine handle_isostasy
 
@@ -1883,10 +1873,10 @@ contains
        if (model%isostasy%lithosphere==LITHOSPHERE_LOCAL) then
           call write_log('using local lithosphere approximation')
        else if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
-          if (tasks > 1) then
-             call write_log('Error, elastic lithosphere not supported for multiple processors',GM_FATAL)
-          endif
           call write_log('using elastic lithosphere approximation')
+          if (tasks > 1) then
+             call write_log('Warning, load calculation will be gathered to one processor; does not scale well',GM_WARNING)
+          endif
           write(message,*) ' flexural rigidity : ', model%isostasy%rbel%d
           call write_log(message)
           write(message,*) ' update period (yr): ', model%isostasy%period
@@ -1904,7 +1894,19 @@ contains
        else
           call write_log('Error, unknown asthenosphere option',GM_FATAL)
        end if
+
+       if (model%isostasy%whichrelaxed==RELAXED_TOPO_DEFAULT) then
+          call write_log('reading topg and relx as separate input fields')
+       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_INPUT) then
+          call write_log('setting relx to first slice of input topg')
+       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_COMPUTE) then
+          call write_log('computing relx, given that input topg is in equilibrium')
+       else
+          call write_log('Error, unknown whichrelaxed option',GM_FATAL)
+       end if
+
        call write_log('')
+
     endif   ! compute isostasy
 
   end subroutine print_isostasy
@@ -2168,13 +2170,18 @@ contains
          ! no restart variables needed
     end select
 
-    !WHL - added isostasy option
     select case (options%isostasy)
       case(ISOSTASY_COMPUTE)
-         ! restart needs to know relaxation depth
-         ! TODO MJH: I suspect that relx is only needed when asthenosphere=1 (relaxing mantle), but I'm not sure -
+         ! restart needs to know relaxed topography (the topography to which the mantle would relax with no load)
+         ! MJH: I suspect that relx is only needed when asthenosphere=1 (relaxing mantle), but I'm not sure -
          !      this should be tested when isostasy implementation is finalized/tested.
+         ! WHL: Looking at subroutine isos_compute, I think relx is needed also when asthenosphere = 0 (fluid mantle).
+         !      In this case, topg is set instantaneously to relx - load.
          call glide_add_to_restart_variable_list('relx')
+         !WHL - The load field also needs to be in the restart file. The reason is that the load is updated
+         !      at a period set by isostasy%period. If we restart between two updates, we need to use the most
+         !      recently computed load. If we recompute the load right after restarting, the restart may not be exact.
+         call glide_add_to_restart_variable_list('load')
       case default
          ! no new restart variables needed
     end select

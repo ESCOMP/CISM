@@ -88,6 +88,15 @@ factor:        thk0
 load:          1
 coordinates:   lon lat
 
+[load]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     bedrock deflection from applied load
+data:          data%isostasy%load
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
 [eus]
 dimensions:    time
 units:         meter

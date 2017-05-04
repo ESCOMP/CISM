@@ -222,6 +222,7 @@ contains
          spd,                           &    ! speed
          thck_diag, usrf_diag,          &    ! local column diagnostics
          topg_diag, relx_diag,          &    
+         load_diag,                     &
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
          bheatflx_diag, level
@@ -737,6 +738,7 @@ contains
     thck_diag     = unphys_val
     topg_diag     = unphys_val
     relx_diag     = unphys_val
+    load_diag     = unphys_val
     artm_diag     = unphys_val
     acab_diag     = unphys_val
     bmlt_diag     = unphys_val
@@ -759,7 +761,10 @@ contains
           usrf_diag = model%geometry%usrf(i,j)*thk0
           thck_diag = model%geometry%thck(i,j)*thk0
           topg_diag = model%geometry%topg(i,j)*thk0
-          relx_diag = model%isostasy%relx(i,j)*thk0
+          if (model%options%isostasy == ISOSTASY_COMPUTE) then
+             relx_diag = model%isostasy%relx(i,j)*thk0
+             load_diag = model%isostasy%load(i,j)*thk0
+          endif
           artm_diag = model%climate%artm(i,j)
           acab_diag = model%climate%acab(i,j) * thk0*scyr/tim0
           bmlt_diag = model%temper%bmlt(i,j) * thk0*scyr/tim0
@@ -776,7 +781,10 @@ contains
        usrf_diag = parallel_reduce_max(usrf_diag)
        thck_diag = parallel_reduce_max(thck_diag)
        topg_diag = parallel_reduce_max(topg_diag)
-       relx_diag = parallel_reduce_max(relx_diag)
+       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+          relx_diag = parallel_reduce_max(relx_diag)
+          load_diag = parallel_reduce_max(load_diag)
+       endif
        artm_diag = parallel_reduce_max(artm_diag)
        acab_diag = parallel_reduce_max(acab_diag)
        bmlt_diag = parallel_reduce_max(bmlt_diag)
@@ -815,6 +823,8 @@ contains
 
        if (model%options%isostasy == ISOSTASY_COMPUTE) then
           write(message,'(a25,f24.16)') 'Relaxed bedrock (m)   ', relx_diag
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,f24.16)') 'Load deflection (m)   ', load_diag
           call write_log(trim(message), type = GM_DIAGNOSTIC)
        endif
 

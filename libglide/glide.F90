@@ -237,13 +237,16 @@ contains
     ! Initialise isostasy first
     call init_isostasy(model)
 
-    select case(model%options%whichrelaxed)
+    select case(model%isostasy%whichrelaxed)
 
-    case(RELAXED_TOPO_INPUT)   ! Supplied topography is relaxed
+    case(RELAXED_TOPO_INPUT)   ! Supplied input topography is relaxed
+
        model%isostasy%relx = model%geometry%topg
+
     case(RELAXED_TOPO_COMPUTE) ! Supplied topography is in equilibrium
                                !TODO - test case RELAXED_TOPO_COMPUTE
        call isos_relaxed(model)
+
     end select
 
     ! open all output files
@@ -956,12 +959,20 @@ contains
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
+    ! Note: Suppose the update period is 100 years.
+    !       Then the update will be done on the first time step of the simulation,
+    !        and again on the first time step when t > 100.
+    !       The update will not be done before writing output at t = 100.
+    !       Thus the output file will contain the load that was applied during the
+    !        preceding years, not the new load.
+    !       In older code versions, the new load would have been computed just before
+    !        writing output at t = 100.
     ! ------------------------------------------------------------------------
 
     call glide_prof_start(model,model%glide_prof%isos_water)
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       if (model%numerics%time >= model%isostasy%next_calc) then
+       if (model%numerics%time > model%isostasy%next_calc) then
           model%isostasy%next_calc = model%isostasy%next_calc + model%isostasy%period
           call isos_icewaterload(model)
           model%isostasy%new_load = .true.

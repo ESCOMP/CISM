@@ -125,8 +125,8 @@ module glide_types
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
 
-  integer, parameter :: RELAXED_TOPO_NONE = 0     ! Do nothing
-  integer, parameter :: RELAXED_TOPO_INPUT = 1    ! Input topo is relaxed
+  integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topo and relx are separate input fields
+  integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
   integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium
                                                   ! compute relaxed topo
 
@@ -413,16 +413,6 @@ module glide_types
     !> \begin{description}
     !> \item[0] no isostatic adjustment
     !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
-    !> \end{description}
-
-    !TODO - Should whichrelaxed move from the options to the isostasy section?
-    integer :: whichrelaxed = 0
-
-    !> relaxed topography:
-    !> \begin{description}
-    !> \item[0] get relaxed topo from separate variable (in practice, do nothing)
-    !> \item[1] first time slice of input topo is relaxed
-    !> \item[2] first time slice of input topo is in isostatic equilibrium
     !> \end{description}
 
     integer :: whichcalving = 1
@@ -1248,7 +1238,7 @@ module glide_types
   type isos_elastic
      !> Holds data used by isostatic adjustment calculations
 
-     real(dp) :: d = 0.24d25                !> flexural rigidity  !TODO - What are units of d?
+     real(dp) :: d = 0.24d25                !> flexural rigidity (N m)
      real(dp) :: lr                         !> radius of relative stiffness
      real(dp) :: a                          !> radius of disk
      real(dp) :: c1,c2,cd3,cd4              !> coefficients
@@ -1259,19 +1249,28 @@ module glide_types
   type isostasy_type
      !> contains isostasy configuration
 
-     integer :: lithosphere = 0
+     integer :: lithosphere = 1
      !> method for calculating equilibrium bedrock depression
      !> \begin{description}
      !> \item[0] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
      !> \item[1] elastic lithosphere, flexural rigidity is taken into account
      !> \end{description}
 
-     integer :: asthenosphere = 0
+     integer :: asthenosphere = 1
      !> method for approximating the mantle
      !> \begin{description}
      !> \item[0] fluid mantle, isostatic adjustment happens instantaneously
-     !> \item[1] relaxing mantle, mantle is approximated by a half-space
+     !> \item[1] relaxing mantle, exponential adjustment toward (relx - load)
      !> \end{description}
+
+    integer :: whichrelaxed = 0
+
+    !> relaxed topography:
+    !> \begin{description}
+    !> \item[0] get current topo (topg) and relaxed topo (relx) from separate input fields
+    !> \item[1] first time slice of input topo is relaxed
+    !> \item[2] first time slice of input topo is in isostatic equilibrium
+    !> \end{description}
 
      real(dp) :: relaxed_tau = 4000.d0    ! characteristic time constant of relaxing mantle (yr)
      real(dp) :: period = 500.d0          ! lithosphere update period (yr)
@@ -1279,8 +1278,9 @@ module glide_types
      logical :: new_load = .false.        ! set to true if there is a new surface load
      type(isos_elastic) :: rbel           ! structure holding elastic lithosphere setup
 
-     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, by \texttt{thck0}.
-     real(dp),dimension(:,:),pointer :: load => null()  ! load imposed on lithosphere
+     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, m/thk0
+     real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere, m/thk0
+                                                        ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
 
   end type isostasy_type
@@ -1906,7 +1906,8 @@ contains
 
     ! isostasy arrays
 
-    call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)  ! MJH: relx needs to be allocated always.
+    ! Note: relx needs to be allocated always
+    call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
