@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Mon, 17 Apr 2017 23:11:11 +0000
+! Fri, 05 May 2017 01:45:59 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -2195,6 +2195,33 @@ contains
      end if
      end if
 
+    !     load -- bedrock deflection from applied load
+    pos = index(NCO%vars,' load ')
+    status = parallel_inq_varid(NCO%id,'load',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+4) = '    '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%isostasy%load)) then
+       call write_log('Creating variable load')
+       status = parallel_def_var(NCO%id,'load',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(thk0))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'bedrock deflection from applied load')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable load was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     lsurf -- ice lower surface elevation
     pos = index(NCO%vars,' lsurf ')
     status = parallel_inq_varid(NCO%id,'lsurf',varid)
@@ -4246,6 +4273,13 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    status = parallel_inq_varid(NCO%id,'load',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%isostasy%load, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'lsurf',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -5592,6 +5626,31 @@ contains
        end if
     else
     call write_log('Variable litho_temp was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'load',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%isostasy%load)) then
+       call write_log('  Loading load')
+       status = distributed_get_var(NCI%id, varid, &
+            data%isostasy%load, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0/(thk0)
+       else
+          scaling_factor = scaling_factor/(thk0)
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling load",GM_DIAGNOSTIC)
+          data%isostasy%load = &
+               data%isostasy%load*scaling_factor
+       end if
+    else
+    call write_log('Variable load was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -7589,6 +7648,28 @@ contains
 
     data%velocity%kinbcmask(:,:) = inarray
   end subroutine glide_set_kinbcmask
+
+  subroutine glide_get_load(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (thk0)*(data%isostasy%load)
+  end subroutine glide_get_load
+
+  subroutine glide_set_load(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%isostasy%load = inarray/(thk0)
+  end subroutine glide_set_load
 
   subroutine glide_get_lsurf(data,outarray)
     use glimmer_scales
