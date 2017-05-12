@@ -120,22 +120,18 @@ contains
 
     end if
 
-    !> Determine when the load should next be updated.
-    !> Note: The next calculation is done on the first time step when time > next_calc.
-    !>       For a startup run, it is done on the first time step.
-    !>       For a restart run, it is done at whatever time will ensure exact restart.
-    if (model%options%is_restart == RESTART_TRUE) then
-       if (mod(model%numerics%tstart, model%isostasy%period) < 1.0d-11) then
-          ! compute the load on the first time step after restart
-          model%isostasy%next_calc = model%numerics%tstart
-       else
-          ! compute the load later, when it was scheduled had the model not stopped and restarted
-          model%isostasy%next_calc = model%numerics%tstart + model%isostasy%period  &
-                                   - mod(model%numerics%tstart, model%isostasy%period)
-       endif
+    !-----------------------------------------------------------------
+    ! Based on the update period, determine how frequently the lithosphere load should be updated.
+    ! The load is updated every nlith timesteps.
+    ! An integer is used instead of a real number to decide when to update, in order to avoid roundoff issues.
+    ! NOTE: The ratio isostasy%period/tinc is rounded to the nearest integer.
+    !       Use numerics%tinc because it has units of years (like isostasy%period), whereas numerics%dt has model timeunits.
+    !-----------------------------------------------------------------
+
+    if (model%isostasy%period > 0.0d0) then
+       model%isostasy%nlith = nint(model%isostasy%period / model%numerics%tinc)
     else
-       ! compute the load on the first time step
-       model%isostasy%next_calc = model%numerics%tstart
+       model%isostasy%nlith = 0  ! never update
     endif
 
     model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr / tim0

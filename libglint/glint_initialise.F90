@@ -292,7 +292,7 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%timecounter)
+                                 tstep_count = instance%model%numerics%tstep_count)
 
     ! Write netCDF output for this instance
 
@@ -536,7 +536,7 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%timecounter)
+                                 tstep_count = instance%model%numerics%tstep_count)
 
     ! Write netCDF output for this instance
 

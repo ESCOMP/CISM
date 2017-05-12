@@ -237,7 +237,7 @@ contains
 
           call glide_write_diagnostics(instance%model,                  &
                                        instance%model%numerics%time,    &
-                                       tstep_count = instance%model%numerics%timecounter)
+                                       tstep_count = instance%model%numerics%tstep_count)
 
           ! write netCDF output
 

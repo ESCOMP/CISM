@@ -1272,11 +1272,11 @@ module glide_types
     !> \item[2] first time slice of input topo is in isostatic equilibrium
     !> \end{description}
 
-     real(dp) :: relaxed_tau = 4000.d0    ! characteristic time constant of relaxing mantle (yr)
-     real(dp) :: period = 500.d0          ! lithosphere update period (yr)
-     real(dp) :: next_calc                ! when to update lithosphere
-     logical :: new_load = .false.        ! set to true if there is a new surface load
-     type(isos_elastic) :: rbel           ! structure holding elastic lithosphere setup
+     real(dp) :: relaxed_tau = 4000.d0        ! characteristic time constant of relaxing mantle (yr)
+     real(dp) :: period = 500.d0              ! lithosphere update period (yr)
+     integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
+     logical :: new_load = .false.            ! set to true if there is a new surface load
+     type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
 
      real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, m/thk0
      real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere, m/thk0
@@ -1320,8 +1320,7 @@ module glide_types
     real(dp) :: periodic_offset_ew = 0.d0 ! optional periodic_offsets for ismip-hom and similar tests
     real(dp) :: periodic_offset_ns = 0.d0 ! These may be needed to ensure continuous ice geometry at
                                           !  the edges of the global domain.
-
-    integer  :: timecounter = 0   !> count time steps
+    integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
     
     ! Vertical coordinate ---------------------------------------------------
                                                                

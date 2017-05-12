@@ -522,7 +522,6 @@ contains
 
     ! Update internal clock
     model%numerics%time = time  
-    model%numerics%timecounter = model%numerics%timecounter + 1
     model%temper%newtemps = .false.
 
     ! optional transport test
@@ -1183,22 +1182,25 @@ contains
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
-    ! Note: Suppose the update period is 100 years.
+    ! Note: Suppose the update period is 100 years, and the time step is 1 year.
     !       Then the update will be done on the first time step of the simulation,
-    !        and again on the first time step when t > 100.
-    !       The update will not be done before writing output at t = 100.
+    !        (model%numerics%tstep_count = 1) and again on step 101, 201, etc.
+    !       The update will not be done before writing output at t = 100, when
+    !        model%numerics%tstep_count = 100.
     !       Thus the output file will contain the load that was applied during the
     !        preceding years, not the new load.
-    !       In older code versions, the new load would have been computed just before
-    !        writing output at t = 100.
+    !       In older code versions, the new load would have been computed on step 100.
     ! ------------------------------------------------------------------------
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       if (model%numerics%time > model%isostasy%next_calc) then
-          model%isostasy%next_calc = model%isostasy%next_calc + model%isostasy%period
-          call isos_icewaterload(model)
-          model%isostasy%new_load = .true.
-       end if
+
+       if (model%isostasy%nlith > 0) then
+          if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
+             call isos_icewaterload(model)
+             model%isostasy%new_load = .true.
+          end if
+       endif  ! nlith > 0
+
     end if
    
     ! ------------------------------------------------------------------------ 

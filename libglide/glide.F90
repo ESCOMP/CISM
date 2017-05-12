@@ -959,24 +959,27 @@ contains
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
-    ! Note: Suppose the update period is 100 years.
+    ! Note: Suppose the update period is 100 years, and the time step is 1 year.
     !       Then the update will be done on the first time step of the simulation,
-    !        and again on the first time step when t > 100.
-    !       The update will not be done before writing output at t = 100.
+    !        (model%numerics%tstep_count = 1) and again on step 101, 201, etc.
+    !       The update will not be done before writing output at t = 100, when
+    !        model%numerics%tstep_count = 100.
     !       Thus the output file will contain the load that was applied during the
     !        preceding years, not the new load.
-    !       In older code versions, the new load would have been computed just before
-    !        writing output at t = 100.
+    !       In older code versions, the new load would have been computed on step 100.
     ! ------------------------------------------------------------------------
 
     call glide_prof_start(model,model%glide_prof%isos_water)
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       if (model%numerics%time > model%isostasy%next_calc) then
-          model%isostasy%next_calc = model%isostasy%next_calc + model%isostasy%period
-          call isos_icewaterload(model)
-          model%isostasy%new_load = .true.
-       end if
+
+       if (model%isostasy%nlith > 0) then
+          if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
+             call isos_icewaterload(model)
+             model%isostasy%new_load = .true.
+          end if
+       endif  ! nlith > 0
+
     end if
 
     call glide_prof_stop(model,model%glide_prof%isos_water)
@@ -1055,11 +1058,8 @@ contains
 
     model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
 
-    !TODO - Move timecounter to a driver routine?
-    !CESM Glimmer code has this after the netCDF write.
-
-    ! increment time counter
-    model%numerics%timecounter = model%numerics%timecounter + 1
+    !Note: The time step counter used to be updated here; now it is updated in cism_run_driver,
+    !      just before the call to the dycore.
 
     !TODO - Combine these timeders and vert velo calls into a subroutine?
 

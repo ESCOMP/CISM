@@ -71,10 +71,7 @@ subroutine cism_init_dycore(model)
   integer :: wd
   logical :: do_glide_init
 
-  integer :: tstep_count
-
   !  print *,'Entering cism_init_dycore'
-
 
   !TODO - call this only for parallel runs?
   ! call parallel_initialise     
@@ -129,9 +126,14 @@ subroutine cism_init_dycore(model)
   call glide_nc_fillall(model)
 
   time = model%numerics%tstart
-  tstep_count = 0
   model%numerics%time = time    ! MJH added 1/10/13 - the initial diagnostic glissade solve won't know 
                                 !                     the correct time on a restart unless we set it here.
+
+  ! Set the time step count.
+  ! tstep_count = 0 at model initialization and then is incremented in cism_run_dycore
+  !  before each call to a dycore.
+  ! Here it is computed based on model%numerics%time in order to be correct on restarts.
+  model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
 
   ! Set EISMINT forcing for initial time
   call eismint_massbalance(model%eismint_climate,model,time)
@@ -217,7 +219,7 @@ subroutine cism_init_dycore(model)
 
     call t_startf('initial_write_diagnostics')
     call glide_write_diagnostics(model,        time,       &
-                                 tstep_count = tstep_count)
+                                 tstep_count = model%numerics%tstep_count)
     call t_stopf('initial_write_diagnostics')
 
   end if ! whichdycore .ne. DYCORE_BISICLES
@@ -263,7 +265,6 @@ subroutine cism_run_dycore(model)
   real(kind=dp) :: dt                     ! current time step to use
   real(kind=dp) :: time_eps               ! tolerance within which times are equal 
   integer :: clock,clock_rate
-  integer :: tstep_count
 
   integer*4 :: external_dycore_model_index
 
@@ -271,7 +272,6 @@ subroutine cism_run_dycore(model)
   external_dycore_model_index = 1
 
   time = model%numerics%tstart
-  tstep_count = 0
   time_eps = model%numerics%tinc/1000.0d0
 
   ! ------------- Begin time step loop -----------------
@@ -294,8 +294,10 @@ subroutine cism_run_dycore(model)
       ! Increment time step
       if (model%options%whichdycore /= DYCORE_BISICLES) then
         time = time + model%numerics%tinc
-        tstep_count = tstep_count + 1
+        model%numerics%tstep_count = model%numerics%tstep_count + 1
         model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
+
+!        print*, Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
       endif
 ! print *,"external_dycore_type: ",model%options%external_dycore_type
 
@@ -344,7 +346,7 @@ subroutine cism_run_dycore(model)
 
       call t_startf('write_diagnostics')
       call glide_write_diagnostics(model,        time,       &
-                                  tstep_count = tstep_count)
+                                   tstep_count = model%numerics%tstep_count)
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance

@@ -1849,7 +1849,7 @@ contains
     call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
     call GetValue(section,'whichrelaxed',model%isostasy%whichrelaxed)
     call GetValue(section,'relaxed_tau',model%isostasy%relaxed_tau)
-    call GetValue(section,'period',model%isostasy%period)
+    call GetValue(section,'lithosphere_period',model%isostasy%period)
 
     !NOTE: This value used to be in a separate section ('elastic lithosphere')
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
@@ -1879,7 +1879,7 @@ contains
           endif
           write(message,*) ' flexural rigidity : ', model%isostasy%rbel%d
           call write_log(message)
-          write(message,*) ' update period (yr): ', model%isostasy%period
+          write(message,*) ' lithosphere update period (yr): ', model%isostasy%period
           call write_log(message)
        else
           call write_log('Error, unknown lithosphere option',GM_FATAL)
