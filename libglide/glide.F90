@@ -202,6 +202,13 @@ contains
     ! (if not already read from config file)
     call glide_load_sigma(model,dummyunit)
 
+    ! initialize the time step counter
+    ! For restart, tstep_count will be overwritten from the restart file.
+    ! Alternatively, we could initialize tstep_count as follows:
+    !    model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+    ! But reading from a restart file should prevent roundoff issues.
+    model%numerics%tstep_count = 0
+
     ! open all input files and forcing files
     call openall_in(model)
 
@@ -765,6 +772,7 @@ contains
 
     ! Update internal clock
     model%numerics%time = time  
+    model%numerics%tstep_count = model%numerics%tstep_count + 1
     model%temper%newtemps = .false.
 
     model%thckwk%oldtime = model%numerics%time - (model%numerics%dt * tim0/scyr)

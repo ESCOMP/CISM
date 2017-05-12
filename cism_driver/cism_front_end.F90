@@ -129,12 +129,6 @@ subroutine cism_init_dycore(model)
   model%numerics%time = time    ! MJH added 1/10/13 - the initial diagnostic glissade solve won't know 
                                 !                     the correct time on a restart unless we set it here.
 
-  ! Set the time step count.
-  ! tstep_count = 0 at model initialization and then is incremented in cism_run_dycore
-  !  before each call to a dycore.
-  ! Here it is computed based on model%numerics%time in order to be correct on restarts.
-  model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
-
   ! Set EISMINT forcing for initial time
   call eismint_massbalance(model%eismint_climate,model,time)
   call eismint_surftemp(model%eismint_climate,model,time)
@@ -216,6 +210,8 @@ subroutine cism_init_dycore(model)
     call t_stopf('initial_diag_var_solve')
 
     ! Write initial diagnostic output to log file
+    ! Note: tstep_count is set to 0 at model initialization and then is incremented in cism_run_dycore
+    !  before each call to a dycore.
 
     call t_startf('initial_write_diagnostics')
     call glide_write_diagnostics(model,        time,       &
@@ -294,10 +290,7 @@ subroutine cism_run_dycore(model)
       ! Increment time step
       if (model%options%whichdycore /= DYCORE_BISICLES) then
         time = time + model%numerics%tinc
-        model%numerics%tstep_count = model%numerics%tstep_count + 1
         model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
-
-!        print*, Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
       endif
 ! print *,"external_dycore_type: ",model%options%external_dycore_type
 
@@ -341,6 +334,8 @@ subroutine cism_run_dycore(model)
 
       call t_stopf('tstep')
       !endif
+
+!      print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
 
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 
