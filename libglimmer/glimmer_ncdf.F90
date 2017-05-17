@@ -54,6 +54,9 @@ module glimmer_ncdf
   character(len=*), parameter :: glimmer_nc_time_varname = 'time'
   !> name of the time variable for external use
 
+  character(len=*), parameter :: glimmer_nc_tstep_count_varname = 'tstep_count'
+  !> name of the integer variable giving the time step count
+
   real(dp), parameter :: glimmer_nc_max_time=1.d10
   !> maximum time that can be written
 
@@ -80,7 +83,7 @@ module glimmer_ncdf
      integer timedim
      !> id of time dimension
 
-     ! There are two time variables:
+     ! There are three time variables:
      !
      ! - 'internal_time' stores CISM's internal time variable, relative to the starting
      !   point of this simulation plus the amount of time that elapsed leading up to the
@@ -89,21 +92,27 @@ module glimmer_ncdf
      ! - 'time' stores a more externally-useful version of time; for climate model runs,
      !   this should agree with the climate model's time
      !
-     ! The reason for having these two different variables is: There can be roundoff-level
+     ! - 'tstep_count' stores an integer count of the time step, which is useful in some
+     !   places to ensure exact restart, avoiding roundoff-level issues associated with
+     !   the real-valued internal_time
+     !
+     ! The reason for having these different variables is: There can be roundoff-level
      ! differences upon restart if the internal time variable is modified upon restart. So
      ! it is important that this variable is maintained exactly as is when reading a
      ! restart file. However, maintaining this value as is isn't always the right thing
      ! to do in terms of the climate model's time, so we sometimes need a separate
      ! variable to represent that time.
      !
-     ! NOTE(wjs, 2017-04-26) It's possible that, with some more thought, these two
-     ! variables could be combined into one. But having two variables seemed like the
-     ! easiest and least error-prone solution for now.
+     ! NOTE(wjs, 2017-04-26) It's possible that, with some more thought, 'time' and
+     ! 'internal_time' could be combined into one. But having separate variables seemed
+     ! like the easiest and least error-prone solution for now.
 
      integer :: internal_timevar
      !> id of internal time variable
      integer :: timevar
      !> id of time variable for external purposes
+     integer :: tstep_count_var
+     !> id of variable giving the integer time step count
 
 
      ! TODO - Create a variable for vars length so it can be made longer (Matt has this implemented in his subglacial hydrology branch)
@@ -168,6 +177,11 @@ module glimmer_ncdf
      !> structure containg file info
      real(dp), pointer, dimension(:) :: times => NULL()     
      !> pointer to array holding times
+     integer, pointer, dimension(:) :: tstep_counts => NULL()
+     !> pointer to array holding tstep_count for each time
+     logical :: tstep_counts_read = .false.
+     !> whether we have read data into tstep_counts (needed for backwards compatibility
+     !  with old input files that may not have this variable)
      integer                        :: nt, current_time=1
      !>number of elements in times and current time index
      integer                        :: get_time_slice = 1     
@@ -263,6 +277,9 @@ contains
           call write_log('Closing input file '//trim(ic%nc%filename))
        end if
        deallocate(ic%times)
+       if (ic%tstep_counts_read) then
+          deallocate(ic%tstep_counts)
+       end if
        deallocate(ic)
     end if
   end function delete_input
@@ -343,6 +360,7 @@ contains
     print*,'timedim:         ',stat%timedim
     print*,'internal_timevar:',stat%internal_timevar
     print*,'timevar:         ',stat%timevar
+    print*,'tstep_count_var: ',stat%tstep_count_var
     print*,'vars:            ',trim(stat%vars)
 
   end subroutine nc_print_stat

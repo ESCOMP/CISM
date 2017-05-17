@@ -130,10 +130,12 @@ contains
     write(message,*) '  Starting output at ',outfile%next_write,' and write every ',outfile%freq,' years'
     call write_log(trim(message))
     
-    ! Get time and internal_time varids
+    ! Get time-related varids
     status = parallel_inq_varid(NCO%id,glimmer_nc_internal_time_varname,NCO%internal_timevar)
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inq_varid(NCO%id,glimmer_nc_time_varname,NCO%timevar)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_inq_varid(NCO%id,glimmer_nc_tstep_count_varname,NCO%tstep_count_var)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
     ! Put dataset into define mode
@@ -213,9 +215,8 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
 
     !     time -- Model time
-    ! (see note in glimmer_ncdf regarding the reason for having separate 'internal_time'
-    ! vs. 'time' variables)
-    call write_log('Creating variables internal_time and time')
+    ! (see note in glimmer_ncdf regarding the reason for having multiple time-related variables)
+    call write_log('Creating variables internal_time, time, and tstep_count')
 
     status = parallel_def_var(NCO%id,glimmer_nc_internal_time_varname,&
          outfile%default_xtype,(/NCO%timedim/),NCO%internal_timevar)
@@ -247,6 +248,13 @@ contains
     write(time_units,'(a,i0.4,a)') 'common_year since ', sub_baseline_year, '-01-01 0:0:0'
     status = parallel_put_att(NCO%id, NCO%timevar, 'units', time_units)
     status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'noleap')
+
+    status = parallel_def_var(NCO%id,glimmer_nc_tstep_count_varname,&
+         NF90_INT,(/NCO%timedim/),NCO%tstep_count_var)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_put_att(NCO%id, NCO%tstep_count_var, 'long_name', &
+         'Time step count')
+    status = parallel_put_att(NCO%id, NCO%tstep_count_var, 'units', '-')
 
     ! adding projection info
     if (glimmap_allocated(model%projection)) then
@@ -328,6 +336,7 @@ contains
           call nc_errorhandle(__FILE__,__LINE__,status)
           status = parallel_put_var(NCO%id,NCO%timevar,sub_external_time,(/outfile%timecounter/))
           call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_var(NCO%id,NCO%tstep_count_var,model%numerics%time,(/outfile%timecounter/))
           NCO%just_processed = .TRUE.         
        end if
     end if
@@ -441,6 +450,19 @@ contains
     allocate(infile%times(dimsize))
     infile%nt=dimsize
     status = parallel_get_var(NCI%id,NCI%internal_timevar,infile%times)
+
+    ! getting tstep_count
+    status = parallel_inq_varid(NCI%id,glimmer_nc_tstep_count_varname,NCI%tstep_count_var)
+    ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have 'tstep_count', so
+    ! only read it if present.
+    if (status == NF90_NOERR) then
+       allocate(infile%tstep_counts(infile%nt))
+       status = parallel_get_var(NCI%id,NCI%tstep_count_var,infile%tstep_counts)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       infile%tstep_counts_read = .true.
+    else
+       infile%tstep_counts_read = .false.
+    end if
 
     ! setting the size of the level and staglevel dimension
     NCI%nlevel = model%general%upn
@@ -559,6 +581,9 @@ contains
 
   subroutine glimmer_nc_checkread(infile,model,time)
     !> check if we should read from file
+    !>
+    !> If we're reading a restart file, then also sets model%numerics%tstart,
+    !  model%numerics%time and model%numerics%tstep_count
     use glimmer_log
     use glide_types
     use glimmer_filenames
@@ -585,7 +610,16 @@ contains
              restart_time = infile%times(infile%current_time)      ! years
              model%numerics%tstart = restart_time
              model%numerics%time = restart_time
-             write(message,*) 'Restart: New tstart =', model%numerics%tstart
+             if (infile%tstep_counts_read) then
+                model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
+             else
+                ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
+                ! 'tstep_count', so compute it ourselves here. We don't want to use this
+                ! formulation in general because it is prone to roundoff errors.
+                model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+             end if
+             write(message,*) 'Restart: New tstart, tstep_count =', &
+                  model%numerics%tstart, model%numerics%tstep_count
              call write_log(message)
           endif
           !EIB! end add
