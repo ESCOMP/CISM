@@ -1066,8 +1066,8 @@ contains
 
     model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
 
-    !Note: The time step counter used to be updated here; now it is updated in cism_run_driver,
-    !      just before the call to the dycore.
+    !Note: The time step counter used to be updated here; now it is updated at the start
+    !of glide_tstep_p1.
 
     !TODO - Combine these timeders and vert velo calls into a subroutine?
 

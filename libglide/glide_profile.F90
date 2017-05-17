@@ -94,7 +94,6 @@ contains
     character (len=20) :: timestring
 
     call profile_stop(model%profile,profn)
-!!    if (mod(model%numerics%timecounter,model%numerics%profile_period)==0) then
     if (mod(model%numerics%tstep_count,model%numerics%profile_period)==0) then
        write(timestring,*) real(model%numerics%time)
        call profile_log(model%profile,profn,trim(timestring))
