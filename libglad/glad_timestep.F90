@@ -231,6 +231,15 @@ contains
 
              endif
 
+          else  ! EVOLVE_ICE_FALSE
+
+             ! With ice evolution turned on, tstep_count gets incremented inside the
+             ! dycore's tstep subroutine. Since we're not calling the tstep subroutine,
+             ! we need to increment it here. In practice, this shouldn't matter, but it's
+             ! needed so that CESM's exact restart tests pass, since tstep_count is
+             ! written to CISM's history files.
+             instance%model%numerics%tstep_count = instance%model%numerics%tstep_count + 1
+
           endif  ! evolve_ice
 
           ! write ice sheet diagnostics at specified interval (model%numerics%dt_diag)
