@@ -336,7 +336,7 @@ contains
           call nc_errorhandle(__FILE__,__LINE__,status)
           status = parallel_put_var(NCO%id,NCO%timevar,sub_external_time,(/outfile%timecounter/))
           call nc_errorhandle(__FILE__,__LINE__,status)
-          status = parallel_put_var(NCO%id,NCO%tstep_count_var,model%numerics%time,(/outfile%timecounter/))
+          status = parallel_put_var(NCO%id,NCO%tstep_count_var,model%numerics%tstep_count,(/outfile%timecounter/))
           NCO%just_processed = .TRUE.         
        end if
     end if
