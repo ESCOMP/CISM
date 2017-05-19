@@ -121,6 +121,9 @@ module glide_types
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
 
+  integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
+  integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
+
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
@@ -397,6 +400,14 @@ module glide_types
     !> \item[1] Basal mass balance included in continuity equation
     !> \end{description}
 
+    integer :: smb_input = 0
+
+    !> units for SMB input:
+    !> \begin{description}
+    !> \item[0] SMB input in units of m/yr ice (same as acab)
+    !> \item[1] SMB input in units of mm/yr water equivalent
+    !> \end{description}
+    
     integer :: gthf = 0
 
     !> geothermal heat flux:
@@ -963,6 +974,9 @@ module glide_types
      real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Annual mass balance with flux or anomaly corrections (m/y ice)
      real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Annual mass balance applied to ice (m/y ice)
                                                                   !> = 0 for ice-free cells with acab < 0
+     real(dp),dimension(:,:),pointer :: smb             => null() !> Annual mass balance (mm/y water equivalent)
+                                                                  !> Note: acab (m/y ice) is used internally by dycore, 
+                                                                  !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
@@ -1879,6 +1893,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
 
@@ -2254,6 +2269,8 @@ contains
         deallocate(model%climate%acab_corrected)
     if (associated(model%climate%acab_applied)) &
         deallocate(model%climate%acab_applied)
+    if (associated(model%climate%smb)) &
+        deallocate(model%climate%smb)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%flux_correction)) &

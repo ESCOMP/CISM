@@ -152,8 +152,8 @@ contains
 !TODO - Is glimmer_version_char still used?
 !       Old Glide does not include this variable.
     character(len=100), external :: glimmer_version_char
-
     character(len=100) :: message
+    real(dp) :: smb_maxval
 
     integer, parameter :: my_nhalo = 0   ! no halo layers for Glide dycore
 
@@ -233,6 +233,28 @@ contains
     ! write projection info to log
     call glimmap_printproj(model%projection)
    
+    ! If SMB input units are mm/yr w.e., then convert to units of acab.
+    ! Note: In this case the input field should be called 'smb', not 'acab'.
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+
+       ! make sure a nonzero SMB was read in
+       smb_maxval = maxval(abs(model%climate%smb))
+       if (smb_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+       ! Convert units from mm/yr w.e. to m/yr ice
+       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+
+       ! Convert acab from m/yr ice to model units
+       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+
+    else
+       ! assume acab was read in with units of m/yr ice; do nothing
+    endif
+
     !WHL - Should have been read from glide_io_readall
     ! read lithot if required
 !!    if (model%options%gthf > 0) then
@@ -1038,6 +1060,7 @@ contains
     ! calculate isostatic adjustment and upper and lower ice surface
 
     use isostasy
+    use glimmer_scales, only: scale_acab
     use glide_setup
     use glide_velo, only: glide_velo_vertical
     use glide_thck, only: glide_calclsrf
@@ -1065,6 +1088,13 @@ contains
                         model%climate%eus,   model%geometry%lsrf)
 
     model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
+
+    ! surface mass balance in units of mm/yr w.e.
+    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
+    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+    endif
 
     !Note: The time step counter used to be updated here; now it is updated at the start
     !of glide_tstep_p1.

@@ -563,6 +563,7 @@ contains
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
+    call GetValue(section,'smb_input',model%options%smb_input)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -721,6 +722,10 @@ contains
          'none                     ', &
          'constant                 ', &
          'MISMIP+ melt rate profile' /)
+
+    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
+         'SMB input in units of m/yr ice  ', &
+         'SMB input in units of mm/yr w.e.' /)
 
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
@@ -1125,8 +1130,14 @@ contains
     write(message,*) 'basal mass balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
     call write_log(message)
 
+    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
+       call write_log('Error, smb_input option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
+    call write_log(message)
+
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
-       print*, 'gthf =', model%options%gthf
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
 
@@ -1134,7 +1145,6 @@ contains
     call write_log(message)
 
     if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
-       print*, 'isostasy =', model%options%isostasy
        call write_log('Error, isostasy option out of range',GM_FATAL)
     end if
 
@@ -2017,7 +2027,22 @@ contains
     !        to be in the restart file, but without adding a check for that we cannot assume any of them are.
     !        There are some options where artm would not be needed.  Logic could be added to make that distinction.
     !        Note that bheatflx may not be an input variable but can also be assigned as a parameter in the config file!
-    call glide_add_to_restart_variable_list('topg thk temp bheatflx artm acab')
+    call glide_add_to_restart_variable_list('topg thk temp bheatflx artm')
+
+    ! add the SMB variable, based on model%options%smb_input
+    ! Note: If the SMB field is 'acab', it is assumed to have units of m/y ice
+    !       If the SMB field is 'smb', it is assumed to have units of mm/y w.e.
+
+    select case (options%smb_input)
+
+      case (SMB_INPUT_MYR_ICE)
+        call glide_add_to_restart_variable_list('acab')
+
+      case (SMB_INPUT_MMYR_WE)
+        call glide_add_to_restart_variable_list('smb')
+
+    end select  ! smb_input
+
 
     ! add dycore specific restart variables
     select case (options%whichdycore)

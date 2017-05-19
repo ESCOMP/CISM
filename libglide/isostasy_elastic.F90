@@ -182,7 +182,7 @@ contains
     if (main_task) then
        do j = 1, global_nsn
 
-          if (verbose_isostasy) then
+          if (verbose_isostasy .and. main_task) then
              if (mod(j,100) == 0) print*, 'j =', j   ! to see how fast the calculation is going
           endif
           
@@ -209,7 +209,7 @@ contains
     ! Deallocate the other global array (which is intent(in) and does not need to be scattered)
     deallocate(load_factors_global)
 
-    if (verbose_isostasy) then
+    if (verbose_isostasy .and. main_task) then
 
        ! print value at diagnostic point
        if (this_rank==rdiag_local) then
@@ -217,21 +217,6 @@ contains
           j = jdiag_local
           print*, 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
        endif
-
-       ! compute a global sum for diagnostic purposes
-       ! No physical meaning; just a good check that the calculation is the same on difference task numbers
-       ! Note: Although the load for an individual cell should be BFB on different processor counts,
-       !       the global sums will differ at roundoff level depending on processor count.
-       local_sum_load = 0.0d0
-       do j = nhalo+1, nsn-nhalo
-          do i = nhalo+1, ewn-nhalo
-             local_sum_load = local_sum_load + load(i,j)
-          enddo
-       enddo
-
-       global_sum_load = parallel_reduce_sum(local_sum_load)
-
-       print*, 'ISOSTASY: rank, local_sum, global sum of load =', this_rank, local_sum_load, global_sum_load
 
     endif  ! verbose_isostasy
 

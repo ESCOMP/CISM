@@ -120,6 +120,7 @@ contains
 
     character(len=100) :: message
 
+    real(dp) :: smb_maxval   ! max value of abs(smb)
     integer :: i, j, k
     logical :: l_evolve_ice  ! local version of evolve_ice
 
@@ -207,6 +208,29 @@ contains
 
     ! Write projection info to log
     call glimmap_printproj(model%projection)
+
+    ! If SMB input units are mm/yr w.e., then convert to units of acab.
+    ! Note: In this case the input field should be called 'smb', not 'acab'.
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+
+       ! make sure a nonzero SMB was read in
+       smb_maxval = maxval(abs(model%climate%smb))
+       smb_maxval = parallel_reduce_max(smb_maxval)
+       if (smb_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+       ! Convert units from mm/yr w.e. to m/yr ice
+       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+
+       ! Convert acab from m/yr ice to model units
+       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+
+    else
+       ! assume acab was read in with units of m/yr ice; do nothing
+    endif
 
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first
@@ -1205,6 +1229,10 @@ contains
 
        if (model%isostasy%nlith > 0) then
           if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
+             if (main_task) then
+                print*, 'Update lithospheric load: tstep_count, nlith =', &
+                     model%numerics%tstep_count, model%isostasy%nlith
+             endif
              call isos_icewaterload(model)
              model%isostasy%new_load = .true.
           end if
@@ -1239,6 +1267,7 @@ contains
 
     use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: scyr
+    use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
     use glam_velo, only: glam_velo_driver, glam_basal_friction
     use glissade_velo, only: glissade_velo_driver
@@ -1711,6 +1740,13 @@ contains
     !------------------------------------------------------------------------
     ! Diagnose some quantities that are not velocity-dependent, but may be desired for output
     !------------------------------------------------------------------------
+
+    ! surface mass balance in units of mm/yr w.e.
+    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
+    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+    endif
 
     ! surface, basal and calving mass fluxes
     ! positive for mass gain, negative for mass loss

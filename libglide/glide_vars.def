@@ -487,9 +487,19 @@ data:          data%geometry%ice_mask_stag
 factor:        1.0
 coordinates:   lon lat
 
+[smb]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance
+data:          data%climate%smb
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance
+coordinates:   lon lat
+load:          1
+
 [acab]
 dimensions:    time, y1, x1
-units:         meter/year
+units:         meter/year ice
 long_name:     accumulation, ablation rate
 data:          data%climate%acab
 factor:        scale_acab
