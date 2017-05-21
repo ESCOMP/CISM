@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Fri, 05 May 2017 01:45:59 +0000
+! Sun, 21 May 2017 18:06:10 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -452,7 +452,7 @@ contains
        status = parallel_put_att(NCO%id, varid, 'standard_name', &
             'land_ice_surface_specific_mass_balance')
        status = parallel_put_att(NCO%id, varid, 'units', &
-            'meter/year')
+            'meter/year ice')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -2552,6 +2552,35 @@ contains
      end if
      end if
 
+    !     smb -- surface mass balance
+    pos = index(NCO%vars,' smb ')
+    status = parallel_inq_varid(NCO%id,'smb',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+3) = '   '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%climate%smb)) then
+       call write_log('Creating variable smb')
+       status = parallel_def_var(NCO%id,'smb',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(1.0))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'surface mass balance')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_surface_specific_mass_balance')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'mm/year water equivalent')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable smb was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     soft -- bed softness parameter
     pos = index(NCO%vars,' soft ')
     status = parallel_inq_varid(NCO%id,'soft',varid)
@@ -4372,6 +4401,13 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    status = parallel_inq_varid(NCO%id,'smb',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%climate%smb, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'soft',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -5699,6 +5735,31 @@ contains
        end if
     else
     call write_log('Variable relx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'smb',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%climate%smb)) then
+       call write_log('  Loading smb')
+       status = distributed_get_var(NCI%id, varid, &
+            data%climate%smb, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0/(1.0)
+       else
+          scaling_factor = scaling_factor/(1.0)
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling smb",GM_DIAGNOSTIC)
+          data%climate%smb = &
+               data%climate%smb*scaling_factor
+       end if
+    else
+    call write_log('Variable smb was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -7824,6 +7885,28 @@ contains
 
     data%geometry%sfc_mbal_flux = inarray
   end subroutine glide_set_sfc_mbal_flux
+
+  subroutine glide_get_smb(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (1.0)*(data%climate%smb)
+  end subroutine glide_get_smb
+
+  subroutine glide_set_smb(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%climate%smb = inarray/(1.0)
+  end subroutine glide_set_smb
 
   subroutine glide_get_soft(data,outarray)
     use glimmer_scales
