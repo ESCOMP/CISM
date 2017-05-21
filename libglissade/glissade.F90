@@ -1767,6 +1767,38 @@ contains
        model%geometry%dthck_dt(:,:) = 0.0d0
     endif
 
+    !------------------------------------------------------------------------
+    ! Update the upper and lower ice surface
+    ! Note that glide_calclsrf loops over all cells, including halos,
+    !  so halo updates are not needed for lsrf and usrf.
+    !
+    !
+    ! TODO(wjs, 2017-05-21) We shouldn't need to update lsrf and usrf here. However,
+    ! glissade_velo_higher_solve and glissade_velo_sia_solve (called from
+    ! glissade_velo_driver) multiply/divide topg (and other variables) by their scale
+    ! factors on entry to / exit from the routine. This can lead to roundoff-level changes
+    ! in topg and other variables.
+    !
+    ! If we don't update usrf here, then we can get roundoff-level changes in exact
+    ! restart tests when running inside a climate model: In the straight-through run
+    ! (without an intervening restart), the value of usrf sent to the coupler is the one
+    ! set earlier in this routine, which doesn't incorporate these roundoff-level changes
+    ! to topg. The restarted run, in contrast, reads the slightly-modified topg from the
+    ! restart file and recomputes usrf in initialization; thus, the values of usrf that
+    ! the coupler sees in the first year differ slightly from those in the
+    ! straight-through run.
+    !
+    ! A cleaner solution could be to avoid applying these rescalings to the fundamental
+    ! model variables in glissade_velo_higher_solve and glissade_velo_sia_solve - instead,
+    ! introducing temporary variables in those routines to hold the scaled
+    ! quantities. Then we could remove the following code that updates lsrf and usrf. Or,
+    ! if we completely removed these scale factors from CISM, then we could also remove
+    ! the following code.
+    !------------------------------------------------------------------------
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
+                        model%climate%eus,   model%geometry%lsrf)
+    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+
   end subroutine glissade_diagnostic_variable_solve
 
 !=======================================================================
