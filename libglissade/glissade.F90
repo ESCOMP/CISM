@@ -525,7 +525,7 @@ contains
 
     ! calculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
-    model%geometry%usrf = model%geometry%thck + model%geometry%lsrf
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
   end subroutine glissade_initialise
   

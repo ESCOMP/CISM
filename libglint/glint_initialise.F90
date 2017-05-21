@@ -579,7 +579,7 @@ contains
 
     call glide_calclsrf(instance%model%geometry%thck,instance%model%geometry%topg, &
          instance%model%climate%eus,instance%model%geometry%lsrf)
-    instance%model%geometry%usrf = instance%model%geometry%thck + instance%model%geometry%lsrf
+    instance%model%geometry%usrf = max(0.d0, instance%model%geometry%thck + instance%model%geometry%lsrf)
 
   end subroutine glint_i_readdata
 
