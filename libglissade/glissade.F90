@@ -1773,8 +1773,8 @@ contains
     !  so halo updates are not needed for lsrf and usrf.
     !
     !
-    ! TODO(wjs, 2017-05-21) We shouldn't need to update lsrf and usrf here. However,
-    ! glissade_velo_higher_solve and glissade_velo_sia_solve (called from
+    ! TODO(wjs, 2017-05-21) I don't think we should need to update lsrf and usrf
+    ! here. However, glissade_velo_higher_solve and glissade_velo_sia_solve (called from
     ! glissade_velo_driver) multiply/divide topg (and other variables) by their scale
     ! factors on entry to / exit from the routine. This can lead to roundoff-level changes
     ! in topg and other variables.
@@ -1791,10 +1791,10 @@ contains
     ! A cleaner solution could be to avoid applying these rescalings to the fundamental
     ! model variables in glissade_velo_higher_solve and glissade_velo_sia_solve - instead,
     ! introducing temporary variables in those routines to hold the scaled
-    ! quantities. Then we could remove the following code that updates lsrf and usrf. Or,
-    ! if we completely removed these scale factors from CISM, then we could also remove
-    ! the following code.
-    !------------------------------------------------------------------------
+    ! quantities. Then I think it would be safe to remove the following code that updates
+    ! lsrf and usrf. Or, if we completely removed these scale factors from CISM, then
+    ! again I think it would be safe to remove the following code.
+    ! ------------------------------------------------------------------------
     call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
                         model%climate%eus,   model%geometry%lsrf)
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
