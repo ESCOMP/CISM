@@ -564,6 +564,42 @@ contains
        return
     endif
 
+    ! ------------------------------------------------------------------------
+    ! Calculate isostatic adjustment
+    ! ------------------------------------------------------------------------
+    !
+    ! Note: This call used to be near the end of the glissade time step, between
+    !       calving and the velocity solve. But this can be problematic, because
+    !       a cell identified as grounded for calving purposes can become floating
+    !       as a result of isostatic adjustment, or vice versa.
+    !       It is better to compute isostasy just after the velocity solve,
+    !       at the start of the next time step.
+    !
+    ! Matt Hoffman writes:
+    ! Is this isostasy call in the right place?
+    ! Consider for a forward Euler time step:
+    ! With a relaxing mantle model, topg is a prognostic (time-evolving) variable:
+    !      topg1 = f(topg0, thk0, ...)
+    ! However, for a fluid mantle where the adjustment is instantaneous, topg is a diagnostic variable
+    !(comparable to calculating floatation height of ice in the ocean):
+    !      topg1 = f(thk1)
+    ! In either case, the topg update should be separate from the thickness evolution (because thk1 = f(thk0, vel0=g(topg0,...)).
+    ! However, if the isostasy calculation needs topg0, the icewaterload call should be made BEFORE thck is updated.
+    ! If the isostasy calculation needs topg1, the icewaterload call should be made AFTER thck is updated.
+    ! Also, we should think about when marinlim, usrf, lsrf, derivatives should be calculated relative to the topg update via isostasy.
+    !
+    ! WHL writes (May 2017):
+    ! When isostasy is turned on, it is usually run with a relaxing mantle.
+    ! With the call moved to the start of the time step, both the icewaterload call (if needed) and
+    !  the relaxation are done before the ice thickness update. So we have
+    !       topg1 = f(topg0, thk0, ...)
+    !  followed by
+    !       thk1  = f(thk0, vel0=g(topg0,...)
+    ! I think this is what is desired.
+    ! ------------------------------------------------------------------------
+
+    call glissade_isostasy_solve(model)
+
     ! ------------------------------------------------------------------------ 
     ! calculate geothermal heat flux
     ! ------------------------------------------------------------------------ 
@@ -651,23 +687,6 @@ contains
     call calc_iareaf_iareag(model%numerics%dew,    model%numerics%dns,     &
                             model%geometry%thkmask,                        &
                             model%geometry%iareaf, model%geometry%iareag)
-
-    ! ------------------------------------------------------------------------
-    ! Calculate isostatic adjustment
-    ! ------------------------------------------------------------------------
-    !TODO - Is this isostasy call in the right place?
-    ! Consider for a forward Euler time step:
-    ! With a relaxing mantle model, topg is a prognostic (time-evolving) variable (I think):
-    !      topg1 = f(topg0, thk0, ...) 
-    ! However, for a fluid mantle where the adjustment is instantaneous, topg is a diagnostic variable 
-    !(comparable to calculating floatation height of ice in the ocean):
-    !      topg1 = f(thk1)
-    ! In either case, the topg update should be separate from the thickness evolution (because thk1 = f(thk0, vel0=g(topg0,...)).
-    ! However, if the isostasy calculation needs topg0, the icewaterload call should be made BEFORE thck is updated.  
-    ! If the isostasy calculation needs topg1, the icewaterload call should be made AFTER thck is updated.  
-    ! Also, we should think about when marinlim, usrf, lsrf, derivatives should be calculated relative to the topg update via isostasy.
-    
-    call glissade_isostasy_solve(model)
 
     ! ------------------------------------------------------------------------
     ! Do the vertical thermal solve if it is time to do so.
@@ -1243,9 +1262,6 @@ contains
     ! ------------------------------------------------------------------------ 
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------ 
-
-    !TODO - Test the local isostasy schemes in the parallel model.
-    !       The elastic lithosphere scheme is not expected to work in parallel.
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call isos_compute(model)
