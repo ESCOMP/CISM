@@ -326,7 +326,6 @@ contains
 
 !WHL - old glide has a call to init_temp, which is similar to glide_init_temp
 !      but does not set the temperature or compute flwa until later call to timeevoltemp
-!WHL - In old glide I added artm as a hotstart variable
 
     ! Initialize temperature field - this needs to happen after input file is
     !  read so we can assign artm (which could possibly be read in) if temp has not been input.
@@ -353,7 +352,7 @@ contains
 !      Commented out at least for now.  To reproduce results of old_glide, make sure
 !       model%options%temp_init = TEMP_INIT_ARTM.
 !!  if (oldglide) then
-!!    if (model%options%hotstart.ne.1) then
+!!    if (model%options%is_restart.ne.1) then
 !!       ! initialise Glen's flow parameter A using an isothermal temperature distribution
 !!       call glide_temp_driver(model,0)
 !!    endif

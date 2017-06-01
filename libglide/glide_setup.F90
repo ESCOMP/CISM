@@ -50,7 +50,7 @@ contains
 
   subroutine glide_readconfig(model,config)
 
-    ! read GLIDE configuration file
+    ! read Glide configuration file
     ! Note: sigma coordinates are handled by a subsequent call to glide_read_sigma
  
     use glide_types
@@ -62,7 +62,7 @@ contains
     ! local variables
     type(ConfigSection), pointer :: section
 
-    ! read grid size  parameters
+    ! read grid size parameters
     call GetSection(config,section,'grid')
     if (associated(section)) then
        call handle_grid(section, model)
@@ -574,11 +574,8 @@ contains
     call GetValue(section,'sigma',model%options%which_sigma)
     call GetValue(section,'ioparams',model%funits%ncfile)
 
-    ! Both terms 'hotstart' and 'restart' are supported in the config file, 
-    ! but if they are both supplied for some reason, then restart will be used.
-    ! 'restart' is the preferred term moving forward.  
-    ! 'hotstart' is retained for backward compatability.
-    call GetValue(section,'hotstart',model%options%is_restart)
+    !Note: Previously, the terms 'hotstart' and 'restart' were both supported in the config file.
+    !      Going forward, only 'restart' is supported.
     call GetValue(section,'restart',model%options%is_restart)
 
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
@@ -1997,7 +1994,8 @@ contains
     !> and determines which variables are necessary for an exact restart.  MJH 1/11/2013
 
     ! Please comment thoroughly the reasons why a particular variable needs to be a restart variable for a given config.
-    ! Note: this subroutine assumes that any restart variables you add you loadable.  Check glide_vars.def to make sure any variables you add have load: 1
+    ! Note: This subroutine assumes that any restart variables you add are loadable.
+    !       Check glide_vars.def to make sure any added variables have 'load: 1'
 
     use glide_types
     use glide_io, only: glide_add_to_restart_variable_list

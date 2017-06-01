@@ -217,7 +217,7 @@ contains
     implicit none
 
     type(glad_instance)         :: instance  !> GLAD instance
-    type(ConfigSection), pointer :: config !> structure holding sections of configuration file
+    type(ConfigSection), pointer :: config   !> structure holding sections of configuration file
     
     ! local variables
     type(ConfigSection), pointer :: section
@@ -231,7 +231,7 @@ contains
     ! setup outputs
     call GetSection(config,section,'GLAD output')
     do while(associated(section))
-       output => handle_output(section,output,0.d0,configstring)
+       output => handle_output(section,output,configstring)
        if (.not.associated(instance%out_first)) then
           instance%out_first => output
        end if

@@ -1316,6 +1316,7 @@ module glide_types
 
     !> Parameters relating to the model numerics
     real(dp) :: tstart =     0.d0 !> starting time
+                                  !> Note: For restarts, tstart is set to the time the restart begins
     real(dp) :: tend   =  1000.d0 !> end time
     real(dp) :: time   =     0.d0 !> main loop counter in years
     real(dp) :: tinc   =     1.d0 !> time step of main loop in years 

@@ -1410,6 +1410,7 @@ contains
     ! Do some additional operations if this is the first time step.
     ! The model thickness and temperature fields will have been initialized, but the
     !  thermal and transport solvers have not been called yet.
+    ! Note: Some operations must be done in this subroutine when restarting; others are skipped.
     ! ------------------------------------------------------------------------
 
     if (model%numerics%time == model%numerics%tstart) then
