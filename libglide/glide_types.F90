@@ -1287,7 +1287,7 @@ module glide_types
     !> \end{description}
 
      real(dp) :: relaxed_tau = 4000.d0        ! characteristic time constant of relaxing mantle (yr)
-     real(dp) :: period = 500.d0              ! lithosphere update period (yr)
+     real(dp) :: period = 100.d0              ! lithosphere update period (yr)
      integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
      logical :: new_load = .false.            ! set to true if there is a new surface load
      type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
