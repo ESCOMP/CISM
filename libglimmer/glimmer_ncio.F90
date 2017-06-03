@@ -192,6 +192,11 @@ contains
     status = parallel_redef(NCO%id)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
+    ! setting the size of the level and staglevel dimension
+    NCO%nlevel = model%general%upn
+    NCO%nstaglevel = model%general%upn-1
+    NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
+
   end subroutine glimmer_nc_openappend
 
   !------------------------------------------------------------------------------
