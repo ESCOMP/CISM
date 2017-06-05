@@ -598,8 +598,9 @@ contains
           ! Reduce N wherever there is melting at the bed.
           ! The effective pressure ramps down from full overburden for bmlt = 0
           !  to a small value for bmlt >= effecpress_bmlt_threshold.
+          ! Both bmlt and effecpress_bmlt_threshold have units of m/yr.
           ! bmlt_factor = 0 where there is no basal melting (bmlt = 0)
-          ! bmlt_factor = 1 where there is large basal melting (bmlt >= bmlt_threshold)
+          ! bmlt_factor = 1 where there is large basal melting (bmlt >= effecpress_bmlt_threshold)
           ! 0 < bmlt_factor < 1 where 0 < bmlt < bmlt_threshold 
 
           do j = 1, nsn

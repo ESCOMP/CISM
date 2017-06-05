@@ -3785,8 +3785,8 @@
     thklim = thklim * thk0
     bwat = bwat * thk0
 
-    ! basal melt rate: rescale from dimensionless to m/s
-    bmlt = bmlt * thk0/tim0
+    ! basal melt rate: rescale from dimensionless to m/yr
+    bmlt = bmlt * (scyr*thk0/tim0)
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
     flwa = flwa * (vis0*scyr)
@@ -3871,8 +3871,8 @@
     topg = topg / thk0
     bwat = bwat / thk0
 
-    ! Convert basal melt rate from m/s to dimensionless units
-    bmlt = bmlt / (thk0/tim0)
+    ! Convert basal melt rate from m/yr to dimensionless units
+    bmlt = bmlt / (scyr*thk0/tim0)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)

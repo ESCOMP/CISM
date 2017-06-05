@@ -1156,11 +1156,11 @@ module glide_types
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
-     real(dp) :: effecpress_delta = 0.02d0             !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
-     real(dp) :: effecpress_bpmp_threshold = 0.1d0     !< temperature range over which N ramps from a small value to full overburden (deg C)
-     real(dp) :: effecpress_bmlt_threshold = 1.d0/scyr !< basal melting range over which N ramps from a small value to full overburden (m/s)
-     real(dp) :: effecpress_bwat_threshold = 1.0d0     !< basal water thickness range over which N ramps from a small value to full overburden (m)
-     real(dp) :: p_ocean_penetration = 0.0d0           !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
+     real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
+     real(dp) :: effecpress_bpmp_threshold = 0.1d0  !< temperature range over which N ramps from a small value to full overburden (deg C)
+     real(dp) :: effecpress_bmlt_threshold = 0.1d0  !< basal melting range over which N ramps from a small value to full overburden (m/yr)
+     real(dp) :: effecpress_bwat_threshold = 1.0d0  !< basal water thickness range over which N ramps from a small value to full overburden (m)
+     real(dp) :: p_ocean_penetration = 0.0d0        !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
      ! parameters for pseudo-plastic sliding law (based on PISM)
      ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
