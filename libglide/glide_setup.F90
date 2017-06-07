@@ -1461,6 +1461,7 @@ contains
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
     call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
+    call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
     call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
@@ -1679,17 +1680,22 @@ contains
     endif
 
     if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
-       write(message,*) 'effective pressure delta           : ', model%basal_physics%effecpress_delta
+       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       write(message,*) 'effective pressure bpmp threshold  : ', model%basal_physics%effecpress_bpmp_threshold
+       write(message,*) 'effective pressure bpmp threshold    : ', model%basal_physics%effecpress_bpmp_threshold
+       call write_log(message)
+    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BMLT) then
+       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
+       call write_log(message)
+       write(message,*) 'effective pressure bmlt threshold (m): ', model%basal_physics%effecpress_bmlt_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
-       write(message,*) 'effective pressure delta           : ', model%basal_physics%effecpress_delta
+       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       write(message,*) 'effective pressure bwat threshold  : ', model%basal_physics%effecpress_bwat_threshold
+       write(message,*) 'effective pressure bwat threshold (m): ', model%basal_physics%effecpress_bwat_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_OCEAN_PENETRATION) then
-       write(message,*) 'p_ocean_penetration                : ', model%basal_physics%p_ocean_penetration
+       write(message,*) 'p_ocean_penetration                  : ', model%basal_physics%p_ocean_penetration
        call write_log(message)
     endif
 
