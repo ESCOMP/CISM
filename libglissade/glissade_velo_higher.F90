@@ -1852,7 +1852,7 @@
                                  model%basal_physics,       &
                                  ice_mask,                  &
                                  bpmp(:,:) - temp(nz,:,:),  &
-                                 bwat,          bmlt,       &
+                                 bmlt,          bwat,       &
                                  thck,          topg,       &
                                  eus)
 
@@ -2374,7 +2374,7 @@
              write(6,*) ' '
           enddo          
 
-          if (whichbabc == HO_BABC_BETA_BPMP) then
+          if (whichbabc == HO_BABC_BETA_BPMP .or. whicheffecpress == HO_EFFECPRESS_BPMP) then
 
              print*, ' '
              print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
@@ -2412,7 +2412,23 @@
                 write(6,*) ' '
              enddo             
 
-          endif  ! HO_BABC_BETA_BPMP
+          endif  ! HO_BABC_BETA_BPMP or HO_EFFECPRESS_BPMP
+
+          if (whicheffecpress == HO_EFFECPRESS_BMLT) then
+
+             print*, ' '
+             print*, 'bmlt (m/yr), itest, jtest, rank =', itest, jtest, rtest
+!!             do j = ny-1, 1, -1
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+!!                do i = 1, nx-1
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') bmlt(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif  ! HO_EFFECPRESS_BMLT
 
           if (whichbabc == HO_BABC_YIELD_PICARD) then
              print*, ' '

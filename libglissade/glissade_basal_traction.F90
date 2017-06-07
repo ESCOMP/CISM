@@ -492,8 +492,7 @@ contains
                                       basal_physics,            &
                                       ice_mask,                 &
                                       delta_bpmp,               &
-                                      bmlt,                     &
-                                      bwat,                     &
+                                      bmlt,          bwat,      &
                                       thck,          topg,      &
                                       eus)
 
