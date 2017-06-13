@@ -61,8 +61,6 @@
 
 !****************************************************************************
 
-  !TODO - Remove this subroutine and replace with glissade_calculate_masks.
-
   subroutine glissade_get_masks(nx,          ny,         &
                                 thck,        topg,       &
                                 eus,         thklim,     &
@@ -871,6 +869,9 @@
   end subroutine glissade_grounded_fraction
 
 !****************************************************************************
+
+  !TODO - Remove this subroutine and replace with a calving_specific subroutine?
+  !       Currently used only for calving
 
   subroutine glissade_calculate_masks(nx,            ny,             &
                                       thck,                          &
