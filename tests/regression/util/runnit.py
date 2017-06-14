@@ -17,38 +17,29 @@ def personal(args, cism_driver, data_dir, test_dict):
     Run commands for personal computers (PCs)
     """
     
+    mod_list = paths.file_modifier_list(args)
+    mod_arg = ""
+    if mod_list:
+        mod_arg = " -m "+str.join("-", mod_list)
+
     test_run = {}
     for case in test_dict:
-        case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+case_dir)
+        case_split = str.split(case," ")
+        case_dir = os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1])
         run_script, mod_dict = test_dict[case]
         
-        mod_list = paths.file_modifier_list(args)
-        mod_arg = ""
-        if mod_list:
-            mod_arg = " -m "+str.join("-", mod_list)
-
-        if args.tmod and mod_dict:
-            # run the default case that also have performance runs for timing
-            case_data_dir += os.sep+'timing'
-            paths.mkdir_p(case_data_dir)
-
+        run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+        case_run_dir = paths.case_run_directory(case_dir, run_args)
+        
 
         # run default test
-        test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir),
-                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+' -n 1' ]
-        
-        if args.tmod:
-            test_commands.extend(["cd "+os.path.normpath(case_data_dir),
-                'find ./ -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\;', 
-                "exit"])
-        else:
-            test_commands.append("exit")
+        test_commands = ["cd "+os.path.join(args.cism_dir, 'tests', case_split[0]),
+                         "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+' -n 1',
+                         "exit"]
         
         #print(str.join(" ; ",test_commands))
-        if not args.tmod or (args.tmod and mod_dict):
-            print("   Spawning "+case+" test default...")
-            test_run[case] = subprocess.Popen(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
+        print("   Spawning "+case+" test default...")
+        test_run[case] = subprocess.Popen(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
 
 
         
@@ -56,16 +47,12 @@ def personal(args, cism_driver, data_dir, test_dict):
         if args.performance and mod_dict:
             for mod in mod_dict:
                 print("   Spawning "+case+" test "+mod+"...")
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
-                test_commands = ["cd "+os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)+" ",
-                                 "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+" "+mod_dict[mod] ]
-
-                if args.tmod:
-                    test_commands.extend(["cd "+os.path.normpath(case_data_dir),
-                        'find ./ -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\;',
-                        "exit"])
-                else:
-                    test_commands.append("exit")
+                test_commands = ["cd "+os.path.join(args.cism_dir, 'tests', case_split[0])+" ",
+                                 "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod],
+                                 "exit"]
                 
                 #print(str.join(" ; ",test_commands))
                 test_run[case+' '+mod] = subprocess.Popen(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
@@ -99,24 +86,20 @@ def create_job(args, job_name, p_replace, run_commands):
     Create the job script for the HPC queues.
     """
 
-    base_job = open('util/job.template','r') 
-    job_file = open(job_name, 'w')
-    for line in base_job:
-        for src, target in p_replace.iteritems():
-            line = line.replace(src, target)
-        job_file.write(line)
+    with open(job_name, 'w') as job_file:
+        with open('util/job.template','r') as base_job: 
+            for line in base_job:
+                for src, target in p_replace.iteritems():
+                    line = line.replace(src, target)
+                job_file.write(line)
 
-    job_file.write("\n")
-    job_file.write("# THE RUN COMMANDS:\n")
-    
-    for command in run_commands:
-        job_file.write(command)
+        job_file.write("\n")
+        job_file.write("# THE RUN COMMANDS:\n")
+        
+        for command in run_commands:
+            job_file.write(command)
 
-    job_file.write("\nwait \n# FINISH\n")
-
-    base_job.close()
-    job_file.close()
-
+        job_file.write("\nwait \n# FINISH\n")
 
 
 def hpc(args, cism_driver, data_dir, test_dict):
@@ -127,10 +110,11 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # ----------------------
     # Setup all run commands
     # ----------------------
-    platform_dict = dicts.hpc_dict[args.platform]
+    platform_key = args.platform.split("-")[0]
+    platform_dict = dicts.hpc_dict[platform_key]
     perf_large_dict = dicts.perf_dict
 
-    jobs_dir = data_dir+os.sep+'jobs'
+    jobs_dir = os.path.join(data_dir, 'all_jobs')
     paths.mkdir_p(jobs_dir)
 
     # get file name modifier
@@ -140,20 +124,21 @@ def hpc(args, cism_driver, data_dir, test_dict):
         mod_arg = " -m "+str.join("-", mod_list)
 
     timing_exports = set()
-    timing_dirs = set()
     timing_commands = []
 
     for case in test_dict:
-        case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+case_dir)
-        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)
+        case_split = str.split(case," ")
+        case_dir = os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1])
+        cism_test_dir = os.path.join(args.cism_dir, 'tests', case_split[0])
         run_script, mod_dict = test_dict[case]
         
+        run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+        case_run_dir = paths.case_run_directory(case_dir, run_args)
 
         print("   Setting up "+case+" tests")
         test_commands = ["cd "+cism_test_dir,
                 "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
-               "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+" -s -n 1 --hpc",
+               "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" -s -n 1 --hpc",
                "exit"] 
         
         subprocess.check_call(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
@@ -161,10 +146,12 @@ def hpc(args, cism_driver, data_dir, test_dict):
         # run performance tests (always do this for hpc systems)
         if mod_dict:
             for mod in mod_dict:
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc",
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc",
                         "exit"]
                 
                 subprocess.check_call(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
@@ -172,7 +159,6 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
         # get info to setup timing runs.
         if args.timing and mod_dict:
-            timing_dir = case_data_dir+os.sep+'timing'
             for rnd in range(10):
                 print("   Setting up "+case+" small timing test "+str(rnd))
                 if mod_arg:
@@ -180,14 +166,19 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 else:
                     timing_mod = " -m t"+str(rnd)
                 
-                timing_dirs.add(timing_dir)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
+                
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 timing_commands.extend(["cd "+cism_test_dir, 
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+timing_dir+timing_mod+" -s -n 1 --hpc"])
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
 
                 for mod in mod_dict:
+                    run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                    case_run_dir = paths.case_run_directory(case_dir, run_args)
+                
                     timing_commands.extend(["cd "+cism_test_dir, 
-                            "./"+run_script+" -q -e "+cism_driver+" -o "+timing_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
+                            "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
        
 
     # -------------------------
@@ -199,10 +190,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # get the default and small perf run commands
     small_run_commands = []
     for rf in small_run_files:
-        rfo = open(rf,'r')
-        rfo.next() # skip shebang
-        for command in rfo:
-            small_run_commands.append(command)
+        with open(rf,'r') as rfo:
+            rfo.next() # skip shebang
+            for command in rfo:
+                small_run_commands.append(command)
 
     ## set all aprun commands to background
     #small_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in small_run_commands ]
@@ -210,7 +201,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # create the default and small perf job script.
     platform_dict['PBS_N'] = 'small'
 
-    small_job_name = jobs_dir+os.sep+args.platform+'_job.small'
+    small_job_name = os.path.join(jobs_dir, platform_key+'_job.small')
     create_job(args, small_job_name, platform_dict, small_run_commands)
     
     # ----------------------------------------
@@ -219,24 +210,26 @@ def hpc(args, cism_driver, data_dir, test_dict):
     large_timing_commands = []
     
     for case in perf_large_dict:
-        case_dir = str.split(case," ")[0]
-        case_data_dir = os.path.normpath(data_dir+os.sep+case_dir)
-        cism_test_dir = os.path.normpath(args.cism_dir+os.sep+'tests'+os.sep+case_dir)
+        case_split = str.split(case," ")
+        case_dir = os.path.join(data_dir, str.split(case_split[0],"/")[-1], case_split[-1])
+        cism_test_dir = os.path.join(args.cism_dir, 'tests', case_split[0])
         run_script, mod_dict = perf_large_dict[case]
+        
 
         if mod_dict:
             for mod in mod_dict:
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_data_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc",
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc",
                         "exit"]
                
                 subprocess.check_call(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
         
         # get info to setup timing runs.
         if args.timing and mod_dict:
-            timing_dir = case_data_dir+os.sep+'timing'
             for rnd in range(10):
                 print("   Setting up "+case+" large timing test "+str(rnd))
                 if mod_arg:
@@ -244,14 +237,19 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 else:
                     timing_mod = " -m t"+str(rnd)
                 
-                timing_dirs.add(timing_dir)
+                run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+['--scale', '0', '-n', '1'])
+                case_run_dir = paths.case_run_directory(case_dir, run_args)
+                
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 large_timing_commands.extend(["cd "+cism_test_dir, 
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+timing_dir+timing_mod+" -s -n 1 --hpc"])
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
 
                 for mod in mod_dict:
+                    run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
+                    case_run_dir = paths.case_run_directory(case_dir, run_args)
+                    
                     large_timing_commands.extend(["cd "+cism_test_dir, 
-                            "./"+run_script+" -q -e "+cism_driver+" -o "+timing_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
+                            "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
  
     # -------------------------
     # Setup the large batch job
@@ -264,10 +262,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # get the  large perf run commands
     large_run_commands = []
     for rf in large_run_files:
-        rfo = open(rf,'r')
-        rfo.next() # skip shebang
-        for command in rfo:
-            large_run_commands.append(command)
+        with open(rf,'r') as rfo:
+            rfo.next() # skip shebang
+            for command in rfo:
+                large_run_commands.append(command)
 
     # set all aprun commands to background
     #large_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in large_run_commands ]
@@ -275,12 +273,12 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # create the default job script.
     platform_dict['PBS_N'] = 'large'
     platform_dict['PBS_walltime'] = '01:00:00'
-    if args.platform.lower() == 'hopper':
+    if platform_key.lower() == 'hopper':
         platform_dict['RES_NUM'] = str(11*24)
     else:
         platform_dict['RES_NUM'] = '16'
     
-    large_job_name = jobs_dir+os.sep+args.platform+'_job.large'
+    large_job_name = os.path.join(jobs_dir, platform_key+'_job.large')
     create_job(args, large_job_name, platform_dict, large_run_commands)
 
     if args.timing:
@@ -304,10 +302,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # get the small timing run commands
             small_timing_run_commands = []
             for rf in subset_run_files:
-                rfo = open(rf,'r')
-                rfo.next() # skip shebang
-                for command in rfo:
-                    small_timing_run_commands.append(command)
+                with open(rf,'r') as rfo:
+                    rfo.next() # skip shebang
+                    for command in rfo:
+                        small_timing_run_commands.append(command)
 
             # set all aprun commands to background
             #small_timing_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in small_timing_run_commands ]
@@ -315,12 +313,12 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # create the default job script.
             platform_dict['PBS_N'] = 'small_timing_'+str(rnd)
             platform_dict['PBS_walltime'] = '1:00:00'
-            if args.platform.lower() == 'hopper':
+            if platform_key.lower() == 'hopper':
                 platform_dict['RES_NUM'] = str(1*24)
             else:
                 platform_dict['RES_NUM'] = '1'
             
-            small_timing_job_name = jobs_dir+os.sep+args.platform+'_job.small_timing_'+str(rnd)
+            small_timing_job_name = os.path.join(jobs_dir, platform_key+'_job.small_timing_'+str(rnd))
             create_job(args, small_timing_job_name, platform_dict, small_timing_run_commands)
             small_timing_jobs.add(small_timing_job_name)
 
@@ -340,33 +338,32 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # get the large timing run commands
             large_timing_run_commands = []
             for rf in subset_run_files:
-                rfo = open(rf,'r')
-                rfo.next() # skip shebang
-                for command in rfo:
-                    large_timing_run_commands.append(command)
+                with open(rf,'r') as rfo:
+                    rfo.next() # skip shebang
+                    for command in rfo:
+                        large_timing_run_commands.append(command)
 
             # set all aprun commands to background
             #large_timing_run_commands = [command.replace('\n',' & \n') if 'aprun' in command else command for command in large_timing_run_commands ]
 
             # create the default job script.
             platform_dict['PBS_N'] = 'large_timing_'+str(rnd)
-            if args.platform.lower() == 'hopper':
+            if platform_key.lower() == 'hopper':
                 platform_dict['PBS_walltime'] = '20:00'
                 platform_dict['RES_NUM'] = str(11*24)
             else:
                 platform_dict['PBS_walltime'] = '00:20:00'
                 platform_dict['RES_NUM'] = '16'
             
-            large_timing_job_name = jobs_dir+os.sep+args.platform+'_job.large_timing_'+str(rnd)
+            large_timing_job_name = os.path.join(jobs_dir, platform_key+'_job.large_timing_'+str(rnd))
             create_job(args, large_timing_job_name, platform_dict, large_timing_run_commands)
             large_timing_jobs.add(large_timing_job_name)
 
 
-        # create a script to submit all batch jobs
-        sub_script_script = data_dir+os.sep+"submit_all_jobs.bash" 
-        sub_script_file = open(sub_script_script,'w') 
-        
-        sub_script_file.write('#!/bin/bash \n \n')
+    # create a script to submit all batch jobs
+    sub_script_script = os.path.join(data_dir, "submit_all_jobs.bash")
+    with open(sub_script_script,'w') as sub_script_file:
+        sub_script_file.write('#!/usr/bin/env bash \n \n')
         sub_script_file.write('qsub '+small_job_name+'\n \n')
         sub_script_file.write('qsub '+large_job_name+'\n \n')
         if args.timing:
@@ -375,21 +372,17 @@ def hpc(args, cism_driver, data_dir, test_dict):
             for lg_jb in large_timing_jobs:
                 sub_script_file.write('qsub '+lg_jb+'\n \n')
 
-        sub_script_file.close()
-        os.chmod(sub_script_script, 0o755)   # uses an octal number!
+    os.chmod(sub_script_script, 0o755)   # uses an octal number!
         
-        
+    if args.timing:
         # create a script to clean out the timing directory.
-        clean_script = data_dir+os.sep+"clean_timing.bash" 
-        clean_file = open(clean_script,'w') 
-        
-        clean_file.write('#!/bin/bash \n')
-        for dr in timing_dirs:
-            clean_file.write("cd "+dr+" \n")
-            clean_file.write('find ./ -not -iname "*.results" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\; \n')
+        clean_script = os.path.join(data_dir, "clean_timing.bash")
+        with open(clean_script,'w') as clean_file:
+            clean_file.write('#!/usr/bin/env bash \n \n')
+            clean_file.write("cd "+data_dir+" \n")
+            clean_file.write('find ./ -iname "*-t[0-9]*" -not -iname "*.cism_timing*" -type f -exec rm -f {} \\; \n')
             clean_file.write(" \n")
 
-        clean_file.close()
         os.chmod(clean_script, 0o755)   # uses an octal number!
 
 
@@ -406,8 +399,11 @@ def hpc(args, cism_driver, data_dir, test_dict):
     if args.timing:
         for lg_jb in large_timing_jobs:
             print(  "      "+lg_jb)
-        print("\n   Submit all jobs with this script:")
-        print(  "      "+sub_script_script)
+    
+    print("\n   Submit all jobs with this script:")
+    print(  "      "+sub_script_script)
+    
+    if args.timing:
         print("\n   Created script to clean out timing directory:")
         print(  "      "+clean_script)
         print("\n      Run this script after ALL jobs finish to remove every unneeded file in the timing directories.")
