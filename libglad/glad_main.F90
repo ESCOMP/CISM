@@ -3,11 +3,11 @@
 !   glad_main.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!!
-!   Copyright (C) 2005-2014
+!
+!   Copyright (C) 2005-2017
 !   CISM contributors - see AUTHORS file for list of contributors
 !
-!   This file is part of CISM. 
+!   This file is part of CISM.
 !
 !   CISM is free software: you can redistribute it and/or modify it
 !   under the terms of the Lesser GNU General Public License as published

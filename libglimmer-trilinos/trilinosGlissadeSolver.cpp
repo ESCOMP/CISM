@@ -1,10 +1,10 @@
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //                                                             
-//   trilinosGLissadeSolver.cpp - part of the Community Ice Sheet Model (CISM)  
+//   trilinosGlissadeSolver.cpp - part of the Community Ice Sheet Model (CISM)
 //                                                              
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
-//   Copyright (C) 2005-2014
+//   Copyright (C) 2005-2017
 //   CISM contributors - see AUTHORS file for list of contributors
 //
 //   This file is part of CISM.
