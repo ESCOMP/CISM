@@ -1693,8 +1693,10 @@ module glissade_remap
          yir = (xcr*(ydr-ydm) - xdm*ydr + xdr*ydm) / (xdr - xdm) 
          
          md = (ydr - ydl) / (xdr - xdl)
-         
-         if (abs(md) > puny) then
+
+         !WHL - debug - Change from puny to zero to avoid problems with flow along an axis
+!!         if (abs(md) > puny) then
+         if (abs(md) > 0.d0) then         
             xic = xdl - ydl/md
          else
             xic = 0.d0

@@ -121,12 +121,15 @@ module glide_types
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
 
+  integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
+  integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
+
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
 
-  integer, parameter :: RELAXED_TOPO_NONE = 0     ! Do nothing
-  integer, parameter :: RELAXED_TOPO_INPUT = 1    ! Input topo is relaxed
+  integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topo and relx are separate input fields
+  integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
   integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium
                                                   ! compute relaxed topo
 
@@ -209,8 +212,9 @@ module glide_types
 
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
-  integer, parameter :: HO_EFFECPRESS_BWAT = 2
+  integer, parameter :: HO_EFFECPRESS_BMLT = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
+  integer, parameter :: HO_EFFECPRESS_BWAT = 4
 
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_JFNK = 1
@@ -396,6 +400,14 @@ module glide_types
     !> \item[1] Basal mass balance included in continuity equation
     !> \end{description}
 
+    integer :: smb_input = 0
+
+    !> units for SMB input:
+    !> \begin{description}
+    !> \item[0] SMB input in units of m/yr ice (same as acab)
+    !> \item[1] SMB input in units of mm/yr water equivalent
+    !> \end{description}
+    
     integer :: gthf = 0
 
     !> geothermal heat flux:
@@ -412,16 +424,6 @@ module glide_types
     !> \begin{description}
     !> \item[0] no isostatic adjustment
     !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
-    !> \end{description}
-
-    !TODO - Should whichrelaxed move from the options to the isostasy section?
-    integer :: whichrelaxed = 0
-
-    !> relaxed topography:
-    !> \begin{description}
-    !> \item[0] get relaxed topo from separate variable (in practice, do nothing)
-    !> \item[1] first time slice of input topo is relaxed
-    !> \item[2] first time slice of input topo is in isostatic equilibrium
     !> \end{description}
 
     integer :: whichcalving = 1
@@ -555,8 +557,9 @@ module glide_types
     !> \begin{description}
     !> \item[0] N = overburden pressure, rhoi*grav*thck
     !> \item[1] N is reduced where the bed is at or near the pressure melting point
-    !> \item[2] N is reduced where basal water is present
+    !> \item[2] N is reduced where there is melting at the bed
     !> \item[3] N is reduced due to connection of subglacial water to the ocean
+    !> \item[4] N is reduced where basal water is present
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -771,6 +774,8 @@ module glide_types
     !> see glide_mask.f90 for possible values
 
     ! mass fluxes at each surface
+    ! Note: sfc_mbal_flux and basal_mbal_flux are not strictly needed, since they are equal to acab_applied and bmlt_applied
+    !       multipled by a constant. For some applications, however, it may be useful to output the mass balance in SI units.
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from acab
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt_float and bmlt_ground
@@ -784,8 +789,8 @@ module glide_types
     real(dp),dimension(:,:),pointer :: lower_cell_temp => null() !> temperature in the cell located at lower_cell_loc
     real(dp),dimension(:,:),pointer :: ice_mask => null()        !> = 1.0 where ice is present, else = 0.0
     real(dp),dimension(:,:),pointer :: floating_mask => null()   !> = 1.0 where ice is present and floating, else = 0.0
-
     real(dp),dimension(:,:),pointer :: grounded_mask => null()   !> = 1.0 where ice is present and grounded, else = 0.0
+    real(dp),dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1.0 where ice is present on staggered grid, else = 0.0
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -956,12 +961,22 @@ module glide_types
   ! Note on acab_tavg: This is the average value of acab over an output interval.
   !                    If 'average = 1' in the acab entry of glide_vars.def, then acab_tavg is automatically
   !                     accumulated and averaged during runtime, without any additional code needed.
+  !
+  ! Note on acab_corrected: Optionally, acab can be supplemented with a flux correction or an anomaly.
+  !                         The background field, acab, does not include the corrections.
+  !                         Write acab_corrected to the output file to see the modified SMB field.
 
   type glide_climate
      !> Holds fields used to drive the model
      real(dp),dimension(:,:),pointer :: acab            => null() !> Annual mass balance (m/y ice)
      real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Annual mass balance (time average).
      real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Annual mass balance anomaly (m/y ice)
+     real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Annual mass balance with flux or anomaly corrections (m/y ice)
+     real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Annual mass balance applied to ice (m/y ice)
+                                                                  !> = 0 for ice-free cells with acab < 0
+     real(dp),dimension(:,:),pointer :: smb             => null() !> Annual mass balance (mm/y water equivalent)
+                                                                  !> Note: acab (m/y ice) is used internally by dycore, 
+                                                                  !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
@@ -1071,6 +1086,8 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
     real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
+    real(dp),dimension(:,:),  pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
+                                                             !> = 0 for ice-free cells with bmlt > 0
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
@@ -1084,6 +1101,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
+    !TODO - Change default value to 5.0?  This is the value used for long Greenland initMIP spin-ups. 
     real(dp) :: pmp_offset = 2.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
 
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
@@ -1138,10 +1156,11 @@ module glide_types
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
-     real(dp) :: effecpress_delta = 0.02d0             !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
-     real(dp) :: effecpress_bpmp_threshold = 0.1d0     !< temperature range over which N ramps from a small value to full overburden (deg C)
-     real(dp) :: effecpress_bwat_threshold = 1.0d0     !< basal water thickness range over which N ramps from a small value to full overburden (m)
-     real(dp) :: p_ocean_penetration = 0.0d0           !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
+     real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
+     real(dp) :: effecpress_bpmp_threshold = 0.1d0  !< temperature range over which N ramps from a small value to full overburden (deg C)
+     real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !< basal melting range over which N ramps from a small value to full overburden (m/yr)
+     real(dp) :: effecpress_bwat_threshold = 1.0d0  !< basal water thickness range over which N ramps from a small value to full overburden (m)
+     real(dp) :: p_ocean_penetration = 0.0d0        !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
      ! parameters for pseudo-plastic sliding law (based on PISM)
      ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
@@ -1233,7 +1252,7 @@ module glide_types
   type isos_elastic
      !> Holds data used by isostatic adjustment calculations
 
-     real(dp) :: d = 0.24d25                !> flexural rigidity  !TODO - What are units of d?
+     real(dp) :: d = 0.24d25                !> flexural rigidity (N m)
      real(dp) :: lr                         !> radius of relative stiffness
      real(dp) :: a                          !> radius of disk
      real(dp) :: c1,c2,cd3,cd4              !> coefficients
@@ -1244,28 +1263,38 @@ module glide_types
   type isostasy_type
      !> contains isostasy configuration
 
-     integer :: lithosphere = 0
+     integer :: lithosphere = 1
      !> method for calculating equilibrium bedrock depression
      !> \begin{description}
      !> \item[0] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
      !> \item[1] elastic lithosphere, flexural rigidity is taken into account
      !> \end{description}
 
-     integer :: asthenosphere = 0
+     integer :: asthenosphere = 1
      !> method for approximating the mantle
      !> \begin{description}
      !> \item[0] fluid mantle, isostatic adjustment happens instantaneously
-     !> \item[1] relaxing mantle, mantle is approximated by a half-space
+     !> \item[1] relaxing mantle, exponential adjustment toward (relx - load)
      !> \end{description}
 
-     real(dp) :: relaxed_tau = 4000.d0    ! characteristic time constant of relaxing mantle (yr)
-     real(dp) :: period = 500.d0          ! lithosphere update period (yr)
-     real(dp) :: next_calc                ! when to update lithosphere
-     logical :: new_load = .false.        ! set to true if there is a new surface load
-     type(isos_elastic) :: rbel           ! structure holding elastic lithosphere setup
+    integer :: whichrelaxed = 0
 
-     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, by \texttt{thck0}.
-     real(dp),dimension(:,:),pointer :: load => null()  ! load imposed on lithosphere
+    !> relaxed topography:
+    !> \begin{description}
+    !> \item[0] get current topo (topg) and relaxed topo (relx) from separate input fields
+    !> \item[1] first time slice of input topo is relaxed
+    !> \item[2] first time slice of input topo is in isostatic equilibrium
+    !> \end{description}
+
+     real(dp) :: relaxed_tau = 4000.d0        ! characteristic time constant of relaxing mantle (yr)
+     real(dp) :: period = 100.d0              ! lithosphere update period (yr)
+     integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
+     logical :: new_load = .false.            ! set to true if there is a new surface load
+     type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
+
+     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, m/thk0
+     real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere, m/thk0
+                                                        ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
 
   end type isostasy_type
@@ -1287,6 +1316,7 @@ module glide_types
 
     !> Parameters relating to the model numerics
     real(dp) :: tstart =     0.d0 !> starting time
+                                  !> Note: For restarts, tstart is set to the time the restart begins
     real(dp) :: tend   =  1000.d0 !> end time
     real(dp) :: time   =     0.d0 !> main loop counter in years
     real(dp) :: tinc   =     1.d0 !> time step of main loop in years 
@@ -1305,8 +1335,7 @@ module glide_types
     real(dp) :: periodic_offset_ew = 0.d0 ! optional periodic_offsets for ismip-hom and similar tests
     real(dp) :: periodic_offset_ns = 0.d0 ! These may be needed to ensure continuous ice geometry at
                                           !  the edges of the global domain.
-
-    integer  :: timecounter = 0   !> count time steps
+    integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
     
     ! Vertical coordinate ---------------------------------------------------
                                                                
@@ -1695,6 +1724,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwatflx)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_applied)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
@@ -1810,6 +1840,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
+    call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
 
@@ -1860,7 +1891,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_corrected)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
 
@@ -1887,7 +1921,8 @@ contains
 
     ! isostasy arrays
 
-    call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)  ! MJH: relx needs to be allocated always.
+    ! Note: relx needs to be allocated always
+    call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
@@ -1961,6 +1996,8 @@ contains
         deallocate(model%temper%stagbwat)
     if (associated(model%temper%bmlt)) &
         deallocate(model%temper%bmlt)
+    if (associated(model%temper%bmlt_applied)) &
+        deallocate(model%temper%bmlt_applied)
     if (associated(model%temper%bmlt_float_mask)) &
         deallocate(model%temper%bmlt_float_mask)
     if (associated(model%temper%bpmp)) &
@@ -2168,6 +2205,8 @@ contains
        deallocate(model%geometry%floating_mask)
     if (associated(model%geometry%grounded_mask)) &
        deallocate(model%geometry%grounded_mask)
+    if (associated(model%geometry%ice_mask_stag)) &
+       deallocate(model%geometry%ice_mask_stag)
     if (associated(model%geometry%lower_cell_loc)) &
        deallocate(model%geometry%lower_cell_loc)
     if (associated(model%geometry%lower_cell_temp)) &
@@ -2227,6 +2266,12 @@ contains
         deallocate(model%climate%acab_tavg)
     if (associated(model%climate%acab_anomaly)) &
         deallocate(model%climate%acab_anomaly)
+    if (associated(model%climate%acab_corrected)) &
+        deallocate(model%climate%acab_corrected)
+    if (associated(model%climate%acab_applied)) &
+        deallocate(model%climate%acab_applied)
+    if (associated(model%climate%smb)) &
+        deallocate(model%climate%smb)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%flux_correction)) &
@@ -2267,6 +2312,13 @@ contains
         deallocate(model%isostasy%load)
     if (associated(model%isostasy%load_factors)) &
         deallocate(model%isostasy%load_factors)
+
+    ! projection arrays
+    if (associated(model%projection%stere)) then
+       if (associated(model%projection%stere%area_factor)) then
+          deallocate(model%projection%stere%area_factor)
+       endif
+    endif
 
     ! The remaining arrays are not currently used
     ! phaml arrays

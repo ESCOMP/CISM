@@ -1,4 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# WARNING: this will break in the future.
+# Default modules no longer work, so versioned modules.
+
+
+# Latest numpy is needed, and it only works with gnu.
+module unload PrgEnv-pgi PrgEnv-gnu
+module load PrgEnv-gnu
 
 # WARNING: this will break in the future.
 # Default modules no longer work, so versioned modules.

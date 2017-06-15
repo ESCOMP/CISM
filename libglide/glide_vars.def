@@ -88,6 +88,15 @@ factor:        thk0
 load:          1
 coordinates:   lon lat
 
+[load]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     bedrock deflection from applied load
+data:          data%isostasy%load
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
 [eus]
 dimensions:    time
 units:         meter
@@ -328,6 +337,13 @@ long_name:     vertically integrated ice damage
 data:          data%calving%damage_column
 coordinates:   lon lat
 
+[area_factor]
+dimensions:    time, y1, x1
+units:         unitless
+long_name:     area scale factor for stereographic map projection
+data:          data%projection%stere%area_factor
+coordinates:   lon lat
+  
 [iarea]
 dimensions:    time
 units:         m2
@@ -463,15 +479,51 @@ data:          data%geometry%grounded_mask
 factor:        1.0
 coordinates:   lon lat
 
+[ice_mask_stag]
+dimensions:    time, y0, x0
+units:         1
+long_name:     real-valued mask on staggered grid for ice (1) or no ice (0)
+data:          data%geometry%ice_mask_stag
+factor:        1.0
+coordinates:   lon lat
+
+[smb]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance
+data:          data%climate%smb
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance
+coordinates:   lon lat
+load:          1
+
 [acab]
 dimensions:    time, y1, x1
-units:         meter/year
+units:         meter/year ice
 long_name:     accumulation, ablation rate
 data:          data%climate%acab
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance
 coordinates:   lon lat
 load:          1
+
+[acab_corrected]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     corrected accumulation, ablation rate
+data:          data%climate%acab_corrected
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_corrected
+coordinates:   lon lat
+
+[acab_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied accumulation, ablation rate
+data:          data%climate%acab_applied
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_applied
+coordinates:   lon lat
 
 [acab_anomaly]
 dimensions:    time, y1, x1
@@ -522,6 +574,15 @@ standard_name: land_ice_basal_melt_rate
 load:          1
 coordinates:   lon lat
 #average:       1
+
+[bmlt_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied basal melt rate
+data:          data%temper%bmlt_applied
+factor:        scale_acab
+standard_name: land_ice_basal_melt_rate_applied
+coordinates:   lon lat
 
 [bmlt_float_mask]
 dimensions:    time, y1, x1

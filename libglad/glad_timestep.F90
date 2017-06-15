@@ -58,6 +58,7 @@ contains
     !
     use glimmer_paramets
     use glimmer_physcon, only: rhow, rhoi
+    use glimmer_scales, only: scale_acab
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
     use glide
@@ -160,7 +161,7 @@ contains
           ! instance%acab has units of m/yr w.e. after averaging
 
           call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
-                                       instance%acab,       instance%artm)
+                                      instance%acab,       instance%artm)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
           call glide_get_thk(instance%model,thck_temp)
@@ -231,13 +232,30 @@ contains
 
              endif
 
+          else  ! EVOLVE_ICE_FALSE
+
+             ! With ice evolution turned on, tstep_count gets incremented inside the
+             ! dycore's tstep subroutine. Since we're not calling the tstep subroutine,
+             ! we need to increment it here. In practice, this shouldn't matter, but it's
+             ! needed so that CESM's exact restart tests pass, since tstep_count is
+             ! written to CISM's history files.
+             !TODO - Always increment tstep_count outside the dycore?
+             instance%model%numerics%tstep_count = instance%model%numerics%tstep_count + 1
+
+             ! Given acab, compute the surface mass balance in units of mm/yr w.e.
+             ! (model%climate%acab * scale_acab) has units of m/yr of ice
+             !TODO - Instead of converting the SMB from the coupler to acab and converting back here,
+             !       simply compute SMB here based on the SMB from the coupler.
+             !       Could pass the SMB (in water equivalent units) to the dycore and let the dycore convert to acab.
+             instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+
           endif  ! evolve_ice
 
           ! write ice sheet diagnostics at specified interval (model%numerics%dt_diag)
 
           call glide_write_diagnostics(instance%model,                  &
                                        instance%model%numerics%time,    &
-                                       tstep_count = instance%model%numerics%timecounter)
+                                       tstep_count = instance%model%numerics%tstep_count)
 
           ! write netCDF output
 

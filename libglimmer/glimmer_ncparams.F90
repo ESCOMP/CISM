@@ -41,6 +41,7 @@ module glimmer_ncparams
   implicit none
     
   private
+
   public :: glimmer_nc_readparams, default_metadata, handle_output, handle_input, configstring
 
   type(glimmer_nc_meta),save :: default_metadata
@@ -48,11 +49,17 @@ module glimmer_ncparams
 
 
 contains
-    subroutine glimmer_nc_readparams(model,config)
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_readparams(model,config)
+
     ! read netCDF I/O related configuration file
     use glide_types
     use glimmer_config
+
     implicit none
+
     type(glide_global_type)      :: model  ! model instance
     type(ConfigSection), pointer :: config ! structure holding sections of configuration file
     
@@ -61,6 +68,20 @@ contains
     type(glimmer_nc_output), pointer :: output => null()
     type(glimmer_nc_input), pointer :: input => null()
     type(glimmer_nc_input), pointer :: forcing => null()
+
+    integer :: pos
+
+    ! Note on restart files:
+    ! If a file is listed in the 'CF restart' section, then it is added to the glimmer_nc_output data structure
+    !  and written at the specified frequency.
+    ! If model%options%is_restart = RESTART_TRUE, then the file listed in 'CF restart' is also added to the
+    !  glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
+    !  The latest time slice will be read in.
+    ! Thus when restarting the model, it is only necessary to set restart = RESTART_TRUE (i.e, restart = 1)
+    !  in the config file; it is not necesssary to change filenames in 'CF input' or 'CF restart'.
+    ! At most one file should be listed in the 'CF restart' section, and it should contain the string '.restart.'
+    ! If model%options%is_restart = RESTART_TRUE and there is no 'CF restart' section, then the model will restart
+    !  from the file and time slice specified in the 'CF input' section. (This is the old Glimmer behavior.)
 
     ! get config string
     call ConfigAsString(config,configstring)
@@ -71,17 +92,41 @@ contains
        call handle_metadata(section, default_metadata, .true.)
     end if
 
-    ! setup outputs
+    ! set up outputs
     call GetSection(config,section,'CF output')
     do while(associated(section))
-       output => handle_output(section,output,model%numerics%tstart,configstring)
+       output => handle_output(section,output,configstring)
        if (.not.associated(model%funits%out_first)) then
           model%funits%out_first => output
        end if
        call GetSection(section%next,section,'CF output')
     end do
 
-    ! setup inputs
+    ! set up restart output
+    ! If there is a 'CF restart' section, the file listed there is added to the output list.
+    call GetSection(config,section,'CF restart')
+
+    if (associated(section)) then
+
+       output => handle_output(section,output,configstring)
+       if (.not.associated(model%funits%out_first)) then
+          model%funits%out_first => output
+       end if
+
+       ! Make sure the filename contains '.restart.'
+       pos = index(output%nc%filename,'.restart.')
+       if (pos == 0) then
+          call write_log ('Error, filename in CF restart section should include ".restart."', GM_FATAL)
+       endif
+
+       ! Make sure there is only one 'CF restart' section
+       if (associated(section%next)) then
+          call write_log ('Error, there should not be more than one CF restart section', GM_FATAL)
+       endif
+
+    end if
+
+    ! set up inputs
     call GetSection(config,section,'CF input')
     do while(associated(section))
        input => handle_input(section,input)
@@ -90,6 +135,39 @@ contains
        end if
        call GetSection(section%next,section,'CF input')
     end do
+
+    ! set up restart input
+    if (model%options%is_restart == RESTART_TRUE) then
+
+       ! If there is a 'CF restart' section, the model will restart from the file listed there.
+       ! Else the model will start from the input file in the 'CF input' section.
+
+       call GetSection(config,section,'CF restart')
+
+       if (associated(section)) then
+
+          ! nullify the input data structure set above
+          input => null()
+          model%funits%in_first => null()
+
+          ! set new pointers
+          input => handle_input(section,input)
+          model%funits%in_first => input
+
+          ! Make sure the filename contains '.restart.'
+          pos = index(input%nc%filename,'.restart.')
+          if (pos == 0) then
+             call write_log ('Error, filename in CF restart section should include ".restart."', GM_FATAL)
+          endif
+
+          ! Make sure there is only one 'CF restart' section
+          if (associated(section%next)) then
+             call write_log ('Error, there should not be more than one CF restart section', GM_FATAL)
+          endif
+
+       endif   ! associated(section)
+
+    endif  ! model%options%is_restart = RESTART_TRUE
 
     ! setup forcings
     call GetSection(config,section,'CF forcing')
@@ -100,7 +178,7 @@ contains
        end if
        call GetSection(section%next,section,'CF forcing')
     end do
-    
+
     output => null()
     input => null()
     forcing => null()
@@ -114,7 +192,6 @@ contains
   subroutine handle_metadata(section,metadata, default)
     use glimmer_ncdf
     use glimmer_config
-    !use glimmer_global, only: glimmer_version !EIB! glimmer_verision not module in gc2
     implicit none
     type(ConfigSection), pointer :: section
     type(glimmer_nc_meta) ::metadata
@@ -151,76 +228,80 @@ contains
        metadata%source = trim(default_metadata%source)
        metadata%history = trim(default_metadata%history)
     end if
+
   end subroutine handle_metadata
   
+  !------------------------------------------------------------------------------
 
-  function handle_output(section, output, start_yr, configstring)
+  function handle_output(section, output, configstring)
+
     use glimmer_ncdf
     use glimmer_config
     use glimmer_log
     use glimmer_global, only: dp
+
     implicit none
 
     type(ConfigSection), pointer :: section
     type(glimmer_nc_output), pointer :: output
     type(glimmer_nc_output), pointer :: handle_output
-    real(dp), intent(in) :: start_yr
     character(*),intent(in) :: configstring
-    character(10) :: mode_str,xtype_str
+    character(10) :: mode_str, xtype_str
 
-    handle_output=>add(output)
+    handle_output => add(output)
     
-    handle_output%next_write = start_yr
-    mode_str=''
+    mode_str = ''
     xtype_str = 'real'
 
-    ! get filename
-    call GetValue(section,'name',handle_output%nc%filename)
-    call GetValue(section,'start',handle_output%next_write)
-    call GetValue(section,'stop',handle_output%end_write)
-    call GetValue(section,'frequency',handle_output%freq)
-    call GetValue(section,'variables',handle_output%nc%vars)
-    call GetValue(section,'mode',mode_str)
-    call GetValue(section,'xtype',xtype_str)
+    ! get filename and other info from config file
+    call GetValue(section, 'name', handle_output%nc%filename)
+    call GetValue(section, 'stop', handle_output%end_write)
+    call GetValue(section, 'frequency', handle_output%freq)
+    call GetValue(section, 'variables', handle_output%nc%vars)
+    call GetValue(section, 'write_init', handle_output%write_init)
+    call GetValue(section, 'mode', mode_str)
+    call GetValue(section, 'xtype', xtype_str)
 
     ! handle mode field
-    if (trim(mode_str)=='append'.or.trim(mode_str)=='APPEND') then
+    if (trim(mode_str)=='append' .or. trim(mode_str)=='APPEND') then
        handle_output%append = .true.
     else
        handle_output%append = .false.
     end if
 
-    !EIB! from gc2
     ! handle xtype field
-    if (trim(xtype_str)=='real'.or.trim(xtype_str)=='REAL') then
+    if (trim(xtype_str)=='real' .or. trim(xtype_str)=='REAL') then
        handle_output%default_xtype = NF90_REAL
-    else if (trim(xtype_str)=='double'.or.trim(xtype_str)=='DOUBLE') then
+    else if (trim(xtype_str)=='double' .or. trim(xtype_str)=='DOUBLE') then
        handle_output%default_xtype = NF90_DOUBLE
     else
        call write_log('Error, unknown xtype, must be real or double [netCDF output]',GM_FATAL)
     end if  
-    !EIB!
 
     ! add config data
-    handle_output%metadata%config=trim(configstring)
+    handle_output%metadata%config = trim(configstring)
 
     ! Make copy of variables for future reference
-    handle_output%nc%vars_copy=handle_output%nc%vars
+    handle_output%nc%vars_copy = handle_output%nc%vars
 
     ! get metadata
-    call handle_metadata(section, handle_output%metadata,.false.)
-    if (handle_output%nc%filename(1:1)==' ') then
+    call handle_metadata(section, handle_output%metadata, .false.)
+    if (handle_output%nc%filename(1:1) == ' ') then
        call write_log('Error, no file name specified [netCDF output]',GM_FATAL)
-    end if  
+    end if
+
   end function handle_output
   
+  !------------------------------------------------------------------------------
 
   function handle_input(section, input)
+
     use glimmer_ncdf
     use glimmer_config
     use glimmer_log
     use glimmer_filenames, only : filenames_inputname !EIB! not in lanl, which is newer?
     implicit none
+
     type(ConfigSection), pointer :: section
     type(glimmer_nc_input), pointer :: input
     type(glimmer_nc_input), pointer :: handle_input
@@ -228,22 +309,23 @@ contains
     handle_input=>add(input)
     
     ! get filename
-    call GetValue(section,'name',handle_input%nc%filename)
-    call GetValue(section,'time',handle_input%get_time_slice)
+    call GetValue(section, 'name', handle_input%nc%filename)
+    call GetValue(section, 'time', handle_input%get_time_slice)
     
     handle_input%current_time = handle_input%get_time_slice
 
-    if (handle_input%nc%filename(1:1)==' ') then
+    if (handle_input%nc%filename(1:1) == ' ') then
        call write_log('Error, no file name specified [netCDF input]',GM_FATAL)
     end if
     
-    !EIB! from gc2
     handle_input%nc%filename = trim(filenames_inputname(handle_input%nc%filename))
 
   end function handle_input
 
+  !------------------------------------------------------------------------------
 
   function handle_forcing(section, forcing)
+
     use glimmer_ncdf
     use glimmer_config
     use glimmer_log
@@ -269,5 +351,6 @@ contains
 
   end function handle_forcing
 
+  !------------------------------------------------------------------------------
 
 end module glimmer_ncparams

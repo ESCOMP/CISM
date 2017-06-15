@@ -50,7 +50,7 @@ contains
 
   subroutine glide_readconfig(model,config)
 
-    ! read GLIDE configuration file
+    ! read Glide configuration file
     ! Note: sigma coordinates are handled by a subsequent call to glide_read_sigma
  
     use glide_types
@@ -62,7 +62,7 @@ contains
     ! local variables
     type(ConfigSection), pointer :: section
 
-    ! read grid size  parameters
+    ! read grid size parameters
     call GetSection(config,section,'grid')
     if (associated(section)) then
        call handle_grid(section, model)
@@ -563,22 +563,19 @@ contains
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
+    call GetValue(section,'smb_input',model%options%smb_input)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
-    call GetValue(section,'topo_is_relaxed',model%options%whichrelaxed)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
     call GetValue(section,'ioparams',model%funits%ncfile)
 
-    ! Both terms 'hotstart' and 'restart' are supported in the config file, 
-    ! but if they are both supplied for some reason, then restart will be used.
-    ! 'restart' is the preferred term moving forward.  
-    ! 'hotstart' is retained for backward compatability.
-    call GetValue(section,'hotstart',model%options%is_restart)
+    !Note: Previously, the terms 'hotstart' and 'restart' were both supported in the config file.
+    !      Going forward, only 'restart' is supported.
     call GetValue(section,'restart',model%options%is_restart)
 
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
@@ -723,6 +720,10 @@ contains
          'constant                 ', &
          'MISMIP+ melt rate profile' /)
 
+    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
+         'SMB input in units of m/yr ice  ', &
+         'SMB input in units of mm/yr w.e.' /)
+
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
 
@@ -793,11 +794,12 @@ contains
          'min of Coulomb stress and power-law stress (Tsai)', &
          'simple pattern of beta                           ' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whicheffecpress = (/ &
-         'full overburden pressure                          ', &
-         'reduced effecpress near pressure melting point    ', &
-         'reduced effecpress with increasing basal water    ', &
-         'reduced effecpress where bed is connected to ocean' /)
+    character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
+         'full overburden pressure                             ', &
+         'reduced effecpress near pressure melting point       ', &
+         'reduced effecpress where there is melting at the bed ', &
+         'reduced effecpress where bed is connected to ocean   ', &
+         'reduced effecpress with increasing basal water       '/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration  ', &
@@ -1125,8 +1127,14 @@ contains
     write(message,*) 'basal mass balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
     call write_log(message)
 
+    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
+       call write_log('Error, smb_input option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
+    call write_log(message)
+
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
-       print*, 'gthf =', model%options%gthf
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
 
@@ -1134,16 +1142,11 @@ contains
     call write_log(message)
 
     if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
-       print*, 'isostasy =', model%options%isostasy
        call write_log('Error, isostasy option out of range',GM_FATAL)
     end if
 
     write(message,*) 'isostasy                : ',model%options%isostasy,isostasy(model%options%isostasy)
     call write_log(message)
-
-    if (model%options%whichrelaxed==1) then
-       call write_log('First topo time slice has relaxed bedrock topography')
-    end if
 
     if (model%options%periodic_ew) then
        if (model%options%whichevol == EVOL_ADI) then
@@ -1458,6 +1461,7 @@ contains
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
     call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
+    call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
     call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
@@ -1676,17 +1680,22 @@ contains
     endif
 
     if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
-       write(message,*) 'effective pressure delta           : ', model%basal_physics%effecpress_delta
+       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       write(message,*) 'effective pressure bpmp threshold  : ', model%basal_physics%effecpress_bpmp_threshold
+       write(message,*) 'effective pressure bpmp threshold    : ', model%basal_physics%effecpress_bpmp_threshold
+       call write_log(message)
+    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BMLT) then
+       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
+       call write_log(message)
+       write(message,*) 'effective pressure bmlt threshold (m): ', model%basal_physics%effecpress_bmlt_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
-       write(message,*) 'effective pressure delta           : ', model%basal_physics%effecpress_delta
+       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       write(message,*) 'effective pressure bwat threshold  : ', model%basal_physics%effecpress_bwat_threshold
+       write(message,*) 'effective pressure bwat threshold (m): ', model%basal_physics%effecpress_bwat_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_OCEAN_PENETRATION) then
-       write(message,*) 'p_ocean_penetration                : ', model%basal_physics%p_ocean_penetration
+       write(message,*) 'p_ocean_penetration                  : ', model%basal_physics%p_ocean_penetration
        call write_log(message)
     endif
 
@@ -1851,17 +1860,12 @@ contains
 
     call GetValue(section,'lithosphere',model%isostasy%lithosphere)
     call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
+    call GetValue(section,'whichrelaxed',model%isostasy%whichrelaxed)
     call GetValue(section,'relaxed_tau',model%isostasy%relaxed_tau)
-    call GetValue(section,'update',model%isostasy%period)
+    call GetValue(section,'lithosphere_period',model%isostasy%period)
 
     !NOTE: This value used to be in a separate section ('elastic lithosphere')
-    !      Now part of 'isostasy' section
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
-
-!!    call GetSection(config,section,'elastic lithosphere')
-!!    if (associated(section)) then
-!!       call GetValue(section,'flexural_rigidity',isos%rbel%d)
-!!    end if
 
   end subroutine handle_isostasy
 
@@ -1882,13 +1886,13 @@ contains
        if (model%isostasy%lithosphere==LITHOSPHERE_LOCAL) then
           call write_log('using local lithosphere approximation')
        else if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
-          if (tasks > 1) then
-             call write_log('Error, elastic lithosphere not supported for multiple processors',GM_FATAL)
-          endif
           call write_log('using elastic lithosphere approximation')
+          if (tasks > 1) then
+             call write_log('Warning, load calculation will be gathered to one processor; does not scale well',GM_WARNING)
+          endif
           write(message,*) ' flexural rigidity : ', model%isostasy%rbel%d
           call write_log(message)
-          write(message,*) ' update period (yr): ', model%isostasy%period
+          write(message,*) ' lithosphere update period (yr): ', model%isostasy%period
           call write_log(message)
        else
           call write_log('Error, unknown lithosphere option',GM_FATAL)
@@ -1903,7 +1907,19 @@ contains
        else
           call write_log('Error, unknown asthenosphere option',GM_FATAL)
        end if
+
+       if (model%isostasy%whichrelaxed==RELAXED_TOPO_DEFAULT) then
+          call write_log('reading topg and relx as separate input fields')
+       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_INPUT) then
+          call write_log('setting relx to first slice of input topg')
+       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_COMPUTE) then
+          call write_log('computing relx, given that input topg is in equilibrium')
+       else
+          call write_log('Error, unknown whichrelaxed option',GM_FATAL)
+       end if
+
        call write_log('')
+
     endif   ! compute isostasy
 
   end subroutine print_isostasy
@@ -1984,7 +2000,8 @@ contains
     !> and determines which variables are necessary for an exact restart.  MJH 1/11/2013
 
     ! Please comment thoroughly the reasons why a particular variable needs to be a restart variable for a given config.
-    ! Note: this subroutine assumes that any restart variables you add you loadable.  Check glide_vars.def to make sure any variables you add have load: 1
+    ! Note: This subroutine assumes that any restart variables you add are loadable.
+    !       Check glide_vars.def to make sure any added variables have 'load: 1'
 
     use glide_types
     use glide_io, only: glide_add_to_restart_variable_list
@@ -2014,7 +2031,22 @@ contains
     !        to be in the restart file, but without adding a check for that we cannot assume any of them are.
     !        There are some options where artm would not be needed.  Logic could be added to make that distinction.
     !        Note that bheatflx may not be an input variable but can also be assigned as a parameter in the config file!
-    call glide_add_to_restart_variable_list('topg thk temp bheatflx artm acab')
+    call glide_add_to_restart_variable_list('topg thk temp bheatflx artm')
+
+    ! add the SMB variable, based on model%options%smb_input
+    ! Note: If the SMB field is 'acab', it is assumed to have units of m/y ice
+    !       If the SMB field is 'smb', it is assumed to have units of mm/y w.e.
+
+    select case (options%smb_input)
+
+      case (SMB_INPUT_MYR_ICE)
+        call glide_add_to_restart_variable_list('acab')
+
+      case (SMB_INPUT_MMYR_WE)
+        call glide_add_to_restart_variable_list('smb')
+
+    end select  ! smb_input
+
 
     ! add dycore specific restart variables
     select case (options%whichdycore)
@@ -2167,13 +2199,18 @@ contains
          ! no restart variables needed
     end select
 
-    !WHL - added isostasy option
     select case (options%isostasy)
       case(ISOSTASY_COMPUTE)
-         ! restart needs to know relaxation depth
-         ! TODO MJH: I suspect that relx is only needed when asthenosphere=1 (relaxing mantle), but I'm not sure -
+         ! restart needs to know relaxed topography (the topography to which the mantle would relax with no load)
+         ! MJH: I suspect that relx is only needed when asthenosphere=1 (relaxing mantle), but I'm not sure -
          !      this should be tested when isostasy implementation is finalized/tested.
+         ! WHL: Looking at subroutine isos_compute, I think relx is needed also when asthenosphere = 0 (fluid mantle).
+         !      In this case, topg is set instantaneously to relx - load.
          call glide_add_to_restart_variable_list('relx')
+         !WHL - The load field also needs to be in the restart file. The reason is that the load is updated
+         !      at a period set by isostasy%period. If we restart between two updates, we need to use the most
+         !      recently computed load. If we recompute the load right after restarting, the restart may not be exact.
+         call glide_add_to_restart_variable_list('load')
       case default
          ! no new restart variables needed
     end select

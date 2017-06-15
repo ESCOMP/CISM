@@ -106,7 +106,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use felix_dycore_interface, only: felix_velo_init
     use glide_bwater
-    use glimmer_paramets, only: thk0, tim0
+    use glimmer_paramets, only: thk0, len0, tim0
 
     use glissade_calving, only: glissade_calve_ice
 
@@ -120,6 +120,7 @@ contains
 
     character(len=100) :: message
 
+    real(dp) :: smb_maxval   ! max value of abs(smb)
     integer :: i, j, k
     logical :: l_evolve_ice  ! local version of evolve_ice
 
@@ -176,26 +177,77 @@ contains
     ! (if not already read from config file)
     call glide_load_sigma(model,dummyunit)
 
+    ! initialize the time step counter
+    ! For restart, tstep_count will be overwritten from the restart file.
+    ! Alternatively, we could initialize tstep_count as follows:
+    !    model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+    ! But reading from a restart file should prevent roundoff issues.
+    ! For restart, this will be overwritten from the restart file.
+    model%numerics%tstep_count = 0
+
     ! open all input files
     call openall_in(model)
 
     ! read first time slice
     call glide_io_readall(model,model)
 
+    ! Compute area scale factors for stereographic map projection.
+    ! This should be done after reading the input file, in case the input file contains mapping info.
+    ! Note: Not yet enabled for other map projections.
+    ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
+
+    if (associated(model%projection%stere)) then
+
+       call glimmap_stere_area_factor(model%projection%stere,  &
+                                      model%general%ewn,       &
+                                      model%general%nsn,       &
+                                      model%numerics%dew*len0, &
+                                      model%numerics%dns*len0)
+
+    endif
+
     ! Write projection info to log
     call glimmap_printproj(model%projection)
 
+    ! If SMB input units are mm/yr w.e., then convert to units of acab.
+    ! Note: In this case the input field should be called 'smb', not 'acab'.
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+
+       ! make sure a nonzero SMB was read in
+       smb_maxval = maxval(abs(model%climate%smb))
+       smb_maxval = parallel_reduce_max(smb_maxval)
+       if (smb_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+       ! Convert units from mm/yr w.e. to m/yr ice
+       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+
+       ! Convert acab from m/yr ice to model units
+       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+
+    else
+       ! assume acab was read in with units of m/yr ice; do nothing
+    endif
+
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first
+
     call init_isostasy(model)
 
-    select case(model%options%whichrelaxed)
-    case(RELAXED_TOPO_INPUT)   ! supplied topography is relaxed
+    select case(model%isostasy%whichrelaxed)
+
+    case(RELAXED_TOPO_INPUT)   ! supplied input topography is relaxed
+
        model%isostasy%relx = model%geometry%topg
+
     case(RELAXED_TOPO_COMPUTE) ! supplied topography is in equilibrium
                                !TODO - Test the case RELAXED_TOPO_COMPUTE
-       call not_parallel(__FILE__,__LINE__)
+
        call isos_relaxed(model)
+
     end select
 
     ! open all output files
@@ -473,7 +525,7 @@ contains
 
     ! calculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
-    model%geometry%usrf = model%geometry%thck + model%geometry%lsrf
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
   end subroutine glissade_initialise
   
@@ -502,7 +554,7 @@ contains
 
     ! Update internal clock
     model%numerics%time = time  
-    model%numerics%timecounter = model%numerics%timecounter + 1
+    model%numerics%tstep_count = model%numerics%tstep_count + 1
     model%temper%newtemps = .false.
 
     ! optional transport test
@@ -511,6 +563,42 @@ contains
        call glissade_test_transport (model)
        return
     endif
+
+    ! ------------------------------------------------------------------------
+    ! Calculate isostatic adjustment
+    ! ------------------------------------------------------------------------
+    !
+    ! Note: This call used to be near the end of the glissade time step, between
+    !       calving and the velocity solve. But this can be problematic, because
+    !       a cell identified as grounded for calving purposes can become floating
+    !       as a result of isostatic adjustment, or vice versa.
+    !       It is better to compute isostasy just after the velocity solve,
+    !       at the start of the next time step.
+    !
+    ! Matt Hoffman writes:
+    ! Is this isostasy call in the right place?
+    ! Consider for a forward Euler time step:
+    ! With a relaxing mantle model, topg is a prognostic (time-evolving) variable:
+    !      topg1 = f(topg0, thk0, ...)
+    ! However, for a fluid mantle where the adjustment is instantaneous, topg is a diagnostic variable
+    !(comparable to calculating floatation height of ice in the ocean):
+    !      topg1 = f(thk1)
+    ! In either case, the topg update should be separate from the thickness evolution (because thk1 = f(thk0, vel0=g(topg0,...)).
+    ! However, if the isostasy calculation needs topg0, the icewaterload call should be made BEFORE thck is updated.
+    ! If the isostasy calculation needs topg1, the icewaterload call should be made AFTER thck is updated.
+    ! Also, we should think about when marinlim, usrf, lsrf, derivatives should be calculated relative to the topg update via isostasy.
+    !
+    ! WHL writes (May 2017):
+    ! When isostasy is turned on, it is usually run with a relaxing mantle.
+    ! With the call moved to the start of the time step, both the icewaterload call (if needed) and
+    !  the relaxation are done before the ice thickness update. So we have
+    !       topg1 = f(topg0, thk0, ...)
+    !  followed by
+    !       thk1  = f(thk0, vel0=g(topg0,...)
+    ! I think this is what is desired.
+    ! ------------------------------------------------------------------------
+
+    call glissade_isostasy_solve(model)
 
     ! ------------------------------------------------------------------------ 
     ! calculate geothermal heat flux
@@ -601,23 +689,6 @@ contains
                             model%geometry%iareaf, model%geometry%iareag)
 
     ! ------------------------------------------------------------------------
-    ! Calculate isostatic adjustment
-    ! ------------------------------------------------------------------------
-    !TODO - Is this isostasy call in the right place?
-    ! Consider for a forward Euler time step:
-    ! With a relaxing mantle model, topg is a prognostic (time-evolving) variable (I think):
-    !      topg1 = f(topg0, thk0, ...) 
-    ! However, for a fluid mantle where the adjustment is instantaneous, topg is a diagnostic variable 
-    !(comparable to calculating floatation height of ice in the ocean):
-    !      topg1 = f(thk1)
-    ! In either case, the topg update should be separate from the thickness evolution (because thk1 = f(thk0, vel0=g(topg0,...)).
-    ! However, if the isostasy calculation needs topg0, the icewaterload call should be made BEFORE thck is updated.  
-    ! If the isostasy calculation needs topg1, the icewaterload call should be made AFTER thck is updated.  
-    ! Also, we should think about when marinlim, usrf, lsrf, derivatives should be calculated relative to the topg update via isostasy.
-    
-    call glissade_isostasy_solve(model)
-
-    ! ------------------------------------------------------------------------
     ! Do the vertical thermal solve if it is time to do so.
     ! Note: A thermal solve should be done here (using option HO_THERMAL_AFTER_TRANSPORT 
     !       or HO_THERMAL_SPLIT_TIMESTEP) if it is desired to update the bed temperature 
@@ -673,6 +744,7 @@ contains
     real(dp), intent(in) :: dt   ! time step (s)
 
     call t_startf('glissade_therm_driver')
+
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
@@ -892,10 +964,12 @@ contains
 
        endif    ! TEMP_ENTHALPY
 
-       ! temporary in/out arrays in SI units (m)                               
-       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
-       acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
-       acab_unscaled(:,:) = acab_unscaled(:,:) + model%climate%flux_correction(:,:) * thk0/tim0 ! add in flux correction here
+       ! Set the corrected acab field
+       ! Typically, acab_corrected = acab, but sometimes it includes a time-dependent flux correction or anomaly.
+       ! Note that acab itself does not change in time.
+       ! TODO: Combine flux_correction and acab_anomaly into a single field?
+
+       model%climate%acab_corrected(:,:) = model%climate%acab(:,:) + model%climate%flux_correction(:,:)
 
        ! If an SMB anomaly is being prescribed, then add it to the temporary acab array.
 
@@ -908,8 +982,8 @@ contains
           !       This is the reason for passing the previous time to the subroutine.
           previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
-          call glissade_add_acab_anomaly(acab_unscaled,                         &   ! m/s
-                                         model%climate%acab_anomaly*thk0/tim0,  &   ! convert to m/s for input
+          call glissade_add_acab_anomaly(model%climate%acab_corrected,          &   ! scaled model units
+                                         model%climate%acab_anomaly,            &   ! scaled model units 
                                          model%climate%acab_anomaly_timescale,  &   ! yr
                                          previous_time)                             ! yr
 
@@ -918,10 +992,14 @@ contains
 !!             i = model%numerics%idiag
 !!             j = model%numerics%jdiag
 !!             print*, 'i, j, total anomaly (m/yr), previous_time, new acab (m/yr):', &
-!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, acab_unscaled(i,j)*scyr
+!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%climate%acab_corrected(i,j)
 !!          endif
 
        endif
+
+       ! temporary in/out arrays in SI units (m)
+       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
+       acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
        do sc = 1, model%numerics%subcyc
 
@@ -949,6 +1027,8 @@ contains
                                          thck_unscaled(:,:),                                   &
                                          acab_unscaled(:,:),                                   &
                                          bmlt_continuity(:,:),                                 &
+                                         model%climate%acab_applied(:,:),                      &
+                                         model%temper%bmlt_applied(:,:),                       &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -963,8 +1043,12 @@ contains
        enddo     ! subcycling
 
        ! convert thck back to scaled units
-       ! (acab is intent(in) above so need to scale it back)
+       ! (acab_unscaled is intent(in) above, so no need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
+
+       ! convert applied mass balance back to scaled units
+       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:) / (thk0/tim0) 
+       model%temper%bmlt_applied(:,:) = model%temper%bmlt_applied(:,:) / (thk0/tim0) 
 
        ! Eliminate ice from cells where mask prohibits it
        do j = 1, model%general%nsn
@@ -1000,7 +1084,7 @@ contains
           print*, ' '
           print*, 'After glissade_transport_driver:'
           print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-          print*, 'max, min acab (m/yr) =', maxval(model%climate%acab)*scale_acab, minval(model%climate%acab)*scale_acab
+          print*, 'max, min acab (m/yr) =', maxval(model%climate%acab_corrected)*scale_acab, minval(model%climate%acab_corrected)*scale_acab
           print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
           print*, 'thklim =', model%numerics%thklim * thk0
           print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
@@ -1150,22 +1234,34 @@ contains
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
+    ! Note: Suppose the update period is 100 years, and the time step is 1 year.
+    !       Then the update will be done on the first time step of the simulation,
+    !        (model%numerics%tstep_count = 1) and again on step 101, 201, etc.
+    !       The update will not be done before writing output at t = 100, when
+    !        model%numerics%tstep_count = 100.
+    !       Thus the output file will contain the load that was applied during the
+    !        preceding years, not the new load.
+    !       In older code versions, the new load would have been computed on step 100.
     ! ------------------------------------------------------------------------
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       if (model%numerics%time >= model%isostasy%next_calc) then
-          model%isostasy%next_calc = model%isostasy%next_calc + model%isostasy%period
-          call isos_icewaterload(model)
-          model%isostasy%new_load = .true.
-       end if
+
+       if (model%isostasy%nlith > 0) then
+          if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
+             if (main_task) then
+                print*, 'Update lithospheric load: tstep_count, nlith =', &
+                     model%numerics%tstep_count, model%isostasy%nlith
+             endif
+             call isos_icewaterload(model)
+             model%isostasy%new_load = .true.
+          end if
+       endif  ! nlith > 0
+
     end if
    
     ! ------------------------------------------------------------------------ 
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------ 
-
-    !TODO - Test the local isostasy schemes in the parallel model.
-    !       The elastic lithosphere scheme is not expected to work in parallel.
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call isos_compute(model)
@@ -1187,6 +1283,7 @@ contains
 
     use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: scyr
+    use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
     use glam_velo, only: glam_velo_driver, glam_basal_friction
     use glissade_velo, only: glissade_velo_driver
@@ -1313,6 +1410,7 @@ contains
     ! Do some additional operations if this is the first time step.
     ! The model thickness and temperature fields will have been initialized, but the
     !  thermal and transport solvers have not been called yet.
+    ! Note: Some operations must be done in this subroutine when restarting; others are skipped.
     ! ------------------------------------------------------------------------
 
     if (model%numerics%time == model%numerics%tstart) then
@@ -1660,13 +1758,22 @@ contains
     ! Diagnose some quantities that are not velocity-dependent, but may be desired for output
     !------------------------------------------------------------------------
 
+    ! surface mass balance in units of mm/yr w.e.
+    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
+    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+    endif
+
     ! surface, basal and calving mass fluxes
     ! positive for mass gain, negative for mass loss
-    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab(:,:)*thk0/tim0
-    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt(:,:)) * thk0/tim0
+    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
     ! real-valued masks
+
+    ! unstaggered grid
     do j = 1, model%general%nsn
        do i = 1, model%general%ewn
           if (ice_mask(i,j) == 1) then
@@ -1686,6 +1793,19 @@ contains
        enddo
     enddo
 
+    ! staggered grid
+    ! set ice_mask_stag = 1.0 at vertices with ice_mask = 1 in any neighbor cell
+    do j = 1, model%general%nsn - 1
+       do i = 1, model%general%ewn - 1
+          if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or. &
+              ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1) then
+             model%geometry%ice_mask_stag(i,j) = 1.0d0
+          else
+             model%geometry%ice_mask_stag(i,j) = 0.0d0
+          endif
+       enddo
+    enddo
+
     ! thickness tendency dH/dt from one step to the next
     ! Note: This diagnostic will not be correct on the first step of a restart
     if (model%numerics%time > model%numerics%tstart) then
@@ -1699,6 +1819,38 @@ contains
     else
        model%geometry%dthck_dt(:,:) = 0.0d0
     endif
+
+    !------------------------------------------------------------------------
+    ! Update the upper and lower ice surface
+    ! Note that glide_calclsrf loops over all cells, including halos,
+    !  so halo updates are not needed for lsrf and usrf.
+    !
+    !
+    ! TODO(wjs, 2017-05-21) I don't think we should need to update lsrf and usrf
+    ! here. However, glissade_velo_higher_solve and glissade_velo_sia_solve (called from
+    ! glissade_velo_driver) multiply/divide topg (and other variables) by their scale
+    ! factors on entry to / exit from the routine. This can lead to roundoff-level changes
+    ! in topg and other variables.
+    !
+    ! If we don't update usrf here, then we can get roundoff-level changes in exact
+    ! restart tests when running inside a climate model: In the straight-through run
+    ! (without an intervening restart), the value of usrf sent to the coupler is the one
+    ! set earlier in this routine, which doesn't incorporate these roundoff-level changes
+    ! to topg. The restarted run, in contrast, reads the slightly-modified topg from the
+    ! restart file and recomputes usrf in initialization; thus, the values of usrf that
+    ! the coupler sees in the first year differ slightly from those in the
+    ! straight-through run.
+    !
+    ! A cleaner solution could be to avoid applying these rescalings to the fundamental
+    ! model variables in glissade_velo_higher_solve and glissade_velo_sia_solve - instead,
+    ! introducing temporary variables in those routines to hold the scaled
+    ! quantities. Then I think it would be safe to remove the following code that updates
+    ! lsrf and usrf. Or, if we completely removed these scale factors from CISM, then
+    ! again I think it would be safe to remove the following code.
+    ! ------------------------------------------------------------------------
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
+                        model%climate%eus,   model%geometry%lsrf)
+    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
   end subroutine glissade_diagnostic_variable_solve
 

@@ -492,7 +492,7 @@ contains
                                       basal_physics,            &
                                       ice_mask,                 &
                                       delta_bpmp,               &
-                                      bwat,                     &
+                                      bmlt,          bwat,      &
                                       thck,          topg,      &
                                       eus)
 
@@ -519,11 +519,15 @@ contains
     integer, dimension(:,:), intent(in) :: &
          ice_mask            ! = 1 for cells where ice is present (thk > thklim), else = 0
 
-    !NOTE: If used, the following 2D fields (delta_bpmp, bwat, thck and topg) need to be correct in halos.
+    !NOTE: If used, the following 2D fields (delta_bpmp, bmlt, bwat, thck and topg) need to be correct in halos.
 
     real(dp), dimension(:,:), intent(in), optional ::  &
          delta_bpmp          ! Tpmp - T at the bed (deg C)
                              ! used for HO_EFFECPRESS_BPMP option
+
+    real(dp), dimension(:,:), intent(in), optional ::  &
+         bmlt                ! basal melt rate at the bed (m/yr)
+                             ! used for HO_EFFECPRESS_BMLT option
 
     real(dp), dimension(:,:), intent(in), optional ::  &
          bwat                ! basal water thickness at the bed (m)
@@ -542,6 +546,7 @@ contains
 
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
+         bmlt_factor,     &  ! factor between 0 and 1, used in linear ramp based on bmlt
          bwat_factor         ! factor between 0 and 1, used in linear ramp based on bwat
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
@@ -584,6 +589,28 @@ contains
           enddo
 
        endif   ! present(delta_bpmp)
+
+    case(HO_EFFECPRESS_BMLT)
+
+       if (present(bmlt)) then
+
+          ! Reduce N wherever there is melting at the bed.
+          ! The effective pressure ramps down from full overburden for bmlt = 0
+          !  to a small value for bmlt >= effecpress_bmlt_threshold.
+          ! Both bmlt and effecpress_bmlt_threshold have units of m/yr.
+          ! bmlt_factor = 0 where there is no basal melting (bmlt = 0)
+          ! bmlt_factor = 1 where there is large basal melting (bmlt >= effecpress_bmlt_threshold)
+          ! 0 < bmlt_factor < 1 where 0 < bmlt < bmlt_threshold 
+
+          do j = 1, nsn
+             do i = 1, ewn
+                bmlt_factor = max(0.0d0, min(1.0d0, bmlt(i,j)/basal_physics%effecpress_bmlt_threshold))
+                basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
+                     (basal_physics%effecpress_delta + bmlt_factor * (1.0d0 - basal_physics%effecpress_delta))
+             enddo
+          enddo
+
+       endif   ! present(bmlt)
 
     case(HO_EFFECPRESS_BWAT)
 

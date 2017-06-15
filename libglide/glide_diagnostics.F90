@@ -222,6 +222,7 @@ contains
          spd,                           &    ! speed
          thck_diag, usrf_diag,          &    ! local column diagnostics
          topg_diag, relx_diag,          &    
+         load_diag,                     &
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
          bheatflx_diag, level
@@ -251,13 +252,30 @@ contains
                velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
  
     character(len=100) :: message
- 
+    
+    real(dp), dimension(:,:), allocatable :: &
+         cell_area     ! grid cell areas (scaled model units)
+                       ! optionally, divide by scale factor^2 to account for grid distortion
+
     real(dp), parameter ::   &
        eps = 1.0d-11             ! small number
  
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
+
+    allocate(cell_area(ewn,nsn))
+    cell_area(:,:) = model%numerics%dew * model%numerics%dns
+
+    if (associated(model%projection%stere)) then   ! divide cell area by area_factor^2
+       do j = 1, nsn
+          do i = 1, ewn
+             if (model%projection%stere%area_factor(i,j) > 0.0d0) then
+                cell_area(i,j) = cell_area(i,j) / model%projection%stere%area_factor(i,j)**2
+             endif
+          enddo
+       enddo
+    endif
 
     nlith = model%lithot%nlayer
 
@@ -309,12 +327,11 @@ contains
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
           if (ice_mask(i,j) == 1) then
-             area_cell = model%numerics%dew * model%numerics%dns
-             tot_area = tot_area + area_cell
+             tot_area = tot_area + cell_area(i,j)
              if (floating_mask(i,j) == 1) then
-                tot_area_float = tot_area_float + area_cell
+                tot_area_float = tot_area_float + cell_area(i,j)
              else
-                tot_area_ground = tot_area_ground + area_cell
+                tot_area_ground = tot_area_ground + cell_area(i,j)
              endif
           endif
        enddo
@@ -335,8 +352,7 @@ contains
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
           if (ice_mask(i,j) == 1) then
-             tot_volume = tot_volume + model%geometry%thck(i,j)  &
-                                     * model%numerics%dew * model%numerics%dns
+             tot_volume = tot_volume + model%geometry%thck(i,j) * cell_area(i,j)
           endif
        enddo
     enddo
@@ -357,11 +373,10 @@ contains
                    thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! thickness of ice that is exactly floating
                    thck_above_flotation = model%geometry%thck(i,j) - thck_floating
                    tot_mass_above_flotation = tot_mass_above_flotation    &
-                                            + thck_above_flotation * model%numerics%dew * model%numerics%dns
+                                            + thck_above_flotation * cell_area(i,j)
                 else   ! grounded above sea level
                    tot_mass_above_flotation = tot_mass_above_flotation    &
-                                            + model%geometry%thck(i,j) * model%numerics%dew * model%numerics%dns
-
+                                            + model%geometry%thck(i,j) * cell_area(i,j)
                 endif
              endif
           endif
@@ -381,8 +396,7 @@ contains
           if (ice_mask(i,j) == 1) then
              do k = 1, upn-1
                 tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(k,i,j)    &
-                            * model%numerics%dew * model%numerics%dns               &
+                             model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
                             *(model%numerics%sigma(k+1) - model%numerics%sigma(k))
              enddo
           endif
@@ -395,19 +409,16 @@ contains
           if (ice_mask(i,j) == 1) then
              ! upper half-layer, T = upper sfc temp
              tot_energy = tot_energy +   &
-                          model%geometry%thck(i,j) * model%temper%temp(1,i,j)  &
-                         * model%numerics%dew * model%numerics%dns             &
+                          model%geometry%thck(i,j) * model%temper%temp(1,i,j) * cell_area(i,j)    &
                          * 0.5d0 * model%numerics%sigma(2)
              do k = 2, upn-1
                 tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(k,i,j) &
-                           * model%numerics%dew * model%numerics%dns             &
+                             model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
                            * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
              enddo
              ! lower half-layer, T = lower sfc temp
              tot_energy = tot_energy +   &
-                          model%geometry%thck(i,j) * model%temper%temp(upn,i,j)  &
-                         * model%numerics%dew * model%numerics%dns               &
+                          model%geometry%thck(i,j) * model%temper%temp(upn,i,j) * cell_area(i,j)  &
                          * 0.5d0 * (1.0d0 - model%numerics%sigma(upn-1))
           endif
        enddo
@@ -438,8 +449,7 @@ contains
     tot_acab = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          tot_acab = tot_acab + model%climate%acab(i,j)  &
-                              * model%numerics%dew * model%numerics%dns
+          tot_acab = tot_acab + model%climate%acab_applied(i,j) * cell_area(i,j)
        enddo
     enddo
 
@@ -462,8 +472,7 @@ contains
     tot_bmlt = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-             tot_bmlt = tot_bmlt + model%temper%bmlt(i,j) &
-                                 * model%numerics%dew * model%numerics%dns
+             tot_bmlt = tot_bmlt + model%temper%bmlt_applied(i,j) * cell_area(i,j)
        enddo
     enddo
 
@@ -488,8 +497,7 @@ contains
     tot_calving = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-          tot_calving = tot_calving + model%calving%calving_thck(i,j) / model%numerics%dt  &
-                                    * model%numerics%dew * model%numerics%dns
+          tot_calving = tot_calving + model%calving%calving_thck(i,j)/model%numerics%dt  * cell_area(i,j)
        enddo
     enddo
 
@@ -730,6 +738,7 @@ contains
     thck_diag     = unphys_val
     topg_diag     = unphys_val
     relx_diag     = unphys_val
+    load_diag     = unphys_val
     artm_diag     = unphys_val
     acab_diag     = unphys_val
     bmlt_diag     = unphys_val
@@ -752,7 +761,10 @@ contains
           usrf_diag = model%geometry%usrf(i,j)*thk0
           thck_diag = model%geometry%thck(i,j)*thk0
           topg_diag = model%geometry%topg(i,j)*thk0
-          relx_diag = model%isostasy%relx(i,j)*thk0
+          if (model%options%isostasy == ISOSTASY_COMPUTE) then
+             relx_diag = model%isostasy%relx(i,j)*thk0
+             load_diag = model%isostasy%load(i,j)*thk0
+          endif
           artm_diag = model%climate%artm(i,j)
           acab_diag = model%climate%acab(i,j) * thk0*scyr/tim0
           bmlt_diag = model%temper%bmlt(i,j) * thk0*scyr/tim0
@@ -769,7 +781,10 @@ contains
        usrf_diag = parallel_reduce_max(usrf_diag)
        thck_diag = parallel_reduce_max(thck_diag)
        topg_diag = parallel_reduce_max(topg_diag)
-       relx_diag = parallel_reduce_max(relx_diag)
+       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+          relx_diag = parallel_reduce_max(relx_diag)
+          load_diag = parallel_reduce_max(load_diag)
+       endif
        artm_diag = parallel_reduce_max(artm_diag)
        acab_diag = parallel_reduce_max(acab_diag)
        bmlt_diag = parallel_reduce_max(bmlt_diag)
@@ -808,6 +823,8 @@ contains
 
        if (model%options%isostasy == ISOSTASY_COMPUTE) then
           write(message,'(a25,f24.16)') 'Relaxed bedrock (m)   ', relx_diag
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,f24.16)') 'Load deflection (m)   ', load_diag
           call write_log(trim(message), type = GM_DIAGNOSTIC)
        endif
 

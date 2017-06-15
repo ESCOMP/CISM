@@ -239,6 +239,7 @@ module parallel
   end interface
 
   interface parallel_put_var
+     module procedure parallel_put_var_integer
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
@@ -2140,6 +2141,17 @@ contains
     if (main_task) parallel_put_att_real8_1d = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_real8_1d)
   end function parallel_put_att_real8_1d
+
+  function parallel_put_var_integer(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_integer,varid
+    integer,dimension(:) :: start
+    integer :: values
+    ! begin
+    if (main_task) parallel_put_var_integer = &
+         nf90_put_var(ncid,varid,values,start)
+    call broadcast(parallel_put_var_integer)
+  end function parallel_put_var_integer
 
   function parallel_put_var_real4(ncid,varid,values,start)
     implicit none

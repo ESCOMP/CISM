@@ -445,7 +445,7 @@ contains
     ! setup outputs
     call GetSection(config,section,'GLINT output')
     do while(associated(section))
-       output => handle_output(section,output,0.d0,configstring)
+       output => handle_output(section,output,configstring)
        if (.not.associated(instance%out_first)) then
           instance%out_first => output
        end if

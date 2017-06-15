@@ -143,6 +143,7 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
+    use glimmer_paramets, only: len0
 
     use parallel, only: distributed_grid
 
@@ -151,8 +152,8 @@ contains
 !TODO - Is glimmer_version_char still used?
 !       Old Glide does not include this variable.
     character(len=100), external :: glimmer_version_char
-
     character(len=100) :: message
+    real(dp) :: smb_maxval
 
     integer, parameter :: my_nhalo = 0   ! no halo layers for Glide dycore
 
@@ -201,15 +202,59 @@ contains
     ! (if not already read from config file)
     call glide_load_sigma(model,dummyunit)
 
+    ! initialize the time step counter
+    ! For restart, tstep_count will be overwritten from the restart file.
+    ! Alternatively, we could initialize tstep_count as follows:
+    !    model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+    ! But reading from a restart file should prevent roundoff issues.
+    model%numerics%tstep_count = 0
+
     ! open all input files and forcing files
     call openall_in(model)
 
     ! read first time slice
     call glide_io_readall(model,model)
 
+    ! Compute area scale factors for stereographic map projection.
+    ! This should be done after reading the input file, in case the input file contains mapping info.
+    ! Note: Not yet enabled for other map projections.
+    ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
+
+    if (associated(model%projection%stere)) then
+
+       call glimmap_stere_area_factor(model%projection%stere,  &
+                                      model%general%ewn,       &
+                                      model%general%nsn,       &
+                                      model%numerics%dew*len0, &
+                                      model%numerics%dns*len0)
+
+    endif
+
     ! write projection info to log
     call glimmap_printproj(model%projection)
    
+    ! If SMB input units are mm/yr w.e., then convert to units of acab.
+    ! Note: In this case the input field should be called 'smb', not 'acab'.
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+
+       ! make sure a nonzero SMB was read in
+       smb_maxval = maxval(abs(model%climate%smb))
+       if (smb_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+       ! Convert units from mm/yr w.e. to m/yr ice
+       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+
+       ! Convert acab from m/yr ice to model units
+       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+
+    else
+       ! assume acab was read in with units of m/yr ice; do nothing
+    endif
+
     !WHL - Should have been read from glide_io_readall
     ! read lithot if required
 !!    if (model%options%gthf > 0) then
@@ -221,13 +266,16 @@ contains
     ! Initialise isostasy first
     call init_isostasy(model)
 
-    select case(model%options%whichrelaxed)
+    select case(model%isostasy%whichrelaxed)
 
-    case(RELAXED_TOPO_INPUT)   ! Supplied topography is relaxed
+    case(RELAXED_TOPO_INPUT)   ! Supplied input topography is relaxed
+
        model%isostasy%relx = model%geometry%topg
+
     case(RELAXED_TOPO_COMPUTE) ! Supplied topography is in equilibrium
                                !TODO - test case RELAXED_TOPO_COMPUTE
        call isos_relaxed(model)
+
     end select
 
     ! open all output files
@@ -278,7 +326,6 @@ contains
 
 !WHL - old glide has a call to init_temp, which is similar to glide_init_temp
 !      but does not set the temperature or compute flwa until later call to timeevoltemp
-!WHL - In old glide I added artm as a hotstart variable
 
     ! Initialize temperature field - this needs to happen after input file is
     !  read so we can assign artm (which could possibly be read in) if temp has not been input.
@@ -305,7 +352,7 @@ contains
 !      Commented out at least for now.  To reproduce results of old_glide, make sure
 !       model%options%temp_init = TEMP_INIT_ARTM.
 !!  if (oldglide) then
-!!    if (model%options%hotstart.ne.1) then
+!!    if (model%options%is_restart.ne.1) then
 !!       ! initialise Glen's flow parameter A using an isothermal temperature distribution
 !!       call glide_temp_driver(model,0)
 !!    endif
@@ -328,7 +375,7 @@ contains
     ! calculate lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
 
-    model%geometry%usrf = model%geometry%thck + model%geometry%lsrf
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
     ! initialise thckwk variables; used in timeders subroutine
     model%thckwk%olds(:,:,1) = model%geometry%thck(:,:)
@@ -746,6 +793,7 @@ contains
 
     ! Update internal clock
     model%numerics%time = time  
+    model%numerics%tstep_count = model%numerics%tstep_count + 1
     model%temper%newtemps = .false.
 
     model%thckwk%oldtime = model%numerics%time - (model%numerics%dt * tim0/scyr)
@@ -940,16 +988,27 @@ contains
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
+    ! Note: Suppose the update period is 100 years, and the time step is 1 year.
+    !       Then the update will be done on the first time step of the simulation,
+    !        (model%numerics%tstep_count = 1) and again on step 101, 201, etc.
+    !       The update will not be done before writing output at t = 100, when
+    !        model%numerics%tstep_count = 100.
+    !       Thus the output file will contain the load that was applied during the
+    !        preceding years, not the new load.
+    !       In older code versions, the new load would have been computed on step 100.
     ! ------------------------------------------------------------------------
 
     call glide_prof_start(model,model%glide_prof%isos_water)
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       if (model%numerics%time >= model%isostasy%next_calc) then
-          model%isostasy%next_calc = model%isostasy%next_calc + model%isostasy%period
-          call isos_icewaterload(model)
-          model%isostasy%new_load = .true.
-       end if
+
+       if (model%isostasy%nlith > 0) then
+          if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
+             call isos_icewaterload(model)
+             model%isostasy%new_load = .true.
+          end if
+       endif  ! nlith > 0
+
     end if
 
     call glide_prof_stop(model,model%glide_prof%isos_water)
@@ -1000,6 +1059,7 @@ contains
     ! calculate isostatic adjustment and upper and lower ice surface
 
     use isostasy
+    use glimmer_scales, only: scale_acab
     use glide_setup
     use glide_velo, only: glide_velo_vertical
     use glide_thck, only: glide_calclsrf
@@ -1028,11 +1088,15 @@ contains
 
     model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
 
-    !TODO - Move timecounter to a driver routine?
-    !CESM Glimmer code has this after the netCDF write.
+    ! surface mass balance in units of mm/yr w.e.
+    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
+    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+    endif
 
-    ! increment time counter
-    model%numerics%timecounter = model%numerics%timecounter + 1
+    !Note: The time step counter used to be updated here; now it is updated at the start
+    !of glide_tstep_p1.
 
     !TODO - Combine these timeders and vert velo calls into a subroutine?
 

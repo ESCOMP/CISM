@@ -54,6 +54,9 @@ module glimmer_ncdf
   character(len=*), parameter :: glimmer_nc_time_varname = 'time'
   !> name of the time variable for external use
 
+  character(len=*), parameter :: glimmer_nc_tstep_count_varname = 'tstep_count'
+  !> name of the integer variable giving the time step count
+
   real(dp), parameter :: glimmer_nc_max_time=1.d10
   !> maximum time that can be written
 
@@ -80,7 +83,7 @@ module glimmer_ncdf
      integer timedim
      !> id of time dimension
 
-     ! There are two time variables:
+     ! There are three time variables:
      !
      ! - 'internal_time' stores CISM's internal time variable, relative to the starting
      !   point of this simulation plus the amount of time that elapsed leading up to the
@@ -89,62 +92,58 @@ module glimmer_ncdf
      ! - 'time' stores a more externally-useful version of time; for climate model runs,
      !   this should agree with the climate model's time
      !
-     ! The reason for having these two different variables is: There can be roundoff-level
+     ! - 'tstep_count' stores an integer count of the time step, which is useful in some
+     !   places to ensure exact restart, avoiding roundoff-level issues associated with
+     !   the real-valued internal_time
+     !
+     ! The reason for having these different variables is: There can be roundoff-level
      ! differences upon restart if the internal time variable is modified upon restart. So
      ! it is important that this variable is maintained exactly as is when reading a
      ! restart file. However, maintaining this value as is isn't always the right thing
      ! to do in terms of the climate model's time, so we sometimes need a separate
      ! variable to represent that time.
      !
-     ! NOTE(wjs, 2017-04-26) It's possible that, with some more thought, these two
-     ! variables could be combined into one. But having two variables seemed like the
-     ! easiest and least error-prone solution for now.
+     ! NOTE(wjs, 2017-04-26) It's possible that, with some more thought, 'time' and
+     ! 'internal_time' could be combined into one. But having separate variables seemed
+     ! like the easiest and least error-prone solution for now.
 
-     integer :: internal_timevar
-     !> id of internal time variable
-     integer :: timevar
-     !> id of time variable for external purposes
-
+     integer :: internal_timevar       !> ID of internal time variable
+     integer :: timevar                !> ID of time variable for external purposes
+     integer :: tstep_count_var        !> ID of variable giving the integer time step count
 
      ! TODO - Create a variable for vars length so it can be made longer (Matt has this implemented in his subglacial hydrology branch)
      !        Apply it here for vars, vars_copy and to restart_variable_list in glimmer_ncparams.F90
 
-     character(len=310) vars
-     !> string containing variables to be processed
-     logical :: restartfile = .false.
-     !> Set to true if we're writing a restart file
-     character(len=310) vars_copy
-     !> string containing variables to be processed (retained copy)
-  end type glimmer_nc_stat     
+     character(len=310) vars           !> string containing variables to be processed
+     logical :: restartfile = .false.  !> Set to true if we're writing a restart file
+     character(len=310) vars_copy      !> string containing variables to be processed (retained copy)
+
+  end type glimmer_nc_stat
 
   type glimmer_nc_meta
+
      !> Data structure holding netCDF meta data, see CF user guide
      
-     character(len=glimmer_nc_meta_len) :: title = ''
-     !> title of netCDF file
-     character(len=glimmer_nc_meta_len) :: institution = ''
-     !> where the data was produced
-     character(len=glimmer_nc_meta_len) :: references = ''
-     !> list of references
-     character(len=glimmer_nc_meta_len) :: source = ''
-     !> this string will hold the GLIMMER version
-     character(len=glimmer_nc_meta_len) :: history = ''
-     !> netCDF file history string
-     character(len=glimmer_nc_meta_len) :: comment = ''
-     !> some comments
-     character(len=10000) :: config = ''
-     !> the contents of the glide config file
+     character(len=glimmer_nc_meta_len) :: title = ''        !> title of netCDF file
+     character(len=glimmer_nc_meta_len) :: institution = ''  !> where the data was produced
+     character(len=glimmer_nc_meta_len) :: references = ''   !> list of references
+     character(len=glimmer_nc_meta_len) :: source = ''       !> this string will hold the GLIMMER version
+     character(len=glimmer_nc_meta_len) :: history = ''      !> netCDF file history string
+     character(len=glimmer_nc_meta_len) :: comment = ''      !> some comments
+     character(len=10000) :: config = ''                     !> the contents of the glide config file
+
   end type glimmer_nc_meta
 
   type glimmer_nc_output
+
      !> element of linked list describing netCDF output file
      !NO_RESTART previous
 
      type(glimmer_nc_stat) :: nc                          !< structure containg file info
      real(dp) :: freq = 1000.d0                           !< frequency at which data is written to file
-     real(dp) :: next_write = 0.d0                        !< next time step at which data is dumped
+     logical  :: write_init = .true.                      !< if true, then write at the start of the run (tstep_count = 0)
      real(dp) :: end_write = glimmer_nc_max_time          !< stop writing after this year
-     integer :: timecounter = 1                           !< time counter
+     integer  :: timecounter = 1                          !< time counter
      real(dp) :: total_time = 0.d0                        !< accumulate time steps (used for taking time averages)
 
      integer :: default_xtype = NF90_REAL                 !< the default external type for storing floating point values
@@ -153,30 +152,32 @@ module glimmer_ncdf
      type(glimmer_nc_meta) :: metadata
      !> structure holding metadata
 
-     type(glimmer_nc_output), pointer :: next=>NULL()
-     !> next element in list
-     type(glimmer_nc_output), pointer :: previous=>NULL()
-     !> previous element in list
-     logical :: append = .false.
-     !> Set to true if we are appending onto an existing file.
+     type(glimmer_nc_output), pointer :: next=>NULL()     !> next element in list
+
+     type(glimmer_nc_output), pointer :: previous=>NULL() !> previous element in list
+
+     logical :: append = .false.      !> Set to true if we are appending onto an existing file
+
   end type glimmer_nc_output
 
   type glimmer_nc_input
+
      !> element of linked list describing netCDF input file
      !NO_RESTART previous
-     type(glimmer_nc_stat) :: nc
-     !> structure containg file info
-     real(dp), pointer, dimension(:) :: times => NULL()     
-     !> pointer to array holding times
-     integer                        :: nt, current_time=1
-     !>number of elements in times and current time index
-     integer                        :: get_time_slice = 1     
-     !> -1 if all times should be loaded, > 0 to load particular slice and then close file
+     type(glimmer_nc_stat) :: nc                           !> structure containg file info
+     real(dp), pointer, dimension(:) :: times => NULL()    !> pointer to array holding times
 
-     type(glimmer_nc_input), pointer :: next=>NULL()
-     !> next element in list
-     type(glimmer_nc_input), pointer :: previous=>NULL()
-     !> previous element in list
+     integer, pointer, dimension(:) :: tstep_counts => NULL()   !> pointer to array holding tstep_count for each time
+
+     logical :: tstep_counts_read = .false.                !> whether we have read data into tstep_counts
+                                                           !> (for backwards compatibility with old input files that may not have this variable)
+     integer                        :: nt                  !> number of elements in times array
+     integer                        :: current_time = 1    !> current time index
+     integer                        :: get_time_slice = 1  !> -1 if all times should be loaded, > 0 to load particular slice and then close file
+
+     type(glimmer_nc_input), pointer :: next=>NULL()       !> next element in list
+     type(glimmer_nc_input), pointer :: previous=>NULL()   !> previous element in list
+
   end type glimmer_nc_input
 
 
@@ -263,6 +264,9 @@ contains
           call write_log('Closing input file '//trim(ic%nc%filename))
        end if
        deallocate(ic%times)
+       if (ic%tstep_counts_read) then
+          deallocate(ic%tstep_counts)
+       end if
        deallocate(ic)
     end if
   end function delete_input
@@ -315,15 +319,14 @@ contains
     type(glimmer_nc_output),pointer :: output
 
     if (.not.associated(output)) then
-       Print*,'*** Output section not associated'
+       print*,'*** Output section not associated'
        return
     end if
 
     call nc_print_stat(output%nc)
-    print*,'freq:       ',output%freq
-    print*,'next_write: ',output%next_write
-    print*,'timecounter:',output%timecounter
-    ! call nc_print_meta(output%metadata)
+    print*,'freq:       ', output%freq
+    print*,'timecounter:', output%timecounter
+
     if (associated(output%next)) call nc_print_output(output%next)
     
   end subroutine nc_print_output
@@ -343,6 +346,7 @@ contains
     print*,'timedim:         ',stat%timedim
     print*,'internal_timevar:',stat%internal_timevar
     print*,'timevar:         ',stat%timevar
+    print*,'tstep_count_var: ',stat%tstep_count_var
     print*,'vars:            ',trim(stat%vars)
 
   end subroutine nc_print_stat
@@ -423,12 +427,9 @@ contains
         use netcdf
         use glimmer_log
         implicit none
-        character(len=*), intent(in) :: file
-        !> name of f90 file error occured in
-        integer, intent(in) :: line
-        !> line number error occured at
-        integer, intent(in) :: status
-        !> netCDF return value
+        character(len=*), intent(in) :: file     !> name of f90 file error occured in
+        integer, intent(in) :: line              !> line number error occured at
+        integer, intent(in) :: status            !> netCDF return value
   
         if (status /= NF90_NOERR) then
             call write_log(nf90_strerror(status),type=GM_FATAL,file=file,line=line)

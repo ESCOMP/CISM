@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Wed, 20 Jul 2016 17:59:13 +0000
+! Sun, 21 May 2017 18:06:10 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -452,7 +452,7 @@ contains
        status = parallel_put_att(NCO%id, varid, 'standard_name', &
             'land_ice_surface_specific_mass_balance')
        status = parallel_put_att(NCO%id, varid, 'units', &
-            'meter/year')
+            'meter/year ice')
        if (glimmap_allocated(model%projection)) then
           status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
           status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
@@ -492,6 +492,64 @@ contains
      end if
      end if
 
+    !     acab_applied -- applied accumulation, ablation rate
+    pos = index(NCO%vars,' acab_applied ')
+    status = parallel_inq_varid(NCO%id,'acab_applied',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+12) = '            '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%climate%acab_applied)) then
+       call write_log('Creating variable acab_applied')
+       status = parallel_def_var(NCO%id,'acab_applied',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scale_acab))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'applied accumulation, ablation rate')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_surface_specific_mass_balance_applied')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter/year')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable acab_applied was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     acab_corrected -- corrected accumulation, ablation rate
+    pos = index(NCO%vars,' acab_corrected ')
+    status = parallel_inq_varid(NCO%id,'acab_corrected',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+14) = '              '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%climate%acab_corrected)) then
+       call write_log('Creating variable acab_corrected')
+       status = parallel_def_var(NCO%id,'acab_corrected',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scale_acab))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'corrected accumulation, ablation rate')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_surface_specific_mass_balance_corrected')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter/year')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable acab_corrected was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     adv_cfl_dt -- advective CFL maximum time step
     pos = index(NCO%vars,' adv_cfl_dt ')
     status = parallel_inq_varid(NCO%id,'adv_cfl_dt',varid)
@@ -513,6 +571,32 @@ contains
        end if
      else
      call write_log('Variable adv_cfl_dt was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     area_factor -- area scale factor for stereographic map projection
+    pos = index(NCO%vars,' area_factor ')
+    status = parallel_inq_varid(NCO%id,'area_factor',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+11) = '           '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%projection%stere%area_factor)) then
+       call write_log('Creating variable area_factor')
+       status = parallel_def_var(NCO%id,'area_factor',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'area scale factor for stereographic map projection')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'unitless')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable area_factor was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -737,6 +821,35 @@ contains
        end if
      else
      call write_log('Variable bmlt was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     bmlt_applied -- applied basal melt rate
+    pos = index(NCO%vars,' bmlt_applied ')
+    status = parallel_inq_varid(NCO%id,'bmlt_applied',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+12) = '            '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%temper%bmlt_applied)) then
+       call write_log('Creating variable bmlt_applied')
+       status = parallel_def_var(NCO%id,'bmlt_applied',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scale_acab))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'applied basal melt rate')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_basal_melt_rate_applied')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter/year')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable bmlt_applied was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -1873,6 +1986,33 @@ contains
      end if
      end if
 
+    !     ice_mask_stag -- real-valued mask on staggered grid for ice (1) or no ice (0)
+    pos = index(NCO%vars,' ice_mask_stag ')
+    status = parallel_inq_varid(NCO%id,'ice_mask_stag',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+13) = '             '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%geometry%ice_mask_stag)) then
+       call write_log('Creating variable ice_mask_stag')
+       status = parallel_def_var(NCO%id,'ice_mask_stag',get_xtype(outfile,NF90_FLOAT), &
+            (/x0_dimid, y0_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(1.0))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'real-valued mask on staggered grid for ice (1) or no ice (0)')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable ice_mask_stag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     ice_specific_heat -- ice specific heat
     pos = index(NCO%vars,' ice_specific_heat ')
     status = parallel_inq_varid(NCO%id,'ice_specific_heat',varid)
@@ -2051,6 +2191,33 @@ contains
        end if
      else
      call write_log('Variable litho_temp was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     load -- bedrock deflection from applied load
+    pos = index(NCO%vars,' load ')
+    status = parallel_inq_varid(NCO%id,'load',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+4) = '    '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%isostasy%load)) then
+       call write_log('Creating variable load')
+       status = parallel_def_var(NCO%id,'load',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(thk0))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'bedrock deflection from applied load')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable load was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -2381,6 +2548,35 @@ contains
        end if
      else
      call write_log('Variable sfc_mbal_flux_tavg was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     smb -- surface mass balance
+    pos = index(NCO%vars,' smb ')
+    status = parallel_inq_varid(NCO%id,'smb',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+3) = '   '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%climate%smb)) then
+       call write_log('Creating variable smb')
+       status = parallel_def_var(NCO%id,'smb',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(1.0))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'surface mass balance')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_surface_specific_mass_balance')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'mm/year water equivalent')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable smb was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -3649,10 +3845,31 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    status = parallel_inq_varid(NCO%id,'acab_applied',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%climate%acab_applied, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'acab_corrected',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%climate%acab_corrected, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'adv_cfl_dt',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%numerics%adv_cfl_dt, (/outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'area_factor',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%projection%stere%area_factor, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -3709,6 +3926,13 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%temper%bmlt, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'bmlt_applied',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%temper%bmlt_applied, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -4022,6 +4246,13 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    status = parallel_inq_varid(NCO%id,'ice_mask_stag',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%geometry%ice_mask_stag, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'ice_specific_heat',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -4068,6 +4299,13 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%lithot%temp, (/1,1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'load',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%isostasy%load, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -4160,6 +4398,13 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             (tavgf)*(data%geometry%sfc_mbal_flux_tavg), (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'smb',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%climate%smb, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -5422,6 +5667,31 @@ contains
 
     end if
 
+    status = parallel_inq_varid(NCI%id,'load',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%isostasy%load)) then
+       call write_log('  Loading load')
+       status = distributed_get_var(NCI%id, varid, &
+            data%isostasy%load, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0/(thk0)
+       else
+          scaling_factor = scaling_factor/(thk0)
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling load",GM_DIAGNOSTIC)
+          data%isostasy%load = &
+               data%isostasy%load*scaling_factor
+       end if
+    else
+    call write_log('Variable load was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
     status = parallel_inq_varid(NCI%id,'no_advance_mask',varid)
     if (status .eq. nf90_noerr) then
     if (is_enabled(data%climate%no_advance_mask)) then
@@ -5465,6 +5735,31 @@ contains
        end if
     else
     call write_log('Variable relx was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'smb',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%climate%smb)) then
+       call write_log('  Loading smb')
+       status = distributed_get_var(NCI%id, varid, &
+            data%climate%smb, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0/(1.0)
+       else
+          scaling_factor = scaling_factor/(1.0)
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling smb",GM_DIAGNOSTIC)
+          data%climate%smb = &
+               data%climate%smb*scaling_factor
+       end if
+    else
+    call write_log('Variable smb was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -6304,6 +6599,50 @@ contains
     data%climate%acab_anomaly = inarray/(scale_acab)
   end subroutine glide_set_acab_anomaly
 
+  subroutine glide_get_acab_applied(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (scale_acab)*(data%climate%acab_applied)
+  end subroutine glide_get_acab_applied
+
+  subroutine glide_set_acab_applied(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%climate%acab_applied = inarray/(scale_acab)
+  end subroutine glide_set_acab_applied
+
+  subroutine glide_get_acab_corrected(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (scale_acab)*(data%climate%acab_corrected)
+  end subroutine glide_get_acab_corrected
+
+  subroutine glide_set_acab_corrected(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%climate%acab_corrected = inarray/(scale_acab)
+  end subroutine glide_set_acab_corrected
+
   subroutine glide_get_adv_cfl_dt(data,outarray)
     use glimmer_scales
     use glimmer_paramets
@@ -6325,6 +6664,28 @@ contains
 
     data%numerics%adv_cfl_dt = inarray
   end subroutine glide_set_adv_cfl_dt
+
+  subroutine glide_get_area_factor(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = data%projection%stere%area_factor
+  end subroutine glide_get_area_factor
+
+  subroutine glide_set_area_factor(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%projection%stere%area_factor = inarray
+  end subroutine glide_set_area_factor
 
   subroutine glide_get_artm(data,outarray)
     use glimmer_scales
@@ -6479,6 +6840,28 @@ contains
 
     data%temper%bmlt = inarray/(scale_acab)
   end subroutine glide_set_bmlt
+
+  subroutine glide_get_bmlt_applied(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (scale_acab)*(data%temper%bmlt_applied)
+  end subroutine glide_get_bmlt_applied
+
+  subroutine glide_set_bmlt_applied(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%temper%bmlt_applied = inarray/(scale_acab)
+  end subroutine glide_set_bmlt_applied
 
   subroutine glide_get_bmlt_float_mask(data,outarray)
     use glimmer_scales
@@ -7173,6 +7556,28 @@ contains
     data%geometry%ice_mask = inarray/(1.0)
   end subroutine glide_set_ice_mask
 
+  subroutine glide_get_ice_mask_stag(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (1.0)*(data%geometry%ice_mask_stag)
+  end subroutine glide_get_ice_mask_stag
+
+  subroutine glide_set_ice_mask_stag(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%geometry%ice_mask_stag = inarray/(1.0)
+  end subroutine glide_set_ice_mask_stag
+
   subroutine glide_get_ice_specific_heat(data,outarray)
     use glimmer_scales
     use glimmer_paramets
@@ -7304,6 +7709,28 @@ contains
 
     data%velocity%kinbcmask(:,:) = inarray
   end subroutine glide_set_kinbcmask
+
+  subroutine glide_get_load(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (thk0)*(data%isostasy%load)
+  end subroutine glide_get_load
+
+  subroutine glide_set_load(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%isostasy%load = inarray/(thk0)
+  end subroutine glide_set_load
 
   subroutine glide_get_lsurf(data,outarray)
     use glimmer_scales
@@ -7458,6 +7885,28 @@ contains
 
     data%geometry%sfc_mbal_flux = inarray
   end subroutine glide_set_sfc_mbal_flux
+
+  subroutine glide_get_smb(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (1.0)*(data%climate%smb)
+  end subroutine glide_get_smb
+
+  subroutine glide_set_smb(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%climate%smb = inarray/(1.0)
+  end subroutine glide_set_smb
 
   subroutine glide_get_soft(data,outarray)
     use glimmer_scales
