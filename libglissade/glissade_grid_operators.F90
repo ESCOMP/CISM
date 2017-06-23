@@ -383,7 +383,7 @@ contains
        
     endif  ! gradient_margin
 
-    !WHL - debug - Count number of edges that require slope-limiting
+    !WHL - debug - Count number of edges with a gradient exceeding max_slope
     if (present(max_slope)) then
        edge_count = 0
        do j = nhalo+1, ny-nhalo
@@ -415,22 +415,6 @@ contains
           df_dx_north = (field(i+1,j+1) - field(i,j+1))/ dx
           df_dx_south = (field(i+1,j)   - field(i,j))  / dx
 
-          if (present(max_slope)) then
-
-             if (df_dx_north > 0.0d0) then
-                df_dx_north = min(df_dx_north, max_slope)
-             else
-                df_dx_north = max(df_dx_north, -max_slope)
-             endif
-
-             if (df_dx_south > 0.0d0) then
-                df_dx_south = min(df_dx_south, max_slope)
-             else
-                df_dx_south = max(df_dx_south, -max_slope)
-             endif
-
-          endif
-
           if (edge_mask_x(i,j) .and. edge_mask_x(i,j+1)) then
              df_dx(i,j) = (df_dx_north + df_dx_south) / 2.d0
           elseif (edge_mask_x(i,j)) then
@@ -441,25 +425,19 @@ contains
              df_dx(i,j) = 0.d0
           endif
 
+          ! Optionally, limit df_dx
+
+          if (present(max_slope)) then
+             if (df_dx(i,j) > 0.0d0) then
+                df_dx(i,j) = min(df_dx(i,j), max_slope)
+             else
+                df_dx(i,j) = max(df_dx(i,j), -max_slope)
+             endif
+          endif
+
           ! df/dy
           df_dy_east = (field(i+1,j+1) - field(i+1,j))/ dy
           df_dy_west = (field(i,j+1)   - field(i,j))  / dy
-
-          if (present(max_slope)) then
-
-             if (df_dy_east > 0.0d0) then
-                df_dy_east = min(df_dy_east, max_slope)
-             else
-                df_dy_east = max(df_dy_east, -max_slope)
-             endif
-
-             if (df_dy_west > 0.0d0) then
-                df_dy_west = min(df_dy_west, max_slope)
-             else
-                df_dy_west = max(df_dy_west, -max_slope)
-             endif
-
-          endif
 
           if (edge_mask_y(i,j) .and. edge_mask_y(i+1,j)) then
              df_dy(i,j) = (df_dy_east + df_dy_west) / 2.d0
@@ -469,6 +447,16 @@ contains
              df_dy(i,j) = df_dy_east
           else
              df_dy(i,j) = 0.d0
+          endif
+
+          ! Optionally, limit df_dy
+
+          if (present(max_slope)) then
+             if (df_dy(i,j) > 0.0d0) then
+                df_dy(i,j) = min(df_dy(i,j), max_slope)
+             else
+                df_dy(i,j) = max(df_dy(i,j), -max_slope)
+             endif
           endif
 
        enddo  ! i
@@ -667,22 +655,6 @@ contains
                 df_dx_north = (field(i+1,j+1) - field(i,j+1)) / dx
                 df_dx_south = (field(i+1,j) - field(i,j)) / dx
 
-                if (present(max_slope)) then
-
-                   if (df_dx_north > 0.0d0) then
-                      df_dx_north = min(df_dx_north, max_slope)
-                   else
-                      df_dx_north = max(df_dx_north, -max_slope)
-                   endif
-                   
-                   if (df_dx_south > 0.0d0) then
-                      df_dx_south = min(df_dx_south, max_slope)
-                   else
-                      df_dx_south = max(df_dx_south, -max_slope)
-                   endif
-
-                endif
-
                 sum1 = usrf(i+1,j+1) + usrf(i,j+1)
                 sum2 = usrf(i+1,j) + usrf(i,j)
 
@@ -710,28 +682,22 @@ contains
 
              endif   ! adjacent edge_mask = T
 
+             ! Optionally, limit df_dx
+
+             if (present(max_slope)) then
+                if (df_dx(i,j) > 0.0d0) then
+                   df_dx(i,j) = min(df_dx(i,j), max_slope)
+                else
+                   df_dx(i,j) = max(df_dx(i,j), -max_slope)
+                endif
+             endif
+
              if (edge_mask_y(i,j) .or. edge_mask_y(i+1,j)) then
  
                 ! Compute df_dy by taking upstream gradient
              
                 df_dy_east = (field(i+1,j+1) - field(i+1,j)) / dy
                 df_dy_west = (field(i,j+1) - field(i,j)) / dy
-
-                if (present(max_slope)) then
-
-                   if (df_dy_east > 0.0d0) then
-                      df_dy_east = min(df_dy_east, max_slope)
-                   else
-                      df_dy_east = max(df_dy_east, -max_slope)
-                   endif
-
-                   if (df_dy_west > 0.0d0) then
-                      df_dy_west = min(df_dy_west, max_slope)
-                   else
-                      df_dy_west = max(df_dy_west, -max_slope)
-                   endif
-                   
-                endif
 
                 sum1 = usrf(i+1,j+1) + usrf(i+1,j)
                 sum2 = usrf(i,j+1) + usrf(i,j)
@@ -760,6 +726,16 @@ contains
 
              endif   ! adjacent edge mask = T
 
+             ! Optionally, limit df_dy
+
+             if (present(max_slope)) then
+                if (df_dy(i,j) > 0.0d0) then
+                   df_dy(i,j) = min(df_dy(i,j), max_slope)
+                else
+                   df_dy(i,j) = max(df_dy(i,j), -max_slope)
+                endif
+             endif
+
           enddo
        enddo
 
@@ -776,34 +752,6 @@ contains
                 df_dx_north  = (field(i+1,j+1) - field(i,j+1)) / dx
                 df_dx_south  = (field(i+1,j)   - field(i,j))   / dx
                 df_dx_south2 = (field(i+1,j-1) - field(i,j-1)) / dx
-
-                if (present(max_slope)) then
-
-                   if (df_dx_north > 0.0d0) then
-                      df_dx_north = min(df_dx_north, max_slope)
-                   else
-                      df_dx_north = max(df_dx_north, -max_slope)
-                   endif
-                   
-                   if (df_dx_north2 > 0.0d0) then
-                      df_dx_north2 = min(df_dx_north2, max_slope)
-                   else
-                      df_dx_north2 = max(df_dx_north2, -max_slope)
-                   endif
-
-                   if (df_dx_south > 0.0d0) then
-                      df_dx_south = min(df_dx_south, max_slope)
-                   else
-                      df_dx_south = max(df_dx_south, -max_slope)
-                   endif
-
-                   if (df_dx_south2 > 0.0d0) then
-                      df_dx_south2 = min(df_dx_south2, max_slope)
-                   else
-                      df_dx_south2 = max(df_dx_south2, -max_slope)
-                   endif
-
-                endif
 
                 sum1 = usrf(i+1,j+1) + usrf(i,j+1) + usrf(i+1,j+2) + usrf(i,j+2)
                 sum2 = usrf(i+1,j) + usrf(i,j) + usrf(i+1,j-1) + usrf(i,j-1)
@@ -836,6 +784,16 @@ contains
 
              endif  ! adjacent edge mask = T
 
+             ! Optionally, limit df_dx
+
+             if (present(max_slope)) then
+                if (df_dx(i,j) > 0.0d0) then
+                   df_dx(i,j) = min(df_dx(i,j), max_slope)
+                else
+                   df_dx(i,j) = max(df_dx(i,j), -max_slope)
+                endif
+             endif
+
              if (edge_mask_y(i,j) .or. edge_mask_y(i+1,j)) then
 
                 ! Compute df_dy by taking upstream gradient
@@ -845,34 +803,6 @@ contains
                 df_dy_west  = (field(i,j+1)   - field(i,j))   / dy
                 df_dy_west2 = (field(i-1,j+1) - field(i-1,j)) / dy
 
-                if (present(max_slope)) then
-                   
-                   if (df_dy_east > 0.0d0) then
-                      df_dy_east = min(df_dy_east, max_slope)
-                   else
-                      df_dy_east = max(df_dy_east, -max_slope)
-                   endif
-
-                   if (df_dy_east2 > 0.0d0) then
-                      df_dy_east2 = min(df_dy_east2, max_slope)
-                   else
-                      df_dy_east2 = max(df_dy_east2, -max_slope)
-                   endif
-                   
-                   if (df_dy_west > 0.0d0) then
-                      df_dy_west = min(df_dy_west, max_slope)
-                   else
-                      df_dy_west = max(df_dy_west, -max_slope)
-                   endif
-
-                   if (df_dy_west2 > 0.0d0) then
-                      df_dy_west2 = min(df_dy_west2, max_slope)
-                   else
-                      df_dy_west2 = max(df_dy_west2, -max_slope)
-                   endif
-
-                endif
-                
                 ! determine upstream direction
 
                 sum1 = usrf(i+1,j+1) + usrf(i+1,j) + usrf(i+2,j+1) + usrf(i+2,j)
@@ -905,6 +835,16 @@ contains
                 df_dy(i,j) = 0.d0
 
              endif      ! adjacent edge mask = T
+
+             ! Optionally, limit df_dy
+
+             if (present(max_slope)) then
+                if (df_dy(i,j) > 0.0d0) then
+                   df_dy(i,j) = min(df_dy(i,j), max_slope)
+                else
+                   df_dy(i,j) = max(df_dy(i,j), -max_slope)
+                endif
+             endif
 
           enddo     ! i
        enddo     ! j
@@ -1103,7 +1043,7 @@ contains
 
     if (present(max_slope)) then
 
-       ! limit df_dx
+       ! Optionally, limit df_dx
        do j = 1, ny
           do i = 1, nx-1
              if (df_dx(i,j) > 0.0d0) then
@@ -1114,7 +1054,7 @@ contains
           enddo
        enddo
        
-       ! limit df_dy
+       ! Optionally, limit df_dy
        do j = 1, ny-1
           do i = 1, nx
              if (df_dy(i,j) > 0.0d0) then
