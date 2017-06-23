@@ -606,7 +606,7 @@ contains
              do i = 1, ewn
                 bmlt_factor = max(0.0d0, min(1.0d0, bmlt(i,j)/basal_physics%effecpress_bmlt_threshold))
                 basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                     (basal_physics%effecpress_delta + bmlt_factor * (1.0d0 - basal_physics%effecpress_delta))
+                     (basal_physics%effecpress_delta + (1.0d0 - bmlt_factor) * (1.0d0 - basal_physics%effecpress_delta))
              enddo
           enddo
 
@@ -627,7 +627,7 @@ contains
              do i = 1, ewn
                 bwat_factor = max(0.0d0, min(1.0d0, bwat(i,j)/basal_physics%effecpress_bwat_threshold))
                 basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                     (basal_physics%effecpress_delta + (1.d0 - bwat_factor) * (1.0d0 - basal_physics%effecpress_delta))
+                     (basal_physics%effecpress_delta + (1.0d0 - bwat_factor) * (1.0d0 - basal_physics%effecpress_delta))
              enddo
           enddo
 
