@@ -93,7 +93,7 @@ contains
     use glimmer_ncio
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
-    use glissade_transport, only: glissade_add_prescribed_acab
+    use glissade_transport, only: glissade_overwrite_acab_mask
     use glimmer_scales
     use glide_mask
     use isostasy
@@ -289,21 +289,6 @@ contains
     ! initialize model diagnostics
     call glide_init_diag(model)
 
-    ! If the SMB is prescribed for regions where the input SMB = 0, then apply this value.
-    ! This may be appropriate for standalone runs forced by modeled SMB (e.g., from RACMO)
-    !  that is not computed outside present-day ice sheet boundaries.
-    ! Note: It assumes that SMB value of 0.0 are non-physical.
-    !       It may be more robust to supply a special value where SMB is not computed.
-
-    if (model%climate%prescribed_acab_value /= 0.0d0) then
-
-!!       print*, 'Setting acab = prescribed value (m/yr):', model%climate%prescribed_acab_value * scyr*thk0/tim0
-
-       call glissade_add_prescribed_acab(model%climate%acab,  &
-                                         model%climate%prescribed_acab_value)
-
-    endif
-
 !!    if (this_rank == model%numerics%rdiag_local) then
 !!       i = model%numerics%idiag_local
 !!       j = model%numerics%jdiag_local
@@ -432,6 +417,25 @@ contains
 !!        call Basal_Proc_init (model%general%ewn, model%general%nsn,model%basalproc,     &
 !!                              model%numerics%dttem)
 !!    end if      
+
+    ! If acab is to be overwritten for some cells, then set overwrite_acab_mask = 1 for these cells.
+    ! We can overwrite the input acab with a fixed value (typically negative) where
+    ! (1) the input acab = 0 at initialization, or
+    ! (2) the input thck <= overwrite_acab_minthck at initialization
+    ! Note: This option is designed for standalone runs, and should be used only with caution for coupled runs.
+    !       On restart, overwrite_acab_mask is read from the restart file.
+
+    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == RESTART_FALSE) then
+
+!!       print*, 'Setting acab = overwrite value (m/yr):', model%climate%overwrite_acab_value * scyr*thk0/tim0
+
+       call glissade_overwrite_acab_mask(model%options%overwrite_acab,          &
+                                         model%climate%acab,                    &
+                                         model%geometry%thck,                   &
+                                         model%climate%overwrite_acab_minthck,  &
+                                         model%climate%overwrite_acab_mask)
+
+    endif
 
     ! calculate mask
     ! Note: This call includes a halo update for thkmask
@@ -830,6 +834,7 @@ contains
                                   glissade_check_cfl,  &
                                   glissade_transport_setup_tracers, &
                                   glissade_transport_finish_tracers, &
+                                  glissade_overwrite_acab,  &
                                   glissade_add_acab_anomaly
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
@@ -995,6 +1000,15 @@ contains
 !!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%climate%acab_corrected(i,j)
 !!          endif
 
+       endif
+
+       ! Overwrite acab (actually, acab_corrected) where overwrite_acab_mask = 1.
+
+       if (model%options%overwrite_acab /= 0) then
+
+          call glissade_overwrite_acab(model%climate%overwrite_acab_mask,  &
+                                       model%climate%overwrite_acab_value, &
+                                       model%climate%acab_corrected)
        endif
 
        ! temporary in/out arrays in SI units (m)

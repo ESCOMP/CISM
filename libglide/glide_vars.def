@@ -555,6 +555,16 @@ standard_name: land_ice_no_advance_mask
 coordinates:   lon lat
 load:          1
 
+[overwrite_acab_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     cells where acab is overwritten
+data:          data%climate%overwrite_acab_mask
+type:          int
+standard_name: land_ice_overwrite_acab_mask
+coordinates:   lon lat
+load:          1
+
 #WHL: Note sign convention: positive downward
 [bheatflx]
 dimensions:    time, y1, x1

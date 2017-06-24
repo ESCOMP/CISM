@@ -124,6 +124,10 @@ module glide_types
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
+  integer, parameter :: OVERWRITE_ACAB_NONE = 0
+  integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
+  integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
+
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
@@ -408,6 +412,14 @@ module glide_types
     !> \item[1] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
+    integer :: overwrite_acab = 0
+    !> overwrite acab (m/yr ice) in selected regions:
+    !> \begin{description}
+    !> \item[0] Do not overwrite acab anywhere
+    !> \item[1] Overwrite acab where input acab = 0
+    !> \item[2] Overwrite acab where input thickness <= threshold value
+    !> \end{description}
+
     integer :: gthf = 0
 
     !> geothermal heat flux:
@@ -979,15 +991,16 @@ module glide_types
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
-     integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
+     integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask for cells where advance is not allowed 
                                                                   !> (any ice reaching these locations is eliminated)
+     integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
-     real(dp) :: prescribed_acab_value = 0.0d0      !> acab value to apply in grid cells where the input acab = 0
-                                                    !> Can be used in standalone runs to force melting where acab is not computed
+     real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
+     real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
 
   end type glide_climate
 
@@ -1897,6 +1910,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
@@ -2278,6 +2292,8 @@ contains
         deallocate(model%climate%flux_correction)
     if (associated(model%climate%no_advance_mask)) &
         deallocate(model%climate%no_advance_mask)
+    if (associated(model%climate%overwrite_acab_mask)) &
+        deallocate(model%climate%overwrite_acab_mask)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

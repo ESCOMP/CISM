@@ -204,8 +204,9 @@ contains
     model%temper%bmlt_float_omega = model%temper%bmlt_float_omega / scyr
     model%temper%bmlt_float_rate  = model%temper%bmlt_float_rate / scyr
 
-    ! scale SMB parameters
-    model%climate%prescribed_acab_value = model%climate%prescribed_acab_value*tim0/(scyr*thk0)
+    ! scale SMB/acab parameters
+    model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
+    model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
 
   end subroutine glide_scale_params
 
@@ -564,6 +565,7 @@ contains
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
+    call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -723,6 +725,11 @@ contains
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
+
+    character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
+         'do not overwrite acab anywhere            ', &
+         'overwrite acab where input acab = 0       ', &
+         'overwrite acab where input thck <= minthck' /)
 
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
@@ -898,9 +905,9 @@ contains
     ! Forbidden options associated with the Glide dycore
     if (model%options%whichdycore == DYCORE_GLIDE) then
 
-       if (model%options%whichevol==EVOL_INC_REMAP     .or.  &
-           model%options%whichevol==EVOL_UPWIND        .or.  &
-           model%options%whichevol==EVOL_NO_THICKNESS) then
+       if (model%options%whichevol == EVOL_INC_REMAP     .or.  &
+           model%options%whichevol == EVOL_UPWIND        .or.  &
+           model%options%whichevol == EVOL_NO_THICKNESS) then
           call write_log('Error, Glam/glissade thickness evolution options cannot be used with Glide dycore', GM_FATAL)
        endif
 
@@ -912,15 +919,19 @@ contains
           call write_log('Error, Glide dycore not supported for runs with more than one processor', GM_FATAL)
        end if
 
-       if (model%options%whichevol==EVOL_ADI) then
+       if (model%options%whichevol == EVOL_ADI) then
           call write_log('WARNING: exact restarts are not currently possible with ADI evolution', GM_WARNING)
+       endif
+
+       if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
+          call write_log('WARNING: overwrite_acab option will be ignored for Glide dycore', GM_WARNING)
        endif
 
     else   ! forbidden evolution options with dycores other than Glide
 
-       if (model%options%whichevol==EVOL_PSEUDO_DIFF .or.  &
-           model%options%whichevol==EVOL_ADI         .or.  &
-           model%options%whichevol==EVOL_DIFFUSION) then
+       if (model%options%whichevol == EVOL_PSEUDO_DIFF .or.  &
+           model%options%whichevol == EVOL_ADI         .or.  &
+           model%options%whichevol == EVOL_DIFFUSION) then
           call write_log('Error, Glide thickness evolution options cannot be used with glam/glissade dycore', GM_FATAL)
        endif
 
@@ -1132,6 +1143,13 @@ contains
     end if
 
     write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
+    call write_log(message)
+
+    if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
+       call write_log('Error, overwrite_acab option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'overwrite_acab          : ',model%options%overwrite_acab,overwrite_acab(model%options%overwrite_acab)
     call write_log(message)
 
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
@@ -1482,7 +1500,8 @@ contains
 
     ! initMIP parameters
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
-    call GetValue(section,'prescribed_acab_value', model%climate%prescribed_acab_value)
+    call GetValue(section,'overwrite_acab_value', model%climate%overwrite_acab_value)
+    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
 
   end subroutine handle_parameters
 
@@ -1740,9 +1759,13 @@ contains
        call write_log(message)
     endif
 
-    if (model%climate%prescribed_acab_value /= 0.0d0) then
-       write(message,*) 'prescribed_acab_value (m/yr)  :  ', model%climate%prescribed_acab_value
+    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
+       write(message,*) 'overwrite_acab_value (m/yr)  :  ', model%climate%overwrite_acab_value
        call write_log(message)
+       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+          write(message,*) 'overwrite_acab_minthck (m)  :  ', model%climate%overwrite_acab_minthck
+          call write_log(message)
+       endif
     endif
 
     call write_log('')
@@ -2140,6 +2163,16 @@ contains
 
         end select   ! which_ho_approx
            
+        ! other Glissade options
+
+        ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
+        ! This mask is set at model initialization based on the input acab or ice thickness.
+        if (options%overwrite_acab /= 0) then
+           call glide_add_to_restart_variable_list('overwrite_acab_mask')
+        endif
+
+        !TODO - Should no_advance_mask also be written to restart?
+
       end select ! which_dycore
 
     ! ==== Other non-dycore specific options ====
