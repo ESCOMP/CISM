@@ -547,7 +547,8 @@ contains
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
          bmlt_factor,     &  ! factor between 0 and 1, used in linear ramp based on bmlt
-         bwat_factor         ! factor between 0 and 1, used in linear ramp based on bwat
+         relative_bwat,   &  ! ratio bwat/bwat_till_max, limited to range [0,1]
+         P_0                 ! overburden pressure, rhoi*grav*thck
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
     real(dp) :: f_pattyn          ! rhoo*(eus-topg)/(rhoi*thck)
@@ -574,7 +575,7 @@ contains
 
        if (present(delta_bpmp)) then
 
-          ! Reduce N wherever the basal temperature is near the pressure melting point,
+          ! Reduce N where the basal temperature is near the pressure melting point,
           !  as defined by delta_bpmp = bpmp - Tbed.
           ! bpmp_factor = 0 where the bed is thawed (delta_bpmp <= 0)
           ! bpmp_factor = 1 where the bed is frozen (delta_bpmp >= effecpress_bpmp_threshold)
@@ -594,7 +595,7 @@ contains
 
        if (present(bmlt)) then
 
-          ! Reduce N wherever there is melting at the bed.
+          ! Reduce N where there is melting at the bed.
           ! The effective pressure ramps down from full overburden for bmlt = 0
           !  to a small value for bmlt >= effecpress_bmlt_threshold.
           ! Both bmlt and effecpress_bmlt_threshold have units of m/yr.
@@ -616,18 +617,32 @@ contains
 
        if (present(bwat)) then
 
-          ! Reduce N wherever the basal water thickness if greater than zero.
-          ! The effective pressure ramps down from full overburden for bwat = 0
-          !  to a small value for bwat >= effecpress_bwat_threshold.
-          ! bwat_factor = 0 where the bed is dry (bwat = 0)
-          ! bwat_factor = 1 where the bed is saturated (bwat >= bwat_threshold)
-          ! 0 < bwat_factor < 1 where 0 < bwat < bwat_threshold
+          ! Reduce N where basal water is present.
+          ! The effective pressure decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
+          ! Note: Instead of using a linear ramp for the variation between overburden and the small value
+          !       (as for the BPMP and BMLT options above), we use the published formulation of Bueler & van Pelt (2015).
+          !       This formulation has N = P_0 for bwat up to ~0.6*bwat_till_max; then N decreases as bwat => bwat_till_max.
+          !       See Fig. 1b of Bueler & van Pelt (2015).
 
           do j = 1, nsn
              do i = 1, ewn
-                bwat_factor = max(0.0d0, min(1.0d0, bwat(i,j)/basal_physics%effecpress_bwat_threshold))
-                basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                     (basal_physics%effecpress_delta + (1.0d0 - bwat_factor) * (1.0d0 - basal_physics%effecpress_delta))
+                P_0 = basal_physics%effecpress(i,j)
+                relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
+
+                ! Eq. 23 from Bueler & van Pelt (2015)
+                basal_physics%effecpress(i,j) = basal_physics%N_0  &
+                     * (basal_physics%effecpress_delta * P_0 / basal_physics%N_0)**relative_bwat  &
+                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+
+                ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
+                ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
+                !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
+!!                basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * P_0  &
+!!                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+
+                ! limit so as not to exceed overburden
+                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), P_0)
+
              enddo
           enddo
 

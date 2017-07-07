@@ -2261,6 +2261,18 @@
           enddo
 
           print*, ' '
+          print*, 'bwat field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') bwat(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
           print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
@@ -2268,6 +2280,22 @@
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
                 write(6,'(f10.0)',advance='no') model%basal_physics%effecpress(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'effecpress/overburden, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                if (thck(i,j) > 0.0d0) then
+                   write(6,'(f10.5)',advance='no') model%basal_physics%effecpress(i,j) / (rhoi*grav*thck(i,j))
+                else
+                   write(6,'(f10.5)',advance='no') 0.0d0
+                endif
              enddo
              write(6,*) ' '
           enddo

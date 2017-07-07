@@ -94,6 +94,7 @@ contains
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
     use glissade_transport, only: glissade_overwrite_acab_mask
+    use glissade_basal_water, only: glissade_basal_water_init
     use glimmer_scales
     use glide_mask
     use isostasy
@@ -105,7 +106,6 @@ contains
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use felix_dycore_interface, only: felix_velo_init
-    use glide_bwater
     use glimmer_paramets, only: thk0, len0, tim0
 
     use glissade_calving, only: glissade_calve_ice
@@ -320,6 +320,10 @@ contains
     !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
     call init_velo(model)
 
+    ! Initialize basal hydrology, if needed
+    call glissade_basal_water_init(model)
+
+    ! Initialize the temperature profile in each column
     call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
                              model%general%ewn,          model%general%nsn,         &
                              model%general%upn,                                     &
@@ -332,9 +336,6 @@ contains
                              model%temper%bheatflx,                                 & ! W/m^2, positive down
                              model%temper%pmp_offset,                               & ! deg C
                              model%temper%temp)                                       ! deg C
-
-    ! Initialize basal hydrology model, if enabled
-    call bwater_init(model)
 
     if (model%options%gthf == GTHF_COMPUTE) then
        call not_parallel(__FILE__,__LINE__)
@@ -468,19 +469,6 @@ contains
           model%geometry%thck = 0.d0
        endwhere
     endif
-
-    ! Initial solve of basal water
-    ! TODO: Should call to calcbwat go here or in diagnostic solve routine? Make sure consistent with Glide.
-    call calcbwat(model, &
-                  model%options%whichbwat, &
-                  model%temper%bmlt, &
-                  model%temper%bwat, &
-                  model%temper%bwatflx, &
-                  model%geometry%thck, &
-                  model%geometry%topg, &
-                  model%temper%temp(model%general%upn,:,:), &
-                  GLIDE_IS_FLOAT(model%geometry%thkmask), &
-                  model%tempwk%wphi)
 
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
@@ -739,13 +727,18 @@ contains
 
     use glimmer_paramets, only: tim0, thk0
     use glissade_therm, only: glissade_therm_driver
-    use glide_bwater, only: calcbwat
+    use glissade_basal_water, only: glissade_calcbwat
 
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
     real(dp), intent(in) :: dt   ! time step (s)
+
+    ! unscaled model parameters (SI units)
+    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
+       bmlt_unscaled,          & ! basal melt rate (m/s)
+       bwat_unscaled             ! basal water thickness (m)
 
     call t_startf('glissade_therm_driver')
 
@@ -780,26 +773,30 @@ contains
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
                                 model%temper%bpmp,                                            & ! deg C
-                                model%temper%bmlt)                                              ! m/s on output
+                                bmlt_unscaled)                                                  ! m/s
                                      
-    ! convert bmlt from m/s to scaled model units
-    model%temper%bmlt = model%temper%bmlt * tim0/thk0
-       
-    call t_stopf('glissade_therm_driver')
-    
     model%temper%newtemps = .true.
 
+    call t_stopf('glissade_therm_driver')
+
+    ! convert bwat to SI units for input to glissade_calcbwat
+    bwat_unscaled(:,:) = model%temper%bwat(:,:) * thk0
+
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_calcbwat'
+
     ! Update basal hydrology, if needed
-    call calcbwat( model,                                    &
-                   model%options%whichbwat,                  &
-                   model%temper%bmlt,                        &
-                   model%temper%bwat,                        &
-                   model%temper%bwatflx,                     &
-                   model%geometry%thck,                      &
-                   model%geometry%topg,                      &
-                   model%temper%temp(model%general%upn,:,:), &
-                   GLIDE_IS_FLOAT(model%geometry%thkmask),   &
-                   model%tempwk%wphi)
+    ! Note: glissade_calcbwat uses SI units
+    call glissade_calcbwat(model%options%which_ho_bwat,      &
+                           model%basal_physics,              &
+                           dt,                               &  ! s
+                           model%geometry%thck*thk0,         &  ! m
+                           model%numerics%thklim_temp*thk0,  &  ! m
+                           bmlt_unscaled,                    &  ! m/s
+                           bwat_unscaled)                       ! m
+
+    ! convert bmlt and bwat from SI units to scaled model units
+    model%temper%bmlt(:,:) = bmlt_unscaled(:,:) * tim0/thk0
+    model%temper%bwat(:,:) = bwat_unscaled(:,:) / thk0
 
     !------------------------------------------------------------------------ 
     ! Halo updates

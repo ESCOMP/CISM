@@ -602,6 +602,7 @@ contains
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
+    call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
@@ -800,6 +801,11 @@ contains
          'Coulomb friction law w/ effec press, const flwa_b', &
          'min of Coulomb stress and power-law stress (Tsai)', &
          'simple pattern of beta                           ' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
+         'zero basal water depth                          ', &
+         'constant basal water depth                      ', &
+         'basal water depth computed from local till model' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
@@ -1241,6 +1247,13 @@ contains
               &USE AT YOUR OWN RISK.', GM_WARNING)
        endif
 
+       write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
+                         ho_whichbwat(model%options%which_ho_bwat)
+       call write_log(message)
+       if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
+          call write_log('Error, HO basal water input out of range', GM_FATAL)
+       end if
+
        write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
                          ho_whicheffecpress(model%options%which_ho_effecpress)
        call write_log(message)
@@ -1480,7 +1493,9 @@ contains
     call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
     call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
-    call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
+    call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
+    call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
+    call GetValue(section, 'C_drainage', model%basal_physics%C_drainage)
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
@@ -1533,7 +1548,7 @@ contains
     if (model%options%whichdycore /= DYCORE_GLIDE) then
        write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
        call write_log(message)
-       write(message,*) 'pmp threshold for temperature (deg C) : ', model%temper%pmp_threshold
+       write(message,*) 'pmp threshold for temperature (K): ', model%temper%pmp_threshold
        call write_log(message)
     endif
 
@@ -1699,27 +1714,35 @@ contains
     endif
 
     if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
-       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
+       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       write(message,*) 'effective pressure bpmp threshold    : ', model%basal_physics%effecpress_bpmp_threshold
+       write(message,*) 'effecpress bpmp threshold (K) : ', model%basal_physics%effecpress_bpmp_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BMLT) then
-       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
+       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       write(message,*) 'effective pressure bmlt threshold (m): ', model%basal_physics%effecpress_bmlt_threshold
+       write(message,*) 'effecpress bmlt threshold (m) : ', model%basal_physics%effecpress_bmlt_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
-       write(message,*) 'effective pressure delta             : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-       write(message,*) 'effective pressure bwat threshold (m): ', model%basal_physics%effecpress_bwat_threshold
+       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_OCEAN_PENETRATION) then
-       write(message,*) 'p_ocean_penetration                  : ', model%basal_physics%p_ocean_penetration
+       write(message,*) 'p_ocean_penetration           : ', model%basal_physics%p_ocean_penetration
+       call write_log(message)
+    endif
+
+    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
+       write(message,*) 'constant basal water depth (m): ', model%basal_physics%const_bwat
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
+       write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
+       call write_log(message)
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%C_drainage
        call write_log(message)
     endif
 
     if (model%basal_physics%beta_grounded_min > 0.d0) then
-       write(message,*) 'min beta for grounded ice (Pa yr/m): ', model%basal_physics%beta_grounded_min
+       write(message,*) 'min beta, grounded ice (Pa yr/m): ', model%basal_physics%beta_grounded_min
        call write_log(message)
     endif
     
@@ -1731,39 +1754,39 @@ contains
 
     ! ISMIP-HOM parameters
     if (model%numerics%periodic_offset_ew /= 0.d0) then
-       write(message,*) 'periodic offset_ew (m)  :  ',model%numerics%periodic_offset_ew
+       write(message,*) 'periodic offset_ew (m)  : ',model%numerics%periodic_offset_ew
        call write_log(message)
     endif
 
     if (model%numerics%periodic_offset_ns /= 0.d0) then
-       write(message,*) 'periodic offset_ns (m)  :  ',model%numerics%periodic_offset_ns
+       write(message,*) 'periodic offset_ns (m)  : ',model%numerics%periodic_offset_ns
        call write_log(message)
     endif
 
     ! parameters for basal melting of floating ice (including MISMIP+)
     if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
-       write(message,*) 'bmlt_float_rate (m/yr)   :  ', model%temper%bmlt_float_rate * scyr
+       write(message,*) 'bmlt_float_rate (m/yr)   : ', model%temper%bmlt_float_rate * scyr
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
-       write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%temper%bmlt_float_omega * scyr
+       write(message,*) 'bmlt_float_omega (yr^-1) : ', model%temper%bmlt_float_omega * scyr
        call write_log(message)
-       write(message,*) 'bmlt_float_h0 (m)        :  ', model%temper%bmlt_float_h0
+       write(message,*) 'bmlt_float_h0 (m)        : ', model%temper%bmlt_float_h0
        call write_log(message)
-       write(message,*) 'bmlt_float_z0 (m)        :  ', model%temper%bmlt_float_z0
+       write(message,*) 'bmlt_float_z0 (m)        : ', model%temper%bmlt_float_z0
        call write_log(message)
     endif
 
     ! initMIP parameters
     if (model%climate%acab_anomaly_timescale > 0.0d0) then
-       write(message,*) 'acab_anomaly_timescale (yr)   :  ', model%climate%acab_anomaly_timescale
+       write(message,*) 'acab_anomaly_timescale (yr): ', model%climate%acab_anomaly_timescale
        call write_log(message)
     endif
 
     if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
-       write(message,*) 'overwrite_acab_value (m/yr)  :  ', model%climate%overwrite_acab_value
+       write(message,*) 'overwrite_acab_value (m/yr)   : ', model%climate%overwrite_acab_value
        call write_log(message)
        if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
-          write(message,*) 'overwrite_acab_minthck (m)  :  ', model%climate%overwrite_acab_minthck
+          write(message,*) 'overwrite_acab_minthck (m)    : ', model%climate%overwrite_acab_minthck
           call write_log(message)
        endif
     endif
@@ -2114,6 +2137,16 @@ contains
             ! Nothing needs to happen because ubas,vbas are assigned from uvel,vel in glide_init_state_diagnostic()
         end select
 
+        ! basal water option for Glide
+        select case (options%whichbwat)
+        case (BWATER_NONE, BWATER_CONST)
+           ! no restart variables needed
+        case default
+           ! restart needs to know bwat value
+           call glide_add_to_restart_variable_list('bwat')
+        end select
+
+
       case (DYCORE_GLAM, DYCORE_GLISSADE)
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
@@ -2163,6 +2196,15 @@ contains
 
         end select   ! which_ho_approx
            
+        ! basal water option for Glissade
+        select case (options%which_ho_bwat)
+        case (HO_BWAT_NONE, HO_BWAT_CONSTANT)
+           ! no restart variables needed
+        case default
+           ! restart needs to know bwat value
+           call glide_add_to_restart_variable_list('bwat')
+        end select
+
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
@@ -2176,15 +2218,6 @@ contains
       end select ! which_dycore
 
     ! ==== Other non-dycore specific options ====
-
-    ! basal water option
-    select case (options%whichbwat)
-      case (BWATER_NONE, BWATER_CONST)
-        ! no restart variables needed
-      case default
-        ! restart needs to know bwat value
-        call glide_add_to_restart_variable_list('bwat')
-    end select
 
     ! internal water option (for enthalpy scheme)
     select case (options%whichtemp)

@@ -214,6 +214,10 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
   integer, parameter :: HO_BABC_SIMPLE = 13
 
+  integer, parameter :: HO_BWAT_NONE = 0
+  integer, parameter :: HO_BWAT_CONSTANT = 1
+  integer, parameter :: HO_BWAT_LOCAL_TILL = 2
+
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BMLT = 2
@@ -562,6 +566,14 @@ module glide_types
     !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
     !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
     !> \item[13] simple hard-coded pattern (useful for debugging)
+    !> \end{description}
+
+    integer :: which_ho_bwat = 0
+    !> Basal water depth:
+    !> \begin{description}
+    !> \item[0] Set to zero everywhere
+    !> \item[1] Set to constant everywhere, to force T = Tpmp.
+    !> \item[2] Local basal till model with constant drainage
     !> \end{description}
 
     integer :: which_ho_effecpress = 0
@@ -1172,7 +1184,6 @@ module glide_types
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
      real(dp) :: effecpress_bpmp_threshold = 0.1d0  !< temperature range over which N ramps from a small value to full overburden (deg C)
      real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !< basal melting range over which N ramps from a small value to full overburden (m/yr)
-     real(dp) :: effecpress_bwat_threshold = 1.0d0  !< basal water thickness range over which N ramps from a small value to full overburden (m)
      real(dp) :: p_ocean_penetration = 0.0d0        !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
      ! parameters for pseudo-plastic sliding law (based on PISM)
@@ -1212,6 +1223,20 @@ module glide_types
      real(dp) :: powerlaw_C = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
       
+     ! parameter for constant basal water
+     ! Note: This parameter applies to HO_BWAT_CONSTANT only.
+     !       For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
+     real(dp) :: const_bwat = 10.d0              !< constant basal water depth (m)
+
+     ! parameters for local till model
+     ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
+     real(dp) :: bwat_till_max = 2.0d0           !< maximum water depth in till (m)
+     real(dp) :: C_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
+     real(dp) :: N_0 = 1000.d0                   !< reference effective pressure (Pa)
+     real(dp) :: e_0 = 0.69d0                    !< reference void ratio (dimensionless)
+     real(dp) :: C_c = 0.12d0                    !< till compressibility (dimensionless)
+                                                 !< Note: The ratio (e_0/C_c) is the key parameter
+
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed..
      real(dp),dimension(:,:)  ,pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model
@@ -1734,7 +1759,6 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bwatflx)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_applied)
@@ -1744,7 +1768,9 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade only
+    if (model%options%whichdycore == DYCORE_GLIDE) then   ! glide only
+       call coordsystem_allocate(model%general%ice_grid, model%temper%bwatflx)
+    else   ! glam/glissade only
        call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
