@@ -1769,6 +1769,20 @@ contains
     ! Diagnose some quantities that are not velocity-dependent, but may be desired for output
     !------------------------------------------------------------------------
 
+    ! basal ice temperature
+    ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
+    ! However, it is set to zero for ice-free columns (unlike temp(upn) = min(artm,0.0) for ice-free columns)
+    ! TODO - Make btemp a prognostic array, and limit the 3D temp array to internal layer temperatures?
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          if (model%geometry%thck(i,j) > 0.0d0) then
+             model%temper%btemp(i,j) = model%temper%temp(model%general%upn,i,j)
+          else
+             model%temper%btemp(i,j) = 0.0d0
+          endif
+       enddo
+    enddo
+
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab * scale_acab) has units of m/yr of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr

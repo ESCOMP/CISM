@@ -1113,6 +1113,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
     real(dp),dimension(:,:),  pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
                                                              !> = 0 for ice-free cells with bmlt > 0
+    real(dp),dimension(:,:),  pointer :: btemp => null()     !> Basal temperature on ice grid; diagnosed from temp(upn)
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
@@ -1765,6 +1766,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
 
@@ -2044,6 +2046,8 @@ contains
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &
         deallocate(model%temper%stagbpmp)
+    if (associated(model%temper%btemp)) &
+        deallocate(model%temper%btemp)
     if (associated(model%temper%stagbtemp)) &
         deallocate(model%temper%stagbtemp)
     if (associated(model%temper%bfricflx)) &

@@ -659,7 +659,7 @@ load:          1
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     basal ice temperature
-data:          data%temper%temp(data%general%upn,1:data%general%ewn,1:data%general%nsn)
+data:          data%temper%btemp
 standard_name: land_ice_temperature
 coordinates:   lon lat
 

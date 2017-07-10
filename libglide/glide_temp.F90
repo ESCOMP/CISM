@@ -275,6 +275,19 @@ contains
 
     endif    ! restart file, input file, or other options
 
+    ! Diagnose basal ice temperature.
+    ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
+    ! However, it is set to zero for ice-free columns, which may not be the case for temp(upn).
+
+    do ns = 1, model%general%nsn
+       do ew = 1, model%general%ewn
+          if (model%geometry%thck(ew,ns) > 0.0d0) then
+             model%temper%btemp(ew,ns) = model%temper%temp(model%general%upn,ew,ns)
+          else
+             model%temper%btemp(ew,ns) = 0.0d0
+          endif
+       enddo
+    enddo
 
     ! ====== Calculate initial value of flwa ==================
 
@@ -652,6 +665,20 @@ contains
         ! DO NOTHING. That is, hold T const. at initially assigned value
 
     end select   ! whichtemp
+
+    ! Diagnose basal ice temperature
+    ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
+    ! However, it is set to zero for ice-free columns, which may not be the case for temp(upn).
+
+    do ns = 1, model%general%nsn
+       do ew = 1, model%general%ewn
+          if (model%geometry%thck(ew,ns) > 0.0d0) then
+             model%temper%btemp(ew,ns) = model%temper%temp(model%general%upn,ew,ns)
+          else
+             model%temper%btemp(ew,ns) = 0.0d0
+          endif
+       enddo
+    enddo
 
     ! Rescale dissipation term to deg C/s (instead of deg C)
     !WHL - Treat dissip above as a rate (deg C/s) instead of deg 
