@@ -161,17 +161,16 @@
     !  topography of the four neighboring cell centers.
     !
     ! There are three options for computing the grounded fraction, based on the value of whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
+    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for all vertices with grounded, ice-covered neighbor cells
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
-    ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
+    ! (2) HO_GROUND_ALL: f_ground = 1 for all vertices with ice-covered neighbor cells
     !
     ! Notes on whichground:
-    !       Both (0) and (1) rely on computing a flotation function at cell centers
-    !       and interpolating it to vertices.  Method (0) stipulates that a vertex
-    !       is floating if the flotation function has a value associated with floating.
-    !       Method (1) interpolates the flotation function over the bounding box of
-    !       each vertex and analytically integrates to compute the grounded and floating
-    !       fractions.
+    !       Both (0) and (1) rely on computing a flotation function at cell centers.
+    !       - Method (0) stipulates that a vertex is grounded if any cell neighbor is grounded,
+    !         based on the value of the flotation function.
+    !       - Method (1) interpolates the flotation function over the bounding box of each
+    !         vertex and analytically integrates to compute the grounded and floating fractions.
     !
     ! In addition, there are three options for the flotation function that is interpolated 
     ! from cell centers to vertices as part of the computation of f_ground:
@@ -248,10 +247,10 @@
     integer :: i, j
 
     integer, dimension(nx-1,ny-1) ::   &
-       vmask              ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
+       vmask                     ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
     real(dp), dimension(nx-1,ny-1) :: &
-       stagf_flotation       ! f_flotation interpolated to staggered grid
+       stagf_flotation           ! f_flotation interpolated to staggered grid
 
     real(dp) :: a, b, c, d       ! coefficients in bilinear interpolation
                                  ! f(x,y) = a + b*x + c*y + d*x*y
@@ -265,7 +264,9 @@
     integer :: nfloat     ! number of grounded vertices of a cell (0 to 4)
 
     logical, dimension(nx,ny) :: &
+       cground,          & ! true if ice is present and grounded, else = false
        cfloat              ! true if flotation condition is satisfied at cell center, else = false
+                           ! Note: cground and cfloat are not exact complements; both can be false for ice-free cells
 
     logical, dimension(2,2) ::   &
        logvar              ! set locally to float or .not.float, depending on nfloat
@@ -302,6 +303,9 @@
        enddo
     enddo
 
+    ! Initialize a logical mask, cground, which is true where ice is present and grounded.
+    cground(:,:) = .false.
+
     ! Compute flotation function at cell centers
 
     if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
@@ -312,6 +316,7 @@
        do i = 1, nx
           if (ice_mask(i,j) == 1) then
              f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
+             if (f_flotation(i,j) <= 1.d0) cground(i,j) = .true.
           else
              f_flotation(i,j) = 0.d0  ! treat as grounded
           endif
@@ -331,6 +336,7 @@
                    f_flotation(i,j) = rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
                    f_flotation(i,j) = min(f_flotation(i,j), grounding_factor_max)
                 endif
+                if (f_flotation(i,j) >= 1.d0) cground(i,j) = .true.
              else  ! ice-free cell
                 if (topg(i,j) - eus >= 0.0d0) then  ! land-based cell
                    f_flotation(i,j) = grounding_factor_max
@@ -351,6 +357,7 @@
           do i = 1, nx
              if (ice_mask(i,j) == 1) then
                 f_flotation(i,j) = -rhoo*(topg(i,j) - eus) - rhoi*thck(i,j)
+                if (f_flotation(i,j) >= 0.d0) cground(i,j) = .true.
              else
                 f_flotation(i,j) = 0.d0
              endif
@@ -358,15 +365,6 @@
        enddo
 
     endif  ! whichflotation_function
-
-    ! Interpolate f_flotation to staggered mesh
-
-    ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-    ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
-
-    call glissade_stagger(nx,          ny,             &
-                          f_flotation, stagf_flotation,   &
-                          ice_mask,    stagger_margin_in = 1)
 
     ! initialize f_ground
     f_ground(:,:) = 0.d0
@@ -378,61 +376,48 @@
     case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
                              ! f_ground = 1 if stagf_flotation <=1, f_ground = 0 if stagf_flotation > 1
 
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+       ! vertices are grounded if any neighbor cell has grounded ice, else are floating
 
-          ! grounded if stagf_flotation <= 1, else floating
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (vmask(i,j) == 1) then
+                if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j)   .or. cground(i+1,j)) then
+                    f_ground(i,j) = 1.d0
+                 else
+                    f_ground(i,j) = 0.d0
+                 endif
+              endif
+           enddo
+        enddo
 
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) <= 1.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
+    case(HO_GROUND_ALL)
+
+       ! all vertices with ice-covered neighbors are assumed grounded, regardless of thck and topg
+
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (vmask(i,j) == 1) then
+                f_ground(i,j) = 1.d0
+             endif
           enddo
-
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-
-          ! grounded if stagf_flotation >= 1, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) >= 1.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
-          enddo
-
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-       
-          ! grounded if stagf_flotation <= 0, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) <= 0.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
-          enddo
-   
-       endif   ! whichflotation_function
+       enddo
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization
+
+       ! Interpolate f_flotation to staggered mesh
+
+       ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
+       ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
+
+       call glissade_stagger(nx,          ny,             &
+                             f_flotation, stagf_flotation,   &
+                             ice_mask,    stagger_margin_in = 1)
 
        ! Identify cells that contain floating ice
 
        if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+
+          !TODO - compute cfloat above, along with cground?
 
           ! grounded if f_flotation <= 1, else floating
 
@@ -853,24 +838,13 @@
           enddo           ! i
        enddo              ! j
 
-    case(HO_GROUND_ALL)   ! all vertices with ice-covered neighbors are assumed grounded, 
-                          ! regardless of thck and topg
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-             if (vmask(i,j) == 1) then
-                f_ground(i,j) = 1.d0
-             endif
-          enddo
-       enddo
-
     end select
 
   end subroutine glissade_grounded_fraction
 
 !****************************************************************************
 
-  !TODO - Remove this subroutine and replace with a calving_specific subroutine?
+  !TODO - Remove this subroutine and replace with a calving-specific subroutine?
   !       Currently used only for calving
 
   subroutine glissade_calculate_masks(nx,            ny,             &
