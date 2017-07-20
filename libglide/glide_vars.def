@@ -732,15 +732,6 @@ factor:        scale_acab
 standard_name: land_ice_basal_melt_rate_applied
 coordinates:   lon lat
 
-[bmlt_float_mask]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     mask for basal melting of floating ice
-data:          data%temper%bmlt_float_mask
-standard_name: land_ice_basal_melt_rate_floating_mask
-load:          1
-coordinates:   lon lat
-
 [bfricflx]
 dimensions:    time, y1, x1
 units:         watt/meter2

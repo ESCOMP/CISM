@@ -1693,7 +1693,7 @@ module glissade_remap
          md = (ydr - ydl) / (xdr - xdl)
 
          !WHL - debug - Change from puny to zero to avoid problems with flow along an axis
-                        If abs(md) is > 0 but < puny, use of 'puny' logic can give wrong value for xic.
+         !              If abs(md) is > 0 but < puny, use of 'puny' logic can give wrong value for xic.
 !!         if (abs(md) > puny) then
          if (abs(md) > 0.d0) then         
             xic = xdl - ydl/md

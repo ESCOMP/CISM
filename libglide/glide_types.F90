@@ -1849,7 +1849,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_applied)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
@@ -2151,8 +2150,6 @@ contains
         deallocate(model%temper%bmlt)
     if (associated(model%temper%bmlt_applied)) &
         deallocate(model%temper%bmlt_applied)
-    if (associated(model%temper%bmlt_float_mask)) &
-        deallocate(model%temper%bmlt_float_mask)
     if (associated(model%temper%bpmp)) &
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &
