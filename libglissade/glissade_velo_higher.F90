@@ -1847,14 +1847,14 @@
     !       current thickness field.
     !------------------------------------------------------------------------------
 
-    call calc_effective_pressure(whicheffecpress,           &
-                                 nx,            ny ,        &
-                                 model%basal_physics,       &
-                                 ice_mask,                  &
-                                 bpmp(:,:) - temp(nz,:,:),  &
-                                 bmlt,          bwat,       &
-                                 thck,          topg,       &
-                                 eus)
+    call calc_effective_pressure(whicheffecpress,              &
+                                 nx,            ny,            &
+                                 model%basal_physics,          &
+                                 ice_mask,      floating_mask, &
+                                 thck,          topg,          &
+                                 eus,                          &
+                                 bpmp(:,:) - temp(nz,:,:),     &
+                                 bmlt,          bwat)
 
     !------------------------------------------------------------------------------
     ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at

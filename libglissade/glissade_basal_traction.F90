@@ -487,16 +487,16 @@ contains
 
 !***********************************************************************
 
-  subroutine calc_effective_pressure (which_effecpress,         &
-                                      ewn,           nsn,       &
-                                      basal_physics,            &
-                                      ice_mask,                 &
-                                      delta_bpmp,               &
-                                      bmlt,          bwat,      &
-                                      thck,          topg,      &
-                                      eus)
+  subroutine calc_effective_pressure (which_effecpress,             &
+                                      ewn,           nsn,           &
+                                      basal_physics,                &
+                                      ice_mask,      floating_mask, &
+                                      thck,          topg,          &
+                                      eus,                          &
+                                      delta_bpmp,                   &
+                                      bmlt,          bwat)
 
-    ! subroutine to calculate the effective pressure at the bed
+    ! Calculate the effective pressure at the bed
 
     use glimmer_physcon, only: rhoi, grav, rhoo
 
@@ -517,7 +517,15 @@ contains
                              ! includes effecpress, effecpress_stag and various parameters
 
     integer, dimension(:,:), intent(in) :: &
-         ice_mask            ! = 1 for cells where ice is present (thk > thklim), else = 0
+         ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
+         floating_mask       ! = 1 where ice is present and floating, else = 0
+ 
+    real(dp), dimension(:,:), intent(in) ::  &
+         thck,             & ! ice thickness (m)
+         topg                ! bed topography (m)
+
+    real(dp), intent(in) ::  &
+         eus                 ! eustatic sea level (m) relative to z = 0
 
     !NOTE: If used, the following 2D fields (delta_bpmp, bmlt, bwat, thck and topg) need to be correct in halos.
 
@@ -533,22 +541,15 @@ contains
          bwat                ! basal water thickness at the bed (m)
                              ! used for HO_EFFECPRESS_BWAT option
 
-    ! The remaining input variables are used for the HO_EFFECPRESS_OCEAN_PENETRATION option
-
-    real(dp), dimension(:,:), intent(in), optional ::  &
-         thck,             & ! ice thickness (m)
-         topg                ! bed topography (m)
-
-    real(dp), intent(in), optional ::  &
-         eus                 ! eustatic sea level (m) relative to z = 0
-
     ! Local variables
 
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
          bmlt_factor,     &  ! factor between 0 and 1, used in linear ramp based on bmlt
-         relative_bwat,   &  ! ratio bwat/bwat_till_max, limited to range [0,1]
-         P_0                 ! overburden pressure, rhoi*grav*thck
+         relative_bwat       ! ratio bwat/bwat_till_max, limited to range [0,1]
+
+    real(dp), dimension(ewn,nsn) ::  &
+         overburden          ! overburden pressure, rhoi*g*H
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
     real(dp) :: f_pattyn          ! rhoo*(eus-topg)/(rhoi*thck)
@@ -557,19 +558,21 @@ contains
 
     integer :: i, j
 
-    ! initialize the effective pressure N to the full overburden pressure
+    ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
 
     where (ice_mask == 1)  ! active ice, thck > thklim
-       basal_physics%effecpress(:,:) = rhoi*grav*thck(:,:)
+       overburden = rhoi*grav*thck
     elsewhere
-       basal_physics%effecpress(:,:) = 0.0d0
+       overburden = 0.0d0
     endwhere
 
     select case(which_effecpress)
 
     case(HO_EFFECPRESS_OVERBURDEN)
 
-       ! nothing to do, since N has already been initialized to the full overburden pressure
+       basal_physics%effecpress(:,:) = overburden(:,:)
+
+       ! Note: Here we assume (unrealistically) that N = rhoi*g*H even for floating ice.
 
     case(HO_EFFECPRESS_BPMP)
 
@@ -583,9 +586,14 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
+
                 bpmp_factor = max(0.0d0, min(1.0d0, delta_bpmp(i,j)/basal_physics%effecpress_bpmp_threshold))
-                basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
+                basal_physics%effecpress(i,j) = overburden(i,j) * &
                      (basal_physics%effecpress_delta + bpmp_factor * (1.0d0 - basal_physics%effecpress_delta))
+
+                ! set to zero for floating ice
+                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
+
              enddo
           enddo
 
@@ -605,9 +613,14 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
+
                 bmlt_factor = max(0.0d0, min(1.0d0, bmlt(i,j)/basal_physics%effecpress_bmlt_threshold))
-                basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
+                basal_physics%effecpress(i,j) = overburden(i,j) * &
                      (basal_physics%effecpress_delta + (1.0d0 - bmlt_factor) * (1.0d0 - basal_physics%effecpress_delta))
+
+                ! set to zero for floating ice
+                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
+
              enddo
           enddo
 
@@ -626,22 +639,24 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                P_0 = basal_physics%effecpress(i,j)
                 relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
 
                 ! Eq. 23 from Bueler & van Pelt (2015)
                 basal_physics%effecpress(i,j) = basal_physics%N_0  &
-                     * (basal_physics%effecpress_delta * P_0 / basal_physics%N_0)**relative_bwat  &
+                     * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
                 ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
                 ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
                 !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
-!!                basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * P_0  &
+!!                basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
 !!                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
                 ! limit so as not to exceed overburden
-                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), P_0)
+                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+
+                ! set to zero for floating ice
+                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
 
              enddo
           enddo
@@ -657,15 +672,19 @@ contains
 
        ocean_p = basal_physics%p_ocean_penetration
 
-       if (present(thck) .and. present(topg) .and. present(eus) .and. ocean_p > 0.0d0) then
+       if (ocean_p > 0.0d0) then
 
           do j = 1, nsn
              do i = 1, ewn
                 f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
                 f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
-                basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
+                basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
              enddo
           enddo
+
+       else
+
+          basal_physics%effecpress(:,:) = overburden(:,:)
 
        endif
 
@@ -684,8 +703,8 @@ contains
 
     where (basal_physics%effecpress < 0.0d0)
        basal_physics%effecpress = 0.0d0
-    elsewhere (basal_physics%effecpress > rhoi * grav * thck)
-       basal_physics%effecpress = rhoi * grav * thck
+    elsewhere (basal_physics%effecpress > overburden)
+       basal_physics%effecpress = overburden
     endwhere
 
     ! Interpolate the effective pressure to the staggered grid.
