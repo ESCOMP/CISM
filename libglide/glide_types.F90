@@ -1162,7 +1162,7 @@ module glide_types
      !< Holds variables related to basal physics associated with ice dynamics
      !< See glissade_basal_traction.F90 for usage details
 
-     !WHL - A reasonable value of beta_grounded_min might be 10 Pa yr/m.  
+     !WHL - A reasonable value of beta_grounded_min might be 100 Pa yr/m.  
      !      However, this choice is not BFB for the confined-shelf test case, so I am choosing a default value of 0 for now.
      !      The default can be overridden in the config file.
      !TODO: Set beta_grounded_min = 10 Pa yr/m
