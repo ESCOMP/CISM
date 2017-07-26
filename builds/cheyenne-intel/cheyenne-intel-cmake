@@ -52,5 +52,4 @@ cmake \
   -D CMAKE_CXX_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
  ../..
 
-# Note: last argument above  "../.."  is path to top seacism directory
-# Note: last argument above  "../.."  is path to top seacism directory
+# Note: last argument above  "../.."  is path to top-level cism directory
