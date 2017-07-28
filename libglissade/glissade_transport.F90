@@ -51,7 +51,8 @@
 
     public :: glissade_transport_driver, glissade_check_cfl, &
               glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
-              glissade_add_prescribed_acab, glissade_add_acab_anomaly
+              glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
+              glissade_add_acab_anomaly
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -1407,22 +1408,91 @@
 
 !----------------------------------------------------------------------
 
-  subroutine glissade_add_prescribed_acab(acab,  &
-                                          prescribed_acab_value)
+  subroutine glissade_overwrite_acab_mask(overwrite_acab,         &
+                                          acab,                   &
+                                          thck,                   &
+                                          overwrite_acab_minthck, &
+                                          overwrite_acab_mask)
 
-    real(dp), dimension(:,:), intent(inout) ::  &
-         acab           !> unadjusted SMB on input (model units)
-                        !> SMB filled in with the prescribed value on output
+    use glide_types
+
+    ! If overwrite_acab /=0 , then set overwrite_acab_mask = 1 for grid cells
+    !  where acab is to be overwritten.  Currently, two options are supported:
+    ! (1) Overwrite acab where the input acab = 0 at initialization
+    ! (2) Overwrite acab where the input thck <= overwrite_acab_minthck at initialization
+    !
+    ! Note: This subroutine should be called only on initialization, not on restart.
+
+    integer, intent(in) ::  &
+         overwrite_acab           !> option for overwriting acab
+
+    real(dp), dimension(:,:), intent(in) ::  &
+         acab,                  & !> ice surface mass balance (model units)
+         thck                     !> ice thickness (model units)
 
     real(dp), intent(in) ::  &
-         prescribed_acab_value    !> acab value applied where input value = 0.0
+         overwrite_acab_minthck   !> overwrite acab where thck <= overwrite_acab_minthck (model units)
+
+    integer, dimension(:,:), intent(out) ::  &
+         overwrite_acab_mask      !> = 1 where acab is overwritten, else = 0
 
     integer :: ewn, nsn
     integer :: i, j
 
-    ! Note: This subroutine assumes that SMB value of 0.0 are non-physical
-    !       (i.e., not computed by the model supplying the SMB field).
-    !       It may be more robust to supply a special value where SMB is not computed.
+    ewn = size(overwrite_acab_mask,1)
+    nsn = size(overwrite_acab_mask,2)
+
+    if (overwrite_acab == OVERWRITE_ACAB_ZERO_ACAB) then
+
+       do j = 1, nsn
+          do i = 1, ewn
+
+             if (acab(i,j) == 0.0d0) then
+                overwrite_acab_mask(i,j) = 1
+             else
+                overwrite_acab_mask(i,j) = 0
+             endif
+
+          enddo
+       enddo
+
+    elseif (overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+
+       do j = 1, nsn
+          do i = 1, ewn
+
+             ! Note the '<='.  If overwrite_acab_minthck = 0.d0, only ice-free cells are overwritten.
+             if (thck(i,j) <= overwrite_acab_minthck) then
+                overwrite_acab_mask(i,j) = 1
+             else
+                overwrite_acab_mask(i,j) = 0
+             endif
+
+          enddo
+       enddo
+
+    endif  ! overwrite_acab
+
+  end subroutine glissade_overwrite_acab_mask
+
+!----------------------------------------------------------------------
+
+  subroutine glissade_overwrite_acab(overwrite_acab_mask,  &
+                                     overwrite_acab_value, &
+                                     acab)
+
+    integer, dimension(:,:), intent(in) ::  &
+         overwrite_acab_mask     !> mask = 1 where acab is overwritten value, else = 0
+
+    real(dp), intent(in) ::  &
+         overwrite_acab_value    !> acab value applied where overwrite_acab_mask = 1
+
+    real(dp), dimension(:,:), intent(inout) ::  &
+         acab           !> unadjusted acab (model units) on input
+                        !> overwritten acab on output
+
+    integer :: ewn, nsn
+    integer :: i, j
 
     ewn = size(acab,1)
     nsn = size(acab,2)
@@ -1430,14 +1500,14 @@
     do j = 1, nsn
        do i = 1, ewn
 
-          if (acab(i,j) == 0.0d0) then
-             acab(i,j) = prescribed_acab_value
+          if (overwrite_acab_mask(i,j) == 1) then
+             acab(i,j) = overwrite_acab_value
           endif
 
        enddo
     enddo
 
-  end subroutine glissade_add_prescribed_acab
+  end subroutine glissade_overwrite_acab
 
 !----------------------------------------------------------------------
 

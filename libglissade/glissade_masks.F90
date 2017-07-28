@@ -46,16 +46,7 @@
 
     implicit none
 
-    ! All variables, functions and subroutines in this module are public
-
-    ! public parameters
-
-    ! integer mask values
-    integer, parameter :: mask_value_land          =  1   ! topg >= eus
-    integer, parameter :: mask_value_active_ice    =  2   ! thick enough to be active
-    integer, parameter :: mask_value_floating_ice  =  4   ! active and floating
-    integer, parameter :: mask_value_margin        =  8   ! margin between active ice and inactive/zero ice; includes both active and inactive cells
-    integer, parameter :: mask_value_ice           =  16  ! thickness > 0; giving this the highest value so it is obvious during visualization
+    ! All subroutines in this module are public
 
   contains
 
@@ -69,6 +60,38 @@
                                   
     !----------------------------------------------------------------
     ! Compute various masks for the Glissade dycore.
+    !
+    ! There are different ways to handle masks.
+    ! The approach in Glide was to define an integer cell_mask array,
+    !  in which each bit encodes information about whether a cell is ice-covered
+    !  or ice-free, floating or grounded, etc.
+    ! The approach here is to compute a separate 2D integer array for
+    !  each kind of mask. This uses more memory but also is more transparent.
+    !
+    ! The basic masks used for Glissade dynamic calculations are as follows:
+    !
+    ! (1) ice_mask = 1 where ice is present (thck > thklim), else = 0
+    ! (2) floating_mask = 1 if ice is present (thck > thklim) and floating (thck < thck_flotation), else = 0
+    !     where thck_flotation = (rhoo/rhoi)*(eus - topg)
+    ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thklim, else = 0
+    ! (4) land_mask = 1 if the topography is at or above sea level (topg >= eus), else = 0
+    !
+    ! where thck = ice thickness
+    !       thklim = threshold thickness for ice to be dynamically active
+    !       topg = bed topography
+    !       eus = eustatic sea level (= 0 by default)
+    !       rhoi = ice density
+    !       rhoo = ocean density
+    !
+    ! Notes:
+    ! (1) thck, thklim, topg and eus can either have units of length (e.g., meters)
+    !     or be dimensionless, as long as they are defined consistently.
+    ! (2) ice_mask is always computed; the other masks are optional.
+    ! (3) Thermal calculations may have a different threshold, thklim_temp
+    !     (where generally thklim_temp < thklim).
+    !     This mask can be computed by replacing thklim with thklim_temp in the subroutine call.
+    ! (4) For other kinds of calculations, it may be useful to call this subroutine with thklim = 0
+    !     so as to identify all cells with nonzero ice thickness, not just dynamically active cells.
     !----------------------------------------------------------------
     
     use parallel  ! halo update for ocean_edge_mask
@@ -141,7 +164,7 @@
                 land_mask(i,j) = 0
              endif
           endif
-          
+
        enddo
     enddo
 
@@ -149,11 +172,12 @@
 
 !****************************************************************************
 
-  subroutine glissade_grounded_fraction(nx,          ny,                      &
-                                        thck,        topg,                    &
-                                        eus,         ice_mask,                &
-                                        whichground, whichflotation_function, &
-                                        f_ground,    f_flotation)
+  subroutine glissade_grounded_fraction(nx,            ny,                      &
+                                        thck,          topg,                    &
+                                        eus,           ice_mask,                &
+                                        floating_mask, land_mask,               &
+                                        whichground,   whichflotation_function, &
+                                        f_ground,      f_flotation)
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded.
@@ -161,17 +185,16 @@
     !  topography of the four neighboring cell centers.
     !
     ! There are three options for computing the grounded fraction, based on the value of whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
+    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for all vertices with grounded, ice-covered neighbor cells
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
-    ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
+    ! (2) HO_GROUND_ALL: f_ground = 1 for all vertices with ice-covered neighbor cells
     !
     ! Notes on whichground:
-    !       Both (0) and (1) rely on computing a flotation function at cell centers
-    !       and interpolating it to vertices.  Method (0) stipulates that a vertex
-    !       is floating if the flotation function has a value associated with floating.
-    !       Method (1) interpolates the flotation function over the bounding box of
-    !       each vertex and analytically integrates to compute the grounded and floating
-    !       fractions.
+    !       Both (0) and (1) rely on computing a flotation function at cell centers.
+    !       - Method (0) stipulates that a vertex is grounded if any cell neighbor is grounded,
+    !         based on the value of the flotation function.
+    !       - Method (1) interpolates the flotation function over the bounding box of each
+    !         vertex and analytically integrates to compute the grounded and floating fractions.
     !
     ! In addition, there are three options for the flotation function that is interpolated 
     ! from cell centers to vertices as part of the computation of f_ground:
@@ -225,7 +248,9 @@
        eus                    ! eustatic sea level (= 0 by default)
 
     integer, dimension(nx,ny), intent(in) ::   &
-       ice_mask               ! = 1 for cells where ice is present (thk > thklim), else = 0
+       ice_mask,            & ! = 1 for cells where ice is present (thk > thklim), else = 0
+       floating_mask,       & ! = 1 if thck > thklim and ice is floating, else = 0
+       land_mask              ! = 1 if topg is at or above sea level
 
     ! see comments above for more information about these options
     integer, intent(in) ::     &
@@ -248,10 +273,10 @@
     integer :: i, j
 
     integer, dimension(nx-1,ny-1) ::   &
-       vmask              ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
+       vmask                     ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
     real(dp), dimension(nx-1,ny-1) :: &
-       stagf_flotation       ! f_flotation interpolated to staggered grid
+       stagf_flotation           ! f_flotation interpolated to staggered grid
 
     real(dp) :: a, b, c, d       ! coefficients in bilinear interpolation
                                  ! f(x,y) = a + b*x + c*y + d*x*y
@@ -265,7 +290,9 @@
     integer :: nfloat     ! number of grounded vertices of a cell (0 to 4)
 
     logical, dimension(nx,ny) :: &
+       cground,          & ! true if a cell is land and/or has grounded ice, else = false
        cfloat              ! true if flotation condition is satisfied at cell center, else = false
+                           ! Note: cground and cfloat are not exact complements; both are false for ice-free ocean
 
     logical, dimension(2,2) ::   &
        logvar              ! set locally to float or .not.float, depending on nfloat
@@ -359,15 +386,6 @@
 
     endif  ! whichflotation_function
 
-    ! Interpolate f_flotation to staggered mesh
-
-    ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-    ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
-
-    call glissade_stagger(nx,          ny,             &
-                          f_flotation, stagf_flotation,   &
-                          ice_mask,    stagger_margin_in = 1)
-
     ! initialize f_ground
     f_ground(:,:) = 0.d0
 
@@ -376,63 +394,62 @@
     select case(whichground)
 
     case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
-                             ! f_ground = 1 if stagf_flotation <=1, f_ground = 0 if stagf_flotation > 1
+                             ! f_ground = 1 at vertex if any neighbor cell is land or has grounded ice
 
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-          ! grounded if stagf_flotation <= 1, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) <= 1.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
+       ! compute a mask that is true for cells that are land and/or have grounded ice
+       do j = 1, ny
+          do i = 1, nx
+             if ((ice_mask(i,j)==1 .and. floating_mask(i,j)==0) .or. land_mask(i,j)==1) then
+                cground(i,j) = .true.
+             else
+                cground(i,j) = .false.
+             endif
           enddo
+       enddo
 
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+       ! vertices are grounded if any neighbor cell is land and/or has grounded ice, else are floating
 
-          ! grounded if stagf_flotation >= 1, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) >= 1.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (vmask(i,j) == 1) then
+                if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j) .or. cground(i+1,j)) then
+                   f_ground(i,j) = 1.d0
+                else
+                   f_ground(i,j) = 0.d0
                 endif
-             enddo
-          enddo
+             endif
+           enddo
+        enddo
 
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-       
-          ! grounded if stagf_flotation <= 0, else floating
+    case(HO_GROUND_ALL)
 
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) <= 0.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
+       ! all vertices with ice-covered neighbors are assumed grounded, regardless of thck and topg
+
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (vmask(i,j) == 1) then
+                f_ground(i,j) = 1.d0
+             endif
           enddo
-   
-       endif   ! whichflotation_function
+       enddo
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization
+
+       ! Interpolate f_flotation to staggered mesh
+
+       ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
+       ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
+
+       call glissade_stagger(nx,          ny,             &
+                             f_flotation, stagf_flotation,   &
+                             ice_mask,    stagger_margin_in = 1)
 
        ! Identify cells that contain floating ice
 
        if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+
+          !TODO - I think floating_mask = 1 iff cfloat = T
+          !       If so, then can simplify the calculation of cfloat
 
           ! grounded if f_flotation <= 1, else floating
 
@@ -853,193 +870,9 @@
           enddo           ! i
        enddo              ! j
 
-    case(HO_GROUND_ALL)   ! all vertices with ice-covered neighbors are assumed grounded, 
-                          ! regardless of thck and topg
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-             if (vmask(i,j) == 1) then
-                f_ground(i,j) = 1.d0
-             endif
-          enddo
-       enddo
-
     end select
 
   end subroutine glissade_grounded_fraction
-
-!****************************************************************************
-
-  !TODO - Remove this subroutine and replace with a calving_specific subroutine?
-  !       Currently used only for calving
-
-  subroutine glissade_calculate_masks(nx,            ny,             &
-                                      thck,                          &
-                                      topg,          eus,            &
-                                      thklim_ground, thklim_float,   &
-                                      cell_mask)
-                                  
-    !----------------------------------------------------------------
-    ! Compute an integer mask in each grid cell for the Glissade dycore.
-    !----------------------------------------------------------------
-    
-    use parallel
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::   &
-         nx,  ny                ! number of grid cells in each direction
-
-    ! Preferred dimensions are meters, but this subroutine will work for
-    ! any length units as long as thck, topg, eus and thklim have the same units.
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         thck,                 &! ice thickness
-         topg                   ! elevation of bedrock topography
-
-    real(dp), intent(in) ::  &
-         eus,                  &! eustatic sea level, = 0. by default
-         thklim_ground,        &! min thickness for active grounded ice (land-based or marine)
-         thklim_float           ! min thickness for active floating ice
-
-    integer, dimension(nx,ny), intent(out) ::  &
-         cell_mask              ! integer mask that encodes information about each cell 
-
-    real(dp) :: &
-         h_flotation            ! flotation thickness, (rhoo/rhoi)*(eus-topg)
-
-    integer :: i, j
-
-    ! initialize
-    cell_mask(:,:) = 0
-
-    ! identify cells with ice (active or not)
-
-    where (thck > 0.0d0)
-       cell_mask = ior(cell_mask, mask_value_ice)
-    endwhere
-
-    ! identify land cells, active ice, floating ice
-
-    do j = 1, ny
-       do i = 1, nx
-          if (topg(i,j) >= eus) then  ! land cell
-             cell_mask(i,j) = ior(cell_mask(i,j), mask_value_land)
-             if (thck(i,j) > thklim_ground) then   ! active
-                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
-             endif
-          else  ! marine cell, topg < eus
-             h_flotation = (rhoo/rhoi)*(eus - topg(i,j))  ! flotation thickness
-             if (thck(i,j) < h_flotation) then  ! floating
-                if (thck(i,j) > thklim_float) then  ! active
-                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
-                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_floating_ice)
-                endif
-             else   ! grounded marine ice
-                if (thck(i,j) > thklim_ground) then  ! active
-                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
-                endif
-             endif  ! floating
-          endif  ! land
-       enddo  ! i
-    enddo  ! j
-
-    ! identify cells on the margin between active ice and inactive/zero ice
-    ! Note: Both active and inactive cells are included in the mask.
-
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (mask_is_active_ice(cell_mask(i,j))) then
-             if (.not.mask_is_active_ice(cell_mask(i-1,j)) .or. .not.mask_is_active_ice(cell_mask(i+1,j)) .or.  &
-                 .not.mask_is_active_ice(cell_mask(i,j-1)) .or. .not.mask_is_active_ice(cell_mask(i,j+1))) then
-                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_margin)
-             endif
-          else   ! inactive or zero ice
-             if (mask_is_active_ice(cell_mask(i-1,j)) .or. mask_is_active_ice(cell_mask(i+1,j)) .or.  &
-                 mask_is_active_ice(cell_mask(i,j-1)) .or. mask_is_active_ice(cell_mask(i,j+1))) then
-                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_margin)
-             endif
-          endif  ! active
-       enddo  ! i
-    enddo  ! j
-
-    ! halo update, since margin mask was not calculated for all cells
-
-    call parallel_halo(cell_mask)
-
-  end subroutine glissade_calculate_masks
-
-!****************************************************************************
-
-! The following logical functions will decode bit masks
-
-!****************************************************************************
-
-  function mask_is_land(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_land
-
-    mask_is_land = iand(mask, mask_value_land) == mask_value_land
-    
-  end function mask_is_land
-
-!****************************************************************************
-
-  function mask_is_ice(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_ice
-
-    mask_is_ice = iand(mask, mask_value_ice) == mask_value_ice
-    
-  end function mask_is_ice
-
-!****************************************************************************
-
-  function mask_is_active_ice(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_active_ice
-
-    mask_is_active_ice = iand(mask, mask_value_active_ice) == mask_value_active_ice
-    
-  end function mask_is_active_ice
-
-!****************************************************************************
-
-  function mask_is_floating_ice(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_floating_ice
-
-    mask_is_floating_ice = iand(mask, mask_value_floating_ice) == mask_value_floating_ice
-    
-  end function mask_is_floating_ice
-
-!****************************************************************************
-
-  function mask_is_margin(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_margin
-
-    mask_is_margin = iand(mask, mask_value_margin) == mask_value_margin
-    
-  end function mask_is_margin
-
-!****************************************************************************
-
-  function mask_is_ocean(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_ocean
-
-    mask_is_ocean = (.not.mask_is_land(mask) .and. .not.mask_is_active_ice(mask))
-    
-  end function mask_is_ocean
 
 !****************************************************************************
 

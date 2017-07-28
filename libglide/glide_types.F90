@@ -124,6 +124,10 @@ module glide_types
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
+  integer, parameter :: OVERWRITE_ACAB_NONE = 0
+  integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
+  integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
+
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
@@ -210,6 +214,10 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
   integer, parameter :: HO_BABC_SIMPLE = 13
 
+  integer, parameter :: HO_BWAT_NONE = 0
+  integer, parameter :: HO_BWAT_CONSTANT = 1
+  integer, parameter :: HO_BWAT_LOCAL_TILL = 2
+
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BMLT = 2
@@ -246,9 +254,12 @@ module glide_types
   integer, parameter :: HO_GRADIENT_CENTERED = 0
   integer, parameter :: HO_GRADIENT_UPSTREAM = 1
 
+  !WHL - adding a second hybrid option
+  !      After testing, choose just one hybrid option
   integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
   integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
+  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID2 = 3
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
@@ -408,6 +419,14 @@ module glide_types
     !> \item[1] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
+    integer :: overwrite_acab = 0
+    !> overwrite acab (m/yr ice) in selected regions:
+    !> \begin{description}
+    !> \item[0] Do not overwrite acab anywhere
+    !> \item[1] Overwrite acab where input acab = 0
+    !> \item[2] Overwrite acab where input thickness <= threshold value
+    !> \end{description}
+
     integer :: gthf = 0
 
     !> geothermal heat flux:
@@ -550,6 +569,14 @@ module glide_types
     !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
     !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
     !> \item[13] simple hard-coded pattern (useful for debugging)
+    !> \end{description}
+
+    integer :: which_ho_bwat = 0
+    !> Basal water depth:
+    !> \begin{description}
+    !> \item[0] Set to zero everywhere
+    !> \item[1] Set to constant everywhere, to force T = Tpmp.
+    !> \item[2] Local basal till model with constant drainage
     !> \end{description}
 
     integer :: which_ho_effecpress = 0
@@ -979,15 +1006,16 @@ module glide_types
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
-     integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask of region where advance is not allowed 
+     integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask for cells where advance is not allowed 
                                                                   !> (any ice reaching these locations is eliminated)
+     integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
-     real(dp) :: prescribed_acab_value = 0.0d0      !> acab value to apply in grid cells where the input acab = 0
-                                                    !> Can be used in standalone runs to force melting where acab is not computed
+     real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
+     real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
 
   end type glide_climate
 
@@ -1088,6 +1116,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
     real(dp),dimension(:,:),  pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
                                                              !> = 0 for ice-free cells with bmlt > 0
+    real(dp),dimension(:,:),  pointer :: btemp => null()     !> Basal temperature on ice grid; diagnosed from temp(upn)
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
@@ -1136,7 +1165,7 @@ module glide_types
      !< Holds variables related to basal physics associated with ice dynamics
      !< See glissade_basal_traction.F90 for usage details
 
-     !WHL - A reasonable value of beta_grounded_min might be 10 Pa yr/m.  
+     !WHL - A reasonable value of beta_grounded_min might be 100 Pa yr/m.  
      !      However, this choice is not BFB for the confined-shelf test case, so I am choosing a default value of 0 for now.
      !      The default can be overridden in the config file.
      !TODO: Set beta_grounded_min = 10 Pa yr/m
@@ -1159,7 +1188,6 @@ module glide_types
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
      real(dp) :: effecpress_bpmp_threshold = 0.1d0  !< temperature range over which N ramps from a small value to full overburden (deg C)
      real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !< basal melting range over which N ramps from a small value to full overburden (m/yr)
-     real(dp) :: effecpress_bwat_threshold = 1.0d0  !< basal water thickness range over which N ramps from a small value to full overburden (m)
      real(dp) :: p_ocean_penetration = 0.0d0        !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
      ! parameters for pseudo-plastic sliding law (based on PISM)
@@ -1199,6 +1227,20 @@ module glide_types
      real(dp) :: powerlaw_C = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
       
+     ! parameter for constant basal water
+     ! Note: This parameter applies to HO_BWAT_CONSTANT only.
+     !       For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
+     real(dp) :: const_bwat = 10.d0              !< constant basal water depth (m)
+
+     ! parameters for local till model
+     ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
+     real(dp) :: bwat_till_max = 2.0d0           !< maximum water depth in till (m)
+     real(dp) :: C_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
+     real(dp) :: N_0 = 1000.d0                   !< reference effective pressure (Pa)
+     real(dp) :: e_0 = 0.69d0                    !< reference void ratio (dimensionless)
+     real(dp) :: C_c = 0.12d0                    !< till compressibility (dimensionless)
+                                                 !< Note: The ratio (e_0/C_c) is the key parameter
+
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed..
      real(dp),dimension(:,:)  ,pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model
@@ -1324,9 +1366,10 @@ module glide_types
     real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
     real(dp) :: alphas =    0.5d0 !> was a parameter in the original
     real(dp) :: thklim =   100.d0 ! min thickness for computing ice dynamics (m) 
-    real(dp) :: thklim_temp =   1.d0 ! min thickness for computing vertical temperature (m) (higher-order only)
-    real(dp) :: dew    =    20.d3
-    real(dp) :: dns    =    20.d3
+    real(dp) :: thklim_temp = 1.d0    ! min thickness for computing vertical temperature (m) (higher-order only)
+    real(dp) :: thck_gradient_ramp = 0.d0 ! thickness scale over which gradients increase from zero to full value (HO only)
+    real(dp) :: dew    =    20.d3     ! grid cell size in east-west direction
+    real(dp) :: dns    =    20.d3     ! grid cell size in north-south direction
     real(dp) :: dt     =     0.d0     ! ice dynamics timestep
     real(dp) :: dttem  =     0.d0     ! temperature timestep
     real(dp) :: dt_transport = 0.d0   ! timestep for subcycling transport within the dynamics timestep dt
@@ -1721,17 +1764,19 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bwatflx)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_applied)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade only
+    if (model%options%whichdycore == DYCORE_GLIDE) then   ! glide only
+       call coordsystem_allocate(model%general%ice_grid, model%temper%bwatflx)
+    else   ! glam/glissade only
        call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
@@ -1897,6 +1942,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
@@ -2004,6 +2050,8 @@ contains
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &
         deallocate(model%temper%stagbpmp)
+    if (associated(model%temper%btemp)) &
+        deallocate(model%temper%btemp)
     if (associated(model%temper%stagbtemp)) &
         deallocate(model%temper%stagbtemp)
     if (associated(model%temper%bfricflx)) &
@@ -2278,6 +2326,8 @@ contains
         deallocate(model%climate%flux_correction)
     if (associated(model%climate%no_advance_mask)) &
         deallocate(model%climate%no_advance_mask)
+    if (associated(model%climate%overwrite_acab_mask)) &
+        deallocate(model%climate%overwrite_acab_mask)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

@@ -173,7 +173,8 @@
 
     integer, dimension(nx,ny) ::     &
        ice_mask,            & ! = 1 where ice is present, else = 0
-       floating_mask          ! = 1 for cells where ice is present and floating
+       floating_mask,       & ! = 1 for cells where ice is present and floating
+       land_mask              ! = 1 for land cells, else = 0
 
     integer :: i, j, k
 
@@ -240,13 +241,15 @@
     ! Compute masks: 
     ! (1) ice_mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
     ! (2) floating_mask = 1 in cells where ice is present and floating
+    ! (3) land_mask = 1 in land cells
     !------------------------------------------------------------------------------
 
     call glissade_get_masks(nx,          ny,         &
                             thck,        topg,       &
                             eus,         thklim,     &
                             ice_mask,                &
-                            floating_mask = floating_mask)
+                            floating_mask = floating_mask, &
+                            land_mask = land_mask)
 
     !------------------------------------------------------------------------------
     ! Compute staggered variables
@@ -313,6 +316,8 @@
     ! gradient_margin_in = 2 (HO_GRADIENT_MARGIN_ICE) computes the gradient
     !  using ice-covered points only.  This scheme is very inaccurate for the
     !  Halfar problem because it underestimates margin velocities.
+    !WHL - gradient_margin = 3 is included for now, but may later replace option 1
+    !TODO - Pass in max_slope and thck_gradient_ramp parameters?
 
     call glissade_centered_gradient(nx,        ny,          &
                                     dx,        dy,          &
@@ -320,8 +325,11 @@
                                     dusrf_dx,  dusrf_dy,    &
                                     ice_mask,               &
                                     gradient_margin_in = whichgradient_margin, &
+                                    thck = thck,            &
+                                    thklim_in = thklim,     &
                                     usrf = usrf,            &
-                                    floating_mask = floating_mask)
+                                    floating_mask = floating_mask,  &
+                                    land_mask = land_mask)
 
     if (verbose .and. main_task) then
        print*, ' '
@@ -438,10 +446,13 @@
     call glissade_velo_sia_interior(nx,       ny,       nz,  &
                                     dx,       dy,            &
                                     sigma,    thklim,        &
-                                    usrf,     stagthck,      &
+                                    usrf,                    &
+                                    thck,     stagthck,      &
                                     dusrf_dx, dusrf_dy,      &
                                     stagflwa,                &
-                                    ice_mask, floating_mask, &
+                                    ice_mask,                &
+                                    floating_mask,           &
+                                    land_mask,               &
                                     whichgradient_margin,    &
                                     ubas,     vbas,          &
                                     uvel,     vvel)
@@ -757,10 +768,13 @@
   subroutine glissade_velo_sia_interior(nx,       ny,      nz,  &
                                         dx,       dy,           &
                                         sigma,    thklim,       &
-                                        usrf,     stagthck,     &
+                                        usrf,                   &
+                                        thck,     stagthck,     &
                                         dusrf_dx, dusrf_dy,     &
                                         stagflwa,               &
-                                        ice_mask, floating_mask,&
+                                        ice_mask,               &
+                                        floating_mask,          &
+                                        land_mask,              &
                                         whichgradient_margin,   &
                                         ubas,     vbas,         &
                                         uvel,     vvel)
@@ -783,6 +797,7 @@
        sigma                    ! vertical sigma coordinate, [0,1]
 
     real(dp), dimension(nx,ny), intent(in) ::   &
+       thck,                  & ! ice thickness (m)
        usrf                     ! upper surface elevation (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
@@ -795,7 +810,8 @@
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask,              & ! = 1 where ice is present, else = 0
-       floating_mask            ! = 1 for cells where ice is present and floating
+       floating_mask,         & ! = 1 for cells where ice is present and floating, else = 0
+       land_mask                ! = 1 for land cells, else = 0
 
     integer, intent(in) ::   &
        whichgradient_margin     ! option for computing gradient at ice margin
@@ -898,15 +914,19 @@
     !       identical results for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
     !       is likely to give less accurate results.
     ! See comments above the call to glissade_centered_gradient.
+    !TODO - Pass in max_slope and thck_gradient_ramp parameters?
 
     call glissade_gradient_at_edges(nx,               ny,             &
                                     dx,               dy,             &
                                     usrf,                             &
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
+                                    ice_mask,                         &
                                     gradient_margin_in = whichgradient_margin, &
-                                    ice_mask = ice_mask,              &
+                                    thklim_in = thklim,               &
+                                    usrf = usrf,                      &
+                                    thck = thck,                      &
                                     floating_mask = floating_mask,    &
-                                    usrf = usrf)
+                                    land_mask = land_mask)
     
     do k = nz-1, 1, -1
 

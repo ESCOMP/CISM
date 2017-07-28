@@ -23,14 +23,9 @@
 !   along with CISM. If not, see <http://www.gnu.org/licenses/>.
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!CALVING TODO:
-! (1) Test Glide v. Glissade masks (then remove Glide masks)
-! (2) Transport damage tracer
-
 !!#ifdef HAVE_CONFIG_H
 !!#include "config.inc"
 !!#endif
-#include "glide_mask.inc"
 
 module glissade_calving
 
@@ -74,8 +69,6 @@ contains
     ! Calve ice according to one of several methods
 
     use glissade_masks
-
-    !WHL - debug
     use glimmer_paramets, only: thk0
 
     implicit none
@@ -95,7 +88,7 @@ contains
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
     real(dp), intent(in)                    :: eus               !> eustatic sea level
-    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active ice
+    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active ice; used by remove_floating_islands
     real(dp), intent(in)                    :: marine_limit      !> lower limit on topography elevation at marine edge before ice calves
     real(dp), intent(in)                    :: calving_fraction  !> fraction of ice lost at marine edge when calving; 
                                                                  !> used with which_ho_calving = CALVING_FLOAT_FRACTION
@@ -119,10 +112,20 @@ contains
     integer :: count, maxcount_fill  ! loop counters
 
     integer,  dimension(:,:), allocatable   ::  &
-         cell_mask,         & ! integer mask encoding information about whether ice is active, floating, etc.
          color                ! integer 'color' for filling the calving domain (with CALVING_DOMAIN_OCEAN_CONNECT)
 
-    ! masks specific to calving
+    ! basic masks
+    integer, dimension(:,:), allocatable   ::  &
+         ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,          & ! = 1 where ice is present and floating, else = 0
+         ocean_mask                ! = 1 where topg is below sea level and thk <= thklim, else = 0
+
+    ! masks for CALVING_THCK_THRESHOLD
+    integer, dimension(:,:), allocatable   ::  &
+         thick_or_grounded_mask, & ! = 1 for grounded ice and thick floating ice, else = 0
+         protected_floating_mask   ! = 1 for thin floating ice in protected ring, else = 0
+
+    ! other calving-specific masks
     ! Note: Calving occurs in a cell if and only if (1) the calving law permits calving, 
     !       and (2) the cell is in the calving domain, as specified by the calving_domain option.
     !       The calving domain by default is limited to the ocean edge (CALVING_DOMAIN_OCEAN_EDGE), 
@@ -131,18 +134,15 @@ contains
     !       (CALVING_DOMAIN_OCEAN_CONNECT).
     ! TODO: Change the default to calving_domain_everywhere?
 
+    !TODO - Make these integer masks like the ones above?
     logical, dimension(:,:), allocatable   ::  &
-         calving_law_mask,   & ! = T where the calving law permits calving, else = F
-         calving_domain_mask   ! = T in the domain where calving is allowed to occur (e.g., at ocean edge), else = F
+         calving_law_mask,    & ! = T where the calving law permits calving, else = F
+         calving_domain_mask    ! = T in the domain where calving is allowed to occur (e.g., at ocean edge), else = F
 
     real(dp) :: &
          float_fraction_calve  ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
                                ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
    
-    real(dp) :: &
-         thklim_ground,      & ! min thickness for grounding ice to be active for purposes of calving
-         thklim_float          ! min thickness for floating ice to be active for purposes of calving
-
     !WHL - debug
     integer :: sum_fill_local, sum_fill_global  ! number of filled cells
 
@@ -184,12 +184,16 @@ contains
 
     endif
 
-    allocate (cell_mask(nx,ny))
+    allocate (ice_mask(nx,ny))
+    allocate (floating_mask(nx,ny))
+    allocate (ocean_mask(nx,ny))
+
     allocate (calving_law_mask(nx,ny))
     allocate (calving_domain_mask(nx,ny))
 
     !WHL - debug
     if (verbose_calving .and. main_task) then
+       print*, ' '
        print*, 'In glissade_calve_ice'
        print*, 'which_calving =', which_calving
        print*, 'calving_domain =', calving_domain
@@ -219,6 +223,51 @@ contains
        
     endif
        
+    ! Get masks
+    ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
+    !  that meets the calving criteria, not just dynamically active ice
+
+    call glissade_get_masks(nx,            ny,            &
+                            thck,          topg,          &
+                            eus,           0.0d0,         &   ! thklim = 0.0
+                            ice_mask,      floating_mask, &
+                            ocean_mask)
+
+    if (verbose_calving .and. this_rank==rtest) then
+
+       print*, ' '
+       print*, 'thck field, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-2, itest+2
+             write(6,'(f10.3)',advance='no') thck(i,j)*thk0
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'ice_mask, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-2, itest+2
+             write(6,'(L10)',advance='no') ice_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+2, jtest-2, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-2, itest+2
+             write(6,'(L10)',advance='no') floating_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+
+    endif
+
     ! Do the calving based on the value of which_calving
 
     ! Note: The thickness-threshold option is different from the others.
@@ -226,38 +275,63 @@ contains
     !        (e.g., ice is floating, or the topography lies below a given level).
     !        If a cell meets the criteria and lies in the calving domain (e.g., at the margin), it is calved.
     !       For the thickness-threshold option, ice thinner than calving_minthck is calved, but only if it 
-    !        lies beyond a protected ring of thin ice at the floating margin.
+    !        lies beyond a protected ring of thin floating ice at the margin.
     !       The reason for this more complicated approach is that we do not want to remove all floating ice
     !         with thck < calving_minthck, because then we would remove thin ice that has just been advected
     !         from active cells at the margin, and thus the calving front would not be able to advance.
     !       By protecting a ring of inactive ice (thck < calving_minthck) at the margin, we allow ice in
-    !        these cells to thicken and become active, thus advancing the calving front.
-    !       The calving front retreats when active floating ice thins to become inactive, removing protection
-    !        from previously protected cells.
+    !        these cells to thicken, thus advancing the calving front.
+    !       The calving front can retreat when floating ice at the margin thins to a value less than calving_minthck,
+    !        removing protection from previously protected cells.
 
     if (which_calving == CALVING_THCK_THRESHOLD) then  ! calve floating ice thinner than calving_minthck
-                                                           ! (if more than one cell away from the actice ice margin)
-       ! get masks
-       ! Note: Floating ice is considered active only if thck > calving_minthck
+                                                       ! (if not part of the protected ring)
 
-       thklim_ground = 0.0d0
-       thklim_float = calving_minthck
+       ! initialize masks
 
-       call glissade_calculate_masks(nx,            ny,            &
-                                     thck,                         &
-                                     topg,          eus,           &
-                                     thklim_ground, thklim_float,  &
-                                     cell_mask)
+       allocate (thick_or_grounded_mask(nx,ny))
+       allocate (protected_floating_mask(nx,ny))
 
-       ! Calve thin floating ice (but not if it lies on the margin)
-       ! Note: All cells that are not land and do not have active ice present are marked as ocean cells.
-       !       This includes cells with ice present but thk < thklim_float.
+       thick_or_grounded_mask(:,:) = 0
+       protected_floating_mask(:,:) = 0
+
+       ! Identify cells that are (1) grounded or (2) floating with thck > calving_minthck.
+       ! These cells are protected from calving.
+       do j = 1, ny
+          do i = 1, nx
+             if (ice_mask(i,j) == 1) then
+                if (floating_mask(i,j) == 0 .or. thck(i,j) > calving_minthck) then
+                   thick_or_grounded_mask(i,j) = 1
+                endif
+             endif
+          enddo  ! i
+       enddo  ! j
+
+       ! Identify cells in the protected ring of thin floating ice.
+       ! Thin floating cells are protected if adjacent to cells that were protected above.
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (floating_mask(i,j) == 1 .and. thck(i,j) <= calving_minthck) then
+                if (thick_or_grounded_mask(i-1,j) == 1 .or. thick_or_grounded_mask(i+1,j) == 1 .or.  &
+                    thick_or_grounded_mask(i,j-1) == 1 .or. thick_or_grounded_mask(i,j+1) == 1) then
+                   protected_floating_mask(i,j) = 1
+                endif
+             endif
+          enddo  ! i
+       enddo  ! j
+
+       ! halo update, since the loop above misses some halo cells
+       call parallel_halo(protected_floating_mask)
+
+       ! Calve thin floating ice, except in the protected ring.
        ! Note: The calving_law_mask does not need to be set because it is not used subsequently,
        !       but could be set here for diagnostic purposes.
 
        do j = 1, ny
           do i = 1, nx
-             if (mask_is_ocean(cell_mask(i,j)) .and. .not.mask_is_margin(cell_mask(i,j))) then
+             if (floating_mask(i,j) == 1  .and. thck(i,j) <= calving_minthck .and. protected_floating_mask(i,j) == 0) then
+                if (verbose_calving .and. thck(i,j) > 0.0d0) &
+                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
                 calving_thck(i,j) = float_fraction_calve * thck(i,j)
                 thck(i,j) = thck(i,j) - calving_thck(i,j)
                 !WHL - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
@@ -266,63 +340,6 @@ contains
        enddo
 
     else   ! other calving options
-
-       ! calculate masks
-       ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
-       !  that meets the calving criteria, not just dynamically active ice
-
-       thklim_ground = 0.0d0
-       thklim_float = 0.0d0
-
-       call glissade_calculate_masks(nx,            ny,            &
-                                     thck,                         &
-                                     topg,          eus,           &
-                                     thklim_ground, thklim_float,  &
-                                     cell_mask)
-       
-       if (verbose_calving .and. this_rank==rtest) then
-
-          print*, ' '
-          print*, 'thck field, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+2, jtest-2, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
-                write(6,'(e10.3)',advance='no') thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'is active for calving, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+2, jtest-2, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
-                write(6,'(L5)',advance='no') mask_is_active_ice(cell_mask(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'is floating, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+2, jtest-2, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
-                write(6,'(L5)',advance='no') mask_is_floating_ice(cell_mask(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'is margin, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+2, jtest-2, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
-                write(6,'(L5)',advance='no') mask_is_margin(cell_mask(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
-
-       endif
 
        ! set the calving-law mask
        ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
@@ -334,11 +351,8 @@ contains
 
           do j = 1, ny
              do i = 1, nx
-                if (mask_is_floating_ice(cell_mask(i,j))) then
+                if (floating_mask(i,j) == 1) then
                    calving_law_mask(i,j) = .true.
-                   if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                      print*, 'Calve floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
-                   endif
                 else
                    calving_law_mask(i,j) = .false.
                 endif
@@ -354,7 +368,7 @@ contains
 
           !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
-  
+
           where (relx <= marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
@@ -362,13 +376,14 @@ contains
           endwhere
 
        case(CALVING_TOPG_THRESHOLD)   ! set thickness to zero if present bedrock is below a given level
-          
+
           where (topg < marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
              calving_law_mask = .false.
           endwhere
 
+       !TODO - remove CALVING_HUYBRECHTS?
        case(CALVING_HUYBRECHTS)    ! Huybrechts grounding line scheme for Greenland initialization
 
        !WHL - Previously, this code assumed that eus and relx have units of meters.
@@ -397,7 +412,7 @@ contains
                 calving_law_mask = .false.
              end where
           end if
-          
+
        case(CALVING_DAMAGE)   ! remove ice that is sufficiently damaged
                               !WHL - This is a rough initial implementation
 
@@ -413,13 +428,15 @@ contains
 !             enddo
 !          enddo
 
+          !TODO - Define ice_mask = 1 for dynamically active ice only (thck > thklim)?
+
           ! Diagnose the vertically integrated damage in each column,
           ! assuming the 3D damage field has been prognosed external to this subroutine.
           !WHL - For now, simply compute the thickness-weighted mean damage
           damage_column(:,:) = 0.0d0
           do j = 1, ny
              do i = 1, nx
-                if (mask_is_ice(cell_mask(i,j))) then
+                if (ice_mask(i,j) == 1) then
                    do k = 1, nz-1
                       damage_column(i,j) = damage_column(i,j) + damage(k,i,j) * (sigma(k+1) - sigma(k))
                    enddo
@@ -436,10 +453,10 @@ contains
 
           !WHL - debug - print values of calving_law_mask
 !          if (main_task) then
-!             print*, 'i, j, damage, calving_law_mask, cell_mask, is_margin:'
+!             print*, 'i, j, damage, calving_law_mask:'
 !             j = 3
 !             do i = 1, nx
-!                print*, i, j, damage_column(i,j), calving_law_mask(i,j), cell_mask(i,j), mask_is_margin(cell_mask(i,j))
+!                print*, i, j, damage_column(i,j), calving_law_mask(i,j)
 !             enddo
 !          endif
 
@@ -452,16 +469,16 @@ contains
 
        if (calving_domain == CALVING_DOMAIN_OCEAN_EDGE) then  ! calving domain includes floating cells at margin only
                                                               !WHL - Could modify to include grounded marine cells at margin
-          do j = 1, ny
-             do i = 1, nx
+          do j = 2, ny-1
+             do i = 2, nx-1
 
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, 'task, i, j, is_active, is_floating, is_margin:',  &
-                        this_rank, i, j, mask_is_active_ice(cell_mask(i,j)), &
-                        mask_is_floating_ice(cell_mask(i,j)), mask_is_margin(cell_mask(i,j))
+                   print*, 'task, i, j, ice_mask, floating_mask:',  &
+                        this_rank, i, j, ice_mask(i,j), floating_mask(i,j)
                 endif
 
-                if (mask_is_floating_ice(cell_mask(i,j)) .and. mask_is_margin(cell_mask(i,j))) then
+                if ( floating_mask(i,j) == 1 .and.   &
+                     (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
                    calving_domain_mask(i,j) = .true.
                 else
                    calving_domain_mask(i,j) = .false.
@@ -469,15 +486,18 @@ contains
              enddo
           enddo
 
+          ! halo update (since the loop above misses some halo cells)
+          call parallel_halo(calving_domain_mask)
+
        elseif (calving_domain == CALVING_DOMAIN_EVERYWHERE) then  ! calving domain includes all cells
-          
+
           calving_domain_mask(:,:) = .true.
-          
+
        elseif (calving_domain == CALVING_DOMAIN_OCEAN_CONNECT) then
-          
+
           calving_domain_mask(:,:) = .false.
 
-          ! initialize 
+          ! initialize
           ! Assign the initial color to cells that meet the calving-law criteria and thus could calve,
           !  but only if they are connected to the ocean through other cells that meet the criteria.
           ! Assign the boundary color to cells that do not meet the calving-law criteria.
@@ -498,7 +518,7 @@ contains
           ! We may have to do this several times to incorporate connections between neighboring processors.
           ! Alternatively, we could use a smaller value of maxcount_fill and allow calving to occur over multiple time steps,
           !  but this could make the calving evolution more dependent on ntasks than desired.
- 
+
 !          maxcount_fill = 1  ! setting maxcount_fill = 1 will ignore connections between neighboring processors.
           maxcount_fill = max(ewtasks,nstasks)
 
@@ -508,8 +528,8 @@ contains
 
                 do j = 1, ny
                    do i = 1, nx
-                      if (mask_is_floating_ice(cell_mask(i,j)) .and. mask_is_margin(cell_mask(i,j)) &
-                           .and. calving_law_mask(i,j)) then
+                      if ( floating_mask(i,j) == 1 .and. calving_law_mask(i,j) .and.  &
+                           (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
                          if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                             ! assign the fill color to this cell, and recursively fill neighbor cells
                             call glissade_fill(nx,  ny,  i,  j,  color)
@@ -517,7 +537,7 @@ contains
                       endif
                    enddo
                 enddo
-                
+
              else  ! count > 1; check for halo cells that were just filled on neighbor processors
 
                 call parallel_halo(color)
@@ -565,9 +585,9 @@ contains
           enddo  ! count
 
           ! At this point, all cells with calving_law_mask = T should have the fill color if they
-          !  are connected to the margin through other cells with calving_law_mask = T.  
+          !  are connected to the margin through other cells with calving_law_mask = T.
           !  These cells are now assigned to the calving domain.
-          
+
           do j = 1, ny
              do i = 1, nx
                 if (color(i,j) == fill_color) then
@@ -586,7 +606,6 @@ contains
        endif   ! calving_domain
 
        ! Calve ice where calving_law_mask = T and calving_domain_mask = T
-
        do j = 1, ny
           do i = 1, nx
              if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
@@ -594,7 +613,8 @@ contains
                 thck(i,j) = thck(i,j) - calving_thck(i,j)
                 !WHL TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
  
-                if (verbose_calving .and. this_rank==rtest) then
+                if (verbose_calving) then
+!!                if (verbose_calving .and. this_rank==rtest) then
                    print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, calving_thck(i,j)*thk0
                 endif
 
@@ -638,11 +658,19 @@ contains
     endif
 
     ! cleanup
-    deallocate (cell_mask)
+    deallocate (ice_mask)
+    deallocate (floating_mask)
+    deallocate (ocean_mask)
+    if (which_calving == CALVING_THCK_THRESHOLD) then
+       deallocate (thick_or_grounded_mask)
+       deallocate (protected_floating_mask)
+    endif
+
     deallocate (calving_law_mask)
     deallocate (calving_domain_mask)
 
   end subroutine glissade_calve_ice
+
 !---------------------------------------------------------------------------
 
   subroutine glissade_remove_floating_islands(&
@@ -663,13 +691,14 @@ contains
     !  ice islands.  Remove this ice and add it to the calving field. 
 
     use glissade_masks
+    use glimmer_paramets, only: thk0
 
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
     real(dp), intent(in)                    :: eus               !> eustatic sea level
     real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active ice
-    real(dp), dimension(:,:), intent(inout) :: calving_thck      !> thickness lost due to calving in each grid cell
+    real(dp), dimension(:,:), intent(inout) :: calving_thck      !> thickness lost due to calving in each grid cell;
                                                                  !> on output, includes ice in floating islands
 
     integer :: nx, ny      ! horizontal grid dimensions
@@ -678,7 +707,8 @@ contains
     integer :: count, maxcount_fill  ! loop counters
 
     integer,  dimension(:,:), allocatable   ::  &
-         cell_mask,         & ! integer mask encoding information about whether ice is active, floating, etc.
+         ice_mask,          & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,     & ! = 1 where ice is present and floating, else = 0
          color                ! integer 'color' for filling the calving domain (with CALVING_DOMAIN_OCEAN_CONNECT)
 
     !WHL - debug
@@ -687,26 +717,26 @@ contains
     nx = size(thck,1)
     ny = size(thck,2)
 
-    allocate (cell_mask(nx,ny))
+    allocate (ice_mask(nx,ny))
+    allocate (floating_mask(nx,ny))
     allocate (color(nx,ny))
 
     ! calculate masks
-    ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
+    ! Note: Passing in thklim = 0.0 does not work because it erroneously counts very thin floating cells as active.
     !       Then the algorithm can fail to identify floating regions that should be removed
     !       (since they are separated from any cells that are truly active).
 
-    call glissade_calculate_masks(nx,            ny,            &
-                                  thck,                         &
-                                  topg,          eus,           &
-                                  thklim,        thklim,        &  ! thklim_ground = thklim_float = thklim
-                                  cell_mask)
+     call glissade_get_masks(nx,            ny,            &
+                             thck,          topg,          &
+                             eus,           thklim,        &
+                             ice_mask,      floating_mask)
 
     ! initialize
-    ! Assign the initial color to cells with ice and the boundary color to cells without ice.
+    ! Assign the initial color to cells with active ice and the boundary color to cells without active ice.
 
     do j = 1, ny
        do i = 1, nx
-          if (mask_is_active_ice(cell_mask(i,j))) then
+          if (ice_mask(i,j) == 1) then
              color(i,j) = initial_color
           else
              color(i,j) = boundary_color
@@ -717,7 +747,7 @@ contains
     ! Loop through cells, identifying cells that contain grounded ice.
     ! Fill each grounded cell and then recursively fill neighbor cells, whether grounded or not.
     ! We may have to do this several times to incorporate connections between neighboring processors.
-    
+
     maxcount_fill = max(ewtasks,nstasks)
 
     if (verbose_calving .and. main_task) then
@@ -730,7 +760,7 @@ contains
 
           do j = 1, ny
              do i = 1, nx
-                if (mask_is_active_ice(cell_mask(i,j)) .and. .not.mask_is_floating_ice(cell_mask(i,j))) then
+                if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                       ! assign the fill color to this cell, and recursively fill neighbor cells
                       call glissade_fill(nx,  ny,  i,  j,  color)
@@ -738,35 +768,35 @@ contains
                 endif
              enddo
           enddo
-          
+
        else  ! count > 1; first check for halo cells that were just filled on neighbor processors
 
           call parallel_halo(color)
 
           ! west halo layer
-          i = nhalo               
+          i = nhalo
           do j = 1, ny
              if (color(i,j) == fill_color) call glissade_fill(nx, ny, i+1, j, color)
           enddo
-          
+
           ! east halo layers
           i = nx - nhalo + 1
           do j = 1, ny
              if (color(i,j) == fill_color) call glissade_fill(nx, ny, i-1, j, color)
           enddo
-          
+
           ! south halo layer
           j = nhalo
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
              if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j+1, color)
           enddo
-          
+
           ! north halo layer
           j = ny-nhalo+1
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
              if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color)
           enddo
-          
+
        endif  ! count = 1
 
        !WHL - debug
@@ -780,12 +810,12 @@ contains
              if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
           enddo
        enddo
-       
+
        !WHL - If running a large problem, may want to reduce the frequency of this global sum
        sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
        if (verbose_calving .and. main_task) then
-          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
+          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
        endif
 
     enddo  ! count
@@ -797,13 +827,19 @@ contains
        do i = 1, nx
           if (color(i,j) == initial_color) then
              !WHL - debug
-             print*, 'Remove floating island: task, i, j =', this_rank, i, j
+             if (verbose_calving .and. thck(i,j) > 0.0) &
+                  print*, 'Remove floating island: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
              calving_thck(i,j) = thck(i,j)
              thck(i,j) = 0.0d0
              !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
           endif
        enddo
     enddo
+
+    ! cleanup
+    deallocate (ice_mask)
+    deallocate (floating_mask)
+    deallocate (color)
 
   end subroutine glissade_remove_floating_islands
 
@@ -815,9 +851,6 @@ contains
     ! assign the fill color to all cells that either (1) are prescribed to have
     ! the fill color or (2) are connected to cells with the fill color.
 
-    !WHL - debug
-    use parallel, only: main_task
-
     integer, intent(in) :: nx, ny             ! domain size
     integer, intent(in) :: i, j               ! horizontal indices of current cell
     integer, dimension(nx,ny) :: color        ! color field
@@ -826,9 +859,6 @@ contains
 
        ! assign the fill color to this cell
        color(i,j) = fill_color
-
-       !WHL - debug
-!!       if (main_task) print*, 'Fill:', i, j
 
        ! recursively call this subroutine for each neighbor to see if it should be filled       
        if (i > 1)  call glissade_fill(nx, ny, i-1, j,   color)

@@ -910,6 +910,9 @@ contains
 
     type(glide_global_type), intent(inout) :: model    ! model instance
 
+    !debug
+    integer :: j
+
     ! ------------------------------------------------------------------------ 
     ! Calculate flow evolution by various different methods
     ! ------------------------------------------------------------------------ 
@@ -1028,7 +1031,7 @@ contains
     ! velocity norm
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
-!WHL - debug
+    !WHL - debug
 !    print*, ' '
 !    print*, 'After tstep_p2:'
 !    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
@@ -1039,6 +1042,12 @@ contains
 !    print*, 'thck:'
 !    do j = model%general%nsn, 1, -1
 !       write(6,'(14f12.7)') thk0 * model%geometry%thck(3:16,j)
+!!       write(6,'(14e12.5)') thk0 * model%geometry%thck(3:16,j)
+!    enddo
+!    print*, ' '
+!    print*, 'btemp:'
+!    do j = model%general%nsn, 1, -1
+!       write(6,'(14f12.7)') model%temper%btemp(3:16,j)
 !    enddo
 !    print*, 'sfc uvel:'
 !    do j = model%general%nsn-1, 1, -1
