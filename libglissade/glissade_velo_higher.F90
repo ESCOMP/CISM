@@ -704,6 +704,7 @@
 
     real(dp)  ::   & 
        thklim,               &  ! minimum ice thickness for active cells (m)
+       thck_gradient_ramp,   &  ! thickness scale over which gradients are ramped up from zero to full value (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
        efvs_constant,        &  ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
@@ -1049,6 +1050,7 @@
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
      thklim    = model%numerics%thklim
+     thck_gradient_ramp  = model%numerics%thck_gradient_ramp
      max_slope = model%paramets%max_slope
      eus       = model%climate%eus
      efvs_constant = model%paramets%efvs_constant
@@ -1081,7 +1083,7 @@
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           thck,    usrf,          &
                                           topg,    eus,           &
-                                          thklim,                 &
+                                          thklim,  thck_gradient_ramp, &
                                           bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
@@ -1455,7 +1457,7 @@
     ! This is used below to compute the basal stress BC.
     !
     ! Three options for whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
+    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on whether any neighbor cell is land or has grounded ice
     ! (1) HO_GROUND_GLP:    0 <= f_ground <= 1 based on grounding-line parameterization
     ! (2) HO_GROUND_ALL:    f_ground = 1 for all cells with ice
     !
@@ -1467,11 +1469,12 @@
     ! f_flotation is not needed in further calculations but is output as a diagnostic.
     !------------------------------------------------------------------------------
 
-    call glissade_grounded_fraction(nx,          ny,                      &
-                                    thck,        topg,                    &
-                                    eus,         ice_mask,                &
-                                    whichground, whichflotation_function, &
-                                    f_ground,    f_flotation)
+    call glissade_grounded_fraction(nx,            ny,                      &
+                                    thck,          topg,                    &
+                                    eus,           ice_mask,                &
+                                    floating_mask, land_mask,               &
+                                    whichground,   whichflotation_function, &
+                                    f_ground,      f_flotation)
     
     !------------------------------------------------------------------------------
     ! Compute ice thickness and upper surface on staggered grid
@@ -1533,8 +1536,12 @@
                                        dusrf_dx,         dusrf_dy,   &
                                        ice_mask,                     &
                                        gradient_margin_in = whichgradient_margin, &
+                                       thklim_in = thklim,           &
+                                       thck_gradient_ramp_in = thck_gradient_ramp, &
+                                       thck = thck,                  &
                                        usrf = usrf,                  &
                                        floating_mask = floating_mask,&
+                                       land_mask = land_mask,        &
                                        max_slope = max_slope)
 
     else          ! 2nd order upstream
@@ -1544,10 +1551,14 @@
                                        usrf,                         &
                                        dusrf_dx,       dusrf_dy,     &
                                        ice_mask,                     &
-                                       accuracy_flag_in = 2,         &
+                                       usrf,                         &
                                        gradient_margin_in = whichgradient_margin, &
-                                       usrf = usrf,                  &
+                                       thklim_in = thklim,           &
+                                       thck_gradient_ramp_in = thck_gradient_ramp, &
+                                       thck = thck,                  &
+                                       accuracy_flag_in = 2,         &
                                        floating_mask = floating_mask,&
+                                       land_mask = land_mask,        &
                                        max_slope = max_slope)
 
     endif   ! whichgradient
@@ -2177,6 +2188,54 @@
           enddo          
 
           print*, ' '
+          print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') -dusrf_dx(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, '-dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') -dusrf_dy(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'taudx field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.0)',advance='no') taudx(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'taudy field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.0)',advance='no') taudy(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
           print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
@@ -2199,30 +2258,6 @@
              enddo
              write(6,*) ' '
           enddo          
-
-          print*, ' '
-          print*, 'dusrf/dx field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') dusrf_dx(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') dusrf_dy(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
 
           print*, ' '
           print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
@@ -2349,7 +2384,8 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.0)',advance='no') beta_internal(i,j)
+                write(6,'(e10.3)',advance='no') beta_internal(i,j)
+!!                write(6,'(f12.0)',advance='no') beta_internal(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -3775,7 +3811,7 @@
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
                                               thck,    usrf,          &
                                               topg,    eus,           &
-                                              thklim,                 &
+                                              thklim,  thck_gradient_ramp, &
                                               bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
@@ -3799,8 +3835,9 @@
        bmlt                    ! basal melt rate
 
     real(dp), intent(inout) ::   &
-       eus,  &                 ! eustatic sea level (= 0 by default)
-       thklim                  ! minimum ice thickness for active cells
+       eus,                 &  ! eustatic sea level (= 0 by default)
+       thklim,              &  ! minimum ice thickness for active cells
+       thck_gradient_ramp      ! thickness scale over which gradients are ramped up from zero to full value
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &               ! flow factor in units of Pa^(-n) yr^(-1)
@@ -3827,6 +3864,7 @@
     topg = topg * thk0
     eus  = eus  * thk0
     thklim = thklim * thk0
+    thck_gradient_ramp = thck_gradient_ramp * thk0
     bwat = bwat * thk0
 
     ! basal melt rate: rescale from dimensionless to m/yr

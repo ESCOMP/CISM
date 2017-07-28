@@ -652,6 +652,12 @@ contains
 !!                basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
 !!                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
+                !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
+                !      This might lead to smoother variations in N with spatial variation in bwat.
+!!                basal_physics%effecpress(i,j) = overburden(i,j) * &
+!!                     (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+
+
                 ! limit so as not to exceed overburden
                 basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
 

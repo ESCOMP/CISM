@@ -177,6 +177,7 @@ contains
 
     model%numerics%thklim = model%numerics%thklim  / thk0       
     model%numerics%thklim_temp = model%numerics%thklim_temp  / thk0
+    model%numerics%thck_gradient_ramp = model%numerics%thck_gradient_ramp / thk0
 
     model%numerics%dew = model%numerics%dew / len0
     model%numerics%dns = model%numerics%dns / len0
@@ -850,10 +851,12 @@ contains
          'centered gradient (glissade dycore)      ', &
          'upstream gradient (glissade dycore)      ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichgradient_margin = (/ &
+    !WHL - Choose the better hybrid option
+    character(len=*), dimension(0:3), parameter :: ho_whichgradient_margin = (/ &
          'land-based boundary condition for gradient (glissade dycore) ', &
          'hybrid boundary condition for gradient (glissade dycore)     ', &
-         'shelf-based boundary condition for gradient (glissade dycore)' /)
+         'shelf-based boundary condition for gradient (glissade dycore)', &
+         'another hybrid boundary condition for glissade testing       '/)
 
     character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
          'first-order accurate  ', &
@@ -1439,23 +1442,24 @@ contains
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
     call glimmer_set_msg_level(loglevel)
-    call GetValue(section,'ice_limit',        model%numerics%thklim)
-    call GetValue(section,'ice_limit_temp',   model%numerics%thklim_temp)
-    call GetValue(section,'pmp_offset',       model%temper%pmp_offset)
-    call GetValue(section,'pmp_threshold',    model%temper%pmp_threshold)
-    call GetValue(section,'marine_limit',     model%calving%marine_limit)
-    call GetValue(section,'calving_fraction', model%calving%calving_fraction)
-    call GetValue(section,'calving_timescale',model%calving%calving_timescale)
-    call GetValue(section,'calving_minthck',  model%calving%calving_minthck)
-    call GetValue(section,'damage_threshold', model%calving%damage_threshold)
-    call GetValue(section,'geothermal',       model%paramets%geot)
+    call GetValue(section,'ice_limit',          model%numerics%thklim)
+    call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
+    call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
+    call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
+    call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
+    call GetValue(section,'marine_limit',       model%calving%marine_limit)
+    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
+    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
-    call GetValue(section,'flow_factor',      model%paramets%flow_enhancement_factor)
-    call GetValue(section,'default_flwa',     model%paramets%default_flwa)
-    call GetValue(section,'efvs_constant',    model%paramets%efvs_constant)
-    call GetValue(section,'hydro_time',       model%paramets%hydtim)
-    call GetValue(section,'max_slope',        model%paramets%max_slope)
+    call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
+    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
+    call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
+    call GetValue(section,'hydro_time',         model%paramets%hydtim)
+    call GetValue(section,'max_slope',          model%paramets%max_slope)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -1548,6 +1552,10 @@ contains
     if (model%options%whichdycore /= DYCORE_GLIDE) then
        write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
        call write_log(message)
+       if (model%numerics%thck_gradient_ramp > 0.0d0) then
+          write(message,*) 'thickness scale for gradient ramp (m):', model%numerics%thck_gradient_ramp
+          call write_log(message)
+       endif
        write(message,*) 'pmp threshold for temperature (K): ', model%temper%pmp_threshold
        call write_log(message)
     endif

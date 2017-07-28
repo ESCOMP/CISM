@@ -164,7 +164,7 @@
                 land_mask(i,j) = 0
              endif
           endif
-          
+
        enddo
     enddo
 
@@ -172,11 +172,12 @@
 
 !****************************************************************************
 
-  subroutine glissade_grounded_fraction(nx,          ny,                      &
-                                        thck,        topg,                    &
-                                        eus,         ice_mask,                &
-                                        whichground, whichflotation_function, &
-                                        f_ground,    f_flotation)
+  subroutine glissade_grounded_fraction(nx,            ny,                      &
+                                        thck,          topg,                    &
+                                        eus,           ice_mask,                &
+                                        floating_mask, land_mask,               &
+                                        whichground,   whichflotation_function, &
+                                        f_ground,      f_flotation)
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded.
@@ -247,7 +248,9 @@
        eus                    ! eustatic sea level (= 0 by default)
 
     integer, dimension(nx,ny), intent(in) ::   &
-       ice_mask               ! = 1 for cells where ice is present (thk > thklim), else = 0
+       ice_mask,            & ! = 1 for cells where ice is present (thk > thklim), else = 0
+       floating_mask,       & ! = 1 if thck > thklim and ice is floating, else = 0
+       land_mask              ! = 1 if topg is at or above sea level
 
     ! see comments above for more information about these options
     integer, intent(in) ::     &
@@ -287,9 +290,9 @@
     integer :: nfloat     ! number of grounded vertices of a cell (0 to 4)
 
     logical, dimension(nx,ny) :: &
-       cground,          & ! true if ice is present and grounded, else = false
+       cground,          & ! true if a cell is land and/or has grounded ice, else = false
        cfloat              ! true if flotation condition is satisfied at cell center, else = false
-                           ! Note: cground and cfloat are not exact complements; both can be false for ice-free cells
+                           ! Note: cground and cfloat are not exact complements; both are false for ice-free ocean
 
     logical, dimension(2,2) ::   &
        logvar              ! set locally to float or .not.float, depending on nfloat
@@ -326,9 +329,6 @@
        enddo
     enddo
 
-    ! Initialize a logical mask, cground, which is true where ice is present and grounded.
-    cground(:,:) = .false.
-
     ! Compute flotation function at cell centers
 
     if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
@@ -339,7 +339,6 @@
        do i = 1, nx
           if (ice_mask(i,j) == 1) then
              f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
-             if (f_flotation(i,j) <= 1.d0) cground(i,j) = .true.
           else
              f_flotation(i,j) = 0.d0  ! treat as grounded
           endif
@@ -359,7 +358,6 @@
                    f_flotation(i,j) = rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
                    f_flotation(i,j) = min(f_flotation(i,j), grounding_factor_max)
                 endif
-                if (f_flotation(i,j) >= 1.d0) cground(i,j) = .true.
              else  ! ice-free cell
                 if (topg(i,j) - eus >= 0.0d0) then  ! land-based cell
                    f_flotation(i,j) = grounding_factor_max
@@ -380,7 +378,6 @@
           do i = 1, nx
              if (ice_mask(i,j) == 1) then
                 f_flotation(i,j) = -rhoo*(topg(i,j) - eus) - rhoi*thck(i,j)
-                if (f_flotation(i,j) >= 0.d0) cground(i,j) = .true.
              else
                 f_flotation(i,j) = 0.d0
              endif
@@ -397,19 +394,30 @@
     select case(whichground)
 
     case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
-                             ! f_ground = 1 if stagf_flotation <=1, f_ground = 0 if stagf_flotation > 1
+                             ! f_ground = 1 at vertex if any neighbor cell is land or has grounded ice
 
-       ! vertices are grounded if any neighbor cell has grounded ice, else are floating
+       ! compute a mask that is true for cells that are land and/or have grounded ice
+       do j = 1, ny
+          do i = 1, nx
+             if ((ice_mask(i,j)==1 .and. floating_mask(i,j)==0) .or. land_mask(i,j)==1) then
+                cground(i,j) = .true.
+             else
+                cground(i,j) = .false.
+             endif
+          enddo
+       enddo
+
+       ! vertices are grounded if any neighbor cell is land and/or has grounded ice, else are floating
 
        do j = 1, ny-1
           do i = 1, nx-1
              if (vmask(i,j) == 1) then
-                if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j)   .or. cground(i+1,j)) then
-                    f_ground(i,j) = 1.d0
-                 else
-                    f_ground(i,j) = 0.d0
-                 endif
-              endif
+                if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j) .or. cground(i+1,j)) then
+                   f_ground(i,j) = 1.d0
+                else
+                   f_ground(i,j) = 0.d0
+                endif
+             endif
            enddo
         enddo
 
@@ -440,7 +448,8 @@
 
        if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
 
-          !TODO - compute cfloat above, along with cground?
+          !TODO - I think floating_mask = 1 iff cfloat = T
+          !       If so, then can simplify the calculation of cfloat
 
           ! grounded if f_flotation <= 1, else floating
 

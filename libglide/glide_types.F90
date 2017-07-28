@@ -254,9 +254,12 @@ module glide_types
   integer, parameter :: HO_GRADIENT_CENTERED = 0
   integer, parameter :: HO_GRADIENT_UPSTREAM = 1
 
+  !WHL - adding a second hybrid option
+  !      After testing, choose just one hybrid option
   integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
   integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
+  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID2 = 3
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
@@ -1363,9 +1366,10 @@ module glide_types
     real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
     real(dp) :: alphas =    0.5d0 !> was a parameter in the original
     real(dp) :: thklim =   100.d0 ! min thickness for computing ice dynamics (m) 
-    real(dp) :: thklim_temp =   1.d0 ! min thickness for computing vertical temperature (m) (higher-order only)
-    real(dp) :: dew    =    20.d3
-    real(dp) :: dns    =    20.d3
+    real(dp) :: thklim_temp = 1.d0    ! min thickness for computing vertical temperature (m) (higher-order only)
+    real(dp) :: thck_gradient_ramp = 0.d0 ! thickness scale over which gradients increase from zero to full value (HO only)
+    real(dp) :: dew    =    20.d3     ! grid cell size in east-west direction
+    real(dp) :: dns    =    20.d3     ! grid cell size in north-south direction
     real(dp) :: dt     =     0.d0     ! ice dynamics timestep
     real(dp) :: dttem  =     0.d0     ! temperature timestep
     real(dp) :: dt_transport = 0.d0   ! timestep for subcycling transport within the dynamics timestep dt
