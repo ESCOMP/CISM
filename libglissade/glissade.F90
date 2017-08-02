@@ -180,7 +180,6 @@ contains
     ! Alternatively, we could initialize tstep_count as follows:
     !    model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
     ! But reading from a restart file should prevent roundoff issues.
-    ! For restart, this will be overwritten from the restart file.
     model%numerics%tstep_count = 0
 
     ! open all input files
@@ -304,6 +303,7 @@ contains
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
+
     if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
@@ -525,7 +525,15 @@ contains
                            model%climate%eus,    model%geometry%thkmask,  &
                            model%geometry%iarea, model%geometry%ivol)
 
-    endif
+    endif  ! initial calving
+
+    ! Note: The DIVA solver needs a halo update for effective viscosity.
+    !       This is done at the end of glissade_diagnostic_variable_solve, which in most cases is sufficient.
+    !       However, if we are (1) reading efvs from an input file and (2) solving for velocity before
+    !        the halo update, then we need a halo update here too, to avoid symmetry issues in the velocity solver.
+    !       I ran into this issue when running MISMIP+, which does cold starts (restart = 0) from files containing efvs.
+    !       An update is done here regardless of code options, just to be on the safe side.
+    call parallel_halo(model%stress%efvs)
 
     ! calculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
@@ -803,7 +811,7 @@ contains
 
     ! Add bmlt_float to the bmlt array.
     ! For grounded ice, bmlt is computed in glissade_therm_driver.
-    model%temper%bmlt(:,:) = model%temper%bmlt(:,:) + model%bmltfloat%bmlt_float(:,:)
+    bmlt_unscaled(:,:) = bmlt_unscaled(:,:) + model%bmltfloat%bmlt_float(:,:)  ! m/s
 
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
@@ -821,7 +829,8 @@ contains
                            bmlt_unscaled,                    &  ! m/s
                            bwat_unscaled)                       ! m
 
-    ! convert bmlt and bwat from SI units to scaled model units
+    ! convert bmlt and bwat from SI units (m/s and m) to scaled model units
+    model%bmltfloat%bmlt_float(:,:) = model%bmltfloat%bmlt_float(:,:) * tim0/thk0
     model%temper%bmlt(:,:) = bmlt_unscaled(:,:) * tim0/thk0
     model%temper%bwat(:,:) = bwat_unscaled(:,:) / thk0
 
@@ -862,7 +871,7 @@ contains
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
                                   glissade_add_acab_anomaly
-    use glissade_masks, only: glissade_calculate_masks
+    use glissade_masks, only: glissade_get_masks
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
     implicit none
@@ -880,7 +889,8 @@ contains
        acab_unscaled        ! surface mass balance (m/s)
 
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
-       cell_mask            ! integer mask encoding cell properties
+       ice_mask,          & ! = 1 if thck > thklim, else = 0
+       ocean_mask           ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
     ! temporary variables needed to reset geometry for the EVOL_NO_THICKNESS option
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_old
@@ -1053,17 +1063,15 @@ contains
           ! (includes a halo update for tracers)
           call glissade_transport_setup_tracers (model)
 
+          ! ------------------------------------------------------------------------
+          ! Get masks used by glissade_transport_driver
+          ! Pass thklim = 0 to identify ocean cells with thck = 0 (not thck <= thklim).
+          ! ------------------------------------------------------------------------
 
-          ! compute a cell mask
-          ! (used to mask out accumulation over ice-free ocean cells)
-
-          call glissade_calculate_masks(model%general%ewn,          model%general%nsn, &
-                                        thck_unscaled,                &
-                                        model%geometry%topg * thk0,   &
-                                        model%climate%eus * thk0,     &
-                                        0.d0,                         &  ! thklim_ground
-                                        0.d0,                         &  ! thklim_float
-                                        cell_mask)
+          call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                                  model%geometry%thck, model%geometry%topg,   &
+                                  model%climate%eus,   0.0d0,                 &   ! thklim = 0 
+                                  ice_mask,            ocean_mask)
 
           ! Call the transport driver subroutine.
           ! (includes a halo update for thickness: thck_unscaled in this case)
@@ -1085,7 +1093,7 @@ contains
                                          bmlt_continuity(:,:),                                 &
                                          model%climate%acab_applied(:,:),                      &
                                          model%temper%bmlt_applied(:,:),                       &
-                                         cell_mask(:,:),                                       &
+                                         ocean_mask(:,:),                                      &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -1368,8 +1376,9 @@ contains
     integer :: i, j, k, i1, i2
     integer :: itest, jtest, rtest
     integer, dimension(model%general%ewn, model%general%nsn) :: &
-         ice_mask,     &! = 1 where thck > thklim, else = 0
-         floating_mask  ! = 1 where ice is floating, else = 0
+         ice_mask,        & ! = 1 where thck > thklim, else = 0
+         floating_mask,   & ! = 1 where ice is present and floating, else = 0
+         land_mask          ! = 1 where topg is at or above sea level
 
     rtest = -999
     itest = 1
@@ -1439,7 +1448,8 @@ contains
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
-                            ice_mask,            floating_mask)
+                            ice_mask,            floating_mask,         &
+                            land_mask)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell
@@ -1468,6 +1478,8 @@ contains
                                     model%geometry%topg*thk0,      &
                                     model%climate%eus*thk0,        &
                                     ice_mask,                      &
+                                    floating_mask,                 &
+                                    land_mask,                     &
                                     model%options%which_ho_ground, &
                                     model%options%which_ho_flotation_function, &
                                     model%geometry%f_ground,       &
@@ -1862,12 +1874,14 @@ contains
        model%velocity%beta(:,:) = model%velocity%beta_internal(:,:)
     endif
  
+    ! DIVA needs a halo update for efvs, since the latest guess (in both local and halo cells)
+    ! is used to start iterating for efvs in the next time step.
+    call parallel_halo(model%stress%efvs)
+
     !TODO - I don't think we need to update ubas, vbas, or velnorm, since these are diagnostic only
-    !       Also, I don't think efvs is needed in the halo.
     call staggered_parallel_halo(model%velocity%velnorm)
     call staggered_parallel_halo(model%velocity%ubas)
     call staggered_parallel_halo(model%velocity%vbas)
-    call parallel_halo(model%stress%efvs)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 

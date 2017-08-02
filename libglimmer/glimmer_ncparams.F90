@@ -70,12 +70,15 @@ contains
     type(glimmer_nc_input), pointer :: forcing => null()
 
     integer :: pos
+    integer :: ierr
+    character(len=100) :: restart_filename
+    character(len=100) :: message
 
     ! Note on restart files:
     ! If a file is listed in the 'CF restart' section, then it is added to the glimmer_nc_output data structure
     !  and written at the specified frequency.
-    ! If model%options%is_restart = RESTART_TRUE, then the file listed in 'CF restart' is also added to the
-    !  glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
+    ! If model%options%is_restart = RESTART_TRUE, then the file listed in 'CF restart' (provided it exists) 
+    !  is added to the glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
     !  The latest time slice will be read in.
     ! Thus when restarting the model, it is only necessary to set restart = RESTART_TRUE (i.e, restart = 1)
     !  in the config file; it is not necesssary to change filenames in 'CF input' or 'CF restart'.
@@ -139,31 +142,53 @@ contains
     ! set up restart input
     if (model%options%is_restart == RESTART_TRUE) then
 
-       ! If there is a 'CF restart' section, the model will restart from the file listed there.
+       ! If there is a 'CF restart' section, the model will restart from the file listed there (if it exists).
        ! Else the model will start from the input file in the 'CF input' section.
 
        call GetSection(config,section,'CF restart')
 
        if (associated(section)) then
 
-          ! nullify the input data structure set above
-          input => null()
-          model%funits%in_first => null()
+          ! get filename
+          call GetValue(section, 'name', restart_filename)
 
-          ! set new pointers
-          input => handle_input(section,input)
-          model%funits%in_first => input
+          ! check whether a file with this name exists
+          open(unit=1, file=trim(restart_filename), status='old', iostat=ierr)
 
-          ! Make sure the filename contains '.restart.'
-          pos = index(input%nc%filename,'.restart.')
-          if (pos == 0) then
-             call write_log ('Error, filename in CF restart section should include ".restart."', GM_FATAL)
-          endif
+          if (ierr == 0) then   ! file exists; set input pointers to the file in 'CF restart'
 
-          ! Make sure there is only one 'CF restart' section
-          if (associated(section%next)) then
-             call write_log ('Error, there should not be more than one CF restart section', GM_FATAL)
-          endif
+             ! nullify the input data structure set above
+             input => null()
+             model%funits%in_first => null()
+
+             ! set new pointers
+             input => handle_input(section,input)
+             model%funits%in_first => input
+
+             ! Make sure the filename contains '.restart.'
+             pos = index(input%nc%filename,'.restart.')
+             if (pos == 0) then
+                call write_log ('Error, filename in CF restart section should include ".restart."', GM_FATAL)
+             endif
+
+             ! Make sure there is only one 'CF restart' section
+             if (associated(section%next)) then
+                call write_log ('Error, there should not be more than one CF restart section', GM_FATAL)
+             endif
+
+             write(message,*) 'Starting from restart file:', trim(input%nc%filename)
+             call write_log(message)
+
+          else   ! file does not exist; do not reset input pointers
+
+             write(message,*) 'Cannot find restart file:', trim(restart_filename)
+             call write_log(message)
+             write(message,*) 'Starting from input file:', trim(input%nc%filename)
+             call write_log(message)
+
+          endif  ! ierr = 0 (restart file exists)
+
+          close(unit=1)
 
        endif   ! associated(section)
 

@@ -374,7 +374,7 @@ contains
     use parallel
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
-    use glissade_masks, only: glissade_calculate_masks
+    use glissade_masks, only: glissade_get_masks
     use glimmer_paramets, only: len0, thk0, tim0
     use glimmer_physcon, only: pi, scyr
 
@@ -420,7 +420,8 @@ contains
     real(dp), dimension(:,:,:), allocatable :: uvel, vvel   ! uniform velocity field (m/yr)
 
     integer, dimension(:,:), allocatable ::   &
-       cell_mask            ! integer mask encoding cell properties
+         ice_mask,      & ! = 1 where thk > thklim, else = 0
+         ocean_mask       ! = 1 where topg is below sea level and thck < thklim, else = 0
 
     integer :: i, j, k, n
     integer :: nx, ny, nz
@@ -460,7 +461,8 @@ contains
 
     allocate(uvel(nz,nx-1,ny-1))
     allocate(vvel(nz,nx-1,ny-1))
-    allocate(cell_mask(nx,ny))
+    allocate(ice_mask(nx,ny))
+    allocate(ocean_mask(nx,ny))
 
     ! Find the length of the path around the domain and back to the starting point
 
@@ -545,13 +547,11 @@ contains
 
        call glissade_transport_setup_tracers(model)
 
-       call glissade_calculate_masks(nx,    ny,                     &
-                                     model%geometry%thck,           &
-                                     model%geometry%topg,           &
-                                     model%climate%eus,             &
-                                     0.d0,                          &  ! thklim_ground
-                                     0.d0,                          &  ! thklim_float
-                                     cell_mask)
+       ! get masks
+       call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                               model%geometry%thck, model%geometry%topg,   &
+                               model%climate%eus,   0.0d0,                 &   ! thklim = 0
+                               ice_mask,            ocean_mask)
 
        call glissade_transport_driver(dt*scyr,                                              &
                                       dx,                        dy,                        &
@@ -563,7 +563,7 @@ contains
                                       model%temper%bmlt(:,:),                               &
                                       model%climate%acab_applied(:,:),                      &
                                       model%temper%bmlt_applied(:,:),                       &
-                                      cell_mask(:,:),                                       &
+                                      ocean_mask(:,:),                                      &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &

@@ -1148,6 +1148,7 @@
     endif
 
     if (whichapprox == HO_APPROX_DIVA) then
+!!       call parallel_halo(efvs)   ! efvs halo update is in glissade_diagnostic_variable_solve
        allocate(beta_eff(nx-1,ny-1))
        allocate(omega(nx,ny))
        allocate(omega_k(nz,nx,ny))
@@ -1446,37 +1447,12 @@
     !TODO: Compute these masks before the velocity solve and pass them in?
     !------------------------------------------------------------------------------
 
-    call glissade_get_masks(nx,          ny,         &
-                            thck,        topg,       &
-                            eus,         thklim,     &
+    call glissade_get_masks(nx,          ny,            &
+                            thck,        topg,          &
+                            eus,         thklim,        &
                             ice_mask,    floating_mask, &
                             ocean_mask,  land_mask)
 
-    !------------------------------------------------------------------------------
-    ! Compute fraction of grounded ice in each cell
-    ! (requires that thck and topg are up to date in halo cells).
-    ! This is used below to compute the basal stress BC.
-    !
-    ! Three options for whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on whether any neighbor cell is land or has grounded ice
-    ! (1) HO_GROUND_GLP:    0 <= f_ground <= 1 based on grounding-line parameterization
-    ! (2) HO_GROUND_ALL:    f_ground = 1 for all cells with ice
-    !
-    ! Three options for whichflotation_function (applies to whichground = 0 or 1):
-    ! (0) HO_FLOTATION_FUNCTION_PATTYN:         f = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    ! (2) HO_FLOTATION_FUNCTION_LINEAR:         f = -rhow*b - rhoi*H; <= 0 for grounded, > 0 for floating
-    !
-    ! f_flotation is not needed in further calculations but is output as a diagnostic.
-    !------------------------------------------------------------------------------
-
-    call glissade_grounded_fraction(nx,            ny,                      &
-                                    thck,          topg,                    &
-                                    eus,           ice_mask,                &
-                                    floating_mask, land_mask,               &
-                                    whichground,   whichflotation_function, &
-                                    f_ground,      f_flotation)
-    
     !------------------------------------------------------------------------------
     ! Compute ice thickness and upper surface on staggered grid
     ! (requires that thck and usrf are up to date in halo cells).
@@ -2153,6 +2129,7 @@
           print*, ' '
           print*, 'Before calcbeta, counter =', counter
           print*, ' '
+
           print*, 'usrf field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
@@ -5292,6 +5269,10 @@
                                                       flwa(:,i,j),          flwafact(:,i,j),   &
                                                       efvs_qp(:,p),                            &
                                                       i, j, p)
+
+                if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
+                   print*, 'i, j, k, p, efvs (Pa yr):', i, j, k, p, efvs_qp(:,p)
+                endif
 
                 !WHL - Copy local efvs_qp to the global array
                 efvs_qp_3d(:,:,i,j) = efvs_qp(:,:)

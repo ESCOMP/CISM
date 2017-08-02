@@ -298,7 +298,7 @@
                                          thck,                       &
                                          acab,         bmlt,         &
                                          acab_applied, bmlt_applied, &
-                                         cell_mask,                  &
+                                         ocean_mask,                 &
                                          ntracers,     tracers,      &
                                          tracers_usrf, tracers_lsrf, &
                                          vert_remap_accuracy,        &
@@ -353,8 +353,9 @@
                                 ! = 0 for ice-free cells where acab < 0
          bmlt_applied           ! basal melt rate applied to ice (m/s)
                                 ! = 0 for ice-free cells where bmlt > 0
+
       integer, dimension(nx,ny), intent(in) :: &
-         cell_mask              ! integer mask encoding cell properties 
+         ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
       integer, intent(in) ::  &
          ntracers               ! number of tracers to be transported
@@ -718,7 +719,7 @@
       call glissade_add_smb(nx,       ny,          &
                             nlyr,     ntracers,    &
                             nhalo,    dt,          &
-                            cell_mask,             &
+                            ocean_mask,            &
                             thck_layer(:,:,:),     &
                             tracers(:,:,:,:),      &
                             tracers_usrf(:,:,:),   &
@@ -1221,14 +1222,12 @@
     subroutine glissade_add_smb(nx,           ny,          &
                                 nlyr,         ntracer,     &
                                 nhalo,        dt,          &
-                                cell_mask,                &
+                                ocean_mask,                &
                                 thck_layer,   tracer,      &
                                 tracer_usrf,  tracer_lsrf, &
                                 acab,         bmlt,        &
                                 acab_applied, bmlt_applied,&
                                 melt_potential)
-
-      use glissade_masks, only: mask_is_ocean
 
       !WHL - debug
       use glimmer_paramets, only: thk0
@@ -1247,7 +1246,7 @@
          dt                     ! time step (s)
 
       integer, dimension(nx,ny), intent(in) :: &
-         cell_mask              ! integer mask encoding cell properties 
+         ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
       real(dp), dimension (nx,ny,nlyr), intent(inout) ::     &
          thck_layer             ! ice layer thickness
@@ -1319,7 +1318,7 @@
 
                sfc_accum = acab(i,j)*dt
 
-               if (mask_is_ocean(cell_mask(i,j))) then     ! no accumulation in open ocean
+               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
                   ! TODO - Is this the correct treatment of the melt potential for accumulation over the ocean?
                   melt_potential = melt_potential - sfc_accum
@@ -1341,7 +1340,7 @@
                   ! new tracer values in top layer
                   tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
 
-               endif   ! mask_is_ocean
+               endif   ! ocean_mask = 1
 
             elseif (acab(i,j) < 0.d0) then   ! ablation in one or more layers            
 

@@ -129,7 +129,6 @@ contains
 
     real(dp), dimension(:,:), pointer :: &
          bmlt_float,          & ! basal melt rate for floating ice (m/s) (> 0 for melt, < 0 for freeze-on)
-                                ! Note: converted from m/s to scaled model units on output
          T_basal,             & ! basal ice temperature; at freezing point (deg C)
          S_basal,             & ! basal ice salinity; at freezing point (psu)
          u_plume,             & ! x component of plume velocity (m/s) at cell centers
@@ -182,8 +181,8 @@ contains
     real(dp) :: h_cavity        ! depth of ice cavity beneath floating ice (m)
     real(dp) :: z_draft         ! draft of floating ice (m below sea level)
 
-!!    logical, parameter :: verbose_bmlt = .false.
-    logical, parameter :: verbose_bmlt = .true.
+    logical, parameter :: verbose_bmlt = .false.
+!!    logical, parameter :: verbose_bmlt = .true.
 
 !TODO - Make first_call depend on whether we are restarting
 !!    logical :: first_call = .false.
@@ -231,7 +230,7 @@ contains
        S_ambient     => bmltfloat%S_ambient
     endif
 
-    if (main_task .and. verbose_bmlt) print*, 'Computing bmltfloat, whichbmlt_float =', whichbmlt_float
+    if (main_task .and. verbose_bmlt) print*, 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
 
     ! Compute masks: 
     ! - ice_mask = 1 where thck > thklim
@@ -282,6 +281,9 @@ contains
 
     elseif (whichbmlt_float == BMLT_FLOAT_MISMIP) then
 
+       !WHL - debug
+       print*, 'Compute MISMIP+ melt rates'
+
        ! compute melt rate based on bed depth and cavity thickness
        !
        ! The MISMIP+ formula is as follows:
@@ -305,16 +307,37 @@ contains
                 z_draft = lsrf(i,j) - eus
                 bmlt_float(i,j) = bmlt_float_omega * tanh(h_cavity/bmlt_float_h0) * max(bmlt_float_z0 - z_draft, 0.0d0)
 
-                   !WHL - debug
-!!                   if (ns == 5) then
-!!                      print*, 'cavity, tanh, draft, d_draft, melt rate (m/yr):', i, j, h_cavity, tanh(h_cavity/bmlt_float_h0), &
-!!                           z_draft, max(bmlt_float_z0 - z_draft, 0.d0), bmlt_float(i,j)*31536000.d0
-!!                   endif
+                !debug
+!                if (j == jtest .and. verbose_bmlt) then
+!                   print*, 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, tanh(h_cavity/bmlt_float_h0),  &
+!                        thck(i,j), z_draft, bmlt_float(i,j)*scyr
+!                endif
 
              endif   ! ice is present and floating
 
           enddo
        enddo
+
+       !WHL - debug
+       if (verbose_bmlt .and. this_rank == rtest) then
+          print*, 'itest, jtest, rtest =', itest, jtest, rtest
+          print*, ' '
+          print*, 'thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'bmlt_float (m/yr), rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') bmlt_float(i,j)*scyr
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
     elseif (whichbmlt_float == BMLT_FLOAT_MISOMIP) then
 
@@ -326,45 +349,41 @@ contains
        !    MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1),
        !    Geosci. Model Devel., 9, 2471-2497, doi: 10.5194/gmd-9-2471-2016.
 
-       !WHL - debug
-       print*, 'itest, jtest =', itest, jtest
-
-       !WHL - debug
-       print*, ' '
-       print*, 'lsrf field, rank =', rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f12.5)',advance='no') lsrf(i,j)
+       if (verbose_bmlt .and. this_rank == rtest) then
+          print*, 'itest, jtest, rtest =', itest, jtest, rtest
+          print*, ' '
+          print*, 'lsrf:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') lsrf(i,j)
+             enddo
+             write(6,*) ' '
           enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'topg field, rank =', rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f12.5)',advance='no') topg(i,j)
+          print*, ' '
+          print*, 'topg:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') topg(i,j)
+             enddo
+             write(6,*) ' '
           enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'lsrf - topg, rank =', rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f12.5)',advance='no') lsrf(i,j) - topg(i,j)
+          print*, ' '
+          print*, 'lsrf - topg:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') lsrf(i,j) - topg(i,j)
+             enddo
+             write(6,*) ' '
           enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'floating_mask, rank =', rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i8)',advance='no') floating_mask(i,j)
+          print*, ' '
+          print*, 'floating_mask:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(i8)',advance='no') floating_mask(i,j)
+             enddo
+             write(6,*) ' '
           enddo
-          write(6,*) ' '
-       enddo
+       endif  ! verbose_bmlt
 
        ! Given the ice draft in each floating grid cell, compute the ambient ocean T and S
        !  using the prescribed MISOMIP profile.
@@ -425,21 +444,11 @@ contains
     !  will be taken as initial conditions.
     first_call = .false.
 
-    ! Convert output parameters from SI units to scaled model parameters
-    bmlt_float(:,:) = bmlt_float(:,:) * tim0/thk0
-
     if (whichbmlt_float == BMLT_FLOAT_MISOMIP) then
        entrainment(:,:) = entrainment(:,:) * tim0/thk0
        detrainment(:,:) = detrainment(:,:) * tim0/thk0
        divDu_plume(:,:) = divDu_plume(:,:) * tim0/thk0
        D_plume(:,:) = D_plume(:,:)/thk0
-    endif
-
-    !WHL - debug
-    if (this_rank == rtest .and. verbose_bmlt) then
-       i = itest
-       j = jtest
-       print*, 'After rescaling, bmlt_float =', bmlt_float(i,j)
     endif
 
   end subroutine glissade_basal_melting_float
