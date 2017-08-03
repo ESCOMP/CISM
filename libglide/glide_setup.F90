@@ -189,7 +189,7 @@ contains
 
     ! scale calving parameters
     model%calving%marine_limit = model%calving%marine_limit / thk0
-    model%calving%calving_minthck = model%calving%calving_minthck / thk0
+    model%calving%calving_minthck_constant = model%calving%calving_minthck_constant / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
     model%calving%floating_path_minthck = model%calving%floating_path_minthck / thk0
 
@@ -574,6 +574,7 @@ contains
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
+    call GetValue(section,'remove_floating_islands', model%options%remove_floating_islands)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -749,7 +750,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
-    character(len=*), dimension(0:8), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
@@ -757,6 +758,7 @@ contains
          'present bedrock threshold       ', &
          'calving based on grid location  ', &
          'ice thickness threshold         ', &
+         'eigencalving scheme             ', & 
          'damage-based calving scheme     ', & 
          'Huybrechts grounding-line scheme' /) 
 
@@ -1081,16 +1083,27 @@ contains
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
 
-    ! unsupported calving options
+    ! dycore-dependent calving options
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
+
+       if (model%options%remove_floating_islands) then
+          call write_log('Floating islands will be removed')
+       else
+          call write_log('Floating islands will not be removed')
+       endif
+       
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
           write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
           call write_log(message, GM_WARNING)
        endif
+
     else   ! not Glissade
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          call write_log('Error, calving thickness threshold model is supported for Glissade dycore only', GM_FATAL)
+          call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == EIGENCALVING) then
+          call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_GRID_MASK) then
           call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
@@ -1457,8 +1470,9 @@ contains
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_minthck_constant', model%calving%calving_minthck_constant)
+    call GetValue(section,'eigencalving_constant',    model%calving%eigencalving_constant)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
-    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
     call GetValue(section,'floating_path_minthck', model%calving%floating_path_minthck)
@@ -1593,7 +1607,12 @@ contains
     endif
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
+       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck_constant
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == EIGENCALVING) then
+       write(message,*) 'eigencalving constant (unitless) : ', model%calving%eigencalving_constant
        call write_log(message)
     endif
 

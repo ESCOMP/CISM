@@ -106,7 +106,7 @@ contains
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
-    use glimmer_paramets, only: thk0, len0, tim0
+    use glimmer_paramets, only: thk0, len0, tim0, evs0
     use felix_dycore_interface, only: felix_velo_init
 
     implicit none
@@ -492,6 +492,8 @@ contains
 
        call glissade_calve_ice(model%options%whichcalving,      &
                                model%options%calving_domain,    &
+                               model%numerics%idiag_local, model%numerics%jdiag_local,   &
+                               model%numerics%rdiag_local,                               &
                                model%geometry%thck,             &
                                model%isostasy%relx,             &
                                model%geometry%topg,             &
@@ -501,10 +503,13 @@ contains
                                model%calving%calving_fraction,  &
                                model%calving%calving_timescale, &
                                model%numerics%dt,               &
-                               model%calving%calving_minthck,   &
-                               model%calving%calving_mask,      &
-                               model%calving%remove_floating_islands, &
-                               model%calving%floating_path_minthck,   &
+                               model%stress%efvs_vertavg * evs0,       &  ! Pa s
+                               model%velocity%strain_rate_determinant, &
+                               model%calving%eigencalving_constant,    &
+                               model%calving%calving_minthck_constant, &
+                               model%calving%calving_mask,             &
+                               model%options%remove_floating_islands,  &
+                               model%calving%floating_path_minthck,    &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
@@ -797,6 +802,7 @@ contains
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
 
+    !WHL - May want to commment out temporarily, if doing basal melting in the diagnostic solve for testing
     call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
                                       model%general%ewn,          model%general%nsn,                &
                                       model%numerics%dew*len0,    model%numerics%dns*len0,          &
@@ -1231,7 +1237,7 @@ contains
 
     use parallel
 
-    use glimmer_paramets, only: thk0, tim0
+    use glimmer_paramets, only: thk0, tim0, evs0
     use glissade_calving, only: glissade_calve_ice
     use glide_mask, only: glide_set_mask
 
@@ -1253,10 +1259,14 @@ contains
 
     ! ------------------------------------------------------------------------ 
     ! Calve ice, based on the value of whichcalving 
+    !TODO - Pass in model%calving (or model) instead of a long argument list?
+    !       Pass in thck, topg, etc. with units of meters.
     ! ------------------------------------------------------------------------ 
 
     call glissade_calve_ice(model%options%whichcalving,      &
                             model%options%calving_domain,    &
+                            model%numerics%idiag_local, model%numerics%jdiag_local,   &
+                            model%numerics%rdiag_local,                               &
                             model%geometry%thck,             &
                             model%isostasy%relx,             &
                             model%geometry%topg,             &
@@ -1266,10 +1276,13 @@ contains
                             model%calving%calving_fraction,  &
                             model%calving%calving_timescale, &
                             model%numerics%dt,               &
-                            model%calving%calving_minthck,   &
-                            model%calving%calving_mask,      &
-                            model%calving%remove_floating_islands, &
-                            model%calving%floating_path_minthck,   &
+                            model%stress%efvs_vertavg * evs0,       &  ! Pa s
+                            model%velocity%strain_rate_determinant, &
+                            model%calving%eigencalving_constant,    &
+                            model%calving%calving_minthck_constant, &
+                            model%calving%calving_mask,             &
+                            model%options%remove_floating_islands,  &
+                            model%calving%floating_path_minthck,    &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &
                             model%calving%damage_column,     &
@@ -1379,6 +1392,10 @@ contains
          ice_mask,        & ! = 1 where thck > thklim, else = 0
          floating_mask,   & ! = 1 where ice is present and floating, else = 0
          land_mask          ! = 1 where topg is at or above sea level
+
+    !WHL - debug
+    real(dp), dimension(:,:), allocatable :: &
+         thck_tmp, lsrf_tmp
 
     rtest = -999
     itest = 1
@@ -1599,17 +1616,30 @@ contains
     ! Compute the basal melt rate for floating ice
     ! Note: model%bmltfloat is a derived type with various fields and parameters (all with SI units)
 
+    !WHL - debug - To allow calving of thin ice for MISOMIP.
+!    allocate(thck_tmp(model%general%ewn,model%general%nsn))
+!    allocate(lsrf_tmp(model%general%ewn,model%general%nsn))
+!    thck_tmp = model%geometry%thck*thk0
+!    lsrf_tmp = model%geometry%lsrf*thk0
+
 !    call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
 !                                      model%general%ewn,          model%general%nsn,                &
 !                                      model%numerics%dew*len0,    model%numerics%dns*len0,          &
 !                                      model%numerics%idiag_local, model%numerics%jdiag_local,       &
 !                                      model%numerics%rdiag_local,                                   &
 !                                      model%general%x1,                                             & ! m
-!                                      model%geometry%thck*thk0,                                     & ! m
-!                                      model%geometry%lsrf*thk0,                                     & ! m
+!!!                                      model%geometry%thck*thk0,                                     & ! m
+!!!                                      model%geometry%lsrf*thk0,                                     & ! m
+!                                      thck_tmp,                                     & ! m
+!                                      lsrf_tmp,                                     & ! m
 !                                      model%geometry%topg*thk0,                                     & ! m
 !                                      model%climate%eus*thk0,                                       & ! m
 !                                      model%bmltfloat)
+
+!    model%geometry%thck = thck_tmp/thk0
+!    model%geometry%lsrf = lsrf_tmp/thk0
+!    deallocate(thck_tmp)
+!    deallocate(lsrf_tmp)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -1819,6 +1849,51 @@ contains
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+
+    ! strain rate tensor (s^-1)
+    ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
+    !       The strain rate tensor is simply diagnosed from the stress tensor.
+    where (model%stress%efvs > 0.0d0) 
+       model%velocity%strain_rate%scalar = tau0 * model%stress%tau%scalar / (2.d0 * evs0 * model%stress%efvs)
+       model%velocity%strain_rate%xz = tau0 * model%stress%tau%xz / (2.d0 * evs0 * model%stress%efvs)
+       model%velocity%strain_rate%yz = tau0 * model%stress%tau%yz / (2.d0 * evs0 * model%stress%efvs)
+       model%velocity%strain_rate%xx = tau0 * model%stress%tau%xx / (2.d0 * evs0 * model%stress%efvs)
+       model%velocity%strain_rate%yy = tau0 * model%stress%tau%yy / (2.d0 * evs0 * model%stress%efvs)
+       model%velocity%strain_rate%xy = tau0 * model%stress%tau%xy / (2.d0 * evs0 * model%stress%efvs)
+    elsewhere
+       model%velocity%strain_rate%scalar = 0.0d0
+       model%velocity%strain_rate%xz = 0.0d0
+       model%velocity%strain_rate%yz = 0.0d0
+       model%velocity%strain_rate%xx = 0.0d0
+       model%velocity%strain_rate%yy = 0.0d0
+       model%velocity%strain_rate%xy = 0.0d0
+    endwhere
+
+    ! vertical mean effective viscosity
+    ! TODO - Write a utility subroutine for vertical averaging
+    model%stress%efvs_vertavg = 0.0d0
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          do k = 1, model%general%upn-1
+             model%stress%efvs_vertavg(i,j) = model%stress%efvs_vertavg(i,j)  &
+                                            + model%stress%efvs(k,i,j) * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+          enddo
+       enddo
+    enddo
+
+    ! determinant of horizontal part of strain rate tensor (used for eigencalving)
+    ! Note: For floating ice the vertical shearing should be negligible, but sum over layers for generality.
+    model%velocity%strain_rate_determinant(:,:) = 0.0d0
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          do k = 1, model%general%upn-1
+             model%velocity%strain_rate_determinant(:,:) = model%velocity%strain_rate_determinant(:,:) &
+                                                         + (model%velocity%strain_rate%xx(k,:,:) * model%velocity%strain_rate%yy(k,:,:) &
+                                                          - model%velocity%strain_rate%xy(k,:,:) * model%velocity%strain_rate%xy(k,:,:)) &
+                                                         * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+          enddo
+       enddo
+    enddo
 
     ! magnitude of basal traction
     model%stress%btract(:,:) = sqrt(model%stress%btractx(:,:)**2 + model%stress%btracty(:,:)**2)

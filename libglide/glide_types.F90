@@ -155,8 +155,9 @@ module glide_types
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
   integer, parameter :: CALVING_GRID_MASK = 5
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
-  integer, parameter :: CALVING_DAMAGE = 7
-  integer, parameter :: CALVING_HUYBRECHTS = 8
+  integer, parameter :: EIGENCALVING = 7
+  integer, parameter :: CALVING_DAMAGE = 8
+  integer, parameter :: CALVING_HUYBRECHTS = 9
 
   !WHL - added an option to determine whether calving occurs at initialization
   integer, parameter :: CALVING_INIT_OFF = 0
@@ -465,8 +466,9 @@ module glide_types
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Set thickness to zero if ice at marine margin is thinner than
     !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Calve ice that is sufficiently damaged
-    !> \item[8] Huybrechts grounding line scheme for Greenland initialization
+    !> \item[7] Set thickness to zero based on strain rate (eigencalving) criterion
+    !> \item[8] Calve ice that is sufficiently damaged
+    !> \item[9] Huybrechts grounding line scheme for Greenland initialization
     !> \end{description}
 
     integer :: calving_init = 0
@@ -482,6 +484,11 @@ module glide_types
     !> \item[2] Calve where the calving criterion is met, and there is a connected path
     !>          to the ocean through other cells where the criterion is met.
     !> \end{description}
+
+    logical  :: remove_floating_islands = .true. 
+    !> if true, then check for and remove floating ice islands
+    !> These are connected regions with zero basal traction and no connection to grounded ice.
+    !>       Safer to make it true, but not necessary for all applications
 
     integer :: whichwvel = 0
 
@@ -960,8 +967,12 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: resid_v => null()     ! v component of residual Ax - b where x is the velocity
 
     ! for viewing the driving stress on the RHS
-    real(dp),dimension(:,:,:),pointer :: rhs_u => null()     ! u component of b in Ax = b
-    real(dp),dimension(:,:,:),pointer :: rhs_v => null()     ! v component of b in Ax = b
+    real(dp),dimension(:,:,:),pointer :: rhs_u => null()       ! u component of b in Ax = b
+    real(dp),dimension(:,:,:),pointer :: rhs_v => null()       ! v component of b in Ax = b
+
+    ! strain rate tensor (HO only) 
+    type(glide_tensor) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
+    real(dp),dimension(:,:),pointer :: strain_rate_determinant ! determinant of 2D horizontal strain rate tensor (s^-1)
 
   end type glide_velocity
 
@@ -969,8 +980,9 @@ module glide_types
 
   type glide_stress_t      
 
-    type(glide_tensor) :: tau    ! HO only
+    type(glide_tensor) :: tau         ! HO only
     real(dp),dimension(:,:,:),pointer :: efvs => null()    !> effective viscosity
+    real(dp),dimension(:,:),  pointer :: efvs_vertavg => null()  !> vertical mean effective viscosity
     real(dp),dimension(:,:),  pointer :: btractx => null() !> basal traction (Pa), x comp
     real(dp),dimension(:,:),  pointer :: btracty => null() !> basal traction (Pa), y comp
     real(dp),dimension(:,:),  pointer :: btract => null()  !> basal traction (Pa), magnitude = sqrt(btractx^2 + btracty^2)
@@ -1029,6 +1041,9 @@ module glide_types
      !> Note: The 3D damage field is prognostic; the 2D damage_column field is diagnosed from the 3D damage field.
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !< scaled by thk0 like mass balance, thickness, etc.
+     real(dp),dimension(:,:),  pointer :: calving_minthck => null() !< minimum thickness (m) of floating ice before it calves
+                                                                    !< computed as a 2d field for eigencalving option
+                                                                    !< scaled by thk0 like mass balance, thickness, etc.
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
      real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
@@ -1040,17 +1055,15 @@ module glide_types
                                             !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: calving_timescale = 0.0d0  !> time scale (yr) for calving (Glissade only); calving_thck = thck * max(dt/calving_timescale, 1)
                                             !> if calving_timescale = 0, then calving_thck = thck
-     real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
-                                            !> (whichcalving = CALVING_THCK_THRESHOLD)
+     real(dp) :: calving_minthck_constant = 100.d0 !> minimum thickness (m) of floating ice at marine edge before it calves
+                                                   !> (whichcalving = CALVING_THCK_THRESHOLD)
+     real(dp) :: eigencalving_constant = 10.d0     !> dimensionless constant; proportional to thickness threshold for eigencalving
+                                                   !> (whichcalving = EIGENCALVING
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
-     logical  :: remove_floating_islands = .true. !> if true, then check for and remove floating ice islands
-                                                  !> These are connected regions with zero basal traction and no connection to grounded ice.
-                                                  !> TODO: Make remove_floating_islands a namelist variable?
-                                                  !>       Safer to make it true, but not necessary for all applications
      real(dp) :: floating_path_minthck = 0.0d0    !> minimum thickness (m) of path connecting floating ice back to grounded ice
                                                   !> Can set to a nonzero value (> thklim) to remove floating peninsulas with active but thin ice
 
@@ -1927,12 +1940,20 @@ contains
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%efvs)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%efvs_vertavg)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%scalar) 
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xz)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yz)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xx)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yy)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xy)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%scalar) 
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xz)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yz)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xx)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yy)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%strain_rate_determinant)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
@@ -2269,6 +2290,8 @@ contains
 
     if (associated(model%stress%efvs)) &
         deallocate(model%stress%efvs)
+    if (associated(model%stress%efvs_vertavg)) &
+        deallocate(model%stress%efvs_vertavg)
     if (associated(model%stress%tau%scalar)) &
         deallocate(model%stress%tau%scalar)
     if (associated(model%stress%tau%xz)) &
@@ -2281,6 +2304,20 @@ contains
         deallocate(model%stress%tau%yy)
     if (associated(model%stress%tau%xy)) &
         deallocate(model%stress%tau%xy)
+    if (associated(model%velocity%strain_rate%scalar)) &
+        deallocate(model%velocity%strain_rate%scalar)
+    if (associated(model%velocity%strain_rate%xz)) &
+        deallocate(model%velocity%strain_rate%xz)
+    if (associated(model%velocity%strain_rate%yz)) &
+        deallocate(model%velocity%strain_rate%yz)
+    if (associated(model%velocity%strain_rate%xx)) &
+        deallocate(model%velocity%strain_rate%xx)
+    if (associated(model%velocity%strain_rate%yy)) &
+        deallocate(model%velocity%strain_rate%yy)
+    if (associated(model%velocity%strain_rate%xy)) &
+        deallocate(model%velocity%strain_rate%xy)
+    if (associated(model%velocity%strain_rate_determinant)) &
+        deallocate(model%velocity%strain_rate_determinant)
     if (associated(model%stress%btractx)) &
         deallocate(model%stress%btractx)
     if (associated(model%stress%btracty)) &

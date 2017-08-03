@@ -44,11 +44,8 @@ module glissade_calving
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   !WHL - debug
-  logical, parameter :: verbose_calving = .false.
-!!  logical, parameter :: verbose_calving = .true.
-
-!!  logical, parameter :: remove_floating_islands = .false.
-  logical, parameter :: remove_floating_islands = .true.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -157,6 +154,7 @@ contains
 !-------------------------------------------------------------------------------
 
   subroutine glissade_calve_ice(which_calving,     calving_domain,   &
+                                itest,    jtest,   rtest,            &
                                 thck,              relx,             &
                                 topg,              eus,              &
                                 thklim,                  &
@@ -164,7 +162,10 @@ contains
                                 calving_fraction,        &
                                 calving_timescale,       &
                                 dt,                      &
-                                calving_minthck,         &
+                                efvs_vertavg,            &
+                                strain_rate_determinant, &
+                                eigencalving_constant,   &
+                                calving_minthck_constant,&
                                 calving_mask,            &
                                 remove_floating_islands, &
                                 floating_path_minthck,   &
@@ -183,14 +184,17 @@ contains
     !---------------------------------------------------------------------
     ! Subroutine arguments
     ! Currently, thck, relx, topg, eus, marine_limit, calving_minthck and calving_thck are scaled by thk0
+    ! TODO - Remove thickness scaling from this subroutine.  Would need to multiply several input arguments by thk0. 
     !---------------------------------------------------------------------
 
-    integer,  intent(in)                    :: which_calving     !> option for calving law
-    integer,  intent(in)                    :: calving_domain    !> option for where calving can occur
-                                                                 !> = 0 if calving occurs at the ocean edge only
-                                                                 !> = 1 if calving occurs everywhere the calving criterion is met
-                                                                 !> = 2 if calving occurs where criterion is met and there is a connected path
-                                                                 !>     to the ocean through other cells where the criterion is met
+    integer,  intent(in)  :: which_calving        !> option for calving law
+    integer,  intent(in)  :: calving_domain       !> option for where calving can occur
+                                                  !> = 0 if calving occurs at the ocean edge only
+                                                  !> = 1 if calving occurs everywhere the calving criterion is met
+                                                  !> = 2 if calving occurs where criterion is met and there is a connected path
+                                                  !>     to the ocean through other cells where the criterion is met
+    integer, intent(in)   :: itest, jtest, rtest  !> coordinates of diagnostic point
+
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
@@ -202,9 +206,13 @@ contains
     real(dp), intent(in)                    :: calving_timescale !> time scale for calving; calving_thck = thck * max(dt/calving_timescale, 1)
                                                                  !> if calving_timescale = 0, then calving_thck = thck
     real(dp), intent(in)                    :: dt                !> model timestep (used with calving_timescale)
-    real(dp), intent(in)                    :: calving_minthck   !> min thickness of ice at marine edge before it calves;
-                                                                 !> used with which_ho_calving = CALVING_THCK_THRESHOLD
-    integer,  dimension(:,:), intent(in)    :: calving_mask      !> integer mask: calve ice where mask = 1
+    real(dp), dimension(:,:), intent(in)    :: efvs_vertavg      !> vertical mean effective viscosity (Pa s); used for eigencalving
+    real(dp), dimension(:,:), intent(in)    :: strain_rate_determinant  !> determinant of horizontal strain rate tensor (s^{-2})
+                                                                        !> used for eigencalving
+    real(dp), intent(in)                    :: eigencalving_constant    !> dimensionless constant used for eigencalving
+    real(dp), intent(in)                    :: calving_minthck_constant !> min thickness of floating ice before it calves;
+                                                                        !> used with which_ho_calving = CALVING_THCK_THRESHOLD
+    integer,  dimension(:,:), intent(in)    :: calving_mask            !> integer mask: calve ice where mask = 1
     logical,  intent(in)                    :: remove_floating_islands !> if true, then remove floating ice islands
     real(dp), intent(in)                    :: floating_path_minthck   !> min thickness along path from floating ice back to grounded ice
 !    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
@@ -234,7 +242,10 @@ contains
          thick_or_grounded_mask, & ! = 1 for grounded ice and thick floating ice, else = 0
          protected_floating_mask   ! = 1 for thin floating ice in protected ring, else = 0
 
-    ! other calving-specific masks
+    ! other calving-specific fields
+    real(dp), dimension(:,:), allocatable  ::  &
+         calving_minthck      ! min thickness (m) of floating ice before it calves
+
     ! Note: Calving occurs in a cell if and only if (1) the calving law permits calving, 
     !       and (2) the cell is in the calving domain, as specified by the calving_domain option.
     !       The calving domain by default is limited to the ocean edge (CALVING_DOMAIN_OCEAN_EDGE), 
@@ -252,13 +263,13 @@ contains
          float_fraction_calve  ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
                                ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
    
+    real(dp) :: &
+         tau_spreading         ! stress associated with horizontal spreading (Pa)
+
     !WHL - debug
     integer :: sum_fill_local, sum_fill_global  ! number of filled cells
 
     integer :: iplot1, iplot2
-
-    integer, parameter :: &
-         itest = 1, jtest = 1, rtest = -999  ! diagnostic point
 
     !default
 !    iplot1 = nx-20
@@ -384,6 +395,123 @@ contains
 
     endif
 
+    ! For thickness-based calving (including eigencalving), compute the 2D field calving_minthck.
+    ! Ice thinner than calving_minthck satisfies the calving criterion.
+
+    allocate(calving_minthck(nx,ny))
+    calving_minthck(:,:) = 0.0d0
+
+    if (which_calving == EIGENCALVING) then
+
+       ! Compute the minimum thickness using an eigencalving criterion.
+       ! The assumption is that ice calves when
+       !
+       ! k * 2*efvs*sqrt(determinant) > 0.5*rhoi*grav*thck
+       !
+       ! where efvs = vertical mean effective viscosity
+       !       determinant = determinant of the horizontal strain rate tensor
+       !       k ~ 10 is a dimensionless empirical constant accounting for damage
+       !
+       ! The LHS has units of stress; it is positive only when both eigenvalues are positive
+       !  (i.e., the ice is spreading in both principal directions).
+       ! The RHS is the mean value of the hydrostatic stress.
+       ! This calving law is based on the eigencalving scheme of Levermann et al. (2012).
+       ! The difference is that instead of computing a calving rate, we compute a thickness threshold
+       !  based on the assumption that thinner ice with lower hydrostatic pressure calves more easily.
+       ! The determinant of the strain rate tensor is computed after the velocity calculation and
+       !  has units of s^{-2}.
+       
+       do j = 1, ny
+          do i = 1, nx
+             
+             if (strain_rate_determinant(i,j) > 0.0d0) then
+                tau_spreading = 2.d0 * efvs_vertavg(i,j) * sqrt(strain_rate_determinant(i,j))   ! Pa
+                calving_minthck(i,j) = eigencalving_constant * tau_spreading / (0.5d0 * rhoi * grav)
+             else
+                calving_minthck(i,j) = 0.0d0
+             endif
+             
+             ! calving_minthck has units of m; scale to model units
+             calving_minthck(i,j) = calving_minthck(i,j) / thk0
+
+          enddo  ! j
+       enddo  ! i
+
+       !WHL - Debug
+       if (verbose_calving .and. this_rank == rtest) then
+
+          print*, ' '
+          print*, 'Eigencalving fields:'
+
+          print*, ' '
+          print*, 'sqrt(determinant) (yr-1), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(e10.3)',advance='no') sqrt(strain_rate_determinant(i,j)) * scyr
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'efvs_vertavg (Pa yr), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(e10.3)',advance='no') efvs_vertavg(i,j) * scyr
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'tau_spreading (Pa), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(e10.3)',advance='no') 2.d0 * efvs_vertavg(i,j) * sqrt(strain_rate_determinant(i,j))
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'mean hydrostatic pressure, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(e10.3)',advance='no') 0.5d0 * rhoi * grav * thck(i,j) *thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(f10.3)',advance='no') thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'calving_minthck, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(f10.3)',advance='no') calving_minthck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          
+       endif
+       
+    elseif (which_calving == CALVING_THCK_THRESHOLD) then
+       
+       ! set to a constant everywhere
+       calving_minthck(:,:) = calving_minthck_constant
+       
+    endif  ! thickness-based calving
+
     ! Do the calving based on the value of which_calving
 
     ! Note: The thickness-threshold option is different from the others.
@@ -400,8 +528,8 @@ contains
     !       The calving front can retreat when floating ice at the margin thins to a value less than calving_minthck,
     !        removing protection from previously protected cells.
 
-    if (which_calving == CALVING_THCK_THRESHOLD) then  ! calve floating ice thinner than calving_minthck
-                                                       ! (if not part of the protected ring)
+    if (which_calving == CALVING_THCK_THRESHOLD .or. which_calving == EIGENCALVING) then
+       ! calve floating ice thinner than calving_minthck (if not part of the protected ring)
 
        ! initialize masks
 
@@ -416,7 +544,8 @@ contains
        do j = 1, ny
           do i = 1, nx
              if (ice_mask(i,j) == 1) then
-                if (floating_mask(i,j) == 0 .or. thck(i,j) > calving_minthck) then
+!!                if (floating_mask(i,j) == 0 .or. thck(i,j) > calving_minthck) then
+                if (floating_mask(i,j) == 0 .or. thck(i,j) > calving_minthck(i,j)) then
                    thick_or_grounded_mask(i,j) = 1
                 endif
              endif
@@ -427,7 +556,8 @@ contains
        ! Thin floating cells are protected if adjacent to cells that were protected above.
        do j = 2, ny-1
           do i = 2, nx-1
-             if (floating_mask(i,j) == 1 .and. thck(i,j) <= calving_minthck) then
+!!             if (floating_mask(i,j) == 1 .and. thck(i,j) <= calving_minthck) then
+             if (floating_mask(i,j) == 1 .and. thck(i,j) <= calving_minthck(i,j)) then
                 if (thick_or_grounded_mask(i-1,j) == 1 .or. thick_or_grounded_mask(i+1,j) == 1 .or.  &
                     thick_or_grounded_mask(i,j-1) == 1 .or. thick_or_grounded_mask(i,j+1) == 1) then
                    protected_floating_mask(i,j) = 1
@@ -445,7 +575,7 @@ contains
 
        do j = 1, ny
           do i = 1, nx
-             if (floating_mask(i,j) == 1  .and. thck(i,j) <= calving_minthck .and. protected_floating_mask(i,j) == 0) then
+             if (floating_mask(i,j) == 1  .and. thck(i,j) <= calving_minthck(i,j) .and. protected_floating_mask(i,j) == 0) then
                 if (verbose_calving .and. thck(i,j) > 0.0d0) &
                      print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
                 calving_thck(i,j) = float_fraction_calve * thck(i,j)
@@ -732,15 +862,15 @@ contains
        do j = 1, ny
           do i = 1, nx
              if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
+
+                if (verbose_calving .and. this_rank==rtest .and. thck(i,j) > 0.0d0) then
+                   print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)*thk0
+                endif
+
                 calving_thck(i,j) = float_fraction_calve * thck(i,j)
                 thck(i,j) = thck(i,j) - calving_thck(i,j)
                 !WHL TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
  
-                if (verbose_calving) then
-!!                if (verbose_calving .and. this_rank==rtest) then
-                   print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, calving_thck(i,j)*thk0
-                endif
-
             endif
           enddo
        enddo

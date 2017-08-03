@@ -984,6 +984,55 @@ data:          data%velocity%velnorm(up,:,:)
 factor:        scale_uvel
 coordinates:   lon lat
 
+[eps_eff]
+dimensions: time, staglevel, y1, x1
+units:      1/year
+long_name:  effective strain rate
+data:       data%velocity%strain_rate%scalar(up,:,:)
+factor:     scyr
+
+[eps_xz]
+dimensions: time, staglevel, y1, x1
+units:      1/year
+long_name:  xz component of strain rate tensor
+data:       data%velocity%strain_rate%xz(up,:,:)
+factor:     scyr
+
+[eps_yz]
+dimensions: time, staglevel, y1, x1
+units:      1/year
+long_name:  yz component of strain rate tensor
+data:       data%velocity%strain_rate%yz(up,:,:)
+factor:     scyr
+
+[eps_xx]
+dimensions: time, staglevel, y1, x1
+units:      1/year
+long_name:  xx component of strain rate tensor
+data:       data%velocity%strain_rate%xx(up,:,:)
+factor:     scyr
+
+[eps_yy]
+dimensions: time, staglevel, y1, x1
+units:      1/year
+long_name:  yy component of strain rate tensor
+data:       data%velocity%strain_rate%yy(up,:,:)
+factor:     scyr
+
+[eps_xy]
+dimensions: time, staglevel, y1, x1
+units:      1/year
+long_name:  xy component of strain rate tensor
+data:       data%velocity%strain_rate%xy(up,:,:)
+factor:     scyr
+
+[eps_determinant]
+dimensions: time, y1, x1
+units:      1/(year*year)
+long_name:  determinant of horizontal strain rate tensor
+data:       data%velocity%strain_rate_determinant
+factor:     scyr*scyr
+
 [tau_eff]
 dimensions: time, staglevel, y1, x1
 units:      Pa
@@ -994,35 +1043,35 @@ factor:     scale_tau
 [tau_xz]
 dimensions: time, staglevel, y1, x1
 units:      Pa
-long_name:  X component vertical shear stress 
+long_name:  xz component of deviatoric stress tensor
 data:       data%stress%tau%xz(up,:,:)
 factor:     scale_tau
 
 [tau_yz]
 dimensions: time, staglevel, y1, x1
 units:      Pa
-long_name:  Y component vertical shear stress 
+long_name:  yz component of deviatoric stress tensor
 data:       data%stress%tau%yz(up,:,:)
 factor:     scale_tau
 
 [tau_xx]
 dimensions: time, staglevel, y1, x1
 units:      Pa
-long_name:  x component of horiz. normal stress
+long_name:  xx component of deviatoric stress tensor
 data:       data%stress%tau%xx(up,:,:)
 factor:     scale_tau
 
 [tau_yy]
 dimensions: time, staglevel, y1, x1
 units:      Pa
-long_name:  y component of horiz. normal stress 
+long_name:  yy component of deviatoric stress tensor
 data:       data%stress%tau%yy(up,:,:)
 factor:     scale_tau
 
 [tau_xy]
 dimensions: time, staglevel, y1, x1
 units:      Pa
-long_name:  horiz. shear stress
+long_name:  xy component of deviatoric stress tensor
 data:       data%stress%tau%xy(up,:,:)
 factor:     scale_tau
 
