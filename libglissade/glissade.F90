@@ -1887,9 +1887,9 @@ contains
     do j = 1, model%general%nsn
        do i = 1, model%general%ewn
           do k = 1, model%general%upn-1
-             model%velocity%strain_rate_determinant(:,:) = model%velocity%strain_rate_determinant(:,:) &
-                                                         + (model%velocity%strain_rate%xx(k,:,:) * model%velocity%strain_rate%yy(k,:,:) &
-                                                          - model%velocity%strain_rate%xy(k,:,:) * model%velocity%strain_rate%xy(k,:,:)) &
+             model%velocity%strain_rate_determinant(i,j) = model%velocity%strain_rate_determinant(i,j) &
+                                                         + (model%velocity%strain_rate%xx(k,i,j) * model%velocity%strain_rate%yy(k,i,j) &
+                                                          - model%velocity%strain_rate%xy(k,i,j) * model%velocity%strain_rate%xy(k,i,j)) &
                                                          * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
           enddo
        enddo
@@ -1948,7 +1948,7 @@ contains
     if (model%options%which_ho_babc /= HO_BABC_BETA_EXTERNAL) then
        model%velocity%beta(:,:) = model%velocity%beta_internal(:,:)
     endif
- 
+
     ! DIVA needs a halo update for efvs, since the latest guess (in both local and halo cells)
     ! is used to start iterating for efvs in the next time step.
     call parallel_halo(model%stress%efvs)

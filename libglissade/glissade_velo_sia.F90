@@ -309,7 +309,7 @@
     !  (unlike Glissade finite-element calculations).
     ! gradient_margin_in = 0 (HO_GRADIENT_MARGIN_ALL) gives a Glide-style gradient
     !  (ice-free cells included in the gradient).  This works well for shallow-ice problems.
-    ! gradient_margin_in = 1 (HO_GRADIENT_MARGIN_ICE_LAND) computes the gradient
+    ! gradient_margin_in = 1 (HO_GRADIENT_MARGIN_HYBRID) computes the gradient
     !  using ice-covered and/or land points.  It is equivalent to HO_GRADIENT_MARGIN_ALL
     !  for the land-based problems where an SIA solver would usually be applied, and is the
     !  default value.  Requires passing in the surface elevation and a land mask.
@@ -325,8 +325,6 @@
                                     dusrf_dx,  dusrf_dy,    &
                                     ice_mask,               &
                                     gradient_margin_in = whichgradient_margin, &
-                                    thck = thck,            &
-                                    thklim_in = thklim,     &
                                     usrf = usrf,            &
                                     floating_mask = floating_mask, &
                                     land_mask = land_mask)
@@ -922,9 +920,7 @@
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     ice_mask,                         &
                                     gradient_margin_in = whichgradient_margin, &
-                                    thklim_in = thklim,               &
                                     usrf = usrf,                      &
-                                    thck = thck,                      &
                                     floating_mask = floating_mask,    &
                                     land_mask = land_mask)
     

@@ -1505,40 +1505,53 @@
 
 !pw call t_startf('glissade_gradient')
 
-    if (whichgradient == HO_GRADIENT_CENTERED) then     ! 2nd order centered
+    !WHL - Reworking this. New subroutine for new hybrid option
 
-       call glissade_centered_gradient(nx,               ny,         &
-                                       dx,               dy,         &
-                                       usrf,                         &
-                                       dusrf_dx,         dusrf_dy,   &
-                                       ice_mask,                     &
-                                       gradient_margin_in = whichgradient_margin, &
-                                       thklim_in = thklim,           &
-                                       thck_gradient_ramp_in = thck_gradient_ramp, &
-                                       thck = thck,                  &
-                                       usrf = usrf,                  &
-                                       floating_mask = floating_mask,&
-                                       land_mask = land_mask,        &
-                                       max_slope = max_slope)
+    if (whichgradient_margin == HO_GRADIENT_MARGIN_HYBRID_NEW) then
 
-    else          ! 2nd order upstream
+       call glissade_hybrid_surface_elevation_gradient(nx,          ny,         &
+                                                       dx,          dy,         &
+                                                       ice_mask,                &
+                                                       floating_mask,           &
+                                                       land_mask,               &
+                                                       usrf,        thck,       &
+                                                       topg,        eus,        &
+                                                       thklim,      thck_gradient_ramp,  &
+                                                       dusrf_dx,    dusrf_dy,   &
+                                                       max_slope)
 
-       call glissade_upstream_gradient(nx,             ny,           &
-                                       dx,             dy,           &
-                                       usrf,                         &
-                                       dusrf_dx,       dusrf_dy,     &
-                                       ice_mask,                     &
-                                       usrf,                         &
-                                       gradient_margin_in = whichgradient_margin, &
-                                       thklim_in = thklim,           &
-                                       thck_gradient_ramp_in = thck_gradient_ramp, &
-                                       thck = thck,                  &
-                                       accuracy_flag_in = 2,         &
-                                       floating_mask = floating_mask,&
-                                       land_mask = land_mask,        &
-                                       max_slope = max_slope)
+    else   ! use an older option
 
-    endif   ! whichgradient
+       if (whichgradient == HO_GRADIENT_CENTERED) then     ! 2nd order centered
+
+          call glissade_centered_gradient(nx,               ny,         &
+                                          dx,               dy,         &
+                                          usrf,                         &
+                                          dusrf_dx,         dusrf_dy,   &
+                                          ice_mask,                     &
+                                          gradient_margin_in = whichgradient_margin, &
+                                          usrf = usrf,                  &
+                                          floating_mask = floating_mask,&
+                                          land_mask = land_mask,        &
+                                          max_slope = max_slope)
+
+       else          ! 2nd order upstream
+
+          call glissade_upstream_gradient(nx,             ny,           &
+                                          dx,             dy,           &
+                                          usrf,                         &
+                                          dusrf_dx,       dusrf_dy,     &
+                                          ice_mask,                     &
+                                          usrf,                         &
+                                          gradient_margin_in = whichgradient_margin, &
+                                          accuracy_flag_in = 2,         &
+                                          floating_mask = floating_mask,&
+                                          land_mask = land_mask,        &
+                                          max_slope = max_slope)
+
+       endif   ! whichgradient
+
+    endif   ! whichgradient_margin
 
 !pw call t_stopf('glissade_gradient')
 
