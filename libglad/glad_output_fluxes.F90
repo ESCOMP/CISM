@@ -118,7 +118,7 @@ contains
 
     ! Convert to kg/m^2/s
     output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:)  &
-         + model%temper%bmlt(:,:) * thk0/tim0 * rhoi
+         + model%basal_melt%bmlt(:,:) * thk0/tim0 * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

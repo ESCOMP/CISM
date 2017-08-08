@@ -642,7 +642,7 @@ contains
                            model%geomderv%dusrfdns, &
                            model%velocity%ubas, &
                            model%velocity%vbas, &
-                           model%temper%bmlt, &
+                           model%basal_melt%bmlt, &
                            GLIDE_IS_FLOAT(model%geometry%thkmask))
 
        ! Transform basal temperature and pressure melting point onto velocity grid

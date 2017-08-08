@@ -560,9 +560,9 @@ contains
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
                                       model%climate%acab(:,:),                              &
-                                      model%temper%bmlt(:,:),                               &
+                                      model%basal_melt%bmlt(:,:),                           &
                                       model%climate%acab_applied(:,:),                      &
-                                      model%temper%bmlt_applied(:,:),                       &
+                                      model%basal_melt%bmlt_applied(:,:),                   &
                                       ocean_mask(:,:),                                      &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &

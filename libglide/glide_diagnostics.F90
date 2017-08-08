@@ -472,7 +472,7 @@ contains
     tot_bmlt = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-             tot_bmlt = tot_bmlt + model%temper%bmlt_applied(i,j) * cell_area(i,j)
+             tot_bmlt = tot_bmlt + model%basal_melt%bmlt_applied(i,j) * cell_area(i,j)
        enddo
     enddo
 
@@ -767,7 +767,7 @@ contains
           endif
           artm_diag = model%climate%artm(i,j)
           acab_diag = model%climate%acab(i,j) * thk0*scyr/tim0
-          bmlt_diag = model%temper%bmlt(i,j) * thk0*scyr/tim0
+          bmlt_diag = model%basal_melt%bmlt(i,j) * thk0*scyr/tim0
           bwat_diag = model%temper%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
        

@@ -124,16 +124,17 @@ One way to do this is to list f_ground (the grounded fraction, 0 < f_ground < 1)
 The value of f_ground in the last (partially) grounded cell should be stable within some small tolerance, e.g. ~10^{-3}.
 
 The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
-for the Ice0, Ice1r and Ice2r experiments. However, you will need to edit it so that the
-time coordinate for the final time slice is 0. Suppose the final time is 20000 years.
-You can change this to time = 0 with a one-line NCO command:
+for the Ice0, Ice1r and Ice2r experiments. However, you will need to edit it so that
+CISM's internal_time coordinate for the final time slice is 0. 
 
-> ncap2 -s 'time=time-20000' mismip+Spinup.restart.nc out.nc
+Suppose the final time is 20000 years. You can set internal_time = 0 with a one-line NCO command:
+
+> ncap2 -s 'internal_time=internal_time-20000' mismip+Spinup.restart.nc out.nc
 
 You may have to precede this command with 'module load nco' if NCO is not loaded automatically.
 
 To verify that the time correction worked, you can do 'ncdump out.nc | less' and scroll down to 'data',
-below which the corrected time coordinates should be listed.  The final time value should be 0,
+below which the corrected time coordinates should be listed.  The final internal_time value should be 0,
 with negative values for earlier times.
 
 Then you can overwrite the original restart file:

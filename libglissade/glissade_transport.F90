@@ -52,7 +52,7 @@
     public :: glissade_transport_driver, glissade_check_cfl, &
               glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
               glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
-              glissade_add_acab_anomaly
+              glissade_add_mbal_anomaly
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -1536,20 +1536,20 @@
 
 !----------------------------------------------------------------------
 
-  subroutine glissade_add_acab_anomaly(acab,                    &
-                                       acab_anomaly,            &
-                                       acab_anomaly_timescale,  &
+  subroutine glissade_add_mbal_anomaly(mbal,                    &
+                                       mbal_anomaly,            &
+                                       mbal_anomaly_timescale,  &
                                        time)
 
     real(dp), dimension(:,:), intent(inout) ::  &
-         acab           !> unadjusted SMB on input
-                        !> SMB including the anomaly on output
+         mbal           !> mass balance, either surface or basal (uncorrected)
+                        !> uncorrrected on input, corrected on output
 
     real(dp), dimension(:,:), intent(in) ::   &
-         acab_anomaly   !> anomalous SMB to be added to the input value
+         mbal_anomaly   !> anomalous mass balance to be added to the input value
 
     real(dp), intent(in) ::  &
-         acab_anomaly_timescale   !> number of years over which the SMB anomaly is phased in linearly
+         mbal_anomaly_timescale   !> number of years over which the anomaly is phased in linearly
 
     real(dp), intent(in) :: &
          time                     !> model time in years
@@ -1557,24 +1557,25 @@
 
     integer :: ewn, nsn
     integer :: i, j
-    real(dp) :: acab_fraction
+    real(dp) :: mbal_fraction
 
-    ewn = size(acab,1)
-    nsn = size(acab,2)
+    ewn = size(mbal,1)
+    nsn = size(mbal,2)
 
-    ! Given the model time, compute the fraction of the SMB anomaly to be applied now
-    ! Note: Following initMIP protocols, the SMB anomaly is applied in annual step functions
+
+    ! Given the model time, compute the fraction of the anomaly to be applied now
+    ! Note: Following initMIP protocols, the anomaly is applied in annual step functions
     !       starting at the end of the first year.
 
-    if (time > acab_anomaly_timescale) then
+    if (time > mbal_anomaly_timescale) then
 
        ! apply the full anomaly
-       acab_fraction = 1.0d0
+       mbal_fraction = 1.0d0
 
     else
 
        ! truncate the number of years and divide by the timescale
-       acab_fraction = floor(time,dp) / acab_anomaly_timescale
+       mbal_fraction = floor(time,dp) / mbal_anomaly_timescale
 
     endif
 
@@ -1582,11 +1583,11 @@
 
     do j = 1, nsn
        do i = 1, ewn
-          acab(i,j) = acab(i,j) + acab_fraction*acab_anomaly(i,j)
+          mbal(i,j) = mbal(i,j) + mbal_fraction*mbal_anomaly(i,j)
        enddo
     enddo
 
-  end subroutine glissade_add_acab_anomaly
+  end subroutine glissade_add_mbal_anomaly
 
 !----------------------------------------------------------------------
 

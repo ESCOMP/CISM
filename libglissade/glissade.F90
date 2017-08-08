@@ -554,7 +554,7 @@ contains
 
     use parallel
 
-    use glimmer_paramets, only: tim0
+    use glimmer_paramets, only: tim0, len0, thk0
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
 
@@ -572,7 +572,6 @@ contains
     ! Update internal clock
     model%numerics%time = time  
     model%numerics%tstep_count = model%numerics%tstep_count + 1
-    model%temper%newtemps = .false.
 
     ! optional transport test
     ! code execution will end when this is done
@@ -651,6 +650,26 @@ contains
        endif
 
     end if
+
+    ! ------------------------------------------------------------------------ 
+    ! Compute the basal melt rate beneath floating ice.
+    ! (The basal melt rate beneath grounded ice is part of the thermal solve.)
+    ! ------------------------------------------------------------------------ 
+
+    call glissade_bmlt_float_solve(model)
+
+    ! Add bmlt_float to bmlt_ground to determine bmlt.
+    ! Note: bmlt = bmlt_ground + bmlt_float may not be equal to the applied melt rate in a given cell,
+    !       if there are subsequent corrections or if ice is thin or absent in the cell.
+    ! Note: bmlt_ground is computed in glissade_therm_driver.
+    !       If glissade_therm_driver is called twice per time step, then bmlt_ground from
+    !        the second time is not included in the transport solve, but is diagnostic only.
+    !       That is, the transport scheme assumes that the bmlt_ground rate computed during the
+    !        first call is applied during the entire time step.
+    !       This might lead to small violations of energy conservation.
+    !       TODO: Separate the bmlt_ground computation from the temperature computation?
+
+    model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
 
     ! ------------------------------------------------------------------------ 
     ! Calculate ice thickness and tracer evolution under horizontal transport.
@@ -742,18 +761,127 @@ contains
 
 !=======================================================================
 
+  subroutine glissade_bmlt_float_solve(model)
+
+    ! Solve for basal melting beneath floating ice.
+
+    use glimmer_paramets, only: tim0, thk0, len0
+    use glissade_bmlt_float, only: glissade_basal_melting_float
+    use glissade_transport, only: glissade_add_mbal_anomaly
+    use glissade_masks, only: glissade_get_masks
+
+    use parallel
+
+    implicit none
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    ! Local variables
+
+    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+       ice_mask,          & ! = 1 if thck > thklim, else = 0
+       floating_mask        ! = 1 where ice is present and floating
+
+    real(dp) :: previous_time
+
+    ! ------------------------------------------------------------------------
+    ! Compute the basal melt rate beneath floating ice.
+    ! Note: model%basal_melt is a derived type with various fields and parameters
+    ! ------------------------------------------------------------------------
+
+    !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float subroutine?
+    !      Break plume and mismip+ into separate subroutines?
+
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
+
+    ! Compute masks:
+    ! - ice_mask = 1 where thck > thklim
+    ! - floating_mask = 1 where ice is present and floating;
+    ! - ocean_mask = 1 where topg is below sea level and ice is absent
+    !Note: The '0.0d0' argument is thklim. Here, any ice with thck > 0 gets ice_mask = 1.
+
+    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            ice_mask,            floating_mask)
+
+
+    if (model%options%whichbmlt_float == BMLT_FLOAT_NONE) then
+
+       model%basal_melt%bmlt_float(:,:) = 0.0d0
+
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
+
+       ! Apply the external melt rate
+
+       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float_external(:,:)
+
+       ! Compute a corrected bmlt_float field that includes any prescribed anomalies.
+
+       if (model%options%enable_bmlt_float_anomaly) then
+
+          ! Compute the previous time
+          ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+          !       This is the reason for passing the previous time to the subroutine.
+          previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+          ! Add the bmlt_float anomaly where ice is present and floating
+          call glissade_add_mbal_anomaly(model%basal_melt%bmlt_float,              &   ! scaled model units
+                                         model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units 
+                                         model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
+                                         previous_time)                                ! yr
+
+          !WHL - debug
+!!          if (this_rank==rtest) then
+!!             i = model%numerics%idiag
+!!             j = model%numerics%jdiag
+!!             print*, 'i, j, total anomaly (m/yr), previous_time, new bmlt (m/yr):', &
+!!                      i, j, model%basal_melt%bmlt_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%basal_melt%bmlt_float(i,j)
+!!          endif
+
+       endif
+
+       ! Zero out bmlt_float where ice is not present and floating
+       where (floating_mask == 0)
+          model%basal_melt%bmlt_float = 0.0d0
+       endwhere
+
+    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP AND BMLT_FLOAT_MISOMIP
+          !TODO - Call separate subroutines for each of these three options
+
+       !WHL - May want to comment out temporarily, if doing basal melting in the diagnostic solve for testing
+       call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
+                                         model%general%ewn,          model%general%nsn,                &
+                                         model%numerics%dew*len0,    model%numerics%dns*len0,          &
+                                         model%numerics%idiag_local, model%numerics%jdiag_local,       &
+                                         model%numerics%rdiag_local,                                   &
+                                         model%general%x1,                                             & ! m
+                                         model%geometry%thck*thk0,                                     & ! m
+                                         model%geometry%lsrf*thk0,                                     & ! m
+                                         model%geometry%topg*thk0,                                     & ! m
+                                         model%climate%eus*thk0,                                       & ! m
+                                         model%basal_melt,                                             & ! bmlt_float in m/s
+                                         model%plume)
+
+       ! Convert bmlt_float from SI units (m/s) to scaled model units
+       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
+
+    endif  ! whichbmlt_float
+
+  end subroutine glissade_bmlt_float_solve
+
+!=======================================================================
+
   subroutine glissade_thermal_solve(model, dt)
 
     ! Do the vertical thermal solve.
     ! First call a driver subroutine for vertical temperature or enthalpy evolution,
     ! and then update the basal water.
-
     use parallel
 
     use glimmer_paramets, only: tim0, thk0, len0
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat
-    use glissade_bmlt_float, only: glissade_basal_melting_float
 
     implicit none
 
@@ -763,7 +891,7 @@ contains
 
     ! unscaled model parameters (SI units)
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-       bmlt_unscaled,          & ! basal melt rate (m/s)
+       bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
        bwat_unscaled             ! basal water thickness (m)
 
     call t_startf('glissade_thermal_solve')
@@ -771,7 +899,7 @@ contains
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
-    !       Output arguments are temp, waterfrac, bmlt_ground and bmlt_float
+    !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
     call glissade_therm_driver (model%options%whichtemp,                                      &
                                 model%options%temp_init,                                      &
                                 dt,                                                           & ! s
@@ -793,32 +921,8 @@ contains
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
                                 model%temper%bpmp,                                            & ! deg C
-                                bmlt_unscaled)                                                  ! m/s
+                                bmlt_ground_unscaled)                                           ! m/s
                                      
-    model%temper%newtemps = .true.
-
-    ! Compute the basal melt rate for floating ice
-    ! Note: model%bmltfloat is a derived type with various fields and parameters (all with SI units)
-
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
-
-    !WHL - May want to commment out temporarily, if doing basal melting in the diagnostic solve for testing
-    call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
-                                      model%general%ewn,          model%general%nsn,                &
-                                      model%numerics%dew*len0,    model%numerics%dns*len0,          &
-                                      model%numerics%idiag_local, model%numerics%jdiag_local,       &
-                                      model%numerics%rdiag_local,                                   &
-                                      model%general%x1,                                             & ! m
-                                      model%geometry%thck*thk0,                                     & ! m
-                                      model%geometry%lsrf*thk0,                                     & ! m
-                                      model%geometry%topg*thk0,                                     & ! m
-                                      model%climate%eus*thk0,                                       & ! m
-                                      model%bmltfloat)
-
-    ! Add bmlt_float to the bmlt array.
-    ! For grounded ice, bmlt is computed in glissade_therm_driver.
-    bmlt_unscaled(:,:) = bmlt_unscaled(:,:) + model%bmltfloat%bmlt_float(:,:)  ! m/s
-
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
 
@@ -832,20 +936,18 @@ contains
                            dt,                               &  ! s
                            model%geometry%thck*thk0,         &  ! m
                            model%numerics%thklim_temp*thk0,  &  ! m
-                           bmlt_unscaled,                    &  ! m/s
+                           bmlt_ground_unscaled,             &  ! m/s
                            bwat_unscaled)                       ! m
 
     ! convert bmlt and bwat from SI units (m/s and m) to scaled model units
-    model%bmltfloat%bmlt_float(:,:) = model%bmltfloat%bmlt_float(:,:) * tim0/thk0
-    model%temper%bmlt(:,:) = bmlt_unscaled(:,:) * tim0/thk0
+    model%basal_melt%bmlt_ground(:,:) = bmlt_ground_unscaled(:,:) * tim0/thk0
     model%temper%bwat(:,:) = bwat_unscaled(:,:) / thk0
 
     !------------------------------------------------------------------------ 
     ! Halo updates
     !------------------------------------------------------------------------ 
     
-    ! Note: bwat is needed in halos to compute effective pressure
-    !       if which_ho_effecpress = HO_EFFECPRESS_BWAT
+    ! Note: bwat is needed in halos to compute effective pressure if which_ho_effecpress = HO_EFFECPRESS_BWAT
     call parallel_halo(model%temper%bwat)
 
     call t_stopf('glissade_thermal_solve')
@@ -876,7 +978,7 @@ contains
                                   glissade_transport_setup_tracers, &
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
-                                  glissade_add_acab_anomaly
+                                  glissade_add_mbal_anomaly
     use glissade_masks, only: glissade_get_masks
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
@@ -889,23 +991,21 @@ contains
 
     integer :: sc  ! subcycling index
 
-    ! temporary thck and acab arrays in SI units
+    ! temporary arrays in SI units
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-       thck_unscaled,      &! ice thickness (m)
-       acab_unscaled        ! surface mass balance (m/s)
+       thck_unscaled,     & ! ice thickness (m)
+       acab_unscaled,     & ! surface mass balance (m/s)
+       bmlt_unscaled        ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
 
+    ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
        ice_mask,          & ! = 1 if thck > thklim, else = 0
+       floating_mask,     & ! = 1 where ice is present and floating
        ocean_mask           ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
     ! temporary variables needed to reset geometry for the EVOL_NO_THICKNESS option
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_old
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) :: stagthck_old
-
-    ! temporary bmlt array
-    real(dp), dimension(model%general%ewn,model%general%nsn) :: &
-       bmlt_continuity  ! = bmlt if basal mass balance is included in continuity equation
-                        ! else = 0
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
                                     ! (The input time is the time at the end of the step.)
@@ -980,13 +1080,6 @@ contains
 
        call t_startf('glissade_transport_driver')
 
-       if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
-          ! convert to m/s
-          bmlt_continuity(:,:) = model%temper%bmlt(:,:) * thk0/tim0
-       else                                                           ! do not include bmlt in continuity equation
-          bmlt_continuity(:,:) = 0.d0
-       endif
-
        ! --- First determine CFL limits ---
        ! Note we are using the subcycled dt here (if subcycling is on).
        ! (see note above about the EVOL_NO_THICKNESS option and how it is affected by a CFL violation)
@@ -1015,28 +1108,25 @@ contains
 
        endif    ! TEMP_ENTHALPY
 
-       ! Set the corrected acab field
-       ! Typically, acab_corrected = acab, but sometimes it includes a time-dependent flux correction or anomaly.
+       ! Compute a corrected acab field that includes any prescribed anomalies.
+       ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.
        ! Note that acab itself does not change in time.
-       ! TODO: Combine flux_correction and acab_anomaly into a single field?
-
-       model%climate%acab_corrected(:,:) = model%climate%acab(:,:) + model%climate%flux_correction(:,:)
-
-       ! If an SMB anomaly is being prescribed, then add it to the temporary acab array.
 
 !!       print*, 'maxval(acab_anomaly):', maxval(model%climate%acab_anomaly)
 !!       print*, 'minval(acab_anomaly):', minval(model%climate%acab_anomaly)
 
-       if (maxval(abs(model%climate%acab_anomaly)) /= 0.0d0) then
+       model%climate%acab_corrected(:,:) = model%climate%acab(:,:)
+
+       if (model%options%enable_acab_anomaly) then
 
           ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
           !       This is the reason for passing the previous time to the subroutine.
           previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
-          call glissade_add_acab_anomaly(model%climate%acab_corrected,          &   ! scaled model units
+          call glissade_add_mbal_anomaly(model%climate%acab_corrected,          &   ! scaled model units
                                          model%climate%acab_anomaly,            &   ! scaled model units 
                                          model%climate%acab_anomaly_timescale,  &   ! yr
-                                         previous_time)                             ! yr
+                                         previous_time)
 
           !WHL - debug
 !!          if (this_rank==rtest) then
@@ -1048,7 +1138,7 @@ contains
 
        endif
 
-       ! Overwrite acab (actually, acab_corrected) where overwrite_acab_mask = 1.
+       ! Optionally, overwrite acab_corrected where overwrite_acab_mask = 1.
 
        if (model%options%overwrite_acab /= 0) then
 
@@ -1057,7 +1147,15 @@ contains
                                        model%climate%acab_corrected)
        endif
 
-       ! temporary in/out arrays in SI units (m)
+
+       ! Add bmlt to the continuity equation in SI units (m/s)
+       if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
+          bmlt_unscaled(:,:) = model%basal_melt%bmlt(:,:) * thk0/tim0
+       else                                                           ! do not include bmlt in continuity equation
+          bmlt_unscaled(:,:) = 0.0d0
+       endif
+
+       ! temporary in/out arrays in SI units
        thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
@@ -1077,7 +1175,8 @@ contains
           call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
                                   model%geometry%thck, model%geometry%topg,   &
                                   model%climate%eus,   0.0d0,                 &   ! thklim = 0 
-                                  ice_mask,            ocean_mask)
+                                  ice_mask,                                   &
+                                  ocean_mask = ocean_mask)
 
           ! Call the transport driver subroutine.
           ! (includes a halo update for thickness: thck_unscaled in this case)
@@ -1094,11 +1193,11 @@ contains
                                          model%general%upn-1,       model%numerics%sigma,      &
                                          model%velocity%uvel(:,:,:) * vel0,                    &
                                          model%velocity%vvel(:,:,:) * vel0,                    &
-                                         thck_unscaled(:,:),                                   &
-                                         acab_unscaled(:,:),                                   &
-                                         bmlt_continuity(:,:),                                 &
-                                         model%climate%acab_applied(:,:),                      &
-                                         model%temper%bmlt_applied(:,:),                       &
+                                         thck_unscaled(:,:),                                   &  ! m
+                                         acab_unscaled(:,:),                                   &  ! m/s
+                                         bmlt_unscaled(:,:),                                   &  ! m/s
+                                         model%climate%acab_applied(:,:),                      &  ! m/s
+                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
                                          ocean_mask(:,:),                                      &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
@@ -1119,7 +1218,7 @@ contains
 
        ! convert applied mass balance back to scaled units
        model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:) / (thk0/tim0) 
-       model%temper%bmlt_applied(:,:) = model%temper%bmlt_applied(:,:) / (thk0/tim0) 
+       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:) / (thk0/tim0) 
 
        ! Eliminate ice from cells where mask prohibits it
        do j = 1, model%general%nsn
@@ -1465,8 +1564,9 @@ contains
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
-                            ice_mask,            floating_mask,         &
-                            land_mask)
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            land_mask = land_mask)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell
@@ -1634,8 +1734,9 @@ contains
 !                                      lsrf_tmp,                                     & ! m
 !                                      model%geometry%topg*thk0,                                     & ! m
 !                                      model%climate%eus*thk0,                                       & ! m
-!                                      model%bmltfloat)
-
+!                                      model%bmltfloat,                                              & ! bmlt_float in m/s
+!                                      model%plume)
+!
 !    model%geometry%thck = thck_tmp/thk0
 !    model%geometry%lsrf = lsrf_tmp/thk0
 !    deallocate(thck_tmp)
@@ -1819,7 +1920,7 @@ contains
                   model%velowk,                               &
                   model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
                   model%geometry%thck,                        &
-                  model%temper%bmlt,                          &
+                  model%basal_melt%bmlt,                      &
                   model%velocity%wvel)
     ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.
 
@@ -1989,7 +2090,7 @@ contains
     ! surface, basal and calving mass fluxes
     ! positive for mass gain, negative for mass loss
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
-    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%temper%bmlt_applied(:,:)) * thk0/tim0
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
     ! real-valued masks

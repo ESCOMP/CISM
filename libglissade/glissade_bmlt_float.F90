@@ -100,7 +100,7 @@ contains
                                           x1,                           &
                                           thck,        lsrf,            &
                                           topg,        eus,             &
-                                          bmltfloat)
+                                          basal_melt,  plume)
 
     use glissade_masks, only: glissade_get_masks
     use glimmer_paramets, only: tim0, thk0
@@ -137,14 +137,15 @@ contains
     real(dp), intent(in) :: &
          eus                     ! eustatic sea level (m), = 0. by default
 
-    type(glide_bmltfloat), intent(inout) :: &
-         bmltfloat               ! derived type with fields and parameters for MISMIP+ and MISOMIP
+    type(glide_basal_melt), intent(inout) :: &
+         basal_melt              ! derived type with fields and parameters related to basal melting
+
+    type(glide_plume), intent(inout) :: &
+         plume                   ! derived type with fields and parameters for plume model
 
     !-----------------------------------------------------------------
-    ! Note: The bmltfloat derived type includes the 2D output field bmlt_float,
-    !       along with several 2D fields used in the plume model.
-    ! 
-    ! Also, bmltfloat includes a number of prescribed parameters for MISMIP+ and MISOMIP:
+    ! Note: The basal_melt derived type includes the 2D output field bmlt_float,
+    !        along with a number of prescribed parameters for MISMIP+:
     !
     !       MISMIP+ Ice1
     !       - bmlt_float_omega     ! time scale for basal melting (s-1), default = 0.2/yr
@@ -152,10 +153,12 @@ contains
     !       - bmlt_float_z0        ! scale for ice draft (m), default = -100 m
     !
     !       MISMIP+ Ice2
-    !       - bmlt_float_rate      ! constant melt rate (m/s), default = 100 m/yr
+    !       - bmlt_float_const     ! constant melt rate (m/s), default = 100 m/yr
     !       - bmlt_float_xlim      ! melt rate = 0 for abs(x) < bmlt_float_xlim (m), default = 480000 m
     !
-    !       MISOMIP
+    ! Note: The plume derived type includes plume-related 2D output fields,
+    !        along with a number of prescribed parameters for MISOMIP:
+    !
     !       - T0                   ! sea surface temperature (deg C), default = -1.9 C
     !       - Tbot                 ! temperature at the sea floor (deg C), default = 1.0 C (warm), -1.9 C (cold)
     !       - S0                   ! sea surface salinity (psu), default = 33.8 psu
@@ -168,11 +171,13 @@ contains
     !-----------------------------------------------------------------
  
     !----------------------------------------------------------------
-    ! Local variables and pointers set to components of bmltfloat derived type
+    ! Local variables and pointers set to components of basal_melt and plume derived types
     !----------------------------------------------------------------      
 
     real(dp), dimension(:,:), pointer :: &
-         bmlt_float,          & ! basal melt rate for floating ice (m/s) (> 0 for melt, < 0 for freeze-on)
+         bmlt_float             ! basal melt rate for floating ice (m/s) (> 0 for melt, < 0 for freeze-on)
+
+    real(dp), dimension(:,:), pointer :: &
          T_basal,             & ! basal ice temperature; at freezing point (deg C)
          S_basal,             & ! basal ice salinity; at freezing point (psu)
          u_plume,             & ! x component of plume velocity (m/s) at cell centers
@@ -190,17 +195,6 @@ contains
          divDu_plume,         & ! divergence of D_plume*u_plume (m/s)
          T_ambient,           & ! ambient ocean temperature below ice and plume (deg C)
          S_ambient              ! ambient ocean salinity below ice and plume (psu)
-
-    ! parameters for MISMIP+ Ice1 experiments
-    real(dp) :: &
-         bmlt_float_omega,  & ! time scale for basal melting (s-1)
-         bmlt_float_h0,     & ! scale for sub-shelf cavity thickness (m)
-         bmlt_float_z0        ! scale for ice draft (m)
-
-    ! parameters for MISMIP+ Ice2 experiments
-    real(dp) :: &
-         bmlt_float_rate,   & ! constant melt rate (m/s)
-         bmlt_float_xlim      ! melt rate = 0 for abs(x) < bmlt_float_xlim (m)
 
     ! parameters for MISOMIP
     real(dp) ::  &
@@ -232,49 +226,15 @@ contains
 !!    logical :: first_call = .false.
     logical :: first_call = .true.
 
-    !----------------------------------------------------------------      
-    ! Assign local pointers and variables to components of bmltfloat derived type
-    !----------------------------------------------------------------      
-
-    ! MISMIP+
-    bmlt_float_omega = bmltfloat%bmlt_float_omega
-    bmlt_float_h0 = bmltfloat%bmlt_float_h0
-    bmlt_float_z0 = bmltfloat%bmlt_float_z0
-    bmlt_float_rate = bmltfloat%bmlt_float_rate
-    bmlt_float_xlim = bmltfloat%bmlt_float_xlim
-
-    ! MISOMIP
-    T0 = bmltfloat%T0 
-    Tbot = bmltfloat%Tbot 
-    S0 = bmltfloat%S0 
-    Sbot = bmltfloat%Sbot 
-    zbed_deep = bmltfloat%zbed_deep
-    gammaT = bmltfloat%gammaT
-    gammaS = bmltfloat%gammaS
-
-    bmlt_float  => bmltfloat%bmlt_float
-
-    if (whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       ! the following fields are used or computed by the plume model
-       T_basal       => bmltfloat%T_basal
-       S_basal       => bmltfloat%S_basal
-       u_plume       => bmltfloat%u_plume
-       v_plume       => bmltfloat%v_plume
-       u_plume_Cgrid => bmltfloat%u_plume_Cgrid
-       v_plume_Cgrid => bmltfloat%v_plume_Cgrid
-       ustar_plume   => bmltfloat%ustar_plume
-       drho_plume    => bmltfloat%drho_plume
-       T_plume       => bmltfloat%T_plume
-       S_plume       => bmltfloat%S_plume
-       D_plume       => bmltfloat%D_plume
-       entrainment   => bmltfloat%entrainment
-       detrainment   => bmltfloat%detrainment
-       divDu_plume   => bmltfloat%divDu_plume
-       T_ambient     => bmltfloat%T_ambient
-       S_ambient     => bmltfloat%S_ambient
-    endif
+    !-----------------------------------------------------------------
+    ! Compute the basal melt rate for floating ice
+    !-----------------------------------------------------------------
 
     if (main_task .and. verbose_bmlt) print*, 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
+
+    ! Set bmlt_float pointer and initialize
+    bmlt_float  => basal_melt%bmlt_float
+    bmlt_float(:,:) = 0.0d0
 
     ! Compute masks:
     ! - ice_mask = 1 where thck > thklim
@@ -288,15 +248,7 @@ contains
                             ice_mask,      floating_mask, &
                             ocean_mask)
 
-    ! Compute the basal melt rate for floating ice
-
-    bmlt_float(:,:) = 0.0d0
-
-    if (whichbmlt_float == BMLT_FLOAT_NONE) then
-
-       ! nothing to do; bmlt_float already set to zero
-
-    elseif (whichbmlt_float == BMLT_FLOAT_CONSTANT) then
+    if (whichbmlt_float == BMLT_FLOAT_CONSTANT) then
 
        ! Set melt rate to a constant value for floating ice.
        ! This includes ice-free ocean cells, in case ice is advected to those cells by the transport scheme.
@@ -308,8 +260,8 @@ contains
 
                 ! Note: For MISMIP+ experiment Ice2r, melting is masked out where x < 480 km
 
-                if (abs(x1(i)) >= bmlt_float_xlim) then   ! melting is allowed
-                   bmlt_float(i,j) = bmlt_float_rate
+                if (abs(x1(i)) >= basal_melt%bmlt_float_xlim) then   ! melting is allowed
+                   bmlt_float(i,j) = basal_melt%bmlt_float_const
                 endif
 
                 !WHL - debug
@@ -323,7 +275,7 @@ contains
           enddo
        enddo
 
-    elseif (whichbmlt_float == BMLT_FLOAT_MISMIP) then
+    elseif (whichbmlt_float == BMLT_FLOAT_MISMIP) then   ! MISMIP+
 
        !WHL - debug
        print*, 'Compute MISMIP+ melt rates'
@@ -349,12 +301,13 @@ contains
 
                 h_cavity = lsrf(i,j) - topg(i,j)
                 z_draft = lsrf(i,j) - eus
-                bmlt_float(i,j) = bmlt_float_omega * tanh(h_cavity/bmlt_float_h0) * max(bmlt_float_z0 - z_draft, 0.0d0)
+                bmlt_float(i,j) = basal_melt%bmlt_float_omega * tanh(h_cavity/basal_melt%bmlt_float_h0) &
+                                * max(basal_melt%bmlt_float_z0 - z_draft, 0.0d0)
 
                 !debug
 !                if (j == jtest .and. verbose_bmlt) then
-!                   print*, 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, tanh(h_cavity/bmlt_float_h0),  &
-!                        thck(i,j), z_draft, bmlt_float(i,j)*scyr
+!                   print*, 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, &
+!                         tanh(h_cavity/basal_melt%bmlt_float_h0), thck(i,j), z_draft, bmlt_float(i,j)*scyr
 !                endif
 
              endif   ! ice is present and floating
@@ -392,6 +345,34 @@ contains
        !    marine ice sheet and ocean model intercomparison projects: 
        !    MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1),
        !    Geosci. Model Devel., 9, 2471-2497, doi: 10.5194/gmd-9-2471-2016.
+
+       ! Assign local pointers and variables to components of the plume derived type
+
+       T0 = plume%T0
+       Tbot = plume%Tbot
+       S0 = plume%S0
+       Sbot = plume%Sbot
+       zbed_deep = plume%zbed_deep
+       gammaT = plume%gammaT
+       gammaS = plume%gammaS
+
+       ! the following fields are used or computed by the plume model
+       T_basal       => plume%T_basal
+       S_basal       => plume%S_basal
+       u_plume       => plume%u_plume
+       v_plume       => plume%v_plume
+       u_plume_Cgrid => plume%u_plume_Cgrid
+       v_plume_Cgrid => plume%v_plume_Cgrid
+       ustar_plume   => plume%ustar_plume
+       drho_plume    => plume%drho_plume
+       T_plume       => plume%T_plume
+       S_plume       => plume%S_plume
+       D_plume       => plume%D_plume
+       entrainment   => plume%entrainment
+       detrainment   => plume%detrainment
+       divDu_plume   => plume%divDu_plume
+       T_ambient     => plume%T_ambient
+       S_ambient     => plume%S_ambient
 
        if (verbose_bmlt .and. this_rank == rtest) then
           print*, 'itest, jtest, rtest =', itest, jtest, rtest

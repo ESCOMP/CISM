@@ -59,7 +59,7 @@ powerlaw_m = 3                  # exponent for the power law stress
 bmlt_float_omega = 0.2          # parameter for Ice1
 bmlt_float_z0 = -100.           # parameter for Ice1
 bmlt_float_h0 = 75.             # parameter for Ice1
-bmlt_float_rate = 100.          # parameter for Ice2
+bmlt_float_const = 100.         # parameter for Ice2
 bmlt_float_xlim = 480000.       # parameter for Ice2
 
 [CF default]

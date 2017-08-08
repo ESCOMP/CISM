@@ -1023,7 +1023,7 @@
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
      bwat     => model%temper%bwat(:,:)
-     bmlt     => model%temper%bmlt(:,:)
+     bmlt     => model%basal_melt%bmlt(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)

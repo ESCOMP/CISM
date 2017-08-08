@@ -204,8 +204,8 @@ contains
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
 
     ! scale basal melting parameters (yr^{-1} -> s^{-1})
-    model%bmltfloat%bmlt_float_omega = model%bmltfloat%bmlt_float_omega / scyr
-    model%bmltfloat%bmlt_float_rate  = model%bmltfloat%bmlt_float_rate / scyr
+    model%basal_melt%bmlt_float_omega = model%basal_melt%bmlt_float_omega / scyr
+    model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -566,8 +566,10 @@ contains
     call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
+    call GetValue(section,'enable_bmlt_float_anomaly',model%options%enable_bmlt_float_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
+    call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
@@ -721,11 +723,12 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:3), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:4), parameter :: which_bmlt_float = (/ &
          'none                              ', &
          'MISMIP+ melt rate profile         ', &
          'constant melt rate                ', &
-         'Melt rate from MISOMIP T/S profile' /)
+         'Melt rate from MISOMIP T/S profile', &
+         'Melt rate from external file      ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -1164,6 +1167,10 @@ contains
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
     end if
 
+    if (model%options%enable_bmlt_float_anomaly) then
+       call write_log('bmlt_float anomaly forcing is enabled')
+    endif
+
     write(message,*) 'basal mass balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
     call write_log(message)
 
@@ -1173,6 +1180,10 @@ contains
 
     write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
     call write_log(message)
+
+    if (model%options%enable_acab_anomaly) then
+       call write_log('acab anomaly forcing is enabled')
+    endif
 
     if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
        call write_log('Error, overwrite_acab option out of range',GM_FATAL)
@@ -1542,20 +1553,20 @@ contains
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
 
     ! MISMIP+ basal melting parameters
-    call GetValue(section,'bmlt_float_omega', model%bmltfloat%bmlt_float_omega)
-    call GetValue(section,'bmlt_float_h0', model%bmltfloat%bmlt_float_h0)
-    call GetValue(section,'bmlt_float_z0', model%bmltfloat%bmlt_float_z0)
-    call GetValue(section,'bmlt_float_rate', model%bmltfloat%bmlt_float_rate)
-    call GetValue(section,'bmlt_float_xlim', model%bmltfloat%bmlt_float_xlim)
+    call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
+    call GetValue(section,'bmlt_float_h0', model%basal_melt%bmlt_float_h0)
+    call GetValue(section,'bmlt_float_z0', model%basal_melt%bmlt_float_z0)
+    call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
+    call GetValue(section,'bmlt_float_xlim', model%basal_melt%bmlt_float_xlim)
 
-    ! bmltfloat parameters
-    !TODO - Put MISMIP+ and MISOMIP parameters in their own section
-    call GetValue(section,'T0',   model%bmltfloat%T0)
-    call GetValue(section,'Tbot', model%bmltfloat%Tbot)
-    call GetValue(section,'S0',   model%bmltfloat%S0)
-    call GetValue(section,'Sbot', model%bmltfloat%Sbot)
-    call GetValue(section,'gammaT',    model%bmltfloat%gammaT)
-    call GetValue(section,'gammaS',    model%bmltfloat%gammaS)
+    ! MISOMIP plume parameters
+    !TODO - Put MISMIP+ and MISOMIP parameters in their own section?
+    call GetValue(section,'T0',   model%plume%T0)
+    call GetValue(section,'Tbot', model%plume%Tbot)
+    call GetValue(section,'S0',   model%plume%S0)
+    call GetValue(section,'Sbot', model%plume%Sbot)
+    call GetValue(section,'gammaT',    model%plume%gammaT)
+    call GetValue(section,'gammaS',    model%plume%gammaS)
 
   end subroutine handle_parameters
 
@@ -1850,29 +1861,29 @@ contains
 
     ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
     if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
-       write(message,*) 'bmlt_float_rate (m/yr)   :  ', model%bmltfloat%bmlt_float_rate
+       write(message,*) 'bmlt_float_const (m/yr)  :  ', model%basal_melt%bmlt_float_const
        call write_log(message)
-       write(message,*) 'bmlt_float_xlim (m)      :  ', model%bmltfloat%bmlt_float_xlim
+       write(message,*) 'bmlt_float_xlim (m)      :  ', model%basal_melt%bmlt_float_xlim
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
-       write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%bmltfloat%bmlt_float_omega
+       write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%basal_melt%bmlt_float_omega
        call write_log(message)
-       write(message,*) 'bmlt_float_h0 (m)        :  ', model%bmltfloat%bmlt_float_h0
+       write(message,*) 'bmlt_float_h0 (m)        :  ', model%basal_melt%bmlt_float_h0
        call write_log(message)
-       write(message,*) 'bmlt_float_z0 (m)        :  ', model%bmltfloat%bmlt_float_z0
+       write(message,*) 'bmlt_float_z0 (m)        :  ', model%basal_melt%bmlt_float_z0
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       write(message,*) 'T0 (deg C)               :  ', model%bmltfloat%T0
+       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
        call write_log(message)
-       write(message,*) 'Tbot (deg C)             :  ', model%bmltfloat%Tbot
+       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
        call write_log(message)
-       write(message,*) 'S0 (psu)                 :  ', model%bmltfloat%S0
+       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
        call write_log(message)
-       write(message,*) 'Sbot (deg C)             :  ', model%bmltfloat%Sbot
+       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
        call write_log(message)
-       write(message,*) 'gammaT (nondimensional)  :  ', model%bmltfloat%gammaT
+       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
        call write_log(message)
-       write(message,*) 'gammaS (nondimensional)  :  ', model%bmltfloat%gammaS
+       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
     endif
 
@@ -2176,6 +2187,13 @@ contains
 
     end select  ! smb_input
 
+    ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
+    select case (options%whichbmlt_float)
+
+       case (BMLT_FLOAT_EXTERNAL)
+          call glide_add_to_restart_variable_list('bmlt_float_external')
+
+    end select  ! whichbmlt_float
 
     ! add dycore specific restart variables
     select case (options%whichdycore)

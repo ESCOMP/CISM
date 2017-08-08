@@ -643,7 +643,7 @@ contains
          if (model%options%basal_mbal==1) then   ! basal melt rate included in continuity equation
              model%solver_data%rhsd(model%geometry%thck_index(ew,ns)) =                     &
                    model%solver_data%rhsd(model%geometry%thck_index(ew,ns))                 &
-                 - model%temper%bmlt(ew,ns) * model%numerics%dt  ! basal melt is positive for mass loss
+                 - model%basal_melt%bmlt(ew,ns) * model%numerics%dt  ! basal melt is positive for mass loss
          end if
 
       end if   ! calc_rhs
@@ -914,7 +914,7 @@ contains
                          model%numerics%dew,                 &
                          model%numerics%dns )
                     !EIB! gc2 acab input, not sure why the difference
-                    !model%climate%acab(:,ns)-real(model%options%basal_mbal)*real(model%temper%bmlt(:,ns),sp),           &
+                    !model%climate%acab(:,ns)-real(model%options%basal_mbal)*real(model%basal_melt%bmlt(:,ns),sp),           &
 
           call tridiag(model%thckwk%alpha(1:n),    &
                        model%thckwk%beta(1:n),     &
@@ -943,7 +943,7 @@ contains
                          model%numerics%dns,                 &
                          model%numerics%dew )
                       !EIB! again, input difference
-                      !model%climate%acab(ew, :)-real(model%options%basal_mbal)*real(model%temper%bmlt(ew, :),sp),          &
+                      !model%climate%acab(ew, :)-real(model%options%basal_mbal)*real(model%basal_melt%bmlt(ew, :),sp),          &
                       
           call tridiag(model%thckwk%alpha(1:n),    &
                        model%thckwk%beta(1:n),     &
