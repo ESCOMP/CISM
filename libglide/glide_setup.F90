@@ -176,8 +176,9 @@ contains
     ! allow for subcycling of ice transport
     model%numerics%dt_transport = model%numerics%dt / real(model%numerics%subcyc, dp)
 
-    model%numerics%thklim = model%numerics%thklim  / thk0       
-    model%numerics%thklim_temp = model%numerics%thklim_temp  / thk0
+    model%numerics%thklim = model%numerics%thklim / thk0
+    model%numerics%thklim_float = model%numerics%thklim_float / thk0 
+    model%numerics%thklim_temp = model%numerics%thklim_temp / thk0
     model%numerics%thck_gradient_ramp = model%numerics%thck_gradient_ramp / thk0
 
     model%numerics%dew = model%numerics%dew / len0
@@ -189,9 +190,9 @@ contains
 
     ! scale calving parameters
     model%calving%marine_limit = model%calving%marine_limit / thk0
-    model%calving%calving_minthck_constant = model%calving%calving_minthck_constant / thk0
+    model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
-    model%calving%floating_path_minthck = model%calving%floating_path_minthck / thk0
+!!    model%calving%floating_path_minthck = model%calving%floating_path_minthck / thk0
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -1474,19 +1475,20 @@ contains
     call GetValue(section,'log_level',loglevel)
     call glimmer_set_msg_level(loglevel)
 
+    !TODO - Change 'ice_limit' to 'thklim'?
     call GetValue(section,'ice_limit',          model%numerics%thklim)
+    call GetValue(section,'thklim_float',       model%numerics%thklim_float)
     call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_minthck_constant', model%calving%calving_minthck_constant)
+    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'eigencalving_constant',    model%calving%eigencalving_constant)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'floating_path_minthck', model%calving%floating_path_minthck)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
@@ -1584,7 +1586,7 @@ contains
     call write_log('Parameters')
     call write_log('----------')
 
-    write(message,*) 'ice limit for dynamics (m)    : ', model%numerics%thklim
+    write(message,*) 'thickness limit for dynamically active ice (m)            : ', model%numerics%thklim
     call write_log(message)
 
     !Note: The Glissade dycore is known to crash for thklim = 0, but has not
@@ -1595,8 +1597,13 @@ contains
        call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
     endif
 
+    if (model%numerics%thklim_float /= model%numerics%thklim) then
+       write(message,*) 'thickness limit for dynamically active floating ice (m): ', model%numerics%thklim_float
+       call write_log(message)
+    endif
+
     if (model%options%whichdycore /= DYCORE_GLIDE) then
-       write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
+       write(message,*) 'thickness limit for temperature calculations (m)       : ', model%numerics%thklim_temp
        call write_log(message)
        if (model%numerics%thck_gradient_ramp > 0.0d0) then
           write(message,*) 'thickness scale for gradient ramp (m):', model%numerics%thck_gradient_ramp
@@ -1617,9 +1624,19 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck_constant
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
+        model%options%whichcalving == EIGENCALVING) then
+       write(message,*) 'calving thickness limit (m)      : ', model%calving%calving_minthck
        call write_log(message)
+
+       if (model%calving%calving_minthck /= model%numerics%thklim_float) then
+          model%numerics%thklim_float = model%calving%calving_minthck
+          write(message,*) 'Overwriting thklim_float to equal calving_minthck'
+          call write_log(message)
+          write(message,*) 'Revised value of thklim_float (m): ', model%numerics%thklim_float
+          call write_log(message)
+       endif
+
     endif
 
     if (model%options%whichcalving == EIGENCALVING) then
@@ -1645,11 +1662,6 @@ contains
 
     if (model%calving%calving_timescale > 0.0d0) then
        write(message,*) 'calving time scale (yr)       : ', model%calving%calving_timescale
-       call write_log(message)
-    endif
-
-    if (model%calving%floating_path_minthck > 0.0d0) then
-       write(message,*) 'minthck for floating path (m) : ', model%calving%floating_path_minthck
        call write_log(message)
     endif
 
@@ -2306,10 +2318,17 @@ contains
            call glide_add_to_restart_variable_list('bwat')
         end select
 
-        ! calving option for Glissade
+        ! calving options for Glissade
 
         if (options%whichcalving == CALVING_GRID_MASK) then
            call glide_add_to_restart_variable_list('calving_mask')
+        endif
+
+        ! The strain_rate_determinant calculation requires the strain rate tensor, which depends on the stress tensor,
+        ! which is computed by the HO solver. On restart, the correct stress and strain rate tensors are not available,
+        ! so we read in strain_rate_determinant for eigencalving.
+        if (options%whichcalving == EIGENCALVING) then
+           call glide_add_to_restart_variable_list('strain_rate_determinant')
         endif
 
         ! other Glissade options

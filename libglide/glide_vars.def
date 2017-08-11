@@ -463,7 +463,7 @@ standard_name: stag_land_ice_thickness
 load:          0
 coordinates:   lon lat
 
-[calving]
+[calving_thck]
 dimensions:    time, y1, x1
 units:         meter
 long_name:     thickness of calving ice
@@ -1044,12 +1044,13 @@ long_name:  xy component of strain rate tensor
 data:       data%velocity%strain_rate%xy(up,:,:)
 factor:     scyr
 
-[eps_determinant]
+[strain_rate_determinant]
 dimensions: time, y1, x1
 units:      1/(year*year)
 long_name:  determinant of horizontal strain rate tensor
 data:       data%velocity%strain_rate_determinant
 factor:     scyr*scyr
+load:       1
 
 [tau_eff]
 dimensions: time, staglevel, y1, x1

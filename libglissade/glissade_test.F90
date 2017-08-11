@@ -551,7 +551,8 @@ contains
        call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
                                model%geometry%thck, model%geometry%topg,   &
                                model%climate%eus,   0.0d0,                 &   ! thklim = 0
-                               ice_mask,            ocean_mask)
+                               ice_mask,                                   &
+                               ocean_mask = ocean_mask)
 
        call glissade_transport_driver(dt*scyr,                                              &
                                       dx,                        dy,                        &

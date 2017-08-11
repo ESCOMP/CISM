@@ -133,9 +133,8 @@ Suppose the final time is 20000 years. You can set internal_time = 0 with a one-
 
 You may have to precede this command with 'module load nco' if NCO is not loaded automatically.
 
-To verify that the time correction worked, you can do 'ncdump out.nc | less' and scroll down to 'data',
-below which the corrected time coordinates should be listed.  The final internal_time value should be 0,
-with negative values for earlier times.
+To verify that the time correction worked, you can do 'ncdump -v internal_time outputfilename.nc'.
+The final internal_time value should be 0, with negative values for earlier times.
 
 Then you can overwrite the original restart file:
 > cp out.nc mismip+Spinup.restart.nc

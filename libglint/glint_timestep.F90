@@ -293,7 +293,7 @@ contains
 
           ! Add the calved ice to the ablation field
 
-          call glide_get_calving(instance%model, calve_temp)
+          call glide_get_calving_thck(instance%model, calve_temp)
           calve_temp = calve_temp * rhoi/rhow
 
           instance%ablt = instance%ablt + calve_temp/instance%model%numerics%tinc

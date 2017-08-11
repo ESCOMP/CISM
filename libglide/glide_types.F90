@@ -1048,9 +1048,6 @@ module glide_types
      !> Note: The 3D damage field is prognostic; the 2D damage_column field is diagnosed from the 3D damage field.
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !< scaled by thk0 like mass balance, thickness, etc.
-     real(dp),dimension(:,:),  pointer :: calving_minthck => null() !< minimum thickness (m) of floating ice before it calves
-                                                                    !< computed as a 2d field for eigencalving option
-                                                                    !< scaled by thk0 like mass balance, thickness, etc.
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
      real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
@@ -1062,17 +1059,15 @@ module glide_types
                                             !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: calving_timescale = 0.0d0  !> time scale (yr) for calving (Glissade only); calving_thck = thck * max(dt/calving_timescale, 1)
                                             !> if calving_timescale = 0, then calving_thck = thck
-     real(dp) :: calving_minthck_constant = 100.d0 !> minimum thickness (m) of floating ice at marine edge before it calves
-                                                   !> (whichcalving = CALVING_THCK_THRESHOLD)
-     real(dp) :: eigencalving_constant = 10.d0     !> dimensionless constant; proportional to thickness threshold for eigencalving
+     real(dp) :: calving_minthck = 100.d0   ! > minimum thickness (m) of floating ice at marine edge before it calves
+                                            !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
+     real(dp) :: eigencalving_constant = 1.0d9     !> eigencalving constant from Levermann et al. (2012) (m*yr)
                                                    !> (whichcalving = EIGENCALVING
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
-     real(dp) :: floating_path_minthck = 0.0d0    !> minimum thickness (m) of path connecting floating ice back to grounded ice
-                                                  !> Can set to a nonzero value (> thklim) to remove floating peninsulas with active but thin ice
 
   end type glide_calving
 
@@ -1469,19 +1464,19 @@ module glide_types
     real(dp) :: ntem   =     1.d0 !> multiplier of main time step; allows longer temperature time step
     real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
     real(dp) :: alphas =    0.5d0 !> was a parameter in the original
-    real(dp) :: thklim =   100.d0 ! min thickness for computing ice dynamics (m) 
-    real(dp) :: thklim_temp = 1.d0    ! min thickness for computing vertical temperature (m) (higher-order only)
-    real(dp) :: thck_gradient_ramp = 0.d0 ! thickness scale over which gradients increase from zero to full value (HO only)
-    real(dp) :: dew    =    20.d3     ! grid cell size in east-west direction
-    real(dp) :: dns    =    20.d3     ! grid cell size in north-south direction
-    real(dp) :: dt     =     0.d0     ! ice dynamics timestep
-    real(dp) :: dttem  =     0.d0     ! temperature timestep
-    real(dp) :: dt_transport = 0.d0   ! timestep for subcycling transport within the dynamics timestep dt
+    real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
+    real(dp) :: thklim_float= 100.d0  !> min thickness for computing ice dynamics for floating ice (m) (higher-order only)
+    real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
+    real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
+    real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction
+    real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
+    real(dp) :: dt     =     0.d0     !> ice dynamics timestep
+    real(dp) :: dttem  =     0.d0     !> temperature timestep
+    real(dp) :: dt_transport = 0.d0   !> timestep for subcycling transport within the dynamics timestep dt
     real(dp) :: nshlf  =     0.d0          !TODO - not currently used; remove?
     integer  :: subcyc =     1
-    real(dp) :: periodic_offset_ew = 0.d0 ! optional periodic_offsets for ismip-hom and similar tests
-    real(dp) :: periodic_offset_ns = 0.d0 ! These may be needed to ensure continuous ice geometry at
-                                          !  the edges of the global domain.
+    real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
+    real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
     integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
     
     ! Vertical coordinate ---------------------------------------------------

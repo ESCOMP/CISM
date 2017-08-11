@@ -631,8 +631,9 @@ module glissade_therm
     ucondflx(:,:) = 0.d0
     dissipcol(:,:) = 0.d0
     
-    ! Compute masks: ice_mask = 1 where thck > thklim; floating_mask = 1 where ice is floating;
-    !                ocean_mask = 1 where topg is below sea level and thck <= thklim
+    ! Compute masks: ice_mask = 1 where thck > thklim_temp;
+    !                floating_mask = 1 where ice is present (thck > thklim_temp) and floating;
+    !                ocean_mask = 1 where topg is below sea level and thck <= thklim_temp
 
     call glissade_get_masks(ewn,           nsn,           &
                             thck,          topg,          &

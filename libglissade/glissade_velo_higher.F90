@@ -703,7 +703,8 @@
        stagwbndsigma            ! stagsigma augmented by sigma = 0 and 1 at upper and lower surfaces
 
     real(dp)  ::   & 
-       thklim,               &  ! minimum ice thickness for active cells (m)
+       thklim,               &  ! minimum ice thickness for active grounded cells (m)
+       thklim_float,         &  ! minimum ice thickness for active floating cells (m)
        thck_gradient_ramp,   &  ! thickness scale over which gradients are ramped up from zero to full value (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
@@ -800,8 +801,8 @@
        ubas, vbas             ! basal ice velocity (m/yr); input to calcbeta 
 
     integer, dimension(nx,ny) ::     &
-       ice_mask,             &! = 1 for cells where ice is present (thk > thklim), else = 0
-       floating_mask,        &! = 1 for cells where ice is present and is floating
+       ice_mask,             &! = 1 for cells where ice is present (thck > thklim), else = 0
+       floating_mask,        &! = 1 for cells where ice is present (thck > thklim_float) and is floating
        ocean_mask,           &! = 1 for cells where topography is below sea level and ice is absent
        land_mask              ! = 1 for cells where topography is above sea level
 
@@ -810,7 +811,7 @@
        stagbedpmp             ! bed pmp temperature averaged to vertices (deg C)    
 
     logical, dimension(nx,ny) ::     &
-       active_cell            ! true for active cells (thck > thklim and border locally owned vertices)
+       active_cell            ! true for active cells (ice_mask = 1 and border locally owned vertices)
 
     logical, dimension(nx-1,ny-1) :: &
        active_vertex          ! true for vertices of active cells
@@ -1049,10 +1050,11 @@
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
-     thklim    = model%numerics%thklim
+     thklim = model%numerics%thklim
+     thklim_float  = model%numerics%thklim_float
      thck_gradient_ramp  = model%numerics%thck_gradient_ramp
      max_slope = model%paramets%max_slope
-     eus       = model%climate%eus
+     eus = model%climate%eus
      efvs_constant = model%paramets%efvs_constant
      pmp_threshold = model%temper%pmp_threshold
 
@@ -1083,7 +1085,8 @@
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           thck,    usrf,          &
                                           topg,    eus,           &
-                                          thklim,  thck_gradient_ramp, &
+                                          thklim,  thklim_float,  &
+                                          thck_gradient_ramp,     &
                                           bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
@@ -1212,7 +1215,7 @@
           print*, ' '
           print*, 'nx, ny, nz:', nx, ny, nz
           print*, 'vol0:', vol0
-          print*, 'thklim:', thklim
+          print*, 'thklim, thklim_float:', thklim, thklim_float
           print*, 'max thck, usrf:', maxthck, maxusrf
           
           print*, 'sigma coordinate:'
@@ -1440,8 +1443,9 @@
 
     !------------------------------------------------------------------------------
     ! Compute masks: 
-    ! (1) ice mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
-    ! (2) floating mask = 1 in cells where ice is present and is floating
+    ! (1) ice mask = 1 in cells where ice is present (thck > thklim if grounded, 
+    !     thck > thklim_float if floating), = 0 elsewhere
+    ! (2) floating mask = 1 in cells where ice is present (thck > thklim_float) and is floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
     !TODO: Compute these masks before the velocity solve and pass them in?
@@ -1451,7 +1455,8 @@
                             thck,        topg,          &
                             eus,         thklim,        &
                             ice_mask,    floating_mask, &
-                            ocean_mask,  land_mask)
+                            ocean_mask,  land_mask,     &
+                            thklim_float)
 
     !------------------------------------------------------------------------------
     ! Compute ice thickness and upper surface on staggered grid
@@ -1654,7 +1659,7 @@
 
     !------------------------------------------------------------------------------
     ! Compute the vertices of each element.
-    ! Identify the active cells (i.e., cells with thck > thklim,
+    ! Identify the active cells (i.e., cells with ice_mask = 1,
     !  bordering a locally owned vertex) and active vertices (all vertices
     !  of active cells).
     ! Count the number of owned active nodes on this processor, and assign a 
@@ -3802,7 +3807,8 @@
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
                                               thck,    usrf,          &
                                               topg,    eus,           &
-                                              thklim,  thck_gradient_ramp, &
+                                              thklim,  thklim_float,  &
+                                              thck_gradient_ramp,     &
                                               bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
@@ -3827,7 +3833,8 @@
 
     real(dp), intent(inout) ::   &
        eus,                 &  ! eustatic sea level (= 0 by default)
-       thklim,              &  ! minimum ice thickness for active cells
+       thklim,              &  ! minimum ice thickness for active grounded cells
+       thklim_float,        &  ! minimum ice thickness for active floating cells
        thck_gradient_ramp      ! thickness scale over which gradients are ramped up from zero to full value
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
@@ -3855,6 +3862,7 @@
     topg = topg * thk0
     eus  = eus  * thk0
     thklim = thklim * thk0
+    thklim_float = thklim_float * thk0
     thck_gradient_ramp = thck_gradient_ramp * thk0
     bwat = bwat * thk0
 

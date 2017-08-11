@@ -237,16 +237,17 @@ contains
     bmlt_float(:,:) = 0.0d0
 
     ! Compute masks:
-    ! - ice_mask = 1 where thck > thklim
-    ! - floating_mask = 1 where ice is present and floating;
+    ! - ice_mask = 1 where thck > 0
+    ! - floating_mask = 1 where thck > 0 and ice is floating;
     ! - ocean_mask = 1 where topg is below sea level and ice is absent
     !Note: The '0.0d0' argument is thklim. Here, any ice with thck > 0 gets ice_mask = 1.
 
-    call glissade_get_masks(ewn,           nsn,           &
-                            thck,          topg,          &
-                            eus,           0.0d0,         &
-                            ice_mask,      floating_mask, &
-                            ocean_mask)
+    call glissade_get_masks(ewn,           nsn,            &
+                            thck,          topg,           &
+                            eus,           0.0d0,          &
+                            ice_mask,                      &
+                            floating_mask = floating_mask, &
+                            ocean_mask = ocean_mask)
 
     if (whichbmlt_float == BMLT_FLOAT_CONSTANT) then
 

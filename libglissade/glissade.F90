@@ -499,17 +499,19 @@ contains
                                model%geometry%topg,             &
                                model%climate%eus,               &
                                model%numerics%thklim,           &
+                               model%numerics%thklim_float,     &
                                model%calving%marine_limit,      &
                                model%calving%calving_fraction,  &
                                model%calving%calving_timescale, &
                                model%numerics%dt,               &
-                               model%stress%efvs_vertavg * evs0,       &  ! Pa s
-                               model%velocity%strain_rate_determinant, &
+                               model%numerics%dew*len0,         &         ! m
+                               model%numerics%dns*len0,         &         ! m
+                               model%velocity%strain_rate_determinant, &  ! s^(-2)
                                model%calving%eigencalving_constant,    &
-                               model%calving%calving_minthck_constant, &
+                               model%calving%calving_minthck,          &
                                model%calving%calving_mask,             &
                                model%options%remove_floating_islands,  &
-                               model%calving%floating_path_minthck,    &
+!!                               model%calving%floating_path_minthck,    &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
@@ -779,8 +781,8 @@ contains
     ! Local variables
 
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
-       ice_mask,          & ! = 1 if thck > thklim, else = 0
-       floating_mask        ! = 1 where ice is present and floating
+       ice_mask,          & ! = 1 if ice is present (thck > 0, else = 0
+       floating_mask        ! = 1 if ice is present (thck > 0) and floating
 
     real(dp) :: previous_time
 
@@ -795,16 +797,16 @@ contains
     if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
 
     ! Compute masks:
-    ! - ice_mask = 1 where thck > thklim
-    ! - floating_mask = 1 where ice is present and floating;
+    ! - ice_mask = 1 where thck > 0
+    ! - floating_mask = 1 where thck > 0 and ice is floating;
     ! - ocean_mask = 1 where topg is below sea level and ice is absent
     !Note: The '0.0d0' argument is thklim. Here, any ice with thck > 0 gets ice_mask = 1.
 
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   0.0d0,                 &  ! thklim = 0
-                            ice_mask,            floating_mask)
-
+                            ice_mask,                                   &
+                            floating_mask = floating_mask)
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_NONE) then
 
@@ -999,9 +1001,8 @@ contains
 
     ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
-       ice_mask,          & ! = 1 if thck > thklim, else = 0
-       floating_mask,     & ! = 1 where ice is present and floating
-       ocean_mask           ! = 1 if topg is below sea level and thk <= thklim, else = 0
+       ice_mask,          & ! = 1 if thck > 0, else = 0
+       ocean_mask           ! = 1 if topg is below sea level and thck = 0, else = 0
 
     ! temporary variables needed to reset geometry for the EVOL_NO_THICKNESS option
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_old
@@ -1336,7 +1337,7 @@ contains
 
     use parallel
 
-    use glimmer_paramets, only: thk0, tim0, evs0
+    use glimmer_paramets, only: thk0, tim0, len0
     use glissade_calving, only: glissade_calve_ice
     use glide_mask, only: glide_set_mask
 
@@ -1371,17 +1372,18 @@ contains
                             model%geometry%topg,             &
                             model%climate%eus,               &
                             model%numerics%thklim,           &
+                            model%numerics%thklim_float,     &
                             model%calving%marine_limit,      &
                             model%calving%calving_fraction,  &
                             model%calving%calving_timescale, &
                             model%numerics%dt,               &
-                            model%stress%efvs_vertavg * evs0,       &  ! Pa s
-                            model%velocity%strain_rate_determinant, &
+                            model%numerics%dew*len0,         &         ! m
+                            model%numerics%dns*len0,         &         ! m
+                            model%velocity%strain_rate_determinant, &  ! s^(-2)
                             model%calving%eigencalving_constant,    &
-                            model%calving%calving_minthck_constant, &
+                            model%calving%calving_minthck,          &
                             model%calving%calving_mask,             &
                             model%options%remove_floating_islands,  &
-                            model%calving%floating_path_minthck,    &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &
                             model%calving%damage_column,     &
@@ -1555,10 +1557,7 @@ contains
     call glam_geometry_derivs(model)
 
     ! ------------------------------------------------------------------------
-    ! Update some masks that are used by Glissade subroutines
-    ! TODO - Is this call needed here?  There is a call to glissade_get_masks
-    !        near the start of the velo calculation. But ice_mask is passed into
-    !        glissade_flow_factor.
+    ! Update some masks that are used by the following subroutines
     ! ------------------------------------------------------------------------
 
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
@@ -1566,7 +1565,8 @@ contains
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
-                            land_mask = land_mask)
+                            land_mask = land_mask,                      &
+                            thklim_float = model%numerics%thklim_float)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell
@@ -1876,7 +1876,7 @@ contains
           write(6,'(i8)',advance='no') j
 !!             do i = 1, model%general%ewn-1
           do i = itest-5, itest+5
-             write(6,'(f12.6)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
+             write(6,'(f12.3)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
           enddo
           print*, ' '
        enddo
@@ -1893,7 +1893,7 @@ contains
           write(6,'(i8)',advance='no') j
 !!             do i = 1, model%general%ewn-1
           do i = itest-5, itest+5
-             write(6,'(f12.6)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
+             write(6,'(f12.3)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
           enddo
           print*, ' '
        enddo
@@ -1983,18 +1983,30 @@ contains
     enddo
 
     ! determinant of horizontal part of strain rate tensor (used for eigencalving)
-    ! Note: For floating ice the vertical shearing should be negligible, but sum over layers for generality.
-    model%velocity%strain_rate_determinant(:,:) = 0.0d0
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
-          do k = 1, model%general%upn-1
-             model%velocity%strain_rate_determinant(i,j) = model%velocity%strain_rate_determinant(i,j) &
-                                                         + (model%velocity%strain_rate%xx(k,i,j) * model%velocity%strain_rate%yy(k,i,j) &
-                                                          - model%velocity%strain_rate%xy(k,i,j) * model%velocity%strain_rate%xy(k,i,j)) &
-                                                         * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+    ! Note: For floating ice the vertical shear should be negligible, but sum over layers for generality.
+    ! Note: On restart, the correct stress and strain rate tensors are not available. Instead of computing strain_rate_determinant
+    !       at initialization, it is read from the restart file.
+
+    if ( (model%options%is_restart == RESTART_TRUE) .and. &
+         (model%numerics%time == model%numerics%tstart) ) then
+
+       ! do nothing, since the strain rate determinant is read from the restart file
+
+    else
+
+       model%velocity%strain_rate_determinant(:,:) = 0.0d0
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             do k = 1, model%general%upn-1
+                model%velocity%strain_rate_determinant(i,j) = model%velocity%strain_rate_determinant(i,j) &
+                                                            + (model%velocity%strain_rate%xx(k,i,j) * model%velocity%strain_rate%yy(k,i,j) &
+                                                            - model%velocity%strain_rate%xy(k,i,j) * model%velocity%strain_rate%xy(k,i,j)) &
+                                                            * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+             enddo
           enddo
        enddo
-    enddo
+
+    endif   ! is_restart
 
     ! magnitude of basal traction
     model%stress%btract(:,:) = sqrt(model%stress%btractx(:,:)**2 + model%stress%btracty(:,:)**2)
