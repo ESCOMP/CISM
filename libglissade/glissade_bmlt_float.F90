@@ -46,7 +46,7 @@ module glissade_bmlt_float
   private
   public :: glissade_basal_melting_float
 
-  logical :: verbose_velo = .false.
+  logical :: verbose_velo = .true.
   logical :: verbose_continuity = .true.
   logical :: verbose_melt = .true.
 
@@ -82,8 +82,8 @@ module glissade_bmlt_float
 !!         relax_D = 0.5d0,    &   ! relax_D and relax_eta moved to thickness solver
 !!         relax_eta = 0.01d0, &
 !!         relax_m = 1.0d0
-         relax_TS = 0.2d0
-!!         relax_TS = 1.0d0
+!!         relax_TS = 0.5d0
+         relax_TS = 1.0d0
 
     !WHL - debug - not sure this matters much
     logical, parameter :: cap_Dplume = .true.
@@ -219,8 +219,8 @@ contains
     real(dp) :: h_cavity        ! depth of ice cavity beneath floating ice (m)
     real(dp) :: z_draft         ! draft of floating ice (m below sea level)
 
-    logical, parameter :: verbose_bmlt = .false.
-!!    logical, parameter :: verbose_bmlt = .true.
+!!    logical, parameter :: verbose_bmlt = .false.
+    logical, parameter :: verbose_bmlt = .true.
 
 !TODO - Make first_call depend on whether we are restarting
 !!    logical :: first_call = .false.
@@ -413,6 +413,7 @@ contains
              enddo
              write(6,*) ' '
           enddo
+
           print*, ' '
           print*, 'floating_mask:'
           do j = jtest+3, jtest-3, -1
@@ -430,8 +431,10 @@ contains
        where (floating_mask == 1) 
 
           ! MISOMIP+ profiles, Eqs. 21 and 22 
-          T_ambient(:,:) = T0 + (Tbot - T0) * (lsrf(:,:) / zbed_deep)
-          S_ambient(:,:) = S0 + (Sbot - S0) * (lsrf(:,:) / zbed_deep)
+!!          T_ambient(:,:) = T0 + (Tbot - T0) * (lsrf(:,:) / zbed_deep)
+!!          S_ambient(:,:) = S0 + (Sbot - S0) * (lsrf(:,:) / zbed_deep)
+          T_ambient = T0 + (Tbot - T0) * (lsrf / zbed_deep)
+          S_ambient = S0 + (Sbot - S0) * (lsrf / zbed_deep)
 
        elsewhere
 
@@ -477,19 +480,18 @@ contains
             entrainment,      detrainment,      &
             divDu_plume,      bmlt_float)
 
+       ! convert plume fields to scaled units
+       entrainment(:,:) = entrainment(:,:) * tim0/thk0
+       detrainment(:,:) = detrainment(:,:) * tim0/thk0
+       divDu_plume(:,:) = divDu_plume(:,:) * tim0/thk0
+       D_plume(:,:) = D_plume(:,:)/thk0
+
     endif   ! whichbmlt_float
 
     ! Set first_call to false. 
     ! Next time, the plume variables just computed (T_plume, S_plume, D_plume)
     !  will be taken as initial conditions.
     first_call = .false.
-
-    if (whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       entrainment(:,:) = entrainment(:,:) * tim0/thk0
-       detrainment(:,:) = detrainment(:,:) * tim0/thk0
-       divDu_plume(:,:) = divDu_plume(:,:) * tim0/thk0
-       D_plume(:,:) = D_plume(:,:)/thk0
-    endif
 
   end subroutine glissade_basal_melting_float
 
@@ -579,7 +581,6 @@ contains
          S_plume,             & ! plume salinity (psu)
          D_plume                ! plume thickness (m)
 
-    !TODO - Switch u_plume and v_plume to the ice grid for diagnostics
     ! Note: Plume velocities are computed on the C grid, and then are interpolated
     !       to cell centers as a diagnostic.
 
@@ -609,10 +610,15 @@ contains
          D_plume_cap,         & ! min(D_plume, H_cavity)
          eta_plume,           & ! displacement of plume surface, D_plume - H_cavity (m)
          dD_plume,            & ! change in D_plume (m)
+         T_plume_latest,      & ! T_plume from latest iteration
+         S_plume_latest,      & ! S_plume from latest iteration
+         T_basal_latest,      & ! T_basal from latest iteration
+         S_basal_latest,      & ! S_basal from latest iteration
+         bmlt_float_latest,   & ! melt rate from latest iteration (m/s)
          T_plume_old,         & ! T_plume from previous time step
          S_plume_old,         & ! S_plume from previous time step
          T_basal_old,         & ! T_basal from previous time step
-         S_basal_old   ,      & ! S_basal from previous time step
+         S_basal_old,         & ! S_basal from previous time step
          D_plume_old,         & ! D_plume from previous time step
          eta_plume_old,       & ! eta_plume from previous time step
          drho_plume_old,      & ! drho_plume from previous time step
@@ -626,20 +632,6 @@ contains
          plume_speed_east,      & ! plume speed on east edges (m/s)
          plume_speed_north        ! plume speed on north edges (m/s)
 
-   real(dp), dimension(nx,ny) :: &
-         du_deta_west,         & ! dependence of u_east on eta(i,j), west of the velocity point
-         du_deta_east,         & ! dependence of u_east on eta(i+1,j), east of the velocity point
-         du_deta_northwest,    & ! dependence of u_east on eta(i,j+1), northwest of the velocity point
-         du_deta_northeast,    & ! dependence of u_east on eta(i+1,j+1), northeast of the velocity point
-         du_deta_southwest,    & ! dependence of u_east on eta(i,j-1), southwest of the velocity point
-         du_deta_southeast,    & ! dependence of u_east on eta(i+1,j-1), southeast of the velocity point
-         dv_deta_south,        & ! dependence of v_north on eta(i,j), south of the velocity point
-         dv_deta_north,        & ! dependence of v_north on eta(i,j+1), north of the velocity point
-         dv_deta_northwest,    & ! dependence of v_north on eta(i-1,j+1), northwest of the velocity point
-         dv_deta_northeast,    & ! dependence of v_north on eta(i+1,j+1), northeast of the velocity point
-         dv_deta_southwest,    & ! dependence of v_north on eta(i-1,j), southwest of the velocity point
-         dv_deta_southeast       ! dependence of v_north on eta(i+1,j), southeast of the velocity point
-
     !TODO - Old values might not be needed  
     real(dp), dimension(nx,ny) ::  &
          entrainment_latest,    & ! entrainment from previous iteration
@@ -648,10 +640,23 @@ contains
          u_plume_north_latest,  & ! old values of u_plume on north edges
          v_plume_north_latest     ! old values of v_plume on north edges
 
+    real(dp), dimension(nx,ny) ::  &
+         dlsrf_dx_east,       & ! horizontal gradient of lsrf on east edges
+         dlsrf_dy_east,       & !
+         dlsrf_dx_north,      & ! horizontal gradient of lsrf on north edges
+         dlsrf_dy_north
+
+    real(dp) :: &
+         dlsrf_dx, dlsrf_dy,  & ! lsrf gradient components at cell centers
+         slope                  ! magnitude of the gradient (dlsrf_dx, dlsrf_dy)
+
+    real(dp), dimension(nx,ny) ::  &
+         theta_slope            ! basal slope angle (rad), used for entrainment
+ 
     real(dp), dimension(nx-1,ny-1) :: &
-         plume_speed,         & ! plume speed (m/s)
-         dlsrf_plume_dx,      & ! horizontal gradient of lsrf_plume
-         dlsrf_plume_dy
+         plume_speed            ! plume speed at vertices (m/s)
+!!         dlsrf_plume_dx,      & ! horizontal gradient of lsrf_plume
+!!         dlsrf_plume_dy
 
     ! Note: We have edge_mask_east/north = 1 only if the plume exists on each side of an edge.
     !       We can have divu_mask_east/north = 1 if the plume exists on only one side of the edge,
@@ -665,6 +670,12 @@ contains
          edge_mask_north,     & ! = 1 on north edges where plume velocity is computed
          divu_mask_east,      & ! = 1 on east edges where divergence terms are computed
          divu_mask_north        ! = 1 on north edges where divergence terms are computed
+
+    !TODO - New fields for testing
+    ! Note: These masks are real-valued because they can have a value of 0, 0.5 or 1
+    real(dp), dimension(nx,ny) :: &
+         edge_mask_east_reduce_v,  & ! mask for reducing v on east edges adjacent to a wall
+         edge_mask_north_reduce_u    ! mask for reducing u on north edges adjacent to a wall
 
     ! Note: The north and south global_bndy masks are used for ISOMIP+.
     !       Not sure if they would be needed in a more realistic run.
@@ -707,11 +718,11 @@ contains
          n_check_residual = 1     ! how often to compute the residual and check for convergence
 
     integer :: i, j
-    integer :: iglobal, jglobal      ! global i and j indices
-    integer :: iter_melt, iter_dyn   ! iteration counters
-    integer :: ncells_sub300         ! number of cells below 300 m depth (ISOMIP+ diagnostic)
+    integer :: iglobal, jglobal        ! global i and j indices
+    integer :: iter_Dplume, iter_melt  ! iteration counters
+    integer :: ncells_sub300           ! number of cells below 300 m depth (ISOMIP+ diagnostic)
 
-    integer :: imax, jmax            ! i and j indices of cells with extreme values
+    integer :: imax, jmax              ! i and j indices of cells with extreme values
 
     ! max of various quantities for a given iteration
     real(dp) :: &
@@ -732,24 +743,24 @@ contains
          D_plume_dz = 0.02d0           ! rate of change of initial plume thickness with increasing z (m/m)
 
     real(dp), parameter :: &
-!!         dt_plume_max = 60.d0,    & ! max time step for plume thickness iteration (s)
          dt_plume_max = 300.d0,    & ! max time step for plume thickness iteration (s)
                                     ! Shortened as needed to satisfy CFL
 !!         time_max = scyr            ! max time (s) before giving up on convergence 
-         time_max = 100000.d0      ! max time (s) before giving up on melt rate convergence 
+         time_max = 10000.d0      ! max time (s) before giving up on melt rate convergence 
 
     real(dp), parameter ::  &
          L2_target = 1.0d-6           ! small target value for L2 norm of continuity equation residual
 
     !TODO - Currently not working with free_surface = false.  eta inflates anyway.
-!!    logical, parameter :: free_surface = .false.
-    logical, parameter :: free_surface = .true.   ! true if computing PG force due to slope in free surface
+    logical, parameter :: free_surface = .false.
+!!    logical, parameter :: free_surface = .true.   ! true if computing PG force due to slope in free surface
 
     ! parameters determining convergence of iterations
     integer, parameter :: &
-         maxiter_dyn = 50,          & ! max number of iterations of inner dynamics loop
-         maxiter_melt = 999999         ! max number of iterations of outer melt-rate loop
-
+         maxiter_melt = 100,         & ! max number of iterations of inner melt-rate loop
+                                       ! terminates when bmlt_float, u_plume, v_plume and dD_plume/dt are consistent
+         maxiter_Dplume = 999999       ! max number of iterations of outer plume-thickness loop
+                                       ! terminates when plume thickness reaches virtual steady state
     real(dp), parameter :: &
          maxerr_melt = 1.0d-3/scyr     ! max err_melt allowed for steady state (m/yr converted to m/s)
 
@@ -829,10 +840,12 @@ contains
     enddo
 
     !WHL - debug
+    !TODO - Support cavities of any thickness, no matter how small?
     ! Compute the ocean cavity thickness.
-    ! Mask out cells with very narrow cavities.
+    ! Optionally, mask out cells with very narrow cavities.
     ! Since entrainment goes to zero in small cavities, basal melt in these cells should be small. 
-    H_cavity(:,:) = lsrf(:,:) - topg(:,:)
+
+    H_cavity(:,:) = max(lsrf(:,:) - topg(:,:), 0.0d0)
     do j = 1, ny
        do i = 1, nx
           if (H_cavity(i,j) > 0.0d0 .and. H_cavity(i,j) < H_cavity_min) then
@@ -841,6 +854,17 @@ contains
           endif
        enddo
     enddo
+
+    !WHL - debug
+    print*, ' '
+    print*, 'H_cavity:'
+    do j = jtest+3, jtest-3, -1
+       do i = itest-3, itest+3
+          write(6,'(f12.5)',advance='no') H_cavity(i,j)
+       enddo
+       write(6,*) ' '
+    enddo
+
 
     ! Restrict the plume to end a few km from the calving front.
     ! Note: This may be unnecessary in CISM MISOMIP runs if the ice thickness field
@@ -945,8 +969,49 @@ contains
        enddo
     enddo
 
-    ! Compute another pair of masks.
-    ! These masks includes all cells with edge_mask_east/north = 1.
+    ! Compute masks for inhibiting flow toward walls of grounded ice
+
+    ! Initialize masks to 1.0 (implying no reduction of the velocity component)
+    edge_mask_east_reduce_v(:,:) = 1.0d0
+    edge_mask_north_reduce_u(:,:) = 1.0d0
+
+    ! Reset the masks to 0.0 or 0.5 adjacent to grounded ice
+    do j = 1, ny
+       do i = 1, nx
+
+          ! identify east edges with a wall of grounded ice to the north or south
+          if (edge_mask_east(i,j) == 1) then
+             if ( (H_cavity(i,j+1) == 0.0d0 .and. H_cavity(i+1,j+1) == 0.0d0) .or.  &
+                  (H_cavity(i,j-1) == 0.0d0 .and. H_cavity(i+1,j-1) == 0.0d0) ) then
+                ! full wall; zero out the v component
+                edge_mask_east_reduce_v(i,j) = 0.0d0
+             elseif (H_cavity(i,j+1) == 0.0d0 .or. H_cavity(i+1,j+1) == 0.0d0 .or.  &
+                     H_cavity(i,j-1) == 0.0d0 .or. H_cavity(i+1,j-1) == 0.0d0) then
+                ! half wall; reduce the v component
+                edge_mask_east_reduce_v(i,j) = 0.5d0
+             endif
+          endif
+
+          ! identify north edges with a wall of grounded ice to the east or west
+          if (edge_mask_north(i,j) == 1) then
+             if ( (H_cavity(i-1,j+1) == 0.0d0 .and. H_cavity(i+1,j+1) == 0.0d0) .or.  &
+                  (H_cavity(i-1,j)   == 0.0d0 .and. H_cavity(i+1,j)   == 0.0d0) ) then
+                ! full wall; zero out the v component
+                edge_mask_north_reduce_u(i,j) = 0.0d0
+             elseif (H_cavity(i-1,j+1) == 0.0d0 .or. H_cavity(i+1,j+1) == 0.0d0 .or.  &
+                     H_cavity(i-1,j)   == 0.0d0 .or. H_cavity(i+1,j)   == 0.0d0) then
+                ! half wall; reduce the v component
+                edge_mask_north_reduce_u(i,j) = 0.5d0
+
+             endif
+          endif
+          
+       enddo
+    enddo
+
+    !TODO - Check whether these comments are still acurate
+    ! Compute masks for edges with nonzero fluxes.
+    ! These masks includes all cells with edge_mask_east/north = 1 (where velocity is computed).
     ! In addition, these masks include cells that have a plume on one side of the edge and
     !  open water or floating ice on the other.
     ! These edges have nonzero velocity extrapolated from neighboring edges, and thus are included
@@ -973,7 +1038,7 @@ contains
     enddo
 
     ! north edges
-    do j = 1, ny-1
+    do j = 1, ny
        do i = 1, nx
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j+1) == 0 .and. global_bndy_north(i,j) == 0) then
              if (lsrf(i,j+1) == 0.0d0 .or. floating_mask(i,j+1) == 1) then
@@ -989,6 +1054,43 @@ contains
        enddo   ! i
     enddo   ! j
 
+    ! Compute the horizontal gradient of the lower ice surface.
+    ! This is used to compute the pressure gradient force at velocity points, and for entrainment.
+    ! Note: There are a couple of different ways to compute the PGF.
+    !       (1) Jenkins et al. (1991) and HJH (2008) use grad(lsrf)
+    !       (2) Holland & Feltham (2006) use grad(lsrf_plume) along with a density gradient.
+    !       Method (1) is simpler and has the advantage that grad(lsrf) does not vary during plume evolution,
+    !        making the PGF more stable (though possibly not as accurate).
+    ! Note: The first 'lsrf' is a required argument for the subroutine.
+    !       The second 'lsrf' happens to be the field whose gradient we're computing.
+
+    call compute_edge_gradients(&
+         nx,              ny,          &
+         dx,              dy,          &
+         global_bndy_east,             &
+         global_bndy_west,             &
+         global_bndy_north,            &
+         global_bndy_south,            &
+         plume_mask_cell,              &
+         floating_mask,                &
+         lsrf,                         &
+         lsrf,                         &
+         dlsrf_dx_east,      dlsrf_dy_east,  &
+         dlsrf_dx_north,     dlsrf_dy_north)
+    
+    ! Compute the slope angle at cell centers.  This is used to compute entrainment.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo 
+          dlsrf_dx = (dlsrf_dx_east(i-1,j) + dlsrf_dx_east(i,j)) / 2.d0
+          dlsrf_dy = (dlsrf_dy_north(i,j-1) + dlsrf_dy_north(i,j)) / 2.d0
+          slope = sqrt(dlsrf_dx**2 + dlsrf_dy**2)
+          theta_slope(i,j) = atan(slope)
+       enddo
+    enddo
+
+    ! is this call needed?
+    call parallel_halo(theta_slope)
 
     print*, ' '
     print*, 'plume_mask_cell, rank =', rtest
@@ -1014,6 +1116,25 @@ contains
        write(6,'(a6)',advance='no') '      '
        do i = itest-3, itest+3
           write(6,'(i8)',advance='no') edge_mask_east(i,j)
+       enddo
+       write(6,*) ' '
+    enddo
+
+    print*, ' '
+    print*, 'edge_mask_north_reduce_u, rank =', rtest
+    do j = jtest+3, jtest-3, -1
+       do i = itest-3, itest+3
+          write(6,'(f8.1)',advance='no') edge_mask_north_reduce_u(i,j)
+       enddo
+       write(6,*) ' '
+    enddo
+    
+    print*, ' '
+    print*, 'edge_mask_east_reduce_v, rank =', rtest
+    do j = jtest+3, jtest-3, -1
+       write(6,'(a6)',advance='no') '      '
+       do i = itest-3, itest+3
+          write(6,'(f8.1)',advance='no') edge_mask_east_reduce_v(i,j)
        enddo
        write(6,*) ' '
     enddo
@@ -1048,8 +1169,10 @@ contains
        print*, 'First call: creating simple initial conditions for T_plume, S_plume and D_plume'
 
        ! Initialize the plume temperature and salinity.
-       !WHL - For now, setting S_plume = S0 everywhere. 
+       ! Set S_plume = S0 everywhere.
        ! This means that drho_plume = rho_ambient - rho_plume will decrease in the upslope direction.
+       ! Setting both T_plume and S_plume to ambient values would give zero velocities and melt rates. 
+
        where (plume_mask_cell == 1)
           T_plume = T_ambient
           S_plume = S0
@@ -1059,9 +1182,9 @@ contains
        ! This is tricky. Since entrainment is non-negative and is equal to div*(Du),
        !  we ideally want div*(Du) > 0 in most cells. If the flow is upslope and D increases
        !  upslope, then div*(Du) will generally be positive in most of the domain.
-       ! Initally, D_plume is constrained not to be thicker than the sub-shelf ocean cavity.
-       ! If convergence results in D_plume > H_cavity, there will be a pressure gradient force 
-       !  tending to reduce D_plume.
+!!!!       ! Initally, D_plume is constrained not to be thicker than the sub-shelf ocean cavity.
+!!!!       ! If convergence results in D_plume > H_cavity, there will be a pressure gradient force 
+!!!!       !  tending to reduce D_plume.
        ! Note: Units for D_plume here are meters.
        !       Would have to change if D_plume is input in scaled model units
 
@@ -1073,7 +1196,7 @@ contains
           do i = 1, nx
              if (plume_mask_cell(i,j) == 1) then
                 D_plume(i,j) = D_plume0 + D_plume_dz * (lsrf(i,j) - lsrf_min)
-                D_plume(i,j) = min(D_plume(i,j), lsrf(i,j) - topg(i,j))
+!!                D_plume(i,j) = min(D_plume(i,j), H_cavity(i,j))
              endif
           enddo
        enddo
@@ -1175,21 +1298,6 @@ contains
        T_basal = lambda1*S_ambient + lambda2 + lambda3*pressure
     endwhere
 
-    ! Initialize the cavity thickness, lsrf - topg
-    H_cavity(:,:) = lsrf(:,:) - topg(:,:)
-
-    ! Initialize the surface displacement eta_plume = max(D_plume - H_cavity, 0),
-    !  where H_cavity = lsrf - topg.
-    ! eta_plume = 0 in most of the domain, but eta_plume > 0 in shallow regions
-    !  where the flow is convergent and the plume extends down to the seafloor.
-    ! The result is a strong outflow from cells where eta > 0.
-
-    where (plume_mask_cell == 1)
-       eta_plume = max(D_plume - H_cavity, 0.0d0)
-    elsewhere
-       eta_plume = 0.0d0
-    endwhere
-
     ! Initialize other fields
     u_plume(:,:) = 0.0d0
     v_plume(:,:) = 0.0d0
@@ -1208,6 +1316,8 @@ contains
     detrainment(:,:) = 0.0d0
     bmlt_float(:,:) = 0.0d0
 
+    eta_plume(:,:) = 0.0d0
+
     !WHL - debug
     if (main_task) then
        print*, ' '
@@ -1219,89 +1329,36 @@ contains
     !--------------------------------------------------------------------
     ! Iterate to compute the melt rate at the ice-ocean interface
     ! The solution method is:
-    ! (1) Given D, eta, and rho for the plume, compute u and v from the momentum balance.
-    ! (2) Given u and v, compute the entrainment, and then compute D from continuity.
-    ! (3) Given the entrainment and friction velocity, compute the basal melt rate
-    !     and new values of T_b, S_b, T_p and S_p.
-    ! There is an inner loop that iterates until the error in the continuity equation 
-    !  is below a given threshold, meaning that the dynamic and thermodynamic fields
-    !  are mutually consistent.
-    ! This loop is wrapped by an outer loop that continues until the basal melt rate
-    !  reaches steady state for all cells.
+    ! (1) Given the current guesses for entrainment and friction velocity, compute bmlt_float
+    !     and new values of T_basal, S_basal, T_plume and S_plume.
+    ! (2) Given the current guesses for D_plume and rho_plume, compute u_plume and v_plume
+    !      from the momentum balance.
+    ! (3) Given u_plume and v_plume, compute the entrainment.
+    ! (4) Given u_plume, v_plume and entrainment, compute the change in D_plume from continuity.
+    ! There is an inner loop that iterates until u_plume, v_plume, dDplume/dt and bmlt_float
+    !  have converged, meaning that the dynamic and thermodynamic fields are mutually consistent.
+    ! This loop is wrapped by an outer loop that continues until D_plume is sufficiently
+    !  close to steady state for all cells.
     !--------------------------------------------------------------------
 
-    do iter_melt = 1, maxiter_melt   ! outer melt-rate iteration
+    do iter_Dplume = 1, maxiter_Dplume   ! outer plume_thickness iteration
 
        if (main_task) then 
           print*, ' '
-          print*, 'iter_melt =', iter_melt
+          print*, 'iter_D_plume =', iter_Dplume
        endif
-
-       ! halo updates
-       call parallel_halo(T_plume)
-       call parallel_halo(S_plume)
-       call parallel_halo(D_plume)
 
        !TODO - Remove some of these if not needed for relaxation
        ! save variables from previous time step
        D_plume_old(:,:) = D_plume(:,:)
-       eta_plume_old(:,:) = eta_plume(:,:)
+
+       if (free_surface) eta_plume_old(:,:) = eta_plume(:,:)
 
        bmlt_float_old(:,:) = bmlt_float(:,:)
        S_plume_old(:,:) = S_plume(:,:)
        T_plume_old(:,:) = T_plume(:,:)
        S_basal_old(:,:) = S_basal(:,:)
        T_basal_old(:,:) = T_basal(:,:)
-
-       ! Compute the plume density, given the current estimates of T_plume and S_plume.
-       ! Then find the density difference between the ambient ocean and the plume. 
-
-       rho_plume(:,:) = eos_rho_ref * (1.d0 - eos_alpha * (T_plume(:,:) - eos_Tref)  &
-                                            + eos_beta  * (S_plume(:,:) - eos_Sref) )
-
-       where (plume_mask_cell == 1)
-          drho_plume = rho_ambient - rho_plume
-       elsewhere
-          drho_plume = 0.0d0
-       endwhere
-
-       ! TODO - What to do where drho_plume < 0? Set plume_mask_cell = 0?
-       ! TODO = Print where drho_plume < 0.
-
-       if (verbose_melt) then
-
-          print*, ' '
-          print*, 'T_plume, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f8.3)',advance='no') T_plume(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-          print*, ' '
-          print*, 'S_plume, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f8.3)',advance='no') S_plume(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-       endif
-
-       if (verbose_continuity .or. verbose_melt) then
-
-          print*, ' '
-          print*, 'New drho_plume (kg/m^3), rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f14.9)',advance='no') drho_plume(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-       endif
 
        ! initialize the nonlinear method ('Newton' or 'Picard')
        !TODO - Test with an initial Picard
@@ -1314,28 +1371,54 @@ contains
        ! Compute the plume velocity, solve the continuity equation for the plume thickness, and compute the melt rate.
        ! This is done iteratively until convergence.
 
-       do iter_dyn = 1, maxiter_dyn
+       do iter_melt = 1, maxiter_melt
 
           if (main_task) then 
              print*, ' '
-             print*, 'iter_dyn = ', iter_dyn
+             print*, 'iter_melt = ', iter_melt
              print*, 'nonlinear_method = ', trim(nonlinear_method)
           endif
 
-          !WHL - Set values of u_plume, v_plume, etc. from latest iteration
+          ! save values from latest iteration (used for relaxation)
+          bmlt_float_latest(:,:) = bmlt_float(:,:)
+          S_plume_latest(:,:) = S_plume(:,:)
+          T_plume_latest(:,:) = T_plume(:,:)
+          S_basal_latest(:,:) = S_basal(:,:)
+          T_basal_latest(:,:) = T_basal(:,:)
 
-          u_plume_east_latest(:,:) = u_plume_east(:,:)
-          v_plume_east_latest(:,:) = v_plume_east(:,:)
-          u_plume_north_latest(:,:) = u_plume_north(:,:)
-          v_plume_north_latest(:,:) = v_plume_north(:,:)
-!       entrainment_latest(:,:) = entrainment(:,:)       
+          ! Compute the plume density, given the current estimates of T_plume and S_plume.
+          ! Then find the density difference between the ambient ocean and the plume. 
+
+          rho_plume(:,:) = eos_rho_ref * (1.d0 - eos_alpha * (T_plume(:,:) - eos_Tref)  &
+                                               + eos_beta  * (S_plume(:,:) - eos_Sref) )
+
+          where (plume_mask_cell == 1)
+             drho_plume = rho_ambient - rho_plume
+          elsewhere
+             drho_plume = 0.0d0
+          endwhere
+
+          ! TODO - What to do where drho_plume < 0? Set plume_mask_cell = 0?
+          ! TODO = Print where drho_plume < 0.
+
+          if (verbose_melt) then
+
+             print*, ' '
+             print*, 'New drho_plume (kg/m^3), rank =', rtest
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f12.4)',advance='no') drho_plume(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          
+          endif  ! verbose_melt
 
           ! TODO - Currently, T_plume and S_plume must be relaxed to avoid oscillations as a result
           !         of changes in drho_plume.  Think about incorporating du/dT and du/dS terms into
           !         the velocity solve to suppress these oscillations and improve convergence.
           !         Dependence of drho_plume on T_plume and S_plume is straightforward. 
           ! But for now, try passing in the value of drho_plume at the old time.
-          ! TODO - Pull melt/drho iteration outside continuity iteration.
 
           ! Compute the velocity (u_plume, v_plume), given the current estimates of drho_plume and D_plume.
 
@@ -1349,17 +1432,21 @@ contains
                dx,       dy,        &
                itest, jtest, rtest, &
                plume_mask_cell,     &
-               floating_mask,       &
-               global_bndy_east,    &
-               global_bndy_west,    &
-               global_bndy_north,   &
-               global_bndy_south,   &
+!!               floating_mask,       &
+!!               global_bndy_east,    &
+!!               global_bndy_west,    &
+!!               global_bndy_north,   &
+!!               global_bndy_south,   &
                divu_mask_east,      &
                divu_mask_north,     &
                edge_mask_east,      &
                edge_mask_north,     &
+               edge_mask_east_reduce_v,  &
+               edge_mask_north_reduce_u, &
                free_surface,        &
-               lsrf,                &
+!!               lsrf,                &
+               dlsrf_dx_east,      dlsrf_dy_east,  &
+               dlsrf_dx_north,     dlsrf_dy_north, &
                drho_plume,          &
                D_plume,             &
                eta_plume,           &
@@ -1369,39 +1456,10 @@ contains
                u_plume_north,       &
                v_plume_north,       &
                plume_speed_east,    &
-               plume_speed_north,   &
-               du_deta_west,        &
-               du_deta_east,        &
-               du_deta_northwest,   &
-               du_deta_northeast,   &
-               du_deta_southwest,   &
-               du_deta_southeast,   &
-               dv_deta_south,       &
-               dv_deta_north,       &
-               dv_deta_northwest,   &
-               dv_deta_northeast,   &
-               dv_deta_southwest,   &
-               dv_deta_southeast)
-
-          ! relax toward the velocity just computed
-          !TODO - Remove relaxation?  Might be needed only for eta and bmlt
-          if (iter_dyn > 1) then
-             u_plume_east(:,:) = (1.0d0 - relax_u)*u_plume_east_latest(:,:) + relax_u*u_plume_east(:,:)
-             v_plume_east(:,:) = (1.0d0 - relax_u)*v_plume_east_latest(:,:) + relax_u*v_plume_east(:,:)
-             u_plume_north(:,:) = (1.0d0 - relax_u)*u_plume_north_latest(:,:) + relax_u*u_plume_north(:,:)
-             v_plume_north(:,:) = (1.0d0 - relax_u)*v_plume_north_latest(:,:) + relax_u*v_plume_north(:,:)
-!!             plume_speed_east(:,:) = sqrt(u_plume_east(:,:)**2 + v_plume_east(:,:)**2 + u_tidal**2)
-!!             plume_speed_north(:,:) = sqrt(u_plume_north(:,:)**2 + v_plume_north(:,:)**2 + u_tidal**2)
-             plume_speed_east(:,:)  = 0.5d0 * (sqrt(u_plume_east(:,:)**2 + v_plume_east(:,:)**2 + u_tidal**2)  &
-                                            +  sqrt(u_plume_east_latest(:,:)**2 + v_plume_east_latest(:,:)**2 + u_tidal**2) )
-             plume_speed_north(:,:) = 0.5d0 * (sqrt(u_plume_north(:,:)**2 + v_plume_north(:,:)**2 + u_tidal**2) &
-                                            +  sqrt(u_plume_north_latest(:,:)**2 + v_plume_north_latest(:,:)**2 + u_tidal**2) ) 
-          endif
+               plume_speed_north)
 
           ! Determine the time step based on a CFL condition.
-          ! Note: It could be a problem if the upcoming corrector step gives a fast velocity
-          !       that violates CFL.  However, this is unlikely if we adopt a strict CFL condition:
-          !       here, a speed limit of 0.1 * dx/(max(u).
+          ! Should be stable with a CFL number up to 1.0, but limit to 0.5 to be on the safe side.
 
           !WHL - Is this necessary to do for each iteration?
           dt_plume = dt_plume_max
@@ -1411,7 +1469,7 @@ contains
           do j = nhalo+1, ny-nhalo
              do i = nhalo+1, nx-nhalo
                 if (plume_mask_cell(i,j) == 1) then
-                   my_max_dt = 0.2d0*dx / max( abs(u_plume_east(i,j)),  abs(u_plume_east(i-1,j)), &
+                   my_max_dt = 0.5d0*dx / max( abs(u_plume_east(i,j)),  abs(u_plume_east(i-1,j)), &
                                                abs(v_plume_north(i,j)), abs(v_plume_north(i,j-1)) )
                    if (my_max_dt < dt_plume) then
                       dt_plume = my_max_dt
@@ -1422,6 +1480,10 @@ contains
              enddo
           enddo
 
+          if (main_task .and. dt_plume < dt_plume_max) then
+             print*, 'Limited dt_plume =', dt_plume
+          endif
+
           ! Compute the entrainment rate, given u_plume and v_plume.
           
           call compute_entrainment(&
@@ -1431,16 +1493,21 @@ contains
                divu_mask_east,      &
                divu_mask_north,     &
                plume_mask_cell,     &
-               floating_mask,       &
-               global_bndy_east,    &
-               global_bndy_west,    &
-               global_bndy_north,   &
-               global_bndy_south,   &
-               lsrf,                &
-               H_cavity,            &
-               D_plume,             &
-               plume_speed_east,    &
-               plume_speed_north,   &
+!!               floating_mask,       &
+!!               global_bndy_east,    &
+!!               global_bndy_west,    &
+!!               global_bndy_north,   &
+!!               global_bndy_south,   &
+!!               lsrf,                &
+!!               H_cavity,            &
+!!               D_plume,             &
+               theta_slope,         &
+               u_plume_east,        &
+               v_plume_north,       &
+!!               plume_speed_east,    &
+!!               plume_speed_north,   &
+!!               dlsrf_dx_east,      dlsrf_dy_east,  &
+!!               dlsrf_dx_north,     dlsrf_dy_north, &
                entrainment)
 
           !WHL - Relaxing.  May not be needed.
@@ -1465,7 +1532,7 @@ contains
           !  then switch to Newton as long as it's working, but come back to Picard if Newton is failing.
           ! That didn't work.  Try adjusting dt instead.
 
-          if (mod(iter_dyn, n_check_residual) == 0) then  ! time to check for convergence
+          if (iter_melt >=2 .and. mod(iter_melt, n_check_residual) == 0) then  ! time to check for convergence
 
              call compute_dynamic_residual(&
                   nx,       ny,        &
@@ -1473,6 +1540,8 @@ contains
                   dt_plume,            &
                   itest, jtest, rtest, &
                   plume_mask_cell,     &
+                  edge_mask_east,      &
+                  edge_mask_north,     &
                   divu_mask_east,      &
                   divu_mask_north,     &
                   H_cavity,            &
@@ -1488,26 +1557,33 @@ contains
                   L2_norm)
              
              print*, ' '
-             print*, 'COMPUTED RESIDUAL: iter_dyn, L2_norm, L2_previous, L2_target:', &
-                  iter_dyn, L2_norm, L2_previous, L2_target
+             print*, 'COMPUTED RESIDUAL: iter_melt, L2_norm, L2_previous, L2_target:', &
+                  iter_melt, L2_norm, L2_previous, L2_target
 
              if (L2_norm < L2_target) then
-                print*, 'CONTINUITY CONVERGED, time, iter, L2_norm =', time, iter_dyn, L2_norm
-                exit
-             elseif (iter_dyn == maxiter_dyn) then
-                print*, 'CONTINUITY FAILED TO CONVERGE, time, iter, L2_norm =', time, iter_dyn, L2_norm
+                print*, 'CONTINUITY CONVERGED, time, iter, L2_norm =', time, iter_melt, L2_norm
+!!                exit
+                if (converged_melt) then
+                   print*, 'Melt rate has also converged; exit'
+                   exit
+                else
+                   print*, 'Melt rate has not converged; continue'
+                endif
+
+             elseif (iter_melt == maxiter_melt) then
+                print*, 'CONTINUITY FAILED TO CONVERGE, time, iter, L2_norm =', time, iter_melt, L2_norm
                 print*, ' '
                 exit
 !!                stop
                 !WHL - debug - Try a shorter time step next time?
              elseif (L2_norm < L2_previous) then ! iteration is converging; keep trying
-                print*, 'CONTINUITY NOT YET CONVERGED, time, iter, L2_norm =', time, iter_dyn, L2_norm
+                print*, 'CONTINUITY NOT YET CONVERGED, time, iter, L2_norm =', time, iter_melt, L2_norm
                 if (trim(nonlinear_method) == 'Picard') then
 !!!                   nonlinear_method = 'Newton'
 !!!                   print*, 'Switching from Picard to Newton solve'
                 endif
              elseif (L2_norm >= L2_previous) then ! iteration is not converging
-                print*, 'CONTINUITY NOT CONVERGING, time, iter, L2_norm =', time, iter_dyn, L2_norm
+                print*, 'CONTINUITY NOT CONVERGING, time, iter, L2_norm =', time, iter_melt, L2_norm
                 ! if Newton, then try switching to Picard
                 ! if Picard, then punt
                 if (trim(nonlinear_method) == 'Newton') then
@@ -1521,7 +1597,7 @@ contains
 
              L2_previous = L2_norm
 
-          endif   ! mod(iter_dyn, n_check_convergence) = 0
+          endif   ! mod(iter_melt, n_check_convergence) = 0
 
           !WHL TODO - Another possibility: Adjust dt based on the iteration count.
           ! If no convergence after a certain number of iterations, then try dt -> dt/2, and start over.
@@ -1539,25 +1615,11 @@ contains
                nx,       ny,     &
                dx,       dy,     &
                dt_plume,         &
-               free_surface,     &
-               nonlinear_method, &
                plume_mask_cell,  &
                u_plume_east,     &
                v_plume_east,     &
                u_plume_north,    &
                v_plume_north,    &
-               du_deta_west,     &
-               du_deta_east,     &
-               du_deta_northwest,&
-               du_deta_northeast,&
-               du_deta_southwest,&
-               du_deta_southeast,&
-               dv_deta_south,    &
-               dv_deta_north,    &
-               dv_deta_northwest,&
-               dv_deta_northeast,&
-               dv_deta_southwest,&
-               dv_deta_southeast,&
                plume_speed_east, &
                plume_speed_north,&
                edge_mask_east,   &
@@ -1569,10 +1631,12 @@ contains
                detrainment,      &
                itest,    jtest,  &
                rtest,            &
-               iter_dyn,         &  !WHL - debug
+               iter_melt,        &  !WHL - debug
                D_plume_old,      &
-               D_plume,          &
-               eta_plume)
+               D_plume)
+
+          ! halo updates
+          call parallel_halo(D_plume)
 
           !WHL - some temporary diagnostics
           if (verbose_continuity) then
@@ -1682,19 +1746,137 @@ contains
                 write(6,*) ' '
              enddo
              
+             if (free_surface) then
+                print*, ' '
+                print*, 'New eta_plume (m), rank =', rtest
+                do j = jtest+3, jtest-3, -1
+                   do i = itest-3, itest+3
+!!                   write(6,'(e14.7)',advance='no') eta_plume(i,j)
+                      write(6,'(f14.9)',advance='no') eta_plume(i,j)
+                   enddo
+                   write(6,*) ' '
+                enddo
+             endif
+
+          endif  ! verbose_continuity
+          
+          ! Compute the basal melt rate, temperature and salinity at the plume-ice interface,
+          ! given the plume velocity and entrainment rate.
+
+          call compute_plume_melt_rate(&
+               nx,         ny,      &
+               gammaT,              &
+               gammaS,              &
+               plume_mask_cell,     &
+               pressure,            &
+               entrainment,         &
+               u_plume_east,        &
+               v_plume_north,       &
+               T_ambient,           &
+               S_ambient,           &
+               T_basal,             &
+               S_basal,             &
+               T_plume,             &
+               S_plume,             &
+               itest, jtest, rtest, &
+               ustar_plume,         &
+               bmlt_float)
+
+          ! halo updates
+          call parallel_halo(T_plume)
+          call parallel_halo(S_plume)
+
+          if (verbose_melt) then
+
+             if (this_rank == rtest) then
+                i = itest
+                j = jtest
+                print*, ' '
+                print*, 'Computed melt, rank, i, j, bmlt_float (m/yr) =', this_rank, i, j, bmlt_float(i,j)*scyr
+                print*, 'T_b, S_b =', T_basal(i,j), S_basal(i,j)
+                print*, 'T_p, S_p =', T_plume(i,j), S_plume(i,j)
+             endif
+
              print*, ' '
-             print*, 'New eta_plume (m), rank =', rtest
+             print*, 'New bmlt_float (m/yr), i, j, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-!!                   write(6,'(e14.7)',advance='no') eta_plume(i,j)
-                   write(6,'(f14.9)',advance='no') eta_plume(i,j)
+                   write(6,'(f12.6)',advance='no') bmlt_float(i,j)*scyr
                 enddo
                 write(6,*) ' '
              enddo
 
-          endif  ! verbose_continuity
+             print*, ' '
+             print*, 'T_plume, rank =', rtest
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f8.3)',advance='no') T_plume(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
           
-       enddo  ! iter_dyn
+             print*, ' '
+             print*, 'S_plume, rank =', rtest
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f8.3)',advance='no') S_plume(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             
+          endif  ! verbose_melt
+          
+          ! Relax T and S toward solution
+          !TODO - Not necessary to relax T_basal and S_basal?  Only T_plume and S_plume needed for drho_plume.
+          bmlt_float(:,:) = (1.0d0 - relax_TS)*bmlt_float_latest(:,:) + relax_TS*bmlt_float(:,:)
+          S_plume(:,:) = (1.0d0 - relax_TS)*S_plume_latest(:,:) + relax_TS*S_plume(:,:)
+          T_plume(:,:) = (1.0d0 - relax_TS)*T_plume_latest(:,:) + relax_TS*T_plume(:,:)
+          S_basal(:,:) = (1.0d0 - relax_TS)*S_basal_latest(:,:) + relax_TS*S_basal(:,:)
+          T_basal(:,:) = (1.0d0 - relax_TS)*T_basal_latest(:,:) + relax_TS*T_basal(:,:)
+!      !TODO - Use freezing relation instead of relaxation parameter?
+       !!     T_basal(i,j) = lambda1*S_basal(i,j) + lambda2 + lambda3*pressure(i,j)
+
+          ! check convergence of melt rate in all grid cells
+
+          converged_melt = .false.
+
+          if (iter_melt > 1) then
+
+             err_melt = 0.d0
+          
+             do j = 1, ny
+                do i = 1, nx
+                   if (abs(bmlt_float(i,j) - bmlt_float_latest(i,j)) > err_melt) then
+                      err_melt = abs(bmlt_float(i,j) - bmlt_float_latest(i,j))
+                      imax = i
+                      jmax = j
+                   endif
+                enddo
+             enddo
+             
+             if (err_melt > maxerr_melt) then
+          
+                print*, ' '
+                print*, 'Melt rate has NOT CONVERGED:'
+                print*, '   iter, time(s), rank, i, j, m_latest, m, err target, errmax (m/yr) =', &
+                     iter_melt, time, this_rank, imax, jmax,&
+                     bmlt_float_latest(imax,jmax)*scyr, bmlt_float(imax,jmax)*scyr, maxerr_melt*scyr, err_melt*scyr
+                
+             else  ! converged
+          
+                print*, ' '
+                print*, 'Melt rate has CONVERGED everywhere'
+                print*, '  iter, time(s), rank, i, j, m_latest, m, err target, errmax (m/yr) =', &
+                     iter_melt, time, this_rank, imax, jmax, &
+                     bmlt_float_latest(imax,jmax)*scyr, bmlt_float(imax,jmax)*scyr, maxerr_melt*scyr, err_melt*scyr
+
+                converged_melt = .true.
+
+             endif
+
+          endif  ! iter_melt > 1
+
+       enddo  ! iter_melt
 
        ! Increment the time
        time = time + dt_plume
@@ -1702,65 +1884,10 @@ contains
        !WHL - debug
        if (main_task) then
           print*, ' '
-          print*, 'Solved for the plume velocity and thickness:'
-          print*, 'Current dt (s) =', dt_plume
+          print*, 'Plume velocity, thickness and melt rate CONVERGED:'
           print*, 'Total time (s) =', time
        endif
        
-       ! Compute the basal melt rate, temperature and salinity at the plume-ice interface,
-       ! given the plume velocity and entrainment rate.
-
-       call compute_plume_melt_rate(&
-            nx,         ny,      &
-            gammaT,              &
-            gammaS,              &
-            plume_mask_cell,     &
-            pressure,            &
-            entrainment,         &
-            u_plume_east,        &
-            v_plume_north,       &
-            T_ambient,           &
-            S_ambient,           &
-            T_basal,             &
-            S_basal,             &
-            T_plume,             &
-            S_plume,             &
-            itest, jtest, rtest, &
-            ustar_plume,         &
-            bmlt_float)
-
-       if (verbose_melt) then
-
-          if (this_rank == rtest) then
-             i = itest
-             j = jtest
-             print*, ' '
-             print*, 'Computed melt, rank, i, j, bmlt_float (m/yr) =', this_rank, i, j, bmlt_float(i,j)*scyr
-             print*, 'T_b, S_b =', T_basal(i,j), S_basal(i,j)
-             print*, 'T_p, S_p =', T_plume(i,j), S_plume(i,j)
-             
-             print*, ' '
-             print*, 'New bmlt_float (m/yr), rank =', rtest
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f12.6)',advance='no') bmlt_float(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-          
-       endif  ! verbose_melt
-          
-       ! Relax T and S toward solution
-       !TODO - Not necessary to relax T_basal and S_basal?  Only T_plume and S_plume needed for drho_plume.
-       bmlt_float(:,:) = (1.0d0 - relax_TS)*bmlt_float_old(:,:) + relax_TS*bmlt_float(:,:)
-       S_plume(:,:) = (1.0d0 - relax_TS)*S_plume_old(:,:) + relax_TS*S_plume(:,:)
-       T_plume(:,:) = (1.0d0 - relax_TS)*T_plume_old(:,:) + relax_TS*T_plume(:,:)
-       S_basal(:,:) = (1.0d0 - relax_TS)*S_basal_old(:,:) + relax_TS*S_basal(:,:)
-       T_basal(:,:) = (1.0d0 - relax_TS)*T_basal_old(:,:) + relax_TS*T_basal(:,:)
-!      !TODO - Use freezing relation instead of relaxation parameter?
-       !!     T_basal(i,j) = lambda1*S_basal(i,j) + lambda2 + lambda3*pressure(i,j)
-
        ! Interpolate the plume speed to cell centers (for diagnostics).
 
        do j = nhalo+1, ny-nhalo
@@ -1857,34 +1984,38 @@ contains
           enddo
           print*, 'i, j, max D_plume (m):', imax, jmax, D_plume(imax,jmax)
 
-          !WHL - debug - Find location of max eta
-          ! loop over locally owned cells
-          etamax = 0.0d0
-          do j = nhalo+1, ny-nhalo
-             do i = nhalo+1, nx-nhalo
-                if (eta_plume(i,j) > etamax) then
-                   etamax = eta_plume(i,j)
-                   imax = i
-                   jmax = j
-                endif
-             enddo
-          enddo
-          print*, 'i, j, max(eta_plume):', imax, jmax, eta_plume(imax,jmax)
+          if (free_surface) then
 
-          !WHL - debug - Find location of max change in eta
-          ! loop over locally owned cells
-          detamax = 0.0d0
-          do j = nhalo+1, ny-nhalo
-             do i = nhalo+1, nx-nhalo
-                if (abs(eta_plume(i,j) - eta_plume_old(i,j)) > detamax) then
-                   detamax = abs(eta_plume(i,j) - eta_plume_old(i,j))
-                   imax = i
-                   jmax = j
-                endif
+             !WHL - debug - Find location of max eta
+             ! loop over locally owned cells
+             etamax = 0.0d0
+             do j = nhalo+1, ny-nhalo
+                do i = nhalo+1, nx-nhalo
+                   if (eta_plume(i,j) > etamax) then
+                      etamax = eta_plume(i,j)
+                      imax = i
+                      jmax = j
+                   endif
+                enddo
              enddo
-          enddo
-          print*, 'i, j, old eta, new eta, d_eta:', imax, jmax, eta_plume_old(imax,jmax), &
-               eta_plume(imax,jmax), eta_plume(imax,jmax) - eta_plume_old(imax,jmax)
+             print*, 'i, j, max(eta_plume):', imax, jmax, eta_plume(imax,jmax)
+             
+             !WHL - debug - Find location of max change in eta
+             ! loop over locally owned cells
+             detamax = 0.0d0
+             do j = nhalo+1, ny-nhalo
+                do i = nhalo+1, nx-nhalo
+                   if (abs(eta_plume(i,j) - eta_plume_old(i,j)) > detamax) then
+                      detamax = abs(eta_plume(i,j) - eta_plume_old(i,j))
+                      imax = i
+                      jmax = j
+                   endif
+                enddo
+             enddo
+             print*, 'i, j, old eta, new eta, d_eta:', imax, jmax, eta_plume_old(imax,jmax), &
+                  eta_plume(imax,jmax), eta_plume(imax,jmax) - eta_plume_old(imax,jmax)
+
+          endif   ! free_surface
 
           !WHL - debug - Find location of max melt rate
           ! loop over locally owned cells
@@ -1903,52 +2034,9 @@ contains
        
        endif   ! verbose_continuity
 
-       ! check convergence of melt rate in all grid cells
-       ! if converged, then exit the outer loop
 
-       err_melt = 0.d0
-          
-       do j = 1, ny
-          do i = 1, nx
-             if (abs(bmlt_float(i,j) - bmlt_float_old(i,j)) > err_melt) then
-                err_melt = abs(bmlt_float(i,j) - bmlt_float_old(i,j))
-                imax = i
-                jmax = j
-             endif
-          enddo
-       enddo
-          
-       if (err_melt > maxerr_melt) then
-          
-          print*, ' '
-          print*, 'Melt rate has NOT CONVERGED:'
-          print*, '   iter, time(s), rank, i, j, m_latest, m, err target, errmax (m/yr) =', &
-               iter_melt, time, this_rank, imax, jmax,&
-               bmlt_float_old(imax,jmax)*scyr, bmlt_float(imax,jmax)*scyr, maxerr_melt*scyr, err_melt*scyr
-          converged_melt = .false.
-          
-       else  ! converged; exit the outer loop
-          
-          print*, ' '
-          print*, 'Melt rate has CONVERGED everywhere'
-          print*, '  iter, time(s), rank, i, j, m_latest, m, err target, errmax (m/yr) =', &
-               iter_melt, time, this_rank, imax, jmax, &
-               bmlt_float_old(imax,jmax)*scyr, bmlt_float(imax,jmax)*scyr, maxerr_melt*scyr, err_melt*scyr
-          converged_melt = .true.
-          exit
-       endif
-
-       if (time > time_max) then
-          print*, ' '
-          print*, 'Melt rate has NOT CONVERGED:'
-          print*, '   iter, time(s), rank, i, j, m_latest, m, err target, errmax (m/yr) =', &
-               iter_melt, time, this_rank, imax, jmax,&
-               bmlt_float_old(imax,jmax)*scyr, bmlt_float(imax,jmax)*scyr, maxerr_melt*scyr, err_melt*scyr
-          converged_melt = .false.
-          exit
-       endif
-
-    enddo   ! iter_melt
+    enddo   ! iter_Dplume
+       
        
     ! Compute the final value of eta.
 !    where (plume_mask_cell == 1)
@@ -1963,7 +2051,7 @@ contains
 
     ! Copy u_plume_east and v_plume_north into u_plume_Cgrid and v_plume_Cgrid for output.
     ! Note: v_plume_east and u_plume_north are used internally but are not part of output.
-
+    !TODO - Eliminate the duplicate arrays?
     u_plume_Cgrid(:,:) = u_plume_east(:,:)
     v_plume_Cgrid(:,:) = v_plume_north(:,:)
 
@@ -2131,17 +2219,21 @@ contains
        dx,       dy,        &
        itest, jtest, rtest, &
        plume_mask_cell,     &
-       floating_mask,       &
-       global_bndy_east,    &
-       global_bndy_west,    &
-       global_bndy_north,   &
-       global_bndy_south,   &
+!!       floating_mask,       &
+!!       global_bndy_east,    &
+!!       global_bndy_west,    &
+!!       global_bndy_north,   &
+!!       global_bndy_south,   &
        divu_mask_east,      &
        divu_mask_north,     &
        edge_mask_east,      &
        edge_mask_north,     &
+       edge_mask_east_reduce_v,  &
+       edge_mask_north_reduce_u, &
        free_surface,        &
-       lsrf,                &
+!!       lsrf,                &
+       dlsrf_dx_east,      dlsrf_dy_east,  &
+       dlsrf_dx_north,     dlsrf_dy_north, &
        drho_plume,          &
        D_plume,             &
        eta_plume,           &
@@ -2151,19 +2243,7 @@ contains
        u_plume_north,       &
        v_plume_north,       &
        plume_speed_east,    &
-       plume_speed_north,   &
-       du_deta_west,        &
-       du_deta_east,        &
-       du_deta_northwest,   &
-       du_deta_northeast,   &
-       du_deta_southwest,   &
-       du_deta_southeast,   &
-       dv_deta_south,       &
-       dv_deta_north,       &
-       dv_deta_northwest,   &
-       dv_deta_northeast,   &
-       dv_deta_southwest,   &
-       dv_deta_southeast)
+       plume_speed_north)
 
     use glissade_grid_operators, only: glissade_centered_gradient
 
@@ -2177,22 +2257,30 @@ contains
          itest, jtest, rtest    ! diagnostic indices
 
     integer, dimension(nx,ny), intent(in) ::  &
-         plume_mask_cell,     & ! = 1 for cells where scalar plume variables are computed
-         floating_mask,       & ! = 1 where ice is present and floating, else = 0
-         global_bndy_east,    & ! = 1 along east global boundary, else = 0
-         global_bndy_west,    & ! = 1 along west global boundary, else = 0
-         global_bndy_north,   & ! = 1 along north global boundary, else = 0
-         global_bndy_south,   & ! = 1 along south global boundary, else = 0
-         divu_mask_east,      & ! = 1 on east edges where plume velocity is computed
-         divu_mask_north,     & ! = 1 on north edges where plume velocity is computed
-         edge_mask_east,      & ! like divu_mask_east, but = 0 next to open water
-         edge_mask_north        ! like divu_mask_north, but = 0 next to open water
+         plume_mask_cell,       & ! = 1 for cells where scalar plume variables are computed
+!!         floating_mask,         & ! = 1 where ice is present and floating, else = 0
+!!         global_bndy_east,      & ! = 1 along east global boundary, else = 0
+!!         global_bndy_west,      & ! = 1 along west global boundary, else = 0
+!!         global_bndy_north,     & ! = 1 along north global boundary, else = 0
+!!         global_bndy_south,     & ! = 1 along south global boundary, else = 0
+         edge_mask_east,        & ! = 1 on east edges where plume velocity is computed
+         edge_mask_north,       & ! = 1 on north edges where plume velocity is computed
+         divu_mask_east,        & ! = 1 on east edges where divergence terms are computed
+         divu_mask_north          ! = 1 on north edges where divergence terms are computed
+                           
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         edge_mask_east_reduce_v,  & ! mask for reducing v on east edges adjacent to a wall
+         edge_mask_north_reduce_u    ! mask for reducing u on north edges adjacent to a wall
 
     logical, intent(in) ::  &
          free_surface           ! true if computing PG force due to slope in free surface
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-         lsrf                   ! ice lower surface elevation (m, negative below sea level)
+!!         lsrf,                & ! ice lower surface elevation (m, negative below sea level)
+         dlsrf_dx_east,       & ! horizontal gradient of lsrf on east edges
+         dlsrf_dy_east,       & !
+         dlsrf_dx_north,      & ! horizontal gradient of lsrf on north edges
+         dlsrf_dy_north
 
     !WHL - intent(inout) to allow temporary perturbations
     real(dp), dimension(nx,ny), intent(inout) ::  &
@@ -2216,65 +2304,46 @@ contains
          plume_speed_east,    & ! plume speed on east edges
          plume_speed_north      ! plume speed on north edges
 
-   real(dp), dimension(nx,ny), intent(out) :: &
-         du_deta_west,         & ! dependence of u_east on eta(i,j), west of the velocity point
-         du_deta_east,         & ! dependence of u_east on eta(i+1,j), east of the velocity point
-         du_deta_northwest,    & ! dependence of u_east on eta(i,j+1), northwest of the velocity point
-         du_deta_northeast,    & ! dependence of u_east on eta(i+1,j+1), northeast of the velocity point
-         du_deta_southwest,    & ! dependence of u_east on eta(i,j-1), southwest of the velocity point
-         du_deta_southeast,    & ! dependence of u_east on eta(i+1,j-1), southeast of the velocity point
-         dv_deta_south,        & ! dependence of v_north on eta(i,j), south of the velocity point
-         dv_deta_north,        & ! dependence of v_north on eta(i,j+1), north of the velocity point
-         dv_deta_northwest,    & ! dependence of v_north on eta(i-1,j+1), northwest of the velocity point
-         dv_deta_northeast,    & ! dependence of v_north on eta(i+1,j+1), northeast of the velocity point
-         dv_deta_southwest,    & ! dependence of v_north on eta(i-1,j), southwest of the velocity point
-         dv_deta_southeast       ! dependence of v_north on eta(i+1,j), southeast of the velocity point
-
     ! local variables
 
     real(dp) :: &
-         pgf_x, pgf_y,        & ! components of pressure gradient force (N/m^2)
          deta_plume_dx,       & ! horizontal gradient of eta_plume
          deta_plume_dy
+
+    real(dp), dimension(nx,ny) :: &
+         pgf_x_east,          & ! x component of pressure gradient force on east edges (m^2/s^2)
+         pgf_y_east,          & ! y component of pressure gradient force on east edges (m^2/s^2)
+         pgf_x_north,         & ! x component of pressure gradient force on north edges (m^2/s^2)
+         pgf_y_north            ! y component of pressure gradient force on north edges (m^2/s^2)
+
+    real(dp), dimension(nx,ny) :: &
+         latdrag_x_east,      & ! x component of lateral drag on east edges (m^2/s^2)
+         latdrag_y_east,      & ! y component of lateral drag on east edges (m^2/s^2)
+         latdrag_x_north,     & ! x component of lateral drag on north edges (m^2/s^2)
+         latdrag_y_north        ! y component of lateral drag on north edges (m^2/s^2)
 
     real(dp), dimension(nx,ny) :: &
          D_plume_east,        & ! D_plume averaged to east edge
          D_plume_north,       & ! D_plume averaged to north edge
          grav_reduced_east,   & ! reduced gravity on east edge
-         grav_reduced_north,  & ! reduced gravity on north edge
-         dlsrf_dx_east,       & ! horizontal gradient of lsrf on east edges
-         dlsrf_dy_east,       & !
-         dlsrf_dx_north,      & ! horizontal gradient of lsrf on north edges
-         dlsrf_dy_north
+         grav_reduced_north     ! reduced gravity on north edge
 
     integer :: i, j
 
-    !WHL - debug
-    real(dp), dimension(nx,ny) :: &
-         D_plume_cap             ! min(D_plume, H_cavity)
+    integer ::  &
+         iter_velo              ! iteration counter
 
-    real(dp) :: &
-         u_plume_perturbed,    &
-         v_plume_perturbed
-         
-    real(dp), parameter :: &
-         delta_eta_plume = 1.e-6   ! small perturbation in eta_plume (m)
+    character(len=100) :: message
 
-    ! compute u and v on east cell edges
-    if (main_task) then
-       print*, ' '
-       print*, 'compute east edge velocities: r, i, j =', rtest, itest, jtest
-    endif
-    
-    ! Compute the horizontal gradient of the lower ice surface.
-    ! This is used in the computation of the pressure gradient force at velocity points.
-    ! Note: There are a couple of different ways to compute the PGF.
-    !       (1) Jenkins et al. (1991) and HJH (2008) use grad(lsrf)
-    !       (2) Holland & Feltham (2006) use grad(lsrf_plume) along with a density gradient.
-    !       Method (1) is simpler and has the advantage that grad(lsrf) does not vary during plume evolution,
-    !        making the PGF more stable (though possibly not as accurate).
-    ! Note: The first 'lsrf' is a required argument for the subroutine.
-    !       The second 'lsrf' just happens to be the field whose gradient we're computing.
+    logical, dimension(nx,ny) ::  &
+         converged_velo_east, & ! true when velocity has converged at an east edge, else false
+         converged_velo_north   ! true when velocity has converged at a north edge, else false
+
+    logical :: &
+         converged_all_velo     ! true when velocity has converged at all edges, else false
+
+    integer, parameter ::  &
+         maxiter_velo = 100     ! max number of iterations of velocity loop
 
     ! initialize
     D_plume_east(:,:) = 0.0d0
@@ -2283,27 +2352,25 @@ contains
     grav_reduced_east(:,:) = 0.0d0
     grav_reduced_north(:,:) = 0.0d0
 
-    call compute_edge_gradients(&
-         nx,              ny,          &
-         dx,              dy,          &
-         global_bndy_east,             &
-         global_bndy_west,             &
-         global_bndy_north,            &
-         global_bndy_south,            &
-         plume_mask_cell,              &
-         floating_mask,                &
-         lsrf,                         &
-         lsrf,                         &
-         dlsrf_dx_east,      dlsrf_dy_east,  &
-         dlsrf_dx_north,     dlsrf_dy_north)
-    
-    ! Compute capped plume thickness = min(D_plume, H_cavity)
-    D_plume_cap(:,:) = min(D_plume(:,:), H_cavity(:,:))
+    ! Note: There are a couple of different ways to compute the PGF.
+    !       (1) Jenkins et al. (1991) and HJH (2008) use grad(lsrf)
+    !       (2) Holland & Feltham (2006) use grad(lsrf_plume) along with a density gradient.
+    !       Method (1) is simpler and has the advantage that grad(lsrf) does not vary during plume evolution,
+    !        making the PGF more stable (though possibly not as accurate).
 
-    ! Compute the pressure gradient force on each east edge
+    ! Compute the pressure gradient force on each edge
 
+    pgf_x_east(:,:) = 0.0d0
+    pgf_y_east(:,:) = 0.0d0
+    pgf_x_north(:,:) = 0.0d0
+    pgf_y_north(:,:) = 0.0d0
+
+    !TODO - Use edge_mask_east instead?
+    !       Maybe divu_mask_east is correct, since I stopped extrapolating, but should be called edge_mask_east.
     do j = nhalo, ny-nhalo
        do i = nhalo, nx-nhalo
+
+          ! PGF on east edge
           if (divu_mask_east(i,j) == 1) then
              
              ! Compute horizontal pressure gradient force, not including the free-surface term.
@@ -2313,11 +2380,11 @@ contains
              ! The y derivatives are averaged from the neighboring vertices.
              ! Note: D_plume = 0 and drho_plume = 0 where plume_mask_cell = 0.
 
-             D_plume_east(i,j) = (D_plume_cap(i,j) + D_plume_cap(i+1,j)) / 2.0d0
+             D_plume_east(i,j) = (D_plume(i,j) + D_plume(i+1,j)) / 2.0d0
              grav_reduced_east(i,j) = (grav/rhoo) * (drho_plume(i,j) + drho_plume(i+1,j)) / 2.0d0
              
-             pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j)
-             pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j)
+             pgf_x_east(i,j) = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j)
+             pgf_y_east(i,j) = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j)
              
              !WHL - debug
              if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
@@ -2347,40 +2414,22 @@ contains
 !                                            + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
 !                                            + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
                 
-                pgf_x = pgf_x - grav * D_plume_east(i,j) * deta_plume_dx
-                pgf_y = pgf_y - grav * D_plume_east(i,j) * deta_plume_dy
+                pgf_x_east(i,j) = pgf_x_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
+                pgf_y_east(i,j) = pgf_y_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
 
                 if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                    print*, 'deta_dx, deta_dy =', deta_plume_dx, deta_plume_dy
                    print*, 'xterm 2, yterm 2:', -grav * D_plume_east(i,j) * deta_plume_dx, &
                                                 -grav * D_plume_east(i,j) * deta_plume_dy
-                   print*, 'pgf x/y at east edge:', pgf_x, pgf_y
+                   print*, 'pgf x/y at east edge:', pgf_x_east(i,j), pgf_y_east(i,j)
                 endif
 
-             endif
-             
-             call compute_local_velocity(&
-                  i, j,                    &   ! diagnostic only
-                  itest, jtest, rtest,     &   ! diagnostic only
-                  D_plume_east(i,j),       &
-                  pgf_x,                   &
-                  pgf_y,                   &
-                  u_plume_east(i,j),       &
-                  v_plume_east(i,j))
+             endif  ! free_surface
              
           endif   ! divu_mask_east
-       enddo  ! i
-    enddo  ! j
-    
 
-    ! compute u and v on north cell edges
-    if (main_task) then
-       print*, ' '
-       print*, 'compute north edge velocities'
-    endif
-    
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+
+          ! PGF on north edge
           if (divu_mask_north(i,j) == 1) then
              
              ! Compute horizontal pressure gradient force, not including the free-surface term
@@ -2389,11 +2438,11 @@ contains
              !  to preserve the advantages of a C grid.
              ! The x derivatives are averaged from the neighboring vertices.
              
-             D_plume_north(i,j) = (D_plume_cap(i,j) + D_plume_cap(i,j+1)) / 2.0d0
+             D_plume_north(i,j) = (D_plume(i,j) + D_plume(i,j+1)) / 2.0d0
              grav_reduced_north(i,j) = (grav/rhoo) * (drho_plume(i,j) + drho_plume(i,j+1)) / 2.0d0
              
-             pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j)
-             pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j)
+             pgf_x_north(i,j) = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j)
+             pgf_y_north(i,j) = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j)
 
              !WHL - debug
              if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
@@ -2419,44 +2468,266 @@ contains
 
                 deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
                 
-                pgf_x = pgf_x - grav * D_plume_north(i,j) * deta_plume_dx
-                pgf_y = pgf_y - grav * D_plume_north(i,j) * deta_plume_dy
+                pgf_x_north(i,j) = pgf_x_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
+                pgf_y_north(i,j) = pgf_y_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
 
                 if (verbose_velo .and. i==itest .and. j==jtest) then
                    print*, ' '
                    print*, 'deta_dx, deta_dy:', deta_plume_dx, deta_plume_dy
                    print*, 'xterm 2, yterm 2:', -grav * D_plume_north(i,j) * deta_plume_dx, &
                                                 -grav * D_plume_north(i,j) * deta_plume_dy
-                   print*, 'pgf x/y at north edge:', pgf_x, pgf_y
+                   print*, 'pgf x/y at north edge:', pgf_x_north(i,j), pgf_y_north(i,j)
                 endif
                 
              endif
              
-             call compute_local_velocity(&
-                  i, j,                    &   ! diagnostic only
-                  itest, jtest, rtest,     &   ! diagnostic only
-                  D_plume_north(i,j),      &
-                  pgf_x,                   &
-                  pgf_y,                   &
-                  u_plume_north(i,j),      &
-                  v_plume_north(i,j))
-             
           endif   ! divu_mask_north
+
        enddo  ! i
     enddo  ! j
 
-    !WHL - With new code, the velocity should be computed at these edges, and not extrapolated.
-    !      Extrapolation can make it hard to have divergence/convergence. 
+    ! initialize other fields
+    latdrag_x_east(:,:) = 0.0d0
+    latdrag_y_east(:,:) = 0.0d0
+    latdrag_x_north(:,:) = 0.0d0
+    latdrag_y_north(:,:) = 0.0d0
 
-    ! Extrapolate the velocity to open edges (plume on one side, open water on the other)
-    !  This extrapolation is not expected to be accurate, but it prevents large convergence
-    !  in cells adjacent to water.
-    ! If the plume exists on neither side of the edge, the velocity remains set to zero.
-    ! Also, u_plume_east = 0 on global E and W boundaries, and v_plume_north = 0 on global N and S boundaries.
-    !  This prevents outflow through domain walls.
-    !  Along the upper ("northern") boundary of the ISOMIP+ domain, the flow is forced to form an eastward jet. 
+    converged_velo_east(:,:) = .false.
+    converged_velo_north(:,:) = .false.
 
-    !TODO - Are global_bndy masks needed here? Wondering if we can avoid passing in 4 global_bndy fields.
+    ! Iterate as needed to compute a converged velocity at each edge
+
+    do iter_velo = 1, maxiter_velo
+
+       !WHL - debug
+       print*, ' '
+       print*, 'iter_velo =', iter_velo
+
+       ! Compute velocity on east edges
+
+       if (main_task) then
+          print*, ' '
+          print*, 'compute east edge velocities: r, i, j =', rtest, itest, jtest
+       endif
+
+       call compute_velocity(&
+            nx,    ny,               &
+            itest, jtest, rtest,     &   ! diagnostic only
+            edge_mask_east,          &
+            D_plume_east,            &
+            pgf_x_east,              &
+            pgf_y_east,              &
+            latdrag_x_east,          &
+            latdrag_y_east,          &
+            u_plume_east,            &
+            v_plume_east,            &
+            converged_velo_east,     &
+            edge_mask_east_reduce_v = edge_mask_east_reduce_v)
+
+       ! Compute velocity on north edges
+
+       if (main_task) then
+          print*, ' '
+          print*, 'compute north edge velocities'
+       endif
+    
+       call compute_velocity(&
+            nx,    ny,                  &
+            itest, jtest, rtest,        &   ! diagnostic only
+            edge_mask_north,            &
+            D_plume_north,              &
+            pgf_x_north,                &
+            pgf_y_north,                &
+            latdrag_x_north,            &
+            latdrag_y_north,            &
+            u_plume_north,              &
+            v_plume_north,              &
+            converged_velo_north,       &
+            edge_mask_north_reduce_u = edge_mask_north_reduce_u)
+
+       ! check for convergence in all cells
+
+       converged_all_velo = .true.
+
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (edge_mask_east(i,j) == 1 .and. .not.converged_velo_east(i,j) ) then
+                converged_all_velo = .false.
+             endif
+             if (edge_mask_north(i,j) == 1 .and. .not.converged_velo_north(i,j) ) then
+                converged_all_velo = .false.
+             endif
+          enddo
+       enddo
+
+       if (converged_all_velo) then
+          exit   ! iter_velo loop
+       elseif (iter_velo == maxiter_velo) then
+          write(message,*) 'Error, glissade_plume: velocity has not converged, iter_velo =', iter_velo
+          call write_log(message, GM_FATAL)
+       endif
+       
+    enddo  ! iter_velo
+    
+    !TODO - Now that the velocity has converged without lateral drag, try adding the lateral drag
+    !       terms and recomputing the velocity. Not sure how to do this stably.
+
+       !WHL - debug
+       if (verbose_velo .and. main_task .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'Computed new velocity'
+          print*, ' '
+
+          print*, ' '
+          print*, 'pgf_x_east:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') pgf_x_east(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'pgf_y_east:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') pgf_y_east(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'pgf_x_north:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') pgf_x_north(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       
+          print*, ' '
+          print*, 'pgf_y_north:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') pgf_y_north(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'u_plume_east:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') u_plume_east(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'v_plume_east:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') v_plume_east(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'u_plume_north:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') u_plume_north(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'v_plume_north:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') v_plume_north(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+       endif          
+
+       ! Compute the lateral drag term based on the current guess for the velocity
+
+       call compute_lateral_drag(&
+            nx,         ny,      &
+            dx,         dy,      &
+            itest, jtest, rtest, &
+            edge_mask_east,      &  !TODO - divu_mask or edge_mask?
+            edge_mask_north,     &
+            plume_mask_cell,     &
+            D_plume,             &
+            u_plume_east,        &
+            v_plume_east,        &
+            u_plume_north,       &
+            v_plume_north,       &
+            latdrag_x_east,      &
+            latdrag_y_east,      &
+            latdrag_x_north,     &
+            latdrag_y_north)
+
+       if (verbose_velo .and. main_task .and. this_rank==rtest) then
+
+          print*, ' '
+          print*, 'Computed lateral drag terms'
+          print*, ' '
+          
+          print*, ' '
+          print*, 'latdrag_x_east:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') latdrag_x_east(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'latdrag_y_east:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') latdrag_y_east(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'latdrag_x_north:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') latdrag_x_north(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
+          print*, 'latdrag_y_north:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.6)',advance='no') latdrag_y_north(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+       endif  ! verbose_velo
+
+
+       !WHL - With new code, the velocity should be computed at these edges, and not extrapolated.
+       !      Extrapolation can make it hard to have divergence/convergence. 
+
+       ! Extrapolate the velocity to open edges (plume on one side, open water on the other)
+       !  This extrapolation is not expected to be accurate, but it prevents large convergence
+       !  in cells adjacent to water.
+       ! If the plume exists on neither side of the edge, the velocity remains set to zero.
+       ! Also, u_plume_east = 0 on global E and W boundaries, and v_plume_north = 0 on global N and S boundaries.
+       !  This prevents outflow through domain walls.
+       !  Along the upper ("northern") boundary of the ISOMIP+ domain, the flow is forced to form an eastward jet. 
+
+       !TODO - Are global_bndy masks needed here? Wondering if we can avoid passing in 4 global_bndy fields.
 
 !    do j = nhalo, ny-nhalo
 !       do i = nhalo, nx-nhalo
@@ -2498,901 +2769,29 @@ contains
        enddo   ! i
     enddo   ! j
 
-    !WHL - debug
-    ! Estimate terms in the Jacobian matrices du/deta and dv_eta
-
-    call compute_velocity_jacobian(&
-         nx,           ny,    &
-         dx,           dy,    &
-         itest, jtest, rtest, &
-         plume_mask_cell,     &
-         divu_mask_east,      &
-         divu_mask_north,     &
-         edge_mask_east,      &
-         edge_mask_north,     &
-         D_plume,             &
-         H_cavity,            &
-         D_plume_east,        &
-         D_plume_north,       &
-         grav_reduced_east,   &
-         grav_reduced_north,  &
-         dlsrf_dx_east,       &
-         dlsrf_dy_east,       &
-         dlsrf_dx_north,      &
-         dlsrf_dy_north,      &
-         u_plume_east,        &
-         v_plume_north,       &
-         du_deta_west,        &
-         du_deta_east,        &
-         du_deta_northwest,   &
-         du_deta_northeast,   &
-         du_deta_southwest,   &
-         du_deta_southeast,   &
-         dv_deta_south,       &
-         dv_deta_north,       &
-         dv_deta_northwest,   &
-         dv_deta_northeast,   &
-         dv_deta_southwest,   &
-         dv_deta_southeast)
-
   end subroutine compute_plume_velocity
 
 !****************************************************
 
-  !WHL TODO - Remove this subroutine if the new method works
-
-  subroutine compute_velocity_jacobian(&
-       nx,           ny,    &
-       dx,           dy,    &
-       itest, jtest, rtest, &
-       plume_mask_cell,     &
-       divu_mask_east,      &
-       divu_mask_north,     &
-       edge_mask_east,      &
-       edge_mask_north,     &
-       D_plume,             &
-       H_cavity,            &
-       D_plume_east,        &
-       D_plume_north,       &
-       grav_reduced_east,   &
-       grav_reduced_north,  &
-       dlsrf_dx_east,       &
-       dlsrf_dy_east,       &
-       dlsrf_dx_north,      &
-       dlsrf_dy_north,      &
-       u_plume_east,        &
-       v_plume_north,       &
-       du_deta_west,        &
-       du_deta_east,        &
-       du_deta_northwest,   &
-       du_deta_northeast,   &
-       du_deta_southwest,   &
-       du_deta_southeast,   &
-       dv_deta_south,       &
-       dv_deta_north,       &
-       dv_deta_northwest,   &
-       dv_deta_northeast,   &
-       dv_deta_southwest,   &
-       dv_deta_southeast)
-    
-    integer, intent(in) ::  &
-         nx,     ny             ! number of grid cells in each dimension
-    
-    real(dp), intent(in) ::  &
-         dx,     dy             ! grid cell size (m)
-
-    integer, intent(in) :: &
-         itest, jtest, rtest    ! diagnostic indices
-
-    integer, dimension(nx,ny), intent(in) ::  & 
-         plume_mask_cell,     & ! = 1 for cells where scalar plume variables are computed
-         divu_mask_east,      & ! = 1 on east edges where plume velocity is computed
-         divu_mask_north,     & ! = 1 on north edges where plume velocity is computed
-         edge_mask_east,      & ! = 1 on east edges with plume cells on each side
-         edge_mask_north        ! = 1 on north edges with plume cels on each side
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         D_plume_east,        & ! D_plume averaged to east edge
-         D_plume_north,       & ! D_plume averaged to north edge
-         grav_reduced_east,   & ! reduced gravity on east edge
-         grav_reduced_north,  & ! reduced gravity on north edge
-         dlsrf_dx_east,       & ! horizontal gradient of lsrf on east edges
-         dlsrf_dy_east,       & !
-         dlsrf_dx_north,      & ! horizontal gradient of lsrf on north edges
-         dlsrf_dy_north,      & !
-         H_cavity,            & ! thickness of ocean cavity beneath the plume (m)
-         u_plume_east,        & ! u_plume on east edges
-         v_plume_north          ! v_plume on north edges
-
-    !WHL - intent(inout) to allow temporary perturbations
-    real(dp), dimension(nx,ny), intent(inout) ::  &
-         D_plume                ! plume thickness
-
-   real(dp), dimension(nx,ny), intent(out) :: &
-         du_deta_west,         & ! dependence of u_east on eta(i,j), west of the velocity point
-         du_deta_east,         & ! dependence of u_east on eta(i+1,j), east of the velocity point
-         du_deta_northwest,    & ! dependence of u_east on eta(i,j+1), northwest of the velocity point
-         du_deta_northeast,    & ! dependence of u_east on eta(i+1,j+1), northeast of the velocity point
-         du_deta_southwest,    & ! dependence of u_east on eta(i,j-1), southwest of the velocity point
-         du_deta_southeast,    & ! dependence of u_east on eta(i+1,j-1), southeast of the velocity point
-         dv_deta_south,        & ! dependence of v_north on eta(i,j), south of the velocity point
-         dv_deta_north,        & ! dependence of v_north on eta(i,j+1), north of the velocity point
-         dv_deta_northwest,    & ! dependence of v_north on eta(i-1,j+1), northwest of the velocity point
-         dv_deta_northeast,    & ! dependence of v_north on eta(i+1,j+1), northeast of the velocity point
-         dv_deta_southwest,    & ! dependence of v_north on eta(i-1,j), southwest of the velocity point
-         dv_deta_southeast       ! dependence of v_north on eta(i+1,j), southeast of the velocity point
-
-    ! local variables
-
-    integer :: i, j
-    integer :: i_perturb, j_perturb
-
-    real(dp) :: &
-         deta_plume_dx, deta_plume_dy,      &
-         pgf_x, pgf_y,                      &
-         u_plume_perturb, v_plume_perturb
-
-    real, dimension(nx,ny)  ::  &
-         eta_plume              ! free surface (m), D_plume - H_cavity
-
-    real(dp), parameter ::  &
-         delta_eta_plume = 1.0d-6, & ! small perturbation (m)
-         delta_D_plume = 1.0d-6      ! small perturbation (m)
-
-    !WHL - debug
-    real(dp) :: du_deta_temp
-
-    ! initialize
-    eta_plume(:,:) = max(D_plume(:,:) - H_cavity(:,:), 0.0d0)
-
-    du_deta_west(:,:) = 0.0d0
-    du_deta_east(:,:) = 0.0d0
-    du_deta_northwest(:,:) = 0.0d0
-    du_deta_northeast(:,:) = 0.0d0
-    du_deta_southwest(:,:) = 0.0d0
-    du_deta_southeast(:,:) = 0.0d0
-    dv_deta_south(:,:) = 0.0d0
-    dv_deta_north(:,:) = 0.0d0
-    dv_deta_northwest(:,:) = 0.0d0
-    dv_deta_northeast(:,:) = 0.0d0
-    dv_deta_southwest(:,:) = 0.0d0
-    dv_deta_southeast(:,:) = 0.0d0
-
-    ! Estimate terms in the Jacobian matrices du/deta and dv_eta
-    !TODO - Streamline this calculation so that calls to compute_local_velocity are in a loop
-    !       Also precompute and save some arrays (e.g., pgf_x, pgf_y) to avoid extra computations.
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
-
-          ! Compute dependencies du/deta for u_plume_east
-
-          if (divu_mask_east(i,j) == 1) then
-
-             ! dependence of u_plume_east on eta(i,j)
-             if (plume_mask_cell(i,j) == 1) then
-
-                if (D_plume(i,j) >= H_cavity(i,j)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i,j)'
-                      print*, 'delta pgf_x =', grav * D_plume_east(i,j) * delta_eta_plume/dx
-                   endif
-
-                   eta_plume(i,j) = eta_plume(i,j) + delta_eta_plume  ! temporary increase
-
-                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * edge_mask_north(i,j)    &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_north(i,j-1)  &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
-                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
-                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_east(i,j),       &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,       &
-                        v_plume_perturb)
-
-                   eta_plume(i,j) = eta_plume(i,j) - delta_eta_plume  ! revert to original value
-                   du_deta_west(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_eta_plume
-
-                else   ! D_plume < H_cavity; eta_plume = 0
-
-!                   if (i==itest .and. j==jtest) then
-!                      print*, ' '
-!                      print*, 'Perturb D_plume(i,j)'
-!                   endif
-
-                   ! Adjust pgf_x for a small increase in D_plume, leading to an increased gradient in the lower plume surface.
-                   ! Note: No adjustment to pgf_y for now.  This adjustment will be small except possibly at plume boundaries. 
-!                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-!                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * (dlsrf_dx_east(i,j) + delta_D_plume/dx) &
-!                         - grav * D_plume_east(i,j) * deta_plume_dx
-!                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-!                   call compute_local_velocity(&
-!                        i, j,                    &   ! diagnostic only
-!                        itest, jtest, rtest,     &   ! diagnostic only
-!                        D_plume_east(i,j),       &
-!                        pgf_x,                   &
-!                        pgf_y,                   &
-!                        u_plume_perturb,       &
-!                        v_plume_perturb)
-
-!                   du_deta_west(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_D_plume
-
-                endif   ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, u_east, u_east_perturb, du_deta_west:', &
-                        i, j, eta_plume(i,j), u_plume_east(i,j), u_plume_perturb, du_deta_west(i,j)
-                endif
-
-             endif  ! plume_mask_cell = 1
-
-             ! dependence of u_plume_east on eta(i+1,j)
-             if (plume_mask_cell(i+1,j) == 1) then
-
-                if (D_plume(i+1,j) >= H_cavity(i+1,j)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i+1,j)'
-                      print*, 'delta pgf_x =', grav * D_plume_east(i,j) * delta_eta_plume/dx
-                   endif
-
-                   eta_plume(i+1,j) = eta_plume(i+1,j) + delta_eta_plume  ! temporary increase
-
-                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * edge_mask_north(i,j)    &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_north(i,j-1)  &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
-                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
-                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-                   
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_east(i,j),       &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-                   
-                   eta_plume(i+1,j) = eta_plume(i+1,j) - delta_eta_plume  ! revert to original value
-                   
-                   du_deta_east(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_eta_plume
-
-                else  ! D_plume < H_cavity
-
-!                   if (i==itest .and. j==jtest) then
-!                      print*, ' '
-!                      print*, 'Perturb D_plume(i+1,j)'
-!                      print*, 'delta pgf_x =', grav_reduced_east(i,j) * D_plume_east(i,j) * delta_D_plume/dx
-!                   endif
-
-                   ! Adjust pgf_x for a small increase in D_plume(i+1,j), leading to a decreased gradient in the plume surface.
-                   ! Note: No adjustment to pgf_y for now.  This adjustment will be small except possibly at plume boundaries. 
-!                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-
-!                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * (dlsrf_dx_east(i,j) - delta_D_plume/dx) &
-!                         - grav * D_plume_east(i,j) * deta_plume_dx
-!                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-!                   call compute_local_velocity(&
-!                        i, j,                    &   ! diagnostic only
-!                        itest, jtest, rtest,     &   ! diagnostic only
-!                        D_plume_east(i,j),       &
-!                        pgf_x,                   &
-!                        pgf_y,                   &
-!                        u_plume_perturb,         &
-!                        v_plume_perturb)
-
-!                   du_deta_east(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_D_plume
-
-                endif  ! D_plume >= H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, u_east, u_east_perturb, du_deta_east:', &
-                        i, j, eta_plume(i+1,j), u_plume_east(i,j), u_plume_perturb, du_deta_east(i,j)
-                endif
-                
-             endif  ! plume_mask_cell = 1
-
-             ! dependence of u_plume_east on eta(i,j+1)
-             if (plume_mask_cell(i,j+1) == 1) then
-
-                if (D_plume(i,j+1) >= H_cavity(i,j+1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i,j+1)'
-                   endif
-
-                   eta_plume(i,j+1) = eta_plume(i,j+1) + delta_eta_plume  ! temporary increase
-
-                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * edge_mask_north(i,j)    &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_north(i,j-1)  &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
-                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
-                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_east(i,j),       &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,       &
-                        v_plume_perturb)
-
-                   eta_plume(i,j+1) = eta_plume(i,j+1) - delta_eta_plume  ! revert to original value
-                   du_deta_northwest(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_eta_plume
-
-                else  ! do nothing for now; ignore dependence on D
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, u_east, u_east_perturb, du_deta_northwest:', &
-                        i, j, eta_plume(i,j+1), u_plume_east(i,j), u_plume_perturb, du_deta_northwest(i,j)
-                endif
-
-             endif  ! plume_mask_cell = 1
-
-             ! dependence of u_plume_east on eta(i+1,j+1)
-             if (plume_mask_cell(i+1,j+1) == 1) then
-
-                if (D_plume(i+1,j+1) >= H_cavity(i+1,j+1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i+1,j+1)'
-                   endif
-
-                   eta_plume(i+1,j+1) = eta_plume(i+1,j+1) + delta_eta_plume  ! temporary increase
-
-                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * edge_mask_north(i,j)    &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_north(i,j-1)  &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
-                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
-                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_east(i,j),       &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,       &
-                        v_plume_perturb)
-
-                   eta_plume(i+1,j+1) = eta_plume(i+1,j+1) - delta_eta_plume  ! revert to original value
-                   du_deta_northeast(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_eta_plume
-
-                else  ! do nothing for now; ignore dependence on D
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, u_east, u_east_perturb, du_deta_northeast:', &
-                        i, j, eta_plume(i+1,j+1), u_plume_east(i,j), u_plume_perturb, du_deta_northeast(i,j)
-                endif
-
-             endif  ! plume_mask_cell = 1
-
-             ! dependence of u_plume_east on eta(i,j-1)
-             if (plume_mask_cell(i,j-1) == 1) then
-
-                if (D_plume(i,j-1) >= H_cavity(i,j-1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i,j-1)'
-                   endif
-
-                   eta_plume(i,j-1) = eta_plume(i,j-1) + delta_eta_plume  ! temporary increase
-
-                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * edge_mask_north(i,j)    &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_north(i,j-1)  &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
-                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
-                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_east(i,j),       &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,       &
-                        v_plume_perturb)
-
-                   eta_plume(i,j-1) = eta_plume(i,j-1) - delta_eta_plume  ! revert to original value
-                   du_deta_southwest(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_eta_plume
-
-                else  ! do nothing for now; ignore dependence on D
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, u_east, u_east_perturb, du_deta_southwest:', &
-                        i, j, eta_plume(i,j-1), u_plume_east(i,j), u_plume_perturb, du_deta_southwest(i,j)
-                endif
-
-             endif  ! plume_mask_cell = 1
-
-             ! dependence of u_plume_east on eta(i+1,j-1)
-             if (plume_mask_cell(i+1,j-1) == 1) then
-
-                if (D_plume(i+1,j-1) >= H_cavity(i+1,j-1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i+1,j-1)'
-                   endif
-
-                   eta_plume(i+1,j-1) = eta_plume(i+1,j-1) + delta_eta_plume  ! temporary increase
-
-                   deta_plume_dx = (eta_plume(i+1,j) - eta_plume(i,j)) / dx
-!                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * divu_mask_north(i,j)    &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_north(i,j-1)  &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * divu_mask_north(i+1,j)  &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * divu_mask_north(i+1,j-1) )
-                   deta_plume_dy = 0.25d0/dy * ( (eta_plume(i,j+1)   - eta_plume(i,j))     * edge_mask_north(i,j)    &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_north(i,j-1)  &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i+1,j))   * edge_mask_north(i+1,j)  &
-                                               + (eta_plume(i+1,j)   - eta_plume(i+1,j-1)) * edge_mask_north(i+1,j-1) )
-                   pgf_x = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dx_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_east(i,j) * D_plume_east(i,j) * dlsrf_dy_east(i,j) - grav * D_plume_east(i,j) * deta_plume_dy
-
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_east(i,j),       &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,       &
-                        v_plume_perturb)
-
-                   eta_plume(i+1,j-1) = eta_plume(i+1,j-1) - delta_eta_plume  ! revert to original value
-                   du_deta_southeast(i,j) = (u_plume_perturb - u_plume_east(i,j)) / delta_eta_plume
-
-                else  ! do nothing for now; ignore dependence on D
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, u_east, u_east_perturb, du_deta_southeast:', &
-                        i, j, eta_plume(i+1,j-1), u_plume_east(i,j), u_plume_perturb, du_deta_southeast(i,j)
-                endif
-
-             endif  ! plume_mask_cell = 1
-
-          endif  ! divu_mask_east = 1
-
-
-          ! Compute dependencies dv/deta for v_plume_north
-
-          if (divu_mask_north(i,j) == 1) then
-
-             ! dependence of v_plume_north on eta(i,j)
-             if (plume_mask_cell(i,j) == 1) then
-
-                if (D_plume(i,j) >= H_cavity(i,j)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i,j)'
-                   endif
-
-                   eta_plume(i,j) = eta_plume(i,j) + delta_eta_plume  ! temporary increase
-
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * edge_mask_east(i-1,j+1) &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * edge_mask_east(i,j+1)   &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_east(i-1,j)   &
-                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * edge_mask_east(i,j) )
-                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-                
-                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
-                   
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_north(i,j),      &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-                   
-                   eta_plume(i,j) = eta_plume(i,j) - delta_eta_plume  ! revert to original value
-                   dv_deta_south(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_eta_plume
-                   
-                else  ! D_plume < H_cavity
-
-!                   if (i==itest .and. j==jtest) then
-!                      print*, ' '
-!                      print*, 'Perturb D_plume(i,j)'
-!                   endif
-
-                   ! Adjust pgf_y for a small increase in D_plume(i,j), leading to an increased gradient in the plume surface.
-                   ! Note: No adjustment to pgf_x for now.  This adjustment will be small except possibly at plume boundaries. 
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-!                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-
-!                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-!                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * (dlsrf_dy_north(i,j) + delta_D_plume/dy) &
-!                         - grav * D_plume_north(i,j) * deta_plume_dy
-
-!                   call compute_local_velocity(&
-!                        i, j,                    &   ! diagnostic only
-!                        itest, jtest, rtest,     &   ! diagnostic only
-!                        D_plume_north(i,j),      &
-!                        pgf_x,                   &
-!                        pgf_y,                   &
-!                        u_plume_perturb,         &
-!                        v_plume_perturb)
-
-!                   dv_deta_south(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_D_plume
-
-                endif  ! D_plume >= H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, v_north, v_north_perturb, eta, dv_deta_south:', &
-                        i, j, eta_plume(i,j), v_plume_north(i,j), v_plume_perturb, dv_deta_south(i,j)
-                endif
-
-             endif  ! plume_mask_cell
-
-             ! dependence of v_plume_north on eta(i,j+1)
-             if (plume_mask_cell(i,j+1) == 1) then
-
-                if (D_plume(i,j+1) >= H_cavity(i,j+1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i,j+1)'
-                   endif
-
-                   eta_plume(i,j+1) = eta_plume(i,j+1) + delta_eta_plume  ! temporary increase
-
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * edge_mask_east(i-1,j+1) &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * edge_mask_east(i,j+1)   &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_east(i-1,j)   &
-                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * edge_mask_east(i,j) )
-                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-                
-                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
-
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_north(i,j),      &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-
-                   eta_plume(i,j+1) = eta_plume(i,j+1) - delta_eta_plume  ! revert to original value
-
-                   dv_deta_north(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_eta_plume
-
-                else  ! D_plume < H_cavity
-
-!                   if (i==itest .and. j==jtest) then
-!                      print*, ' '
-!                      print*, 'Perturb D_plume(i,j+1)'
-!                   endif
-
-                   ! Adjust pgf_y for a small increase in D_plume(i,j+1), leading to a decreased gradient in the plume surface.
-                   ! Note: No adjustment to pgf_x for now.  This adjustment will be small except possibly at plume boundaries. 
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-!                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-
-!                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-!                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * (dlsrf_dy_north(i,j) - delta_D_plume/dy) &
-!                         - grav * D_plume_north(i,j) * deta_plume_dy
-
-!                   call compute_local_velocity(&
-!                        i, j,                    &   ! diagnostic only
-!                        itest, jtest, rtest,     &   ! diagnostic only
-!                        D_plume_north(i,j),      &
-!                        pgf_x,                   &
-!                        pgf_y,                   &
-!                        u_plume_perturb,         &
-!                        v_plume_perturb)
-
-!                   dv_deta_north(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_D_plume
-                   
-                endif  ! D_plume >= H_cavity
-       
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, v_north, v_north_perturb, dv_deta_north:', &
-                        i, j, eta_plume(i,j+1), v_plume_north(i,j), v_plume_perturb, dv_deta_north(i,j)
-                endif
-
-             endif  ! plume_mask_cell
-
-             ! dependence of v_plume_north on eta(i-1,j)
-             if (plume_mask_cell(i-1,j) == 1) then
-
-                if (D_plume(i-1,j) >= H_cavity(i-1,j)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i-1,j)'
-                   endif
-
-                   eta_plume(i-1,j) = eta_plume(i-1,j) + delta_eta_plume  ! temporary increase
-
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * edge_mask_east(i-1,j+1) &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * edge_mask_east(i,j+1)   &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_east(i-1,j)   &
-                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * edge_mask_east(i,j) )
-                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-                
-                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
-                   
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_north(i,j),      &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-                   
-                   eta_plume(i-1,j) = eta_plume(i-1,j) - delta_eta_plume  ! revert to original value
-                   dv_deta_southwest(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_eta_plume
-                   
-                else  ! D_plume < H_cavity; do nothing
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, v_north, v_north_perturb, dv_deta_southwest:', &
-                        i, j, eta_plume(i-1,j), v_plume_north(i,j), v_plume_perturb, dv_deta_southwest(i,j)
-                endif
-
-             endif  ! plume_mask_cell
-
-             ! dependence of v_plume_north on eta(i-1,j+1)
-             if (plume_mask_cell(i-1,j+1) == 1) then
-
-                if (D_plume(i-1,j+1) >= H_cavity(i-1,j+1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i-1,j+1)'
-                   endif
-
-                   eta_plume(i-1,j+1) = eta_plume(i-1,j+1) + delta_eta_plume  ! temporary increase
-
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * edge_mask_east(i-1,j+1) &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * edge_mask_east(i,j+1)   &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_east(i-1,j)   &
-                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * edge_mask_east(i,j) )
-                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-                
-                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
-                   
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_north(i,j),      &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-                   
-                   eta_plume(i-1,j+1) = eta_plume(i-1,j+1) - delta_eta_plume  ! revert to original value
-                   dv_deta_northwest(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_eta_plume
-                   
-                else  ! D_plume < H_cavity; do nothing
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, v_north, v_north_perturb, dv_deta_northwest:', &
-                        i, j, eta_plume(i-1,j+1), v_plume_north(i,j), v_plume_perturb, dv_deta_northwest(i,j)
-                endif
-
-             endif  ! plume_mask_cell
-
-             ! dependence of v_plume_north on eta(i+1,j)
-             if (plume_mask_cell(i+1,j) == 1) then
-
-                if (D_plume(i+1,j) >= H_cavity(i+1,j)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i+1,j)'
-                   endif
-
-                   eta_plume(i+1,j) = eta_plume(i+1,j) + delta_eta_plume  ! temporary increase
-
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * edge_mask_east(i-1,j+1) &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * edge_mask_east(i,j+1)   &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_east(i-1,j)   &
-                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * edge_mask_east(i,j) )
-                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-                
-                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
-                   
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_north(i,j),      &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-                   
-                   eta_plume(i+1,j) = eta_plume(i+1,j) - delta_eta_plume  ! revert to original value
-                   dv_deta_southeast(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_eta_plume
-                   
-                else  ! D_plume < H_cavity; do nothing
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, v_north, v_north_perturb, dv_deta_southeast:', &
-                        i, j, eta_plume(i+1,j), v_plume_north(i,j), v_plume_perturb, dv_deta_southeast(i,j)
-                endif
-
-             endif  ! plume_mask_cell
-
-             ! dependence of v_plume_north on eta(i+1,j+1)
-             if (plume_mask_cell(i+1,j+1) == 1) then
-
-                if (D_plume(i+1,j+1) >= H_cavity(i+1,j+1)) then
-
-                   if (i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'Perturb eta_plume(i+1,j+1)'
-                   endif
-
-                   eta_plume(i+1,j+1) = eta_plume(i+1,j+1) + delta_eta_plume  ! temporary increase
-
-!                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * divu_mask_east(i-1,j+1) &
-!                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * divu_mask_east(i,j+1)   &
-!                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * divu_mask_east(i-1,j)   &
-!                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * divu_mask_east(i,j) )
-                   deta_plume_dx = 0.25d0/dx * ( (eta_plume(i,j+1)   - eta_plume(i-1,j+1)) * edge_mask_east(i-1,j+1) &
-                                               + (eta_plume(i+1,j+1) - eta_plume(i,j+1))   * edge_mask_east(i,j+1)   &
-                                               + (eta_plume(i,j)     - eta_plume(i,j-1))   * edge_mask_east(i-1,j)   &
-                                               + (eta_plume(i+1,j)   - eta_plume(i,j))     * edge_mask_east(i,j) )
-                   deta_plume_dy = (eta_plume(i,j+1) - eta_plume(i,j)) / dy
-                
-                   pgf_x = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dx_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dx
-                   pgf_y = grav_reduced_north(i,j) * D_plume_north(i,j) * dlsrf_dy_north(i,j) - grav * D_plume_north(i,j) * deta_plume_dy
-                   
-                   call compute_local_velocity(&
-                        i, j,                    &   ! diagnostic only
-                        itest, jtest, rtest,     &   ! diagnostic only
-                        D_plume_north(i,j),      &
-                        pgf_x,                   &
-                        pgf_y,                   &
-                        u_plume_perturb,         &
-                        v_plume_perturb)
-                   
-                   eta_plume(i+1,j+1) = eta_plume(i+1,j+1) - delta_eta_plume  ! revert to original value
-                   dv_deta_northeast(i,j) = (v_plume_perturb - v_plume_north(i,j)) / delta_eta_plume
-                   
-                else  ! D_plume < H_cavity; do nothing
-
-                endif ! D_plume > H_cavity
-
-                !WHL - debug
-                if (i==itest .and. j==jtest) then
-                   print*, 'i, j, eta, v_north, v_north_perturb, dv_deta_northeast:', &
-                        i, j, eta_plume(i+1,j+1), v_plume_north(i,j), v_plume_perturb, dv_deta_northeast(i,j)
-                endif
-
-             endif  ! plume_mask_cell
-
-          endif  ! divu_mask_north = 1
-          
-       enddo  ! i
-    enddo  ! j
-
-    end subroutine compute_velocity_jacobian
-
-!****************************************************
-
-  subroutine compute_local_velocity(&
-       i, j,                    &
+  subroutine compute_velocity(&
+       nx,    ny,               &
        itest, jtest, rtest,     &
+       edge_mask,               &
        D_plume,                 &
        pgf_x,                   &
        pgf_y,                   &
+       latdrag_x,               &
+       latdrag_y,               &
        u_plume,                 &
-       v_plume)
+       v_plume,                 &
+       converged_velo,          &
+       edge_mask_east_reduce_v, &
+       edge_mask_north_reduce_u)
     
+    ! Compute the velocity on a set of edges (either east or north)
+
     integer, intent(in) ::  &
-         i, j,              & ! grid cell coordinates (diagnostic only)
+         nx,  ny,           & ! number of grid cells in each dimension
          itest, jtest, rtest  ! test cell coordinates (diagnostic only)
     
     ! Used to be intent(in), but now are module variables
@@ -3401,17 +2800,38 @@ contains
 !         c_drag,            & ! ocean drag coefficient (unitless)   
 !         f_coriolis           ! Coriolis parameter (s^-1)
     
+    integer, dimension(nx,ny), intent(in) ::   &
+         edge_mask            ! = 1 at edges where velocity is computed
+
     ! Note: The following variables are co-located with the velocity
-    real(dp), intent(in) ::   &
-         D_plume,           & ! plume thickness (m)
+    real(dp), dimension(nx,ny), intent(in) ::   &
+         D_plume,           & ! plume thickness at edges (m)
          pgf_x,             & ! x component of pressure gradient force
-         pgf_y                ! y component of pressure gradient force
+         pgf_y,             & ! y component of pressure gradient force
+         latdrag_x,         & ! x component of lateral drag
+         latdrag_y            ! y component of lateral drag
     
-    real(dp), intent(inout) ::  &
+    real(dp), dimension(nx,ny), intent(inout) ::  &
          u_plume,           & ! x component of plume velocity (m/s)
          v_plume              ! x component of plume velocity (m/s)
 
+    logical, dimension(nx,ny), intent(inout) ::  &
+         converged_velo        ! true when velocity has converged at an edge, else false
+
+    !TODO - Remove these terms if lateral drag works
+    real(dp), dimension(nx,ny), intent(in), optional :: &
+         edge_mask_east_reduce_v,  & ! mask for reducing v on east edges adjacent to a wall
+         edge_mask_north_reduce_u    ! mask for reducing u on north edges adjacent to a wall
+
     ! local variables
+
+    real(dp), dimension(nx,ny) ::   &
+         f_x,               &  ! pgf_x + latdrag_x 
+         f_y                   ! pgf_y + latdrag_y 
+
+    real(dp), dimension(nx,ny) ::  &
+         reduce_v,          &  ! local version of edge_mask_east_reduce_v; no reduction by default
+         reduce_u              ! local version of edge_mask_north_reduce_u; no reduction by default
 
     real(dp) :: &
          plume_speed,       & ! plume speed (m/s)
@@ -3421,22 +2841,18 @@ contains
          a_vu, a_vv,        & !
          du, dv               ! change in u_plume and v_plume (m/s)
     
-    integer ::  &
-         iter_velo            ! iteration counter
-
     character(len=100) :: message
 
-    integer, parameter ::  &
-         maxiter_velo = 100    ! max number of iterations of velocity loop
-    
     real(dp), parameter :: &
          maxresid_force_balance = 1.0d-8 ! max residual allowed in momentum balance equation (m^2/s^2)
     
     logical, parameter :: &
-         velo_newton = .true.   ! if true, use Newton's method; if false, use Picard method
+         velo_newton = .true.  ! if true, use Newton's method; if false, use Picard method
 
-    !WHL - debug
-    real(dp) :: u_plume_latest, v_plume_latest
+    integer :: i, j
+
+    !TODO - Add lateral drag to the equations
+    !       Can be handled numerically by combining with pgf in a single force term
 
     !--------------------------------------------------------------------
     ! Compute the plume velocity.
@@ -3456,7 +2872,7 @@ contains
     !          c_d = dimensionless ocean drag coefficient
     !            f = Coriolis coefficient
     !          |U| = sqrt(u^2 + v^2 + u_tidal^2)
-    !      u_tidal = a small velocity added for regularization 
+    !      u_tidal = a small velocity added for regularization
     !
     ! The solution (assuming D is known) is
     !
@@ -3474,11 +2890,11 @@ contains
     ! We write   u = u0 + du
     !            v = v0 + dv
     !          |U| = U0 + d|U|/du * du + d|U|dv * dv
-    ! where the partial derivatives are evaluated at (u,v) = (u_0,v_0).
+    ! where the partial derivatives are evaluated at (u,v) = (u0,v0).
     ! 
     ! This gives 
     !           du = (a_vv * R_x - a_uv * R_y) / det|A|
-    !           dv = (a_uu * R_x - a_vu * R_x) / det|A|
+    !           dv = (a_uu * R_y - a_vu * R_x) / det|A|
     ! where    
     !          R_x = pgf_x - c_d*U0*u0 + D*f*v0 = x residual
     !          R_y = pgf_y - c_d*U0*v0 - D*f*u0 = y residual
@@ -3491,87 +2907,315 @@ contains
     !         a_uv = c_d*u0*v0/U0 - D*f) 
     !         a_vu = c_d*u0*v0/U0 + D*f) 
     !         a_vv = c_d*(U0 + v0^2/U0) 
+    !
+    ! If reduce_u < 1 or reduce_v < 1, then the Coriolis term in these equations
+    ! is reduced proportionately, so as to inhibit flow into walls.
+    !
     !--------------------------------------------------------------------
 
-    do iter_velo = 1, maxiter_velo
-       
-       ! Compute plume speed based on current u and v
-       plume_speed = sqrt(u_plume**2 + v_plume**2 + u_tidal**2)
-       
-       ! Compute residual of the momentum balance equations
-       x_resid = pgf_x - c_drag*plume_speed*u_plume + f_coriolis*D_plume*v_plume
-       y_resid = pgf_y - c_drag*plume_speed*v_plume - f_coriolis*D_plume*u_plume
-       
-       !WHL - Force at least one iteration?
-       ! check convergence of plume velocity
-!       if (abs(x_resid) < maxresid_force_balance .and. abs(y_resid) < maxresid_force_balance) then
-       if (abs(x_resid) < maxresid_force_balance .and. abs(y_resid) < maxresid_force_balance .and. iter_velo > 1) then
-          if (this_rank == rtest .and. i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'Velocity converged: iter_velo, u/v_plume (m/s):', iter_velo, u_plume, v_plume
-          endif
-          exit
-       elseif (iter_velo == maxiter_velo) then
-          write(message,*) 'Error, glissade_plume: velocity has not converged, i, j =', i, j
-          call write_log(message, GM_FATAL)
-       endif
-       
-       if (velo_newton) then
-          
-          ! compute some coefficients for the Newton solve
-          a_uu = c_drag * (plume_speed + u_plume**2/plume_speed)
-          a_uv = c_drag * (u_plume*v_plume)/plume_speed - D_plume*f_coriolis
-          a_vu = c_drag * (u_plume*v_plume)/plume_speed + D_plume*f_coriolis
-          a_vv = c_drag * (plume_speed + v_plume**2/plume_speed)
-          
-          ! compute du and dv
-          denom = a_uu*a_vv - a_uv*a_vu
-          
-          if (abs(denom) > 0.0d0) then
-             du = (a_vv*x_resid - a_uv*y_resid) / denom
-             dv = (a_uu*y_resid - a_vu*x_resid) / denom
-             
-             u_plume = u_plume + du
-             v_plume = v_plume + dv
-             
-          else  ! denom = 0.0
-             write(6,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
-             write(6,*) 'a_uu, a_vv, a_uv, a_vu =', a_uu, a_vv, a_uv, a_vu
-             write(message,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
-             call write_log(message, GM_FATAL)
-          endif
-          
-       else  ! simpler Picard solve
-          
-          u_plume_latest = u_plume
-          v_plume_latest = v_plume
+    if (present(edge_mask_north_reduce_u)) then
+       reduce_u(:,:) = edge_mask_north_reduce_u(:,:)
+    else
+       reduce_u(:,:) = 1.0d0  ! no reduction
+    endif
 
-          denom = (c_drag*plume_speed)**2 + (D_plume*f_coriolis)**2
-          u_plume = (c_drag*plume_speed*pgf_x + D_plume*f_coriolis*pgf_y) / denom
-          v_plume = (c_drag*plume_speed*pgf_y - D_plume*f_coriolis*pgf_x) / denom
-          
-          !TODO - Create a relax_u parameter instead of hard-coding
-          u_plume = u_plume_latest + 0.5d0 * (u_plume - u_plume_latest)
-          v_plume = v_plume_latest + 0.5d0 * (v_plume - v_plume_latest)
+    if (present(edge_mask_east_reduce_v)) then
+       reduce_v(:,:) = edge_mask_east_reduce_v(:,:)
+    else
+       reduce_v(:,:) = 1.0d0  ! no reduction
+    endif
 
-       endif
+    ! Combine PGF and lateral drag into one term
+    f_x(:,:) = pgf_x(:,:) + latdrag_x(:,:)
+    f_y(:,:) = pgf_y(:,:) + latdrag_y(:,:)
 
-       if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-!!       if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest-1) then
-          print*, ' '
-          print*, 'iter_velo, plume_speed (m/s) =', iter_velo, plume_speed
-          print*, 'pgf_x, pgf_y:', pgf_x, pgf_y
-          print*, 'Dfv, -Dfu:', D_plume * f_coriolis * v_plume, &
-                               -D_plume * f_coriolis * u_plume
-          print*, 'dragu, dragv:', c_drag * plume_speed * u_plume, &
-                                   c_drag * plume_speed * v_plume
-          print*, 'x/y residual:', x_resid, y_resid
-          print*, 'new u/v_plume:', u_plume, v_plume
-       endif
+    ! Loop over edges of locally owned cells
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
+
+          if (edge_mask(i,j) == 1 .and. .not.converged_velo(i,j) ) then
        
-    enddo  ! iter_velo
+             ! Compute plume speed based on current u and v
+             plume_speed = sqrt(u_plume(i,j)**2 + v_plume(i,j)**2 + u_tidal**2)
+       
+             ! Compute residual of the momentum balance
+!               x_resid = pgf_x - c_drag*plume_speed*u_plume + f_coriolis*D_plume*v_plume
+!               y_resid = pgf_y - c_drag*plume_speed*v_plume - f_coriolis*D_plume*u_plume
+             x_resid = f_x(i,j) - c_drag*plume_speed*u_plume(i,j) + reduce_v(i,j)*f_coriolis*D_plume(i,j)*v_plume(i,j)
+             y_resid = f_y(i,j) - c_drag*plume_speed*v_plume(i,j) - reduce_u(i,j)*f_coriolis*D_plume(i,j)*u_plume(i,j)
+
+             ! check convergence of plume velocity
+
+             if (abs(x_resid) < maxresid_force_balance .and. abs(y_resid) < maxresid_force_balance) then
+
+                converged_velo(i,j) = .true.
+
+                ! diagnostic print
+                if (this_rank == rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'Velocity converged: u/v_plume (m/s):', u_plume(i,j), v_plume(i,j)
+                endif
+
+             endif
+
+             if (.not.converged_velo(i,j)) then
+
+                if (velo_newton) then
+          
+                   ! compute some coefficients for the Newton solve
+                   a_uu = c_drag * (plume_speed + u_plume(i,j)**2/plume_speed)
+                   a_vv = c_drag * (plume_speed + v_plume(i,j)**2/plume_speed)
+                      
+                   a_uv = c_drag * (u_plume(i,j)*v_plume(i,j))/plume_speed - reduce_v(i,j)*D_plume(i,j)*f_coriolis
+                   a_vu = c_drag * (u_plume(i,j)*v_plume(i,j))/plume_speed + reduce_u(i,j)*D_plume(i,j)*f_coriolis
+                   
+                   ! compute du and dv
+                   denom = a_uu*a_vv - a_uv*a_vu
+                      
+                   if (abs(denom) > 0.0d0) then
+                      du = (a_vv*x_resid - a_uv*y_resid) / denom
+                      dv = (a_uu*y_resid - a_vu*x_resid) / denom
+                         
+                      u_plume(i,j) = u_plume(i,j) + du
+                      v_plume(i,j) = v_plume(i,j) + dv
+                      
+                   else  ! denom = 0.0
+                      write(6,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
+                      write(6,*) 'a_uu, a_vv, a_uv, a_vu =', a_uu, a_vv, a_uv, a_vu
+                      write(message,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
+                      call write_log(message, GM_FATAL)
+                   endif
+                      
+                else  ! simpler Picard solve
+          
+                   denom = (c_drag*plume_speed)**2 + (D_plume(i,j)*f_coriolis)**2
+                   u_plume = (c_drag*plume_speed*f_x(i,j) + reduce_v(i,j)*D_plume(i,j)*f_coriolis*f_y(i,j)) / denom
+                   v_plume = (c_drag*plume_speed*f_y(i,j) - reduce_u(i,j)*D_plume(i,j)*f_coriolis*f_x(i,j)) / denom
+          
+                endif  ! Newton or Picard
+
+             endif  ! .not.converged_velo
+
+             if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'plume_speed (m/s) =', plume_speed
+                print*, 'pgf_x, pgf_y:', pgf_x(i,j), pgf_y(i,j)
+                print*, 'latdrag_x, latdrag_y:', latdrag_x(i,j), latdrag_y(i,j)
+                print*, 'Dfv, -Dfu:', D_plume(i,j) * f_coriolis * v_plume(i,j), &
+                                     -D_plume(i,j) * f_coriolis * u_plume(i,j)
+                print*, 'dragu, dragv:', c_drag * plume_speed * u_plume(i,j), &
+                                         c_drag * plume_speed * v_plume(i,j)
+                print*, 'x/y residual:', x_resid, y_resid
+                print*, 'new u/v_plume:', u_plume(i,j), v_plume(i,j)
+             endif
+
+          endif  ! edge_mask
+       enddo  ! i
+    enddo  ! j
     
-  end subroutine compute_local_velocity
+  end subroutine compute_velocity
+
+!****************************************************
+
+  subroutine compute_lateral_drag(&
+       nx,         ny,      &
+       dx,         dy,      &
+       itest, jtest, rtest, &
+       edge_mask_east,      &
+       edge_mask_north,     &
+       plume_mask_cell,     &
+       D_plume,             &
+       u_plume_east,        &
+       v_plume_east,        &
+       u_plume_north,       &
+       v_plume_north,       &
+       latdrag_x_east,      &
+       latdrag_y_east,      &
+       latdrag_x_north,     &
+       latdrag_y_north)
+
+    ! Compute lateral drag using a simple Laplacian formulation.
+    !
+    ! The drag terms in the x and y momentum balance equations, respectively, are
+    ! 
+    !      d/dx(A*D*du/dx) + d/dy(A*D*du/dy)
+    !      d/dx(A*D*dv/dx) + d/dy(A*D*dv/dy)
+    !
+    ! where A is a spatially uniform drag coefficient.
+    !
+    ! Assume free-slip and no-penetration BC.
+    ! In other words, velocity components parallel to the wall are assumed to have zero gradient,
+    !  whereas components perpendicular to the wall are set to zero.
+
+    integer, intent(in) ::  &
+         nx,     ny             ! number of grid cells in each dimension
+
+    real(dp), intent(in) ::  &
+         dx,     dy             ! grid cell size (m)
+
+    integer, intent(in) :: &
+         itest, jtest, rtest    ! diagnostic indices
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         edge_mask_east,      & ! = 1 on east edges where plume velocity is computed
+         edge_mask_north,     & ! = 1 on north edges where plume velocity is computed
+         plume_mask_cell        ! = 1 for cells where scalar plume variables are computed
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         D_plume,             & ! plume thickness (m)
+         u_plume_east,        & ! u component of plume velocity on east edges (m/s)
+         v_plume_east,        & ! v component of plume velocity on east edges (m/s)
+         u_plume_north,       & ! u component of plume velocity on north edges (m/s)
+         v_plume_north          ! v component of plume velocity on north edges (m/s)
+
+    real(dp), dimension(nx,ny), intent(out) ::  &
+         latdrag_x_east,      & ! lateral drag in x velocity component on east edges (m^2/s^2)
+         latdrag_y_east,      & ! lateral drag in y velocity component on east edges (m^2/s^2)
+         latdrag_x_north,     & ! lateral drag in x velocity component on north edges (m^2/s^2)
+         latdrag_y_north        ! lateral drag in y velocity component on north edges (m^2/s^2)
+
+    ! local variables
+
+    real(dp), dimension(nx-1,ny-1) ::  &
+         D_plume_vertex         ! D_plume averaged to vertices
+
+    integer :: i, j
+
+    real(dp), parameter ::  &
+         A_latdrag = 10.0d0    ! lateral drag coefficient (m^2/s)
+
+    real(dp) :: term1, term2, dx_term, dy_term   ! various terms in discretization
+
+    ! initialize
+    latdrag_x_east(:,:) = 0.0d0
+    latdrag_y_east(:,:) = 0.0d0
+    latdrag_x_north(:,:) = 0.0d0
+    latdrag_y_north(:,:) = 0.0d0
+    
+    ! Average D_plume to vertices
+
+    do j = 1, ny-1
+       do i = 1, nx-1
+          D_plume_vertex(i,j) = 0.25d0 * &
+               (D_plume(i,j+1)* plume_mask_cell(i,j+1) + D_plume(i+1,j+1) * plume_mask_cell(i+1,j+1)  &
+              + D_plume(i,j)  * plume_mask_cell(i,j)   + D_plume(i+1,j)   * plume_mask_cell(i+1,j))
+       enddo
+    enddo
+
+    ! Compute lateral drag terms
+
+    ! Loop over edges of locally owned cells
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
+
+          ! lateral drag on east edges
+
+          if (edge_mask_east(i,j) == 1) then
+
+             ! first latdrag_x
+
+             ! d/dx(D*du/dx)
+             term1 = D_plume(i+1,j) * (u_plume_east(i+1,j) - u_plume_east(i,j)) / dx
+             term2 = D_plume(i,j)   * (u_plume_east(i,j) - u_plume_east(i-1,j)) / dx
+             dx_term = (term1 - term2) / dx
+
+             ! d/dy(D*du/dy)
+             ! Enforce free-slip BC by zeroing the velocity gradient at plume boundaries
+             if (edge_mask_east(i,j+1) == 1) then
+                term1 = D_plume_vertex(i,j)   * (u_plume_east(i,j+1) - u_plume_east(i,j)) / dy
+             else
+                term1 = 0.0d0
+             endif
+             if (edge_mask_east(i,j-1) == 1) then
+                term2 = D_plume_vertex(i,j-1) * (u_plume_east(i,j) - u_plume_east(i,j-1)) / dy
+             else
+                term2 = 0.0d0
+             endif
+             dy_term = (term1 - term2) / dy
+
+             latdrag_x_east(i,j) = A_latdrag * (dx_term + dy_term)
+
+             ! then latdrag_y
+
+             ! d/dx(D*dv/dx)
+             ! Enforce free-slip BC by zeroing the velocity gradient at plume boundaries
+             if (edge_mask_east(i+1,j) == 1) then
+                term1 = D_plume(i+1,j) * (v_plume_east(i+1,j) - v_plume_east(i,j)) / dx
+             else
+                term1 = 0.0d0
+             endif
+             if (edge_mask_east(i-1,j) == 1) then
+                term2 = D_plume(i,j)   * (v_plume_east(i,j) - v_plume_east(i-1,j)) / dx
+             else
+                term2 = 0.0d0
+             endif
+             dx_term = (term1 - term2) / dx
+
+             ! d/dy(D*du/dy)
+             term1 = D_plume_vertex(i,j)   * (v_plume_east(i,j+1) - v_plume_east(i,j)) / dy
+             term2 = D_plume_vertex(i,j-1) * (v_plume_east(i,j) - v_plume_east(i,j-1)) / dy
+             dy_term = (term1 - term2) / dy
+
+             latdrag_y_east(i,j) = A_latdrag * (dx_term + dy_term)
+
+          endif  ! edge_mask_east
+
+          ! lateral drag on north edge
+
+          if (edge_mask_north(i,j) == 1) then
+
+             ! first latdrag_x
+
+             ! d/dx(D*dv/dx)
+             term1 = D_plume_vertex(i,j)   * (u_plume_north(i+1,j) - u_plume_north(i,j)) / dx
+             term2 = D_plume_vertex(i-1,j) * (u_plume_north(i,j) - u_plume_north(i-1,j)) / dx
+             dx_term = (term1 - term2) / dx
+
+             ! d/dy(D*dv/dy)
+             ! Enforce free-slip BC by zeroing the velocity gradient at plume boundaries
+             if (edge_mask_north(i,j+1) == 1) then
+                term1 = D_plume(i,j+1) * (u_plume_north(i,j+1) - u_plume_north(i,j)) / dy
+             else
+                term1 = 0.0d0
+             endif
+             if (edge_mask_north(i,j-1) == 1) then
+                term2 = D_plume(i,j)   * (u_plume_north(i,j) - u_plume_north(i,j-1)) / dy
+             else
+                term2 = 0.0d0
+             endif
+             dy_term = (term1 - term2) / dy
+
+             latdrag_x_north(i,j) = A_latdrag * (dx_term + dy_term)
+
+             ! then latdrag_y
+
+             ! d/dx(D*dv/dx)
+             ! Enforce free-slip BC by zeroing the velocity gradient at plume boundaries
+             if (edge_mask_north(i+1,j) == 1) then
+                term1 = D_plume_vertex(i,j)   * (v_plume_north(i+1,j) - v_plume_north(i,j)) / dx
+             else
+                term1 = 0.0d0
+             endif
+             if (edge_mask_north(i-1,j) == 1) then
+                term2 = D_plume_vertex(i-1,j) * (v_plume_north(i,j) - v_plume_north(i-1,j)) / dx
+             else
+                term2 = 0.0d0
+             endif
+             dx_term = (term1 - term2) / dx
+
+             ! d/dy(D*dv/dy)
+             term1 = D_plume(i,j+1) * (v_plume_north(i,j+1) - v_plume_north(i,j)) / dy
+             term2 = D_plume(i,j)   * (v_plume_north(i,j) - v_plume_north(i,j-1)) / dy
+             dy_term = (term1 - term2) / dy
+
+             latdrag_y_north(i,j) = A_latdrag * (dx_term + dy_term)
+
+          endif  ! edge_mask_north
+
+       enddo  ! i
+    enddo  ! j
+
+  end subroutine compute_lateral_drag
 
 !****************************************************
 
@@ -3582,16 +3226,21 @@ contains
        divu_mask_east,      &
        divu_mask_north,     &
        plume_mask_cell,     &
-       floating_mask,       &
-       global_bndy_east,    &
-       global_bndy_west,    &
-       global_bndy_north,   &
-       global_bndy_south,   &
-       lsrf,                &
-       H_cavity,            &
-       D_plume,             &
-       plume_speed_east,    &
-       plume_speed_north,   &
+!!       floating_mask,       &
+!!       global_bndy_east,    &
+!!       global_bndy_west,    &
+!!       global_bndy_north,   &
+!!       global_bndy_south,   &
+!!       lsrf,                &
+!!       H_cavity,            &
+!!       D_plume,             &
+       theta_slope,         &
+       u_plume_east,        &
+       v_plume_north,       &
+!!       plume_speed_east,    &
+!!       plume_speed_north,   &
+!!       dlsrf_dx_east,      dlsrf_dy_east,  &
+!!       dlsrf_dx_north,     dlsrf_dy_north, &
        entrainment)
 
     !--------------------------------------------------------------------
@@ -3613,44 +3262,57 @@ contains
     integer, dimension(nx,ny), intent(in) ::  &
          divu_mask_east,      & ! = 1 on east edges where plume velocity is computed
          divu_mask_north,     & ! = 1 on north edges where plume velocity is computed
-         plume_mask_cell,     & ! = 1 for cells where scalar plume variables are computed
-         floating_mask,       & ! = 1 where ice is present and floating, else = 0
-         global_bndy_east,    & ! = 1 along east global boundary, else = 0
-         global_bndy_west,    & ! = 1 along west global boundary, else = 0
-         global_bndy_north,   & ! = 1 along north global boundary, else = 0
-         global_bndy_south      ! = 1 along south global boundary, else = 0
+         plume_mask_cell        ! = 1 for cells where scalar plume variables are computed
+!!         plume_mask_cell,     & ! = 1 for cells where scalar plume variables are computed
+!!         floating_mask,       & ! = 1 where ice is present and floating, else = 0
+!!         global_bndy_east,    & ! = 1 along east global boundary, else = 0
+!!         global_bndy_west,    & ! = 1 along west global boundary, else = 0
+!!         global_bndy_north,   & ! = 1 along north global boundary, else = 0
+!!         global_bndy_south      ! = 1 along south global boundary, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-         lsrf,                & ! elevation of lower ice surface (m, negative below sea level)
-         H_cavity,            & ! ocean cavity thickness (m), lsrf - topg
-         D_plume,             & ! plume thickness (m)
-         plume_speed_east,    & ! plume speed on east edges
-         plume_speed_north      ! plume speed on north edges
+!!         lsrf,                & ! elevation of lower ice surface (m, negative below sea level)
+!!         H_cavity,            & ! ocean cavity thickness (m), lsrf - topg
+!!         D_plume,             & ! plume thickness (m)
+!!         plume_speed_east,    & ! plume speed on east edges
+!!         plume_speed_north,   & ! plume speed on north edges
+         u_plume_east,          & ! u component of plume velocity on east edges (m/s)
+         v_plume_north,         & ! v component of plume velocity on north edges (m/s)
+         theta_slope            ! basal slope angle at cell centers (rad)
+!!         dlsrf_dx_east,       & ! horizontal gradient of lsrf on east edges
+!!         dlsrf_dy_east,       & !
+!!         dlsrf_dx_north,      & ! horizontal gradient of lsrf on north edges
+!!         dlsrf_dy_north         !
 
     real(dp), dimension(nx,ny), intent(out) ::  &
          entrainment              ! entrainment at cell centers (m/s)
 
     ! local variables
 
-    real(dp), dimension(nx,ny) :: &
-         lsrf_plume,            & ! elevation of plume-ambient interface (m, negative below sea level)
-         D_plume_cap,           & ! min(D_plume, H_cavity)
-         dlsrf_plume_dx_east,   & ! horizontal gradient of lsrf_plume on east edges
-         dlsrf_plume_dy_east,   & !
-         dlsrf_plume_dx_north,  & ! horizontal gradient of lsrf_plume on north edges
-         dlsrf_plume_dy_north,  & !
-         entrainment_east,      & ! entrainment on east edges
-         entrainment_north        ! entrainment on north edges
+!    real(dp), dimension(nx,ny) :: &
+!         lsrf_plume,            & ! elevation of plume-ambient interface (m, negative below sea level)
+!         D_plume_cap,           & ! min(D_plume, H_cavity)
+!         dlsrf_plume_dx_east,   & ! horizontal gradient of lsrf_plume on east edges
+!         dlsrf_plume_dy_east,   & !
+!         dlsrf_plume_dx_north,  & ! horizontal gradient of lsrf_plume on north edges
+!         dlsrf_plume_dy_north,  & !
+!         entrainment_east,      & ! entrainment on east edges
+!         entrainment_north        ! entrainment on north edges
 
-    real(dp) ::   &
-         slope,                 & ! slope of plume-ambient interface (unitless)
-         theta_slope              ! atan of slope of plume-ambient interface (rad)
+    real(dp) :: &
+         u_plume_cell,           & ! u_plume averaged to cell center (m/s)
+         v_plume_cell,           & ! v_plume averaged to cell center (m/s)
+         plume_speed_cell          ! plume speed at cell center (m/s)
+
+!    real(dp) ::   &
+!         slope,                 & ! slope of plume-ambient interface (unitless)
+!         theta_slope              ! atan of slope of basal ice interface (rad)
 
     integer :: i, j
     
     ! entrainment parameters
     real(dp), parameter ::   &
-         H0_cavity = 25.d0,          & ! cavity thickness (m) below which the entrainment gradually approaches zero
+!!         H0_cavity = 10.d0,          & ! cavity thickness (m) below which the entrainment gradually approaches zero
          E0 = 0.072d0                  ! entrainment coefficient (unitless)
                                        ! Bo Pederson (1980) suggests E0 = 0.072
                                        ! Jenkins (1991, JGR) uses 0.036 to compensate for lack of Coriolis in 1D model
@@ -3658,104 +3320,124 @@ contains
     ! Compute the elevation of the plume-ambient interface
     ! Note: lsrf and lsrf_plume are negative below sea level.
     !       D_plume is capped such that lsrf - D_plume >= topg
+    !WHL -  Still works if  D_plume is not capped?
 
-    lsrf_plume(:,:) = lsrf(:,:) - D_plume(:,:)
+
+!!    lsrf_plume(:,:) = lsrf(:,:) - D_plume(:,:)
 
     ! Compute the horizontal gradient of lsrf_plume on east and north edges.
     ! This gradient appears in the entrainment term.
 
-    call compute_edge_gradients(&
-       nx,                   ny,     &
-       dx,                   dy,     &
-       global_bndy_east,             &
-       global_bndy_west,             &
-       global_bndy_north,            &
-       global_bndy_south,            &
-       plume_mask_cell,              &
-       floating_mask,                &
-       lsrf,                         &
-       lsrf_plume,                   &
-       dlsrf_plume_dx_east,  dlsrf_plume_dy_east,  &
-       dlsrf_plume_dx_north, dlsrf_plume_dy_north)
+!    call compute_edge_gradients(&
+!       nx,                   ny,     &
+!       dx,                   dy,     &
+!       global_bndy_east,             &
+!       global_bndy_west,             &
+!       global_bndy_north,            &
+!       global_bndy_south,            &
+!       plume_mask_cell,              &
+!       floating_mask,                &
+!       lsrf,                         &
+!       lsrf_plume,                   &
+!       dlsrf_plume_dx_east,  dlsrf_plume_dy_east,  &
+!       dlsrf_plume_dx_north, dlsrf_plume_dy_north)
 
-    ! Compute entrainment on east edges
-
-    entrainment_east(:,:) = 0.0d0
-
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
-
-          if (divu_mask_east(i,j) == 1) then
-
-             slope = sqrt(dlsrf_plume_dx_east(i,j)**2 + dlsrf_plume_dy_east(i,j)**2)
-             theta_slope = atan(slope)
-!!             entrainment_east(i,j) = E0 * plume_speed_east(i,j) * sin(theta_slope) * tanh(H_cavity(i,j)/H0_cavity)
-             entrainment_east(i,j) = E0 * plume_speed_east(i,j) * sin(theta_slope)
-
-             !WHL - debug
-             if (i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'i, j, entrainment_east:', i, j, entrainment_east(i,j)
-                print*, 'plume_speed_east:', plume_speed_east(i,j)
-                print*, 'lsrf(i,j), D_plume_cap(i,j):', lsrf(i,j), D_plume_cap(i,j)
-                print*, 'lsrf(i+1,j), D_plume_cap(i+1,j):', lsrf(i+1,j), D_plume_cap(i+1,j)
-                print*, 'lsrf_plume(i,j), lsrf_plume(i+1,j):', lsrf_plume(i,j), lsrf_plume(i+1,j)
-                print*, 'dlsrf_dx, dlsrf_dy, slope:', dlsrf_plume_dx_east(i,j), dlsrf_plume_dy_east(i,j), slope
-             endif
-
-          endif  ! divu_mask_east
-       enddo  ! i
-    enddo  ! j
-    
-    ! Compute entrainment on north edges
-
-    entrainment_north(:,:) = 0.0d0
-    
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
-          if (divu_mask_north(i,j) == 1) then
-
-             slope = sqrt(dlsrf_plume_dx_north(i,j)**2 + dlsrf_plume_dy_north(i,j)**2)
-             theta_slope = atan(slope)
-!!             entrainment_north(i,j) = E0 * plume_speed_north(i,j) * sin(theta_slope) * tanh(H_cavity(i,j)/H0_cavity)
-             entrainment_north(i,j) = E0 * plume_speed_north(i,j) * sin(theta_slope)
-          
-             !WHL - debug
-             if (i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'i, j, entrainment_north:', i, j, entrainment_north(i,j)
-                print*, 'plume_speed_north:', plume_speed_north(i,j)
-                print*, 'lsrf(i,j), D_plume_cap(i,j):', lsrf(i,j), D_plume_cap(i,j)
-                print*, 'lsrf(i,j+1), D_plume_cap(i,j+1):', lsrf(i,j+1), D_plume_cap(i,j+1)
-                print*, 'lsrf_plume(i,j), lsrf_plume(i,j+1):', lsrf_plume(i,j), lsrf_plume(i,j+1)
-                print*, 'dlsrf_dx, dlsrf_dy, slope:', dlsrf_plume_dx_north(i,j), dlsrf_plume_dy_north(i,j), slope
-             endif
-
-          endif  ! divu_mask_north
-       enddo  ! i
-    enddo  ! j
-    
-    ! interpolate entrainment from edges to cell centers
-    ! Let e -> 0 as D_plume -> H_cavity to prevent oscillations when D_plume is close to H_cavity.
+    ! Compute entrainment at cell centers as a function of basal slope and plume speed
 
     entrainment(:,:) = 0.0d0
 
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask_cell(i,j) == 1) then
-                entrainment(i,j) = tanh((H_cavity(i,j) - D_plume(i,j))/H0_cavity)  &
-                                 * ( entrainment_east(i-1,j) + entrainment_east(i,j) +   &
-                                     entrainment_north(i,j-1) + entrainment_north(i,j) ) / 4.0d0 
-          endif
+             u_plume_cell = 0.5d0 * (u_plume_east(i-1,j) + u_plume_east(i,j))
+             v_plume_cell = 0.5d0 * (v_plume_north(i,j-1) + v_plume_north(i,j))
+             plume_speed_cell = sqrt(u_plume_cell**2 + v_plume_cell**2)
+             entrainment(i,j) = E0 * plume_speed_cell * sin(theta_slope(i,j))
 
-          !WHL - debug
-          if (i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'i, j, entrainment:', i, j, entrainment(i,j)
+             !WHL - debug
+             if (i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'i, j, theta, plume speed, entrainment:', i, j, theta_slope(i,j), plume_speed_cell, entrainment(i,j)
+             endif
+             
           endif
-
        enddo
     enddo
+
+    !TODO - delete the following
+
+    ! Compute entrainment on east edges
+
+!    entrainment_east(:,:) = 0.0d0
+
+!    do j = nhalo, ny-nhalo
+!       do i = nhalo, nx-nhalo
+
+!          if (divu_mask_east(i,j) == 1) then
+
+!!!             slope = sqrt(dlsrf_plume_dx_east(i,j)**2 + dlsrf_plume_dy_east(i,j)**2)
+!             slope = sqrt(dlsrf_dx_east(i,j)**2 + dlsrf_dy_east(i,j)**2)
+!             theta_slope = atan(slope)
+!!!             entrainment_east(i,j) = E0 * plume_speed_east(i,j) * sin(theta_slope) * tanh(H_cavity(i,j)/H0_cavity)
+!             entrainment_east(i,j) = E0 * plume_speed_east(i,j) * sin(theta_slope)
+
+             !WHL - debug
+!             if (i==itest .and. j==jtest) then
+!                print*, ' '
+!                print*, 'i, j, entrainment_east:', i, j, entrainment_east(i,j)
+!                print*, 'plume_speed_east:', plume_speed_east(i,j)
+!!!                print*, 'lsrf(i,j), D_plume(i,j):', lsrf(i,j), D_plume(i,j)
+!!!                print*, 'lsrf(i+1,j), D_plume(i+1,j):', lsrf(i+1,j), D_plume(i+1,j)
+!!!                print*, 'lsrf_plume(i,j), lsrf_plume(i+1,j):', lsrf_plume(i,j), lsrf_plume(i+1,j)
+!                print*, 'dlsrf_dx, dlsrf_dy, slope:', dlsrf_dx_east(i,j), dlsrf_dy_east(i,j), slope
+!             endif
+
+!          endif  ! divu_mask_east
+!       enddo  ! i
+!    enddo  ! j
+    
+    ! Compute entrainment on north edges
+
+!    entrainment_north(:,:) = 0.0d0
+    
+!    do j = nhalo, ny-nhalo
+!       do i = nhalo, nx-nhalo
+!          if (divu_mask_north(i,j) == 1) then
+
+!             slope = sqrt(dlsrf_dx_north(i,j)**2 + dlsrf_dy_north(i,j)**2)
+!             theta_slope = atan(slope)
+!!!             entrainment_north(i,j) = E0 * plume_speed_north(i,j) * sin(theta_slope) * tanh(H_cavity(i,j)/H0_cavity)
+!             entrainment_north(i,j) = E0 * plume_speed_north(i,j) * sin(theta_slope)
+          
+             !WHL - debug
+!             if (i==itest .and. j==jtest) then
+!                print*, ' '
+!                print*, 'i, j, entrainment_north:', i, j, entrainment_north(i,j)
+!                print*, 'plume_speed_north:', plume_speed_north(i,j)
+!!!                print*, 'lsrf(i,j), D_plume(i,j):', lsrf(i,j), D_plume(i,j)
+!!!                print*, 'lsrf(i,j+1), D_plume(i,j+1):', lsrf(i,j+1), D_plume(i,j+1)
+!!!                print*, 'lsrf_plume(i,j), lsrf_plume(i,j+1):', lsrf_plume(i,j), lsrf_plume(i,j+1)
+!                print*, 'dlsrf_dx, dlsrf_dy, slope:', dlsrf_dx_north(i,j), dlsrf_dy_north(i,j), slope
+!             endif
+
+!          endif  ! divu_mask_north
+!       enddo  ! i
+!    enddo  ! j
+    
+    ! interpolate entrainment from edges to cell centers
+    ! Note: I tried setting e = 0 when D_plume -> H_cavity.
+    !       However, this leads to oscillations in bmlt_float when D_plume is close to H_cavity.
+
+!    entrainment(:,:) = 0.0d0
+
+!    do j = nhalo+1, ny-nhalo
+!       do i = nhalo+1, nx-nhalo
+!          if (plume_mask_cell(i,j) == 1) then
+!             entrainment(i,j) = ( entrainment_east(i-1,j) + entrainment_east(i,j) +   &
+!                                  entrainment_north(i,j-1) + entrainment_north(i,j) ) / 4.0d0 
+!          endif
+!       enddo
+!    enddo
     
   end subroutine compute_entrainment
 
@@ -3772,8 +3454,7 @@ contains
        detrainment)
 
     ! Compute detrainment.
-    ! This is not a physically based mechanism, just a regularization to prevent
-    !  very thick plumes in regions where the flow is not well behaved.
+    ! This is not a physically based mechanism, just a regularization to prevent very thick plumes.
     ! Ideally, detrainment = 0 almost everywhere.
 
     integer, intent(in) ::  &
@@ -3788,6 +3469,7 @@ contains
     real(dp), intent(in) :: &
          dt_plume             ! time step (s)
 
+    !WHL - Remove H_cavity?
     real(dp), dimension(nx,ny), intent(in) ::  &
          H_cavity,          & ! cavity thickness (m), lsrf - topg
          D_plume,           & ! plume thickess (m)
@@ -3822,10 +3504,16 @@ contains
        do j = 1, ny
           do i = 1, nx
 
-             if (D_plume(i,j) > H_cavity(i,j)) then
                 !WHL - Testing different options here.  Set detrainment to 0 if trying to converge the matrix.
+!!             if (D_plume(i,j) > H_cavity(i,j)) then
 !!                detrainment(i,j) = eta_plume(i,j) / tau_detrainment
 !!                detrainment(i,j) = (D_plume(i,j) - H_cavity(i,j)) / dt_plume
+!!                detrainment(i,j) = 0.0d0
+!!             endif
+
+             if (D_plume(i,j) > D_plume_max) then
+                detrainment(i,j) = (D_plume(i,j) - D_plume_max) / tau_detrainment
+             else
                 detrainment(i,j) = 0.0d0
              endif
 
@@ -3849,6 +3537,8 @@ contains
                dt_plume,            &
                itest, jtest, rtest, &
                plume_mask_cell,     &
+               edge_mask_east,      &
+               edge_mask_north,     &
                divu_mask_east,      &
                divu_mask_north,     &
                H_cavity,            &
@@ -3879,6 +3569,8 @@ contains
 
     integer, dimension(nx,ny), intent(in) ::  &
          plume_mask_cell,     & ! = 1 for cells where scalar plume variables are computed
+         edge_mask_east,      & ! = 1 on east edges with plume cells on each side
+         edge_mask_north,     & ! = 1 on north edges with plume cels on each side
          divu_mask_east,      & ! = 1 on east edges where divergence terms are computed, else = 0
          divu_mask_north        ! = 1 on north edges where divergence terms are computed, else = 0
 
@@ -3906,6 +3598,10 @@ contains
     ! local variables
 
     real(dp), dimension(nx,ny) :: &
+         D_plume_east_up,     & ! upstream plume thickness at each east edge (m)
+         D_plume_north_up       ! upstream plume thickness at each north edge (m)
+
+    real(dp), dimension(nx,ny) :: &
          D_plume_cap                      ! min(D_plume, H_cavity)
 
     real(dp) :: &
@@ -3926,88 +3622,103 @@ contains
 
     !WHLcap - Use capped value of D_plume
 
-    if (cap_Dplume) then
-       D_plume_cap(:,:) = min(D_plume(:,:), H_cavity(:,:))
-    else
-       !WHL - Or maybe not?
-       D_plume_cap(:,:) = D_plume(:,:)
-    endif
+!    if (cap_Dplume) then
+!       D_plume_cap(:,:) = min(D_plume(:,:), H_cavity(:,:))
+!    else
+!       !WHL - Or maybe not?
+!       D_plume_cap(:,:) = D_plume(:,:)
+!    endif
+
+    !TODO - Inline the code for computing upstream-biased divergence?
+
+    D_plume_east_up(:,:) = 0.0d0
+    D_plume_north_up(:,:) = 0.0d0
 
     ! loop over locally owned cells
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask_cell(i,j) == 1) then
 
-             !TODO - Streamline the logic here and below
-             if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 1) then
-                D_plume_east = min(D_plume_cap(i,j), D_plume_cap(i+1,j))
-             elseif (plume_mask_cell(i,j) == 1) then
-                D_plume_east = D_plume_cap(i,j)
-             elseif (plume_mask_cell(i+1,j) == 1) then
-                D_plume_east = D_plume_cap(i+1,j)
+             ! find the upstream value of D_plume on the east edge
+
+             if (edge_mask_east(i,j) == 1) then ! plume exists in both neighbor cells
+
+                if (u_plume_east(i,j) > 0.0d0) then
+!                   upos_mask(i,j) = 1
+                   D_plume_east_up(i,j) = D_plume(i,j)
+                elseif (u_plume_east(i,j) < 0.0d0) then
+!                   uneg_mask(i,j) = 1
+                   D_plume_east_up(i,j) = D_plume(i+1,j)
+                endif
+
+             elseif (divu_mask_east(i,j) == 1) then  ! plume exists on only one side of the edge
+
+                if (plume_mask_cell(i,j) == 1 .and. u_plume_east(i,j) > 0.0d0) then
+!                   upos_mask(i,j) = 1
+                   D_plume_east_up(i,j) = D_plume(i,j)
+                elseif (plume_mask_cell(i+1,j) == 1 .and. u_plume_east(i,j) < 0.0d0) then
+!                   uneg_mask(i,j) = 1
+                   D_plume_east_up(i,j) = D_plume(i+1,j)
+                endif
+                
              endif
 
-             if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i-1,j) == 1) then
-                D_plume_west = min(D_plume_cap(i,j), D_plume_cap(i-1,j))
-             elseif (plume_mask_cell(i,j) == 1) then
-                D_plume_west = D_plume_cap(i,j)
-             elseif (plume_mask_cell(i-1,j) == 1) then
-                D_plume_west = D_plume_cap(i-1,j)
+
+             ! find the upstream value of D_plume on the north edge
+
+             if (edge_mask_north(i,j) == 1) then  ! plume exists in both neighbor cells
+
+!!             D_plume_north(i,j) = min(D_plume(i,j), D_plume(i,j+1))
+
+                if (v_plume_north(i,j) > 0.0d0) then
+!                   vpos_mask(i,j) = 1
+                   D_plume_north_up(i,j) = D_plume(i,j)
+                elseif (v_plume_north(i,j) < 0.0d0) then
+!                   vneg_mask(i,j) = 1
+                   D_plume_north_up(i,j) = D_plume(i,j+1)
+                endif
+                
+             elseif (divu_mask_north(i,j) == 1) then  ! plume exists on only one side of the edge
+                
+                if (plume_mask_cell(i,j) == 1 .and. v_plume_north(i,j) > 0.0d0) then
+!                   vpos_mask(i,j) = 1
+                   D_plume_north_up(i,j) = D_plume(i,j)
+                elseif (plume_mask_cell(i,j+1) == 1 .and. v_plume_north(i,j) < 0.0d0) then
+!                   vneg_mask(i,j) = 1
+                   D_plume_north_up(i,j) = D_plume(i,j+1)
+                endif
+                
              endif
 
-!          if (plume_mask_cell(i,j) == 1) then
+          endif  ! plume_mask_cell
+       enddo  ! i
+    enddo  ! j
 
-             ! Compute divergence of (Du)
-             
-             ! d/dx(Du)
-             
-!             if (divu_mask_east(i,j) == 1) then
-!                D_plume_east = 0.5d0 * (D_plume_cap(i,j) + D_plume_cap(i+1,j))
 
-!                if (u_plume_east(i,j) > 0.0d0) then
-!!                   D_plume_east = D_plume(i,j)
-!                   D_plume_east = D_plume_cap(i,j)
-!                else
-!!                   D_plume_east = D_plume(i+1,j)
-!                   D_plume_east = D_plume_cap(i+1,j)
-!                endif
-!             else
-!                D_plume_east = 0.0d0
+    ! Compute the divergence in each cell
+    ! loop over locally owned cells
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask_cell(i,j) == 1) then
+
+             dDu_dx = (D_plume_east_up(i,j)*u_plume_east(i,j) - D_plume_east_up(i-1,j)*u_plume_east(i-1,j)) / dx
+             dDv_dy = (D_plume_north_up(i,j)*v_plume_north(i,j) - D_plume_north_up(i,j-1)*v_plume_north(i,j-1)) / dy
+
+!             if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j+1) == 1) then
+!                D_plume_north = min(D_plume_cap(i,j), D_plume_cap(i,j+1))
+!             elseif (plume_mask_cell(i,j) == 1) then
+!                D_plume_north = D_plume_cap(i,j)
+!             elseif (plume_mask_cell(i,j+1) == 1) then
+!                D_plume_north = D_plume_cap(i,j+1)
 !             endif
-
-!             if (divu_mask_east(i-1,j) == 1) then
-!                D_plume_west = 0.5d0 * (D_plume_cap(i,j) + D_plume_cap(i-1,j))
-
-!                if (u_plume_east(i-1,j) > 0.0d0) then
-!!                   D_plume_west = D_plume(i-1,j)
-!                   D_plume_west = D_plume_cap(i-1,j)
-!                else
-!!                   D_plume_west = D_plume(i,j)
-!                   D_plume_west = D_plume_cap(i,j)
-!                endif
-!             else
-!                D_plume_west = 0.0d0
+             
+!             if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j-1) == 1) then
+!                D_plume_south = min(D_plume_cap(i,j), D_plume_cap(i,j-1))
+!             elseif (plume_mask_cell(i,j) == 1) then
+!                D_plume_south = D_plume_cap(i,j)
+!             elseif (plume_mask_cell(i,j-1) == 1) then
+!                D_plume_south = D_plume_cap(i,j-1)
 !             endif
-             
-             dDu_dx = (D_plume_east*u_plume_east(i,j) - D_plume_west*u_plume_east(i-1,j)) / dx
-             
-             ! d/dy(Dv)
-             
-             if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j+1) == 1) then
-                D_plume_north = min(D_plume_cap(i,j), D_plume_cap(i,j+1))
-             elseif (plume_mask_cell(i,j) == 1) then
-                D_plume_north = D_plume_cap(i,j)
-             elseif (plume_mask_cell(i,j+1) == 1) then
-                D_plume_north = D_plume_cap(i,j+1)
-             endif
-             
-             if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j-1) == 1) then
-                D_plume_south = min(D_plume_cap(i,j), D_plume_cap(i,j-1))
-             elseif (plume_mask_cell(i,j) == 1) then
-                D_plume_south = D_plume_cap(i,j)
-             elseif (plume_mask_cell(i,j-1) == 1) then
-                D_plume_south = D_plume_cap(i,j-1)
-             endif
 
 !             if (divu_mask_north(i,j) == 1) then
 !                D_plume_north = 0.5d0 * (D_plume_cap(i,j) + D_plume_cap(i,j+1))
@@ -4036,18 +3747,18 @@ contains
 !             else
 !                D_plume_south = 0.0d0
 !             endif
-             
-             dDv_dy = (D_plume_north*v_plume_north(i,j) - D_plume_south*v_plume_north(i,j-1)) / dy
+
+!             dDv_dy = (D_plume_north*v_plume_north(i,j) - D_plume_south*v_plume_north(i,j-1)) / dy
              
              divDu_plume(i,j) = dDu_dx + dDv_dy
              
-             if (D_plume(i,j) < H_cavity(i,j)) then
+!!             if (D_plume(i,j) < H_cavity(i,j)) then
                 dD_dt = (D_plume(i,j) - D_plume_old(i,j)) / dt_plume
                 resid = dD_dt - entrainment(i,j) + detrainment(i,j) + divDu_plume(i,j)
-             else  ! cavity is filled; solving for steady-state eta_plume instead of dD/dt
-                dD_dt = 0.0d0
-                resid = -entrainment(i,j) + detrainment(i,j) + divDu_plume(i,j)
-             endif
+!!             else  ! cavity is filled; solving for steady-state eta_plume instead of dD/dt
+!!                dD_dt = 0.0d0
+!!                resid = -entrainment(i,j) + detrainment(i,j) + divDu_plume(i,j)
+!!             endif
 
              !WHL - debug
              if (i==itest .and. j==jtest .and. this_rank==rtest) then
@@ -4055,13 +3766,13 @@ contains
                 print*, 'Divergence, i, j =', i, j
                 print*, 'dD/dt =', dD_dt
                 print*, 'u_plume_west/east =', u_plume_east(i-1,j), u_plume_east(i,j)
-                print*, 'u_plume_south/north =', u_plume_north(i,j-1), u_plume_north(i,j)
-                print*, 'v_plume_west/east =', v_plume_east(i-1,j), v_plume_east(i,j)
+!!                print*, 'u_plume_south/north =', u_plume_north(i,j-1), u_plume_north(i,j)
+!!                print*, 'v_plume_west/east =', v_plume_east(i-1,j), v_plume_east(i,j)
                 print*, 'v_plume_south/north =', v_plume_north(i,j-1), v_plume_north(i,j)
-                print*, 'D_plume(i-1,j),(i,j) =', D_plume(i-1,j), D_plume(i,j)
-                print*, 'D_plume(i,j),(i,j+1) =', D_plume(i,j), D_plume(i,j+1)
-                print*, 'D_plume_west/east =', D_plume_west, D_plume_east
-                print*, 'D_plume_south/north =', D_plume_south, D_plume_north
+!!                print*, 'D_plume(i-1,j),(i,j) =', D_plume(i-1,j), D_plume(i,j)
+!!                print*, 'D_plume(i,j),(i,j+1) =', D_plume(i,j), D_plume(i,j+1)
+                print*, 'D_plume_west/east =', D_plume_east_up(i-1,j), D_plume_east_up(i,j)
+                print*, 'D_plume_south/north =', D_plume_north_up(i,j-1), D_plume_north_up(i,j)
                 print*, 'dDu_dx, dDv_dy =', dDu_dx, dDv_dy
                 print*, 'divDu =', divDu_plume(i,j)
                 print*, 'local residual =', resid
@@ -4088,9 +3799,508 @@ contains
 
   end subroutine compute_dynamic_residual
 
+   
 !****************************************************
 
   subroutine compute_plume_thickness(&
+       nx,       ny,     &
+       dx,       dy,     &
+       dt_plume,         &
+       plume_mask_cell,  &
+       u_plume_east,     &
+       v_plume_east,     &
+       u_plume_north,    &
+       v_plume_north,    &
+       plume_speed_east, &
+       plume_speed_north,&
+       edge_mask_east,   &  !WHL - Do we need both pairs of masks?
+       edge_mask_north,  &
+       divu_mask_east,   &
+       divu_mask_north,  &
+       H_cavity,         &
+       entrainment,      &
+       detrainment,      &
+       itest,    jtest,  &
+       rtest,            &
+       iter_melt,        &  !WHL - debug
+       D_plume_old,      &
+       D_plume)
+
+    !--------------------------------------------------------------------
+    ! Solve the continuity equation for D_plume:
+    ! 
+    !    dD/dt = e - d - del*(Du)
+    !
+    ! where e is entrainment and d is detrainment.
+    !  
+    ! The equation is solved in delta form:
+    !
+    !    delta_D = (D_old - D_cur) + dt*(e-d) - dt*div(Du)
+    !
+   ! where D_cur is the current guess for D, passed into the subroutine as D_plume.
+    ! where D_old is the value of D from the previous time step.
+    ! 
+    ! TODO - Update the method description.
+    ! The current guess for the velocity (u_plume,v_plume) is also passed into the subroutine.
+    ! Given u_plume and D_plume, the divergence term is expanded to first order as
+    ! 
+    !    div(Du) = div[(D_old + delta_D) * u_plume]
+    !
+    ! The terms containing delta_D are moved to the LHS and inserted in a matrix,
+    ! giving a problem of the form
+    !
+    !    A*delta_D = rhs
+    !
+    ! This subroutine is called repeatedly until the residual is sufficiently small.
+    !
+    ! For now, I am using SLAP to solve the matrix.
+    ! Later, I plan to use a homegrown parallel solver.
+    !--------------------------------------------------------------------
+
+    ! for sparse_easy_solve
+    use glimmer_sparse_type
+    use glimmer_sparse
+
+    integer, intent(in) ::  &
+         nx,     ny             ! number of grid cells in each dimension
+
+    real(dp), intent(in) ::  &
+         dx,     dy             ! grid cell size (m)
+
+    real(dp), intent(in) ::  &
+         dt_plume               ! time step for plume solver (s)
+
+    !TODO - Only one pair of edge masks?
+    integer, dimension(nx,ny), intent(in) ::  &
+         plume_mask_cell,     & ! = 1 for cells where scalar plume variables are computed, else = 0
+         edge_mask_east,      & ! = 1 on east edges where plume velocity is computed, else = 0
+         edge_mask_north,     & ! = 1 on north edges where plume velocity is computed, else = 0
+         divu_mask_east,      & ! = 1 on east edges where divergence terms are computed, else = 0
+         divu_mask_north        ! = 1 on north edges where divergence terms are  computed, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         u_plume_east,        & ! u_plume on east edges (m/s)
+         v_plume_east,        & ! v_plume on east edges (m/s)
+         u_plume_north,       & ! u_plume on north edges (m/s)
+         v_plume_north,       & ! v_plume on north edges (m/s)
+         plume_speed_east,    & ! plume speed on east edges (m/s)
+         plume_speed_north,   & ! plume speed on north edges (m/s)
+         H_cavity,            & ! ocean cavity thickness (m), lsrf - topg
+         entrainment,         & ! entrainment at cell centers (m/s)
+         detrainment            ! detrainment at cell centers (m/s)
+
+    integer, intent(in) :: &
+         itest, jtest, rtest    ! diagnostic indices
+
+    integer, intent(in) :: iter_melt  !WHL - debug
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         D_plume_old            ! old plume thickness (m) at the previous time step
+
+    real(dp), dimension(nx,ny), intent(inout) ::  &
+         D_plume                ! on input, the latest guess for the plume thickness
+                                ! on output, the new guess for the plume thickness
+
+    ! local variables
+
+    real(dp), dimension(nx,ny) ::  &
+!!         D_plume_latest,      & ! D_plume from the most recent iteration (m)
+!!         D_plume_cap,         & ! min(D_plume, H_cavity)
+!!         D_plume_east,        & ! plume thickness at each east edge (m)
+!!         D_plume_north,       & ! plume thickness at each north edge (m)
+         D_plume_east_up,     & ! upstream plume thickness at each east edge (m)
+         D_plume_north_up       ! upstream plume thickness at each north edge (m)
+
+    integer, dimension(nx,ny) ::  &
+         upos_mask,   & ! = 1 at edges where u_plume > 0, else = 0
+         uneg_mask,   & ! = 1 at edges where u_plume < 0, else = 0
+         vpos_mask,   & ! = 1 at edges where v_plume > 0, else = 0
+         vneg_mask      ! = 1 at edges where v_plume < 0, else = 0
+
+    real(dp), dimension(-1:1,-1:1,nx,ny) ::  &
+         A_plume        ! array holding nonzero matrix elements on the structured mesh
+                        ! up to 9 nonzero elements per row of the matrix
+
+    type(sparse_matrix_type) ::  &
+         matrix         ! sparse matrix for SLAP solver, defined in glimmer_sparse_types
+                        ! includes nonzeroes, order, col, row, val
+
+    real(dp), dimension(:), allocatable ::  &
+         rhs,         & ! right-hand-side vector, passed to solver
+         answer         ! answer vector, returned from solver
+
+    real(dp) ::  &
+         err            ! solution error the solver
+
+    integer, dimension(nx,ny) ::  &
+         cellID         ! integer ID for each cell
+
+    integer, dimension(nx*ny) ::  &
+         iCellIndex, jCellIndex   ! indices for mapping cellID back to i and j
+
+!!    real(dp) :: &
+!!         D_east, D_north,      & ! current estimate of D_plume, averaged to east and north edges
+!!         denom                   ! denominator in the expression for velocity
+
+    integer :: niters   ! iteration counter
+    integer :: i, j     ! horizontal indices
+    integer :: iA, jA   ! horizontal index shifts, in range -1:1
+    integer :: n        ! matrix index
+    integer :: count    ! counter
+    integer :: matrix_order  ! size of square matrix
+    integer :: max_nonzeros  ! max number of nonzero elements in matrix
+
+    ! SLAP linear solver (BICG or GMRES)
+    ! For ISOMIP+, BICG is a bit faster, requiring 3 or 4 linear iterations compared to 6 or 7 for GMRES.
+    !TODO - Replace with homegrown solver
+
+    integer, parameter :: &
+         whichsparse = HO_SPARSE_BICG
+!!         whichsparse = HO_SPARSE_GMRES
+
+!!    real(dp), parameter :: &
+!!         relax_D = 0.5d0       !WHL - Remove relax_D?
+
+    real(dp) :: dDu_dx, dDv_dy
+
+    !WHL - debug
+!!    real(dp) :: diag_east, diag_west, diag_north, diag_south
+!!    real(dp) :: offdiag_east, offdiag_west, offdiag_north, offdiag_south
+!!    real(dp), dimension(nx,ny) :: eta_plume_latest
+
+    print*, ' '
+    print*, 'In plume_thickness_solver: itest, jtest =', itest, jtest
+
+    ! count plume cells in matrix solve
+    ! loop over locally owned cells
+    count = 0
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask_cell(i,j)==1) then
+             count = count + 1
+             cellID(i,j) = count
+             iCellIndex(count) = i
+             jCellIndex(count) = j
+          endif
+       enddo
+    enddo
+   
+    ! initialize and allocate
+    matrix_order = count
+    max_nonzeros = matrix_order * 9
+
+    allocate(matrix%row(max_nonzeros), matrix%col(max_nonzeros), matrix%val(max_nonzeros))
+    allocate(rhs(matrix_order), answer(matrix_order))
+
+    A_plume(:,:,:,:) = 0.0d0
+    rhs(:) = 0.0d0
+    answer(:) = 0.0d0
+
+    ! Save the latest iterate for D_plume.
+    ! Note: This is different from D_plume_old, the value at the start of the time step.
+!!    D_plume_latest(:,:) = D_plume(:,:)
+
+    !WHL - debug
+    i = itest
+    j = jtest
+    print*, 'i, j, latest D =', i, j, D_plume(i,j)
+
+    ! Compute D_plume edge values used in the finite difference expression for divergence.
+    ! No solution is ideal here:
+    ! With a centered difference for D_plume on edges, thin plumes upstream from thick plumes can overempty.
+    ! With an upstream difference, there is no overemptying, but there can be oscillations as a result
+    !  of u or v changing sign between one iteration and the next.
+    ! Choosing the min value is not very accurate (only first order, and too restrictive of outflow when
+    !  a thick plume is upstream of a thin plume), but it inhibits overemptying and oscillations.
+
+    ! Store for each edge the plume thickness in the upstream cell.
+
+    ! Note: The use of edge_mask and divu_mask is a bit subtle.
+    !       If edge_mask = 1, the plume exists on both sides of the edge, and one cell is clearly upstream.
+    !       If edge_mask = 0 but divu_mask = 1, the plume exists on only one side of the edge.
+    !        We identify an upstream plume thickness only if the plume exists in the upstream cell
+    !        and the flow is out of the plume domain.
+    !        (This generally is the case, but we check here to be sure.)
+
+    upos_mask(:,:) = 0
+    uneg_mask(:,:) = 0
+    vpos_mask(:,:) = 0
+    vneg_mask(:,:) = 0
+
+!!    D_plume_east(:,:) = 0.0d0
+!!    D_plume_north(:,:) = 0.0d0
+
+    D_plume_east_up(:,:) = 0.0d0
+    D_plume_north_up(:,:) = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx
+
+          ! mark the u component as positive or negative
+
+          if (edge_mask_east(i,j) == 1) then ! plume exists in both neighbor cells
+
+!!             D_plume_east(i,j) = min(D_plume(i,j), D_plume(i+1,j))
+
+             if (u_plume_east(i,j) > 0.0d0) then
+                upos_mask(i,j) = 1
+                D_plume_east_up(i,j) = D_plume(i,j)
+             elseif (u_plume_east(i,j) < 0.0d0) then
+                uneg_mask(i,j) = 1
+                D_plume_east_up(i,j) = D_plume(i+1,j)
+             endif
+
+          elseif (divu_mask_east(i,j) == 1) then  ! plume exists on only one side of the edge
+
+             if (plume_mask_cell(i,j) == 1 .and. u_plume_east(i,j) > 0.0d0) then
+                upos_mask(i,j) = 1
+                D_plume_east_up(i,j) = D_plume(i,j)
+             elseif (plume_mask_cell(i+1,j) == 1 .and. u_plume_east(i,j) < 0.0d0) then
+                uneg_mask(i,j) = 1
+                D_plume_east_up(i,j) = D_plume(i+1,j)
+             endif
+
+          endif
+
+          ! mark the v component as positive or negative
+
+          if (edge_mask_north(i,j) == 1) then  ! plume exists in both neighbor cells
+
+!!             D_plume_north(i,j) = min(D_plume(i,j), D_plume(i,j+1))
+
+             if (v_plume_north(i,j) > 0.0d0) then
+                vpos_mask(i,j) = 1
+                D_plume_north_up(i,j) = D_plume(i,j)
+             elseif (v_plume_north(i,j) < 0.0d0) then
+                vneg_mask(i,j) = 1
+                D_plume_north_up(i,j) = D_plume(i,j+1)
+             endif
+
+          elseif (divu_mask_north(i,j) == 1) then  ! plume exists on only one side of the edge
+
+             if (plume_mask_cell(i,j) == 1 .and. v_plume_north(i,j) > 0.0d0) then
+                vpos_mask(i,j) = 1
+                D_plume_north_up(i,j) = D_plume(i,j)
+             elseif (plume_mask_cell(i,j+1) == 1 .and. v_plume_north(i,j) < 0.0d0) then
+                vneg_mask(i,j) = 1
+                D_plume_north_up(i,j) = D_plume(i,j+1)
+             endif
+
+          endif
+
+       enddo  ! i
+    enddo  ! j
+
+    !--------------------------------------------------------------------
+    ! Solve the equation dD/dt = e - d - div(Du)
+    ! This is done in delta form:
+    ! delta_D = (D_old - D_cur) + dt*(e-d) - dt*div(Du)
+    !    where D_old is the old value of D and D_cur is the current guess.
+    !--------------------------------------------------------------------
+ 
+    ! compute nonzero matrix elements
+    ! loop over locally owned cells
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask_cell(i,j) == 1) then
+
+             ! right-hand side
+             ! This term includes
+             ! (1) D_old - D_plume
+             ! (2) (e - d)*dt
+             ! (3) -dt * div(D_plume*u_plume), a divergence term based on the current guesses for D and u
+             !
+             n = cellID(i,j)
+
+             rhs(n) = D_plume_old(i,j) - D_plume(i,j)
+
+             rhs(n) = rhs(n) + dt_plume * (entrainment(i,j) - detrainment(i,j)) &
+                             - (dt_plume/dx) * (D_plume_east_up(i,j) * u_plume_east(i,j) * divu_mask_east(i,j) &
+                                              - D_plume_east_up(i-1,j) * u_plume_east(i-1,j) * divu_mask_east(i-1,j)) &
+                             - (dt_plume/dy) * (D_plume_north_up(i,j) * v_plume_north(i,j) * divu_mask_north(i,j) &
+                                              - D_plume_north_up(i,j-1) * v_plume_north(i,j-1) * divu_mask_north(i,j-1))
+
+             if (i==itest .and. j==jtest) then
+                print*, ' '
+                print*, '(D - D_old)/dt =', (D_plume(i,j) - D_plume_old(i,j)) / dt_plume
+                print*, '(e - d) =', entrainment(i,j) - detrainment(i,j)
+
+                dDu_dx = (1.0d0/dx) * (D_plume_east_up(i,j)*u_plume_east(i,j)*divu_mask_east(i,j) &
+                                     - D_plume_east_up(i-1,j)*u_plume_east(i-1,j)*divu_mask_east(i-1,j))
+                dDv_dy = (1.0d0/dy) * (D_plume_north_up(i,j)*v_plume_north(i,j)*divu_mask_north(i,j) &
+                                     - D_plume_north_up(i,j-1)*v_plume_north(i,j-1)*divu_mask_north(i,j-1))
+                print*, '-div(Du) =', -dDu_dx - dDv_dy
+                print*, 'u_plume_west/east =', u_plume_east(i-1,j), u_plume_east(i,j)
+                print*, 'v_plume_south/north =', v_plume_north(i,j-1), v_plume_north(i,j)
+                print*, 'D_plume_west/east_up =', D_plume_east_up(i-1,j), D_plume_east_up(i,j)
+                print*, 'D_plume_south/north_up =', D_plume_north_up(i,j-1), D_plume_north_up(i,j)
+                print*, 'dDu_dx, dDv_dy =', dDu_dx, dDv_dy
+                print*, 'residual (m/s) =', rhs(n)/dt_plume
+             endif
+
+             ! initialize the matrix diagonal
+             A_plume(0,0,i,j) = 1.0d0
+
+             ! Add matrix terms associated with u_plume*delta_D
+             ! Note: The upos, uneg, vpos and vneg masks are constructed such that 
+             !       if a mask = 1 at an edge, then the plume exists in the upstream cell.
+
+             ! diagonal element
+             A_plume(0,0,i,j) = A_plume(0,0,i,j)  &
+                              + (dt_plume/dx) * u_plume_east(i,j) * upos_mask(i,j)  &
+                              - (dt_plume/dx) * u_plume_east(i-1,j) * uneg_mask(i-1,j)  &
+                              + (dt_plume/dy) * v_plume_north(i,j) * vpos_mask(i,j)  &
+                              - (dt_plume/dy) * v_plume_north(i,j-1) * vneg_mask(i,j-1)
+
+!             if (D_plume(i,j) == D_plume_east(i,j)) then
+!                A_plume(0,0,i,j) = A_plume(0,0,i,j) + (dt_plume/dx) * u_plume_east(i,j)
+!             endif
+
+!             if (D_plume(i,j) == D_plume_east(i-1,j)) then
+!                A_plume(0,0,i,j) = A_plume(0,0,i,j) - (dt_plume/dx) * u_plume_east(i-1,j)
+!             endif
+
+!             if (D_plume(i,j) == D_plume_north(i,j)) then
+!                A_plume(0,0,i,j) = A_plume(0,0,i,j) + (dt_plume/dy) * v_plume_north(i,j)
+!             endif
+
+!             if (D_plume(i,j) == D_plume_north(i,j-1)) then
+!                A_plume(0,0,i,j) = A_plume(0,0,i,j) - (dt_plume/dy) * v_plume_north(i,j-1)
+!             endif
+
+             ! off-diagonal elements
+             A_plume(1,0,i,j)  = A_plume(1,0,i,j)  &
+                               + (dt_plume/dx) * u_plume_east(i,j) * uneg_mask(i,j)
+             A_plume(-1,0,i,j) = A_plume(-1,0,i,j)  &
+                               - (dt_plume/dx) * u_plume_east(i-1,j) * upos_mask(i-1,j)
+             A_plume(0,1,i,j)  = A_plume(0,1,i,j)  &
+                               + (dt_plume/dy) * v_plume_north(i,j) * vneg_mask(i,j)
+             A_plume(0,-1,i,j) = A_plume(0,-1,i,j)  &
+                               - (dt_plume/dy) * v_plume_north(i,j-1) * vpos_mask(i,j-1)
+
+             ! Note: If plume_mask_cell in the neighboring cell = 0, then D_plume in that cell is fixed at 0.
+             !       In that case, there is no matrix element associated with the cell.
+
+             ! TODO - May not need divu_mask_east if u_plume_east = 0 wherever divu_mask_east = 0
+!             if (D_plume(i+1,j) == D_plume_east(i,j) .and. plume_mask_cell(i+1,j) == 1) then
+!                A_plume(1,0,i,j)  = A_plume(1,0,i,j) + (dt_plume/dx) * u_plume_east(i,j)
+!             endif
+
+!             if (D_plume(i-1,j) == D_plume_east(i-1,j) .and. plume_mask_cell(i-1,j) == 1) then
+!                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) - (dt_plume/dx) * u_plume_east(i-1,j)
+!             endif
+
+!             if (D_plume(i,j+1) == D_plume_north(i,j) .and. plume_mask_cell(i,j+1) == 1) then
+!                A_plume(0,1,i,j)  = A_plume(0,1,i,j) + (dt_plume/dy) * v_plume_north(i,j)
+!             endif
+
+!             if (D_plume(i,j-1) == D_plume_north(i,j-1) .and. plume_mask_cell(i,j-1) == 1) then
+!                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) - (dt_plume/dy) * v_plume_north(i,j-1)
+!             endif
+
+             if (i==itest .and. j==jtest .and. this_rank==rtest) then
+                print*, ' '
+                print*, 'i, j, A_plume, rhs:', &
+                     i, j, A_plume(0,0,i,j), A_plume(1,0,i,j), A_plume(-1,0,i,j), A_plume(0,1,i,j), A_plume(0,-1,i,j), &
+                     rhs(cellID(i,j))
+             endif
+
+          endif  ! plume_mask_cell
+          
+       enddo  ! i
+    enddo  ! j
+
+    !WHL - Put a halo update here when running in parallel
+
+!    print*, 'min, max A:', minval(A_plume), maxval(A_plume)
+!    print*, 'min, max rhs:', minval(rhs), maxval(rhs)
+!    print*, 'SLAP format'
+
+    ! place nonzero elements in SLAP matrix format
+    count = 0
+
+    do n = 1, matrix_order
+
+       i = iCellIndex(n)
+       j = jCellIndex(n)
+
+       if (plume_mask_cell(i,j) == 1) then
+
+          ! loop over neighbor cells that can contribute terms to this matrix row
+
+          do jA = -1,1
+             do iA = -1,1
+
+                if (A_plume(iA,jA,i,j) /= 0.0d0) then
+                   count = count + 1
+                   matrix%row(count) = n
+                   matrix%col(count) = cellID(i+iA,j+jA)
+                   matrix%val(count) = A_plume(iA,jA,i,j)
+                      
+                   if (matrix%col(count) == 0) then
+                      print*, 'Bad matrix column: i, j, iA, jA =', i, j, iA, jA
+                      stop
+                   endif
+                   
+                   if (j==jtest) then
+!!                         print*, 'i, j, iA, jA, row, col, val, rhs:', &
+!!                              i, j, iA, jA, matrix%row(count), matrix%col(count), matrix%val(count), rhs(cellID(i,j))
+                   endif
+                      
+                endif
+
+             enddo   ! iA
+          enddo  ! jA
+          
+       endif  ! plume_mask_cell
+
+    enddo  ! n
+
+    ! Set other matrix parameters
+    matrix%order = matrix_order
+    matrix%nonzeros = count
+    matrix%symmetric = .false.
+
+    ! call the SLAP solver
+
+    call sparse_easy_solve(matrix,  rhs,      answer,   &
+                           err,     niters,   whichsparse)
+       
+    print*, 'Called sparse_easy_solve: niters, err =', niters, err
+
+    ! Update D_plume, given the answer vector from the solver.
+
+    do n = 1, matrix_order
+       i = iCellIndex(n)
+       j = jCellIndex(n)
+
+       if (i==itest .and. j==jtest) then
+          print*, ' '
+          print*, 'After solve, i, j, D_plume_old, delta_D, new D_plume:', &
+                   i, j, D_plume_old(i,j), answer(n), D_plume(i,j) + answer(n)
+       endif
+
+       D_plume(i,j) = D_plume(i,j) + answer(n)
+
+    enddo
+
+    !TODO - Is this necessary?
+    ! Check for D_plume > H_cavity.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (D_plume(i,j) > H_cavity(i,j)) then
+!!!             print*, 'D_plume > H_cavity: i, j, D_plume, H_cavity =', i, j, D_plume(i,j), H_cavity(i,j)
+          endif
+       enddo
+    enddo
+
+
+  end subroutine compute_plume_thickness
+
+!****************************************************
+
+  subroutine compute_plume_thickness_with_eta(&
        nx,       ny,     &
        dx,       dy,     &
        dt_plume,         &
@@ -4124,7 +4334,7 @@ contains
        detrainment,      &
        itest,    jtest,  &
        rtest,            &
-       iter_dyn,         &  !WHL - debug
+       iter_melt,        &  !WHL - debug
        D_plume_old,      &
        D_plume,          &
        eta_plume)
@@ -4218,7 +4428,7 @@ contains
     integer, intent(in) :: &
          itest, jtest, rtest    ! diagnostic indices
 
-    integer, intent(in) :: iter_dyn  !WHL - debug
+    integer, intent(in) :: iter_melt  !WHL - debug
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          D_plume_old            ! old plume thickness (m) at the previous time step
@@ -4331,7 +4541,7 @@ contains
           endif
        enddo
     enddo
-   
+
     ! initialize and allocate
     matrix_order = count
     max_nonzeros = matrix_order * 9
@@ -4954,7 +5164,7 @@ contains
        enddo
     enddo
 
-  end subroutine compute_plume_thickness
+  end subroutine compute_plume_thickness_with_eta
 
 !****************************************************
 
@@ -4992,7 +5202,7 @@ contains
        detrainment,      &
        itest,    jtest,  &
        rtest,            &
-       iter_dyn,         &  !WHL - debug
+       iter_melt,        &  !WHL - debug
        D_plume_old,      &
        D_plume,          &
        eta_plume)
@@ -5082,7 +5292,7 @@ contains
     integer, intent(in) :: &
          itest, jtest, rtest    ! diagnostic indices
 
-    integer, intent(in) :: iter_dyn  !WHL - debug
+    integer, intent(in) :: iter_melt  !WHL - debug
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          D_plume_old            ! old plume thickness (m) at the previous time step
