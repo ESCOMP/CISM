@@ -217,7 +217,7 @@ module glissade_therm
                                                       ! Note: trpt = 273.15 K
 
        ! Temperature has already been initialized from an input file.
-       ! (We know this because the default initial temps of unphys_val, a large negative number, have been overwritten.)
+       ! We know this because the default initial temps of unphys_val (a large negative number) have been overwritten.
 
        call write_log('Initializing ice temperature from an input file')
 
@@ -635,11 +635,12 @@ module glissade_therm
     !                floating_mask = 1 where ice is present (thck > thklim_temp) and floating;
     !                ocean_mask = 1 where topg is below sea level and thck <= thklim_temp
 
-    call glissade_get_masks(ewn,           nsn,           &
-                            thck,          topg,          &
-                            eus,           thklim_temp,   &
-                            ice_mask,      floating_mask, &
-                            ocean_mask)
+    call glissade_get_masks(ewn,           nsn,            &
+                            thck,          topg,           &
+                            eus,           thklim_temp,    &
+                            ice_mask,                      &
+                            floating_mask = floating_mask, &
+                            ocean_mask = ocean_mask)
       
     ! Compute basal pressure melting point temperature
     ! (needed for temperature/enthalpy calculation below, and also needed later for
