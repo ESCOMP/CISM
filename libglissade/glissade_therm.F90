@@ -217,7 +217,7 @@ module glissade_therm
                                                       ! Note: trpt = 273.15 K
 
        ! Temperature has already been initialized from an input file.
-       ! (We know this because the default initial temps of unphys_val -999 have been overwritten.)
+       ! (We know this because the default initial temps of unphys_val, a large negative number, have been overwritten.)
 
        call write_log('Initializing ice temperature from an input file')
 

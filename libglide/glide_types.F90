@@ -1892,7 +1892,7 @@ contains
 
     ! MJH - Set temp and flwa to physically unrealistic values so we can tell later if 
     !       arrays were initialized correctly
-    model%temper%temp(:,:,:) = unphys_val  ! unphys_val = -999.d0
+    model%temper%temp(:,:,:) = unphys_val  ! large negative number
     model%temper%flwa(:,:,:) = unphys_val
     model%temper%dissip(:,:,:) = 0.d0
 
@@ -1960,7 +1960,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
        ! Set beta and unstagbeta to physically unrealistic values so we can tell later 
        ! if these fields were read correctly from an input file
-       model%velocity%beta(:,:) = unphys_val   ! unphys_val = -999.0d0
+       model%velocity%beta(:,:) = unphys_val   ! large negative number
        model%velocity%unstagbeta(:,:) = unphys_val
 
        call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)

@@ -209,7 +209,7 @@ contains
     elseif ( minval(model%temper%temp(1:model%general%upn, &
                     1+lhalo:model%general%ewn-lhalo, 1+uhalo:model%general%nsn-uhalo)) > &
                     (-1.0d0 * trpt) ) then    ! trpt = 273.15 K
-                                              ! Default initial temps in glide_types are unphys_val = -999
+                                              ! Default initial temps are unphys_val (a large negative number)
 
        ! Temperature has already been initialized from an input file.
        ! (We know this because the unphysical initial values have been overwritten.)

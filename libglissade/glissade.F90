@@ -363,8 +363,8 @@ contains
 
     ! If unstagbeta (i.e., beta on the scalar ice grid) was read from an input file,
     !  then interpolate it to beta on the staggered grid.
-    ! NOTE: unstagbeta is initialized to unphys_val = -999.d0, so its maxval will be > 0 only if
-    !       the field is read in.
+    ! NOTE: unstagbeta is initialized to unphys_val (a large negative number),
+    !       so its maxval will be > 0 only if the field is read in.
     ! We can make an exception for ISHOM case C; for greater accuracy we set beta in 
     !  subroutine calcbeta instead of interpolating from unstagbeta (one processor only).
 

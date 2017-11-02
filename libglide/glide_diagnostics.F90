@@ -613,7 +613,7 @@ contains
 
     imax = 0
     jmax = 0
-    max_thck = unphys_val   ! = -999.d0 (an arbitrary large negative number)
+    max_thck = unphys_val   ! = an arbitrary large negative number)
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
           if (model%geometry%thck(i,j) > max_thck) then
