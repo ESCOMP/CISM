@@ -1504,8 +1504,12 @@ module glide_types
     integer  :: jdiag_local = 1
     integer  :: rdiag_local = 0    ! task number for diagnostic point
 
+    ! CFL diagnostics and adaptive subcycling
     real(dp) :: adv_cfl_dt = 0.0d0  ! maximum allowable dt (yrs) based on advective CFL (calculated by model for each time step)
     real(dp) :: diff_cfl_dt = 0.0d0 ! maximum allowable dt (yrs) based on diffusive CFL (calculated by model for each time step)
+    real(dp) :: adaptive_cfl_threshold = 0.0d0  ! adaptively subcycle the advection when advective CFL exceeds this value
+                                                ! (zero value means no adaptive subcycling)
+
   end type glide_numerics
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -1019,6 +1019,12 @@ contains
     real(dp) :: previous_time       ! time (yr) at the start of this time step
                                     ! (The input time is the time at the end of the step.)
 
+    real(dp) :: advective_cfl       ! advective CFL number
+                                    ! If advective_cfl > 1, the model is unstable without subcycling
+    real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt*tim0 by default
+
+    integer :: nsubcyc              ! number of times to subcycle advection
+
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
                                     ! set to true for EVOL_UPWIND, else = false
 
@@ -1055,7 +1061,7 @@ contains
 
        ! Use incremental remapping scheme to transport ice thickness (and temperature too, if whichtemp = TEMP_PROGNOSTIC).
        ! MJH: I put the no thickness evolution option here so that it is still possible 
-       ! (but not required) to use IR to advect temperature when thickness evolution is turned off.
+       !      (but not required) to use IR to advect temperature when thickness evolution is turned off.
 
        ! TODO  MJH If we really want to support no evolution, then we may want to implement it so that IR does not occur 
        !       at all - right now a run can fail because of a CFL violation in IR even if evolution is turned off.  Do we want
@@ -1082,18 +1088,6 @@ contains
        call t_stopf('new_remap_halo_upds')
 
        call t_startf('glissade_transport_driver')
-
-       ! --- First determine CFL limits ---
-       ! Note we are using the subcycled dt here (if subcycling is on).
-       ! (see note above about the EVOL_NO_THICKNESS option and how it is affected by a CFL violation)
-       ! stagthck, dusrfdew/ns and u/vvel need to be from the previous time step (and are at this point)
-       call glissade_check_cfl(model%general%ewn,         model%general%nsn,         model%general%upn-1,      &
-                               model%numerics%dew * len0, model%numerics%dns * len0, model%numerics%sigma,     &
-                               model%geomderv%stagthck * thk0,                                                 &
-                               model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
-                               model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
-                               model%numerics%dt_transport * tim0 / scyr,                                      &
-                               model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt )
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserv energy.
@@ -1158,13 +1152,57 @@ contains
           bmlt_unscaled(:,:) = 0.0d0
        endif
 
+       ! --- Determine CFL limits ---
+       ! Note: We are using the subcycled dt here (if subcycling is on).
+       !  (See note above about the EVOL_NO_THICKNESS option and how it is affected by a CFL violation)
+       !  stagthck, dusrfdew/ns and u/vvel need to be from the previous time step (and are at this point)
+       ! Note: If using adaptive subcycling (with adaptive_cfl_threshold > 0), then dt_transport should
+       !       be equal to dt (which is the case by default).
+       !TODO - Remove the dt_transport option and simply rely on adaptive subcycling as needed?
+
+       call glissade_check_cfl(model%general%ewn,         model%general%nsn,         model%general%upn-1,      &
+                               model%numerics%dew * len0, model%numerics%dns * len0, model%numerics%sigma,     &
+                               model%geomderv%stagthck * thk0,                                                 &
+                               model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
+                               model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
+                               model%numerics%dt_transport * tim0 / scyr,                                      &
+                               model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt)
+
+       ! Set the transport timestep.
+       ! The timestep is model%numerics%dt by default, but optionally can be reduced for subcycling
+
+       if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
+
+          advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+          if (advective_cfl > model%numerics%adaptive_cfl_threshold) then
+
+             ! compute the number of subcycles
+             ! If advective_cfl > advective_cfl_threshold, then nsubcyc >= 2
+             ! The larger the ratio, the larger the value of nsubcyc
+             nsubcyc = ceiling(advective_cfl / model%numerics%adaptive_cfl_threshold)
+
+             if (main_task) then
+                print*, 'WARNING: adv_cfl_dt exceeds threshold; CFL =', advective_cfl
+                print*, 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
+                print*, 'nsubcyc =', nsubcyc
+             endif
+          else
+             nsubcyc = 1
+          endif
+          dt_transport = model%numerics%dt * tim0 / real(nsubcyc,dp)   ! convert to s
+
+       else  ! no adaptive subcycling
+          nsubcyc = model%numerics%subcyc
+          dt_transport = model%numerics%dt_transport * tim0  ! convert to s
+       endif
+
        ! temporary in/out arrays in SI units
        thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
-       do sc = 1, model%numerics%subcyc
+       do sc = 1, nsubcyc
 
-          if (model%numerics%subcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle ',sc
+          if (nsubcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle', sc
 
           ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
           ! (includes a halo update for tracers)

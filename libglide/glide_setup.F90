@@ -490,6 +490,7 @@ contains
     call GetValue(section,'tend',model%numerics%tend)
     call GetValue(section,'dt',model%numerics%tinc)
     call GetValue(section,'subcyc',model%numerics%subcyc)
+    call GetValue(section,'adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold)
     call GetValue(section,'ntem',model%numerics%ntem)
     call GetValue(section,'profile',model%numerics%profile_period)
 
@@ -1600,6 +1601,17 @@ contains
     if (model%numerics%thklim_float /= model%numerics%thklim) then
        write(message,*) 'thickness limit for dynamically active floating ice (m): ', model%numerics%thklim_float
        call write_log(message)
+    endif
+
+    if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
+         model%numerics%adaptive_cfl_threshold > 0.0d0) then
+       write(message,*) 'Advection will be subcycled when CFL >', model%numerics%adaptive_cfl_threshold
+       call write_log(message)
+       if (model%numerics%subcyc /= 1) then  ! set subcyc = 1 with adaptive CFL subcycling
+          model%numerics%subcyc = 1
+          write(message,*) 'Setting numerics%subcyc = 1; subcycling is adaptive only'
+          call write_log(message)
+       endif
     endif
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then
