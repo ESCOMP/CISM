@@ -295,14 +295,22 @@ contains
 
     ! initialize glissade components
 
-    ! Update some variables in halo cells
-    ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly (if not read from input file).
+    ! Set some variables in halo cells
+    ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly
+    !        (if not read from input file).
     !       We do an update here for temp in case temp is read from an input file.
     !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
     !        then the halos will receive the correct values.
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
+
+    ! calculate the lower and upper ice surface
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+    ! save starting ice thickness for diagnostics
+    model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
     if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
 
@@ -542,8 +550,8 @@ contains
     !       An update is done here regardless of code options, just to be on the safe side.
     call parallel_halo(model%stress%efvs)
 
-    ! calculate the lower and upper ice surface
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
+    ! recalculate the lower and upper ice surface
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
   end subroutine glissade_initialise
@@ -581,6 +589,10 @@ contains
        call glissade_test_transport (model)
        return
     endif
+
+    ! save old ice thickness for diagnostics
+    ! also used to reset thickness for the no-evolution option
+    model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
     ! ------------------------------------------------------------------------
     ! Calculate isostatic adjustment
@@ -1004,10 +1016,6 @@ contains
        ice_mask,          & ! = 1 if thck > 0, else = 0
        ocean_mask           ! = 1 if topg is below sea level and thck = 0, else = 0
 
-    ! temporary variables needed to reset geometry for the EVOL_NO_THICKNESS option
-    real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_old
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) :: stagthck_old
-
     real(dp) :: previous_time       ! time (yr) at the start of this time step
                                     ! (The input time is the time at the end of the step.)
 
@@ -1052,12 +1060,6 @@ contains
        ! TODO  MJH If we really want to support no evolution, then we may want to implement it so that IR does not occur 
        !       at all - right now a run can fail because of a CFL violation in IR even if evolution is turned off.  Do we want
        !       to support temperature evolution without thickness evolution?  If so, then the current implementation may be preferred approach.
-
-       if (model%options%whichevol == EVOL_NO_THICKNESS) then
-          ! store old thickness
-          thck_old = model%geometry%thck
-          stagthck_old = model%geomderv%stagthck
-       endif
 
        call t_startf('inc_remap_driver')
 
@@ -1302,8 +1304,7 @@ contains
 
        if (model%options%whichevol == EVOL_NO_THICKNESS) then
           ! restore old thickness
-          model%geometry%thck = thck_old
-          model%geomderv%stagthck = stagthck_old
+          model%geometry%thck(:,:) = model%geometry%thck_old(:,:)
        endif
        
     end select
@@ -2101,11 +2102,21 @@ contains
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
     endif
 
-    ! surface, basal and calving mass fluxes
+    ! surface, basal and calving mass fluxes (kg/m^2/s)
     ! positive for mass gain, negative for mass loss
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+
+    ! thickness tendency dH/dt from one step to the next (m/s)
+    ! Note: This diagnostic will not be correct on the first step of a restart
+
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) * thk0 &
+                                       / (model%numerics%dt * tim0)
+       enddo
+    enddo
 
     ! real-valued masks
 
@@ -2141,20 +2152,6 @@ contains
           endif
        enddo
     enddo
-
-    ! thickness tendency dH/dt from one step to the next
-    ! Note: This diagnostic will not be correct on the first step of a restart
-    if (model%numerics%time > model%numerics%tstart) then
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
-             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) &
-                                          / model%numerics%dt
-             model%geometry%thck_old(i,j) = model%geometry%thck(i,j)
-          enddo
-       enddo
-    else
-       model%geometry%dthck_dt(:,:) = 0.0d0
-    endif
 
     ! Compute grounding line fluxes
     ! Note: gl_flux_east and gl_flux_north are signed fluxes computed at cell edges;

@@ -210,6 +210,9 @@ contains
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
          tot_calving,                   &    ! total calving rate (m^3/yr)
+         tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
+         err_dmass_dt,                  &    ! mass conservation error (kg/s)
+                                             ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
          mean_thck,                     &    ! mean ice thickness (m)
          mean_temp,                     &    ! mean ice temperature (deg C)
          mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
@@ -523,11 +526,27 @@ contains
     tot_gl_flux = 0.d0
     do j = lhalo+1, nsn-uhalo
         do i = lhalo+1, ewn-uhalo
-            tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j)) * model%numerics%dns*len0 &
-                                      - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew*len0
-         enddo
+           tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j)) * model%numerics%dns*len0 &
+                                     - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew*len0
+        enddo
     enddo
     tot_gl_flux = parallel_reduce_sum(tot_gl_flux)
+
+    ! total rate of change of ice mass (kg/s)
+    ! Note: dthck_dt has units of m/s
+    tot_dmass_dt = 0.d0
+    do j = lhalo+1, nsn-uhalo
+        do i = lhalo+1, ewn-uhalo
+            tot_dmass_dt = tot_dmass_dt + model%geometry%dthck_dt(i,j) * cell_area(i,j)
+        enddo
+    enddo
+    tot_dmass_dt = tot_dmass_dt * rhoi * len0**2  ! convert to kg/s
+    tot_dmass_dt = parallel_reduce_sum(tot_dmass_dt)
+
+    ! mass conservation error
+    ! Note: For most runs, this should be close to zero.
+
+    err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux)
 
     ! uncomment to convert total fluxes from kg/s to Gt/yr
 !!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
@@ -589,6 +608,12 @@ contains
     write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+    write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
     write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -613,7 +638,7 @@ contains
 
     imax = 0
     jmax = 0
-    max_thck = unphys_val   ! = an arbitrary large negative number)
+    max_thck = unphys_val   ! = an arbitrary large negative number
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
           if (model%geometry%thck(i,j) > max_thck) then
