@@ -1247,27 +1247,36 @@ standard_name: land_ice_specific_mass_flux_due_to_calving
 coordinates:   lon lat
 average:       1
 
-#TODO - Are these gline fields needed?
-#[gl_ew]
-#dimensions:    time, y1, x0
-#units:         meter
-#long_name:     grounding line movement in ew directions
-#data:          data%ground%gl_ew
-#coordinates:   lon lat
+[gl_flux]
+dimensions:    time, y1, x1
+units:         kg/m/s
+long_name:     grounding line flux
+data:          data%geometry%gl_flux
+standard_name: land_ice_mass_flux_at_grounding_line
+coordinate:    lon lat
+average:       1
 
-#[gl_ns]
-#dimensions:    time, y0, x1
-#units:         meter
-#long_name:     grounding line movement in ns directions
-#data:          data%ground%gl_ns
-#coordinates:   lon lat
+[gl_flux_east]
+dimensions:    time, y1, x1
+units:         kg/m/s
+long_name:     grounding line flux eastward
+data:          data%geometry%gl_flux_east
+standard_name: land_ice_mass_flux_at_grounding_line_eastward
+coordinate:    lon lat
 
-#[gline_flux]
-#dimensions:   time, y1, x1
-#units:        meter2/year
-#long_name:    grounding line fluxu
-#data:         data%ground%gline_flux
-#coordinates:  lon f
+[gl_flux_north]
+dimensions:    time, y1, x1
+units:         kg/m/s
+long_name:     grounding line flux northward
+data:          data%geometry%gl_flux_north
+standard_name: land_ice_mass_flux_at_grounding_line_northward
+coordinate:    lon lat
+
+[total_gl_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total grounding line flux
+data:          data%geometry%total_gl_flux
 
 [rho_ice]
 dimensions:    time

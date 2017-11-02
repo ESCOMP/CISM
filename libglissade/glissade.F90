@@ -1490,9 +1490,10 @@ contains
     integer :: i, j, k, i1, i2
     integer :: itest, jtest, rtest
     integer, dimension(model%general%ewn, model%general%nsn) :: &
-         ice_mask,        & ! = 1 where thck > thklim, else = 0
-         floating_mask,   & ! = 1 where ice is present and floating, else = 0
-         land_mask          ! = 1 where topg is at or above sea level
+         ice_mask,           & ! = 1 where thck > thklim, else = 0
+         floating_mask,      & ! = 1 where ice is present and floating, else = 0
+         ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
+         land_mask             ! = 1 where topg is at or above sea level
 
     !WHL - debug
     real(dp), dimension(:,:), allocatable :: &
@@ -1557,7 +1558,7 @@ contains
     call glam_geometry_derivs(model)
 
     ! ------------------------------------------------------------------------
-    ! Update some masks that are used by the following subroutines
+    ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
@@ -1565,6 +1566,7 @@ contains
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask,                    &
                             land_mask = land_mask,                      &
                             thklim_float = model%numerics%thklim_float)
 
@@ -2154,6 +2156,21 @@ contains
        model%geometry%dthck_dt(:,:) = 0.0d0
     endif
 
+    ! Compute grounding line fluxes
+    ! Note: gl_flux_east and gl_flux_north are signed fluxes computed at cell edges;
+    !       gl_flux is cell-based and is found by summing magnitudes of edge fluxes.
+
+    call glissade_grounding_line_flux(model%general%ewn,    model%general%nsn,   &
+                                      model%numerics%dew,   model%numerics%dns,  &
+                                      model%numerics%sigma,                      &
+                                      model%geometry%thck,                       &
+                                      model%velocity%uvel,  model%velocity%vvel, &
+                                      ice_mask,             floating_mask,       &
+                                      ocean_mask,                                &
+                                      model%geometry%gl_flux_east,               &
+                                      model%geometry%gl_flux_north,              &
+                                      model%geometry%gl_flux                      )
+
     !------------------------------------------------------------------------
     ! Update the upper and lower ice surface
     ! Note that glide_calclsrf loops over all cells, including halos,
@@ -2187,6 +2204,172 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
   end subroutine glissade_diagnostic_variable_solve
+
+!=======================================================================
+  !TODO - Move this subroutine to a separate grounding-line module
+
+  subroutine glissade_grounding_line_flux(nx,                       ny,            &
+                                          dx,                       dy,            &
+                                          sigma,                                   &
+                                          thck,                                    &
+                                          uvel,                     vvel,          &
+                                          ice_mask,                 floating_mask, &
+                                          ocean_mask,                              &
+                                          gl_flux_east,             gl_flux_north, &
+                                          gl_flux                                   )
+
+    ! Computes northward and eastward land ice fluxes at grounding lines,
+    !  and a cell-based grounding-line flux field.
+    ! Note: Since the GL thicknesses are approximated, the GL fluxes will not exactly 
+    !        match the fluxes computed by the transport scheme.
+    !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
+
+    use parallel, only: nhalo
+    use glimmer_paramets, only: thk0, vel0, len0
+
+    implicit none
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::                     &
+        nx, ny                                   !> horizontal grid dimensions
+
+    real(dp), intent(in) ::                    &
+        dx, dy                                   !> horizontal grid spacing
+
+    real(dp), dimension(:), intent(in) ::      &
+        sigma                                    !> vertical sigma coordinate
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+        thck                                     !> ice thickness
+
+    real(dp), dimension(:,:,:), intent(in) ::  &
+        uvel, vvel                               !> ice velocity in x and y directions
+
+    integer, dimension(nx,ny), intent(in) ::  &
+        ice_mask,                              & !> = 1 where ice is present, else = 0
+        floating_mask,                         & !> = 1 where ice is present and floating, else = 0
+        ocean_mask                               !> = 1 for ice-free ocean, else = 0
+
+    ! Note: gl_flux_east and gl_flux_north are directional 
+    !       (positive for eastward/northward, negative for westward/southward)
+    !       gl_flux is a cell-based quantity based on flux magnitudes on each edge
+    !       (so gl_flux >= 0)
+
+    real(dp), dimension(:,:), intent(out) ::   &
+        gl_flux_east,                          & !> grounding line flux on east edges
+        gl_flux_north,                         & !> grounding line flux on north edges
+        gl_flux                                  !> grounding line flux per grid cell
+
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer  :: i,j,k                                     !> local cell indices
+    integer  :: upn                                       !> vertical grid dimension
+    real(dp), dimension(:), allocatable :: uavg, vavg     !> local horizontal velocity averages
+    real(dp) :: thck_gl                                   !> GL thickness derived from topg_gl
+
+    upn = size(sigma)
+
+    allocate(uavg(upn), vavg(upn))
+
+    ! Initialize
+    gl_flux_east(:,:)  = 0.d0
+    gl_flux_north(:,:) = 0.d0
+    gl_flux(:,:)       = 0.d0
+
+    ! Compute grounding line fluxes on east and north edges.
+    ! Look for edges with a grounded cell on one side and a floating cell on the other.
+
+    do j = nhalo+1, ny-nhalo
+        do i = nhalo+1, nx-nhalo
+
+            ! check east edge
+           if ( (   (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .and.   &  ! (i,j) grounded
+                (ocean_mask(i+1,j) == 1 .or.  floating_mask(i+1,j) == 1) )     &  ! (i+1,j) floating or ocean
+                                        .or.                                   &
+                ( (ice_mask(i+1,j) == 1 .and. floating_mask(i+1,j) == 0) .and. &  ! (i+1,j) grounded
+                  (ocean_mask(i,j) == 1  .or. floating_mask(i,j) == 1) ) ) then   ! (i,j) floating or ocean
+
+                uavg(:) = (uvel(:,i,j) + uvel(:,i,j-1)) / 2.d0
+                if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then
+                   ! set GL thickness to the average thickness of the two cells
+                   thck_gl = (thck(i,j) + thck(i+1,j)) / 2.d0
+                else
+                   ! set GL thickness to the thickness of the ice-filled cell
+                   thck_gl = max(thck(i,j), thck(i+1,j))
+                endif
+
+                do k = 1, upn-1
+                    gl_flux_east(i,j) = gl_flux_east(i,j) &
+                                        + thck_gl * (sigma(k+1) - sigma(k)) * (uavg(k) + uavg(k+1))/2.d0
+                enddo
+            endif
+
+            ! check north edge
+           if ( (   (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .and.   &  ! (i,j) grounded
+                (ocean_mask(i,j+1) == 1 .or.  floating_mask(i,j+1) == 1) )     &  ! (i,j+1) floating or ocean
+                                        .or.                                   &
+                ( (ice_mask(i,j+1) == 1 .and. floating_mask(i,j+1) == 0) .and. &  ! (i,j+1) grounded
+                  (ocean_mask(i,j) == 1  .or. floating_mask(i,j) == 1) ) ) then   ! (i,j) floating or ocean
+
+                vavg(:) = (vvel(:,i-1,j) + vvel(:,i,j)) / 2.d0
+                if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then
+                   ! set GL thickness to the average thickness of the two cells
+                   thck_gl = (thck(i,j) + thck(i,j+1)) / 2.d0
+                else
+                   ! set GL thickness to the thickness of the ice-filled cell
+                   thck_gl = max(thck(i,j), thck(i,j+1))
+                endif
+
+                do k = 1, upn-1
+                    gl_flux_north(i,j) = gl_flux_north(i,j) &
+                                        + thck_gl * (sigma(k+1) - sigma(k)) * (vavg(k) + vavg(k+1))/2.d0
+                enddo
+             endif
+
+        enddo   ! i
+    enddo   ! j
+
+    ! Compute mass flux through grounding line in each cell.
+    ! Only a grounded cell can lose mass. We need to check the direction of the fluxes.
+
+    do j = nhalo+1,ny-nhalo
+        do i = nhalo+1,nx-nhalo
+
+            ! Check the sign for east-west flow and assign the flux accordingly
+            if (gl_flux_east(i,j) < 0.d0) then
+                ! The ice is flowing westward and the flux belongs to the right adjacent cell
+                gl_flux(i+1,j) = gl_flux(i+1,j) - gl_flux_east(i,j)
+            else
+                ! The ice is flowing eastward and the flux belongs to this cell
+                gl_flux(i,j) = gl_flux(i,j) + gl_flux_east(i,j)
+            endif
+
+            ! Check the sign for north-south flow and assign the flux accordingly
+            if (gl_flux_north(i,j) < 0.d0) then
+                ! The ice is flowing southward and the flux belongs to the top adjacent cell
+                gl_flux(i,j+1) = gl_flux(i,j+1) - gl_flux_north(i,j)
+            else
+                ! The ice is flowing northward and the flux belongs to this cell
+                gl_flux(i,j) = gl_flux(i,j) + gl_flux_north(i,j)
+            endif
+
+        enddo   ! i
+    enddo   ! j
+
+    ! Convert from model units to kg/m/s
+    gl_flux_east  = gl_flux_east  * rhoi*thk0*vel0
+    gl_flux_north = gl_flux_north * rhoi*thk0*vel0
+    gl_flux       = gl_flux       * rhoi*thk0*vel0
+
+    deallocate(uavg, vavg)
+
+  end subroutine glissade_grounding_line_flux
 
 !=======================================================================
 

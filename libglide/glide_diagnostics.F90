@@ -206,6 +206,7 @@ contains
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
          tot_calving,                   &    ! total calving rate (m^3/yr)
@@ -392,36 +393,36 @@ contains
     tot_energy = 0.d0
     if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical
        do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             do k = 1, upn-1
-                tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
-                            *(model%numerics%sigma(k+1) - model%numerics%sigma(k))
-             enddo
-          endif
-       enddo
+          do i = lhalo+1, ewn-uhalo
+             if (ice_mask(i,j) == 1) then
+                do k = 1, upn-1
+                   tot_energy = tot_energy +   &
+                                model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
+                                *(model%numerics%sigma(k+1) - model%numerics%sigma(k))
+                enddo
+             endif
+          enddo
        enddo
     
     else   ! temps are unstaggered in vertical
        do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             ! upper half-layer, T = upper sfc temp
-             tot_energy = tot_energy +   &
-                          model%geometry%thck(i,j) * model%temper%temp(1,i,j) * cell_area(i,j)    &
-                         * 0.5d0 * model%numerics%sigma(2)
-             do k = 2, upn-1
+          do i = lhalo+1, ewn-uhalo
+             if (ice_mask(i,j) == 1) then
+                ! upper half-layer, T = upper sfc temp
                 tot_energy = tot_energy +   &
+                             model%geometry%thck(i,j) * model%temper%temp(1,i,j) * cell_area(i,j)    &
+                             * 0.5d0 * model%numerics%sigma(2)
+                do k = 2, upn-1
+                   tot_energy = tot_energy +   &
                              model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                           * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
-             enddo
-             ! lower half-layer, T = lower sfc temp
-             tot_energy = tot_energy +   &
-                          model%geometry%thck(i,j) * model%temper%temp(upn,i,j) * cell_area(i,j)  &
-                         * 0.5d0 * (1.0d0 - model%numerics%sigma(upn-1))
-          endif
-       enddo
+                             * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
+                enddo
+                ! lower half-layer, T = lower sfc temp
+                tot_energy = tot_energy +   &
+                             model%geometry%thck(i,j) * model%temper%temp(upn,i,j) * cell_area(i,j)  &
+                             * 0.5d0 * (1.0d0 - model%numerics%sigma(upn-1))
+             endif
+          enddo
        enddo
     endif
 
@@ -515,6 +516,27 @@ contains
        mean_calving = 0.d0
     endif
 
+    ! total grounding line mass balance flux (< 0 by definition)
+    ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
+    !       so tot_gl_flux will have units of kg/s
+
+    tot_gl_flux = 0.d0
+    do j = lhalo+1, nsn-uhalo
+        do i = lhalo+1, ewn-uhalo
+            tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j)) * model%numerics%dns*len0 &
+                                      - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew*len0
+         enddo
+    enddo
+    tot_gl_flux = parallel_reduce_sum(tot_gl_flux)
+
+    ! uncomment to convert total fluxes from kg/s to Gt/yr
+!!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
+!!!    tot_bmb_flux = tot_bmb_flux * scyr/1.0d12
+!!!    tot_calving_flux = tot_calving_flux * scyr/1.0d12
+!!!    tot_gl_flux = tot_gl_flux * scyr/1.0d12
+!!!    tot_dmass_dt = tot_dmass_dt * scyr/1.0d12
+!!!    err_dmass_dt = err_dmass_dt * scyr/1.0d12
+
     ! copy some global scalars to the geometry derived type
     ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
 
@@ -527,6 +549,7 @@ contains
     model%geometry%total_smb_flux = tot_smb_flux
     model%geometry%total_bmb_flux = tot_bmb_flux
     model%geometry%total_calving_flux = tot_calving_flux
+    model%geometry%total_gl_flux = tot_gl_flux
 
     ! write global sums and means to log file
 
@@ -564,6 +587,9 @@ contains
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck

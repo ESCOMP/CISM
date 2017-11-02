@@ -818,15 +818,20 @@ module glide_types
     integer, dimension(:,:),pointer :: stagmask => null()
     !> see glide_mask.f90 for possible values
 
-    ! mass fluxes at each surface
+    ! mass fluxes at upper, lower and lateral boundaries
+    ! TODO: Move to a flux derived type?
     ! Note: sfc_mbal_flux and basal_mbal_flux are not strictly needed, since they are equal to acab_applied and bmlt_applied
     !       multipled by a constant. For some applications, however, it may be useful to output the mass balance in SI units.
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from acab
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux_tavg =>null() !> basal mass balance (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> surface mass balance (kg m^-2 s^-1), diagnosed from calving_thck
-    real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> surface mass balance (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> calving flux (kg m^-2 s^-1), diagnosed from calving_thck
+    real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> calving flux (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: gl_flux_east =>null()         !> mass flux eastward at grounding line, edge-based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux_north =>null()        !> mass flux northward at grounding line, edge_based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux_tavg =>null()         !> mass flux at grounding line, cell-based (kg m^-1 s^-1, time average)
 
     !* (DFM ----------------- The following 4 fields were added for BISICLES interface --------------)
     !*SFP: These fields need to be passed to POP for ice ocean coupling
@@ -856,7 +861,8 @@ module glide_types
     real(dp) :: imass_above_flotation  ! total ice mass above flotation (kg)
     real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
     real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
-    real(dp) :: total_calving_flux     ! total calving mass balance flux (kg/s)
+    real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
+    real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
 
   end type glide_geometry
 
@@ -2014,6 +2020,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%basal_mbal_flux_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_east)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_north)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_tavg)
 
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
@@ -2469,9 +2479,14 @@ contains
         deallocate(model%geometry%calving_flux)
     if (associated(model%geometry%calving_flux_tavg)) &
         deallocate(model%geometry%calving_flux_tavg)
-
-!!    if (associated(model%geometry%marine_bc_normal)) &
-!!       deallocate(model%geometry%marine_bc_normal)
+    if (associated(model%geometry%gl_flux_east)) &
+        deallocate(model%geometry%gl_flux_east)
+    if (associated(model%geometry%gl_flux_north)) &
+        deallocate(model%geometry%gl_flux_north)
+    if (associated(model%geometry%gl_flux)) &
+        deallocate(model%geometry%gl_flux)
+    if (associated(model%geometry%gl_flux_tavg)) &
+        deallocate(model%geometry%gl_flux_tavg)
 
     if (associated(model%geometry%ice_mask)) &
        deallocate(model%geometry%ice_mask)
