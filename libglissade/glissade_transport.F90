@@ -759,8 +759,8 @@
 
          sum_acab = sum(acab(1+lhalo:nx-uhalo,1+lhalo:ny-uhalo))
          sum_bmlt = sum(bmlt(1+lhalo:nx-uhalo,1+lhalo:ny-uhalo))
-         call global_sum(sum_acab)
-         call global_sum(sum_bmlt)
+         sum_acab = parallel_reduce_sum(sum_acab)
+         sum_bmlt = parallel_reduce_sum(sum_bmlt)
 
          msum_init = msum_init + (sum_acab - sum_bmlt)*dt
 
@@ -1123,8 +1123,8 @@
          enddo    ! i
       enddo       ! j
 
-      call global_sum(msum)
-      if (present(mtsum)) call global_sum(mtsum)
+      msum = parallel_reduce_sum(msum)
+      if (present(mtsum)) mtsum = parallel_reduce_sum(mtsum)
 
     end subroutine sum_mass_and_tracers
 
@@ -1429,7 +1429,8 @@
          enddo   ! i
       enddo      ! j
 
-      call global_sum(melt_potential)  !TODO - May want to remove this global sum for large runs, if melt_potential is not used
+      !TODO - May want to remove this global sum for large runs, if melt_potential is not used
+      melt_potential = parallel_reduce_sum(melt_potential)
 
     end subroutine glissade_add_smb
 

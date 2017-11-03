@@ -2351,20 +2351,20 @@
      ! sum over locally owned velocity points
      
      if (present(work2)) then
-        do j = nhalo+1, ny-nhalo
-        do i = nhalo+1, nx-nhalo
-        do k = 1, nz
-           local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
-        enddo
-        enddo
+        do j = staggered_jlo, staggered_jhi
+           do i = staggered_ilo, staggered_ihi
+              do k = 1, nz
+                 local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
+              enddo
+           enddo
         enddo
      else
-        do j = nhalo+1, ny-nhalo
-        do i = nhalo+1, nx-nhalo
-        do k = 1, nz
-           local_sum = local_sum + work1(k,i,j)    
-        enddo
-        enddo
+        do j = staggered_jlo, staggered_jhi
+           do i = staggered_ilo, staggered_ihi
+              do k = 1, nz
+                 local_sum = local_sum + work1(k,i,j)    
+              enddo
+           enddo
         enddo
      endif
 
@@ -2405,20 +2405,20 @@
         ! sum over locally owned velocity points
 
         if (present(work2)) then
-           do j = nhalo+1, ny-nhalo
-           do i = nhalo+1, nx-nhalo
-           do k = 1, nz
-              local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
-           enddo
-           enddo
+           do j = staggered_jlo, staggered_jhi
+              do i = staggered_ilo, staggered_ihi
+                 do k = 1, nz
+                    local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
+                 enddo
+              enddo
            enddo
         else
-           do j = nhalo+1, ny-nhalo
-           do i = nhalo+1, nx-nhalo
-           do k = 1, nz
-              local_sum(n) = local_sum(n) + work1(k,i,j,n)    
-           enddo
-           enddo
+           do j = staggered_jlo, staggered_jhi
+              do i = staggered_ilo, staggered_ihi
+                 do k = 1, nz
+                    local_sum(n) = local_sum(n) + work1(k,i,j,n)    
+                 enddo
+              enddo
            enddo
         endif
 
@@ -2455,16 +2455,16 @@
      ! sum over locally owned velocity points
      
      if (present(work2)) then
-        do j = nhalo+1, ny-nhalo
-        do i = nhalo+1, nx-nhalo
-           local_sum = local_sum + work1(i,j) + work2(i,j)
-        enddo
+        do j = staggered_jlo, staggered_jhi
+           do i = staggered_ilo, staggered_ihi
+              local_sum = local_sum + work1(i,j) + work2(i,j)
+           enddo
         enddo
      else
-        do j = nhalo+1, ny-nhalo
-        do i = nhalo+1, nx-nhalo
-           local_sum = local_sum + work1(i,j) 
-        enddo
+        do j = staggered_jlo, staggered_jhi
+           do i = staggered_ilo, staggered_ihi
+              local_sum = local_sum + work1(i,j) 
+           enddo
         enddo
      endif
 
@@ -2503,16 +2503,16 @@
         ! sum over locally owned velocity points
 
         if (present(work2)) then
-           do j = nhalo+1, ny-nhalo
-           do i = nhalo+1, nx-nhalo
-              local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
-           enddo
+           do j = staggered_jlo, staggered_jhi
+              do i = staggered_ilo, staggered_ihi
+                 local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
+              enddo
            enddo
         else
-           do j = nhalo+1, ny-nhalo
-           do i = nhalo+1, nx-nhalo
-              local_sum(n) = local_sum(n) + work1(i,j,n)    
-           enddo
+           do j = staggered_jlo, staggered_jhi
+              do i = staggered_ilo, staggered_ihi
+                 local_sum(n) = local_sum(n) + work1(i,j,n)    
+              enddo
            enddo
         endif
 
@@ -2595,9 +2595,13 @@
     ! Compute y = Ax
 
     ! Loop over locally owned vertices
+    ! Note: For periodic BC, the southern and western rows of the global domain are halo cells.
+    !          For all processors, staggered_ilo = staggered_jlo = staggered_lhalo + 1.
+    !       For outflow BC, the southern and western rows of the global domain are locally owned.
+    !          For processors owning these rows, staggered_ilo = staggered_jlo = staggered_lhalo.
 
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+    do i = staggered_ilo, staggered_ihi
 
        if (active_vertex(i,j)) then
 
@@ -2706,11 +2710,14 @@
     yv(:,:) = 0.d0
 
     ! Compute y = Ax
-
     ! Loop over locally owned vertices
+    ! Note: For periodic BC, the southern and western rows of the global domain are halo cells.
+    !          For all processors, staggered_ilo = staggered_jlo = staggered_lhalo + 1.
+    !       For outflow BC, the southern and western rows of the global domain are locally owned.
+    !          For processors owning these rows, staggered_ilo = staggered_jlo = staggered_lhalo.
 
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+    do i = staggered_ilo, staggered_ihi
 
        if (active_vertex(i,j)) then
 

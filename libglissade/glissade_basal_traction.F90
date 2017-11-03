@@ -85,7 +85,7 @@ contains
   use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
   use parallel, only: nhalo, this_rank
-!!  use parallel, only: parallel_globalindex  ! for debugging
+  use parallel, only: parallel_globalindex
 
   implicit none
 
@@ -151,6 +151,8 @@ contains
   real(dp) :: numerator, denominator
 
   character(len=300) :: message
+
+  integer :: iglobal, jglobal
 
   !WHL - debug
 !!  integer :: istop, jstop
@@ -519,12 +521,9 @@ contains
          if (beta(ew,ns) >= 0.d0) then
             ! do nothing
          else
-            !WHL - debug
-!!            call parallel_globalindex(ew, ns, istop, jstop)
-!!            write(message,*) 'Global indices:', istop, jstop
-!!            call write_log(trim(message))
-            write(message,*) 'Invalid beta value in calcbeta: this_rank, ew, ns, beta:', &
-                 this_rank, ew, ns, beta(ew,ns)
+            call parallel_globalindex(ew, ns, iglobal, jglobal)
+            write(message,*) 'Invalid beta value in calcbeta: this_rank, i, j, iglobal, jglobal, beta, f_ground:', &
+                 this_rank, ew, ns, iglobal, jglobal, beta(ew,ns), f_ground(ew,ns)
             call write_log(trim(message), GM_FATAL)
          endif
       end do

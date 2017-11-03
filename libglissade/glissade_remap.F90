@@ -656,7 +656,7 @@ module glissade_remap
       !WHL - Changed this condition from 'mass < puny' to 'mass < 0.d0'
       !      to preserve monotonicity in grid cells with very small thickness
       !
-      ! author William H.
+      ! author William H. Lipscomb, LANL
 
       !input/output arguments
 
@@ -3095,6 +3095,9 @@ module glissade_remap
 
       character(len=100) :: message
 
+      integer ::  &
+           iglobal, jglobal  ! global cell indices
+
       integer ::   &
          istop, jstop     ! indices of grid cell where model aborts 
 
@@ -3151,9 +3154,12 @@ module glissade_remap
 !         write (message,*) 'New thickness =', mass(i,j)
 !         call write_log(message)    
 !         write (message,*) 'Net transport =', -w1*tarear
-!         call write_log(message)    
+!         call write_log(message)
+         call parallel_globalindex(i, j, iglobal, jglobal)
+         write (6,*) ' '
          write (6,*) 'Process:',this_rank
          write (6,*) 'Remap, negative ice thickness, i, j =', i, j
+         write (6,*) 'Global i, j =', iglobal, jglobal
          write (6,*) 'Old thickness =', mass(i,j) + w1*tarear
          write (6,*) 'New thickness =', mass(i,j)
          write (6,*) 'Net transport =', -w1*tarear

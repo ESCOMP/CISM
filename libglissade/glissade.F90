@@ -312,6 +312,25 @@ contains
     ! save starting ice thickness for diagnostics
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
+    ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
+    !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
+    !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
+    !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
+    ! Note: For periodic BCs, there is an optional argument periodic_offset_ew for topg.
+    !       This is for ismip-hom experiments. A positive EW offset means that
+    !        the topography in west halo cells will be raised, and the topography
+    !        in east halo cells will be lowered.  This ensures that the topography
+    !        and upper surface elevation are continuous between halo cells
+    !        and locally owned cells at the edge of the global domain.
+    !       In other cases (anything but ismip-hom), periodic_offset_ew = periodic_offset_ns = 0,
+    !        and this argument will have no effect.
+
+    if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+       call parallel_halo_extrapolate(model%geometry%topg)
+    else  ! other global BCs, including periodic
+       call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
+    endif
+
     if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)

@@ -106,7 +106,12 @@
     ! Elements and nodes live in 3D space, whereas cells and vertices live in
     !  the horizontal plane.
     !
-    ! Locally owned cells and vertices have indices (nhalo+1:nx-nhalo, nhalo+1,ny-nhalo).
+    ! Locally owned cells have indices (nhalo+1:nx-nhalo, nhalo+1,ny-nhalo).
+    ! Locally owned vertices have indices (nhalo+1:nx-nhalo, nhalo+1,ny-nhalo),
+    !  except for processors on the west and south edges of the global domain with outflow BC.
+    !  For those processors, locally owned vertices have indices (nhalo:nx-nhalo, nhalo,ny-nhalo).
+    ! The indices (staggered_ilo:staggered_ihi, staggered_jlo:staggered_jhi)
+    !  define the limits of locally owned vertices for the given BC.
     ! Active cells are cells that (1) contain ice and (2) border locally owned vertices.
     ! Active vertices are all vertices of active cells.
     ! Active nodes are all nodes in the columns associated with active vertices.
@@ -1680,8 +1685,8 @@
 !pw call t_stopf('glissade_get_vertex_geom')
 
     ! Zero out the velocity for inactive vertices
-    do j = nhalo+1, ny-nhalo    ! locally owned vertices only
-       do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi    ! locally owned vertices only
+       do i = staggered_ilo, staggered_ihi
           if (.not.active_vertex(i,j)) then
              uvel(:,i,j) = 0.d0
              vvel(:,i,j) = 0.d0
@@ -1901,7 +1906,10 @@
 
     flwafact(:,:,:) = 0.d0
 
-    ! Loop over all cells that border locally owned vertices
+    ! Loop over all cells that border locally owned vertices.
+    ! This includes halo rows to the north and east.
+    ! Locally owned vertices are (staggered_ilo:staggered_ihi, staggered_jlo_staggered_jhi).
+    ! OK to skip cells outside the global domain.
     !TODO - Simply compute flwafact for all cells?  We should have flwa for all cells.
 
     do j = 1+nhalo, ny-nhalo+1
@@ -2696,9 +2704,6 @@
 
           !---------------------------------------------------------------------------
           ! Halo updates for matrices
-          !
-          ! These updates are not strictly necessary unless we're concerned about
-          !  roundoff errors.  See comments below under 3D assembly.
           !---------------------------------------------------------------------------
      
           call t_startf('glissade_halo_Axxs')
@@ -2872,17 +2877,6 @@
           
           !---------------------------------------------------------------------------
           ! Halo updates for matrices
-          !
-          ! These updates are not strictly necessary unless we're concerned about
-          !  roundoff errors.
-          ! But suppose we are comparing two entries that are supposed to be equal
-          !  (e.g., to preserve symmetry), where entry 1 is owned by processor A and 
-          !  entry 2 is owned by processor B.  
-          ! Processor A might compute a local version of entry 2 in its halo, with 
-          !  entry 2 = entry 1 locally.  But processor B's entry 2 might be different
-          !  because of roundoff.  Then we need to make sure that processor B's value 
-          !  is communicated to processor A.  If these values are slightly different, 
-          !  they will be reconciled by the subroutine check_symmetry_assembled_matrix.
           !---------------------------------------------------------------------------
           
           call t_startf('glissade_halo_Axxs')
@@ -4085,8 +4079,8 @@
 
     active_cell(:,:) = .false.
 
-    do j = 1+nhalo, ny-nhalo+1
-    do i = 1+nhalo, nx-nhalo+1
+    do j = nhalo+1, ny-nhalo+1
+    do i = nhalo+1, nx-nhalo+1
        if (ice_mask(i,j) == 1) then
           active_cell(i,j) = .true.
        endif
@@ -4098,8 +4092,8 @@
 
     active_vertex(:,:) = .false.
 
-    do j = 1+nhalo, ny-nhalo+1  ! include east and north layer of halo cells
-    do i = 1+nhalo, nx-nhalo+1
+    do j = nhalo+1, ny-nhalo+1  ! include east and north layer of halo cells
+    do i = nhalo+1, nx-nhalo+1
        if (active_cell(i,j)) then
           active_vertex(i-1:i, j-1:j) = .true.  ! all vertices of this cell
        endif
@@ -4122,8 +4116,8 @@
     jNodeIndex(:) = 0
     kNodeIndex(:) = 0
 
-    do j = nhalo+1, ny-nhalo    ! locally owned vertices only
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi    ! locally owned vertices only
+    do i = staggered_ilo, staggered_ihi
        if (active_vertex(i,j)) then   ! all nodes in column are active
           nVerticesSolve = nVerticesSolve + 1
           vertexID(i,j) = nVerticesSolve     ! unique local index for each vertex
@@ -5803,8 +5797,8 @@
     ! Compute viscosity integral and strain rates in elements.
     ! Loop over all cells that border locally owned vertices.
 
-    do j = 1+nhalo, ny-nhalo+1
-       do i = 1+nhalo, nx-nhalo+1
+    do j = nhalo+1, ny-nhalo+1
+       do i = nhalo+1, nx-nhalo+1
        
           if (active_cell(i,j)) then
 
@@ -5930,8 +5924,8 @@
                                        gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY)
 
        ! Loop over locally owned active vertices, evaluating tau_xz and tau_yz for this layer
-       do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo, nx-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              if (active_vertex(i,j)) then
                 depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)   ! depth at layer midpoint
                 tau_xz(k,i,j) = -rhoi*grav*depth*dusrf_dx(i,j)   &
@@ -6084,8 +6078,8 @@
           ! (Halo update is done at a higher level after returning)
           ! Note: Currently do not support Dirichlet BC with depth-varying velocity
           
-          do j = nhalo+1, ny-nhalo
-          do i = nhalo+1, nx-nhalo
+          do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
 
              if (umask_dirichlet(i,j) == 1) then
                 uvel(k,i,j) = uvel(nz,i,j)
@@ -6109,8 +6103,8 @@
        else   ! compute velocity at vertices (method 1)
 
           ! loop over locally owned active vertices
-          do j = 1+nhalo, ny-nhalo  
-          do i = 1+nhalo, nx-nhalo
+          do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
 
              if (active_vertex(i,j)) then
 
@@ -6638,7 +6632,7 @@
 
        ! do finite-element calculation (can be inaccurate at sharp transitions in beta and velocity)
 
-       ! Loop over local cells
+       ! Loop over locally owned cells
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
        
@@ -6852,8 +6846,8 @@
 
     ! Loop over cells that border locally owned vertices
 
-    do j = 1+nhalo, ny-nhalo+1
-       do i = 1+nhalo, nx-nhalo+1
+    do j = nhalo+1, ny-nhalo+1
+       do i = nhalo+1, nx-nhalo+1
        
           if (active_cell(i,j)) then
 
@@ -8190,7 +8184,7 @@
     integer :: m
 
     ! Loop over all vertices that border locally owned vertices.
-    ! Locally owned vertices are (nhalo+1:nx-nhalo, nhalo+1:ny-nhalo)
+    ! For outflow BC, OK to skip vertices outside the global domain (i < nhalo or j < nhalo).
     !Note: Need nhalo >= 2 so as not to step out of bounds.
 
      do j = nhalo, ny-nhalo+1
@@ -8580,8 +8574,8 @@
     !TODO - Replace the following by a call to matvec_multiply_structured_3d
     ! Loop over locally owned vertices
 
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+    do i = staggered_ilo, staggered_ihi
 
        if (active_vertex(i,j)) then
 
@@ -8627,8 +8621,8 @@
 
     ! Loop over locally owned vertices
 
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+    do i = staggered_ilo, staggered_ihi
        if (active_vertex(i,j)) then
           do k = 1, nz
              resid_u(k,i,j) = resid_u(k,i,j) - bu(k,i,j)
@@ -8658,8 +8652,8 @@
 
        L2_norm_rhs = 0.d0
 
-       do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+       do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
           if (active_vertex(i,j)) then
              do k = 1, nz
                 L2_norm_rhs = L2_norm_rhs + bu(k,i,j)*bu(k,i,j) + bv(k,i,j)*bv(k,i,j)
@@ -8741,8 +8735,8 @@
 
     ! Loop over locally owned vertices
 
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+    do i = staggered_ilo, staggered_ihi
 
        if (active_vertex(i,j)) then
 
@@ -8780,8 +8774,8 @@
 
     ! Loop over locally owned vertices
 
-    do j = nhalo+1, ny-nhalo
-    do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+    do i = staggered_ilo, staggered_ihi
        if (active_vertex(i,j)) then
           resid_u(i,j) = resid_u(i,j) - bu(i,j)
           resid_v(i,j) = resid_v(i,j) - bv(i,j)
@@ -8812,8 +8806,8 @@
 
        L2_norm_rhs = 0.d0
 
-       do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+       do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
           if (active_vertex(i,j)) then
              L2_norm_rhs = L2_norm_rhs + bu(i,j)*bu(i,j) + bv(i,j)*bv(i,j)
           endif     ! active vertex
@@ -8885,8 +8879,8 @@
 
        ! Loop over locally owned vertices
 
-       do j = 1+nhalo, size(uvel,3)-nhalo
-          do i = 1+nhalo, size(uvel,2)-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              do k = 1, size(uvel,1) - 1         ! ignore bed velocity
                 speed = sqrt(uvel(k,i,j)**2 + vvel(k,i,j)**2)
                 if (speed /= 0.d0) then
@@ -8912,8 +8906,8 @@
 
        ! Loop over locally owned vertices
 
-       do j = 1+nhalo, size(uvel,3)-nhalo
-          do i = 1+nhalo, size(uvel,2)-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              do k = 1, size(uvel,1) - 1         ! ignore bed velocity
                 speed = sqrt(uvel(k,i,j)**2 + vvel(k,i,j)**2)
                 if (speed /= 0.d0) then
@@ -8937,8 +8931,8 @@
 
        ! Loop over locally owned vertices
 
-       do j = 1+nhalo, size(uvel,3)-nhalo
-          do i = 1+nhalo, size(uvel,2)-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              do k = 1, size(uvel,1)
                 speed = sqrt(uvel(k,i,j)**2 + vvel(k,i,j)**2)
                 if (speed /= 0.d0) then
@@ -9010,8 +9004,8 @@
 
        ! Loop over locally owned vertices
 
-       do j = 1+nhalo, size(uvel,2)-nhalo
-          do i = 1+nhalo, size(uvel,1)-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
              if (speed /= 0.d0) then
                 oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
@@ -9034,8 +9028,8 @@
 
        ! Loop over locally owned vertices
 
-       do j = 1+nhalo, size(uvel,2)-nhalo
-          do i = 1+nhalo, size(uvel,1)-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
              if (speed /= 0.d0) then
                 count = count+1
@@ -9057,8 +9051,8 @@
 
        ! Loop over locally owned vertices
 
-       do j = 1+nhalo, size(uvel,2)-nhalo
-          do i = 1+nhalo, size(uvel,1)-nhalo
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
              speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
              if (speed /= 0.d0) then
                 oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
@@ -9113,8 +9107,8 @@
     integer :: i, j, k, iA, jA, kA, m
 
     nNonzeros = 0
-    do j = nhalo+1, ny-nhalo  ! loop over locally owned vertices
-       do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
           if (active_vertex(i,j)) then
              do k = 1, nz
                 do kA = -1, 1
@@ -9171,8 +9165,8 @@
     integer :: i, j, iA, jA, m
 
     nNonzeros = 0
-    do j = nhalo+1, ny-nhalo  ! loop over locally owned vertices
-       do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
           if (active_vertex(i,j)) then
              do jA = -1, 1
                 do iA = -1, 1
@@ -9310,8 +9304,8 @@
     ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
     ! Locally owned vertices are (nhalo+1:ny-nhalo, nhalo+1:nx-nhalo)
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
           if (active_vertex(i,j)) then
              do k = 1, nz
 
@@ -9518,8 +9512,8 @@
     ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
     ! Locally owned vertices are (nhalo+1:ny-nhalo, nhalo+1:nx-nhalo)
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
           if (active_vertex(i,j)) then
 
              ! Check Auu and Auv for symmetry
