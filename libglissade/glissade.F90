@@ -849,9 +849,14 @@ contains
 
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float_external(:,:)
 
+       ! Optionally, multiply bmlt_float by a scalar adjustment factor
+       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
+          model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
+       endif
+
        ! Compute a corrected bmlt_float field that includes any prescribed anomalies.
 
-       if (model%options%enable_bmlt_float_anomaly) then
+       if (model%options%enable_bmlt_anomaly) then
 
           ! Compute the previous time
           ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
@@ -1132,6 +1137,11 @@ contains
 !!       print*, 'minval(acab_anomaly):', minval(model%climate%acab_anomaly)
 
        model%climate%acab_corrected(:,:) = model%climate%acab(:,:)
+
+       ! Optionally, multiply acab by a scalar adjustment factor
+       if (model%climate%acab_factor /= 1.0d0) then
+          model%climate%acab_corrected(:,:) = model%climate%acab_corrected(:,:) * model%climate%acab_factor
+       endif
 
        if (model%options%enable_acab_anomaly) then
 

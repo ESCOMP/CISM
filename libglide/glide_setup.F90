@@ -485,7 +485,7 @@ contains
 !       For instance, ice_dt_option could be either 'nyears' or 'steps_per_year'.
 !       For timesteps < 1 year, we would use ice_dt_option = 'steps_per_year'.
 !       This would ensure that the ice sheet dynamic timestep divides evenly
-!        into the mass balance timestep (= 1 year) when running with Glint.
+!        into the mass balance timestep (= 1 year) when running with Glint or Glad.
     call GetValue(section,'tstart',model%numerics%tstart)
     call GetValue(section,'tend',model%numerics%tend)
     call GetValue(section,'dt',model%numerics%tinc)
@@ -568,7 +568,7 @@ contains
     call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
-    call GetValue(section,'enable_bmlt_float_anomaly',model%options%enable_bmlt_float_anomaly)
+    call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
@@ -1169,7 +1169,7 @@ contains
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
     end if
 
-    if (model%options%enable_bmlt_float_anomaly) then
+    if (model%options%enable_bmlt_anomaly) then
        call write_log('bmlt_float anomaly forcing is enabled')
     endif
 
@@ -1500,6 +1500,10 @@ contains
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
+    ! parameters to adjust external forcing
+    call GetValue(section,'acab_factor',        model%climate%acab_factor)
+    call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
+
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
     !       btrac_const is used for several options
@@ -1554,6 +1558,7 @@ contains
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
     call GetValue(section,'overwrite_acab_value', model%climate%overwrite_acab_value)
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
+    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
 
     ! MISMIP+ basal melting parameters
     call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
@@ -1587,7 +1592,7 @@ contains
     call write_log('Parameters')
     call write_log('----------')
 
-    write(message,*) 'thickness limit for dynamically active ice (m)            : ', model%numerics%thklim
+    write(message,*) 'thickness limit for dynamically active ice (m) : ', model%numerics%thklim
     call write_log(message)
 
     !Note: The Glissade dycore is known to crash for thklim = 0, but has not
@@ -1615,7 +1620,7 @@ contains
     endif
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then
-       write(message,*) 'thickness limit for temperature calculations (m)       : ', model%numerics%thklim_temp
+       write(message,*) 'thickness limit for temperature calculations (m) : ', model%numerics%thklim_temp
        call write_log(message)
        if (model%numerics%thck_gradient_ramp > 0.0d0) then
           write(message,*) 'thickness scale for gradient ramp (m):', model%numerics%thck_gradient_ramp
@@ -1884,7 +1889,12 @@ contains
     endif
 
     ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
-    if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
+       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
+          write(message,*) 'Input bmlt_float multiplied by: ', model%basal_melt%bmlt_float_factor
+          call write_log(message)
+       endif
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
        write(message,*) 'bmlt_float_const (m/yr)  :  ', model%basal_melt%bmlt_float_const
        call write_log(message)
        write(message,*) 'bmlt_float_xlim (m)      :  ', model%basal_melt%bmlt_float_xlim

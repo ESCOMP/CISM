@@ -411,7 +411,7 @@ module glide_types
     !> \item[4] External basal melt rate field (from input file or coupler)
     !> \end{description}
 
-    logical :: enable_bmlt_float_anomaly = .false.
+    logical :: enable_bmlt_anomaly = .false.
     !> if true, then apply a prescribed anomaly to bmlt_float
 
     !TODO - Change default basal_mbal to 1?
@@ -1039,6 +1039,7 @@ module glide_types
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
+     real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
@@ -1197,6 +1198,8 @@ module glide_types
      real(dp),dimension(:,:), pointer :: bmlt_float => null()    !> basal melt rate for floating ice
      real(dp),dimension(:,:), pointer :: bmlt_float_external => null() !> External basal melt rate field
      real(dp),dimension(:,:), pointer :: bmlt_float_anomaly => null()  !> Basal melt rate anomaly field
+
+     real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
      ! MISMIP+ parameters for Ice1 experiments
      ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
