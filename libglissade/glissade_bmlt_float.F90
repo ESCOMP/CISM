@@ -219,8 +219,8 @@ contains
     real(dp) :: h_cavity        ! depth of ice cavity beneath floating ice (m)
     real(dp) :: z_draft         ! draft of floating ice (m below sea level)
 
-!!    logical, parameter :: verbose_bmlt = .false.
-    logical, parameter :: verbose_bmlt = .true.
+    logical, parameter :: verbose_bmlt = .false.
+!!    logical, parameter :: verbose_bmlt = .true.
 
 !TODO - Make first_call depend on whether we are restarting
 !!    logical :: first_call = .false.
@@ -277,9 +277,6 @@ contains
        enddo
 
     elseif (whichbmlt_float == BMLT_FLOAT_MISMIP) then   ! MISMIP+
-
-       !WHL - debug
-       print*, 'Compute MISMIP+ melt rates'
 
        ! compute melt rate based on bed depth and cavity thickness
        !

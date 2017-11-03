@@ -815,6 +815,8 @@ contains
        ice_mask,          & ! = 1 if ice is present (thck > 0, else = 0
        floating_mask        ! = 1 if ice is present (thck > 0) and floating
 
+    integer :: i, j
+
     real(dp) :: previous_time
 
     ! ------------------------------------------------------------------------
@@ -905,6 +907,34 @@ contains
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
     endif  ! whichbmlt_float
+
+    ! For all bmlt_float options, limit the melting to cells where ice is present and floating
+!!    where (floating_mask == 0)
+!!       model%basal_melt%bmlt_float = 0.0d0
+!!    endwhere
+
+    if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_GLP) then
+
+       ! Set bmlt_float = 0 in any grid cells that are grounded, or are adjacent to grounded cells.
+       ! This prevents grounding-line retreat driven by spurious thinning of grounded ice.
+
+       do j = 2, model%general%nsn-1
+          do i = 2, model%general%ewn-1
+             if (floating_mask(i,j) == 1) then
+                ! check for grounded edge neighbors
+                ! Note: There might be grounded corner neighbors, but we assume the GL passes
+                !       through the cell only if it has a grounded edge neighbor.
+                if ( (ice_mask(i-1,j)==1 .and. floating_mask(i-1,j)==0) .or. &
+                     (ice_mask(i+1,j)==1 .and. floating_mask(i+1,j)==0) .or. &
+                     (ice_mask(i,j-1)==1 .and. floating_mask(i,j-1)==0) .or. &
+                     (ice_mask(i,j+1)==1 .and. floating_mask(i,j+1)==0) ) then
+                   model%basal_melt%bmlt_float(i,j) = 0.0d0
+                endif
+             endif
+          enddo
+       enddo
+
+    endif
 
   end subroutine glissade_bmlt_float_solve
 

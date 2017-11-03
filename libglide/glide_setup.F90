@@ -623,6 +623,7 @@ contains
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
+    call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
@@ -889,6 +890,10 @@ contains
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
          '0 <= f_ground <= 1, based on GLP (glissade dycore) ', &
          'f_ground = 1 for all active cells (glissade dycore)' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichground_bmlt = (/ &
+         'bmlt_float applied to partly grounded cells        ', &
+         'bmlt_float not applied to partly grounded cells    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
          'f_pattyn = (-rhow*b)/(rhoi*H)  ', &
@@ -1396,7 +1401,15 @@ contains
                             ho_whichground(model%options%which_ho_ground)
           call write_log(message)
           if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then
-             call write_log('Error, ground option out of range for glissade dycore', GM_FATAL)
+             call write_log('Error, ho_ground option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          write(message,*) 'ho_whichground_bmlt     : ',model%options%which_ho_ground_bmlt,  &
+                            ho_whichground_bmlt(model%options%which_ho_ground_bmlt)
+          call write_log(message)
+          if (model%options%which_ho_ground_bmlt < 0 .or. &
+              model%options%which_ho_ground_bmlt >= size(ho_whichground_bmlt)) then
+             call write_log('Error, ho_ground_bmlt option out of range for glissade dycore', GM_FATAL)
           end if
 
           write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &

@@ -284,6 +284,9 @@ module glide_types
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
 
+  integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
+  integer, parameter :: HO_GROUND_BMLT_GLP = 1
+
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
@@ -733,6 +736,12 @@ module glide_types
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
+
+    integer :: which_ho_ground_bmlt = 0
+    !> Flag that indicates how to compute bmlt_float in partly grouned  cells
+    !> \begin{description}
+    !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
+    !> \item[1] Do not apply bmlt_float in partly grounded cells
 
     !TODO - Change default to linear function 2?
     integer :: which_ho_flotation_function = 1
