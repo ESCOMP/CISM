@@ -1404,10 +1404,6 @@ contains
        
     end select
 
-    ! TODO: Not sure topg should be updated here; should be updated after isostasy
-    !       if the isostasy is turned on.
-    call parallel_halo(model%geometry%topg)
-
     !------------------------------------------------------------------------
     ! Update the upper and lower ice surface
     ! Note that glide_calclsrf loops over all cells, including halos,
@@ -1543,9 +1539,22 @@ contains
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call isos_compute(model)
-    end if
 
-    !TODO - Halo update for topg?
+       ! update topography in halo cells
+       ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
+       !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
+       !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
+       !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
+       ! Note: The topg halo update at initialization has an optional argument periodic_ew,
+       !        which is needed for ismip-hom. I doubt ismip-hom will be run with active isostasy,
+       !        but the argument is included to be on the safe side.
+
+       if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+          call parallel_halo_extrapolate(model%geometry%topg)
+       else  ! other global BCs, including periodic
+          call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
+       endif
+    end if
 
   end subroutine glissade_isostasy_solve
 
@@ -1613,20 +1622,12 @@ contains
     ! ------------------------------------------------------------------------ 
 
     ! ------------------------------------------------------------------------
-    ! Halo updates for ice topography and thickness
-    !
-    ! NOTE: There is an optional argument periodic_offset_ew for topg.
-    !       This is for ismip-hom experiments. A positive EW offset means that 
-    !        the topography in west halo cells will be raised, and the topography 
-    !        in east halo cells will be lowered.  This ensures that the topography
-    !        and upper surface elevation are continuous between halo cells
-    !        and locally owned cells at the edge of the global domain.
-    !       In other cases (anything but ismip-hom), periodic_offset_ew = periodic_offset_ns = 0, 
-    !        and this argument will have no effect.
+    ! Halo update for ice thickness
+    ! Note: The halo update for topg is done at initialization and again (as needed)
+    !       after computing isostasy.
     ! ------------------------------------------------------------------------
 
     call parallel_halo(model%geometry%thck)
-    call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
 
     ! ------------------------------------------------------------------------
     ! Update the upper and lower ice surface
