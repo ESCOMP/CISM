@@ -717,6 +717,14 @@ contains
 
     call glissade_calving_solve(model)
 
+    ! ------------------------------------------------------------------------
+    ! Clean up variables in ice-free columns.
+    ! This subroutine should be called after transport and calving, which may
+    !  have set thck = 0 in some cells without zeroing out basal water and tracers.
+    ! ------------------------------------------------------------------------ 
+
+    call glissade_cleanup_icefree_cells(model)
+
     ! ------------------------------------------------------------------------ 
     ! Increment the ice age.
     ! If a cell becomes ice-free, the age is reset to zero.
@@ -880,11 +888,6 @@ contains
 !!          endif
 
        endif
-
-       ! Zero out bmlt_float where ice is not present and floating
-       where (floating_mask == 0)
-          model%basal_melt%bmlt_float = 0.0d0
-       endwhere
 
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP AND BMLT_FLOAT_MISOMIP
           !TODO - Call separate subroutines for each of these three options
@@ -1325,12 +1328,7 @@ contains
           do i = 1, model%general%ewn
              if (model%climate%no_advance_mask(i,j) == 1) then
                 model%geometry%thck(i,j) = 0.0
-                ! Also zero these tracer values just to keep things clean
-                model%temper%temp(:,i,j) = 0.0
-                model%temper%waterfrac(:,i,j) = 0.0
-                model%temper%enthalpy(:,i,j) = 0.0
-                model%geometry%ice_age(:,i,j) = 0.0
-                model%calving%damage(:,i,j) = 0.0
+                ! Note: Tracers (temp, etc.) are cleaned up later by call to glissade_cleanup_icefree_cells
              endif
           enddo
        enddo
@@ -2464,6 +2462,64 @@ contains
     deallocate(uavg, vavg)
 
   end subroutine glissade_grounding_line_flux
+
+!=======================================================================
+
+  subroutine glissade_cleanup_icefree_cells(model)
+
+    ! Clean up prognostic variables in ice-free cells.
+    ! This means seting most tracers to zero (or min(artm,0) for the case of temperature).
+
+    use parallel, only: parallel_halo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    integer :: nx, ny
+    integer :: i, j
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    ! Make sure the ice thickness is updated in halo cells
+    call parallel_halo(model%geometry%thck)
+
+    ! Set prognostic variables in ice-free columns to default values (usually zero).
+    do j = 1, ny
+       do i = 1, nx
+
+          if (model%geometry%thck_old(i,j) > 0.0d0 .and. model%geometry%thck(i,j) == 0.0d0) then
+
+             ! basal water
+             model%temper%bwat(i,j) = 0.0d0
+
+             ! thermal variables
+             if (model%options%whichtemp == TEMP_INIT_ZERO) then
+                model%temper%temp(:,i,j) = 0.0d0
+             else
+                model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
+             endif
+
+             if (model%options%whichtemp == TEMP_ENTHALPY) then
+                model%temper%waterfrac(:,i,j) = 0.0d0
+             endif
+
+             ! other tracers
+             ! Note: Tracers should be added here as they are added to the model
+
+             if (model%options%whichcalving == CALVING_DAMAGE) then
+                model%calving%damage(:,i,j) = 0.0d0
+             endif
+
+             if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+
+          endif    ! thck = 0
+
+       enddo
+    enddo
+
+  end subroutine glissade_cleanup_icefree_cells
 
 !=======================================================================
 
