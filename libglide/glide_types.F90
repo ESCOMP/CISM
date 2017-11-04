@@ -280,6 +280,9 @@ module glide_types
   integer, parameter :: HO_ASSEMBLE_BFRIC_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_BFRIC_LOCAL = 1
 
+  integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
+  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
+
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
