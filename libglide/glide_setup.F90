@@ -177,7 +177,6 @@ contains
     model%numerics%dt_transport = model%numerics%dt / real(model%numerics%subcyc, dp)
 
     model%numerics%thklim = model%numerics%thklim / thk0
-    model%numerics%thklim_float = model%numerics%thklim_float / thk0 
     model%numerics%thklim_temp = model%numerics%thklim_temp / thk0
     model%numerics%thck_gradient_ramp = model%numerics%thck_gradient_ramp / thk0
 
@@ -1491,7 +1490,6 @@ contains
 
     !TODO - Change 'ice_limit' to 'thklim'?
     call GetValue(section,'ice_limit',          model%numerics%thklim)
-    call GetValue(section,'thklim_float',       model%numerics%thklim_float)
     call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
@@ -1616,11 +1614,6 @@ contains
        call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
     endif
 
-    if (model%numerics%thklim_float /= model%numerics%thklim) then
-       write(message,*) 'thickness limit for dynamically active floating ice (m): ', model%numerics%thklim_float
-       call write_log(message)
-    endif
-
     if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
          model%numerics%adaptive_cfl_threshold > 0.0d0) then
        write(message,*) 'Advection will be subcycled when CFL >', model%numerics%adaptive_cfl_threshold
@@ -1658,15 +1651,6 @@ contains
         model%options%whichcalving == EIGENCALVING) then
        write(message,*) 'calving thickness limit (m)      : ', model%calving%calving_minthck
        call write_log(message)
-
-       if (model%calving%calving_minthck /= model%numerics%thklim_float) then
-          model%numerics%thklim_float = model%calving%calving_minthck
-          write(message,*) 'Overwriting thklim_float to equal calving_minthck'
-          call write_log(message)
-          write(message,*) 'Revised value of thklim_float (m): ', model%numerics%thklim_float
-          call write_log(message)
-       endif
-
     endif
 
     if (model%options%whichcalving == EIGENCALVING) then

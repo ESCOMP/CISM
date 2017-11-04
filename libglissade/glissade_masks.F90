@@ -56,8 +56,7 @@
                                 thck,        topg,       &
                                 eus,         thklim,     &
                                 ice_mask,    floating_mask, &
-                                ocean_mask,  land_mask,  &
-                                thklim_float)
+                                ocean_mask,  land_mask)
                                   
     !----------------------------------------------------------------
     ! Compute various masks for the Glissade dycore.
@@ -72,7 +71,7 @@
     ! The basic masks used for Glissade dynamic calculations are as follows:
     !
     ! (1) ice_mask = 1 where ice is present (thck > thklim), else = 0
-    ! (2) floating_mask = 1 if ice is present (thck > thklim_float) and floating (thck < thck_flotation), else = 0
+    ! (2) floating_mask = 1 if ice is present (thck > thklim) and floating (thck < thck_flotation), else = 0
     !     where thck_flotation = (rhoo/rhoi)*(eus - topg)
     ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thklim, else = 0
     ! (4) land_mask = 1 if the topography is at or above sea level (topg >= eus), else = 0
@@ -123,29 +122,14 @@
        ocean_mask,           &! = 1 if topg is below sea level and thk <= thklim, else = 0
        land_mask              ! = 1 if topg is at or above sea level
 
-    real(dp), intent(in), optional ::  &
-       thklim_float          ! minimum ice thickness for active floating cells
-
     !----------------------------------------------------------------
     ! Local arguments
     !----------------------------------------------------------------
 
     integer :: i, j
 
-    real(dp) ::   &
-       thklim_floating       ! set to thklim_float if present; = thklim by default
-
-    if (present(thklim_float)) then
-       thklim_floating = thklim_float
-    else
-       thklim_floating = thklim
-    endif
-
     !----------------------------------------------------------------
     ! Compute masks in cells
-    !WHL - Note: If thklim < thck < thklim_float for floating ice, then ice_mask = 0.
-    !            By default, thklim_float = thklim, but for some applications we may want
-    !             a thicker threshold for floating ice to be dynamically active.
     !----------------------------------------------------------------
 
     ice_mask(:,:) = 0
@@ -153,14 +137,8 @@
     do j = 1, ny
        do i = 1, nx
 
-          if (topg(i,j) - eus < (-rhoi/rhoo)*thck(i,j)) then   ! floating
-             if (thck(i,j) > thklim_floating) then
-                ice_mask(i,j) = 1
-             endif
-          else   ! not floating
-             if (thck(i,j) > thklim) then
-                ice_mask(i,j) = 1
-             endif
+          if (thck(i,j) > thklim) then
+             ice_mask(i,j) = 1
           endif
 
           if (present(ocean_mask)) then
@@ -271,7 +249,7 @@
 
     integer, dimension(nx,ny), intent(in) ::   &
        ice_mask,            & ! = 1 if ice is present (thk > thklim), else = 0
-       floating_mask,       & ! = 1 if ice is present (thck > thklim_float) and floating, else = 0
+       floating_mask,       & ! = 1 if ice is present (thck > thklim) and floating, else = 0
        land_mask              ! = 1 if topg is at or above sea level
 
     ! see comments above for more information about these options

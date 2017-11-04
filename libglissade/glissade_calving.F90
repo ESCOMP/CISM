@@ -196,7 +196,7 @@ contains
                                 itest,    jtest,   rtest,            &
                                 thck,              relx,             &
                                 topg,              eus,              &
-                                thklim,            thklim_float,     &
+                                thklim,                  &
                                 marine_limit,            &
                                 calving_fraction,        &
                                 calving_timescale,       &
@@ -239,7 +239,6 @@ contains
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
     real(dp), intent(in)                    :: eus               !> eustatic sea level
     real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice; used by remove_floating_islands
-    real(dp), intent(in)                    :: thklim_float      !> minimum thickness for dynamically active floating ice; used by remove_floating_islands
     real(dp), intent(in)                    :: marine_limit      !> lower limit on topography elevation at marine edge before ice calves
     real(dp), intent(in)                    :: calving_fraction  !> fraction of ice lost at marine edge when calving; 
                                                                  !> used with which_ho_calving = CALVING_FLOAT_FRACTION
@@ -273,7 +272,7 @@ contains
     ! basic masks
     integer, dimension(:,:), allocatable   ::  &
          ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,          & ! = 1 where ice is present (thck > thklim_float) and floating, else = 0
+         floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask                ! = 1 where topg is below sea level and ice is absent, else = 0
 
     ! masks for CALVING_THCK_THRESHOLD
@@ -340,8 +339,7 @@ contains
           call glissade_remove_floating_islands(&
                thck,          relx,             &
                topg,          eus,              &
-               thklim,        thklim_float,     &
-               calving_thck)
+               thklim,        calving_thck)
 
        endif
 
@@ -959,8 +957,7 @@ contains
        call glissade_remove_floating_islands(&
             thck,          relx,                  &
             topg,          eus,                   &
-            thklim,        thklim_float,          &
-            calving_thck)
+            thklim,        calving_thck)
 
     endif
 
@@ -983,8 +980,7 @@ contains
   subroutine glissade_remove_floating_islands(&
        thck,          relx,                  &
        topg,          eus,                   &
-       thklim,        thklim_float,          &
-       calving_thck)
+       thklim,        calving_thck)
 
     ! Remove any floating ice islands. 
         
@@ -1007,7 +1003,6 @@ contains
     real(dp), dimension(:,:), intent(in)    :: topg     !> present bedrock topography
     real(dp), intent(in)      :: eus                    !> eustatic sea level
     real(dp), intent(in)      :: thklim                 !> minimum thickness for dynamically active grounded ice
-    real(dp), intent(in)      :: thklim_float           !> minimum thickness for dynamically active floating ice
     real(dp), dimension(:,:), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
                                                               !> on output, includes ice in floating islands
 
@@ -1018,7 +1013,7 @@ contains
 
     integer,  dimension(:,:), allocatable   ::  &
          ice_mask,          & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,     & ! = 1 where ice is present (thck > thklim_float) and floating, else = 0
+         floating_mask,     & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          color                ! integer 'color' for filling the calving domain (with CALVING_DOMAIN_OCEAN_CONNECT)
 
     !WHL - debug
@@ -1040,8 +1035,7 @@ contains
                              thck,          topg,           &
                              eus,           thklim,         &
                              ice_mask,                      &
-                             floating_mask = floating_mask, &
-                             thklim_float = thklim_float)
+                             floating_mask = floating_mask)
 
     ! initialize
     ! Assign the initial color to cells with active ice and the boundary color to cells without active ice.

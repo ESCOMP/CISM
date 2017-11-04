@@ -1483,7 +1483,6 @@ module glide_types
     real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
     real(dp) :: alphas =    0.5d0 !> was a parameter in the original
     real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
-    real(dp) :: thklim_float= 100.d0  !> min thickness for computing ice dynamics for floating ice (m) (higher-order only)
     real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
     real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
     real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction

@@ -529,7 +529,6 @@ contains
                                model%geometry%topg,             &
                                model%climate%eus,               &
                                model%numerics%thklim,           &
-                               model%numerics%thklim_float,     &
                                model%calving%marine_limit,      &
                                model%calving%calving_fraction,  &
                                model%calving%calving_timescale, &
@@ -1467,7 +1466,6 @@ contains
                             model%geometry%topg,             &
                             model%climate%eus,               &
                             model%numerics%thklim,           &
-                            model%numerics%thklim_float,     &
                             model%calving%marine_limit,      &
                             model%calving%calving_fraction,  &
                             model%calving%calving_timescale, &
@@ -1667,8 +1665,7 @@ contains
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &
-                            land_mask = land_mask,                      &
-                            thklim_float = model%numerics%thklim_float)
+                            land_mask = land_mask)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell
