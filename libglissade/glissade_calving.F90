@@ -51,19 +51,26 @@ contains
 
 !-------------------------------------------------------------------------------  
 
-  subroutine glissade_calving_mask_init(which_calving,                       &
-                                        dx,                dy,               &
+  subroutine glissade_calving_mask_init(dx,                dy,               &
+                                        thck,              topg,             &
+                                        eus,               thklim,           &
                                         calving_front_x,   calving_front_y,  &
                                         calving_mask)
 
     ! Compute an integer calving mask if needed for the CALVING_GRID_MASK option
 
+    use glissade_masks, only: glissade_get_masks
+
     ! Input/output arguments
 
-    integer,  intent(in) :: which_calving       !> option for calving law
-    real(dp), intent(in) :: dx, dy              !> cell dimensions in x and y directions (m)
-    real(dp), intent(in) :: calving_front_x     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
-    real(dp), intent(in) :: calving_front_y     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
+    real(dp), intent(in) :: dx, dy                 !> cell dimensions in x and y directions (m)
+    real(dp), dimension(:,:), intent(in) :: thck   !> ice thickness (m)
+    real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
+    real(dp), intent(in) :: eus                    !> eustatic sea level (m)
+    real(dp), intent(in) :: thklim                 !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), intent(in) :: calving_front_x        !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
+    real(dp), intent(in) :: calving_front_y        !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
+
     integer, dimension(:,:), intent(inout) :: calving_mask   !> output mask: calve floating ice wherever the mask = 1
 
     ! Local variables
@@ -73,81 +80,113 @@ contains
     integer :: i, j              ! local cell indices
     integer :: iglobal, jglobal  ! global cell indices
 
+    integer, dimension(:,:), allocatable :: &
+         ice_mask,             & ! = 1 where ice is present
+         ocean_mask              ! = 1 for ice-free ocean
+
+    real(dp) :: mask_maxval      ! maxval of calving_mask
+
     nx = size(calving_mask,1)
     ny = size(calving_mask,2)
 
-    if (which_calving == CALVING_GRID_MASK) then  ! calve where calving_mask = 1
+    mask_maxval = maxval(calving_mask)
+    mask_maxval = parallel_reduce_max(mask_maxval)
 
-       ! Two possibilities to consider:
-       ! (1) The calving mask was read from an input file.
-       !     If so, then there should be at least one grid location where calving_mask = 1.
-       !     There is nothing more to do here.
-       ! (2) The calving mask was not read from an input file, but is determined here based on the values
-       !     of calving_front_x and calving_front_y.
+    ! Compute the calving mask, if not read in at initialization
+ 
+    if (mask_maxval > 0) then
 
-       if (maxval(calving_mask) > 0) then
+       ! calving_mask was read from the input file; do not need to compute a mask here
 
-          ! calving_mask was read from the input file; do not need to compute a mask here
+       if (main_task) print*, 'Calving_mask was read from the input file'
 
-       else   ! create calving_mask here
+    elseif (calving_front_x > 0.0d0 .or. calving_front_y > 0.0d0) then
 
-          ! initialize
-          calving_mask(:,:) = 0   ! no calving by default
+       if (main_task) print*, 'Computing calving_mask based on calving_front_x/y'
 
-          if (calving_front_x > 0.0d0) then
+       ! initialize
+       calving_mask(:,:) = 0   ! no calving by default
 
-             ! set calving_mask = 1 where abs(x) > calving_front_x
+       if (calving_front_x > 0.0d0) then
 
-             do j = 1, ny
-                do i = 1, nx
+          ! set calving_mask = 1 where abs(x) > calving_front_x
 
-                   ! find global i and j indices
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+          do j = 1, ny
+             do i = 1, nx
 
-                   ! find cell center x coordinate
-                   xcell = (dble(iglobal) - 0.5d0) * dx
+                ! find global i and j indices
+                call parallel_globalindex(i, j, iglobal, jglobal)
 
-                   ! set calving mask = 1 based on cell coordinates relative to the calving front
-                   ! Note: Using absolute value to support symmetry with respect to x = 0
-                   if (abs(xcell) > calving_front_x) then
-                      calving_mask(i,j) = 1
-                   endif
+                ! find cell center x coordinate
+                xcell = (dble(iglobal) - 0.5d0) * dx
 
-                enddo   ! i
-             enddo   ! j
+                ! set calving mask = 1 based on cell coordinates relative to the calving front
+                ! Note: Using absolute value to support symmetry with respect to x = 0
+                if (abs(xcell) > calving_front_x) then
+                   calving_mask(i,j) = 1
+                endif
 
-          endif   ! calving_front_x > 0
+             enddo   ! i
+          enddo   ! j
 
-          if (calving_front_y > 0.0d0) then
+       endif   ! calving_front_x > 0
 
-             ! set calving_mask = 1 where abs(y) > calving_front_y
+       if (calving_front_y > 0.0d0) then
 
-             do j = 1, ny
-                do i = 1, nx
+          ! set calving_mask = 1 where abs(y) > calving_front_y
 
-                   ! find global i and j indices
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+          do j = 1, ny
+             do i = 1, nx
 
-                   ! find cell center y coordinate
-                   ycell = (dble(jglobal) - 0.5d0) * dy
+                ! find global i and j indices
+                call parallel_globalindex(i, j, iglobal, jglobal)
 
-                   ! set calving mask = 1 based on cell coordinates relative to the calving front
-                   if (abs(ycell) > calving_front_y) then
-                      calving_mask(i,j) = 1
-                   endif
+                ! find cell center y coordinate
+                ycell = (dble(jglobal) - 0.5d0) * dy
 
-                enddo   ! i
-             enddo   ! j
+                ! set calving mask = 1 based on cell coordinates relative to the calving front
+                if (abs(ycell) > calving_front_y) then
+                   calving_mask(i,j) = 1
+                endif
 
-          endif   ! calving_front_y > 0
+             enddo   ! i
+          enddo   ! j
 
-       endif   ! maxval(calving_mask) > 0
+       endif   ! calving_front_y > 0
 
-    else  ! whichcalving /= CALVING_GRID_MASK
+    else  ! compute the calving mask based on the initial ice extent
+ 
+       if (main_task) print*, 'Computing calving_mask based on initial ice extent'
 
-       ! do nothing; other calving options do not require initialization
+       ! initialize
+       calving_mask(:,:) = 0  ! no calving by default
 
-    endif
+       ! Get an ocean mask
+       allocate(ice_mask(nx,ny))
+       allocate(ocean_mask(nx,ny))
+
+       call glissade_get_masks(nx,            ny,             &
+                               thck,          topg,           &
+                               eus,           thklim,         &
+                               ice_mask,                      &
+                               ocean_mask = ocean_mask)
+
+       ! Set calving_mask = 1 for ice-free ocean cells.
+       ! Any ice entering these cells during the run will calve.
+       do j = 1, ny
+          do i = 1, nx
+             if (ocean_mask(i,j) == 1) then
+                calving_mask(i,j) = 1
+             endif
+          enddo
+       enddo
+
+       deallocate(ice_mask)
+       deallocate(ocean_mask)
+
+    endif  ! mask_maxval > 0
+
+    call parallel_halo(calving_mask)
 
   end subroutine glissade_calving_mask_init
 

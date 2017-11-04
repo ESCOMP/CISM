@@ -476,7 +476,7 @@ contains
     tot_bmlt = 0.d0
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
-             tot_bmlt = tot_bmlt + model%basal_melt%bmlt_applied(i,j) * cell_area(i,j)
+          tot_bmlt = tot_bmlt + model%basal_melt%bmlt_applied(i,j) * cell_area(i,j)
        enddo
     enddo
 

@@ -496,12 +496,15 @@ contains
     endif
 
     ! initialize the calving scheme as needed
-    ! currently, only the CALVING_GRID_MASK option requires initialization
+    ! Currently, only the CALVING_GRID_MASK option requires initialization
     ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0
- 
-    if (model%options%whichcalving == CALVING_GRID_MASK) then
-       call glissade_calving_mask_init(model%options%whichcalving,                                    &
+
+    if (model%options%whichcalving == CALVING_GRID_MASK .and. model%options%is_restart == RESTART_FALSE) then
+
+       call glissade_calving_mask_init(&
                                        model%numerics%dew*len0,       model%numerics%dns*len0,        &
+                                       model%geometry%thck*thk0,      model%geometry%topg*thk0,       &
+                                       model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
                                        model%calving%calving_front_x, model%calving%calving_front_y,  &
                                        model%calving%calving_mask)
     endif
