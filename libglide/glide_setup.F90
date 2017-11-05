@@ -577,7 +577,7 @@ contains
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
-    call GetValue(section,'remove_floating_islands', model%options%remove_floating_islands)
+    call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -1096,10 +1096,10 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
-       if (model%options%remove_floating_islands) then
-          call write_log('Floating islands will be removed')
+       if (model%options%remove_icebergs) then
+          call write_log('Icebergs will be removed')
        else
-          call write_log('Floating islands will not be removed')
+          call write_log('Icebergs will not be removed')
        endif
        
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then

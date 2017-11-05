@@ -206,7 +206,7 @@ contains
                                 eigencalving_constant,   &
                                 calving_minthck,         &
                                 calving_mask,            &
-                                remove_floating_islands, &
+                                remove_icebergs,         &
                                 damage,                  &
                                 damage_threshold,        &
                                 damage_column,           &
@@ -238,7 +238,7 @@ contains
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
     real(dp), intent(in)                    :: eus               !> eustatic sea level
-    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice; used by remove_floating_islands
+    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice; used by remove_icebergs
     real(dp), intent(in)                    :: marine_limit      !> lower limit on topography elevation at marine edge before ice calves
     real(dp), intent(in)                    :: calving_fraction  !> fraction of ice lost at marine edge when calving; 
                                                                  !> used with which_ho_calving = CALVING_FLOAT_FRACTION
@@ -252,7 +252,7 @@ contains
     real(dp), intent(in)                    :: calving_minthck         !> min thickness of floating ice before it calves;
                                                                        !> used with CALVING_THCK_THRESHOLD and EIGENCALVING
     integer,  dimension(:,:), intent(in)    :: calving_mask            !> integer mask: calve ice where mask = 1
-    logical,  intent(in)                    :: remove_floating_islands !> if true, then remove floating ice islands
+    logical,  intent(in)                    :: remove_icebergs   !> if true, then remove icebergs
 !    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
     real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
     real(dp), dimension(:,:), intent(out)   :: damage_column     !> 2D vertically integrated scalar damage parameter
@@ -322,21 +322,21 @@ contains
 
     if (which_calving == CALVING_NONE) then
 
-       ! remove floating islands (if desired) and return
+       ! remove icebergs (if desired) and return
 
-       if (remove_floating_islands) then
+       if (remove_icebergs) then
 
           if (verbose_calving .and. main_task) then
-             print*, 'Remove floating islands'
+             print*, 'Remove icebergs'
           endif
 
           ! Set the thickness thresholds for cells to be counted as active.
-          ! Floating regions will be identified as ice islands unless they are connected to grounded ice
-          !  along a path consisting only of active cells (i.e., cells with thk > thklim).
+          ! Floating regions will be identified as icebergs unless they are connected to grounded ice
+          !  along a path consisting of active cells (i.e., cells with thk > thklim).
           ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
           !       Then the algorithm can fail to identify floating regions that should be removed.
 
-          call glissade_remove_floating_islands(&
+          call glissade_remove_icebergs(&
                thck,          relx,             &
                topg,          eus,              &
                thklim,        calving_thck)
@@ -933,28 +933,24 @@ contains
 !       enddo
 !    endif
 
-    ! Remove any floating ice islands.
+    ! Remove any icebergs.
     ! Typically these will be removed by the calving scheme above, but if not, 
     !  then they need to be removed before calling the velocity solver,
     !  which will have problems in regions without any grounded ice.
 
-    !WHL - debug - set up an ice island
-!!    i = nx-10
-!!    thck(i,:) = 0.0d0
-
-    if (remove_floating_islands) then
+    if (remove_icebergs) then
 
        if (verbose_calving .and. main_task) then
-          print*, 'Remove floating islands'
+          print*, 'Remove icebergs'
        endif
 
        ! Set the thickness thresholds for cells to be counted as active.
-       ! Floating regions will be identified as ice islands unless they are connected to grounded ice
+       ! Floating regions will be identified as icebergs unless they are connected to grounded ice
        !  along a path consisting only of active cells (i.e., cells with thk > thklim).
        ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
        !       Then the algorithm can fail to identify floating regions that should be removed.
 
-       call glissade_remove_floating_islands(&
+       call glissade_remove_icebergs(&
             thck,          relx,                  &
             topg,          eus,                   &
             thklim,        calving_thck)
@@ -977,13 +973,13 @@ contains
 
 !---------------------------------------------------------------------------
 
-  subroutine glissade_remove_floating_islands(&
+  subroutine glissade_remove_icebergs(&
        thck,          relx,                  &
        topg,          eus,                   &
        thklim,        calving_thck)
 
-    ! Remove any floating ice islands. 
-        
+    ! Remove any icebergs (i.e., connected regions of floating ice with
+    !  no connection to grounded ice). 
     ! The method is as follows: Initialize each cell to have either the initial color
     !  (if active ice is present) or the boundary color (if no ice is present).
     !  "Active" means that thck > thklim.
@@ -992,7 +988,7 @@ contains
     !  active cells with which it is connected (i.e., it shares an edge).
     ! Repeat the loop several times to allow communication between adjacent
     !  processors via halo updates.
-    ! Any active cells that still have the initial color are floating ice islands.
+    ! Any active cells that still have the initial color are icebergs.
     ! Remove this ice and add it to the calving field.
 
     use glissade_masks
@@ -1004,7 +1000,7 @@ contains
     real(dp), intent(in)      :: eus                    !> eustatic sea level
     real(dp), intent(in)      :: thklim                 !> minimum thickness for dynamically active grounded ice
     real(dp), dimension(:,:), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
-                                                              !> on output, includes ice in floating islands
+                                                              !> on output, includes icebergs
 
     integer :: nx, ny      ! horizontal grid dimensions
 
@@ -1121,14 +1117,14 @@ contains
 
     enddo  ! count
 
-    ! Any active cells that still have the initial color are part of floating ice islands.
+    ! Any active cells that still have the initial color are part of an iceberg.
     ! Remove ice in these cells, adding it to the calving field.
     do j = 1, ny
        do i = 1, nx
           if (color(i,j) == initial_color) then
              !WHL - debug
              if (verbose_calving .and. thck(i,j) > 0.0) &
-                  print*, 'Remove floating island: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
+                  print*, 'Remove iceberg: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
              calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
              thck(i,j) = 0.0d0
              !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
@@ -1141,7 +1137,7 @@ contains
     deallocate (floating_mask)
     deallocate (color)
 
-  end subroutine glissade_remove_floating_islands
+  end subroutine glissade_remove_icebergs
 
 !****************************************************************************
 

@@ -539,8 +539,7 @@ contains
                                model%calving%eigencalving_constant,    &
                                model%calving%calving_minthck,          &
                                model%calving%calving_mask,             &
-                               model%options%remove_floating_islands,  &
-!!                               model%calving%floating_path_minthck,    &
+                               model%options%remove_icebergs,   &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
@@ -1474,9 +1473,9 @@ contains
                             model%numerics%dns*len0,         &         ! m
                             model%velocity%strain_rate_determinant, &  ! s^(-2)
                             model%calving%eigencalving_constant,    &
-                            model%calving%calving_minthck,          &
-                            model%calving%calving_mask,             &
-                            model%options%remove_floating_islands,  &
+                            model%calving%calving_minthck,   &
+                            model%calving%calving_mask,      &
+                            model%options%remove_icebergs,   &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &
                             model%calving%damage_column,     &

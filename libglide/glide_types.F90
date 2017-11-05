@@ -499,8 +499,8 @@ module glide_types
     !>          to the ocean through other cells where the criterion is met.
     !> \end{description}
 
-    logical  :: remove_floating_islands = .true. 
-    !> if true, then check for and remove floating ice islands
+    logical  :: remove_icebergs = .true. 
+    !> if true, then check for and remove icebergs
     !> These are connected regions with zero basal traction and no connection to grounded ice.
     !>       Safer to make it true, but not necessary for all applications
 
