@@ -500,7 +500,7 @@ module glide_types
     !> \end{description}
 
     logical  :: remove_icebergs = .true. 
-    !> if true, then check for and remove icebergs
+    !> if true, then identify and remove icebergs after calving
     !> These are connected regions with zero basal traction and no connection to grounded ice.
     !>       Safer to make it true, but not necessary for all applications
 
@@ -731,6 +731,12 @@ module glide_types
     !> \begin{description}
     !> \item[0] standard finite-element calculation summing over quadrature points
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
+
+    integer :: which_ho_calving_front = 0
+    !> Flag that indicates whether to use a subgrid calving front parameterization
+    !> \begin{description}
+    !> \item[0] no subgrid calving front parameterization
+    !> \item[1] subgrid calving front parameterization
 
     integer :: which_ho_ground = 0
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
@@ -1068,6 +1074,7 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !< scaled by thk0 like mass balance, thickness, etc.
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: thck_calving_front => null()!> effective ice thickness at calving front, divided by \texttt{thk0}.
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
      real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
   
@@ -1078,7 +1085,7 @@ module glide_types
                                             !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: calving_timescale = 0.0d0  !> time scale (yr) for calving (Glissade only); calving_thck = thck * max(dt/calving_timescale, 1)
                                             !> if calving_timescale = 0, then calving_thck = thck
-     real(dp) :: calving_minthck = 100.d0   ! > minimum thickness (m) of floating ice at marine edge before it calves
+     real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
                                             !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
      real(dp) :: eigencalving_constant = 1.0d9     !> eigencalving constant from Levermann et al. (2012) (m*yr)
                                                    !> (whichcalving = EIGENCALVING
@@ -2137,9 +2144,9 @@ contains
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
-    if (model%options%whichcalving == CALVING_GRID_MASK) then
-       call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
-    elseif (model%options%whichcalving == CALVING_DAMAGE) then
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_calving_front)
+    if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
        call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
     endif
@@ -2591,6 +2598,8 @@ contains
         deallocate(model%calving%calving_thck)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
+    if (associated(model%calving%thck_calving_front)) &
+        deallocate(model%calving%thck_calving_front)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
     if (associated(model%calving%damage_column)) &

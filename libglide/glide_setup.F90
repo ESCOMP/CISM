@@ -191,7 +191,6 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
-!!    model%calving%floating_path_minthck = model%calving%floating_path_minthck / thk0
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -621,6 +620,7 @@ contains
     call GetValue(section, 'which_ho_assemble_beta',      model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
+    call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
@@ -884,6 +884,10 @@ contains
     character(len=*), dimension(0:1), parameter :: ho_whichassemble_bfric = (/ &
          'standard finite-element assembly (glissade dycore)       ', &
          'use local basal friction at each vertex (glissade dycore)'  /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
+         'no subgrid calving front parameterization ', &
+         'subgrid calving front parameterization    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
@@ -1396,6 +1400,13 @@ contains
              call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
+          write(message,*) 'ho_whichcalving_front   : ',model%options%which_ho_calving_front,  &
+                            ho_whichcalving_front(model%options%which_ho_calving_front)
+          call write_log(message)
+          if (model%options%which_ho_calving_front < 0 .or. model%options%which_ho_calving_front >= size(ho_whichcalving_front)) then
+             call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
+          end if
+
           write(message,*) 'ho_whichground          : ',model%options%which_ho_ground,  &
                             ho_whichground(model%options%which_ho_ground)
           call write_log(message)
@@ -1636,8 +1647,13 @@ contains
        call write_log(message)
     endif
 
+    if (model%climate%acab_factor /= 1.0d0) then
+       write(message,*) 'Input acab multiplied by      :', model%climate%acab_factor
+       call write_log(message)
+    endif
+
     if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'ice fraction lost due to calving : ', model%calving%calving_fraction
+       write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
        call write_log(message)
     end if
 
@@ -1649,13 +1665,39 @@ contains
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
         model%options%whichcalving == EIGENCALVING) then
-       write(message,*) 'calving thickness limit (m)      : ', model%calving%calving_minthck
+       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
        call write_log(message)
     endif
 
     if (model%options%whichcalving == EIGENCALVING) then
-       write(message,*) 'eigencalving constant (unitless) : ', model%calving%eigencalving_constant
+       write(message,*) 'eigencalving constant (m*yr)  : ', model%calving%eigencalving_constant
        call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+        model%options%whichcalving == EIGENCALVING) then
+
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+          model%options%which_ho_calving_front = HO_CALVING_FRONT_SUBGRID
+          write(message,*) 'Setting which_ho_calving_front =', HO_CALVING_FRONT_SUBGRID
+          call write_log(message)
+          write(message,*) 'Calving option ', model%options%whichcalving, ' is unstable without a subgrid calving front'
+          call write_log(message)
+       endif
+
+       if (model%calving%calving_timescale <= 0.0d0) then
+          write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
+          call write_log(message, GM_FATAL)
+       endif
+
+    endif
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (.not.model%options%remove_icebergs) then
+          model%options%remove_icebergs = .true.
+          write(message,*) 'Setting remove_icebergs = T for stability when using the calving_front subgrid scheme'
+          call write_log(message)
+       endif
     endif
 
     if (model%options%whichcalving == CALVING_GRID_MASK) then
