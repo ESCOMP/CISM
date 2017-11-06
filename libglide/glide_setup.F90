@@ -577,6 +577,7 @@ contains
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
+    call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -1106,6 +1107,13 @@ contains
           call write_log('Icebergs will not be removed')
        endif
        
+       if (model%options%limit_marine_cliffs) then
+          call write_log('The thickness of marine ice cliffs will be limited')
+          call write_log(message)
+       else
+          call write_log('The thickness of marine ice cliffs will not be limited')
+       endif
+
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
           write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
           call write_log(message, GM_WARNING)
@@ -1509,6 +1517,7 @@ contains
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'eigencalving_constant',    model%calving%eigencalving_constant)
+    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
@@ -1698,6 +1707,11 @@ contains
           write(message,*) 'Setting remove_icebergs = T for stability when using the calving_front subgrid scheme'
           call write_log(message)
        endif
+    endif
+
+    if (model%options%limit_marine_cliffs) then
+       write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
+       call write_log(message)
     endif
 
     if (model%options%whichcalving == CALVING_GRID_MASK) then

@@ -504,6 +504,9 @@ module glide_types
     !> These are connected regions with zero basal traction and no connection to grounded ice.
     !>       Safer to make it true, but not necessary for all applications
 
+    logical  :: limit_marine_cliffs = .false.
+    !> if true, then thin marine-based cliffs based on a thickness threshold
+
     integer :: whichwvel = 0
 
     !> Vertical velocities: 
@@ -1089,6 +1092,7 @@ module glide_types
                                             !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
      real(dp) :: eigencalving_constant = 1.0d9     !> eigencalving constant from Levermann et al. (2012) (m*yr)
                                                    !> (whichcalving = EIGENCALVING
+     real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0

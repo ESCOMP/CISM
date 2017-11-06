@@ -192,21 +192,25 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_calve_ice(which_calving,     calving_domain,   &
-                                itest,    jtest,   rtest,            &
-                                thck,              relx,             &
-                                topg,              eus,              &
+  subroutine glissade_calve_ice(which_calving,           &
+                                calving_domain,          &
+                                which_ho_calving_front,  &
+                                remove_icebergs,         &
+                                limit_marine_cliffs,     &
+                                itest,   jtest,   rtest, &
+                                thck,             relx,  &
+                                topg,             eus,   &
                                 thklim,                  &
                                 marine_limit,            &
                                 calving_fraction,        &
                                 calving_timescale,       &
                                 dt,                      &
-                                dx,                dy,   &
+                                dx,               dy,    &
                                 strain_rate_determinant, &
                                 eigencalving_constant,   &
                                 calving_minthck,         &
+                                taumax_cliff,            &
                                 calving_mask,            &
-                                remove_icebergs,         &
                                 damage,                  &
                                 damage_threshold,        &
                                 damage_column,           &
@@ -226,22 +230,25 @@ contains
     ! TODO - Remove thickness scaling from this subroutine.  Would need to multiply several input arguments by thk0. 
     !---------------------------------------------------------------------
 
-    integer,  intent(in)  :: which_calving        !> option for calving law
-    integer,  intent(in)  :: calving_domain       !> option for where calving can occur
+    integer, intent(in) :: which_calving          !> option for calving law
+    integer, intent(in) :: calving_domain         !> option for where calving can occur
                                                   !> = 0 if calving occurs at the ocean edge only
                                                   !> = 1 if calving occurs everywhere the calving criterion is met
                                                   !> = 2 if calving occurs where criterion is met and there is a connected path
                                                   !>     to the ocean through other cells where the criterion is met
-    integer, intent(in)   :: itest, jtest, rtest  !> coordinates of diagnostic point
+    integer, intent(in) :: which_ho_calving_front !> = 1 for subgrid calving-front scheme, else = 0
+    logical, intent(in) :: remove_icebergs        !> if true, then remove icebergs after calving
+    logical, intent(in) :: limit_marine_cliffs    !> if true, then limit the thickness of marine-based ice cliffs
+    integer, intent(in) :: itest, jtest, rtest    !> coordinates of diagnostic point
 
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
     real(dp), intent(in)                    :: eus               !> eustatic sea level
-    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice; used by remove_icebergs
+    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice
     real(dp), intent(in)                    :: marine_limit      !> lower limit on topography elevation at marine edge before ice calves
     real(dp), intent(in)                    :: calving_fraction  !> fraction of ice lost at marine edge when calving; 
-                                                                 !> used with which_ho_calving = CALVING_FLOAT_FRACTION
+                                                                 !> used with which_calving = CALVING_FLOAT_FRACTION
     real(dp), intent(in)                    :: calving_timescale !> time scale for calving; calving_thck = thck * max(dt/calving_timescale, 1)
                                                                  !> if calving_timescale = 0, then calving_thck = thck
     real(dp), intent(in)                    :: dt                !> model timestep (used with calving_timescale)
@@ -249,12 +256,14 @@ contains
     real(dp), dimension(:,:), intent(in)    :: strain_rate_determinant !> determinant of horizontal strain rate tensor (s^{-2})
                                                                        !> used for eigencalving
     real(dp), intent(in)                    :: eigencalving_constant   !> dimensionless constant used for eigencalving
-    real(dp), intent(in)                    :: calving_minthck         !> min thickness of floating ice before it calves;
-                                                                       !> used with CALVING_THCK_THRESHOLD and EIGENCALVING
-    integer,  dimension(:,:), intent(in)    :: calving_mask            !> integer mask: calve ice where mask = 1
-    logical,  intent(in)                    :: remove_icebergs   !> if true, then remove icebergs
-!    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
-    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter  !WHL - 'inout' if damage is updated below
+    real(dp), intent(in)                    :: calving_minthck   !> min thickness of floating ice before it calves;
+                                                                 !> used with CALVING_THCK_THRESHOLD and EIGENCALVING
+    real(dp), intent(in)                    :: taumax_cliff      !> yield stress (Pa) for marine-based ice cliffs
+                                                                 !> used with limit_marine_cliffs option
+    integer,  dimension(:,:), intent(in)    :: calving_mask      !> integer mask: calve ice where calving_mask = 1
+    real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
+!    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter
+                                                                  !WHL - 'inout' if damage is updated below
     real(dp), dimension(:,:), intent(out)   :: damage_column     !> 2D vertically integrated scalar damage parameter
     real(dp), intent(in)                    :: damage_threshold  !> threshold value where ice is sufficiently damaged to calve
     real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
@@ -266,17 +275,28 @@ contains
     integer :: i, j, k
     integer :: count, maxcount_fill  ! loop counters
 
-    integer,  dimension(:,:), allocatable   ::  &
+    real(dp), dimension(:,:), allocatable ::  &
+         thck_calving_front,     & ! effective ice thickness at the calving front
+         thck_init                 ! value of thck before calving
+
+    real(dp), dimension(:,:), allocatable ::  &
+         calving_thck_init         ! debug diagnostic only
+
+    integer,  dimension(:,:), allocatable ::  &
          color                ! integer 'color' for filling the calving domain (with CALVING_DOMAIN_OCEAN_CONNECT)
 
     ! basic masks
     integer, dimension(:,:), allocatable   ::  &
          ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
-         ocean_mask                ! = 1 where topg is below sea level and ice is absent, else = 0
+         ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
+         land_mask,              & ! = 1 where topg is at or above sea level, else = 0
+         active_ice_mask,        & ! = 1 for cells that are dynamically active, else = 0 
+         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+         marine_cliff_mask         ! = 1 where ice is grounded and marine-based and borders at least
 
     ! masks for CALVING_THCK_THRESHOLD
-    integer, dimension(:,:), allocatable   ::  &
+    integer, dimension(:,:), allocatable ::  &
          thick_or_grounded_mask, & ! = 1 for grounded ice and thick floating ice, else = 0
          protected_floating_mask   ! = 1 for thin floating ice in protected ring, else = 0
 
@@ -296,6 +316,10 @@ contains
     real(dp) :: &
          float_fraction_calve  ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
                                ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
+
+    real(dp) :: &
+         thckmax_cliff,      & ! max stable ice thickness in marine_cliff cells
+         factor                ! factor in quadratic formula
    
     ! eigencalving variables
     real(dp) :: &
@@ -347,12 +371,23 @@ contains
 
     endif
 
+    ! allocate masks
+    ! Not all of these are needed for all calving options, but it is simplest just to allocate them all
+    allocate (calving_law_mask(nx,ny))
+    allocate (calving_domain_mask(nx,ny))
     allocate (ice_mask(nx,ny))
     allocate (floating_mask(nx,ny))
     allocate (ocean_mask(nx,ny))
+    allocate (land_mask(nx,ny))
+    allocate (active_ice_mask(nx,ny))
+    allocate (calving_front_mask(nx,ny))
+    allocate (thck_calving_front(nx,ny))
+    allocate (thck_init(nx,ny))
+    allocate (marine_cliff_mask(nx,ny))
 
-    allocate (calving_law_mask(nx,ny))
-    allocate (calving_domain_mask(nx,ny))
+    !WHL - debug
+    allocate(calving_thck_init(nx,ny))
+    calving_thck_init(:,:) = thck(:,:)
 
     !WHL - debug
     if (verbose_calving .and. main_task) then
@@ -932,6 +967,98 @@ contains
 !                  calving_law_mask(i,j), calving_domain_mask(i,j)
 !       enddo
 !    endif
+
+    ! Optionally, impose a thickness limit on marine ice cliffs.
+    ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
+
+    if (limit_marine_cliffs) then
+
+       ! Update masks, including the marine_cliff mask
+
+       call glissade_get_masks(nx,            ny,                 &
+                               thck,          topg,               &
+                               eus,           thklim,             &
+                               ice_mask,                          &
+                               floating_mask = floating_mask,     &
+                               ocean_mask = ocean_mask,           &
+                               land_mask = land_mask,             &
+                               active_ice_mask = active_ice_mask, &
+                               which_ho_calving_front = which_ho_calving_front, &
+                               calving_front_mask = calving_front_mask, &
+                               thck_calving_front = thck_calving_front, &
+                               marine_cliff_mask = marine_cliff_mask)
+
+       if (verbose_calving .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+4, jtest-4, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+       endif
+
+       if (verbose_calving .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'thckmax_cliff, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+4, jtest-4, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
+                thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j)*thk0)**2)  ! m 
+                write(6,'(f10.3)',advance='no') thckmax_cliff
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+       endif
+
+       do j = 2, ny-1
+          do i = 1, nx-1
+             if (marine_cliff_mask(i,j) == 1) then
+
+                ! Compute the max stable ice thickness in the cliff cell.
+                ! This is eq. 2.10 in Bassis & Walker (2012)
+                factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
+                thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j)*thk0)**2)  ! m 
+                thckmax_cliff = thckmax_cliff / thk0   ! convert to model units
+
+                !WHL - debug
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   print*, ' '
+                   print*, 'Cliff thinning: r, i, j =', rtest, itest, jtest
+                   print*, 'thck, thckmax_cliff (m) =', thck(i,j)*thk0, thckmax_cliff*thk0
+                endif
+
+                ! If thicker than the max stable thickness, then remove some ice and add it to the calving field
+                if (thck(i,j) > thckmax_cliff) then
+
+                   thinning_rate = (thck(i,j) - thckmax_cliff) / calving_timescale
+                   dthck = min(thck(i,j), thinning_rate*dt)
+
+                   !WHL - debug
+                   if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+!!                      print*, ' '
+!!                      print*, 'r, i, j, thck, thckmax_cliff:', &
+!!                           this_rank, i, j, thck(i,j)*thk0, thckmax_cliff*thk0 
+!!                      print*, 'thinning rate (model units) =', thinning_rate
+                      print*, 'thinning rate (m/yr) =', thinning_rate * thk0*scyr/tim0
+                      print*, 'dthck (m) =', dthck * thk0
+                   endif
+
+                   thck(i,j) = thck(i,j) - dthck
+                   calving_thck(i,j) = calving_thck(i,j) + dthck
+
+                endif  ! thck > thckmax_cliff
+
+             endif  ! marine_cliff cell
+          enddo   ! i
+       enddo   ! j
+
+    endif   ! limit_marine_cliffs
 
     ! Remove any icebergs.
     ! Typically these will be removed by the calving scheme above, but if not, 

@@ -522,6 +522,9 @@ contains
 
        call glissade_calve_ice(model%options%whichcalving,      &
                                model%options%calving_domain,    &
+                               model%options%which_ho_calving_front, &
+                               model%options%remove_icebergs,     &
+                               model%options%limit_marine_cliffs, &
                                model%numerics%idiag_local, model%numerics%jdiag_local,   &
                                model%numerics%rdiag_local,                               &
                                model%geometry%thck,             &
@@ -537,9 +540,9 @@ contains
                                model%numerics%dns*len0,         &         ! m
                                model%velocity%strain_rate_determinant, &  ! s^(-2)
                                model%calving%eigencalving_constant,    &
-                               model%calving%calving_minthck,          &
-                               model%calving%calving_mask,             &
-                               model%options%remove_icebergs,   &
+                               model%calving%calving_minthck,   &
+                               model%calving%taumax_cliff,      &
+                               model%calving%calving_mask,      &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
@@ -1458,6 +1461,9 @@ contains
 
     call glissade_calve_ice(model%options%whichcalving,      &
                             model%options%calving_domain,    &
+                            model%options%which_ho_calving_front, &
+                            model%options%remove_icebergs,     &
+                            model%options%limit_marine_cliffs, &
                             model%numerics%idiag_local, model%numerics%jdiag_local,   &
                             model%numerics%rdiag_local,                               &
                             model%geometry%thck,             &
@@ -1474,8 +1480,8 @@ contains
                             model%velocity%strain_rate_determinant, &  ! s^(-2)
                             model%calving%eigencalving_constant,    &
                             model%calving%calving_minthck,   &
+                            model%calving%taumax_cliff,      &
                             model%calving%calving_mask,      &
-                            model%options%remove_icebergs,   &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &
                             model%calving%damage_column,     &
