@@ -507,6 +507,10 @@ module glide_types
     logical  :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
 
+    logical  :: cull_calving_front = .false.
+    !> if true, then cull calving_front cells at initialization
+    !> This can make the run more stable by removing long, thin peninsulas
+
     integer :: whichwvel = 0
 
     !> Vertical velocities: 
@@ -1093,6 +1097,8 @@ module glide_types
      real(dp) :: eigencalving_constant = 1.0d9     !> eigencalving constant from Levermann et al. (2012) (m*yr)
                                                    !> (whichcalving = EIGENCALVING
      real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
+     integer :: ncull_calving_front = 0     !> number of times to cull calving_front cells at initialization
+                                            !> Set to a larger value to remove thicker peninsulas
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0

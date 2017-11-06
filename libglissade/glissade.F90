@@ -518,6 +518,12 @@ contains
        ! ------------------------------------------------------------------------
        ! Remove ice that should calve, depending on the value of whichcalving
        !TODO - Make sure we have done the necessary halo updates before calving
+       ! Note: This initial call includes the optional cull_calving_front argument,
+       !        which if true can remove floating peninsulas in the input data by
+       !        preceding the call to remove_icebergs with removal of one or more
+       !        layers of calving_front cells.
+       !       The call to calving during glissade_tstep does not include this argument,
+       !        since we do not want to remove calving_front cells every timestep.
        ! ------------------------------------------------------------------------        
 
        call glissade_calve_ice(model%options%whichcalving,      &
@@ -547,7 +553,9 @@ contains
                                model%calving%damage_threshold,  &
                                model%calving%damage_column,     &
                                model%numerics%sigma,            &
-                               model%calving%calving_thck)
+                               model%calving%calving_thck,      &
+                               cull_calving_front_in = model%options%cull_calving_front, &
+                               ncull_calving_front_in = model%calving%ncull_calving_front)
 
        !TODO: Think about what halo updates are needed after calving. Just thck and thkmask?
 

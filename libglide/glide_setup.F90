@@ -578,6 +578,7 @@ contains
     call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
+    call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -1114,6 +1115,13 @@ contains
           call write_log('The thickness of marine ice cliffs will not be limited')
        endif
 
+       if (model%options%cull_calving_front) then
+          write(message,*) 'Calving-front cells will be culled', model%calving%ncull_calving_front, 'times at initialization'
+          call write_log(message)
+       else
+          call write_log('Calving-front cells will not be culled at initialization')
+       endif
+
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
           write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
           call write_log(message, GM_WARNING)
@@ -1513,15 +1521,6 @@ contains
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
-    call GetValue(section,'marine_limit',       model%calving%marine_limit)
-    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
-    call GetValue(section,'eigencalving_constant',    model%calving%eigencalving_constant)
-    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
-    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
-    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
-    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
@@ -1534,6 +1533,18 @@ contains
     ! parameters to adjust external forcing
     call GetValue(section,'acab_factor',        model%climate%acab_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
+
+    ! calving parameters
+    call GetValue(section,'marine_limit',       model%calving%marine_limit)
+    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
+    call GetValue(section,'eigencalving_constant',    model%calving%eigencalving_constant)
+    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
+    call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
+    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
+    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
+    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -1939,6 +1950,11 @@ contains
           write(message,*) 'overwrite_acab_minthck (m)    : ', model%climate%overwrite_acab_minthck
           call write_log(message)
        endif
+    endif
+
+    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+       write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
+       call write_log(message)
     endif
 
     ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)

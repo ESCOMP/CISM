@@ -31,6 +31,7 @@ module glissade_calving
 
   use glide_types
   use glimmer_global, only: dp
+  use glimmer_log
   use parallel
 
   use glimmer_paramets, only: thk0, tim0
@@ -156,7 +157,9 @@ contains
 
     else  ! compute the calving mask based on the initial ice extent
  
-       if (main_task) print*, 'Computing calving_mask based on initial ice extent'
+       if (main_task) then
+          print*, 'Computing calving_mask based on initial ice extent'
+       endif
 
        ! initialize
        calving_mask(:,:) = 0  ! no calving by default
@@ -215,7 +218,9 @@ contains
                                 damage_threshold,        &
                                 damage_column,           &
                                 sigma,                   &
-                                calving_thck)
+                                calving_thck,            &
+                                cull_calving_front_in,   &
+                                ncull_calving_front_in)
 
     ! Calve ice according to one of several methods
 
@@ -268,6 +273,18 @@ contains
     real(dp), intent(in)                    :: damage_threshold  !> threshold value where ice is sufficiently damaged to calve
     real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
     real(dp), dimension(:,:), intent(out)   :: calving_thck      !> thickness lost due to calving in each grid cell
+
+    logical, intent(in), optional :: &
+         cull_calving_front_in         !> if true, then cull calving_front cells to improve model stability
+                                       !> generally should be called only at model initialization
+
+    integer, intent(in), optional :: &
+         ncull_calving_front_in        !> number of times to cull calving_front cells at initialization
+
+    ! local variables
+
+    logical :: cull_calving_front     ! local version of cull_calving_front_in
+    integer :: ncull_calving_front    ! local version of ncull_calving_front_in
 
     integer :: nx, ny      ! horizontal grid dimensions
     integer :: nz          ! number of vertical levels
@@ -337,6 +354,19 @@ contains
 !    iplot2 = nx-1
 
     ! initialize
+
+    if (present(cull_calving_front_in)) then
+       cull_calving_front = cull_calving_front_in
+    else
+       cull_calving_front = .false.
+    endif
+
+    if (present(ncull_calving_front_in)) then
+       ncull_calving_front = ncull_calving_front_in
+    else
+       ncull_calving_front = 1  ! only used if cull_calving_front = T
+    endif
+
     calving_thck(:,:) = 0.d0
 
     nx = size(thck,1)
@@ -361,9 +391,14 @@ contains
           !       Then the algorithm can fail to identify floating regions that should be removed.
 
           call glissade_remove_icebergs(&
-               thck,          relx,             &
-               topg,          eus,              &
-               thklim,        calving_thck)
+               itest,   jtest,   rtest, &
+               thck,                    &
+               topg,          eus,      &
+               thklim,                  &
+               which_ho_calving_front,  &
+               calving_thck,            &
+               cull_calving_front,      &
+               ncull_calving_front)
 
        endif
 
@@ -865,7 +900,9 @@ contains
                            (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
                          if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                             ! assign the fill color to this cell, and recursively fill neighbor cells
-                            call glissade_fill(nx, ny, i, j, color)
+                            call glissade_fill(nx,    ny,       &
+                                               i,     j,        &
+                                               color, ice_mask)
                          endif
                       endif
                    enddo
@@ -878,25 +915,33 @@ contains
                 ! west halo layer
                 i = nhalo
                 do j = 1, ny
-                   if (color(i,j) == fill_color) call glissade_fill(nx, ny, i+1, j, color)
+                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
+                                                                    i+1,   j,     &
+                                                                    color, ice_mask)
                 enddo
 
                 ! east halo layer
                 i = nx - nhalo + 1
                 do j = 1, ny
-                   if (color(i,j) == fill_color) call glissade_fill(nx, ny, i-1, j, color)
+                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
+                                                                    i-1,   j,     &
+                                                                    color, ice_mask)
                 enddo
 
                 ! south halo layer
                 j = nhalo
                 do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-                   if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j+1, color)
+                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
+                                                                    i,     j+1,   &
+                                                                    color, ice_mask)
                 enddo
 
                 ! north halo layer
                 j = ny-nhalo+1
                 do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-                   if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color)
+                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
+                                                                    i,     j-1,   &
+                                                                    color, ice_mask)
                 enddo
 
              endif  ! count = 1
@@ -912,7 +957,7 @@ contains
              sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
              if (verbose_calving) then
-                print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
+!!                print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
              endif
 
           enddo  ! count
@@ -1073,99 +1118,297 @@ contains
 
        ! Set the thickness thresholds for cells to be counted as active.
        ! Floating regions will be identified as icebergs unless they are connected to grounded ice
-       !  along a path consisting only of active cells (i.e., cells with thk > thklim).
+       !  along a path consisting only of active cells.
        ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
        !       Then the algorithm can fail to identify floating regions that should be removed.
 
        call glissade_remove_icebergs(&
-            thck,          relx,                  &
-            topg,          eus,                   &
-            thklim,        calving_thck)
+            itest,   jtest,   rtest, &
+            thck,                    &
+            topg,          eus,      &
+            thklim,                  &
+            which_ho_calving_front,  &
+            calving_thck,            &
+            cull_calving_front,      &
+            ncull_calving_front)
 
     endif
 
     ! cleanup
+    deallocate (calving_law_mask)
+    deallocate (calving_domain_mask)
     deallocate (ice_mask)
     deallocate (floating_mask)
     deallocate (ocean_mask)
-    if (which_calving == CALVING_THCK_THRESHOLD) then
-       deallocate (thick_or_grounded_mask)
-       deallocate (protected_floating_mask)
-    endif
-
-    deallocate (calving_law_mask)
-    deallocate (calving_domain_mask)
+    deallocate (land_mask)
+    deallocate (active_ice_mask)
+    deallocate (calving_front_mask)
+    deallocate (thck_calving_front)
+    deallocate (thck_init)
+    deallocate (marine_cliff_mask)
 
   end subroutine glissade_calve_ice
 
 !---------------------------------------------------------------------------
 
   subroutine glissade_remove_icebergs(&
-       thck,          relx,                  &
-       topg,          eus,                   &
-       thklim,        calving_thck)
+       itest,   jtest,   rtest,     &
+       thck,                        &
+       topg,          eus,          &
+       thklim,                      &
+       which_ho_calving_front,      &
+       calving_thck,                &
+       cull_calving_front_in,       &
+       ncull_calving_front_in)
 
-    ! Remove any icebergs (i.e., connected regions of floating ice with
-    !  no connection to grounded ice). 
-    ! The method is as follows: Initialize each cell to have either the initial color
-    !  (if active ice is present) or the boundary color (if no ice is present).
-    !  "Active" means that thck > thklim.
-    ! Then loop through the cells on the processor. For each active grounded ice cell,
-    !  assign the fill color and then recursively assign the fill color to any
-    !  active cells with which it is connected (i.e., it shares an edge).
-    ! Repeat the loop several times to allow communication between adjacent
-    !  processors via halo updates.
-    ! Any active cells that still have the initial color are icebergs.
-    ! Remove this ice and add it to the calving field.
+    ! Remove any icebergs. 
+        
+    ! The algorithm is as follows:
+    ! (1) Mark all cells with ice (either active or inactive) with the initial color.
+    !     Mark other cells with the boundary color.
+    ! (2) Seed the fill by giving all active grounded cells the fill color.
+    ! (3) Recursively fill all cells that are connected to filled cells by a path
+    !     that passes through active cells only.
+    ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
+    ! (5) Once the fill is done, any cells that still have the initial color and
+    !     are not on land are considered to be icebergs. They are removed.
+    !
+    ! Notes:
+    ! (1) The recursive fill applies to edge neighbors, not corner neighbors.
+    !     The path back to grounded ice must go through edges, not corners.
+    ! (2) Inactive cells can be filled (if adjacent to active cells), but
+    !     do not further spread the fill.
+    ! (3) Grounded cells that still have the initial color are not removed.
+    !     They are considered harmless.
 
     use glissade_masks
     use glimmer_paramets, only: thk0
 
+    integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
+
     real(dp), dimension(:,:), intent(inout) :: thck     !> ice thickness
-    real(dp), dimension(:,:), intent(in)    :: relx     !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg     !> present bedrock topography
-    real(dp), intent(in)      :: eus                    !> eustatic sea level
-    real(dp), intent(in)      :: thklim                 !> minimum thickness for dynamically active grounded ice
+    real(dp), intent(in)    :: eus                      !> eustatic sea level
+    real(dp), intent(in)    :: thklim                   !> minimum thickness for dynamically active grounded ice
+    integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
     real(dp), dimension(:,:), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
-                                                              !> on output, includes icebergs
+                                                              !> on output, includes ice in icebergs
 
-    integer :: nx, ny      ! horizontal grid dimensions
+    logical, intent(in), optional :: &
+         cull_calving_front_in         !> if true, remove peninsulas by first removing a layer of calving_front cells
 
-    integer :: i, j
+    integer, intent(in), optional :: &
+         ncull_calving_front_in        !> number of times to cull calving_front cells at initialization
+
+    ! local variables
+
+    logical :: cull_calving_front    ! local version of cull_calving_front_in
+    integer :: ncull_calving_front   ! local version of ncull_calving_front_in
+
+    integer :: nx, ny                ! horizontal grid dimensions
+
+    integer :: i, j, n
     integer :: count, maxcount_fill  ! loop counters
 
     integer,  dimension(:,:), allocatable   ::  &
-         ice_mask,          & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,     & ! = 1 where ice is present (thck > thklim) and floating, else = 0
-         color                ! integer 'color' for filling the calving domain (with CALVING_DOMAIN_OCEAN_CONNECT)
+         ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
+         land_mask,          & ! = 1 where topg is at or above sea level, else = 0
+         calving_front_mask, & ! = 1 where ice is floating and borders the ocean, else = 0
+         active_ice_mask,    & ! = 1 for dynamically active cells
+         color                 ! integer 'color' for identifying icebergs
+
+    real(dp),  dimension(:,:), allocatable   ::  &
+         thck_calving_front    ! effective ice thickness at the calving front
 
     !WHL - debug
     real(dp) :: sum_fill_local, sum_fill_global
+
+    if (present(cull_calving_front_in)) then
+       cull_calving_front = cull_calving_front_in
+    else
+       cull_calving_front = .false.
+    endif
+
+    if (present(ncull_calving_front_in)) then
+       ncull_calving_front = ncull_calving_front_in
+    else
+       ncull_calving_front = 1
+    endif
 
     nx = size(thck,1)
     ny = size(thck,2)
 
     allocate (ice_mask(nx,ny))
     allocate (floating_mask(nx,ny))
+    allocate (ocean_mask(nx,ny))
+    allocate (land_mask(nx,ny))
+    allocate (calving_front_mask(nx,ny))
+    allocate (thck_calving_front(nx,ny))
+    allocate (active_ice_mask(nx,ny))
     allocate (color(nx,ny))
 
     ! calculate masks
     ! Note: Passing in thklim = 0.0 does not work because it erroneously counts thin floating cells as active.
     !       Then the algorithm can fail to identify floating regions that should be removed
-    !       (since they are separated from any cells that are truly active).
+    !       (since they are separated from any active cells).
 
-     call glissade_get_masks(nx,            ny,             &
-                             thck,          topg,           &
-                             eus,           thklim,         &
-                             ice_mask,                      &
-                             floating_mask = floating_mask)
+    call glissade_get_masks(nx,            ny,                  &
+                            thck,          topg,                &
+                            eus,           thklim,              &
+                            ice_mask,                           &
+                            floating_mask = floating_mask,      &
+                            ocean_mask = ocean_mask,            &
+                            land_mask = land_mask,              &
+                            active_ice_mask = active_ice_mask,  &
+                            which_ho_calving_front = which_ho_calving_front, &
+                            calving_front_mask = calving_front_mask,         &
+                            thck_calving_front = thck_calving_front)
+
+    !WHL - debug
+    if (verbose_calving .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_remove_icebergs'
+       print*, ' '
+       print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+4, jtest-4, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)*thk0
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+4, jtest-4, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') calving_front_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+4, jtest-4, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+4, jtest-4, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') active_ice_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+    
+    !WHL - debug
+    ! Optionally, do a preliminary step where all cells currently at the calving front are removed.
+    ! Then recompute the masks.
+    ! The results is that long, skinning floating peninsulas that can be dynamically unstable are more likely
+    !  to be removed. Without this step, peninsulas that are two cells thick (with calving-front cells on each side)
+    !  will typically be removed as icebergs (because there is no path back to grounded ice through active cells).
+    !  With this step, peninsulas up to four cells thick will be removed (two outer layers during the preliminary step,
+    !  followed by two inner layers on the remove_iceberg step).
+    ! If necessary, this step could be repeated to remove peninsulas with a thickness of 6 layers, 8 layers, etc.
+
+    if (cull_calving_front) then
+
+       do n = 1, ncull_calving_front
+
+          ! remove the calving_front cells just identified
+          if (main_task) then
+             call write_log ('cull_calving_front: Removing ice from calving_front cells')
+             print*, 'cull_calving_front: Removing ice from calving_front cells'
+          endif
+
+          do j = 1, ny
+             do i = 1, nx
+                if (calving_front_mask(i,j) == 1) then
+                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j) 
+                   thck(i,j) = 0.0d0
+                   !TODO - Reset temperature or other tracers?
+                endif
+             enddo
+          enddo
+
+          ! update the masks
+          ! Note: Some floating cells that were previously active interior cells are now calving_front cells.
+          !       These will not be removed if they are adjacent to active cells with a path to grounded ice,
+          !        but will be removed if they form peninsulas one or two cells thick.
+
+          call glissade_get_masks(nx,            ny,                  &
+                                  thck,          topg,                &
+                                  eus,           thklim,              &
+                                  ice_mask,                           &
+                                  floating_mask = floating_mask,      &
+                                  ocean_mask = ocean_mask,            &
+                                  active_ice_mask = active_ice_mask,  &
+                                  which_ho_calving_front = which_ho_calving_front, &
+                                  calving_front_mask = calving_front_mask,         &
+                                  thck_calving_front = thck_calving_front)
+
+          !WHL - debug
+          if (verbose_calving .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'cull_calving_front: After removing CF cells, n =', n
+             print*, ' '
+             print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+4, jtest-4, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') thck(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+4, jtest-4, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+4, jtest-4, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+4, jtest-4, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') active_ice_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+       enddo  ! ncull_calving_front
+
+    endif  ! cull_calving_front
 
     ! initialize
-    ! Assign the initial color to cells with active ice and the boundary color to cells without active ice.
+    ! Note: Any cell with ice, active or inactive, receives the initial color.
+    !       Inactive cells can later receive the fill color (if adjacent to active cells)
+    !        but cannot further spread the fill color.
+    !       This protects inactive calving-front cells from removal, as desired.
 
     do j = 1, ny
        do i = 1, nx
-          if (ice_mask(i,j) == 1) then
+          if (thck(i,j) > 0.0d0) then
              color(i,j) = initial_color
           else
              color(i,j) = boundary_color
@@ -1174,7 +1417,7 @@ contains
     enddo
 
     ! Loop through cells, identifying active cells with grounded ice.
-    ! Fill each grounded cell and then recursively fill neighbor cells, whether grounded or not.
+    ! Fill each grounded cell and then recursively fill active neighbor cells, whether grounded or not.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
     maxcount_fill = max(ewtasks,nstasks)
@@ -1189,41 +1432,64 @@ contains
 
           do j = 1, ny
              do i = 1, nx
-                if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
+                if (active_ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                       ! assign the fill color to this cell, and recursively fill neighbor cells
-                      call glissade_fill(nx, ny, i, j, color)
+                      call glissade_fill(nx,    ny,    &
+                                         i,     j,     &
+                                         color, active_ice_mask)
                    endif
                 endif
              enddo
           enddo
 
-       else  ! count > 1; first check for halo cells that were just filled on neighbor processors
+       else  ! count > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
+          !       but also must be an active cell.
 
           call parallel_halo(color)
 
           ! west halo layer
           i = nhalo
           do j = 1, ny
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i+1, j, color)
+             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+
+                                   i+1,   j,     &
+                                   color, active_ice_mask)
+             endif
           enddo
 
           ! east halo layers
           i = nx - nhalo + 1
           do j = 1, ny
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i-1, j, color)
+             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, active_ice_mask)
+             endif
           enddo
 
           ! south halo layer
           j = nhalo
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j+1, color)
+             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, active_ice_mask)
+             endif
           enddo
 
           ! north halo layer
           j = ny-nhalo+1
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color) call glissade_fill(nx, ny, i, j-1, color)
+             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, active_ice_mask)
+             endif
           enddo
 
        endif  ! count = 1
@@ -1239,19 +1505,21 @@ contains
        sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
        if (verbose_calving .and. main_task) then
-          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+!!          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
        endif
 
     enddo  ! count
 
-    ! Any active cells that still have the initial color are part of an iceberg.
+    ! Icebergs are cells that still have the initial color and are not on land.
     ! Remove ice in these cells, adding it to the calving field.
+    ! Note: Inactive land-based cells are not considered to be icebergs.
     do j = 1, ny
        do i = 1, nx
-          if (color(i,j) == initial_color) then
+          if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
              !WHL - debug
-             if (verbose_calving .and. thck(i,j) > 0.0) &
-                  print*, 'Remove iceberg: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
+             if (verbose_calving .and. thck(i,j) > 0.0 .and. this_rank == rtest) then
+!!                print*, 'Remove iceberg: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
+             endif
              calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
              thck(i,j) = 0.0d0
              !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
@@ -1262,40 +1530,76 @@ contains
     ! cleanup
     deallocate (ice_mask)
     deallocate (floating_mask)
+    deallocate (ocean_mask)
+    deallocate (calving_front_mask)
+    deallocate (thck_calving_front)
+    deallocate (active_ice_mask)
     deallocate (color)
+
+    if (verbose_calving .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'Done in glissade_remove_icebergs'
+       print*, ' '
+       print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+4, jtest-4, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)*thk0
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
   end subroutine glissade_remove_icebergs
 
 !****************************************************************************
 
-  recursive subroutine glissade_fill(nx,  ny,   &
-                                     i,   j,    &
-                                     color)
+  recursive subroutine glissade_fill(nx,  ny,         &
+                                     i,   j,          &
+                                     color,           &
+                                     active_ice_mask)
 
     ! Given a domain with an initial color, a boundary color and a fill color,
     ! assign the fill color to all cells that either (1) are prescribed to have
     ! the fill color or (2) are connected to cells with the fill color.
 
-    integer, intent(in) :: nx, ny                       ! domain size
-    integer, intent(in) :: i, j                         ! horizontal indices of current cell
+    integer, intent(in) :: nx, ny                       !> domain size
+    integer, intent(in) :: i, j                         !> horizontal indices of current cell
 
     integer, dimension(nx,ny), intent(inout) :: &
          color                                          ! color (initial, fill or boundary)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         active_ice_mask                                ! true for dynamically active ice
 
     if (color(i,j) /= fill_color .and. color(i,j) /= boundary_color) then
 
        ! assign the fill color to this cell
        color(i,j) = fill_color
 
+       ! If a cell contains inactive ice, then fill this cell but do not call
+       !  glissade_fill recursively
+       if (active_ice_mask(i,j) == 0) then  ! this cell is inactive
+          return    ! skip the recursion
+       endif
+
        ! recursively call this subroutine for each neighbor to see if it should be filled
        !TODO - May want to rewrite this to avoid recursion, which can crash the code when
        !       the recursion stack is very large on fine grids.
-       if (i > 1)  call glissade_fill(nx, ny, i-1, j,   color)
-       if (i < nx) call glissade_fill(nx, ny, i+1, j,   color)
-       if (j > 1)  call glissade_fill(nx, ny, i,   j-1, color)
-       if (j < ny) call glissade_fill(nx, ny, i,   j+1, color)
+       if (i > 1)  call glissade_fill(nx,    ny,  &
+                                      i-1,   j,   &
+                                      color, active_ice_mask)
+       if (i < nx) call glissade_fill(nx,    ny,  &
+                                      i+1,   j,   &
+                                      color, active_ice_mask)
+       if (j > 1)  call glissade_fill(nx,    ny, &
+                                      i,     j-1, &
+                                      color, active_ice_mask)
+       if (j < ny) call glissade_fill(nx,    ny,  &
+                                      i,     j+1, &
+                                      color, active_ice_mask)
 
-    endif
+    endif   ! not fill color or boundary color
 
   end subroutine glissade_fill
 
