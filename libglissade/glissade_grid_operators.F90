@@ -1205,8 +1205,7 @@ contains
 
   subroutine glissade_hybrid_surface_elevation_gradient(nx,          ny,         &
                                                         dx,          dy,         &
-                                                        ice_mask,                &
-                                                        floating_mask,           &
+                                                        active_ice_mask,         &
                                                         land_mask,               &
                                                         usrf,        thck,       &
                                                         topg,        eus,        &
@@ -1219,11 +1218,13 @@ contains
     ! Compute surface elevation gradients for option gradient_margin = HO_GRADIENT_MARGIN_HYBRID_NEW.
     !
     ! The gradient is nonzero at edges where either
-    ! (1) Both adjacent cells are ice-covered.
-    ! (2) One cell is ice-covered and grounded, and lies above the other cell.
+    ! (1) Both adjacent cells have active ice.
+    ! (2) An ice-covered cell lies above ice-free land.
     !
-    ! The mask is set to false where a floating cell lies above an ice-free cell,
-    !  or where an ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
+    ! The gradient is set to zero where
+    ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
+    !     Note: Inactive calving-front cells are treated as ice-free ocean.
+    ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
     !
     ! The intent is to give a reasonable gradient at both land-terminating and marine-terminating margins.
     ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
@@ -1247,8 +1248,7 @@ contains
          dx, dy                   ! horizontal grid size
 
     integer, dimension(nx,ny), intent(in) ::        &
-         ice_mask,              & ! = 1 where ice is present, else = 0
-         floating_mask,         & ! = 1 where ice is present and floating, else = 0
+         active_ice_mask,       & ! = 1 where active ice is present, else = 0
          land_mask                ! = 1 for land cells, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::       &
@@ -1258,7 +1258,7 @@ contains
 
     real(dp), intent(in) ::       &
          eus,                   & ! eustatic sea level
-         thklim,                & !
+         thklim,                & ! minimum thickness for active ice
          thck_gradient_ramp
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
@@ -1281,9 +1281,9 @@ contains
 
     real(dp) ::  &
          edge_thck_upper,       & ! thickness of higher-elevation cell
+         edge_thck_lower,       & ! thickness of lower-elevation cell
          edge_factor,           & ! gradient-weighting factor in range [0,1]
-         sign_factor,           & ! sign factor, +1 or -1
-         h_flotation              ! thickness at which ice would float
+         sign_factor              ! sign factor, +1 or -1
 
     ! initialize
     ds_dx_edge(:,:) = 0.0d0
@@ -1307,40 +1307,25 @@ contains
              sign_factor = 1.0d0
           endif
 
-          ! compute a factor that reduces the gradient if ice in the upper cell is thin
-          ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim
-          edge_thck_upper = thck(iu,j)
-          edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
-          edge_factor = max(edge_factor, 0.0d0)
+          if (land_mask(iu,j) == 1) then
+             ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
+             ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
+             edge_thck_upper = thck(iu,j)
+             edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
+             edge_factor = max(edge_factor, 0.0d0)
+          else
+             edge_factor = 1.0d0
+          endif
 
-          if (ice_mask(iu,j)==1 .and. ice_mask(il,j)==1) then  ! both cells have ice; compute the gradient in the usual way
+          if (active_ice_mask(iu,j) == 1 .and. active_ice_mask(il,j) == 1) then  ! both cells have active ice
 
+             ! compute the gradient in the usual way
              ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
-          elseif (ice_mask(iu,j) == 1) then  ! upper cell has ice; conditionally compute the gradient
+          elseif (active_ice_mask(iu,j) == 1 .and. land_mask(il,j) == 1) then
 
-             if (land_mask(il,j) == 1) then   ! ice-free lower cell is land; compute the gradient in the usual way
-
-                ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
-
-             else  ! ice-free lower cell is ocean; compute the gradient only if the upper cell is grounded
-
-                if (land_mask(iu,j) == 1) then  ! upper cell is land; compute the gradient in the usual way
-
-                   ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
-
-                elseif (floating_mask(iu,j) == 0) then   ! upper cell is grounded and marine-based
-
-                   ! compute flotation thickness
-                   h_flotation = (rhow/rhoi)*(eus - topg(iu,j))
-
-                   ! When computing the gradient, replace (usrf(iu,j) - usrf(il,j)) with (H - h_flotation).
-                   ! Then the gradient smoothly approaches zero as H -> h_flotation.
-                   ds_dx_edge(i,j) = edge_factor * sign_factor * (thck(iu,j) - h_flotation) / dx
-
-                endif  ! upper cell is land
-
-             endif   ! lower cell is land
+             ! upper cell has active ice and ice-free lower cell is land; compute the gradient in the usual way
+             ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
           endif  ! both cells have ice
 
@@ -1362,40 +1347,25 @@ contains
              sign_factor = 1.0d0
           endif
 
-          ! Compute a factor that reduces the gradient if ice in the upper cell is thin.
-          ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
-          edge_thck_upper = thck(i,ju)
-          edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
-          edge_factor = max(edge_factor, 0.0d0)
+          if (land_mask(i,ju) == 1) then
+             ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
+             ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
+             edge_thck_upper = thck(i,ju)
+             edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
+             edge_factor = max(edge_factor, 0.0d0)
+          else
+             edge_factor = 1.0d0
+          endif
 
-          if (ice_mask(i,ju)==1 .and. ice_mask(i,jl)==1) then  ! both cells have ice; compute the gradient in the usual way
+          if (active_ice_mask(i,ju)==1 .and. active_ice_mask(i,jl)==1) then  ! both cells have ice
 
+             ! compute the gradient in the usual way
              ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
-          elseif (ice_mask(i,ju) == 1) then  ! upper cell has ice; conditionally compute the gradient
+          elseif (active_ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
 
-             if (land_mask(i,jl) == 1) then   ! ice-free lower cell is land; compute the gradient in the usual way
-
-                ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
-
-             else  ! ice-free lower cell is ocean; compute the gradient only if the upper cell is grounded
-
-                if (land_mask(i,ju) == 1) then  ! upper cell is land; compute the gradient in the usual way
-
-                   ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
-
-                elseif (floating_mask(i,ju) == 0) then   ! upper cell is grounded and marine-based
-
-                   ! compute flotation thickness
-                   h_flotation = (rhow/rhoi)*(eus - topg(i,ju))
-
-                   ! When computing the gradient, replace (usrf(i,ju) - usrf(i,jl)) with (H - h_flotation).
-                   ! Then the gradient smoothly approaches zero as H -> h_flotation.
-                   ds_dy_edge(i,j) = edge_factor * sign_factor * (thck(i,ju) - h_flotation) / dy
-
-                endif  ! upper cell is land
-
-             endif   ! lower cell is land
+             ! upper cell has active ice and ice-free lower cell is land; compute the gradient in the usual way
+             ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
           endif  ! both cells have ice
 
@@ -1407,11 +1377,6 @@ contains
     do j = 1, ny-1
        do i = 1, nx-1
           ds_dx(i,j) = 0.5d0 * (ds_dx_edge(i,j) + ds_dx_edge(i,j+1))
-       enddo
-    enddo
-
-    do j = 1, ny-1
-       do i = 1, nx-1
           ds_dy(i,j) = 0.5d0 * (ds_dy_edge(i,j) + ds_dy_edge(i+1,j))
        enddo
     enddo
