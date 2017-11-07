@@ -160,7 +160,6 @@ module glide_types
   integer, parameter :: CALVING_DAMAGE = 8
   integer, parameter :: CALVING_HUYBRECHTS = 9
 
-  !WHL - added an option to determine whether calving occurs at initialization
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
 
@@ -225,6 +224,7 @@ module glide_types
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
 
+  !TODO - Remove option 2? Rarely used
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BMLT = 2
@@ -420,7 +420,7 @@ module glide_types
     logical :: enable_bmlt_anomaly = .false.
     !> if true, then apply a prescribed anomaly to bmlt_float
 
-    !TODO - Change default basal_mbal to 1?
+    !TODO - Change default basal_mbal to 1
     integer :: basal_mbal = 0
 
     !> basal mass balance:
@@ -1011,7 +1011,8 @@ module glide_types
 
     ! strain rate tensor (HO only) 
     type(glide_tensor) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
-    real(dp),dimension(:,:),pointer :: strain_rate_determinant ! determinant of 2D horizontal strain rate tensor (s^-1)
+
+    real(dp), dimension(:,:), pointer :: divu => null()        ! horizontal divergence rate, eps_xx + eps_yy (s^-1)
 
   end type glide_velocity
 
@@ -1082,6 +1083,9 @@ module glide_types
                                                                    !< scaled by thk0 like mass balance, thickness, etc.
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:),  pointer :: thck_calving_front => null()!> effective ice thickness at calving front, divided by \texttt{thk0}.
+     real(dp),dimension(:,:),  pointer :: strain_rate_eigenprod    !> product of eigenvalues of 2D horizontal strain rate tensor (s^-2)
+     real(dp),dimension(:,:),  pointer :: strain_rate_eigen1       !> first principal eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:),  pointer :: strain_rate_eigen2       !> second principal eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
      real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
   
@@ -1094,8 +1098,8 @@ module glide_types
                                             !> if calving_timescale = 0, then calving_thck = thck
      real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
                                             !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
-     real(dp) :: eigencalving_constant = 1.0d9     !> eigencalving constant from Levermann et al. (2012) (m*yr)
-                                                   !> (whichcalving = EIGENCALVING
+     real(dp) :: eigencalving_constant = 1.0d9   !> eigencalving constant from Levermann et al. (2012) (m*yr)
+                                                 !> (whichcalving = EIGENCALVING
      real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
      integer :: ncull_calving_front = 0     !> number of times to cull calving_front cells at initialization
                                             !> Set to a larger value to remove thicker peninsulas
@@ -1316,10 +1320,11 @@ module glide_types
                                                                 !< Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
      ! Note: It may make sense to move effecpress to a hydrology model when one is available.
-     real(dp), dimension(:,:), pointer :: effecpress => null()          !< effective pressure  
-     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid
+     real(dp), dimension(:,:), pointer :: effecpress => null()          !< effective pressure (Pa)
+     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid (Pa)
      real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
+     real(dp), dimension(:,:), pointer :: tau_c => null()               !< yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
@@ -1355,7 +1360,7 @@ module glide_types
                                                  !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI
-     ! The default values are from Asay-Davis et al. (2015).
+     ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_C suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
      ! Note: The Tsai et al. Coulomb friction law uses Coulomb_C above, with
@@ -2006,6 +2011,7 @@ contains
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%ures)
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%vres)
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%magres)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
     endif
 
     ! higher-order stress arrays
@@ -2025,7 +2031,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xx)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yy)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
-       call coordsystem_allocate(model%general%ice_grid, model%velocity%strain_rate_determinant)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
@@ -2103,6 +2108,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
+       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
@@ -2156,6 +2162,9 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_calving_front)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigenprod)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigen1)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigen2)
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
        call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
@@ -2358,6 +2367,8 @@ contains
         deallocate(model%velocity%umask_no_penetration)
     if (associated(model%velocity%vmask_no_penetration)) &
         deallocate(model%velocity%vmask_no_penetration)
+    if (associated(model%velocity%divu)) &
+        deallocate(model%velocity%divu)
 
     !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
 !    if (associated(model%velocity%ures)) & 
@@ -2397,8 +2408,6 @@ contains
         deallocate(model%velocity%strain_rate%yy)
     if (associated(model%velocity%strain_rate%xy)) &
         deallocate(model%velocity%strain_rate%xy)
-    if (associated(model%velocity%strain_rate_determinant)) &
-        deallocate(model%velocity%strain_rate_determinant)
     if (associated(model%stress%btractx)) &
         deallocate(model%stress%btractx)
     if (associated(model%stress%btracty)) &
@@ -2421,6 +2430,8 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
+    if (associated(model%basal_physics%tau_c)) &
+        deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%C_space_factor)) &
         deallocate(model%basal_physics%C_space_factor)
     if (associated(model%basal_physics%C_space_factor_stag)) &
@@ -2610,6 +2621,12 @@ contains
         deallocate(model%calving%calving_mask)
     if (associated(model%calving%thck_calving_front)) &
         deallocate(model%calving%thck_calving_front)
+    if (associated(model%calving%strain_rate_eigenprod)) &
+        deallocate(model%calving%strain_rate_eigenprod)
+    if (associated(model%calving%strain_rate_eigen1)) &
+        deallocate(model%calving%strain_rate_eigen1)
+    if (associated(model%calving%strain_rate_eigen2)) &
+        deallocate(model%calving%strain_rate_eigen2)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
     if (associated(model%calving%damage_column)) &

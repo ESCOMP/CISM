@@ -413,20 +413,6 @@ data:          data%plume%divDu_plume(1:data%general%ewn,1:data%general%nsn)
 factor:        scale_acab
 standard_name: plume divergence rate
 
-[taux]
-dimensions:    time, y0, x0
-units:         kilopascal
-long_name:     basal shear stress in x direction (NOTE: Glide only)
-data:          data%velocity%tau_x
-factor:        1e-3*thk0*thk0/len0
-
-[tauy]
-dimensions:    time, y0, x0
-units:         kilopascal
-long_name:     basal shear stress in y direction
-data:          data%velocity%tau_y
-factor:        1e-3*thk0*thk0/len0
-
 [taudx]
 dimensions:    time, y0, x0
 units:         Pa
@@ -442,6 +428,27 @@ long_name:     driving stress (y-direction comp)
 data:          data%stress%taudy(:,:)
 factor:        scale_tau
 load:          1
+
+[taux]
+dimensions:    time, y0, x0
+units:         kilopascal
+long_name:     basal shear stress in x direction (NOTE: Glide only)
+data:          data%velocity%tau_x
+factor:        1e-3*thk0*thk0/len0
+
+[tauy]
+dimensions:    time, y0, x0
+units:         kilopascal
+long_name:     basal shear stress in y direction
+data:          data%velocity%tau_y
+factor:        1e-3*thk0*thk0/len0
+
+[tau_c]
+dimensions:    time, y0, x0
+units:         kilopascal
+long_name:     yield stress for plastic sliding
+data:          data%basal_physics%tau_c
+factor:        1e-3
 
 [thk]
 dimensions:    time, y1, x1
@@ -841,7 +848,7 @@ dimensions:    time, y1,x1
 units:         meter/year
 long_name:     tendency of ice thickness (NOTE: Glissade only)
 data:          data%geometry%dthck_dt
-factor:        scale_acab
+factor:        scyr
 coordinates:   lon lat
 average:       1
 
@@ -1012,6 +1019,14 @@ data:          data%velocity%velnorm(up,:,:)
 factor:        scale_uvel
 coordinates:   lon lat
 
+[divu]
+dimensions: time, y1, x1
+units:      1/year
+long_name:  horizontal divergence
+data:       data%velocity%divu
+factor:     scyr
+load:       1
+
 [eps_eff]
 dimensions: time, staglevel, y1, x1
 units:      1/year
@@ -1054,13 +1069,27 @@ long_name:  xy component of strain rate tensor
 data:       data%velocity%strain_rate%xy(up,:,:)
 factor:     scyr
 
-[strain_rate_determinant]
+[strain_rate_eigenprod]
 dimensions: time, y1, x1
 units:      1/(year*year)
-long_name:  determinant of horizontal strain rate tensor
-data:       data%velocity%strain_rate_determinant
+long_name:  product of eigenvalues of horizontal strain rate tensor
+data:       data%calving%strain_rate_eigenprod
 factor:     scyr*scyr
 load:       1
+
+[strain_rate_eigen1]
+dimensions: time, y1, x1
+units:      1/year
+long_name:  first eigenvalue of horizontal strain rate tensor
+data:       data%calving%strain_rate_eigen1
+factor:     scyr
+
+[strain_rate_eigen2]
+dimensions: time, y1, x1
+units:      1/year
+long_name:  second eigenvalue of horizontal strain rate tensor
+data:       data%calving%strain_rate_eigen2
+factor:     scyr
 
 [tau_eff]
 dimensions: time, staglevel, y1, x1

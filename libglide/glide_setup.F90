@@ -1538,7 +1538,7 @@ contains
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
-    call GetValue(section,'eigencalving_constant',    model%calving%eigencalving_constant)
+    call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
@@ -2415,11 +2415,11 @@ contains
            call glide_add_to_restart_variable_list('calving_mask')
         endif
 
-        ! The strain_rate_determinant calculation requires the strain rate tensor, which depends on the stress tensor,
-        ! which is computed by the HO solver. On restart, the correct stress and strain rate tensors are not available,
-        ! so we read in strain_rate_determinant for eigencalving.
+        ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
+        !  which depends on the stress tensor, which is computed by the HO solver.
+        ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
         if (options%whichcalving == EIGENCALVING) then
-           call glide_add_to_restart_variable_list('strain_rate_determinant')
+           call glide_add_to_restart_variable_list('strain_rate_eigenprod')
         endif
 
         ! other Glissade options

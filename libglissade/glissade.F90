@@ -339,8 +339,6 @@ contains
     !       on the global staggered grid).
     call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask)  ! = 1 for Dirichlet BCs
 
-    !TODO - Does anything else need an initial halo update?
-
     !TODO - Remove call to init_velo in glissade_initialise?
     !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
     call init_velo(model)
@@ -465,6 +463,7 @@ contains
 
     ! calculate mask
     ! Note: This call includes a halo update for thkmask
+    !TODO - Replace with glissade masks?
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
@@ -542,9 +541,9 @@ contains
                                model%calving%calving_fraction,  &
                                model%calving%calving_timescale, &
                                model%numerics%dt,               &
-                               model%numerics%dew*len0,         &         ! m
-                               model%numerics%dns*len0,         &         ! m
-                               model%velocity%strain_rate_determinant, &  ! s^(-2)
+                               model%numerics%dew*len0,         &        ! m
+                               model%numerics%dns*len0,         &        ! m
+                               model%calving%strain_rate_eigenprod,    & ! s^(-2)
                                model%calving%eigencalving_constant,    &
                                model%calving%calving_minthck,   &
                                model%calving%taumax_cliff,      &
@@ -564,7 +563,7 @@ contains
 
        ! The mask needs to be recalculated after calving.
        ! Note: glide_set_mask includes a halo update for thkmask.
-
+       !TODO - Replace with glissade masks?
        call glide_set_mask(model%numerics,                                &
                            model%geometry%thck,  model%geometry%topg,     &
                            model%general%ewn,    model%general%nsn,       &
@@ -835,9 +834,9 @@ contains
        ice_mask,          & ! = 1 if ice is present (thck > 0, else = 0
        floating_mask        ! = 1 if ice is present (thck > 0) and floating
 
-    integer :: i, j
-
     real(dp) :: previous_time
+
+    integer :: i, j
 
     ! ------------------------------------------------------------------------
     ! Compute the basal melt rate beneath floating ice.
@@ -892,12 +891,12 @@ contains
                                          previous_time)                                ! yr
 
           !WHL - debug
-!!          if (this_rank==rtest) then
-!!             i = model%numerics%idiag
-!!             j = model%numerics%jdiag
-!!             print*, 'i, j, total anomaly (m/yr), previous_time, new bmlt (m/yr):', &
-!!                      i, j, model%basal_melt%bmlt_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%basal_melt%bmlt_float(i,j)
-!!          endif
+!          if (this_rank==model%numerics%rdiag_local) then
+!             i = model%numerics%idiag_local
+!             j = model%numerics%jdiag_local
+!             print*, 'i, j, total anomaly (m/yr), previous_time, new bmlt (m/yr):', &
+!                      i, j, model%basal_melt%bmlt_float_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%basal_melt%bmlt_float(i,j)
+!          endif
 
        endif
 
@@ -924,6 +923,7 @@ contains
     endif  ! whichbmlt_float
 
     ! For all bmlt_float options, limit the melting to cells where ice is present and floating
+    ! TODO - Uncomment these lines after transport solver is modified
 !!    where (floating_mask == 0)
 !!       model%basal_melt%bmlt_float = 0.0d0
 !!    endwhere
@@ -1336,9 +1336,13 @@ contains
        model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:) / (thk0/tim0) 
 
        ! Eliminate ice from cells where mask prohibits it
+       ! Add this ice to the calving field for mass conservation diagnostics..
+       ! Note: The calving_mask option accomplishes the same thing. However, if we want to use a different
+       !       calving law while also limiting calving-front advance, we can use the no_advance mask.
        do j = 1, model%general%nsn
           do i = 1, model%general%ewn
              if (model%climate%no_advance_mask(i,j) == 1) then
+                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + model%geometry%thck(i,j)
                 model%geometry%thck(i,j) = 0.0
                 ! Note: Tracers (temp, etc.) are cleaned up later by call to glissade_cleanup_icefree_cells
              endif
@@ -1483,9 +1487,9 @@ contains
                             model%calving%calving_fraction,  &
                             model%calving%calving_timescale, &
                             model%numerics%dt,               &
-                            model%numerics%dew*len0,         &         ! m
-                            model%numerics%dns*len0,         &         ! m
-                            model%velocity%strain_rate_determinant, &  ! s^(-2)
+                            model%numerics%dew*len0,         &        ! m
+                            model%numerics%dns*len0,         &        ! m
+                            model%calving%strain_rate_eigenprod,    & ! s^(-2)
                             model%calving%eigencalving_constant,    &
                             model%calving%calving_minthck,   &
                             model%calving%taumax_cliff,      &
@@ -1606,17 +1610,27 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k, i1, i2
+    integer :: i, j, k, n
     integer :: itest, jtest, rtest
+
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          ice_mask,           & ! = 1 where thck > thklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
+         calving_front_mask, & ! = 1 where ice is floating and borders an ocean cell, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
-         land_mask             ! = 1 where topg is at or above sea level
+         land_mask,          & ! = 1 where topg is at or above sea level
+         active_ice_mask       ! = 1 where ice is dynamically active, else = 0
 
-    !WHL - debug
-    real(dp), dimension(:,:), allocatable :: &
-         thck_tmp, lsrf_tmp
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+       thck_calving_front     ! effective thickness of ice at the calving front
+
+    real(dp) :: &
+         dsigma,          & ! layer thickness in sigma coordinates
+         strain_rate_xx, strain_rate_yy, strain_rate_xy  ! strain rate components
+
+    real(dp) :: &
+         a, b, c, root,   & ! terms in quadratic formula
+         lambda1, lambda2   ! eigenvalues of horizontal strain rate tensor
 
     rtest = -999
     itest = 1
@@ -1819,40 +1833,6 @@ contains
        endif   ! DIVA approx
              
     endif   ! time = tstart
-
-    !WHL - debug - Uncomment to put a bmlt_float calculation in the diagnostic solve.
-    !              Then can debug plume model without doing two full velocity solves.
-    !TODO - Remove this code?
-!    if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float, diagnostic'
-
-    ! Compute the basal melt rate for floating ice
-    ! Note: model%bmltfloat is a derived type with various fields and parameters (all with SI units)
-
-    !WHL - debug - To allow calving of thin ice for MISOMIP.
-!    allocate(thck_tmp(model%general%ewn,model%general%nsn))
-!    allocate(lsrf_tmp(model%general%ewn,model%general%nsn))
-!    thck_tmp = model%geometry%thck*thk0
-!    lsrf_tmp = model%geometry%lsrf*thk0
-
-!    call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
-!                                      model%general%ewn,          model%general%nsn,                &
-!                                      model%numerics%dew*len0,    model%numerics%dns*len0,          &
-!                                      model%numerics%idiag_local, model%numerics%jdiag_local,       &
-!                                      model%numerics%rdiag_local,                                   &
-!                                      model%general%x1,                                             & ! m
-!!!                                      model%geometry%thck*thk0,                                     & ! m
-!!!                                      model%geometry%lsrf*thk0,                                     & ! m
-!                                      thck_tmp,                                     & ! m
-!                                      lsrf_tmp,                                     & ! m
-!                                      model%geometry%topg*thk0,                                     & ! m
-!                                      model%climate%eus*thk0,                                       & ! m
-!                                      model%bmltfloat,                                              & ! bmlt_float in m/s
-!                                      model%plume)
-!
-!    model%geometry%thck = thck_tmp/thk0
-!    model%geometry%lsrf = lsrf_tmp/thk0
-!    deallocate(thck_tmp)
-!    deallocate(lsrf_tmp)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -2094,31 +2074,97 @@ contains
        enddo
     enddo
 
-    ! determinant of horizontal part of strain rate tensor (used for eigencalving)
-    ! Note: For floating ice the vertical shear should be negligible, but sum over layers for generality.
-    ! Note: On restart, the correct stress and strain rate tensors are not available. Instead of computing strain_rate_determinant
-    !       at initialization, it is read from the restart file.
+    ! Compute the vertically integrated divergence of the horizontal velocity field.
+    model%velocity%divu(:,:) = 0.0d0
 
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
-
-       ! do nothing, since the strain rate determinant is read from the restart file
-
-    else
-
-       model%velocity%strain_rate_determinant(:,:) = 0.0d0
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
-             do k = 1, model%general%upn-1
-                model%velocity%strain_rate_determinant(i,j) = model%velocity%strain_rate_determinant(i,j) &
-                                                            + (model%velocity%strain_rate%xx(k,i,j) * model%velocity%strain_rate%yy(k,i,j) &
-                                                            - model%velocity%strain_rate%xy(k,i,j) * model%velocity%strain_rate%xy(k,i,j)) &
-                                                            * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
-             enddo
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          do k = 1, model%general%upn-1
+             dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
+             model%velocity%divu(i,j) = model%velocity%divu(i,j) + &
+                  (model%velocity%strain_rate%xx(k,i,j) + model%velocity%strain_rate%yy(k,i,j)) * dsigma
           enddo
        enddo
+    enddo
 
-    endif   ! is_restart
+    ! Compute the determinant (= product of eigenvalues) of horizontal strain rate tensor; used for eigencalving
+    ! Note: For floating ice the vertical shear should be negligible, but sum over layers for generality.
+    ! Note: On restart, the correct stress and strain rate tensors are not available. Instead of computing eigenprod
+    !       at initialization, it is read from the restart file.
+
+    if (model%options%whichcalving == EIGENCALVING) then
+
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+
+          ! do nothing, since the eigenproduct is read from the restart file
+
+       else
+
+          model%calving%strain_rate_eigenprod(:,:) = 0.0d0
+          model%calving%strain_rate_eigen1(:,:) = 0.0d0
+          model%calving%strain_rate_eigen2(:,:) = 0.0d0
+
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+
+                ! compute vertically averaged strain rate components
+                strain_rate_xx = 0.0d0
+                strain_rate_yy = 0.0d0
+                strain_rate_xy = 0.0d0
+
+                do k = 1, model%general%upn-1
+                   dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
+                   strain_rate_xx = strain_rate_xx + model%velocity%strain_rate%xx(k,i,j) * dsigma
+                   strain_rate_yy = strain_rate_yy + model%velocity%strain_rate%yy(k,i,j) * dsigma
+                   strain_rate_xy = strain_rate_xy + model%velocity%strain_rate%xy(k,i,j) * dsigma
+                enddo
+
+                ! compute the eigenvalues of the vertically integrated strain rate tensor
+                ! If both eigenvalues are positive, set the eigenproduct to their product
+                a = 1.0d0
+                b = -(strain_rate_xx + strain_rate_yy)
+                c = strain_rate_xx*strain_rate_yy - strain_rate_xy*strain_rate_xy
+                if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
+                   root = sqrt(b*b - 4.0d0*a*c)
+                   lambda1 = (-b + root) / (2.0d0*a)
+                   lambda2 = (-b - root) / (2.0d0*a)
+                   if (lambda1 > 0.0d0 .and. lambda2 > 0.0d0) then
+                      model%calving%strain_rate_eigenprod(i,j) = lambda1 * lambda2
+                   endif
+
+                   !Note: eigen1 and eigen2 fields are diagnostic only, at least for now
+                   if (lambda1 > lambda2) then
+                      model%calving%strain_rate_eigen1(i,j) = lambda1
+                      model%calving%strain_rate_eigen2(i,j) = lambda2
+                   else
+                      model%calving%strain_rate_eigen1(i,j) = lambda2
+                      model%calving%strain_rate_eigen2(i,j) = lambda1
+                   endif
+
+                endif  ! b^2 - 4ac > 0
+
+             enddo   ! i
+          enddo   ! j
+
+          call parallel_halo(model%calving%strain_rate_eigenprod)
+
+          !WHL - debug
+          if (this_rank == rtest .and. verbose_glissade) then
+             print*, ' '
+             print*, 'strain_rate_eigenprod (yr^-2), i, j, rtest =:', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i8)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(e11.3)',advance='no') model%calving%strain_rate_eigenprod(i,j)*scyr*scyr
+                enddo
+                print*, ' '
+             enddo
+          endif  ! this_rank = rtest
+
+       endif   ! is_restart
+
+    endif  ! eigencalving
 
     ! magnitude of basal traction
     model%stress%btract(:,:) = sqrt(model%stress%btractx(:,:)**2 + model%stress%btracty(:,:)**2)
