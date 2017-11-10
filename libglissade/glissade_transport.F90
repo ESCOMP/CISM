@@ -57,6 +57,9 @@
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
 
+    logical, parameter ::     &
+         conservation_check = .true. ! if true, check global conservation
+
 !=======================================================================
 
   contains
@@ -299,6 +302,7 @@
                                          acab,         bmlt,         &
                                          acab_applied, bmlt_applied, &
                                          ocean_mask,                 &
+                                         effective_areafrac,         &
                                          ntracers,     tracers,      &
                                          tracers_usrf, tracers_lsrf, &
                                          vert_remap_accuracy,        &
@@ -338,6 +342,10 @@
          uvel, vvel             ! horizontal velocity components (m/s)
                                 ! (defined at horiz cell corners, vertical interfaces)
 
+      real(dp), dimension(nx,ny), intent(in) ::  &
+         effective_areafrac     ! effective fractional area, in range [0,1]
+                                ! Calving_front cells can have values between 0 and 1
+
       real(dp), dimension(nx,ny), intent(inout) ::  &
          thck                   ! ice thickness (m), defined at horiz cell centers
 
@@ -348,10 +356,13 @@
                                 ! includes melting for both grounded and floating ice
                                 ! (defined at horiz cell centers)
 
-      real(dp), dimension(nx,ny), intent(out) ::  &
-         acab_applied,    &     ! surface mass balance applied to ice (m/s)
+      ! Note: These fields are accumulated in units of meters during successive calls to glissade_transport_driver.
+      !       (There can be multiple calls per time step if transport is subcycled.)
+      !       After the last call, they are converted to m/s.
+      real(dp), dimension(nx,ny), intent(inout) ::  &
+         acab_applied,    &     ! surface mass balance applied to ice (m)
                                 ! = 0 for ice-free cells where acab < 0
-         bmlt_applied           ! basal melt rate applied to ice (m/s)
+         bmlt_applied           ! basal melt rate applied to ice (m)
                                 ! = 0 for ice-free cells where bmlt > 0
 
       integer, dimension(nx,ny), intent(in) :: &
@@ -398,9 +409,9 @@
       integer, dimension(nx*ny) ::     &
          indxi, indxj      ! compressed i/j indices
 
-      real(dp) ::         &
-         sum_acab,        &! total accumulation/ablation
-         sum_bmlt          ! total basal melting
+      real(dp) ::        &
+         sum_acab,       & ! global sum of applied accumulation/ablation
+         sum_bmlt          ! global sum of applied basal melting
 
       !-------------------------------------------------------------------
       ! If prescribed_area is true, the area of each departure region is
@@ -414,9 +425,6 @@
          edgearea_e     ,&! area of departure regions for east edges
          edgearea_n       ! area of departure regions for north edges
 
-      logical, parameter ::     &
-         conservation_check = .true. ! if true, check global conservation
-
       real(dp) ::     &
          msum_init,      &! initial global ice mass
          msum_final       ! final global ice mass
@@ -425,9 +433,11 @@
          mtsum_init,     &! initial global ice mass*tracer
          mtsum_final      ! final global ice mass*tracer
 
-      real(dp) :: &
+      real(dp), dimension(nx,ny) :: &
          melt_potential   ! total thickness (m) of additional ice that could be melted
                           ! by available acab/bmlt in columns that are completely melted
+
+      real(dp) :: sum_melt_potential  ! global sum of melt potential
 
       logical ::     &
          errflag          ! true if energy is not conserved
@@ -443,9 +453,8 @@
       logical ::     &
          upwind_transport    ! if true, do first-order upwind transport
 
-      !WHL - debug
-!!      print*, ' '
-!!      print*, 'In transport_driver: ntracers, nlyr =', ntracers, nlyr
+      real(dp) ::  &
+         max_acab, max_bmlt  ! max magnitudes of acab and bmlt
 
       !-------------------------------------------------------------------
       ! Initialize
@@ -458,7 +467,7 @@
       endif
 
       errflag = .false.
-      melt_potential = 0.d0
+      melt_potential(:,:) = 0.d0
 
       !Note: (ilo,ihi) and (jlo,jhi) are the lower and upper bounds of the local domain
       ! (i.e., grid cells owned by this processor).
@@ -481,9 +490,9 @@
          thck_layer(:,:,k) = thck(:,:) * (sigma(k+1) - sigma(k))
       enddo
 
-    !-------------------------------------------------------------------
-    ! Compute initial values of globally conserved quantities (optional)
-    !-------------------------------------------------------------------
+      !-------------------------------------------------------------------
+      ! Compute initial values of globally conserved quantities (optional)
+      !-------------------------------------------------------------------
 
       if (conservation_check) then
 
@@ -682,12 +691,12 @@
 
          if (main_task) then
             call global_conservation (msum_init,     msum_final,      &
-                                      errflag,       melt_potential,  &
+                                      errflag,       0.0d0,           & ! melt_potential = 0 for this check
                                       ntracers,                       &
                                       mtsum_init,    mtsum_final)
             if (errflag) then
                write(message,*) 'WARNING: Conservation error in glissade_horizontal_remap'
-!               call write_log(message,GM_FATAL)      ! uncomment if conservation errors should never happen
+!               call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
                call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
                write(message,*) 'May be OK if global domain is open'
                call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
@@ -716,77 +725,106 @@
       ! TODO: Pass the melt potential back to the climate model as a heat flux?
       !-------------------------------------------------------------------
 
-      call glissade_add_smb(nx,       ny,          &
-                            nlyr,     ntracers,    &
-                            nhalo,    dt,          &
-                            ocean_mask,            &
-                            thck_layer(:,:,:),     &
-                            tracers(:,:,:,:),      &
-                            tracers_usrf(:,:,:),   &
-                            tracers_lsrf(:,:,:),   &
-                            acab(:,:),             &
-                            bmlt(:,:),             &
-                            acab_applied(:,:),     &
-                            bmlt_applied(:,:),     &
-                            melt_potential )
+      max_acab = max(maxval(acab), -1.d0*minval(acab))
+      max_bmlt = max(maxval(bmlt), -1.d0*minval(bmlt))
 
-!      print*, ' '
-!      print*, 'Called glissade_add_smb'
-!      do k = 1, nlyr
+      max_acab = parallel_reduce_max(max_acab)
+      max_bmlt = parallel_reduce_max(max_bmlt)
+
+      if (max_acab > 0.0d0 .or. max_bmlt > 0.0d0) then
+
+         call glissade_add_smb(nx,       ny,          &
+                               nlyr,     ntracers,    &
+                               nhalo,    dt,          &
+                               ocean_mask,            &
+                               effective_areafrac,    &
+                               thck_layer(:,:,:),     &
+                               tracers(:,:,:,:),      &
+                               tracers_usrf(:,:,:),   &
+                               tracers_lsrf(:,:,:),   &
+                               acab(:,:),             &
+                               bmlt(:,:),             &
+                               acab_applied(:,:),     &
+                               bmlt_applied(:,:),     &
+                               melt_potential(:,:))
+
 !         print*, ' '
-!         print*, 'k =', k
-!         do j = ny-4, ny-12, -1
-!            write(6,'(i6)',advance='no') j
-!            do i = 4, nx/4
-!               write(6,'(f10.6)',advance='no') tracers(i,j,1,k)  ! assume damage is tracer 1
+!         print*, 'Called glissade_add_smb'
+!         do k = 1, nlyr
+!            print*, ' '
+!            print*, 'k =', k
+!            do j = ny-4, ny-12, -1
+!               write(6,'(i6)',advance='no') j
+!               do i = 4, nx/4
+!                  write(6,'(f10.6)',advance='no') tracers(i,j,1,k)  ! assume damage is tracer 1
+!               enddo
+!               write(6,*) ' '
 !            enddo
-!            write(6,*) ' '
 !         enddo
-!      enddo
 
-      !-------------------------------------------------------------------
-      ! Next conservation check: Check that mass is conserved, allowing
-      !  for mass gain/loss due to acab/bmlt and for any unused melt potential.
-      !
-      ! NOTE: There is no tracer conservation check here, because there is no
-      !       easy way to correct initial mass*tracer values for acab and bmlt.
-      !
-      !-------------------------------------------------------------------
+         !-------------------------------------------------------------------
+         ! Check that mass is conserved, allowing for mass gain/loss due to acab/bmlt 
+         !  and for any unused melt potential.
+         !
+         ! Note: There is no tracer conservation check here, because there is no
+         !       easy way to correct initial mass*tracer values for acab and bmlt.
+         !-------------------------------------------------------------------
 
-      if (conservation_check) then
+         if (conservation_check) then
 
-         ! Correct initial global mass for acab and bmlt
+            ! Correct initial global mass for acab and bmlt
+            sum_acab = 0.0d0
+            sum_bmlt = 0.0d0
+            sum_melt_potential = 0.0d0
 
-         sum_acab = sum(acab(1+lhalo:nx-uhalo,1+lhalo:ny-uhalo))
-         sum_bmlt = sum(bmlt(1+lhalo:nx-uhalo,1+lhalo:ny-uhalo))
-         sum_acab = parallel_reduce_sum(sum_acab)
-         sum_bmlt = parallel_reduce_sum(sum_bmlt)
+            ! loop over locally owned cells, with correction for fractional coverage
+            do j = 1+lhalo, ny-uhalo
+               do i = 1+lhalo, nx-uhalo
+                  sum_acab = sum_acab + acab(i,j)*effective_areafrac(i,j)
+                  sum_bmlt = sum_bmlt + bmlt(i,j)*effective_areafrac(i,j)
+                  sum_melt_potential = sum_melt_potential + melt_potential(i,j)
+               enddo
+            enddo
 
-         msum_init = msum_init + (sum_acab - sum_bmlt)*dt
+            sum_acab = parallel_reduce_sum(sum_acab)
+            sum_bmlt = parallel_reduce_sum(sum_bmlt)
+            sum_melt_potential = parallel_reduce_sum(sum_melt_potential)
 
-         ! Compute new global mass and mass*tracer
+            msum_init = msum_init + (sum_acab - sum_bmlt)*dt
 
-         call sum_mass_and_tracers(nx,                ny,              &
-                                   nlyr,              ntracers,        &
-                                   nhalo,                              &
-                                   thck_layer(:,:,:), msum_final,      &
-                                   tracers(:,:,:,:),  mtsum_final(:))
+            ! Compute new global mass and mass*tracer
 
-         ! Check mass conservation
+            call sum_mass_and_tracers(nx,                ny,              &
+                                      nlyr,              ntracers,        &
+                                      nhalo,                              &
+                                      thck_layer(:,:,:), msum_final,      &
+                                      tracers(:,:,:,:),  mtsum_final(:))
 
-         if (main_task) then
-            call global_conservation (msum_init,     msum_final,      &
-                                      errflag,       melt_potential)
+            ! Check mass conservation
+            !TODO - Add melt_potential to msum_final before calling subroutine?
 
-            if (errflag) then
-               write(message,*) 'WARNING: Conservation error in glissade_add_smb'
-!               call write_log(message,GM_FATAL)      ! uncomment if conservation errors should never happen
-               call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
-            endif
+            if (main_task) then
 
-         endif   ! main_task
+               print*, 'Call global_conservation, msum_init/final =', msum_init, msum_final
 
-      endif      ! conservation_check
+               call global_conservation (msum_init,     msum_final,      &
+                                         errflag,       sum_melt_potential)
+
+               if (errflag) then
+                  write(message,*) 'WARNING: Conservation error in glissade_add_smb'
+!                  call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
+                  call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
+               endif
+
+            endif   ! main_task
+
+            ! Update msum_init and mtsum_init for the next conservation check
+            msum_init = msum_final   ! msum_final computed above after glissade_add_smb
+            mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after glissade_add_smb
+
+         endif      ! conservation_check
+
+      endif   ! max_acab > 0 or max_bmlt > 0
 
       !-------------------------------------------------------------------
       ! Interpolate tracers back to sigma coordinates 
@@ -803,8 +841,8 @@
                                    vert_remap_accuracy)
 
       !-------------------------------------------------------------------
-      ! Final conservation check: Check that mass and mass*tracers are exactly 
-      !                           conserved by vertical remapping..
+      ! Final conservation check: Check that mass and mass*tracers are
+      !                           conserved by vertical remapping.
       !-------------------------------------------------------------------
 
       if (conservation_check) then
@@ -825,13 +863,13 @@
 
          if (main_task) then
             call global_conservation (msum_init,     msum_final,  &
-                                      errflag,       0.d0,        &  ! ignore melt potential for this check
+                                      errflag,       0.0d0,       &  ! melt potential = 0 for this check
                                       ntracers,                   &
                                       mtsum_init,    mtsum_final)
 
             if (errflag) then
                write(message,*) 'WARNING: Conservation error in glissade_vertical_remap'
-!               call write_log(message,GM_FATAL)      ! uncomment if conservation errors should never happen
+!               call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
                call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
             endif
 
@@ -1076,7 +1114,7 @@
                                     thck_layer, msum,      &
                                     tracer,     mtsum)
 
-      ! Compute values of globally conserved quantities.,
+      ! Compute values of globally conserved quantities.
       ! Assume gridcells of equal area (dx*dy), ice of uniform density.
       
       ! Input/output arguments
@@ -1185,10 +1223,10 @@
             call write_log(message)
             write (message,*) 'Initial global mass =', msum_init
             call write_log(message)
-!            write (message,*) 'Final global mass =', msum_final
-!            call write_log(message)
-!            write (message,*) 'Melt potential =', melt_potential
-!            call write_log(message)
+            write (message,*) 'Final global mass =', msum_final
+            call write_log(message)
+            write (message,*) 'Melt potential =', melt_potential
+            call write_log(message)
             write (message,*) 'Final global mass (adjusted for melt potential) =', msum_final - melt_potential
             call write_log(message)
             write (message,*) 'Fractional error =', abs(diff)/msum_init
@@ -1225,14 +1263,12 @@
                                 nlyr,         ntracer,     &
                                 nhalo,        dt,          &
                                 ocean_mask,                &
+                                effective_areafrac,        &
                                 thck_layer,   tracer,      &
                                 tracer_usrf,  tracer_lsrf, &
                                 acab,         bmlt,        &
                                 acab_applied, bmlt_applied,&
                                 melt_potential)
-
-      !WHL - debug
-      use glimmer_paramets, only: thk0
 
       ! Adjust the layer thickness based on the surface and basal mass balance
 
@@ -1249,6 +1285,9 @@
 
       integer, dimension(nx,ny), intent(in) :: &
          ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
+
+      real(dp), dimension (nx,ny), intent(in) ::     &
+         effective_areafrac     ! effective fractional area for calving_front cells, in range [0,1]
 
       real(dp), dimension (nx,ny,nlyr), intent(inout) ::     &
          thck_layer             ! ice layer thickness
@@ -1267,15 +1306,15 @@
          bmlt                   ! basal melt rate (m/s)
                                 ! > 0 for melting, < 0 for freeze-on
 
-      real(dp), intent(out), dimension(nx,ny) :: &
-         acab_applied           ! surface mass balance applied to ice (m/s)
+      real(dp), intent(inout), dimension(nx,ny) :: &
+         acab_applied           ! surface mass balance applied to ice (m)
                                 ! = 0 in ice-free regions where acab < 0
 
-      real(dp), intent(out), dimension(nx,ny) :: &
-         bmlt_applied           ! basal melt rate applied to ice (m/s)
+      real(dp), intent(inout), dimension(nx,ny) :: &
+         bmlt_applied           ! basal melt rate applied to ice (m)
                                 ! = 0 in ice-free regions where bmlt > 0
 
-      real(dp), intent(out) :: &
+      real(dp), intent(out), dimension(nx,ny) :: &
          melt_potential   ! total thickness (m) of additional ice that could be melted
                           ! by available acab/bmlt in columns that are completely melted
 
@@ -1284,21 +1323,40 @@
       real(dp), dimension(nx,ny,ntracer,nlyr) ::  &
          thck_tracer       ! thck_layer * tracer
 
+      real(dp), dimension(nx,ny) :: &
+         thck_init,      & ! initial ice thickness
+         thck_final        ! final ice thickness
+
       real(dp) :: sfc_accum, sfc_ablat  ! surface accumulation/ablation, from acab
       real(dp) :: bed_accum, bed_ablat  ! bed accumulation/ablation, from bmlt
+      real(dp) :: dthck                 ! thickness change
 
       integer :: i, j, k, nt
 
       character(len=100) :: message
 
-      !WHL - debug
-      integer, parameter :: itest = 250, jtest = 21
-!!      integer, parameter :: itest = 223, jtest = 13
-      
-      melt_potential = 0.d0
+      ! Initialize the applied mass balance and the melt potential.
+      ! These terms are adjusted below if energy is available for melting
+      !  when no ice is present.
+
+      melt_potential(:,:) = 0.0d0
+
+      if (conservation_check) then
+         do j = 1+nhalo, ny-nhalo
+            do i = 1+nhalo, nx-nhalo
+               thck_init(i,j) = sum(thck_layer(i,j,:))
+            enddo
+         enddo
+      endif
 
       do j = 1+nhalo, ny-nhalo
          do i = 1+nhalo, nx-nhalo
+
+            ! Temporarily adjust the layer thickness to account for partial ice converage.
+            ! This prevents excessive thickening and thinning in partly filled calving front cells.
+            if (effective_areafrac(i,j) > 0.0d0 .and. effective_areafrac(i,j) < 1.0d0) then
+               thck_layer(i,j,:) = thck_layer(i,j,:) / effective_areafrac(i,j)
+            endif
 
             ! initialize accumulation/ablation terms
             sfc_accum = 0.d0
@@ -1306,13 +1364,6 @@
             bed_accum = 0.d0
             bed_ablat = 0.d0
             
-            ! initialize the applied surface and basal mass balance
-            ! These terms are adjusted below if energy is available for melting
-            !  when no ice is present.
-
-            acab_applied(i,j) = acab(i,j)
-            bmlt_applied(i,j) = bmlt(i,j)
-
             ! Add surface accumulation/ablation to ice thickness
             ! Also modify tracers conservatively.
 
@@ -1323,9 +1374,11 @@
                if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
                   ! TODO - Is this the correct treatment of the melt potential for accumulation over the ocean?
-                  melt_potential = melt_potential - sfc_accum
+                  melt_potential(i,j) = melt_potential(i,j) - sfc_accum
 
                else  ! not ocean; accumulate ice
+
+                  acab_applied(i,j) = acab_applied(i,j) + sfc_accum*effective_areafrac(i,j)
 
                   ! adjust mass-tracer product for the top layer
 
@@ -1350,6 +1403,8 @@
 
                sfc_ablat = -acab(i,j)*dt   ! positive by definition
 
+               acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
+
                do k = 1, nlyr
                   if (sfc_ablat > thck_layer(i,j,k)) then
                      sfc_ablat = sfc_ablat - thck_layer(i,j,k)
@@ -1366,8 +1421,8 @@
                ! Also accumulate the remaining melt energy 
 
                if (sfc_ablat > 0.d0) then
-                  acab_applied(i,j) = acab_applied(i,j) + sfc_ablat/dt  ! acab_applied is less negative than acab
-                  melt_potential = melt_potential + sfc_ablat
+                  acab_applied(i,j) = acab_applied(i,j) + sfc_ablat*effective_areafrac(i,j)  ! make a negative value less negative
+                  melt_potential(i,j) = melt_potential(i,j) + sfc_ablat
                endif
 
             !TODO - Figure out how to handle excess energy given by melt_potential.
@@ -1376,12 +1431,16 @@
             endif  ! acab > 0
 
             ! Note: It is possible that we could have residual energy remaining for surface ablation
-            ! while ice is freezing on at the bed, in which case the surface ablation should
-            ! be subtracted from the bed accumulation.  We ignore this possibility for now.
+            !       while ice is freezing on at the bed, in which case the surface ablation should
+            !       be subtracted from the bed accumulation.  We ignore this possibility for now.
+            ! Note: If bmlt < 0 (i.e., freeze-on), we allow ice growth even in ice-free ocean cells.
+            !       That is, freeze-on in ocean cells is interpreted as frazil ice growth.
 
             if (bmlt(i,j) < 0.d0) then       ! freeze-on, added to lowest layer
 
                bed_accum = -bmlt(i,j)*dt
+
+               bmlt_applied(i,j) = bmlt_applied(i,j) - bed_accum*effective_areafrac(i,j)  ! bmlt_applied < 0 for freeze-on
 
                ! adjust mass-tracer product for the bottom layer
 
@@ -1404,6 +1463,8 @@
 
                bed_ablat = bmlt(i,j)*dt   ! positive by definition
 
+               bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
+
                do k = nlyr, 1, -1
                   if (bed_ablat > thck_layer(i,j,k)) then
                      bed_ablat = bed_ablat - thck_layer(i,j,k)
@@ -1420,17 +1481,44 @@
                ! Also accumulate the remaining melt energy 
 
                if (bed_ablat > 0.d0) then
-                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat/dt  ! bmlt_applied is less than bmlt
-                  melt_potential = melt_potential + bed_ablat
+                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat*effective_areafrac(i,j)  ! bmlt_applied is less than input bmlt
+                  melt_potential(i,j) = melt_potential(i,j) + bed_ablat
                endif
 
             endif  ! bmlt < 0
 
+            ! Weight the melt potential by the effective area fraction
+            melt_potential(i,j) = melt_potential(i,j) * effective_areafrac(i,j)
+
+            ! Convert thck_layer back to the mean volume per unit area in partly covered cells
+            if (effective_areafrac(i,j) > 0.0d0 .and. effective_areafrac(i,j) < 1.0d0) then
+               thck_layer(i,j,:) = thck_layer(i,j,:) * effective_areafrac(i,j)
+            endif
+
          enddo   ! i
       enddo      ! j
 
-      !TODO - May want to remove this global sum for large runs, if melt_potential is not used
-      melt_potential = parallel_reduce_sum(melt_potential)
+      ! Check mass conservation in each column
+
+      if (conservation_check) then
+         do j = 1+nhalo, ny-nhalo
+            do i = 1+nhalo, nx-nhalo
+               thck_final(i,j) = sum(thck_layer(i,j,:))
+               dthck = (acab(i,j) - bmlt(i,j))*dt*effective_areafrac(i,j)
+               if (abs(thck_init(i,j) + dthck - thck_final(i,j) + melt_potential(i,j)) > 1.d-8) then
+                  print*, ' '
+                  print*, 'ERROR: Column conservation check, r, i, j, err =', &
+                       this_rank, i, j, thck_init(i,j) + dthck - thck_final(i,j)
+                  print*, 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
+                  print*, 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
+                       acab(i,j)*dt, bmlt(i,j)*dt, effective_areafrac(i,j), melt_potential(i,j)
+                  write(message,*) 'WARNING: Column conservation error in glissade_add_smb, i, j =', i, j
+!                  call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
+                  call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
+               endif
+            enddo
+         enddo
+      endif
 
     end subroutine glissade_add_smb
 

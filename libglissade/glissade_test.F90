@@ -625,6 +625,9 @@ contains
 
     real(dp), dimension(:,:,:), allocatable :: uvel, vvel   ! uniform velocity field (m/yr)
 
+    real(dp), dimension(:,:), allocatable :: &
+         effective_areafrac   ! effective fractional area of calving_front cells
+
     integer, dimension(:,:), allocatable ::   &
          ice_mask,      & ! = 1 where thk > thklim, else = 0
          ocean_mask       ! = 1 where topg is below sea level and thck < thklim, else = 0
@@ -669,6 +672,7 @@ contains
     allocate(vvel(nz,nx-1,ny-1))
     allocate(ice_mask(nx,ny))
     allocate(ocean_mask(nx,ny))
+    allocate(effective_areafrac(nx,ny))
 
     ! Find the length of the path around the domain and back to the starting point
 
@@ -760,6 +764,14 @@ contains
                                ice_mask,                                   &
                                ocean_mask = ocean_mask)
 
+       ! set effective area fraction in each cell
+       ! for testing, don't worry about values between 0 and 1 in CF cells
+       where (model%geometry%thck > 0.0d0)
+          effective_areafrac(:,:) = 1.0d0
+       elsewhere
+          effective_areafrac(:,:) = 0.0d0
+       endwhere
+
        call glissade_transport_driver(dt*scyr,                                              &
                                       dx,                        dy,                        &
                                       nx,                        ny,                        &
@@ -771,6 +783,7 @@ contains
                                       model%climate%acab_applied(:,:),                      &
                                       model%basal_melt%bmlt_applied(:,:),                   &
                                       ocean_mask(:,:),                                      &
+                                      effective_areafrac(:,:),                              &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
@@ -796,6 +809,7 @@ contains
     deallocate(vvel)
     deallocate(ice_mask)
     deallocate(ocean_mask)
+    deallocate(effective_areafrac)
 
   end subroutine glissade_test_transport
 

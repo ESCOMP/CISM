@@ -1083,7 +1083,13 @@ contains
     ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
        ice_mask,          & ! = 1 if thck > 0, else = 0
-       ocean_mask           ! = 1 if topg is below sea level and thck = 0, else = 0
+       floating_mask,     & ! = 1 where ice is present and floating, else = 0
+       ocean_mask,        & ! = 1 if topg is below sea level and thck = 0, else = 0
+       calving_front_mask   ! = 1 where ice is floating and borders an ocean cell, else = 0
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+       thck_calving_front,   & ! effective thickness of ice at the calving front
+       effective_areafrac      ! effective fractional area of ice at the calving front
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
                                     ! (The input time is the time at the end of the step.)
@@ -1247,6 +1253,13 @@ contains
 
        if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
 
+          !WHL - debug
+!          if (main_task) then
+!             print*, 'Check advective CFL threshold'
+!             print*, 'model dt (yr) =', model%numerics%dt * tim0/scyr
+!             print*, 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
+!          endif
+
           advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
           if (advective_cfl > model%numerics%adaptive_cfl_threshold) then
 
@@ -1270,6 +1283,14 @@ contains
           dt_transport = model%numerics%dt_transport * tim0  ! convert to s
        endif
 
+       ! Initialize the applied acab and bmlt.
+       ! Note: These are smaller in magnitude than the input acab and bmlt for cells where either
+       !       (1) the full column melts, and energy remains for melting
+       !       (2) a positive mass balance is ignored, because a cell is ice-free ocean
+
+       model%climate%acab_applied = 0.0d0
+       model%basal_melt%bmlt_applied = 0.0d0
+
        ! temporary in/out arrays in SI units
        thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
@@ -1284,14 +1305,37 @@ contains
 
           ! ------------------------------------------------------------------------
           ! Get masks used by glissade_transport_driver
-          ! Pass thklim = 0 to identify ocean cells with thck = 0 (not thck <= thklim).
+          ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
+          ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
+          ! Use thck_calving_front to compute a fractional area for calving_front cells.
           ! ------------------------------------------------------------------------
 
           call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                                  model%geometry%thck, model%geometry%topg,   &
-                                  model%climate%eus,   0.0d0,                 &   ! thklim = 0 
+                                  thck_unscaled,                              &   ! m
+                                  model%geometry%topg*thk0,                   &   ! m
+                                  model%climate%eus*thk0,                     &   ! m
+                                  0.0d0,                                      &   ! thklim = 0 
                                   ice_mask,                                   &
-                                  ocean_mask = ocean_mask)
+                                  floating_mask = floating_mask,              &
+                                  ocean_mask = ocean_mask,                    &
+                                  which_ho_calving_front = model%options%which_ho_calving_front, &
+                                  calving_front_mask = calving_front_mask,    &
+                                  thck_calving_front = thck_calving_front)
+
+          ! Compute the effective fractional area of calving_front cells
+
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                if (calving_front_mask(i,j) == 1 .and. thck_calving_front(i,j) > 0.0d0) then
+                   effective_areafrac(i,j) = thck_unscaled(i,j) / thck_calving_front(i,j)
+                   effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
+                elseif (ocean_mask(i,j) == 1) then
+                   effective_areafrac(i,j) = 0.0d0  ! acab and bmlt not applied to ice-free ocean cells
+                else  ! non-CF ice-covered cells and/or land cells
+                   effective_areafrac(i,j) = 1.0d0
+                endif
+             enddo
+          enddo
 
           ! Call the transport driver subroutine.
           ! (includes a halo update for thickness: thck_unscaled in this case)
@@ -1301,19 +1345,20 @@ contains
           !       * dew, dns, thck (m)
           !       * uvel, vvel, acab, blmt (m/s)
           !       Since thck has intent(inout), we create and pass a temporary array (thck_unscaled) with units of m.
-          
-          call glissade_transport_driver(model%numerics%dt_transport * tim0,                   &
+
+          call glissade_transport_driver(dt_transport,                                         &  ! s
                                          model%numerics%dew * len0, model%numerics%dns * len0, &
                                          model%general%ewn,         model%general%nsn,         &
                                          model%general%upn-1,       model%numerics%sigma,      &
-                                         model%velocity%uvel(:,:,:) * vel0,                    &
-                                         model%velocity%vvel(:,:,:) * vel0,                    &
+                                         model%velocity%uvel(:,:,:) * vel0,                    &  ! m/s
+                                         model%velocity%vvel(:,:,:) * vel0,                    &  ! m/s
                                          thck_unscaled(:,:),                                   &  ! m
                                          acab_unscaled(:,:),                                   &  ! m/s
                                          bmlt_unscaled(:,:),                                   &  ! m/s
-                                         model%climate%acab_applied(:,:),                      &  ! m/s
-                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
+                                         model%climate%acab_applied(:,:),                      &  ! m on output; m/s below
+                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m on output; m/s below
                                          ocean_mask(:,:),                                      &
+                                         effective_areafrac(:,:),                              &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -1331,9 +1376,10 @@ contains
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
 
-       ! convert applied mass balance back to scaled units
-       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:) / (thk0/tim0) 
-       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:) / (thk0/tim0) 
+       ! convert applied mass balance from meters back to scaled model units
+       ! Without scaling, would still need to divide by dt to convert from m to m/s
+       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 / model%numerics%dt
+       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 / model%numerics%dt
 
        ! Eliminate ice from cells where mask prohibits it
        ! Add this ice to the calving field for mass conservation diagnostics..
