@@ -448,6 +448,13 @@
     !       
     !       Currently (as of Sept. 2015), the inverse Pattyn function (1) is the default, but the user can
     !        change this by setting which_ho_flotation_function in the config file.
+    !
+    !       For the GLP, f_flotation is first computed in all active ice-covered cells.
+    !       Then it is extrapolated to adjacent ice-free cells.  Thus, f_flotation has a physically
+    !        sensible value (either computed directly, or extrapolated from a neighbor) in all four 
+    !        cells surrounding each active vertex. (By definition, an active vertex is a vertex with
+    !        at least one active ice-covered neighbor.) Thus, we can interpolate f_flotation
+    !        within the bounding box around each active vertex to compute f_ground at the vertex.
     !----------------------------------------------------------------
     
     !----------------------------------------------------------------
@@ -468,7 +475,7 @@
        eus                    ! eustatic sea level (= 0 by default)
 
     integer, dimension(nx,ny), intent(in) ::   &
-       ice_mask,            & ! = 1 if ice is present (thk > thklim), else = 0
+       ice_mask,            & ! = 1 if ice is present (thck > thklim), else = 0
        floating_mask,       & ! = 1 if ice is present (thck > thklim) and floating, else = 0
        land_mask              ! = 1 if topg is at or above sea level
 
@@ -490,17 +497,13 @@
     ! Local variables
     !----------------------------------------------------------------
            
-    integer :: i, j
+    integer :: i, j, ii, jj
 
     integer, dimension(nx-1,ny-1) ::   &
        vmask                     ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
-    real(dp), dimension(nx-1,ny-1) :: &
-       stagf_flotation           ! f_flotation interpolated to staggered grid
-
     real(dp), dimension(nx,ny) :: &
-       unstagf_flotation     ! stagf_flotation interpolated to unstaggered grid
-                             ! basically a smoothed version of f_flotation
+       f_flotation_extrap        ! f_flotation, extrapolated to cells without active ice
 
     real(dp) :: a, b, c, d       ! coefficients in bilinear interpolation
                                  ! f(x,y) = a + b*x + c*y + d*x*y
@@ -532,7 +535,9 @@
        eps06 = 1.d-06     ! small number
 
     !WHL - debug
-    integer, parameter :: it = 1, jt = 1, rtest = 9999
+    integer, parameter :: it = 1, jt = 1, rtest = -9999
+
+    logical :: filled     ! true if f_flotation has been filled by extrapolation
 
     !TODO - Test MISMIP sensitivity to the value of this cap
     ! This needs to be big enough that one land-based cell at a vertex is sufficient to ground the others
@@ -554,64 +559,93 @@
     enddo
 
     ! Compute flotation function at cell centers
+    ! For diagnostic purposes, f_flotation is always computed, although it affects f_ground
+    !  (and thus the velocities) only when running with a GLP.
 
-    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+    ! Note: All cells (including ice-free cells) are initialized to be strongly grounded on land
+    !        and almost floating (i.e., barely grounded) in the ocean. Since no cells are initialized
+    !        to be floating, all cells are initialized to have cfloat = F in the GLP.
+    !       However, these initial values are never used in the calculation of f_ground.
+    !       All values used in the f_ground calculation come from cells with ice, or cells adjacent to cells with ice.
 
-       ! grounded if f_flotation <= 1, else floating
+    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then  ! grounded if f_flotation <= 1, else floating
 
+       ! initialize to a large negative value (strongly grounded) on land, and 1.0 (almost floating) in the ocean
        do j = 1, ny
           do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
-             else
-                f_flotation(i,j) = 0.d0  ! treat as grounded
+             if (land_mask(i,j) == 1) then
+                f_flotation(i,j) = -grounding_factor_max
+             else    ! marine cell
+                f_flotation(i,j) = 1.0d0
              endif
           enddo
        enddo
 
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+       ! set f_flotation in ice-covered cells
+       do j = 1, ny
+          do i = 1, nx
+             if (ice_mask(i,j) == 1) then
+                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
+             endif
+          enddo
+       enddo
 
-       ! grounded if f_flotation >= 1, else floating
+    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then ! grounded if f_flotation >= 1, else floating
 
+       ! initialize to a large positive value (strongly grounded) on land, and 1.0 (almost floating) in the ocean
+       do j = 1, ny
+          do i = 1, nx
+             if (land_mask(i,j) == 1) then
+                f_flotation(i,j) = grounding_factor_max
+             else    ! marine cell
+                f_flotation(i,j) = 1.0d0
+             endif
+          enddo
+       enddo
+
+       ! set f_flotation in ice-covered cells
        do j = 1, ny
           do i = 1, nx
              if (ice_mask(i,j) == 1) then  ! ice is present
-                if (topg(i,j) - eus >= 0.0d0) then  ! land-based cell
-                   f_flotation(i,j) = grounding_factor_max
+                if (land_mask(i,j) == 1) then
+                   ! nothing else to do; f_flotation(i,j) set to grounding_factor_max above
                 else    ! marine cell
                    f_flotation(i,j) = rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
                    f_flotation(i,j) = min(f_flotation(i,j), grounding_factor_max)
-                endif
-             else  ! ice-free cell
-                if (topg(i,j) - eus >= 0.0d0) then  ! land-based cell
-                   f_flotation(i,j) = grounding_factor_max
-                else    ! marine cell
-                   f_flotation(i,j) = 0.d0
                 endif
              endif  ! ice_mask
           enddo
        enddo
 
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
+    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then ! grounded if f_flotation <= 0, else floating
 
-       ! grounded if f_flotation <= 0, else floating
        ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
        ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
- 
+
+       ! initialize to a large negative value (strongly grounded) on land, and 0.0 (almost floating) in the ocean
+       do j = 1, ny
+          do i = 1, nx
+             if (land_mask(i,j) == 1) then
+                f_flotation(i,j) = -grounding_factor_max
+             else    ! marine cell
+                f_flotation(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       ! set f_flotation in ice-covered cells
        do j = 1, ny
           do i = 1, nx
              if (ice_mask(i,j) == 1) then
                 f_flotation(i,j) = -rhoo*(topg(i,j) - eus) - rhoi*thck(i,j)
-             else
-                f_flotation(i,j) = 0.d0
              endif
           enddo
        enddo
 
     endif  ! whichflotation_function
 
-    ! Initialize f_ground
-    f_ground(:,:) = 0.d0
+    ! initialize f_ground
+    f_ground(:,:) = 0.0d0
 
     ! Compute f_ground according to the value of whichground
 
@@ -623,7 +657,7 @@
        ! compute a mask that is true for cells that are land and/or have grounded ice
        do j = 1, ny
           do i = 1, nx
-             if ((ice_mask(i,j)==1 .and. floating_mask(i,j)==0) .or. land_mask(i,j)==1) then
+             if ((ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .or. land_mask(i,j) == 1) then
                 cground(i,j) = .true.
              else
                 cground(i,j) = .false.
@@ -659,36 +693,76 @@
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization
 
-       ! Interpolate f_flotation to the staggered mesh
-       ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-       ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
+       ! In ice-free cells, fill in f_flotation by extrapolation.
+       ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
+       !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
+       ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
+       !  (i.e., with at least one ice-filled neighbor cell) has physically sensible values
+       !  of f_flotation in all four neighbor cells, for purposes of interpolation.
 
-       call glissade_stagger(nx,          ny,             &
-                             f_flotation, stagf_flotation,   &
-                             ice_mask,    stagger_margin_in = 1)
+       ! In order for the 'min' logic to work, temporarily reverse the sign for the inverse Pattyn function
+       if (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+          f_flotation(:,:) = -f_flotation(:,:)
+       endif
 
-       ! Interpolate stagf_flotation back to the unstaggered mesh, giving a smoothed version of f_flotation.
-       ! For stagger_margin_in = 1, only vertices with vmask = 1 are included in the interpolation.
-       ! This smoothed field is used to provide approximate values of f_flotation in ice-free cells,
-       !  for purposes of bilinear interpolation in the GLP. In ice-covered cells, the smoothed field is ignored.
-       ! Note: glissade_unstagger includes a halo update for the unstaggered field.
+       f_flotation_extrap(:,:) = f_flotation(:,:)
 
-       call glissade_unstagger(nx,              ny,                  &
-                               stagf_flotation, unstagf_flotation,   &
-                               vmask,           stagger_margin_in = 1)
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (ice_mask(i,j) == 0) then
 
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 0) f_flotation(i,j) = unstagf_flotation(i,j)
-          enddo
-       enddo
+                filled = .false.
 
-       ! Identify cells that contain floating ice
+                ! loop over edge neighbors
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if ((ii==i .or. jj==j) .and. ice_mask(ii,jj) == 1) then  ! edge neighbor with ice
+                         if (.not.filled) then
+                            filled = .true.
+                            f_flotation_extrap(i,j) = f_flotation(ii,jj)
+                         else
+                            f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
+                         endif
+                      endif
+                   enddo   ! ii
+                enddo   ! jj
+
+                ! loop over corner neighbors if necessary
+                if (.not.filled) then
+                   do jj = j-1, j+1
+                      do ii = i-1, i+1
+                         if ((abs(ii-i)==1 .and. abs(jj-j)==1) .and. ice_mask(ii,jj)==1) then ! corner neighbor with ice
+                            if (.not.filled) then
+                               filled = .true.
+                               f_flotation_extrap(i,j) = f_flotation(ii,jj)
+                            else
+                               f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
+                            endif
+                         endif
+                      enddo
+                   enddo
+                endif   ! not filled
+
+             endif   ! ice_mask = 0
+          enddo   ! i
+       enddo  !j
+
+       ! Reverse the temporary sign change for inverse Pattyn
+       if (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+          f_flotation_extrap(:,:) = -f_flotation_extrap(:,:)
+       endif
+
+       ! halo update
+       call parallel_halo(f_flotation_extrap)
+
+       ! copy the extrapolated array to the main f_flotation array
+       f_flotation(:,:) = f_flotation_extrap(:,:)
+
+       ! Identify cells that contain floating ice.
+       ! Note: Ice-free cells adjacent to floating cells (and not adjacent to grounded cells)
+       !        will have cfloat = .true. from the extrapolation above.
 
        if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-          !TODO - I think floating_mask = 1 iff cfloat = T
-          !       If so, then can simplify the calculation of cfloat
 
           ! grounded if f_flotation <= 1, else floating
 
@@ -741,8 +815,15 @@
           print*, 'cfloat(i:i+1,j+1):', cfloat(i:i+1,j+1)
           print*, 'cfloat(i:i+1,j)  :', cfloat(i:i+1,j)
        endif
-       
-       ! Loop over vertices, computing f_ground for each vertex with vmask = 1
+
+       ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
+       ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
+       !        are surrounded by four cells with physically meaningful values of f_flotation and cfloat.
+       !       That is, f_flotation in each surrounding cell is derived from the cell itself (if the cell
+       !        is ice-covered) or from an adjacent ice-covered cell (if the cell is ice-free).
+       !       Thus, f_flotation can be interpolated from four physically sensible values.
+       !TODO - Test this algorithm for the LINEAR case. Not sure it works when the boundary
+       !       between grounded and floating ice is 0 rather than 1.
 
        do j = 1, ny-1
           do i = 1, nx-1
@@ -1043,7 +1124,6 @@
                          endif
                          
                          ! Determine whether the central point (1/2,1/2) is grounded or floating.
-                         ! (Note: f_flotation_vertex /= stagf_flotation(i,j), although likely to be close)
                          ! Then compute the grounded area.
                          ! If the central point is floating, the corner regions are grounded;
                          ! if the central point is grounded, the corner regions are floating.
