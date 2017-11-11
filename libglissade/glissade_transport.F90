@@ -453,6 +453,12 @@
       logical ::     &
          upwind_transport    ! if true, do first-order upwind transport
 
+      real(dp), dimension(nlyr,nx,ny) :: &
+         thck_layer_temp     ! temporary array for halo updates
+
+      real(dp), dimension(nlyr,nx,ny) :: &
+         tracer_temp         ! temporary array for halo updates
+
       real(dp) ::  &
          max_acab, max_bmlt  ! max magnitudes of acab and bmlt
 
@@ -502,6 +508,158 @@
                                    thck_layer(:,:,:), msum_init,       &
                                    tracers(:,:,:,:),  mtsum_init(:))
       endif
+
+      !-------------------------------------------------------------------
+      ! Add the mass balance at the surface and bed.
+      ! Note: This used to be done after horizontal transport.
+      !       It was moved here so that the ocean_mask and areafrac arrays
+      !        would still be up to date from the end of the previous timestep,
+      !        before being modified by horizontal transport.
+      !
+      ! Assume that new ice arrives at the surface with the current surface temperature.
+      ! TODO: Make sure this assumption is consistent with energy
+      !       conservation for coupled simulations.
+      ! TODO: Pass the melt potential back to the climate model as a heat flux?
+      !-------------------------------------------------------------------
+
+      max_acab = max(maxval(acab), -1.d0*minval(acab))
+      max_bmlt = max(maxval(bmlt), -1.d0*minval(bmlt))
+
+      max_acab = parallel_reduce_max(max_acab)
+      max_bmlt = parallel_reduce_max(max_bmlt)
+
+      if (max_acab > 0.0d0 .or. max_bmlt > 0.0d0) then
+
+         call glissade_add_smb(nx,       ny,          &
+                               nlyr,     ntracers,    &
+                               nhalo,    dt,          &
+                               ocean_mask,            &
+                               effective_areafrac,    &
+                               thck_layer(:,:,:),     &
+                               tracers(:,:,:,:),      &
+                               tracers_usrf(:,:,:),   &
+                               tracers_lsrf(:,:,:),   &
+                               acab(:,:),             &
+                               bmlt(:,:),             &
+                               acab_applied(:,:),     &
+                               bmlt_applied(:,:),     &
+                               melt_potential(:,:))
+
+         !-------------------------------------------------------------------
+         ! Interpolate tracers back to sigma coordinates
+         !-------------------------------------------------------------------
+
+         call glissade_vertical_remap(nx,                ny,       &
+                                      nlyr,              nhalo,    &
+                                      sigma(:),                    &
+                                      thck_layer(:,:,:),           &
+                                      ntracers, &
+                                      tracers(:,:,:,:),            &
+                                      tracers_usrf(:,:,:),         &
+                                      tracers_lsrf(:,:,:),         &
+                                      vert_remap_accuracy)
+
+         !-------------------------------------------------------------------
+         ! Check that mass is conserved, allowing for mass gain/loss due to acab/bmlt
+         !  and for any unused melt potential.
+         !
+         ! Note: There is no tracer conservation check here, because there is no
+         !       easy way to correct initial mass*tracer values for acab and bmlt.
+         !-------------------------------------------------------------------
+
+         if (conservation_check) then
+
+            ! Correct initial global mass for acab and bmlt
+            sum_acab = 0.0d0
+            sum_bmlt = 0.0d0
+            sum_melt_potential = 0.0d0
+
+            ! loop over locally owned cells, with correction for fractional coverage
+            do j = 1+lhalo, ny-uhalo
+               do i = 1+lhalo, nx-uhalo
+                  sum_acab = sum_acab + acab(i,j)*effective_areafrac(i,j)
+                  sum_bmlt = sum_bmlt + bmlt(i,j)*effective_areafrac(i,j)
+                  sum_melt_potential = sum_melt_potential + melt_potential(i,j)
+               enddo
+            enddo
+
+            sum_acab = parallel_reduce_sum(sum_acab)
+            sum_bmlt = parallel_reduce_sum(sum_bmlt)
+            sum_melt_potential = parallel_reduce_sum(sum_melt_potential)
+
+            msum_init = msum_init + (sum_acab - sum_bmlt)*dt
+
+            ! Compute new global mass and mass*tracer
+
+            call sum_mass_and_tracers(nx,                ny,              &
+                                      nlyr,              ntracers,        &
+                                      nhalo,                              &
+                                      thck_layer(:,:,:), msum_final,      &
+                                      tracers(:,:,:,:),  mtsum_final(:))
+
+            ! Check mass conservation
+            !TODO - Add melt_potential to msum_final before calling subroutine?
+
+            if (main_task) then
+
+               call global_conservation (msum_init,     msum_final,      &
+                                         errflag,       sum_melt_potential)
+
+               if (errflag) then
+                  write(message,*) 'WARNING: Conservation error in glissade_add_smb'
+!                  call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
+                  call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
+               endif
+
+            endif   ! main_task
+
+            ! Update msum_init and mtsum_init for the next conservation check
+            msum_init = msum_final   ! msum_final computed above after glissade_add_smb
+            mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after glissade_add_smb
+
+         endif      ! conservation_check
+
+         ! Halo updates after adding SMB and BMB
+         ! Thickness and tracers must be correct in halos before horizontal transport.
+
+         ! Currently there is no parallel_halo interface for arrays with 'nlyr'
+         !  in the last slot, so it is necessary to copy 3D slices back and forth.
+         ! These updates could be skipped if glissade_add_smb looped over all cells
+         !  with up-to-date halo values, but it is safer to do an update here.
+
+         do k = 1, nlyr
+            thck_layer_temp(k,:,:) = thck_layer(:,:,k)
+         enddo
+         call parallel_halo(thck_layer_temp)
+         do k = 1, nlyr
+            thck_layer(:,:,k) = thck_layer_temp(k,:,:)
+         enddo
+
+         do nt = 1, ntracers
+            do k = 1, nlyr
+               tracer_temp(k,:,:) = tracers(:,:,nt,k)
+            enddo
+            call parallel_halo(tracer_temp)
+            do k = 1, nlyr
+               tracers(:,:,nt,k) = tracer_temp(k,:,:)
+            enddo
+         enddo
+
+         ! Recompute thickness (used by make_remap_masks below)
+         do j = 1, ny
+            do i = 1, nx
+               thck(i,j) = sum(thck_layer(i,j,:))
+            enddo
+         enddo
+
+      endif  ! max_acab > 0 or max_bmlt > 0
+
+      !-------------------------------------------------------------------
+      ! Horizontal transport of ice thickness and tracers
+      ! Two options:
+      ! (1) First-order accurate upwind scheme
+      ! (2) Second-order accurate incremental remapping scheme
+      !-------------------------------------------------------------------
 
       if (upwind_transport) then
 
@@ -625,19 +783,6 @@
 
             endif
 
-            !WHL - debug
-!!            if (k==1) then
-!               print*, ' '
-!               print*, 'Calling glissade_horizontal_remap, layer =', k
-!               do j = ny-4, ny-12, -1
-!                  write(6,'(i6)',advance='no') j
-!                  do i = 4, nx/4
-!                     write(6,'(f10.6)',advance='no') tracers(i,j,1,k)  ! assume damage is tracer 1
-!                  enddo
-!                  write(6,*) ' '
-!               enddo
-!!            endif
-
          !-------------------------------------------------------------------
          ! Main remapping routine: Step ice thickness and tracers forward in time.
          !-------------------------------------------------------------------
@@ -651,19 +796,6 @@
                                             uvel_layer(:,:),   vvel_layer(:,:),  &
                                             thck_layer(:,:,k), tracers(:,:,:,k), &
                                             edgearea_e(:,:),   edgearea_n(:,:))
-
-            !WHL - debug
-!!            if (k==1) then
-!               print*, ' '
-!               print*, 'Called glissade_horizontal_remap, layer =', k
-!               do j = ny-4, ny-12, -1
-!                  write(6,'(i6)',advance='no') j
-!                  do i = 4, nx/4
-!                     write(6,'(f10.6)',advance='no') tracers(i,j,1,k)  ! assume damage is tracer 1
-!                  enddo
-!                  write(6,*) ' '
-!               enddo
-!!            endif
 
          enddo    ! nlyr
 
@@ -690,10 +822,12 @@
          ! Check conservation
 
          if (main_task) then
+
             call global_conservation (msum_init,     msum_final,      &
                                       errflag,       0.0d0,           & ! melt_potential = 0 for this check
                                       ntracers,                       &
                                       mtsum_init,    mtsum_final)
+
             if (errflag) then
                write(message,*) 'WARNING: Conservation error in glissade_horizontal_remap'
 !               call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
@@ -706,128 +840,8 @@
 
       endif      ! conservation_check
 
-      !TODO - Move glissade_add_smb to a different module?
-      !       This might make it easier to handle new tracer sources (damage, ice age).
-      !       May need to pass tracer sources to glissade_add_smb
-      !       (though this may be easy if new ice has zero damage, zero age).
       !-------------------------------------------------------------------
-      ! Add the mass balance at the surface and bed.
-      ! The reason to do this now rather than at the beginning of the
-      !  subroutine is that the velocity was computed for the old geometry,
-      !  before the addition or loss of new mass at the surface and bed.  
-      ! TODO: Rethink this ordering if we move to implicit or semi-implicit
-      !       timestepping, where the velocity depends on the new geometry.
-      !
-      ! We assume here that new ice arrives at the surface with the same 
-      !  temperature as the surface.
-      ! TODO: Make sure this assumption is consistent with energy
-      !       conservation for coupled simulations.
-      ! TODO: Pass the melt potential back to the climate model as a heat flux?
-      !-------------------------------------------------------------------
-
-      max_acab = max(maxval(acab), -1.d0*minval(acab))
-      max_bmlt = max(maxval(bmlt), -1.d0*minval(bmlt))
-
-      max_acab = parallel_reduce_max(max_acab)
-      max_bmlt = parallel_reduce_max(max_bmlt)
-
-      if (max_acab > 0.0d0 .or. max_bmlt > 0.0d0) then
-
-         call glissade_add_smb(nx,       ny,          &
-                               nlyr,     ntracers,    &
-                               nhalo,    dt,          &
-                               ocean_mask,            &
-                               effective_areafrac,    &
-                               thck_layer(:,:,:),     &
-                               tracers(:,:,:,:),      &
-                               tracers_usrf(:,:,:),   &
-                               tracers_lsrf(:,:,:),   &
-                               acab(:,:),             &
-                               bmlt(:,:),             &
-                               acab_applied(:,:),     &
-                               bmlt_applied(:,:),     &
-                               melt_potential(:,:))
-
-!         print*, ' '
-!         print*, 'Called glissade_add_smb'
-!         do k = 1, nlyr
-!            print*, ' '
-!            print*, 'k =', k
-!            do j = ny-4, ny-12, -1
-!               write(6,'(i6)',advance='no') j
-!               do i = 4, nx/4
-!                  write(6,'(f10.6)',advance='no') tracers(i,j,1,k)  ! assume damage is tracer 1
-!               enddo
-!               write(6,*) ' '
-!            enddo
-!         enddo
-
-         !-------------------------------------------------------------------
-         ! Check that mass is conserved, allowing for mass gain/loss due to acab/bmlt 
-         !  and for any unused melt potential.
-         !
-         ! Note: There is no tracer conservation check here, because there is no
-         !       easy way to correct initial mass*tracer values for acab and bmlt.
-         !-------------------------------------------------------------------
-
-         if (conservation_check) then
-
-            ! Correct initial global mass for acab and bmlt
-            sum_acab = 0.0d0
-            sum_bmlt = 0.0d0
-            sum_melt_potential = 0.0d0
-
-            ! loop over locally owned cells, with correction for fractional coverage
-            do j = 1+lhalo, ny-uhalo
-               do i = 1+lhalo, nx-uhalo
-                  sum_acab = sum_acab + acab(i,j)*effective_areafrac(i,j)
-                  sum_bmlt = sum_bmlt + bmlt(i,j)*effective_areafrac(i,j)
-                  sum_melt_potential = sum_melt_potential + melt_potential(i,j)
-               enddo
-            enddo
-
-            sum_acab = parallel_reduce_sum(sum_acab)
-            sum_bmlt = parallel_reduce_sum(sum_bmlt)
-            sum_melt_potential = parallel_reduce_sum(sum_melt_potential)
-
-            msum_init = msum_init + (sum_acab - sum_bmlt)*dt
-
-            ! Compute new global mass and mass*tracer
-
-            call sum_mass_and_tracers(nx,                ny,              &
-                                      nlyr,              ntracers,        &
-                                      nhalo,                              &
-                                      thck_layer(:,:,:), msum_final,      &
-                                      tracers(:,:,:,:),  mtsum_final(:))
-
-            ! Check mass conservation
-            !TODO - Add melt_potential to msum_final before calling subroutine?
-
-            if (main_task) then
-
-               print*, 'Call global_conservation, msum_init/final =', msum_init, msum_final
-
-               call global_conservation (msum_init,     msum_final,      &
-                                         errflag,       sum_melt_potential)
-
-               if (errflag) then
-                  write(message,*) 'WARNING: Conservation error in glissade_add_smb'
-!                  call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
-                  call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
-               endif
-
-            endif   ! main_task
-
-            ! Update msum_init and mtsum_init for the next conservation check
-            msum_init = msum_final   ! msum_final computed above after glissade_add_smb
-            mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after glissade_add_smb
-
-         endif      ! conservation_check
-
-      endif   ! max_acab > 0 or max_bmlt > 0
-
-      !-------------------------------------------------------------------
-      ! Interpolate tracers back to sigma coordinates 
+      ! Interpolate tracers back to sigma coordinates
       !-------------------------------------------------------------------
 
       call glissade_vertical_remap(nx,                ny,       &
@@ -847,12 +861,13 @@
 
       if (conservation_check) then
 
+         ! Update msum_init and mtsum_init
+         msum_init = msum_final   ! msum_final computed above after horizontal transport
+         mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after horizontal transport
+ 
          ! Compute new values of globally conserved quantities.
          ! Assume gridcells of equal area, ice of uniform density.
 
-         msum_init = msum_final   ! msum_final computed above after glissade_add_smb
-         mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after glissade_add_smb
- 
          call sum_mass_and_tracers(nx,                ny,              &
                                    nlyr,              ntracers,        &
                                    nhalo,                              &
@@ -862,6 +877,7 @@
          ! Check conservation
 
          if (main_task) then
+
             call global_conservation (msum_init,     msum_final,  &
                                       errflag,       0.0d0,       &  ! melt potential = 0 for this check
                                       ntracers,                   &
