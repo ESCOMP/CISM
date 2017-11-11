@@ -263,13 +263,20 @@ contains
 
     real(dp), parameter ::   &
        eps = 1.0d-11             ! small number
- 
+
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
 
     allocate(cell_area(ewn,nsn))
     cell_area(:,:) = model%numerics%dew * model%numerics%dns
+
+    ! Note: If projection%stere%compute_area_factor = .true., then area factors will differ from 1.
+    !       Then the total ice area and volume computed below will be corrected for area distortions,
+    !        giving a better estimate of the true ice area and volume.
+    !       However, applying scale factors will give a mass conservation error (total dmass_dt > 0)
+    !        in the diagnostics, because horizontal transport does not account for area factors.
+    !        Transport conserves mass only under the assumption of rectangular grid cells.
 
     if (associated(model%projection%stere)) then   ! divide cell area by area_factor^2
        do j = 1, nsn
@@ -505,7 +512,7 @@ contains
        enddo
     enddo
 
-    tot_calving = tot_calving * scyr * thk0 / tim0 * len0**2  ! convert to m^3/yr
+    tot_calving = tot_calving * scyr * thk0/tim0 * len0**2  ! convert to m^3/yr
     tot_calving = parallel_reduce_sum(tot_calving)
 
     ! total calving mass balance flux (kg/s, negative for ice loss by calving)

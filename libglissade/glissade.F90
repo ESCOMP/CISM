@@ -188,9 +188,16 @@ contains
     ! read first time slice
     call glide_io_readall(model,model)
 
-    ! Compute area scale factors for stereographic map projection.
+    ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
     ! Note: Not yet enabled for other map projections.
+    ! Note: Area factors currently are used only when computing diagnostics for the log file.
+    !       If area factors are computed based on projection info, then the ice area and volume
+    !         computed in CISM's dycore are corrected for area distortions, giving a better estimate
+    !        of the true ice area and volume.
+    !       However, applying scale factors will give a mass conservation error (total dmass_dt > 0)
+    !        in the diagnostics, because horizontal transport does not account for area factors.
+    !        Transport conserves mass only under the assumption of rectangular grid cells.
     ! TODO - Tested only for Greenland (N. Hem.; projection origin offset from N. Pole). Test for other grids.
 
     if (associated(model%projection%stere)) then
@@ -200,7 +207,6 @@ contains
                                       model%general%nsn,       &
                                       model%numerics%dew*len0, &
                                       model%numerics%dns*len0)
-
     endif
 
     ! Write projection info to log
@@ -1381,20 +1387,6 @@ contains
        model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 / model%numerics%dt
        model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 / model%numerics%dt
 
-       ! Eliminate ice from cells where mask prohibits it
-       ! Add this ice to the calving field for mass conservation diagnostics..
-       ! Note: The calving_mask option accomplishes the same thing. However, if we want to use a different
-       !       calving law while also limiting calving-front advance, we can use the no_advance mask.
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
-             if (model%climate%no_advance_mask(i,j) == 1) then
-                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + model%geometry%thck(i,j)
-                model%geometry%thck(i,j) = 0.0
-                ! Note: Tracers (temp, etc.) are cleaned up later by call to glissade_cleanup_icefree_cells
-             endif
-          enddo
-       enddo
-      
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
        if (model%options%whichtemp == TEMP_ENTHALPY) then
@@ -1501,6 +1493,8 @@ contains
 
     ! --- Local variables ---
 
+    integer :: i, j
+
     ! --- Calculate updated mask because calving calculation needs a mask.
     !TODO - Remove this call when using glissade_calve_ice, which does not use the Glide mask?
 
@@ -1546,10 +1540,23 @@ contains
                             model%numerics%sigma,            &
                             model%calving%calving_thck)
     
-    !TODO: Think about what halo updates are needed after calving. Just thck?
-
+    !TODO: Are any other halo updates needed after calving?
     ! halo updates
     call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calc_lsrf
+
+    ! Eliminate ice from cells where a no-advance mask prohibits it.
+    ! Add this ice to the calving field for mass conservation diagnostics.
+    ! Note: The calving_mask option accomplishes the same thing. However, if we want to use a different
+    !       calving law while also limiting calving-front advance, we can use the no_advance mask.
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          if (model%climate%no_advance_mask(i,j) == 1) then
+             model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + model%geometry%thck(i,j)
+             model%geometry%thck(i,j) = 0.d0
+             ! Note: Tracers (temp, etc.) are cleaned up later by call to glissade_cleanup_icefree_cells
+          endif
+       enddo
+    enddo
 
   end subroutine glissade_calving_solve
 
