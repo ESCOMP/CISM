@@ -907,7 +907,7 @@ contains
        endif
 
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP AND BMLT_FLOAT_MISOMIP
-          !TODO - Call separate subroutines for each of these three options
+          !TODO - Call separate subroutines for each of these three options?
 
        !WHL - May want to comment out temporarily, if doing basal melting in the diagnostic solve for testing
        call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
@@ -929,10 +929,11 @@ contains
     endif  ! whichbmlt_float
 
     ! For all bmlt_float options, limit the melting to cells where ice is present and floating
-    ! TODO - Uncomment these lines after transport solver is modified
-!!    where (floating_mask == 0)
-!!       model%basal_melt%bmlt_float = 0.0d0
-!!    endwhere
+    ! Note: For this to work correctly, basal melting must be applied before the floating mask changes
+    !       (i.e., before horizontal transport).
+    where (floating_mask == 0)
+       model%basal_melt%bmlt_float = 0.0d0
+    endwhere
 
     if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_GLP) then
 
