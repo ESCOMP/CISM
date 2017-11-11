@@ -64,7 +64,7 @@
     use glimmer_sparse_type
     use glimmer_sparse
     use glissade_grid_operators     
-    use glissade_masks, only: glissade_get_masks, glissade_grounded_fraction
+    use glissade_masks, only: glissade_get_masks
 
     use glide_types
 
