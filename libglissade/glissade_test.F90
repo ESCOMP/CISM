@@ -82,6 +82,8 @@ contains
     real(dp), dimension(:,:,:), allocatable :: r8var_3d_stag
     real(dp), dimension(:,:,:,:), allocatable :: r8var_4d_stag
 
+    real(dp), dimension (:,:,:,:), allocatable ::  tracers
+
     integer :: i, j, k, ig, jg
     integer :: nx, ny, nz
 
@@ -346,8 +348,6 @@ contains
        enddo
     endif
 
-    stop
-
     ! The next part of the code concerns parallel global IDs
 
     ! Compute parallel global ID for each grid cell
@@ -571,6 +571,43 @@ contains
     deallocate(pgIDstagr)
     deallocate(pgIDstagr3)
 
+    ! Test tracer update routine
+
+    allocate(tracers(nx,ny,2,2))  ! 2 tracers, 2 layers
+    tracers(:,:,:,:) = 0.d0
+
+    do k = 1, 2
+       do j = 1+lhalo, ny-uhalo
+       do i = 1+lhalo, nx-uhalo
+          tracers(i,j,:,k) = real(parallel_globalID_scalar(i,j,k),dp) + real(k,dp)    ! function in parallel_mpi.F90
+       enddo
+       enddo
+    enddo
+
+    k = 1
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'Parallel global ID (real 3D), k, this_rank =', k, this_rank
+       do j = ny, 1, -1
+          write(6,'(29f6.0)') tracers(:,j,1,k)
+       enddo
+    endif
+
+    call parallel_halo_tracers(tracers)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_tracer update, this_rank =', this_rank
+       do j = ny, 1, -1
+          write(6,'(29f6.0)') tracers(:,j,1,k)
+       enddo
+    endif
+
+    deallocate(tracers)
+
+    stop
+
   end subroutine glissade_test_halo
 
 !=======================================================================
@@ -625,20 +662,13 @@ contains
 
     real(dp), dimension(:,:,:), allocatable :: uvel, vvel   ! uniform velocity field (m/yr)
 
-    real(dp), dimension(:,:), allocatable :: &
-         effective_areafrac   ! effective fractional area of calving_front cells
-
-    integer, dimension(:,:), allocatable ::   &
-         ice_mask,      & ! = 1 where thk > thklim, else = 0
-         ocean_mask       ! = 1 where topg is below sea level and thck < thklim, else = 0
-
     integer :: i, j, k, n
     integer :: nx, ny, nz
     real(dp) :: dx, dy
 
     integer, parameter :: rdiag = 0         ! rank for diagnostic prints 
 
-    real(dp), parameter :: umag = 100.     ! uniform speed (m/yr)
+    real(dp), parameter :: umag = 100.      ! uniform speed (m/yr)
 
     ! Set angle of motion
     !WHL - Tested all of these angles (eastward, northward, and northeastward)
@@ -670,10 +700,6 @@ contains
 
     allocate(uvel(nz,nx-1,ny-1))
     allocate(vvel(nz,nx-1,ny-1))
-    allocate(ice_mask(nx,ny))
-    allocate(ocean_mask(nx,ny))
-    allocate(effective_areafrac(nx,ny))
-
     ! Find the length of the path around the domain and back to the starting point
 
     lenx = global_ewn * dx
@@ -757,33 +783,12 @@ contains
 
        call glissade_transport_setup_tracers(model)
 
-       ! get masks
-       call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                               model%geometry%thck, model%geometry%topg,   &
-                               model%climate%eus,   0.0d0,                 &   ! thklim = 0
-                               ice_mask,                                   &
-                               ocean_mask = ocean_mask)
-
-       ! set effective area fraction in each cell
-       ! for testing, don't worry about values between 0 and 1 in CF cells
-       where (model%geometry%thck > 0.0d0)
-          effective_areafrac(:,:) = 1.0d0
-       elsewhere
-          effective_areafrac(:,:) = 0.0d0
-       endwhere
-
        call glissade_transport_driver(dt*scyr,                                              &
                                       dx,                        dy,                        &
                                       nx,                        ny,                        &
                                       nz-1,                      model%numerics%sigma,      &
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
-                                      model%climate%acab(:,:),                              &
-                                      model%basal_melt%bmlt(:,:),                           &
-                                      model%climate%acab_applied(:,:),                      &
-                                      model%basal_melt%bmlt_applied(:,:),                   &
-                                      ocean_mask(:,:),                                      &
-                                      effective_areafrac(:,:),                              &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
@@ -807,9 +812,6 @@ contains
 
     deallocate(uvel)
     deallocate(vvel)
-    deallocate(ice_mask)
-    deallocate(ocean_mask)
-    deallocate(effective_areafrac)
 
   end subroutine glissade_test_transport
 

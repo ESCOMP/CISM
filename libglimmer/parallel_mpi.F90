@@ -259,6 +259,11 @@ module parallel
      module procedure parallel_halo_real8_3d
   end interface
 
+  interface parallel_halo_tracers
+     module procedure parallel_halo_tracers_real8_3d
+     module procedure parallel_halo_tracers_real8_4d
+  end interface
+
   interface parallel_halo_verify
      module procedure parallel_halo_verify_integer_2d
      module procedure parallel_halo_verify_real8_2d
@@ -3652,6 +3657,170 @@ contains
     endif   ! outflow_bc
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_3d(a)
+
+    ! Custom halo routine for tracer arrays with dimension(nx,ny,ntracers)
+    ! Will work for any 3D array with (nx,ny) in the first two slots
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:) :: a
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3)) :: esend,wrecv
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3)) :: erecv,wsend
+    real(dp),dimension(local_ewn,lhalo,size(a,3)) :: nsend,srecv
+    real(dp),dimension(local_ewn,uhalo,size(a,3)) :: nrecv,ssend
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:) = &
+         a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:lhalo,1+lhalo:local_nsn-uhalo,:) = wrecv(:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:) = erecv(:,:,:)
+
+    nsend(:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:lhalo,:) = srecv(:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,local_nsn-uhalo+1:,:) = nrecv(:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(local_ewn-uhalo+1:,:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:lhalo,:,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,local_nsn-uhalo+1:,:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:lhalo,:) = 0.d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine parallel_halo_tracers_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_4d(a)
+
+    ! Custom halo routine for tracer arrays with dimension(nx,ny,ntracers,nz)
+    ! Will work for any 4D array with (nx,ny) in the first two slots
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: esend,wrecv
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: erecv,wsend
+    real(dp),dimension(local_ewn,lhalo,size(a,3),size(a,4)) :: nsend,srecv
+    real(dp),dimension(local_ewn,uhalo,size(a,3),size(a,4)) :: nrecv,ssend
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:,:) = &
+         a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:,:)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:,:)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:lhalo,1+lhalo:local_nsn-uhalo,:,:) = wrecv(:,:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:,:) = erecv(:,:,:,:)
+
+    nsend(:,:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:,:)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:,:)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:lhalo,:,:) = srecv(:,:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,local_nsn-uhalo+1:,:,:) = nrecv(:,:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(local_ewn-uhalo+1:,:,:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:lhalo,:,:,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,local_nsn-uhalo+1:,:,:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:lhalo,:,:) = 0.d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine parallel_halo_tracers_real8_4d
 
 
   function parallel_halo_verify_integer_2d(a)

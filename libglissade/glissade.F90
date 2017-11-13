@@ -1063,7 +1063,8 @@ contains
     use glimmer_physcon, only: scyr
     use glimmer_scales, only: scale_acab
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
-    use glissade_transport, only: glissade_transport_driver, &
+    use glissade_transport, only: glissade_mass_balance_driver, &
+                                  glissade_transport_driver, &
                                   glissade_check_cfl,  &
                                   glissade_transport_setup_tracers, &
                                   glissade_transport_finish_tracers, &
@@ -1141,10 +1142,12 @@ contains
           do_upwind_transport = .false.
        endif
 
-       ! Use incremental remapping scheme to transport ice thickness (and temperature too, if whichtemp = TEMP_PROGNOSTIC).
+       !-------------------------------------------------------------------------
+       ! First apply the surface and basal mass balance in each grid cell.
+       ! Then transport ice thickness and temperature, given the horizontal velocity (u,v).
+       !-------------------------------------------------------------------------
        ! MJH: I put the no thickness evolution option here so that it is still possible 
        !      (but not required) to use IR to advect temperature when thickness evolution is turned off.
-
        ! TODO  MJH If we really want to support no evolution, then we may want to implement it so that IR does not occur 
        !       at all - right now a run can fail because of a CFL violation in IR even if evolution is turned off.  Do we want
        !       to support temperature evolution without thickness evolution?  If so, then the current implementation may be preferred approach.
@@ -1155,37 +1158,7 @@ contains
           print *, 'Compute dH/dt'
        endif
 
-       call t_startf('new_remap_halo_upds')
-
-       ! pre-transport halo updates for velocity and thickness
-       ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
-       !  (just to be on the safe side).
-
-       call staggered_parallel_halo(model%velocity%uvel)
-       call staggered_parallel_halo(model%velocity%vvel)
-       call parallel_halo(model%geometry%thck)
-
-       ! Note: Halo updates for tracers are done in subroutine glissade_transport_setup_tracers
-
-       call t_stopf('new_remap_halo_upds')
-
        call t_startf('glissade_transport_driver')
-
-       ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
-       ! Must transport enthalpy rather than temperature/waterfrac to conserv energy.
-
-       if (model%options%whichtemp == TEMP_ENTHALPY) then  ! Use IR to transport enthalpy
-
-          ! Note: glissade_temp2enth expects SI units
-          do j = 1, model%general%nsn 
-             do i = 1, model%general%ewn
-                call glissade_temp2enth (model%numerics%stagsigma(1:upn-1),        &
-                                         model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j),   &
-                                         model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j))
-             enddo
-          enddo
-
-       endif    ! TEMP_ENTHALPY
 
        ! Compute a corrected acab field that includes any prescribed anomalies.
        ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.
@@ -1194,6 +1167,7 @@ contains
 !!       print*, 'maxval(acab_anomaly):', maxval(model%climate%acab_anomaly)
 !!       print*, 'minval(acab_anomaly):', minval(model%climate%acab_anomaly)
 
+       ! initialize
        model%climate%acab_corrected(:,:) = model%climate%acab(:,:)
 
        ! Optionally, multiply acab by a scalar adjustment factor
@@ -1232,12 +1206,118 @@ contains
        endif
 
 
+       ! temporary in/out arrays in SI units
+       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
+       acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
+
        ! Add bmlt to the continuity equation in SI units (m/s)
        if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
           bmlt_unscaled(:,:) = model%basal_melt%bmlt(:,:) * thk0/tim0
        else                                                           ! do not include bmlt in continuity equation
           bmlt_unscaled(:,:) = 0.0d0
        endif
+
+       ! ------------------------------------------------------------------------
+       ! Get masks used by glissade_mass_balance_driver.
+       ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
+       ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
+       ! Use thck_calving_front to compute a fractional area for calving_front cells.
+       ! ------------------------------------------------------------------------
+
+       call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                               thck_unscaled,                              &   ! m
+                               model%geometry%topg*thk0,                   &   ! m
+                               model%climate%eus*thk0,                     &   ! m
+                               0.0d0,                                      &   ! thklim = 0 
+                               ice_mask,                                   &
+                               floating_mask = floating_mask,              &
+                               ocean_mask = ocean_mask,                    &
+                               which_ho_calving_front = model%options%which_ho_calving_front, &
+                               calving_front_mask = calving_front_mask,    &
+                               thck_calving_front = thck_calving_front)
+
+       ! Compute the effective fractional area of calving_front cells
+
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (calving_front_mask(i,j) == 1 .and. thck_calving_front(i,j) > 0.0d0) then
+                effective_areafrac(i,j) = thck_unscaled(i,j) / thck_calving_front(i,j)
+                effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
+             elseif (ocean_mask(i,j) == 1) then
+                effective_areafrac(i,j) = 0.0d0  ! acab and bmlt not applied to ice-free ocean cells
+             else  ! non-CF ice-covered cells and/or land cells
+                effective_areafrac(i,j) = 1.0d0
+             endif
+          enddo
+       enddo
+
+       ! Initialize the applied acab and bmlt.
+       ! Note: These are smaller in magnitude than the input acab and bmlt for cells where either
+       !       (1) the full column melts, and energy remains for melting, or
+       !       (2) a positive mass balance is ignored, because a cell is ice-free ocean
+
+       model%climate%acab_applied = 0.0d0
+       model%basal_melt%bmlt_applied = 0.0d0
+
+       ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
+       ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
+
+       if (model%options%whichtemp == TEMP_ENTHALPY) then  ! Use IR to transport enthalpy
+          ! Note: glissade_temp2enth expects SI units
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                call glissade_temp2enth (model%numerics%stagsigma(1:upn-1),        &
+                                         model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j),   &
+                                         model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j))
+             enddo
+          enddo
+       endif    ! TEMP_ENTHALPY
+
+       ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
+       ! (includes a halo update for tracers)
+       call glissade_transport_setup_tracers (model)
+
+       ! ------------------------------------------------------------------------
+       ! Apply the surface mass balance (acab) and basal mass balance (bmlt).
+       ! Note: This subroutine assumes SI units:
+       !       * dt (s)
+       !       * dew, dns, thck (m)
+       !       * acab, bmlt (m/s)
+       ! ------------------------------------------------------------------------
+
+       call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &
+                                         model%numerics%dew * len0, model%numerics%dns * len0, &
+                                         model%general%ewn,         model%general%nsn,         &
+                                         model%general%upn-1,       model%numerics%sigma,      &
+                                         thck_unscaled(:,:),                                   &  ! m
+                                         acab_unscaled(:,:),                                   &  ! m/s
+                                         bmlt_unscaled(:,:),                                   &  ! m/s
+                                         model%climate%acab_applied(:,:),                      &  ! m on output; m/s below
+                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m on output; m/s below
+                                         ocean_mask(:,:),                                      &
+                                         effective_areafrac(:,:),                              &
+                                         model%geometry%ntracers,                              &
+                                         model%geometry%tracers(:,:,:,:),                      &
+                                         model%geometry%tracers_usrf(:,:,:),                   &
+                                         model%geometry%tracers_lsrf(:,:,:),                   &
+                                         model%options%which_ho_vertical_remap)
+
+       ! convert applied mass balance from m/s back to scaled model units
+       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
+       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 * tim0
+
+       ! halo updates for thickness and tracers, to prepare for transport.
+       call parallel_halo(thck_unscaled)
+       call parallel_halo_tracers(model%geometry%tracers)
+       call parallel_halo_tracers(model%geometry%tracers_usrf)
+       call parallel_halo_tracers(model%geometry%tracers_lsrf)
+
+       ! pre-transport halo updates for velocity
+       ! Velocity update might be needed if velo was not updated in halo at the end of the previous diagnostic solve
+       !  (just to be on the safe side).
+
+       call staggered_parallel_halo(model%velocity%uvel)
+       call staggered_parallel_halo(model%velocity%vvel)
 
        ! --- Determine CFL limits ---
        ! Note: We are using the subcycled dt here (if subcycling is on).
@@ -1290,59 +1370,13 @@ contains
           dt_transport = model%numerics%dt_transport * tim0  ! convert to s
        endif
 
-       ! Initialize the applied acab and bmlt.
-       ! Note: These are smaller in magnitude than the input acab and bmlt for cells where either
-       !       (1) the full column melts, and energy remains for melting
-       !       (2) a positive mass balance is ignored, because a cell is ice-free ocean
-
-       model%climate%acab_applied = 0.0d0
-       model%basal_melt%bmlt_applied = 0.0d0
-
-       ! temporary in/out arrays in SI units
-       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
-       acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
+       !-------------------------------------------------------------------------
+       ! Compute horizontal transport of mass and tracers, subcycling as needed.
+       !-------------------------------------------------------------------------
 
        do sc = 1, nsubcyc
 
           if (nsubcyc > 1 .and. main_task) write(*,*) 'Subcycling transport: Cycle', sc
-
-          ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
-          ! (includes a halo update for tracers)
-          call glissade_transport_setup_tracers (model)
-
-          ! ------------------------------------------------------------------------
-          ! Get masks used by glissade_transport_driver
-          ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
-          ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
-          ! Use thck_calving_front to compute a fractional area for calving_front cells.
-          ! ------------------------------------------------------------------------
-
-          call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                                  thck_unscaled,                              &   ! m
-                                  model%geometry%topg*thk0,                   &   ! m
-                                  model%climate%eus*thk0,                     &   ! m
-                                  0.0d0,                                      &   ! thklim = 0 
-                                  ice_mask,                                   &
-                                  floating_mask = floating_mask,              &
-                                  ocean_mask = ocean_mask,                    &
-                                  which_ho_calving_front = model%options%which_ho_calving_front, &
-                                  calving_front_mask = calving_front_mask,    &
-                                  thck_calving_front = thck_calving_front)
-
-          ! Compute the effective fractional area of calving_front cells
-
-          do j = 1, model%general%nsn
-             do i = 1, model%general%ewn
-                if (calving_front_mask(i,j) == 1 .and. thck_calving_front(i,j) > 0.0d0) then
-                   effective_areafrac(i,j) = thck_unscaled(i,j) / thck_calving_front(i,j)
-                   effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
-                elseif (ocean_mask(i,j) == 1) then
-                   effective_areafrac(i,j) = 0.0d0  ! acab and bmlt not applied to ice-free ocean cells
-                else  ! non-CF ice-covered cells and/or land cells
-                   effective_areafrac(i,j) = 1.0d0
-                endif
-             enddo
-          enddo
 
           ! Call the transport driver subroutine.
           ! (includes a halo update for thickness: thck_unscaled in this case)
@@ -1350,8 +1384,10 @@ contains
           ! Note: This subroutine assumes SI units:
           !       * dt (s)
           !       * dew, dns, thck (m)
-          !       * uvel, vvel, acab, blmt (m/s)
+          !       * uvel, vvel (m/s)
           !       Since thck has intent(inout), we create and pass a temporary array (thck_unscaled) with units of m.
+          ! Note: tracers_ursf and tracers_lsrf are not transported, but they provide upper and lower BCs
+          !       for vertical remapping. They are intent(in).
 
           call glissade_transport_driver(dt_transport,                                         &  ! s
                                          model%numerics%dew * len0, model%numerics%dns * len0, &
@@ -1360,12 +1396,6 @@ contains
                                          model%velocity%uvel(:,:,:) * vel0,                    &  ! m/s
                                          model%velocity%vvel(:,:,:) * vel0,                    &  ! m/s
                                          thck_unscaled(:,:),                                   &  ! m
-                                         acab_unscaled(:,:),                                   &  ! m/s
-                                         bmlt_unscaled(:,:),                                   &  ! m/s
-                                         model%climate%acab_applied(:,:),                      &  ! m on output; m/s below
-                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m on output; m/s below
-                                         ocean_mask(:,:),                                      &
-                                         effective_areafrac(:,:),                              &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -1373,20 +1403,18 @@ contains
                                          model%options%which_ho_vertical_remap,                &
                                          upwind_transport_in = do_upwind_transport)
 
-          ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers
-          ! (includes a halo update for tracers)
-          call glissade_transport_finish_tracers(model)
+          ! halo updates for thickness and tracers
+          call parallel_halo(thck_unscaled)
+          call parallel_halo_tracers(model%geometry%tracers)
 
        enddo     ! subcycling
+
+       ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
+       call glissade_transport_finish_tracers(model)
 
        ! convert thck back to scaled units
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-
-       ! convert applied mass balance from meters back to scaled model units
-       ! Without scaling, would still need to divide by dt to convert from m to m/s
-       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 / model%numerics%dt
-       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 / model%numerics%dt
 
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 

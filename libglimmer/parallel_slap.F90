@@ -224,6 +224,11 @@ module parallel
      module procedure parallel_halo_real8_3d
   end interface
 
+  interface parallel_halo_tracers
+     module procedure parallel_halo_tracers_real8_3d
+     module procedure parallel_halo_tracers_real8_4d
+  end interface
+
   interface parallel_halo_verify
      module procedure parallel_halo_verify_integer_2d
      module procedure parallel_halo_verify_real8_2d
@@ -1868,7 +1873,7 @@ contains
     ! begin
 
     ! staggered grid
-    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+    if (size(a,2)==local_ewn-1 .and. size(a,3)==local_nsn-1) return
 
     ! unknown grid
     if (size(a,2)/=local_ewn .or. size(a,3)/=local_nsn) then
@@ -1899,6 +1904,98 @@ contains
     endif
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_3d(a)
+
+    implicit none
+    real(dp),dimension(:,:,:) :: a
+
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3)) :: ecopy
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3)) :: wcopy
+    real(dp),dimension(local_ewn,lhalo,size(a,3)) :: ncopy
+    real(dp),dimension(local_ewn,uhalo,size(a,3)) :: scopy
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    if (outflow_bc) then
+
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:) = 0.d0
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:) = 0.d0
+       a(:,:lhalo,:) = 0.d0
+       a(:,local_nsn-uhalo+1:,:) = 0.d0
+
+    else    ! periodic BC
+
+       ecopy(:,:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:)
+       wcopy(:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:)
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:) = ecopy(:,:,:)
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:) = wcopy(:,:,:)
+
+       ncopy(:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:)
+       scopy(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:)
+       a(:,:lhalo,:) = ncopy(:,:,:)
+       a(:,local_nsn-uhalo+1:,:) = scopy(:,:,:)
+
+    endif
+
+  end subroutine parallel_halo_tracers_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_4d(a)
+
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: ecopy
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: wcopy
+    real(dp),dimension(local_ewn,lhalo,size(a,3),size(a,4)) :: ncopy
+    real(dp),dimension(local_ewn,uhalo,size(a,3),size(a,4)) :: scopy
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    if (outflow_bc) then
+
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:,:) = 0.d0
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:,:) = 0.d0
+       a(:,:lhalo,:,:) = 0.d0
+       a(:,local_nsn-uhalo+1:,:,:) = 0.d0
+
+    else    ! periodic BC
+
+       ecopy(:,:,:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:,:)
+       wcopy(:,:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:,:)
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:,:) = ecopy(:,:,:,:)
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:,:) = wcopy(:,:,:,:)
+
+       ncopy(:,:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:,:)
+       scopy(:,:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:,:)
+       a(:,:lhalo,:,:) = ncopy(:,:,:,:)
+       a(:,local_nsn-uhalo+1:,:,:) = scopy(:,:,:,:)
+
+    endif
+
+  end subroutine parallel_halo_tracers_real8_4d
 
 
   subroutine parallel_halo_extrapolate_integer_2d(a)

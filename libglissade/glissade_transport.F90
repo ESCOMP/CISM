@@ -49,7 +49,7 @@
     save
     private
 
-    public :: glissade_transport_driver, glissade_check_cfl, &
+    public :: glissade_mass_balance_driver, glissade_transport_driver, glissade_check_cfl, &
               glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
               glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
               glissade_add_mbal_anomaly
@@ -70,7 +70,6 @@
                                                 transport_tracers_in)
       
       ! This subroutine copies all the 3D tracer fields into a single array for transport.
-      ! It also does halo updates for tracers.
 
       use glide_types
 
@@ -147,7 +146,6 @@
          if (model%options%whichtemp == TEMP_PROGNOSTIC) then
 
             nt = nt + 1
-            call parallel_halo(model%temper%temp)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%temper%temp(k,:,:)
             enddo
@@ -157,7 +155,6 @@
          elseif (model%options%whichtemp == TEMP_ENTHALPY) then
 
             nt = nt + 1
-            call parallel_halo(model%temper%enthalpy)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%temper%enthalpy(k,:,:)
             enddo
@@ -170,7 +167,6 @@
          if (model%options%whichcalving == CALVING_DAMAGE) then
 
             nt = nt + 1
-            call parallel_halo(model%calving%damage)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%calving%damage(k,:,:)
             enddo
@@ -190,7 +186,6 @@
          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
 
             nt = nt + 1
-            call parallel_halo(model%geometry%ice_age)
             do k = 1, nlyr
                model%geometry%tracers(:,:,nt,k) = model%geometry%ice_age(k,:,:)
             enddo
@@ -243,13 +238,11 @@
          do k = 1, nlyr
             model%temper%temp(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
-         call parallel_halo(model%temper%temp)
       elseif (model%options%whichtemp == TEMP_ENTHALPY) then
          nt = nt+1
          do k = 1, nlyr
             model%temper%enthalpy(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
-         call parallel_halo(model%temper%enthalpy)
       endif
 
       ! damage parameter for prognostic calving scheme
@@ -258,10 +251,9 @@
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
          enddo
-         call parallel_halo(model%calving%damage)
 
          !WHL - debug
-!         print*, 'Remap finish: new damage tracer'
+!         print*, 'finish transport: new damage tracer'
 !         do k = 1, nlyr, nlyr-1
 !            print*, 'k =', k
 !!            do j = ny, 1, -1
@@ -282,49 +274,39 @@
          do k = 1, nlyr
             model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
-         call parallel_halo(model%geometry%ice_age)
       endif
       
       ! add more tracers here, if desired
-
-      !TODO - Do tracer halo updates here instead of at the end of glissade_transport_driver?
 
     end subroutine glissade_transport_finish_tracers
 
 !=======================================================================
 
-    subroutine glissade_transport_driver(dt,                         &
-                                         dx,           dy,           &
-                                         nx,           ny,           &
-                                         nlyr,         sigma,        &
-                                         uvel,         vvel,         &
-                                         thck,                       &
-                                         acab,         bmlt,         &
-                                         acab_applied, bmlt_applied, &
-                                         ocean_mask,                 &
-                                         effective_areafrac,         &
-                                         ntracers,     tracers,      &
-                                         tracers_usrf, tracers_lsrf, &
-                                         vert_remap_accuracy,        &
-                                         upwind_transport_in)
+    subroutine glissade_mass_balance_driver(dt,                         &
+                                            dx,           dy,           &
+                                            nx,           ny,           &
+                                            nlyr,         sigma,        &
+                                            thck,                       &
+                                            acab,         bmlt,         &
+                                            acab_applied, bmlt_applied, &
+                                            ocean_mask,                 &
+                                            effective_areafrac,         &
+                                            ntracers,     tracers,      &
+                                            tracers_usrf, tracers_lsrf, &
+                                            vert_remap_accuracy)
 
-
-      ! This subroutine solves the transport equations for one timestep
-      ! using the conservative remapping scheme developed by John Dukowicz
-      ! and John Baumgardner and modified for sea ice by William
-      ! Lipscomb and Elizabeth Hunke.
+      ! This subroutine applies the surface and basal mass balance to each grid cell,
+      !  keeping track of the total mass balance applied at each surface.
       !
-      ! This scheme preserves monotonicity of ice area and tracers.  That is,
-      ! it does not produce new extrema.  It is second-order accurate in space,
-      ! except where gradients are limited to preserve monotonicity. 
-      !
-      ! Optionally, the remapping scheme can be replaced with a simple
-      ! first-order upwind scheme.
+      ! Note: The SMB and BMB are not applied to ocean cells.
+      !       For cells with an effective area less than 1 (e.g., calving-front cells),
+      !        the SMB and BMB are applied only to the ice-covered part of the cell.
       !
       ! author William H. Lipscomb, LANL
       !
       ! input/output arguments
 
+      !TODO - Is dt needed?
       real(dp), intent(in) ::  &
          dt,                   &! time step (s)
          dx, dy                 ! gridcell dimensions (m)
@@ -337,10 +319,6 @@
       real(dp), dimension(nlyr+1), intent(in) ::  &
          sigma                  ! layer interfaces in sigma coordinates
                                 ! top sfc = 0, bottom sfc = 1
-
-      real(dp), dimension(nlyr+1,nx-1,ny-1), intent(in) ::  &
-         uvel, vvel             ! horizontal velocity components (m/s)
-                                ! (defined at horiz cell corners, vertical interfaces)
 
       real(dp), dimension(nx,ny), intent(in) ::  &
          effective_areafrac     ! effective fractional area, in range [0,1]
@@ -356,9 +334,7 @@
                                 ! includes melting for both grounded and floating ice
                                 ! (defined at horiz cell centers)
 
-      ! Note: These fields are accumulated in units of meters during successive calls to glissade_transport_driver.
-      !       (There can be multiple calls per time step if transport is subcycled.)
-      !       After the last call, they are converted to m/s.
+      ! Note: These fields are accumulated in units of meters, then converted to m/s.
       real(dp), dimension(nx,ny), intent(inout) ::  &
          acab_applied,    &     ! surface mass balance applied to ice (m)
                                 ! = 0 for ice-free cells where acab < 0
@@ -383,22 +359,12 @@
          vert_remap_accuracy    ! order of accuracy for vertical remapping
                                 ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
 
-      logical, intent(in), optional ::  &
-         upwind_transport_in    ! if true, do first-order upwind transport
-
       ! local variables
 
       integer ::     &
          i, j, k         ,&! cell indices
          ilo,ihi,jlo,jhi ,&! beginning and end of physical domain
          nt                ! tracer index
-
-      real(dp), dimension (nx,ny) ::     &
-         thck_mask         ! = 1. if ice is present, = 0. otherwise
-
-      real(dp), dimension (nx-1,ny-1) ::     &
-         uvel_layer      ,&! uvel averaged to layer midpoint (m/s)
-         vvel_layer        ! vvel averaged to layer midpoint (m/s)
 
       real(dp), dimension (nx,ny,nlyr) ::     &
          thck_layer        ! ice layer thickness (m)
@@ -413,22 +379,11 @@
          sum_acab,       & ! global sum of applied accumulation/ablation
          sum_bmlt          ! global sum of applied basal melting
 
-      !-------------------------------------------------------------------
-      ! If prescribed_area is true, the area of each departure region is
-      !  computed in advance (e.g., by taking the divergence of the 
-      !  velocity field and passed to locate_triangles.  The departure 
-      !  regions are adjusted to obtain the desired area.
-      ! If false, edgearea is computed in locate_triangles and passed out.
-      !-------------------------------------------------------------------
-
-      real(dp), dimension(nx,ny) ::   &
-         edgearea_e     ,&! area of departure regions for east edges
-         edgearea_n       ! area of departure regions for north edges
-
       real(dp) ::     &
          msum_init,      &! initial global ice mass
          msum_final       ! final global ice mass
 
+      !TODO - Delete these?
       real(dp), dimension(ntracers) ::     &
          mtsum_init,     &! initial global ice mass*tracer
          mtsum_final      ! final global ice mass*tracer
@@ -444,21 +399,6 @@
 
       character(len=100) :: message
 
-      real(dp), dimension (:,:,:), allocatable :: &
-         worku            ! work array
-
-      real(dp), dimension(nx,ny) ::      &
-         uee, vnn            ! cell edge velocities for upwind transport
-
-      logical ::     &
-         upwind_transport    ! if true, do first-order upwind transport
-
-      real(dp), dimension(nlyr,nx,ny) :: &
-         thck_layer_temp     ! temporary array for halo updates
-
-      real(dp), dimension(nlyr,nx,ny) :: &
-         tracer_temp         ! temporary array for halo updates
-
       real(dp) ::  &
          max_acab, max_bmlt  ! max magnitudes of acab and bmlt
 
@@ -466,27 +406,8 @@
       ! Initialize
       !-------------------------------------------------------------------
 
-      if (present(upwind_transport_in)) then
-         upwind_transport = upwind_transport_in
-      else
-         upwind_transport = .false.
-      endif
-
       errflag = .false.
       melt_potential(:,:) = 0.d0
-
-      !Note: (ilo,ihi) and (jlo,jhi) are the lower and upper bounds of the local domain
-      ! (i.e., grid cells owned by this processor).
-
-      ilo = nhalo + 1
-      ihi = nx - nhalo
-      jlo = nhalo + 1
-      jhi = ny - nhalo
-
-      !-------------------------------------------------------------------
-      ! NOTE: Mass and tracer arrays (thck, temp, etc.) must be updated in 
-      !       halo cells before this subroutine is called. 
-      !-------------------------------------------------------------------
 
       !-------------------------------------------------------------------
       ! Fill layer thickness array.
@@ -512,8 +433,8 @@
       !-------------------------------------------------------------------
       ! Add the mass balance at the surface and bed.
       ! Note: This used to be done after horizontal transport.
-      !       It was moved here so that the ocean_mask and areafrac arrays
-      !        would still be up to date from the end of the previous timestep,
+      !       Now it is done before horizontal transport, so that the ocean_mask
+      !        and areafrac arrays are the same as at the end of the previous timestep,
       !        before being modified by horizontal transport.
       !
       ! Assume that new ice arrives at the surface with the current surface temperature.
@@ -619,40 +540,187 @@
 
          endif      ! conservation_check
 
-         ! Halo updates after adding SMB and BMB
-         ! Thickness and tracers must be correct in halos before horizontal transport.
-
-         ! Currently there is no parallel_halo interface for arrays with 'nlyr'
-         !  in the last slot, so it is necessary to copy 3D slices back and forth.
-         ! These updates could be skipped if glissade_add_smb looped over all cells
-         !  with up-to-date halo values, but it is safer to do an update here.
-
+         ! Recompute thickness
+         thck(:,:) = 0.d0
          do k = 1, nlyr
-            thck_layer_temp(k,:,:) = thck_layer(:,:,k)
-         enddo
-         call parallel_halo(thck_layer_temp)
-         do k = 1, nlyr
-            thck_layer(:,:,k) = thck_layer_temp(k,:,:)
-         enddo
-
-         do nt = 1, ntracers
-            do k = 1, nlyr
-               tracer_temp(k,:,:) = tracers(:,:,nt,k)
-            enddo
-            call parallel_halo(tracer_temp)
-            do k = 1, nlyr
-               tracers(:,:,nt,k) = tracer_temp(k,:,:)
-            enddo
-         enddo
-
-         ! Recompute thickness (used by make_remap_masks below)
-         do j = 1, ny
-            do i = 1, nx
-               thck(i,j) = sum(thck_layer(i,j,:))
-            enddo
+            thck(:,:) = thck(:,:) + thck_layer(:,:,k)
          enddo
 
       endif  ! max_acab > 0 or max_bmlt > 0
+
+
+    end subroutine glissade_mass_balance_driver
+
+!=======================================================================
+
+    subroutine glissade_transport_driver(dt,                         &
+                                         dx,           dy,           &
+                                         nx,           ny,           &
+                                         nlyr,         sigma,        &
+                                         uvel,         vvel,         &
+                                         thck,                       &
+                                         ntracers,     tracers,      &
+                                         tracers_usrf, tracers_lsrf, &
+                                         vert_remap_accuracy,        &
+                                         upwind_transport_in)
+
+
+      ! This subroutine solves the transport equations for one timestep
+      ! using the conservative remapping scheme developed by John Dukowicz
+      ! and John Baumgardner and modified for sea ice by William
+      ! Lipscomb and Elizabeth Hunke.
+      !
+      ! This scheme preserves monotonicity of ice area and tracers.  That is,
+      ! it does not produce new extrema.  It is second-order accurate in space,
+      ! except where gradients are limited to preserve monotonicity. 
+      !
+      ! Optionally, the remapping scheme can be replaced with a simple
+      ! first-order upwind scheme.
+      !
+      ! author William H. Lipscomb, LANL
+      !
+      ! input/output arguments
+
+      real(dp), intent(in) ::  &
+         dt,                   &! time step (s)
+         dx, dy                 ! gridcell dimensions (m)
+                                ! (cells assumed to be rectangular)
+
+      integer, intent(in) ::   &
+         nx, ny,               &! horizontal array size
+         nlyr                   ! number of vertical layers
+
+      real(dp), dimension(nlyr+1), intent(in) ::  &
+         sigma                  ! layer interfaces in sigma coordinates
+                                ! top sfc = 0, bottom sfc = 1
+
+      real(dp), dimension(nlyr+1,nx-1,ny-1), intent(in) ::  &
+         uvel, vvel             ! horizontal velocity components (m/s)
+                                ! (defined at horiz cell corners, vertical interfaces)
+
+      real(dp), dimension(nx,ny), intent(inout) ::  &
+         thck                   ! ice thickness (m), defined at horiz cell centers
+
+      integer, intent(in) ::  &
+         ntracers               ! number of tracers to be transported
+
+      !TODO - Make the tracer arrays optional arguments?
+      real(dp), dimension(nx,ny,ntracers,nlyr), intent(inout) ::  &
+         tracers                ! set of 3D tracer arrays, packed into a 4D array
+
+      real(dp), dimension(nx,ny,ntracers), intent(in) :: &
+         tracers_usrf,         &! tracer values associated with accumulation at upper surface
+         tracers_lsrf           ! tracer values associated with freeze-on at lower surface
+
+      integer, intent(in) ::  &
+         vert_remap_accuracy    ! order of accuracy for vertical remapping
+                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+
+      logical, intent(in), optional ::  &
+         upwind_transport_in    ! if true, do first-order upwind transport
+
+      ! local variables
+
+      integer ::     &
+         i, j, k         ,&! cell indices
+         ilo,ihi,jlo,jhi ,&! beginning and end of physical domain
+         nt                ! tracer index
+
+      real(dp), dimension (nx,ny) ::     &
+         thck_mask         ! = 1. if ice is present, = 0. otherwise
+
+      real(dp), dimension (nx-1,ny-1) ::     &
+         uvel_layer      ,&! uvel averaged to layer midpoint (m/s)
+         vvel_layer        ! vvel averaged to layer midpoint (m/s)
+
+      real(dp), dimension (nx,ny,nlyr) ::     &
+         thck_layer        ! ice layer thickness (m)
+
+      integer ::     &
+         icells            ! number of cells with ice
+
+      integer, dimension(nx*ny) ::     &
+         indxi, indxj      ! compressed i/j indices
+
+      !-------------------------------------------------------------------
+      ! If prescribed_area is true, the area of each departure region is
+      !  computed in advance (e.g., by taking the divergence of the
+      !  velocity field and passed to locate_triangles.  The departure
+      !  regions are adjusted to obtain the desired area.
+      ! If false, edgearea is computed in locate_triangles and passed out.
+      !-------------------------------------------------------------------
+
+      real(dp), dimension(nx,ny) ::   &
+         edgearea_e     ,&! area of departure regions for east edges
+         edgearea_n       ! area of departure regions for north edges
+
+      real(dp) ::     &
+         msum_init,      &! initial global ice mass
+         msum_final       ! final global ice mass
+
+      real(dp), dimension(ntracers) ::     &
+         mtsum_init,     &! initial global ice mass*tracer
+         mtsum_final      ! final global ice mass*tracer
+
+      logical ::     &
+         errflag          ! true if energy is not conserved
+
+      character(len=100) :: message
+
+      real(dp), dimension (:,:,:), allocatable :: &
+         worku            ! work array
+
+      real(dp), dimension(nx,ny) ::      &
+         uee, vnn            ! cell edge velocities for upwind transport
+
+      logical ::     &
+         upwind_transport    ! if true, do first-order upwind transport
+
+      !-------------------------------------------------------------------
+      ! Initialize
+      !-------------------------------------------------------------------
+
+      if (present(upwind_transport_in)) then
+         upwind_transport = upwind_transport_in
+      else
+         upwind_transport = .false.
+      endif
+
+      errflag = .false.
+
+      !Note: (ilo,ihi) and (jlo,jhi) are the lower and upper bounds of the local domain
+      ! (i.e., grid cells owned by this processor).
+
+      ilo = nhalo + 1
+      ihi = nx - nhalo
+      jlo = nhalo + 1
+      jhi = ny - nhalo
+
+      !-------------------------------------------------------------------
+      ! NOTE: Mass and tracer arrays (thck, temp, etc.) must be updated in 
+      !       halo cells before this subroutine is called. 
+      !-------------------------------------------------------------------
+
+      !-------------------------------------------------------------------
+      ! Fill layer thickness array.
+      !-------------------------------------------------------------------
+
+      do k = 1, nlyr
+         thck_layer(:,:,k) = thck(:,:) * (sigma(k+1) - sigma(k))
+      enddo
+
+      !-------------------------------------------------------------------
+      ! Compute initial values of globally conserved quantities (optional)
+      !-------------------------------------------------------------------
+
+      if (conservation_check) then
+
+         call sum_mass_and_tracers(nx,                ny,              &
+                                   nlyr,              ntracers,        &
+                                   nhalo,                              &
+                                   thck_layer(:,:,:), msum_init,       &
+                                   tracers(:,:,:,:),  mtsum_init(:))
+      endif
 
       !-------------------------------------------------------------------
       ! Horizontal transport of ice thickness and tracers
@@ -704,7 +772,7 @@
                                   uee(:,:),       vnn    (:,:))
             enddo   ! ntracers
 
-            ! Recompute thickness and tracers
+            ! Recompute tracers
 
             thck_layer(:,:,k) = worku(:,:,0)
             do nt = 1, ntracers
@@ -862,7 +930,7 @@
       if (conservation_check) then
 
          ! Update msum_init and mtsum_init
-         msum_init = msum_final   ! msum_final computed above after horizontal transport
+         msum_init = msum_final           ! msum_final computed above after horizontal transport
          mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after horizontal transport
  
          ! Compute new values of globally conserved quantities.
@@ -894,16 +962,14 @@
       endif      ! conservation_check
 
       !-------------------------------------------------------------------
-      ! Recompute thickness and do a halo update
-      ! Note: Halo updates for tracers are done in glissade_transport_tracer_finish.
+      ! Recompute thickness
+      ! Note: Halo updates for thickness and tracers are done in glissade_transport_solve.
       !-------------------------------------------------------------------
 
       thck(:,:) = 0.d0
       do k = 1, nlyr
          thck(:,:) = thck(:,:) + thck_layer(:,:,k)
       enddo
-
-      call parallel_halo(thck)
 
     end subroutine glissade_transport_driver
 
@@ -1323,11 +1389,11 @@
                                 ! > 0 for melting, < 0 for freeze-on
 
       real(dp), intent(inout), dimension(nx,ny) :: &
-         acab_applied           ! surface mass balance applied to ice (m)
+         acab_applied           ! surface mass balance applied to ice (m/s)
                                 ! = 0 in ice-free regions where acab < 0
 
       real(dp), intent(inout), dimension(nx,ny) :: &
-         bmlt_applied           ! basal melt rate applied to ice (m)
+         bmlt_applied           ! basal melt rate applied to ice (m/s)
                                 ! = 0 in ice-free regions where bmlt > 0
 
       real(dp), intent(out), dimension(nx,ny) :: &
@@ -1535,6 +1601,10 @@
             enddo
          enddo
       endif
+
+      ! convert diagnostic output from m to m/s
+      acab_applied(:,:) = acab_applied(:,:) / dt
+      bmlt_applied(:,:) = bmlt_applied(:,:) / dt
 
     end subroutine glissade_add_smb
 
