@@ -4558,8 +4558,8 @@
 
        !WHL - Old method is to compute the spreading term only for active floating cells.
        !      New method is to compute the spreading term for any cliff; i.e., any active cell that borders the ocean.
-       if (active_cell(i,j) .and. floating_mask(i,j) == 1) then   ! ice is active and floating
-!!       if (active_cell(i,j)) then
+!!       if (active_cell(i,j) .and. floating_mask(i,j) == 1) then   ! ice is active and floating
+       if (active_cell(i,j)) then
 
           if ( ocean_mask(i-1,j) == 1 .or.  &
               (calving_front_mask(i-1,j) == 1 .and. .not.active_cell(i-1,j)) ) then ! compute lateral BC for west face
@@ -4866,14 +4866,14 @@
           !  this quadrature point.
           ! Increment loadu for east/west faces and loadv for north/south faces.
 
-          !WHL - If I use the first formula, answers change for shelf problems even though
-          !      this subroutine is called only for floating ice. Think about why this is so.
-          ! This formula works for ice that either is floating or is partially submerged without floating
-!!          p_av = 0.5d0*rhoi*grav*h_qp &                                   ! p_out
-!!               - 0.5d0*rhoo*grav*h_qp * (1.d0 - min(s_qp/h_qp,1.d0))**2   ! p_in
+          ! This formula works not just for floating ice, but for any edge between
+          !  an active ice-covered cell and an ocean cell.
+          p_av = 0.5d0*rhoi*grav*h_qp &                                   ! p_out
+               - 0.5d0*rhoo*grav*h_qp * (1.d0 - min(s_qp/h_qp,1.d0))**2   ! p_in
 
           ! This formula works for floating ice.
-          p_av = 0.5d0*rhoi*grav*h_qp * (1.d0 - rhoi/rhoo)
+          ! It can be derived from the formula above using Archimedes: rhoi*h = rhoo*(h-s) 
+!!          p_av = 0.5d0*rhoi*grav*h_qp * (1.d0 - rhoi/rhoo)
 
           if (trim(face) == 'west') then  ! net force in -x direction
 

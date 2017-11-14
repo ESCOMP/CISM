@@ -521,7 +521,7 @@ contains
          model%options%is_restart == RESTART_FALSE) then
 
        ! ------------------------------------------------------------------------
-       ! Remove ice that should calve, depending on the value of whichcalving
+       ! Remove ice that should calve, depending on the value of whichcalving.
        !TODO - Make sure we have done the necessary halo updates before calving
        ! Note: This initial call includes the optional cull_calving_front argument,
        !        which if true can remove floating peninsulas in the input data by
@@ -569,7 +569,7 @@ contains
 
        ! The mask needs to be recalculated after calving.
        ! Note: glide_set_mask includes a halo update for thkmask.
-       !TODO - Replace with glissade masks?
+       !TODO - Delete this call? Replace with glissade masks?
        call glide_set_mask(model%numerics,                                &
                            model%geometry%thck,  model%geometry%topg,     &
                            model%general%ewn,    model%general%nsn,       &
@@ -1579,7 +1579,7 @@ contains
     !       calving law while also limiting calving-front advance, we can use the no_advance mask.
     do j = 1, model%general%nsn
        do i = 1, model%general%ewn
-          if (model%climate%no_advance_mask(i,j) == 1) then
+          if (model%climate%no_advance_mask(i,j) == 1 .and. model%geometry%thck(i,j) > 0.0d0) then
              model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + model%geometry%thck(i,j)
              model%geometry%thck(i,j) = 0.d0
              ! Note: Tracers (temp, etc.) are cleaned up later by call to glissade_cleanup_icefree_cells
