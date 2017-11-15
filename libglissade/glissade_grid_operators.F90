@@ -1388,38 +1388,38 @@ contains
        enddo
     enddo
 
-    !WHL - This is an lternate method of averaging edge gradients to vertices, following glissade_centered_gradient.
-    !       To be commented out.
+    !WHL - This is an alternate method of averaging edge gradients to vertices, following glissade_centered_gradient.
+    !       It is commented out.
     !      For the dome problem, the differences between gradient_margin methods 1 and 3
-    !       come from replacing these lines with the ds_dx and ds_dy calculation above.
-    do j = 1, ny-1
-       do i = 1, nx-1
-          if (ds_dx_edge(i,j) /= 0.0d0 .and. ds_dx_edge(i,j+1) /= 0.0d0) then
-             ds_dx(i,j) = 0.5d0 * (ds_dx_edge(i,j) + ds_dx_edge(i,j+1))
-          elseif (ds_dx_edge(i,j) /= 0.0d0) then
-             ds_dx(i,j) = ds_dx_edge(i,j)
-          elseif (ds_dx_edge(i,j+1) /= 0.0d0) then
-             ds_dx(i,j) = ds_dx_edge(i,j+1)
-          else
-             ds_dx(i,j) = 0.d0
-          endif
-       enddo
-    enddo
+    !       come from replacing these lines with the ds_dx and ds_dy calculations above.
 
-    do j = 1, ny-1
-       do i = 1, nx-1
-          if (ds_dy_edge(i,j) /= 0.0d0 .and. ds_dy_edge(i+1,j) /= 0.0d0) then
-             ds_dy(i,j) = 0.5d0 * (ds_dy_edge(i,j) + ds_dy_edge(i+1,j))
-          elseif (ds_dy_edge(i,j) /= 0.0d0) then
-             ds_dy(i,j) = ds_dy_edge(i,j)
-          elseif (ds_dy_edge(i+1,j) /= 0.0d0) then
-             ds_dy(i,j) = ds_dy_edge(i+1,j)
-          else
-             ds_dy(i,j) = 0.d0
-          endif
-       enddo
-    enddo
+!    do j = 1, ny-1
+!       do i = 1, nx-1
+!          if (ds_dx_edge(i,j) /= 0.0d0 .and. ds_dx_edge(i,j+1) /= 0.0d0) then
+!             ds_dx(i,j) = 0.5d0 * (ds_dx_edge(i,j) + ds_dx_edge(i,j+1))
+!          elseif (ds_dx_edge(i,j) /= 0.0d0) then
+!             ds_dx(i,j) = ds_dx_edge(i,j)
+!          elseif (ds_dx_edge(i,j+1) /= 0.0d0) then
+!             ds_dx(i,j) = ds_dx_edge(i,j+1)
+!          else
+!             ds_dx(i,j) = 0.d0
+!          endif
+!       enddo
+!    enddo
 
+!    do j = 1, ny-1
+!       do i = 1, nx-1
+!          if (ds_dy_edge(i,j) /= 0.0d0 .and. ds_dy_edge(i+1,j) /= 0.0d0) then
+!             ds_dy(i,j) = 0.5d0 * (ds_dy_edge(i,j) + ds_dy_edge(i+1,j))
+!          elseif (ds_dy_edge(i,j) /= 0.0d0) then
+!             ds_dy(i,j) = ds_dy_edge(i,j)
+!          elseif (ds_dy_edge(i+1,j) /= 0.0d0) then
+!             ds_dy(i,j) = ds_dy_edge(i+1,j)
+!          else
+!             ds_dy(i,j) = 0.d0
+!          endif
+!       enddo
+!    enddo
 
     ! Optionally, limit ds/dx and ds/dy
 
