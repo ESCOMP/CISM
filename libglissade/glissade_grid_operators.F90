@@ -49,7 +49,7 @@ module glissade_grid_operators
     public :: glissade_stagger, glissade_unstagger,    &
               glissade_centered_gradient, glissade_upstream_gradient,    &
               glissade_gradient_at_edges,  &
-              glissade_hybrid_surface_elevation_gradient,  &
+              glissade_surface_elevation_gradient,  &
               glissade_vertical_average
 
     logical, parameter :: verbose_gradient = .false.
@@ -248,27 +248,35 @@ contains
     ! At the ice margin, where one cell adjacent to a given edge is ice-free,
     !  edge gradients may be masked in the following ways:
     !
-    ! HO_GRADIENT_MARGIN_ALL = 0: Values in both adjacent cells are used to compute the gradient, including
-    !  values in ice-free cells.  In other words, there is no masking of edges.
+    ! HO_GRADIENT_MARGIN_ALL = 0: Values in both adjacent cells are used to compute the gradient,
+    !  including values in ice-free cells.  In other words, there is no masking of edges.
     !  This convention is used by Glide. It works well at land-terminating margins, but performs poorly
     !  for ice shelves with a sudden drop in ice thickness and surface elevation at the margin.
     !
-    ! HO_GRADIENT_MARGIN_HYBRID = 1: The gradient is computed at edges where either
+    ! HO_GRADIENT_MARGIN_GROUNDED_ICE = 1: The gradient is computed at edges where either
     ! (1) Both adjacent cells are ice-covered.
     ! (2) One cell is ice-covered and grounded, and lies above the other cell.
     !
     ! The edge is masked out where a floating cell is adjacent to an ice-free ocean cell,
     ! or where an ice-covered cell lies below an ice-free land cell (i.e., a nunatak).
-    !
-    ! The intent is to give a reasonable gradient at both land-terminating and marine-terminating margins.
     ! At land-terminating margins the gradient is nonzero (except for the nunatak case),
-    ! and at marine-terminating margins the gradient is zero (unless the ice-covered cell is grounded)..
+    ! and at marine-terminating margins the gradient is zero (unless the ice-covered cell is grounded).
+    !
+    ! This option used to be the default. However, it can overestimate driving forces at grounded marine
+    !  margins where spreading is driven by lateral forces even when the surface gradient is zero.
     !
     ! HO_GRADIENT_MARGIN_ICE_ONLY = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
     !  are used to compute gradients.  If one or both adjacent cells is ice-free, the edge is masked out.
     !  This option works well at shelf margins but less well for land margins (e.g., the Halfar test case).
     !
-    ! Since option (1) generally works well at both land and marine boundaries, it is the default.
+    ! HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3: The gradient is computed at edges where either
+    ! (1) Both adjacent cells are ice-covered.
+    ! (2) One cell is ice-covered and lies above ice-free land.
+    !
+    ! Method 3 does not compute a gradient at edges where ice lies above ocean cells.
+    ! At these edges, lateral forces drive spreading in the absence of a surface gradient.
+    ! This method works well at both land- and marine-terminating margins.
+    ! It is the default for higher-order simulations.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -292,14 +300,13 @@ contains
        ice_mask                 ! = 1 where ice is present, else = 0
 
     integer, intent(in), optional ::    &
-       gradient_margin_in       ! 0: use all values when computing gradient (including zeroes where ice is absent)
-                                ! 1: use values in ice-covered and/or land cells (but not ocean cells); see details above
-                                !    If one or more values is masked out, construct df_fx and df_dy from the others
-                                ! 2: use values in ice-covered cells only
-                                !    If one or more values is masked out, construct df_fx and df_dy from the others
+       gradient_margin_in       ! 0: Compute edge gradient when either cell is ice-covered
+                                ! 1: Compute edge gradient for grounded ice above ice-free land or ocean
+                                ! 2: Compute edge gradient only when both cells have ice
+                                ! 3: Compute edge gradient for ice-covered cell above ice-free land (not ocean)
 
     real(dp), dimension(nx,ny), intent(in), optional ::       &
-       usrf                     ! ice surface elevation (required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID/HYBRID)
+       usrf                     ! ice surface elevation)
 
     integer, dimension(nx,ny), intent(in), optional ::        &
        floating_mask,         & ! = 1 for cells where ice is present and floating, else = 0
@@ -340,7 +347,7 @@ contains
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
-       gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+       gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
     endif
 
     ! Create masks identifying edges that will be used in gradient computations
@@ -350,16 +357,16 @@ contains
        edge_mask_x(:,:) = .true.       ! true for all edges
        edge_mask_y(:,:) = .true.
 
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
+    elseif (gradient_margin == HO_GRADIENT_MARGIN_GROUNDED_ICE) then
 
        if (present(floating_mask) .and. present(land_mask) .and. present(usrf)) then
 
-          call glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
-                                                        ice_mask,                &
-                                                        floating_mask,           &
-                                                        land_mask,               &
-                                                        usrf,                    &
-                                                        edge_mask_x, edge_mask_y)
+          call glissade_edgemask_gradient_margin_grounded_ice(nx,          ny,         &
+                                                              ice_mask,                &
+                                                              floating_mask,           &
+                                                              land_mask,               &
+                                                              usrf,                    &
+                                                              edge_mask_x, edge_mask_y)
        else
           call write_log('Must pass in floating_mask and usrf to use this gradient_margin option', GM_FATAL)
        endif   ! present(floating_mask), etc.
@@ -561,7 +568,7 @@ contains
     integer, dimension(nx,ny), intent(in), optional ::        &
        floating_mask,        &  ! = 1 where ice is present and floating, else = 0
        land_mask                ! = 1 for land cells, else = 0
-                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
 
     real(dp), intent(in), optional :: &
        max_slope               ! maximum slope allowed for surface gradient computations (unitless)
@@ -605,7 +612,7 @@ contains
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
-       gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+       gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
     endif
 
     ! Set integer edge mask based on gradient_margin.
@@ -615,16 +622,16 @@ contains
        edge_mask_x(:,:) = .true.       ! true for all edges
        edge_mask_y(:,:) = .true.
 
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
+    elseif (gradient_margin == HO_GRADIENT_MARGIN_GROUNDED_ICE) then
 
        if (present(floating_mask) .and. present(land_mask)) then
 
-          call glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
-                                                        ice_mask,                &
-                                                        floating_mask,           &
-                                                        land_mask,               &
-                                                        usrf,                    &
-                                                        edge_mask_x, edge_mask_y)
+          call glissade_edgemask_gradient_margin_grounded_ice(nx,          ny,         &
+                                                              ice_mask,                &
+                                                              floating_mask,           &
+                                                              land_mask,               &
+                                                              usrf,                    &
+                                                              edge_mask_x, edge_mask_y)
        else
           call write_log('Must pass in floating_mask to use this gradient_margin option', GM_FATAL)
        endif   ! present(floating_mask)
@@ -944,7 +951,7 @@ contains
     integer, dimension(nx,ny), intent(in), optional ::        &
        floating_mask,         & ! = 1 where ice is present and floating, else = 0
        land_mask                ! = 1 for land cells, else = 0
-                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
 
     real(dp), intent(in), optional :: &
        max_slope                ! maximum slope allowed for surface gradient computations (unitless)
@@ -986,7 +993,7 @@ contains
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
-       gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+       gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
     endif
 
     ! Set integer edge mask based on gradient_margin.
@@ -996,16 +1003,16 @@ contains
        edge_mask_x(:,:) = .true.       ! true for all edges
        edge_mask_y(:,:) = .true.
 
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
+    elseif (gradient_margin == HO_GRADIENT_MARGIN_GROUNDED_ICE) then
 
        if (present(floating_mask) .and. present(land_mask) .and. present(usrf)) then
 
-          call glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
-                                                        ice_mask,                &
-                                                        floating_mask,           &
-                                                        land_mask,               &
-                                                        usrf,                    &
-                                                        edge_mask_x, edge_mask_y)
+          call glissade_edgemask_gradient_margin_grounded_ice(nx,          ny,         &
+                                                              ice_mask,                &
+                                                              floating_mask,           &
+                                                              land_mask,               &
+                                                              usrf,                    &
+                                                              edge_mask_x, edge_mask_y)
        else
           call write_log('Must pass in floating mask and usrf to use this gradient_margin option', GM_FATAL)
        endif   ! present(floating_mask), etc.
@@ -1111,15 +1118,15 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
-                                                      ice_mask,                &
-                                                      floating_mask,           &
-                                                      land_mask,               &
-                                                      usrf,                    &
-                                                      edge_mask_x, edge_mask_y)
+  subroutine glissade_edgemask_gradient_margin_grounded_ice(nx,          ny,         &
+                                                            ice_mask,                &
+                                                            floating_mask,           &
+                                                            land_mask,               &
+                                                            usrf,                    &
+                                                            edge_mask_x, edge_mask_y)
     
     !----------------------------------------------------------------
-    ! Compute edge masks required for option gradient_margin = HO_GRADIENT_MARGIN_HYBRID.
+    ! Compute edge masks required for option gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE.
     !
     ! The mask is set to true at all edges where either
     ! (1) Both adjacent cells are ice-covered.
@@ -1199,23 +1206,23 @@ contains
        enddo
     enddo
 
-  end subroutine glissade_edgemask_gradient_margin_hybrid
+  end subroutine glissade_edgemask_gradient_margin_grounded_ice
 
 !****************************************************************************
 
-  subroutine glissade_hybrid_surface_elevation_gradient(nx,          ny,         &
-                                                        dx,          dy,         &
-                                                        active_ice_mask,         &
-                                                        land_mask,               &
-                                                        usrf,        thck,       &
-                                                        topg,        eus,        &
-                                                        thklim,                  &
-                                                        thck_gradient_ramp,      &
-                                                        ds_dx,       ds_dy,      &
-                                                        max_slope)
+  subroutine glissade_surface_elevation_gradient(nx,          ny,         &
+                                                 dx,          dy,         &
+                                                 active_ice_mask,         &
+                                                 land_mask,               &
+                                                 usrf,        thck,       &
+                                                 topg,        eus,        &
+                                                 thklim,                  &
+                                                 thck_gradient_ramp,      &
+                                                 ds_dx,       ds_dy,      &
+                                                 max_slope)
     
     !----------------------------------------------------------------
-    ! Compute surface elevation gradients for option gradient_margin = HO_GRADIENT_MARGIN_HYBRID_NEW.
+    ! Compute surface elevation gradients for option gradient_margin = HO_GRADIENT_MARGIN_ICE_OVER_LAND.
     !
     ! The gradient is nonzero at edges where either
     ! (1) Both adjacent cells have active ice.
@@ -1228,7 +1235,7 @@ contains
     !
     ! The intent is to give a reasonable gradient at both land-terminating and marine-terminating margins.
     ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
-    !  margins the gradient is zero (unless the ice-covered cell is grounded).
+    !  margins the gradient is zero.
     !
     ! At some edges, gradients are reduced to inhibit oscillations:
     ! - If the ice in the upper-lying cell is thin (thklim < thck < thklim + thck_gradient_ramp), the gradient is reduced.
@@ -1381,34 +1388,37 @@ contains
        enddo
     enddo
 
-    !WHL - alternate method to imitate glissade_centered_gradient
-!    do j = 1, ny-1
-!       do i = 1, nx-1
-!          if (ds_dx_edge(i,j) /= 0.0d0 .and. ds_dx_edge(i,j+1) /= 0.0d0) then
-!             ds_dx(i,j) = 0.5d0 * (ds_dx_edge(i,j) + ds_dx_edge(i,j+1))
-!          elseif (ds_dx_edge(i,j) /= 0.0d0) then
-!             ds_dx(i,j) = ds_dx_edge(i,j)
-!          elseif (ds_dx_edge(i,j+1) /= 0.0d0) then
-!             ds_dx(i,j) = ds_dx_edge(i,j+1)
-!          else
-!             ds_dx(i,j) = 0.d0
-!          endif
-!       enddo
-!    enddo
+    !WHL - This is an lternate method of averaging edge gradients to vertices, following glissade_centered_gradient.
+    !       To be commented out.
+    !      For the dome problem, the differences between gradient_margin methods 1 and 3
+    !       come from replacing these lines with the ds_dx and ds_dy calculation above.
+    do j = 1, ny-1
+       do i = 1, nx-1
+          if (ds_dx_edge(i,j) /= 0.0d0 .and. ds_dx_edge(i,j+1) /= 0.0d0) then
+             ds_dx(i,j) = 0.5d0 * (ds_dx_edge(i,j) + ds_dx_edge(i,j+1))
+          elseif (ds_dx_edge(i,j) /= 0.0d0) then
+             ds_dx(i,j) = ds_dx_edge(i,j)
+          elseif (ds_dx_edge(i,j+1) /= 0.0d0) then
+             ds_dx(i,j) = ds_dx_edge(i,j+1)
+          else
+             ds_dx(i,j) = 0.d0
+          endif
+       enddo
+    enddo
 
-!    do j = 1, ny-1
-!       do i = 1, nx-1
-!          if (ds_dy_edge(i,j) /= 0.0d0 .and. ds_dy_edge(i+1,j) /= 0.0d0) then
-!             ds_dy(i,j) = 0.5d0 * (ds_dy_edge(i,j) + ds_dy_edge(i+1,j))
-!          elseif (ds_dy_edge(i,j) /= 0.0d0) then
-!             ds_dy(i,j) = ds_dy_edge(i,j)
-!          elseif (ds_dy_edge(i+1,j) /= 0.0d0) then
-!             ds_dy(i,j) = ds_dy_edge(i+1,j)
-!          else
-!             ds_dy(i,j) = 0.d0
-!          endif
-!       enddo
-!    enddo
+    do j = 1, ny-1
+       do i = 1, nx-1
+          if (ds_dy_edge(i,j) /= 0.0d0 .and. ds_dy_edge(i+1,j) /= 0.0d0) then
+             ds_dy(i,j) = 0.5d0 * (ds_dy_edge(i,j) + ds_dy_edge(i+1,j))
+          elseif (ds_dy_edge(i,j) /= 0.0d0) then
+             ds_dy(i,j) = ds_dy_edge(i,j)
+          elseif (ds_dy_edge(i+1,j) /= 0.0d0) then
+             ds_dy(i,j) = ds_dy_edge(i+1,j)
+          else
+             ds_dy(i,j) = 0.d0
+          endif
+       enddo
+    enddo
 
 
     ! Optionally, limit ds/dx and ds/dy
@@ -1461,7 +1471,7 @@ contains
        enddo
     endif
 
-  end subroutine glissade_hybrid_surface_elevation_gradient
+  end subroutine glissade_surface_elevation_gradient
 
 !****************************************************************************
 

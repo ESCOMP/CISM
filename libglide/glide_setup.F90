@@ -191,6 +191,7 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
+!!    model%calving%cliff_timescale = model%calving%cliff_timescale * scyr / tim0
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -864,12 +865,11 @@ contains
          'centered gradient (glissade dycore)      ', &
          'upstream gradient (glissade dycore)      ' /)
 
-    !WHL - Choose the better hybrid option
     character(len=*), dimension(0:3), parameter :: ho_whichgradient_margin = (/ &
-         'land-based boundary condition for gradient (glissade dycore) ', &
-         'hybrid boundary condition for gradient (glissade dycore)     ', &
-         'shelf-based boundary condition for gradient (glissade dycore)', &
-         'another hybrid boundary condition for glissade testing       '/)
+         'compute edge gradient when either cell has ice                  ', &
+         'compute edge gradient when grounded ice lies above ice-free cell', &
+         'compute edge gradient only when both cells have ice             ', &
+         'compute edge gradient when ice lies above ice-free land         ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
          'first-order accurate  ', &
@@ -993,18 +993,31 @@ contains
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
           if (model%options%which_ho_precond == HO_PRECOND_SIA) then
-             call write_log('Error, cannot use SIA preconditioning for 2D solve', GM_FATAL)
+             model%options%which_ho_precond = HO_PRECOND_DIAG
+             call write_log('Warning, cannot use SIA preconditioning for 2D solve')
+             call write_log('Defaulting to diagonal preconditioner')
           endif
        endif
 
        if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
           
-          if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
-             call write_log('Error, cannot use first-order dissipation with local SIA solver', GM_FATAL)
-          endif
-
           if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
              call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
+          endif
+
+          if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
+             model%options%which_ho_disp = HO_DISP_SIA
+             call write_log('Warning: Cannot use first-order dissipation with local SIA solver')
+             call write_log('Defaulting to SIA dissipation')
+          endif
+
+          if (model%options%which_ho_gradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND ) then
+             model%options%which_ho_gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
+             write(message,*) 'Warning: Local SIA solver does not support which_ho_gradient_margin =', &
+                  HO_GRADIENT_MARGIN_ICE_OVER_LAND
+             call write_log(message)
+             write(message,*) 'Defaulting to option', HO_GRADIENT_MARGIN_GROUNDED_ICE
+             call write_log(message)
           endif
 
        endif  ! Glissade local SIA solver
@@ -1540,6 +1553,7 @@ contains
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
+!!    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
@@ -1723,6 +1737,8 @@ contains
     if (model%options%limit_marine_cliffs) then
        write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
        call write_log(message)
+!!       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
+!!       call write_log(message)
     endif
 
     if (model%options%whichcalving == CALVING_GRID_MASK) then

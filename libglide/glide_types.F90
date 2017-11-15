@@ -261,12 +261,10 @@ module glide_types
   integer, parameter :: HO_GRADIENT_CENTERED = 0
   integer, parameter :: HO_GRADIENT_UPSTREAM = 1
 
-  !WHL - adding a second hybrid option
-  !      After testing, choose just one hybrid option
   integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
-  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
+  integer, parameter :: HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
-  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID_NEW = 3
+  integer, parameter :: HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
@@ -701,13 +699,22 @@ module glide_types
     !> \item[0] Centered gradient
     !> \item[1] Upstream gradient
 
-    integer :: which_ho_gradient_margin = 1
+    !WHL - Changed default from 1 to 3.
+    !      Option 3 is appropriate for ice sheets with both land and marine boundaries,
+    !       when a lateral spreading force is computed for marine ice cliffs.
+    !      This lateral force ensures spreading where the gradient is zero.
+
+    integer :: which_ho_gradient_margin = 3
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
+    !> Note: Gradients are always computed at edges with ice on both sides.
+    !>       The methods differ in whether gradients are computed when an ice-covered cell
+    !>        lies above an ice-free cell (land or ocean).
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] Use info from all neighbor cells, ice-covered or ice-free
-    !> \item[1] Use info from ice-covered and/or land cells, not ice-free ocean
-    !> \item[2] Use info from ice-covered cells only
+    !> \item[0] Compute edge gradient when either cell is ice-covered
+    !> \item[1] Compute edge gradient for grounded ice above ice-free land or ocean
+    !> \item[2] Compute edge gradient only when both cells have ice
+    !> \item[3] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now so that standard tests are BFB
@@ -1100,9 +1107,10 @@ module glide_types
                                             !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
      real(dp) :: eigencalving_constant = 1.0d9   !> eigencalving constant from Levermann et al. (2012) (m*yr)
                                                  !> (whichcalving = EIGENCALVING
-     real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
      integer :: ncull_calving_front = 0     !> number of times to cull calving_front cells at initialization
                                             !> Set to a larger value to remove thicker peninsulas
+     real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
+!!     real(dp) :: cliff_timescale = 0.0d0    !> time scale (yr) for limiting marine cliffs (yr) (Glissade only)
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0

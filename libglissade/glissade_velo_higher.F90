@@ -1504,18 +1504,25 @@
     ! Compute surface gradient on staggered grid
     ! (requires that usrf is up to date in halo cells)
     !
-    ! Setting gradient_margin_in = 0 takes the gradient over all neighboring cells,
-    !  including ice-free cells.  This is what Glide does, but is not appropriate
-    !  if we have ice-covered floating cells next to ice-free ocean cells,
-    !  because the gradient will be too big.
-    ! Setting gradient_margin_in = 1 uses any available ice-covered cells
-    !  and/or land cells to compute the gradient.  Requires passing in the surface
-    !  elevation and a land mask.
-    !  This is appropriate for both land-based problems and problems
-    !  with ice shelves.  It is the default setting.
-    ! Setting gradient_margin_in = 2 uses only ice-covered cells to compute
-    !  the gradient.  This is appropriate for problems with ice shelves, but is
+    ! Possible settings for whichgradient_margin:
+    !   HO_GRADIENT_MARGIN_ALL = 0
+    !   HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
+    !   HO_GRADIENT_MARGIN_ICE_ONLY = 2
+    !   HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
+    !
+    ! gradient_margin = 0 computes gradients at all edges, even if one cell
+    !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
+    !  floating cells lying above ice-free ocean cells, because the gradient is too big.
+    ! gradient_margin = 1 computes gradients at edges where a grounded ice-covered
+    !  cell lies above an ice-free cell (either land or ocean).
+    !  This used to be the default, but it overestimates driving stress for grounded marine
+    !   cliffs with a large lateral spreading force (in addition to the surface gradient).
+    ! gradient_margin_in = 2 computes gradients only at edges with ice-covered cells
+    !  on each side.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
+    ! gradient_margin_in = 3 computes gradients at edges with ice-covered cells
+    !  above ice-free land, but not above ice-free ocean. This setting is appropriate
+    !  for both land- and ocean-terminating boundaries. It is the default.
     !
     ! Passing in max_slope ensures that the surface elevation gradient on the edge
     !  between two cells does not exceed a prescribed value.
@@ -1535,22 +1542,22 @@
 
 !pw call t_startf('glissade_gradient')
 
-    !WHL - Reworking this. New subroutine for new hybrid option
+    if (whichgradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND) then
 
-    if (whichgradient_margin == HO_GRADIENT_MARGIN_HYBRID_NEW) then
+       ! newer option; compute edge gradients when active ice lies over land but not ice-free ocean
 
-       call glissade_hybrid_surface_elevation_gradient(nx,          ny,           &
-                                                       dx,          dy,           &
-                                                       active_ice_mask,           &
-                                                       land_mask,                 &
-                                                       usrf,        thck,         &
-                                                       topg,        eus,          &
-                                                       thklim,                    &
-                                                       thck_gradient_ramp,        &
-                                                       dusrf_dx,    dusrf_dy,     &
-                                                       max_slope)
+       call glissade_surface_elevation_gradient(nx,          ny,           &
+                                                dx,          dy,           &
+                                                active_ice_mask,           &
+                                                land_mask,                 &
+                                                usrf,        thck,         &
+                                                topg,        eus,          &
+                                                thklim,                    &
+                                                thck_gradient_ramp,        &
+                                                dusrf_dx,    dusrf_dy,     &
+                                                max_slope)
 
-    else   ! use an older option
+    else   ! older option
 
        if (whichgradient == HO_GRADIENT_CENTERED) then     ! 2nd order centered
 
