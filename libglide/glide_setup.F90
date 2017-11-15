@@ -191,7 +191,7 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
-!!    model%calving%cliff_timescale = model%calving%cliff_timescale * scyr / tim0
+    model%calving%cliff_timescale = model%calving%cliff_timescale * scyr / tim0
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -1553,7 +1553,7 @@ contains
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
-!!    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
+    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
     call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
@@ -1737,8 +1737,8 @@ contains
     if (model%options%limit_marine_cliffs) then
        write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
        call write_log(message)
-!!       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
-!!       call write_log(message)
+       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
+       call write_log(message)
     endif
 
     if (model%options%whichcalving == CALVING_GRID_MASK) then

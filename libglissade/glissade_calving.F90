@@ -213,6 +213,7 @@ contains
                                 eigencalving_constant,   &
                                 calving_minthck,         &
                                 taumax_cliff,            &
+                                cliff_timescale,         &
                                 calving_mask,            &
                                 damage,                  &
                                 damage_threshold,        &
@@ -265,6 +266,7 @@ contains
                                                                  !> used with CALVING_THCK_THRESHOLD and EIGENCALVING
     real(dp), intent(in)                    :: taumax_cliff      !> yield stress (Pa) for marine-based ice cliffs
                                                                  !> used with limit_marine_cliffs option
+    real(dp), intent(in)                    :: cliff_timescale   !> time scale for limiting marine cliff thickness
     integer,  dimension(:,:), intent(in)    :: calving_mask      !> integer mask: calve ice where calving_mask = 1
     real(dp), dimension(:,:,:), intent(in)  :: damage            !> 3D scalar damage parameter
 !    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter
@@ -1327,7 +1329,7 @@ contains
           print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+4, jtest-4, -1
              write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
+             do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
              enddo
              write(6,*) ' '
@@ -1340,7 +1342,7 @@ contains
           print*, 'thckmax_cliff, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+4, jtest-4, -1
              write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
+             do i = itest-3, itest+3
                 factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
                 thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j)*thk0)**2)  ! m 
                 write(6,'(f10.3)',advance='no') thckmax_cliff
@@ -1368,10 +1370,16 @@ contains
                 endif
 
                 ! If thicker than the max stable thickness, then remove some ice and add it to the calving field
+                ! Note: By default, cliff_timescale = 0, which means thck is reset to thckmax_cliff each timestep.
+                !       Might want to try other values when looking at marine ice cliff instability.
                 if (thck(i,j) > thckmax_cliff) then
 
-                   thinning_rate = (thck(i,j) - thckmax_cliff) / calving_timescale
-                   dthck = min(thck(i,j), thinning_rate*dt)
+                   if (cliff_timescale > 0.0d0) then
+                      thinning_rate = (thck(i,j) - thckmax_cliff) / cliff_timescale
+                      dthck = min(thck(i,j) - thckmax_cliff, thinning_rate*dt)
+                   else
+                      dthck = thck(i,j) - thckmax_cliff
+                   endif
 
                    !WHL - debug
                    if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then

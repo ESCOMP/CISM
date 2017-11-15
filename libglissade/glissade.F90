@@ -553,6 +553,7 @@ contains
                                model%calving%eigencalving_constant,    &
                                model%calving%calving_minthck,   &
                                model%calving%taumax_cliff,      &
+                               model%calving%cliff_timescale,   &
                                model%calving%calving_mask,      &
                                model%calving%damage,            &
                                model%calving%damage_threshold,  &
@@ -1562,6 +1563,7 @@ contains
                             model%calving%eigencalving_constant,    &
                             model%calving%calving_minthck,   &
                             model%calving%taumax_cliff,      &
+                            model%calving%cliff_timescale,   &
                             model%calving%calving_mask,      &
                             model%calving%damage,            &
                             model%calving%damage_threshold,  &

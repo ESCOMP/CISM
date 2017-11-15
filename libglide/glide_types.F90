@@ -1110,7 +1110,7 @@ module glide_types
      integer :: ncull_calving_front = 0     !> number of times to cull calving_front cells at initialization
                                             !> Set to a larger value to remove thicker peninsulas
      real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
-!!     real(dp) :: cliff_timescale = 0.0d0    !> time scale (yr) for limiting marine cliffs (yr) (Glissade only)
+     real(dp) :: cliff_timescale = 0.0d0    !> time scale (yr) for limiting marine cliffs (yr) (Glissade only)
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
