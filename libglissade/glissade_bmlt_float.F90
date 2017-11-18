@@ -4791,12 +4791,16 @@ contains
 
 
              ! Add terms associated with deta/dx on east edge
-             A_plume( 1,0,i,j) = A_plume(1,0,i,j) + eta_mask(i+1,j) * (dt_plume/dx) * D_plume_east(i,j) * ux(i,j) / dx
-             A_plume( 0,0,i,j) = A_plume(0,0,i,j) - eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i,j) * ux(i,j) / dx
+             A_plume( 1,0,i,j) = A_plume(1,0,i,j) + &
+                  eta_mask(i+1,j) * (dt_plume/dx) * D_plume_east(i,j) * ux(i,j) / dx
+             A_plume( 0,0,i,j) = A_plume(0,0,i,j) - &
+                  eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i,j) * ux(i,j) / dx
 
              ! Add terms associated with deta/dx on west edge
-             A_plume( 0,0,i,j) = A_plume( 0,0,i,j) - eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * ux(i-1,j) / dx
-             A_plume(-1,0,i,j) = A_plume(-1,0,i,j) + eta_mask(i-1,j) * (dt_plume/dx) * D_plume_east(i-1,j) * ux(i-1,j) / dx
+             A_plume( 0,0,i,j) = A_plume( 0,0,i,j) - &
+                  eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * ux(i-1,j) / dx
+             A_plume(-1,0,i,j) = A_plume(-1,0,i,j) + &
+                  eta_mask(i-1,j) * (dt_plume/dx) * D_plume_east(i-1,j) * ux(i-1,j) / dx
 
              !WHL - debug
              if (i==itest .and. j==jtest) then
@@ -4810,8 +4814,10 @@ contains
              
              ! Add terms associated with deta/dy on east edge
              if (divu_mask_north(i,j) == 1) then
-                A_plume(0,1,i,j) = A_plume(0,1,i,j) + eta_mask(i,j+1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
-                A_plume(0,0,i,j) = A_plume(0,0,i,j) - eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
+                A_plume(0,1,i,j) = A_plume(0,1,i,j) + &
+                     eta_mask(i,j+1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
+                A_plume(0,0,i,j) = A_plume(0,0,i,j) - &
+                     eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4824,8 +4830,10 @@ contains
              endif
 
              if (divu_mask_north(i+1,j) == 1) then
-                A_plume(1,1,i,j) = A_plume(1,1,i,j) + eta_mask(i+1,j+1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
-                A_plume(1,0,i,j) = A_plume(1,0,i,j) - eta_mask(i+1,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
+                A_plume(1,1,i,j) = A_plume(1,1,i,j) + &
+                     eta_mask(i+1,j+1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
+                A_plume(1,0,i,j) = A_plume(1,0,i,j) - &
+                     eta_mask(i+1,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4838,8 +4846,10 @@ contains
              endif
 
              if (divu_mask_north(i,j-1) == 1) then
-                A_plume(0, 0,i,j) = A_plume(0, 0,i,j) + eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
-                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) - eta_mask(i,j-1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
+                A_plume(0, 0,i,j) = A_plume(0, 0,i,j) + &
+                     eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
+                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) - &
+                     eta_mask(i,j-1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4852,8 +4862,10 @@ contains
              endif
 
              if (divu_mask_north(i+1,j-1) == 1) then
-                A_plume(1, 0,i,j) = A_plume(1, 0,i,j) + eta_mask(i+1,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
-                A_plume(1,-1,i,j) = A_plume(1,-1,i,j) - eta_mask(i+1,j-1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy) 
+                A_plume(1, 0,i,j) = A_plume(1, 0,i,j) + &
+                     eta_mask(i+1,j)   * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
+                A_plume(1,-1,i,j) = A_plume(1,-1,i,j) - &
+                     eta_mask(i+1,j-1) * (dt_plume/dx) * D_plume_east(i,j) * uy(i,j) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4867,32 +4879,44 @@ contains
 
              ! Add terms associated with deta/dy on west edge
              if (divu_mask_north(i-1,j) == 1) then
-                A_plume(-1,1,i,j) = A_plume(-1,1,i,j) - eta_mask(i-1,j+1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
-                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) + eta_mask(i-1,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
+                A_plume(-1,1,i,j) = A_plume(-1,1,i,j) - &
+                     eta_mask(i-1,j+1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
+                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) + &
+                     eta_mask(i-1,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
              endif
 
              if (divu_mask_north(i,j) == 1) then
-                A_plume(0,1,i,j) = A_plume(0,1,i,j) - eta_mask(i,j+1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
-                A_plume(0,0,i,j) = A_plume(0,0,i,j) + eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
+                A_plume(0,1,i,j) = A_plume(0,1,i,j) - &
+                     eta_mask(i,j+1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
+                A_plume(0,0,i,j) = A_plume(0,0,i,j) + &
+                     eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
              endif
 
              if (divu_mask_north(i-1,j-1) == 1) then
-                A_plume(-1, 0,i,j) = A_plume(-1, 0,i,j) - eta_mask(i-1,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
-                A_plume(-1,-1,i,j) = A_plume(-1,-1,i,j) + eta_mask(i-1,j-1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
+                A_plume(-1, 0,i,j) = A_plume(-1, 0,i,j) - &
+                     eta_mask(i-1,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
+                A_plume(-1,-1,i,j) = A_plume(-1,-1,i,j) + &
+                     eta_mask(i-1,j-1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
              endif
 
              if (divu_mask_north(i,j-1) == 1) then
-                A_plume(0, 0,i,j) = A_plume(0, 0,i,j) - eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
-                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) + eta_mask(i,j-1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy) 
+                A_plume(0, 0,i,j) = A_plume(0, 0,i,j) - &
+                     eta_mask(i,j)   * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
+                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) + &
+                     eta_mask(i,j-1) * (dt_plume/dx) * D_plume_east(i-1,j) * uy(i-1,j) / (4.0d0 * dy)
              endif
 
              ! Add terms associated with deta/dy on north edge
-             A_plume(0, 1,i,j) = A_plume(0,1,i,j) + eta_mask(i,j+1)  * (dt_plume/dy) * D_plume_north(i,j) * vy(i,j) / dy
-             A_plume(0, 0,i,j) = A_plume(0,0,i,j) - eta_mask(i,j)    * (dt_plume/dy) * D_plume_north(i,j) * vy(i,j) / dy
+             A_plume(0, 1,i,j) = A_plume(0,1,i,j) + &
+                  eta_mask(i,j+1)  * (dt_plume/dy) * D_plume_north(i,j) * vy(i,j) / dy
+             A_plume(0, 0,i,j) = A_plume(0,0,i,j) - &
+                  eta_mask(i,j)    * (dt_plume/dy) * D_plume_north(i,j) * vy(i,j) / dy
 
              ! Add terms associated with deta/dy on south edge
-             A_plume(0, 0,i,j) = A_plume(0, 0,i,j) - eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j-1) * vy(i,j-1) / dy
-             A_plume(0,-1,i,j) = A_plume(0,-1,i,j) + eta_mask(i,j-1) * (dt_plume/dy) * D_plume_north(i,j-1) * vy(i,j-1) / dy
+             A_plume(0, 0,i,j) = A_plume(0, 0,i,j) - &
+                  eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j-1) * vy(i,j-1) / dy
+             A_plume(0,-1,i,j) = A_plume(0,-1,i,j) + &
+                  eta_mask(i,j-1) * (dt_plume/dy) * D_plume_north(i,j-1) * vy(i,j-1) / dy
 
              !WHL - debug
              if (i==itest .and. j==jtest) then
@@ -4907,29 +4931,39 @@ contains
 
              ! Add terms associated with deta/dx on north edge
              if (divu_mask_east(i,j+1) == 1) then
-                A_plume(1,1,i,j) = A_plume(1,1,i,j) + eta_mask(i+1,j+1) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
-                A_plume(0,1,i,j) = A_plume(0,1,i,j) - eta_mask(i,j+1)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
+                A_plume(1,1,i,j) = A_plume(1,1,i,j) + &
+                     eta_mask(i+1,j+1) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
+                A_plume(0,1,i,j) = A_plume(0,1,i,j) - &
+                     eta_mask(i,j+1)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
              endif
 
              if (divu_mask_east(i,j) == 1) then
-                A_plume(1,0,i,j) = A_plume(1,0,i,j) + eta_mask(i+1,j) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
-                A_plume(0,0,i,j) = A_plume(0,0,i,j) - eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
+                A_plume(1,0,i,j) = A_plume(1,0,i,j) + &
+                     eta_mask(i+1,j) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
+                A_plume(0,0,i,j) = A_plume(0,0,i,j) - &
+                     eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
              endif
 
              if (divu_mask_east(i-1,j+1) == 1) then
-                A_plume( 0,1,i,j) = A_plume( 0,1,i,j) + eta_mask(i,j+1)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
-                A_plume(-1,1,i,j) = A_plume(-1,1,i,j) - eta_mask(i-1,j+1) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
+                A_plume( 0,1,i,j) = A_plume( 0,1,i,j) + &
+                     eta_mask(i,j+1)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
+                A_plume(-1,1,i,j) = A_plume(-1,1,i,j) - &
+                     eta_mask(i-1,j+1) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
              endif
 
              if (divu_mask_east(i-1,j) == 1) then
-                A_plume( 0,0,i,j) = A_plume( 0,0,i,j) + eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
-                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) - eta_mask(i-1,j) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy) 
+                A_plume( 0,0,i,j) = A_plume( 0,0,i,j) + &
+                     eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
+                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) - &
+                     eta_mask(i-1,j) * (dt_plume/dy) * D_plume_north(i,j) * vx(i,j) / (4.0d0 * dy)
              endif
 
              ! Add terms associated with deta/dx on south edge
              if (divu_mask_east(i,j) == 1) then
-                A_plume(1,0,i,j) = A_plume(1,0,i,j) - eta_mask(i+1,j) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
-                A_plume(0,0,i,j) = A_plume(0,0,i,j) + eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
+                A_plume(1,0,i,j) = A_plume(1,0,i,j) - &
+                     eta_mask(i+1,j) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
+                A_plume(0,0,i,j) = A_plume(0,0,i,j) + &
+                     eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4942,8 +4976,10 @@ contains
              endif
 
              if (divu_mask_east(i,j-1) == 1) then
-                A_plume(1,-1,i,j) = A_plume(1,-1,i,j) - eta_mask(i+1,j-1) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
-                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) + eta_mask(i,j-1)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
+                A_plume(1,-1,i,j) = A_plume(1,-1,i,j) - &
+                     eta_mask(i+1,j-1) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
+                A_plume(0,-1,i,j) = A_plume(0,-1,i,j) + &
+                     eta_mask(i,j-1)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4956,8 +4992,10 @@ contains
              endif
 
              if (divu_mask_east(i-1,j) == 1) then
-                A_plume( 0,0,i,j) = A_plume( 0,0,i,j) - eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
-                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) + eta_mask(i-1,j) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
+                A_plume( 0,0,i,j) = A_plume( 0,0,i,j) - &
+                     eta_mask(i,j)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
+                A_plume(-1,0,i,j) = A_plume(-1,0,i,j) + &
+                     eta_mask(i-1,j) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
@@ -4970,8 +5008,10 @@ contains
              endif
 
              if (divu_mask_east(i-1,j-1) == 1) then
-                A_plume( 0,-1,i,j) = A_plume( 0,-1,i,j) - eta_mask(i,j-1)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
-                A_plume(-1,-1,i,j) = A_plume(-1,-1,i,j) + eta_mask(i-1,j-1) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy) 
+                A_plume( 0,-1,i,j) = A_plume( 0,-1,i,j) - &
+                     eta_mask(i,j-1)   * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
+                A_plume(-1,-1,i,j) = A_plume(-1,-1,i,j) + &
+                     eta_mask(i-1,j-1) * (dt_plume/dy) * D_plume_north(i,j-1) * vx(i,j-1) / (4.0d0 * dy)
 
                 !WHL - debug
                 if (i==itest .and. j==jtest) then
