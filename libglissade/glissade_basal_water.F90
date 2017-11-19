@@ -140,7 +140,7 @@ contains
 
               ! compute new bwat, given source (bmlt) and sink (drainage)
               ! Note: bmlt > 0 for ice melting. Freeze-on will reduce bwat.
-              dbwat_dt = bmlt(i,j)*rhoi/rhow - basal_physics%C_drainage/scyr  ! convert C_drainage from m/yr to m/s
+              dbwat_dt = bmlt(i,j)*rhoi/rhow - basal_physics%c_drainage/scyr  ! convert c_drainage from m/yr to m/s
               bwat(i,j) = bwat(i,j) + dbwat_dt*dt
 
               ! limit to the range [0, bwat_till_max]

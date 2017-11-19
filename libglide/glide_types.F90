@@ -1385,7 +1385,7 @@ module glide_types
      ! parameters for local till model
      ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
      real(dp) :: bwat_till_max = 2.0d0           !< maximum water depth in till (m)
-     real(dp) :: C_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
+     real(dp) :: c_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
      real(dp) :: N_0 = 1000.d0                   !< reference effective pressure (Pa)
      real(dp) :: e_0 = 0.69d0                    !< reference void ratio (dimensionless)
      real(dp) :: C_c = 0.12d0                    !< till compressibility (dimensionless)

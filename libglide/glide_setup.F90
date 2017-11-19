@@ -1599,7 +1599,7 @@ contains
     call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
     call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
     call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
-    call GetValue(section, 'C_drainage', model%basal_physics%C_drainage)
+    call GetValue(section, 'c_drainage', model%basal_physics%c_drainage)
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
@@ -1928,7 +1928,7 @@ contains
     elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
        write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
        call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%C_drainage
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
        call write_log(message)
     endif
 
