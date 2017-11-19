@@ -1187,7 +1187,8 @@ contains
                 do j = 1, ny
                    do i = 1, nx
                       if ( floating_mask(i,j) == 1 .and. calving_law_mask(i,j) .and.  &
-                           (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
+                           (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. &
+                           ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
                          if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
                             ! assign the fill color to this cell, and recursively fill neighbor cells
                             call glissade_fill(nx,    ny,       &

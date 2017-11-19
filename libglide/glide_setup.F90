@@ -1432,7 +1432,8 @@ contains
           write(message,*) 'ho_whichcalving_front   : ',model%options%which_ho_calving_front,  &
                             ho_whichcalving_front(model%options%which_ho_calving_front)
           call write_log(message)
-          if (model%options%which_ho_calving_front < 0 .or. model%options%which_ho_calving_front >= size(ho_whichcalving_front)) then
+          if (model%options%which_ho_calving_front < 0 .or. &
+               model%options%which_ho_calving_front >= size(ho_whichcalving_front)) then
              call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
           end if
 
