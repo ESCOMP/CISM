@@ -1784,17 +1784,8 @@ contains
     ! (requires that thck and topg are up to date in halo cells).
     ! This is used in the velocity solver to compute the basal stress BC.
     !
-    ! Three options for whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
-    ! (1) HO_GROUND_GLP:    0 <= f_ground <= 1 based on grounding-line parameterization
-    ! (2) HO_GROUND_ALL:    f_ground = 1 for all cells with ice
-    ! 
-    ! Three options for whichflotation_function (applies to whichground = 0 or 1):
-    ! (0) HO_FLOTATION_FUNCTION_PATTYN:         f = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    ! (2) HO_FLOTATION_FUNCTION_LINEAR:         f = -rhow*b - rhoi*H; <= 0 for grounded, > 0 for floating
-    !
-    ! f_flotation is not needed in velocity calculations but is output as a diagnostic.
+    ! See comments in subroutine glissade_grounded_fraction for details
+    ! on the whichground and whichflotation_function options.
     !
     ! Computing f_ground here ensures that it is always available as a diagnostic, even if
     ! the velocity solver is not called (e.g., on the first time step of a restart).
@@ -1802,6 +1793,7 @@ contains
 
     call glissade_grounded_fraction(model%general%ewn,             &
                                     model%general%nsn,             &
+                                    itest, jtest, rtest,           &  ! diagnostic only
                                     model%geometry%thck*thk0,      &
                                     model%geometry%topg*thk0,      &
                                     model%climate%eus*thk0,        &

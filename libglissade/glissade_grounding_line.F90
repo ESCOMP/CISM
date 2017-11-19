@@ -47,11 +47,14 @@
 
     ! All subroutines in this module are public
 
+    logical, parameter :: verbose_gl = .false.
+
   contains
 
 !****************************************************************************
 
   subroutine glissade_grounded_fraction(nx,            ny,                      &
+                                        itest, jtest,  rtest,                   &
                                         thck,          topg,                    &
                                         eus,           ice_mask,                &
                                         floating_mask, land_mask,               &
@@ -64,56 +67,33 @@
     !  topography of the four neighboring cell centers.
     !
     ! There are three options for computing the grounded fraction, based on the value of whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for all vertices with grounded, ice-covered neighbor cells
+    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for vertices with grounded and/or land-based neighbor cells
+    !                       f_ground = 0 for vertices with floating neighbors only
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
+    !        A flotation function is interpolated over the bounding box of each vertex
+    !        and analytically integrated to compute the grounded and floating fractions.
     ! (2) HO_GROUND_ALL: f_ground = 1 for all vertices with ice-covered neighbor cells
     !
-    ! Notes on whichground:
-    !       Both (0) and (1) rely on computing a flotation function at cell centers.
-    !       - Method (0) stipulates that a vertex is grounded if any cell neighbor is grounded,
-    !         based on the value of the flotation function.
-    !       - Method (1) interpolates the flotation function over the bounding box of each
-    !         vertex and analytically integrates to compute the grounded and floating fractions.
+    ! For option (1), there are three options for the flotation function:
+    ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
+    !     Here, f_pattyn = (-rhoo*b)/(rhoi*H) as in Pattyn et al. (2006).
+    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn
+    ! (2) HO_FLOTATION_FUNCTION_LINEAR: f_flotation = -b - (rhoi/rhoo)*H = ocean cavity thickness
+    !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
+    ! All three functions are defined such that f <=0 for grounded ice and f > 0 for floating ice.
+    ! For each option, land-based cells are assigned a large negative value, so that any vertices
+    !  with land-based neighbors are strongly grounded.
     !
-    ! In addition, there are three options for the flotation function that is interpolated 
-    ! from cell centers to vertices as part of the computation of f_ground:
-    ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    ! (2) HO_FLOTATION_FUNCTION_LINEAR: f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating
-    ! These apply to whichground = 0 or 1; they are irrelevant for whichground = 2.
+    ! We first compute f_flotation in all active ice-covered cells.
+    ! Then f_flotation is extrapolated to ice-free neighbors.  Thus, f_flotation has a physically
+    !   meaningful value (either computed directly, or extrapolated from a neighbor) in all four
+    !   cells surrounding each active vertex. (By definition, an active vertex is a vertex with
+    !   at least one active ice-covered neighbor.) Thus, we can interpolate f_flotation
+    !   within the bounding box around each active vertex to compute f_ground at the vertex.
     !
-    ! Notes on whichflotation_function:
-    !       Results can be sensitive to the choice of flotation function.
-    !       For instance, one such function, used by Pattyn et al. (2006) and Gladstone (2010), is 
-    !           f = (-rhow*b) / (rhoi*H)
-    !       This function generally works well, but consider a case where one floating cell
-    !        (in a fjord, say) is surrounded by grounded cells.  We can have f ~ 10 for the
-    !        floating cell and f ~ 0.5 for the grounded cells, so the average > 1 and the vertex
-    !        is deemed to be floating with beta = 0.  This can lead to excessive velocities.
+    ! Until recently, the inverse Pattyn function (1) was the default.
+    ! As of Nov. 2017, the linear function (2) is the default.
     !
-    !       Another choice is the inverse of the first:
-    !           f = (rhoi*H) / (-rhow*b)
-    !       This function is negative for land-based ice (b > 0) and grows without bound as b -> 0.
-    !        So it needs to be capped at a large positive value if b > 0 or is small and negative.
-    !        This function has the virtue that strongly grounded cells have f >> 1, while floating
-    !        cells have 0 < f < 1. So if there are 1 or 2 strongly grounded cells at a vertex, 
-    !        then the vertex is deemed to be grounded (or mostly grounded), and excessive velocites 
-    !        are less likely.
-    !
-    !       A third choice (suggested by Xylar Asay-Davis) is the following:
-    !           f = -rhoi*b - rhoi*H
-    !       If positive, this function is equal to the thickness of the ocean cavity beneath floating ice.
-    !       If negative, this function implies that the ice is grounded.
-    !       
-    !       Currently (as of Sept. 2015), the inverse Pattyn function (1) is the default, but the user can
-    !        change this by setting which_ho_flotation_function in the config file.
-    !
-    !       For the GLP, f_flotation is first computed in all active ice-covered cells.
-    !       Then it is extrapolated to adjacent ice-free cells.  Thus, f_flotation has a physically
-    !        sensible value (either computed directly, or extrapolated from a neighbor) in all four 
-    !        cells surrounding each active vertex. (By definition, an active vertex is a vertex with
-    !        at least one active ice-covered neighbor.) Thus, we can interpolate f_flotation
-    !        within the bounding box around each active vertex to compute f_ground at the vertex.
     !----------------------------------------------------------------
     
     !----------------------------------------------------------------
@@ -123,8 +103,12 @@
     integer, intent(in) ::   &
        nx,  ny                ! number of grid cells in each direction
 
-    ! Default dimensions are meters, but this subroutine will work for
-    ! any units as long as thck and topg have the same units.
+    integer, intent(in) ::   &
+       itest, jtest, rtest    ! coordinates of diagnostic point
+
+    ! Default dimensions are meters.
+    ! The subroutine will work for other units as long as thck, topg and eus have the same units,
+    !  but f_flotation_land_linear will be scaled incorrectly.
 
     real(dp), dimension(nx,ny), intent(in) ::  &
        thck,                 &! ice thickness (m)
@@ -145,12 +129,9 @@
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
        f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
-                              ! set to special value where vmask = 0
 
     real(dp), dimension(nx,ny), intent(out) :: &
-       f_flotation            ! flotation function
-                              ! originally f_pattyn = (-rhow*b) / (rhoi*thck), but added two more options
-                              ! see comments above
+       f_flotation            ! flotation function; see comments above
 
     !----------------------------------------------------------------
     ! Local variables
@@ -193,14 +174,12 @@
     real(dp), parameter :: &
        eps06 = 1.d-06     ! small number
 
-    !WHL - debug
-    integer, parameter :: it = 1, jt = 1, rtest = -9999
-
     logical :: filled     ! true if f_flotation has been filled by extrapolation
 
-    !TODO - Test MISMIP sensitivity to the value of this cap
-    ! This needs to be big enough that one land-based cell at a vertex is sufficient to ground the others
-    real(dp), parameter :: grounding_factor_max = 10.d0  
+    !TODO - Test sensitivity to these values
+    ! These are set to large negative values, so vertices with land-based neighbors are strongly grounded.
+    real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
+    real(dp), parameter :: f_flotation_land_linear = -10000.d0       ! meters
 
     !----------------------------------------------------------------
     ! Compute ice mask at vertices (= 1 if any surrounding cells have ice)
@@ -217,86 +196,60 @@
        enddo
     enddo
 
-    ! Compute flotation function at cell centers
+    ! Compute flotation function at cell centers.
     ! For diagnostic purposes, f_flotation is always computed, although it affects f_ground
     !  (and thus the velocities) only when running with a GLP.
+    ! Note: f_flotation is set to an arbitrary large negative value for land-based cells.
+    !       Ice-free ocean cells have f_flotation = 0.
+    ! Note: Values from ice-free cells are not used in the calculation of f_ground.
+    !       All values used in the f_ground calculation come from cells with ice,
+    !        or are extrapolated from cells with ice.
 
-    ! Note: All cells (including ice-free cells) are initialized to be strongly grounded on land
-    !        and almost floating (i.e., barely grounded) in the ocean. Since no cells are initialized
-    !        to be floating, all cells are initialized to have cfloat = F in the GLP.
-    !       However, these initial values are never used in the calculation of f_ground.
-    !       All values used in the f_ground calculation come from cells with ice, or cells adjacent to cells with ice.
+    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
 
-    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then  ! grounded if f_flotation <= 1, else floating
-
-       ! initialize to a large negative value (strongly grounded) on land, and 1.0 (almost floating) in the ocean
+       ! subtract 1 from (-rhoo*b)/(rhoi*H) so that f > 0 for floating ice, f <= 0 for grounded ice
        do j = 1, ny
           do i = 1, nx
-             if (land_mask(i,j) == 1) then
-                f_flotation(i,j) = -grounding_factor_max
-             else    ! marine cell
-                f_flotation(i,j) = 1.0d0
-             endif
-          enddo
-       enddo
-
-       ! set f_flotation in ice-covered cells
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
+             if (land_mask(i,j) == 1) then  ! topg - eus >= 0
+                f_flotation(i,j) = f_flotation_land_pattyn
+             elseif (ice_mask(i,j) == 1) then
+                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j)) - 1.0d0
+             else  ! ice-free ocean
+                f_flotation(i,j) = 0.0d0
              endif
           enddo
        enddo
 
     elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then ! grounded if f_flotation >= 1, else floating
 
-       ! initialize to a large positive value (strongly grounded) on land, and 1.0 (almost floating) in the ocean
+       ! subtract (rhoi*H)/(-rhoo*b) from 1 so that f > 0 for floating ice, f <= 0 for grounded ice
        do j = 1, ny
           do i = 1, nx
-             if (land_mask(i,j) == 1) then
-                f_flotation(i,j) = grounding_factor_max
-             else    ! marine cell
-                f_flotation(i,j) = 1.0d0
-             endif
-          enddo
-       enddo
-
-       ! set f_flotation in ice-covered cells
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then  ! ice is present
-                if (land_mask(i,j) == 1) then
-                   ! nothing else to do; f_flotation(i,j) set to grounding_factor_max above
-                else    ! marine cell
-                   f_flotation(i,j) = rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
-                   f_flotation(i,j) = min(f_flotation(i,j), grounding_factor_max)
-                endif
-             endif  ! ice_mask
-          enddo
-       enddo
-
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then ! grounded if f_flotation <= 0, else floating
-
-       ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
-       ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
-
-       ! initialize to a large negative value (strongly grounded) on land, and 0.0 (almost floating) in the ocean
-       do j = 1, ny
-          do i = 1, nx
-             if (land_mask(i,j) == 1) then
-                f_flotation(i,j) = -grounding_factor_max
-             else    ! marine cell
+             if (land_mask(i,j) == 1) then  ! topg - eus >= 0
+                f_flotation(i,j) = f_flotation_land_pattyn
+             elseif (ice_mask(i,j) == 1) then
+                f_flotation(i,j) = 1.0d0 - rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
+                ! Cap at a large minimum value
+                f_flotation(i,j) = max(f_flotation(i,j), f_flotation_land_pattyn)
+             else  ! ice-free ocean
                 f_flotation(i,j) = 0.0d0
              endif
           enddo
        enddo
 
-       ! set f_flotation in ice-covered cells
+    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
+
+       ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
+       ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
+
        do j = 1, ny
           do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) - rhoi*thck(i,j)
+             if (land_mask(i,j) == 1) then
+                f_flotation(i,j) = f_flotation_land_linear
+             elseif (ice_mask(i,j) == 1) then
+                f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
+             else  ! ice-free ocean
+                f_flotation(i,j) = 0.0d0
              endif
           enddo
        enddo
@@ -311,7 +264,7 @@
     select case(whichground)
 
     case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
-                             ! f_ground = 1 at vertex if any neighbor cell is land or has grounded ice
+                             ! f_ground = 1 at a vertex if any neighbor cell is land or has grounded ice
 
        ! compute a mask that is true for cells that are land and/or have grounded ice
        do j = 1, ny
@@ -359,11 +312,6 @@
        !  (i.e., with at least one ice-filled neighbor cell) has physically sensible values
        !  of f_flotation in all four neighbor cells, for purposes of interpolation.
 
-       ! In order for the 'min' logic to work, temporarily reverse the sign for the inverse Pattyn function
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-          f_flotation(:,:) = -f_flotation(:,:)
-       endif
-
        f_flotation_extrap(:,:) = f_flotation(:,:)
 
        do j = 2, ny-1
@@ -406,11 +354,6 @@
           enddo   ! i
        enddo  !j
 
-       ! Reverse the temporary sign change for inverse Pattyn
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-          f_flotation_extrap(:,:) = -f_flotation_extrap(:,:)
-       endif
-
        ! halo update
        call parallel_halo(f_flotation_extrap)
 
@@ -419,56 +362,24 @@
 
        ! Identify cells that contain floating ice.
        ! Note: Ice-free cells adjacent to floating cells (and not adjacent to grounded cells)
-       !        will have cfloat = .true. from the extrapolation above.
+       !        will have cfloat = .true. as a result of the extrapolation above.
 
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+       ! grounded if f_flotation <= 0, else floating
 
-          ! grounded if f_flotation <= 1, else floating
-
-          do j = 1, ny
-             do i = 1, nx
-                if (f_flotation(i,j) > 1.d0) then
-                   cfloat(i,j) = .true.
-                else
-                   cfloat(i,j) = .false.
-                endif
-             enddo
+       do j = 1, ny
+          do i = 1, nx
+             if (f_flotation(i,j) > 0.d0) then
+                cfloat(i,j) = .true.
+             else
+                cfloat(i,j) = .false.
+             endif
           enddo
+       enddo
           
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-          
-          ! grounded if f_flotation >= 1, else floating
-
-          do j = 1, ny
-             do i = 1, nx
-                if (f_flotation(i,j) < 1.d0) then
-                   cfloat(i,j) = .true.
-                else
-                   cfloat(i,j) = .false.
-                endif
-             enddo
-          enddo
-          
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-
-          ! grounded if f_flotation <= 0, else floating
-
-          do j = 1, ny
-             do i = 1, nx
-                if (f_flotation(i,j) > 0.d0) then
-                   cfloat(i,j) = .true.
-                else
-                   cfloat(i,j) = .false.
-                endif
-             enddo
-          enddo
-          
-       endif
-       
-       !WHL - debug
-       if (this_rank == rtest) then
-          i = it; j = jt
-          print*, 'i, j =', i, j
+       if (verbose_gl .and. this_rank == rtest) then
+          i = itest; j = jtest
+          print*, ' '
+          print*, 'rank, i, j =', this_rank, i, j
           print*, 'f_flotation(i:i+1,j+1):', f_flotation(i:i+1,j+1)
           print*, 'f_flotation(i:i+1,j)  :', f_flotation(i:i+1,j)
           print*, 'cfloat(i:i+1,j+1):', cfloat(i:i+1,j+1)
@@ -478,11 +389,6 @@
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
        ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
        !        are surrounded by four cells with physically meaningful values of f_flotation and cfloat.
-       !       That is, f_flotation in each surrounding cell is derived from the cell itself (if the cell
-       !        is ice-covered) or from an adjacent ice-covered cell (if the cell is ice-free).
-       !       Thus, f_flotation can be interpolated from four physically sensible values.
-       !TODO - Test this algorithm for the LINEAR case. Not sure it works when the boundary
-       !       between grounded and floating ice is 0 rather than 1.
 
        do j = 1, ny-1
           do i = 1, nx-1
@@ -498,7 +404,7 @@
                    if (cfloat(i,j+1))   nfloat = nfloat + 1
 
                    !WHL - debug
-                   if (i==it .and. j==jt .and. this_rank == rtest) then
+                   if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
                       print*, ' '
                       print*, 'nfloat =', nfloat
                    endif
@@ -515,12 +421,14 @@
                       f_ground(i,j) = 0.d0    ! fully floating
 
                    ! For the other cases the grounding line runs through the rectangular region 
-                   !  around this vertex.
+                   !  surrounding this vertex.
                    ! Using the values at the 4 neighboring cells, we approximate f_flotation(x,y) as
                    !  a bilinear function f(x,y) = a + bx + cy + dxy over the region.
-                   ! To find f_ground, we integrate over the region with f(x,y) <= 1
+                   ! Assume the grounding line is defined by f(x,y) = 0, with f <= 0 for grounded ice
+                   !  and f > 0 for floating ice.
+                   ! To find f_ground, we integrate over the region with f(x,y) <= 0
                    !  (or alternatively, we find f_float = 1 - f_ground by integrating
-                   !  over the region with f(x,y) > 1).
+                   !  over the region with f(x,y) > 0).
                    !  
                    ! There are 3 patterns to consider:
                    ! (1) nfloat = 1 or nfloat = 3 (one cell neighbor is not like the others)
@@ -578,7 +486,7 @@
                       d = f1 + f3 - f2 - f4
 
                       !WHL - debug
-                      if (i==it .and. j==jt .and. this_rank == rtest) then
+                      if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
                          print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
                          print*, 'a, b, c, d =', a, b, c, d
                       endif
@@ -589,21 +497,22 @@
                       ! Here are the relevant integrals:
                       !
                       ! (1) d /= 0:
-                      !     integral_0^x0 {y(x) dx}, where x0   = (1-a)/b
-                      !                                    y(x) = (1 - (a+b*x)) / (c+d*x)
-                      !     = [bc - ad + d) ln(1 + d(1-a)/(bc)) - (1-a)d] / d^2
+                      !     integral_0^x0 {y(x) dx}, where x0   = -a/b
+                      !                                    y(x) = -(a+bx) / (c+dx)
+                      !     = [(bc - ad) ln[1 - (ad)/(bc)] + ad] / d^2
                       !
                       ! (2) d = 0:
-                      !     integral_0^x0 {y(x) dx}, where x0   = (1-a)/b
-                      !                                    y(x) = (1 - (a+b*x)) / c
-                      !     = (a-1)(a-1) / (2bc)
+                      !     integral_0^x0 {y(x) dx}, where x0   = -a/b
+                      !                                    y(x) = -(a+bx) / c
+                      !     = a^2 / (2bc)
                       !
                       ! Note: We cannot have bc = 0, because f_flotation varies in both x and y
-
-                      if (abs(d*(1.d0-a)/(b*c)) > eps06) then
-                         f_corner = ((b*c - a*d + d) * log(1.d0 + d*(1.d0 - a)/(b*c)) - (1.d0 - a)*d) / (d*d)
+                      !       The above rotations ensure that we always take the log of a positive number
+ 
+                      if (abs(a*d/(b*c)) > eps06) then
+                         f_corner = ((b*c - a*d) * log(abs(1.d0 - (a*d)/(b*c))) + a*d) / (d*d)
                       else
-                         f_corner = (a - 1.d0)*(a - 1.d0) / (2.d0*b*c)
+                         f_corner = (a*a) / (2.d0*b*c)
                       endif
 
                       if (nfloat==1) then  ! f_corner is the floating area
@@ -613,7 +522,7 @@
                       endif
 
                       !WHL - debug
-                      if (i==it .and. j==jt .and. this_rank == rtest) then
+                      if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
                          print*, 'f_corner =', f_corner
                          print*, 'f_ground =', f_ground(i,j)
                       endif
@@ -673,8 +582,8 @@
                          !   |     |       |     |
                          !   F-----G       G-----F
                          !   
-                         var = f_flotation(i+1,j)*f_flotation(i,j+1) - f_flotation(i,j)*f_flotation(i+1,j+1)   &
-                             + f_flotation(i,j) + f_flotation(i+1,j+1) - f_flotation(i+1,j) - f_flotation(i,j+1)
+
+                         var = f_flotation(i+1,j)*f_flotation(i,j+1) - f_flotation(i,j)*f_flotation(i+1,j+1)
 
                          if (var >= 0.d0) then   ! we have one of the top two patterns
                             f1 = f_flotation(i,j)
@@ -699,7 +608,7 @@
                       ! Integrate the corner areas
 
                       !WHL - debug
-                      if (i==it .and. j==jt .and. this_rank == rtest) then
+                      if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
                          print*, 'adjacent =', adjacent
                          print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
                          print*, 'a, b, c, d =', a, b, c, d
@@ -711,28 +620,29 @@
                          ! Here are the relevant integrals:
                          !
                          ! (1) d /= 0:
-                         !     integral_0^1 {y(x) dx}, where y(x) = (1 - (a+b*x)) / (c+d*x)
+                         !     integral_0^1 {y(x) dx}, where y(x) = -(a+bx) / (c+dx)
                          !                                  
-                         !     = [bc - ad + d) ln(1 + d/c) - bd] / d^2
+                         !     = [(bc - ad) ln(1 + d/c) - bd] / d^2
                          !
                          ! (2) d = 0:
-                         !     integral_0^1 {y(x) dx}, where y(x) = (1 - (a+b*x)) / c
+                         !     integral_0^1 {y(x) dx}, where y(x) = -(a+bx) / c
                          !                                 
-                         !     = -(2a + b - 2) / (2c)
+                         !     = -(2a + b) / (2c)
                          !
                          ! Note: We cannot have c = 0, because the passage of the GL
                          !       through the region from left to right implies variation in y.
-                         
+                         !       The above rotations ensure that we always take the log of a positive number
+                      
                          if (abs(d/c) > eps06) then   ! the usual case
-                            f_trapezoid = ((b*c - a*d + d) * log(1.d0 + d/c) - b*d) / (d*d)
+                            f_trapezoid = ((b*c - a*d) * log(1.d0 + d/c) - b*d) / (d*d)
                          else
-                            f_trapezoid = -(2.d0*a + b - 2.d0) / (2.d0*c)
+                            f_trapezoid = -(2.d0*a + b) / (2.d0*c)
                          endif
 
                          f_ground(i,j) = 1.d0 - f_trapezoid
 
                          !WHL - debug
-                         if (i==it .and. j==jt .and. this_rank == rtest) then
+                         if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
                             print*, 'f_trapezoid =', f_trapezoid
                             print*, 'f_ground =', f_ground(i,j)
                          endif
@@ -740,14 +650,13 @@
                       else   ! grounded vertices are diagonally opposite
 
                          ! bug check: make sure some signs are positive as required by the formulas
-                         if (b*c - d*(1.d0-a) < 0.d0) then
-                            print*, 'Grounding line error: bc - d(1-a) < 0'
-                            stop
-                         elseif (b*c < 0.d0) then
-                            print*, 'Grounding line error: bc < 0'
+                         if (b*c - a*d < 0.d0) then
+                            print*, 'Grounding line error: bc - ad < 0'
+                            print*, 'rank, i, j =', this_rank, i, j
                             stop
                          elseif ((b+d)*(c+d) < 0.d0) then
                             print*, 'Grounding line error: (b+d)(c+d) < 0'
+                            print*, 'rank, i, j =', this_rank, i, j
                             stop
                          endif
 
@@ -756,46 +665,47 @@
                          ! (for the case nfloat = 1 or nfloat = 3, with d /= 0).
                          ! For the upper right region, here is the integral:
                          !
-                         !     integral_x1^1 {(1-y(x)) dx}, where x1  = (1-a-c)/(b+d)
-                         !                                       y(x) = (1 - (a+b*x)) / (c+d*x)
-                         !     = {(bc - ad + d) ln[(bc + d(1-a))/((b+d)(c+d))] + d(a + b + c + d - 1)} / d^2
+                         !     integral_x1^1 {(1-y(x)) dx}, where x1  = -(a+c)/(b+d)
+                         !                                       y(x) = -(a+b*x) / (c+d*x)
+                         !     = {(bc - ad) ln[(bc - ad)/((b+d)(c+d))] + d(a + b + c + d)} / d^2
                          !
-                         ! The above integral is valid only if (bc + d(1-a)) > 0.
-                         ! If this quantity = 0, then the grounding line lies along two lines,
-                         ! x0 = (1-a)/b and y0 = (1-a)/c.
-                         ! The lower left area is x0*y0 = (1-a)^2 / (bc).
-                         ! The upper right area is (1-x0)*(1-y0) = (a+b-1)(a+c-1) / (bc)
+                         ! The above rotations ensure that bc - ad >= 0.
+                         ! But the integral is valid only if bc - ad > 0.
+                         ! If bc - ad = 0, then the grounding line lies along two lines,
+                         !  x0 = -a/b and y0 = -a/c.
+                         ! The lower left area is x0*y0 = a^2 / (bc).
+                         ! The upper right area is (1-x0)*(1-y0) = (a+b)(a+c) / (bc)
                          !
-                         ! Note that this pattern is not possible with d = 0
+                         ! Note that this pattern is not possible with d = 0.
 
                          !WHL - debug
-                         if (i==it .and. j==jt .and. this_rank == rtest) then
-                            print*, 'Pattern 3: i, j, bc + d(1-a) =', i, j, b*c + d*(1.d0-a)
+                         if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
+                            print*, 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
                          endif
 
-                         if (abs(d*(1.d0-a)/(b*c)) > eps06) then  ! the usual case
-                            f_corner1 = ((b*c - a*d + d) * log(1.d0 + d*(1.d0-a)/(b*c)) - (1.d0-a)*d) / (d*d)
-                            f_corner2 = ((b*c - a*d + d) * log((b*c + d*(1.d0-a))/((b+d)*(c+d)))  &
-                                      + d*(a + b + c + d - 1)) / (d*d)
+                         if (abs(-a*d/(b*c)) > eps06) then  ! the usual case
+                            f_corner1 = ((b*c - a*d) * log(1.d0 - (a*d)/(b*c)) + a*d) / (d*d)
+                            f_corner2 = ((b*c - a*d) * log((b*c - a*d)/((b+d)*(c+d)))  &
+                                      + d*(a + b + c + d)) / (d*d)
                          else 
-                            f_corner1 = (1.d0 - a)*(1.d0 - a) / (b*c)
-                            f_corner2 = (a + b - 1.d0)*(a + c - 1.d0) / (b*c)
+                            f_corner1 = a*a / (b*c)
+                            f_corner2 = (a + b)*(a + c) / (b*c)
                          endif
                          
-                         ! Determine whether the central point (1/2,1/2) is grounded or floating.
+                         ! Determine whether the central point (0.5, 0.5) is grounded or floating.
                          ! Then compute the grounded area.
                          ! If the central point is floating, the corner regions are grounded;
                          ! if the central point is grounded, the corner regions are floating.
 
                          f_flotation_vertex = a + 0.5d0*b + 0.5d0*c + 0.25d0*d
-                         if (f_flotation_vertex > 1.d0) then  ! the central point is floating; corners are grounded
+                         if (f_flotation_vertex > 0.d0) then  ! the central point is floating; corners are grounded
                             f_ground(i,j) = f_corner1 + f_corner2
-                         else                              ! the central point is grounded; corners are floating
+                         else                                 ! the central point is grounded; corners are floating
                             f_ground(i,j) = 1.d0 - (f_corner1 + f_corner2)
                          endif
 
                          !WHL - debug
-                         if (i==it .and. j==jt .and. this_rank == rtest) then
+                         if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
                             print*, 'f_flotation_v =', f_flotation_vertex
                             print*, 'f_corner1 =', f_corner1
                             print*, 'f_corner2 =', f_corner2

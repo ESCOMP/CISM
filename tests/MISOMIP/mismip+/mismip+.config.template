@@ -38,9 +38,10 @@ which_ho_gradient_margin = 2    # 2 = marine BC
 which_ho_gradient = 0   #0 = centered, 1 = upstream
 which_ho_assemble_beta = 1   #0 = standard FE, 1 = local
 which_ho_assemble_taud = 1   #0 = standard FE, 1 = local
+which_ho_assemble_bfric = 1   #0 = standard FE, 1 = local
 which_ho_ground = 1     #0 = no GLP, 1 = GLP
 which_ho_resid = 4      #3 = absolute, 4 = relative
-which_ho_flotation_function = 0   # 0 = f_pattyn
+which_ho_flotation_function = 2   # 0 = f_pattyn, 2 = linear
 glissade_maxiter = 50
 
 [parameters]
@@ -71,7 +72,7 @@ name = mismip+Init.nc
 time = 1
 
 [CF output]
-variables = thk topg usurf uvel vvel beta_internal effec_press f_ground f_flotation floating_mask grounded_mask usfc vsfc ubas vbas uvel_mean vvel_mean stagthk ivol imass_above_flotation iareag
+variables = thk topg usurf uvel vvel beta_internal effecpress f_ground f_flotation floating_mask grounded_mask usfc vsfc ubas vbas uvel_mean vvel_mean stagthk ivol imass_above_flotation iareag calving_thck
 frequency = 1000
 name = mismip+.out.nc
 
