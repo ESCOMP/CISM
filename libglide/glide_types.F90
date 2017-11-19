@@ -2124,11 +2124,10 @@ contains
 
     endif  ! glam/glissade
 
-    ! bmltfloat arrays
+    ! bmlt arrays
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
-
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
     if (model%options%whichdycore == DYCORE_GLISSADE) then
-       call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
@@ -2176,6 +2175,10 @@ contains
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
        call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
+    else
+       ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
+       allocate(model%calving%damage(1,1,1))
+       allocate(model%calving%damage_column(1,1))
     endif
 
     ! matrix solver arrays
