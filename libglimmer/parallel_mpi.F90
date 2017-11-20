@@ -2800,15 +2800,15 @@ contains
        bounds_info%global_ewn = global_ewn - 1
        bounds_info%global_nsn = global_nsn - 1
 
-       bounds_info%mybounds_ew_lb = ewlb + lhalo
-       bounds_info%mybounds_ew_ub = (ewub - 1) - (uhalo - 1)
-       bounds_info%mybounds_ns_lb = nslb + lhalo
-       bounds_info%mybounds_ns_ub = (nsub - 1) - (uhalo - 1)
+       bounds_info%mybounds_ew_lb = ewlb + staggered_lhalo
+       bounds_info%mybounds_ew_ub = (ewub - 1) - staggered_uhalo
+       bounds_info%mybounds_ns_lb = nslb + staggered_lhalo
+       bounds_info%mybounds_ns_ub = (nsub - 1) - staggered_uhalo
 
-       bounds_info%ilo = 1 + lhalo
-       bounds_info%ihi = (local_ewn - 1) - (uhalo - 1)
-       bounds_info%jlo = 1 + lhalo
-       bounds_info%jhi = (local_nsn - 1) - (uhalo - 1)
+       bounds_info%ilo = 1 + staggered_lhalo
+       bounds_info%ihi = (local_ewn - 1) - staggered_uhalo
+       bounds_info%jlo = 1 + staggered_lhalo
+       bounds_info%jhi = (local_nsn - 1) - staggered_uhalo
 
     else
        call parallel_stop(__FILE__, __LINE__)
