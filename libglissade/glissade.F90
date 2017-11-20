@@ -1436,7 +1436,9 @@ contains
           print*, ' '
           print*, 'After glissade_transport_driver:'
           print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-          print*, 'max, min acab (m/yr) =', maxval(model%climate%acab_corrected)*scale_acab, minval(model%climate%acab_corrected)*scale_acab
+          print*, 'max, min acab (m/yr) =', &
+               maxval(model%climate%acab_corrected)*scale_acab, &
+               minval(model%climate%acab_corrected)*scale_acab
           print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
           print*, 'thklim =', model%numerics%thklim * thk0
           print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)

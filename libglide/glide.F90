@@ -391,8 +391,8 @@ contains
 
     call register_model(model)
 
-    ! initialise model diagnostics                                                                                                                 \
-                                                                                                                                                  
+    ! initialise model diagnostics
+
     call glide_init_diag(model)
 
 !WHL - debug
