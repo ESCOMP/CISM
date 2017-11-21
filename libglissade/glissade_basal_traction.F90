@@ -688,27 +688,29 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
+                if (bwat(i,j) > 0.0d0) then
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
 
-                ! Eq. 23 from Bueler & van Pelt (2015)
-                basal_physics%effecpress(i,j) = basal_physics%N_0  &
-                     * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
-                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+                   ! Eq. 23 from Bueler & van Pelt (2015)
+                   basal_physics%effecpress(i,j) = basal_physics%N_0  &
+                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
+                        * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
-                ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
-                ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
-                !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
-!!                basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
-!!                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+                   ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
+                   ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
+                   !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
+!!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
+!!                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
-                !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
-                !      This might lead to smoother variations in N with spatial variation in bwat.
-!!                basal_physics%effecpress(i,j) = overburden(i,j) * &
-!!                     (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+                   !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
+                   !      This might lead to smoother variations in N with spatial variation in bwat.
+!!                 basal_physics%effecpress(i,j) = overburden(i,j) * &
+!!                      (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
 
 
-                ! limit so as not to exceed overburden
-                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+                   ! limit so as not to exceed overburden
+                   basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+                end if
 
                 ! set to zero for floating ice
                 if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
