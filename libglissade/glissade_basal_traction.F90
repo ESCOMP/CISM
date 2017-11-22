@@ -677,6 +677,9 @@ contains
 
     case(HO_EFFECPRESS_BWAT)
 
+       ! Initialize for the case where bwat isn't present, and also for points with bwat == 0
+       basal_physics%effecpress(:,:) = overburden(:,:)
+
        if (present(bwat)) then
 
           ! Reduce N where basal water is present.
@@ -711,14 +714,15 @@ contains
                    ! limit so as not to exceed overburden
                    basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
                 end if
-
-                ! set to zero for floating ice
-                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
-
              enddo
           enddo
 
        endif   ! present(bwat)
+
+       where (floating_mask == 1)
+          ! set to zero for floating ice
+          basal_physics%effecpress = 0.0d0
+       end where
 
     case(HO_EFFECPRESS_OCEAN_PENETRATION)
 
