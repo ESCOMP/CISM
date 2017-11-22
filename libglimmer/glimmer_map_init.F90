@@ -55,10 +55,12 @@ contains
     character(10) :: ptype
     logical :: stdp,scfac
     integer :: ptval,ptold
+    logical :: compute_area_factor
 
     ptype   = ''
     lonc    = 0.d0 ; latc   = 0.d0
     efalse  = 0.d0 ; nfalse = 0.d0
+    compute_area_factor = .false.
     std_par => null()
     scale_factor = 0.d0
     stdp1 = 0.d0
@@ -73,6 +75,7 @@ contains
        call GetValue(section,'false_northing',nfalse)
        call GetValue(section,'standard_parallel',std_par)
        call GetValue(section,'scale_factor',scale_factor)
+       call GetValue(section,'compute_area_factor', compute_area_factor)
 
        ! Parse the projection type
        if (index(ptype,'LAEA')/=0 .or. index(ptype,'laea')/=0) then
@@ -157,15 +160,18 @@ contains
     if (stdp) then
        call glimmap_proj_define(proj,ptval, &
        lonc,latc,efalse,nfalse, &
+       compute_area_factor = compute_area_factor, &
        standard_parallel = stdp1, &
        standard_parallel_2 = stdp2)
     else if (scfac) then
        call glimmap_proj_define(proj,ptval, &
        lonc,latc,efalse,nfalse, &
+       compute_area_factor = compute_area_factor, &
        scale_factor_at_proj_origin = scale_factor)
     else
        call glimmap_proj_define(proj,ptval, &
-       lonc,latc,efalse,nfalse)
+       lonc,latc,efalse,nfalse, &
+       compute_area_factor = compute_area_factor)
     end if
 
   end subroutine glimmap_readconfig
@@ -244,7 +250,8 @@ contains
        write(message,*)'Standard parallel: ',proj%stere%standard_parallel
        call write_log(message)
        write(message,*)'Scale factor: ',proj%stere%scale_factor_at_proj_origin
-
+       call write_log(message)
+       write(message,*)'compute_area_factor:',proj%stere%compute_area_factor
     end if
 
   end subroutine glimmap_printproj
@@ -258,6 +265,7 @@ contains
        latitude_of_projection_origin, &
        false_easting, &
        false_northing, &
+       compute_area_factor, &
        scale_factor_at_proj_origin, &
        standard_parallel, &
        standard_parallel_2)
@@ -270,6 +278,7 @@ contains
     real(dp),intent(in) :: latitude_of_projection_origin         !< the latitude of the projection origin
     real(dp),intent(in) :: false_easting                         !< false easting
     real(dp),intent(in) :: false_northing                        !< false northing
+    logical, optional,intent(in) :: compute_area_factor          !< if true, compute area distortion factors
     real(dp),optional,intent(in) :: scale_factor_at_proj_origin  !< scale factor
     real(dp),optional,intent(in) :: standard_parallel            !< standard parallel 1
     real(dp),optional,intent(in) :: standard_parallel_2          !< standard parallel 2
@@ -333,6 +342,8 @@ contains
             cfp%stere%scale_factor_at_proj_origin = scale_factor_at_proj_origin
        if(present(standard_parallel)) &
             cfp%stere%standard_parallel = standard_parallel
+       if(present(compute_area_factor)) &
+            cfp%stere%compute_area_factor = compute_area_factor
        call glimmap_stere_init(cfp%stere)
     case default
        call write_log('Unrecognised projection type', &
@@ -501,71 +512,81 @@ contains
     !        else the code will segfault in glide_io_create.
 
     allocate(params%area_factor(ewn,nsn))
-    params%area_factor(:,:) = 1.0d0
 
-    ! latitude and longitude of projection origin
-    lat_c = params%standard_parallel
-    lon_c = params%longitude_of_central_meridian
+    if (params%compute_area_factor) then  ! compute area factors
 
-    ! lower left corner of grid is located at (delta_x,delta_y) relative to projection origin
-    delta_x = -params%false_easting
-    delta_y = -params%false_northing
+       ! latitude and longitude of projection origin
+       lat_c = params%standard_parallel
+       lon_c = params%longitude_of_central_meridian
 
-    ! compute some factors needed for the area_factor calculation
+       ! lower left corner of grid is located at (delta_x,delta_y) relative to projection origin
+       delta_x = -params%false_easting
+       delta_y = -params%false_northing
 
-    deg2rad = pi/180.d0   ! degrees to radians
+       ! compute some factors needed for the area_factor calculation
 
-    f = 1.0d0 / 298.257d0        ! flatness parameter (Snyder p. 12)
-    ecc = sqrt(2.d0*f - f**2)    ! eccentricity
+       deg2rad = pi/180.d0   ! degrees to radians
+
+       f = 1.0d0 / 298.257d0        ! flatness parameter (Snyder p. 12)
+       ecc = sqrt(2.d0*f - f**2)    ! eccentricity
 
 !!    lambda_0 = deg2rad * lon_c   !WHL - lambda0 is not needed to compute area_factor
-    phi_c = deg2rad * lat_c
+       phi_c = deg2rad * lat_c
 
-    m_c = cos(phi_c) / (1.d0 - ecc**2 * (sin(phi_c))**2)**0.5d0   ! Eq. 14-15
-    t_c = tan(pi/4.d0 - phi_c/2.d0) / ( ((1.d0 - ecc*sin(phi_c)) / (1.d0 + ecc*sin(phi_c)))**(ecc/2.d0) )  ! Eq. 15-9
+       m_c = cos(phi_c) / (1.d0 - ecc**2 * (sin(phi_c))**2)**0.5d0   ! Eq. 14-15
+       t_c = tan(pi/4.d0 - phi_c/2.d0) / ( ((1.d0 - ecc*sin(phi_c)) / (1.d0 + ecc*sin(phi_c)))**(ecc/2.d0) )  ! Eq. 15-9
 
-    ! compute area_factor for each grid cell
-    do j = 1, nsn
-       do i = 1, ewn
+       ! compute area_factor for each grid cell
+       do j = 1, nsn
+          do i = 1, ewn
 
-          call parallel_globalindex(i, j, iglobal, jglobal)
+             call parallel_globalindex(i, j, iglobal, jglobal)
 
-          ! compute x and y at cell center, relative to the projection origin
-          x = delta_x + (real(iglobal,dp)-0.5d0)*dx
-          y = delta_y + (real(jglobal,dp)-0.5d0)*dy
+             ! compute x and y at cell center, relative to the projection origin
+             x = delta_x + (real(iglobal,dp)-0.5d0)*dx
+             y = delta_y + (real(jglobal,dp)-0.5d0)*dy
 
-          ! compute other coefficients from Snyder
-          rho = sqrt(x**2 + y**2)       ! Eq. 20-18
+             ! compute other coefficients from Snyder
+             rho = sqrt(x**2 + y**2)       ! Eq. 20-18
 
-          if (abs(lat_c - 90.d0) < 1.d-6) then
-             write(message,*) 'WARNING: Area factors may not be correct for lon_c = 90 deg; testing needed'
-             call write_log(trim(message))
-             ! Note: Snyder defines k0 ~ 1 and includes a factor or rearth in the denominator
-             !       Glimmer defines k0 ~ rearth
-             t = rho * sqrt((1.d0+ecc)**(1.d0+ecc) * (1.d0+ecc)**(1.d0-ecc)) / (2.d0*params%k0)  ! Eq. 21-39
-          else  ! lat_c /= 90.d0) then
-             t = rho * t_c/(rearth*m_c)    ! Eq. 21-40
-          endif
+             if (abs(lat_c - 90.d0) < 1.d-6) then
+                write(message,*) 'WARNING: Area factors may not be correct for lon_c = 90 deg; testing needed'
+                call write_log(trim(message))
+                ! Note: Snyder defines k0 ~ 1 and includes a factor or rearth in the denominator
+                !       Glimmer defines k0 ~ rearth
+                t = rho * sqrt((1.d0+ecc)**(1.d0+ecc) * (1.d0+ecc)**(1.d0-ecc)) / (2.d0*params%k0)  ! Eq. 21-39
+             else  ! lat_c /= 90.d0) then
+                t = rho * t_c/(rearth*m_c)    ! Eq. 21-40
+             endif
 
-          xi = pi/2.d0 - 2.d0*atan(t)   ! Eq. 7-13
+             xi = pi/2.d0 - 2.d0*atan(t)   ! Eq. 7-13
 
-          phi = (xi + (ecc**2/2.d0 + 5.d0*ecc**4/24.d0 + ecc**6/12.d0 + 13.d0*ecc**8/360.d0) * sin(2.d0*xi) + &
-               (7.d0*ecc**4/48.d0 + 29.d0*ecc**6/120.d0 + 811.d0*ecc**8/11520.d0) * sin(4.d0*xi) + &
-               (7.d0*ecc**6/120.d0 + 81.d0*ecc**8/1120.d0) * sin(6.d0*xi) + &
-               (4279.d0*ecc**8/161280.d0) * sin(8.d0*xi))     ! Eq. 3-5
+             phi = (xi + (ecc**2/2.d0 + 5.d0*ecc**4/24.d0 + ecc**6/12.d0 + 13.d0*ecc**8/360.d0) * sin(2.d0*xi) + &
+                  (7.d0*ecc**4/48.d0 + 29.d0*ecc**6/120.d0 + 811.d0*ecc**8/11520.d0) * sin(4.d0*xi) + &
+                  (7.d0*ecc**6/120.d0 + 81.d0*ecc**8/1120.d0) * sin(6.d0*xi) + &
+                  (4279.d0*ecc**8/161280.d0) * sin(8.d0*xi))     ! Eq. 3-5
 
-          m = cos(phi) / (1.d0 - (ecc**2)*(sin(phi))**2)**0.5d0   ! Eq. 14-15
+             m = cos(phi) / (1.d0 - (ecc**2)*(sin(phi))**2)**0.5d0   ! Eq. 14-15
 
-          params%area_factor(i,j) = rho/(rearth*m)      ! Eq. 21-32 (k = area_factor)
+             params%area_factor(i,j) = rho/(rearth*m)      ! Eq. 21-32 (k = area_factor)
 
+          enddo
        enddo
-    enddo
 
-    call write_log ('Computed area scale factors for polar stereographic projection')
-    max_area_factor = parallel_reduce_max(maxval(params%area_factor))
-    min_area_factor = parallel_reduce_min(minval(params%area_factor))
-    write(message,*) 'max, min area_factor:', max_area_factor, min_area_factor
-    call write_log(trim(message))
+       call write_log ('Computed area scale factors for polar stereographic projection')
+       max_area_factor = parallel_reduce_max(maxval(params%area_factor))
+       min_area_factor = parallel_reduce_min(minval(params%area_factor))
+       write(message,*) 'max, min area_factor:', max_area_factor, min_area_factor
+       call write_log(trim(message))
+
+    else  ! compute_area_factor = F
+
+       ! set to a sensible default; assume no area distortion
+       params%area_factor(:,:) = 1.0d0
+       call write_log ('Set area scale factor = 1 for polar stereographic projection')
+
+    endif  ! compute_area_factor
+
 
   end subroutine glimmap_stere_area_factor
 

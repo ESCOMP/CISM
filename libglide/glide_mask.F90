@@ -250,7 +250,7 @@ contains
     if (.NOT. exec_serial) then
        sum(1) = iarea
        sum(2) = ivol
-       call global_sum(sum)
+       sum = parallel_reduce_sum(sum)
        iarea = sum(1)
        ivol  = sum(2)
     endif
@@ -300,7 +300,7 @@ contains
     if (.NOT. exec_serial_flag) then
        sum(1) = iareaf
        sum(2) = iareag
-       call global_sum(sum)
+       sum = parallel_reduce_sum(sum)
        iareaf = sum(1)
        iareag = sum(2)
     endif

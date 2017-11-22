@@ -85,16 +85,6 @@ module parallel
   integer, save :: staggered_lhalo = 2
   integer, save :: staggered_uhalo = 1
 
-!TODO - Remove staggered_whalo/shalo/ehalo/nhalo here and in other parts of the code
-!  integer,parameter :: staggered_whalo = lhalo
-!  integer,parameter :: staggered_shalo = lhalo
-!  integer,parameter :: staggered_ehalo = uhalo-1
-!  integer,parameter :: staggered_nhalo = uhalo-1
-  integer, save :: staggered_whalo = 2
-  integer, save :: staggered_shalo = 2
-  integer, save :: staggered_ehalo = 1
-  integer, save :: staggered_nhalo = 1
-
   integer,save :: main_rank
   logical,save :: main_task
   integer,save :: comm, tasks, this_rank
@@ -107,14 +97,20 @@ module parallel
   integer,save :: east,north,south,west
   integer,save :: ewtasks,nstasks
 
-  !Note: Currently, periodic_bc is always T, since periodic BCs are always applied.
-  !      Outflow BCs require some additional operations on scalars after periodic BCs are applied.
-  !      No-penetration BCs are enforced by setting velocity masks, without altering halo updates.
+  ! bounds of locally owned vertices on staggered grid
+  ! For periodic BC, staggered_ilo = staggered_jlo = staggered_lhalo+1.
+  ! For outflow BC the locally owned vertices include the southern and western rows
+  !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
+  !  processors that include these rows.
+  integer,save :: staggered_ilo
+  integer,save :: staggered_jlo
+  integer,save :: staggered_ihi
+  integer,save :: staggered_jhi
 
   ! global boundary conditions
   logical,save :: periodic_bc  ! doubly periodic                       
-  logical,save :: outflow_bc   ! if true, set scalars in global halo to zero
-                               ! does not apply to staggered variables (e.g., uvel, vvel)
+  logical,save :: outflow_bc   ! if true, set scalars in global halo to zero, and set
+                               ! staggered data to zero beyond the global boundary
 
   ! common work space
   integer,dimension(4),save :: d_gs_mybounds
@@ -226,11 +222,6 @@ module parallel
      module procedure distributed_scatter_var_real8_3d
   end interface
 
-  interface global_sum
-     module procedure global_sum_real8_scalar
-     module procedure global_sum_real8_1d
-  end interface
-
   interface parallel_convert_haloed_to_nonhaloed
      module procedure parallel_convert_haloed_to_nonhaloed_real4_2d
      module procedure parallel_convert_haloed_to_nonhaloed_real8_2d
@@ -268,6 +259,11 @@ module parallel
      module procedure parallel_halo_real8_3d
   end interface
 
+  interface parallel_halo_tracers
+     module procedure parallel_halo_tracers_real8_3d
+     module procedure parallel_halo_tracers_real8_4d
+  end interface
+
   interface parallel_halo_verify
      module procedure parallel_halo_verify_integer_2d
      module procedure parallel_halo_verify_real8_2d
@@ -280,6 +276,11 @@ module parallel
      module procedure staggered_parallel_halo_real8_2d
      module procedure staggered_parallel_halo_real8_3d
      module procedure staggered_parallel_halo_real8_4d
+  end interface
+
+  interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_integer_2d
+     module procedure parallel_halo_extrapolate_real8_2d
   end interface
 
   interface staggered_parallel_halo_extrapolate
@@ -1433,7 +1434,6 @@ contains
   subroutine distributed_grid(ewn,      nsn,        &
                               nhalo_in, outflow_bc_in)
                               
-
     implicit none
     integer, intent(inout) :: ewn, nsn        ! global grid dimensions
     integer, intent(in), optional :: nhalo_in ! number of rows of halo cells
@@ -1446,6 +1446,21 @@ contains
 
     ! begin
 
+    ! set the boundary conditions (periodic by default)
+    ! Note: The no-penetration BC is treated as periodic. This BC may need some more work.
+
+    if (present(outflow_bc_in)) then
+       outflow_bc = outflow_bc_in
+    else
+       outflow_bc = .false.
+    endif
+
+    if (outflow_bc) then
+       periodic_bc = .false.
+    else
+       periodic_bc = .true.
+    endif
+
     ! Optionally, change the halo values
     ! Note: The higher-order dycores (glam, glissade) currently require nhalo = 2.
     !       The Glide SIA dycore requires nhalo = 0.
@@ -1454,6 +1469,7 @@ contains
 
     if (present(nhalo_in)) then
        if (main_task) then
+
           write(*,*) 'Setting halo values: nhalo =', nhalo_in
           if (nhalo_in < 0) then
              write(*,*) 'ERROR: nhalo must be >= 0'
@@ -1467,11 +1483,6 @@ contains
        uhalo = nhalo
        staggered_lhalo = lhalo
        staggered_uhalo = max(uhalo-1, 0)
-       !TODO - Remove the following variables
-       staggered_whalo = lhalo
-       staggered_shalo = lhalo
-       staggered_ehalo = max(uhalo-1, 0)
-       staggered_nhalo = max(uhalo-1, 0)
     endif
 
     global_ewn = ewn
@@ -1546,6 +1557,26 @@ contains
     north = this_rank+ewtasks
     if (north>=tasks) north = north-tasks
 
+    ! Set the limits of locally owned vertices on the staggered grid.
+    ! For periodic BC, staggered_ilo = staggered_jlo = staggered_lhalo+1.
+    ! For outflow BC the locally owned vertices include the southern and western rows
+    !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
+    !  processors that include these rows.
+
+    if (outflow_bc .and. this_rank <= west) then  ! on west edge of global domain
+       staggered_ilo = staggered_lhalo
+    else
+       staggered_ilo = staggered_lhalo+1
+    endif
+    staggered_ihi = ewn - 1 - staggered_uhalo
+
+    if (outflow_bc .and. this_rank <= south) then  ! on south edge of global domain
+       staggered_jlo = staggered_lhalo
+    else
+       staggered_jlo = staggered_lhalo+1
+    endif
+    staggered_jhi = nsn - 1 - staggered_uhalo
+    
     ! Check that haven't split up the problem too much.  Idea is that do not want halos overlapping in either dimension.
     ! local_* - lhalo - uhalo is the actual number of non-halo cells on a processor.
     if ((local_nsn - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
@@ -1556,19 +1587,6 @@ contains
     if ((local_ewn  - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
         write(*,*) "EW halos overlap on processor ", this_rank
         call parallel_stop(__FILE__, __LINE__)
-    endif
-
-    ! set periodic BC as the default
-    ! Note: Currently, it is not strictly necessary to set periodic_bc = T, because 
-    !       all halo updates carried out for periodic BC are also carried out for other BCs.
-    !       (Outflow BCs simply add some additional operations on scalars.)
-    !       But setting it here as the default in case that changes.
-    periodic_bc = .true.  
-
-    if (present(outflow_bc_in)) then
-       outflow_bc = outflow_bc_in
-    else
-       outflow_bc = .false.
     endif
 
     ! Print grid geometry
@@ -2798,29 +2816,6 @@ contains
 
   end function get_bounds_info
 
-  subroutine global_sum_real8_scalar(x)
-    use mpi_mod
-    implicit none
-    real(dp) :: x
-    
-    integer :: ierror
-    real(dp) :: sum
-    ! begin
-    call mpi_allreduce(x,sum,1,mpi_real8,mpi_sum,comm,ierror)
-    x = sum
-  end subroutine global_sum_real8_scalar
-
-  subroutine global_sum_real8_1d(x)
-    use mpi_mod
-    implicit none
-    real(dp),dimension(:) :: x
-    
-    integer :: ierror
-    real(dp),dimension(size(x)) :: sum
-    ! begin
-    call mpi_allreduce(x,sum,size(x),mpi_real8,mpi_sum,comm,ierror)
-    x(:) = sum(:)
-  end subroutine global_sum_real8_1d
 
   subroutine not_parallel(file,line)
     implicit none
@@ -3295,7 +3290,7 @@ contains
     a(:,local_nsn-uhalo+1:) = nrecv(:,:)
 
     if (outflow_bc) then   ! set values in global halo to zero
-                        ! interior halo cells should not be affected
+                           ! interior halo cells should not be affected
 
        if (this_rank >= east) then  ! at east edge of global domain
           a(local_ewn-uhalo+1:,:) = 0
@@ -3662,6 +3657,170 @@ contains
     endif   ! outflow_bc
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_3d(a)
+
+    ! Custom halo routine for tracer arrays with dimension(nx,ny,ntracers)
+    ! Will work for any 3D array with (nx,ny) in the first two slots
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:) :: a
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3)) :: esend,wrecv
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3)) :: erecv,wsend
+    real(dp),dimension(local_ewn,lhalo,size(a,3)) :: nsend,srecv
+    real(dp),dimension(local_ewn,uhalo,size(a,3)) :: nrecv,ssend
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:) = &
+         a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:lhalo,1+lhalo:local_nsn-uhalo,:) = wrecv(:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:) = erecv(:,:,:)
+
+    nsend(:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:lhalo,:) = srecv(:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,local_nsn-uhalo+1:,:) = nrecv(:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(local_ewn-uhalo+1:,:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:lhalo,:,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,local_nsn-uhalo+1:,:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:lhalo,:) = 0.d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine parallel_halo_tracers_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_4d(a)
+
+    ! Custom halo routine for tracer arrays with dimension(nx,ny,ntracers,nz)
+    ! Will work for any 4D array with (nx,ny) in the first two slots
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: esend,wrecv
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: erecv,wsend
+    real(dp),dimension(local_ewn,lhalo,size(a,3),size(a,4)) :: nsend,srecv
+    real(dp),dimension(local_ewn,uhalo,size(a,3),size(a,4)) :: nrecv,ssend
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:,:) = &
+         a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:,:)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:,:)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:lhalo,1+lhalo:local_nsn-uhalo,:,:) = wrecv(:,:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:,:) = erecv(:,:,:,:)
+
+    nsend(:,:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:,:)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:,:)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:lhalo,:,:) = srecv(:,:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,local_nsn-uhalo+1:,:,:) = nrecv(:,:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(local_ewn-uhalo+1:,:,:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:lhalo,:,:,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,local_nsn-uhalo+1:,:,:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:lhalo,:,:) = 0.d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine parallel_halo_tracers_real8_4d
 
 
   function parallel_halo_verify_integer_2d(a)
@@ -4583,6 +4742,731 @@ contains
   end subroutine staggered_no_penetration_mask
 
 
+  subroutine parallel_halo_extrapolate_integer_2d(a)
+
+    implicit none
+    integer,dimension(:,:) :: a
+    integer :: i, j
+
+    ! begin
+
+    ! Extrapolate the field into halo cells along the global boundary.
+
+    ! First update the halos so that we are sure the interior halos are correct
+    call parallel_halo(a)
+
+! Useful for debugging small domains (the YYYY is just a tag for grepping the output, 
+!  particularly if you prepend the processor number, e.g. "0YYYY")
+!  do j = 1, size(a,2)
+!     write(6, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!  enddo
+
+    if (this_rank >= east) then  ! at east edge of global domain
+       ! extrapolate eastward
+       do i = size(a,1)-uhalo+1, size(a,1)
+          a(i, :) = a(size(a,1)-uhalo, :)
+       enddo
+    endif
+
+    if (this_rank <= west) then  ! at west edge of global domain
+       ! extrapolate westward
+       do i = 1, lhalo
+          a(i, :) = a(lhalo+1, :)
+       enddo
+    endif
+
+    if (this_rank >= north) then  ! at north edge of global domain
+       ! extrapolate northward
+       do j = size(a,2)-uhalo+1, size(a,2)
+          a(:, j) = a(:, size(a,2)-uhalo)
+       enddo
+    endif
+
+    if (this_rank <= south) then  ! at south edge of global domain
+       ! extrapolate southward
+       do j = 1, lhalo
+          a(:, j) = a(:, lhalo+1)
+       enddo
+    endif
+
+! Useful for debugging small domains
+!  do j = 1, size(a,2)
+!     write(6, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!  enddo
+  end subroutine parallel_halo_extrapolate_integer_2d
+
+
+  subroutine parallel_halo_extrapolate_real8_2d(a)
+
+    implicit none
+    real(dp),dimension(:,:) :: a
+    integer :: i, j
+
+    ! begin
+
+    ! Extrapolate the field into halo cells along the global boundary.
+
+    ! First update the halos so that we are sure the interior halos are correct
+    call parallel_halo(a)
+
+! Useful for debugging small domains (the YYYY is just a tag for grepping the output, 
+!  particularly if you prepend the processor number, e.g. "0YYYY")
+!  do j = 1, size(a,2)
+!     write(6, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!  enddo
+
+    if (this_rank >= east) then  ! at east edge of global domain
+       ! extrapolate eastward
+       do i = size(a,1)-uhalo+1, size(a,1)
+          a(i, :) = a(size(a,1)-uhalo, :)
+       enddo
+    endif
+
+    if (this_rank <= west) then  ! at west edge of global domain
+       ! extrapolate westward
+       do i = 1, lhalo
+          a(i, :) = a(lhalo+1, :)
+       enddo
+    endif
+
+    if (this_rank >= north) then  ! at north edge of global domain
+       ! extrapolate northward
+       do j = size(a,2)-uhalo+1, size(a,2)
+          a(:, j) = a(:, size(a,2)-uhalo)
+       enddo
+    endif
+
+    if (this_rank <= south) then  ! at south edge of global domain
+       ! extrapolate southward
+       do j = 1, lhalo
+          a(:, j) = a(:, lhalo+1)
+       enddo
+    endif
+
+! Useful for debugging small domains
+!  do j = 1, size(a,2)
+!     write(6, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!  enddo
+  end subroutine parallel_halo_extrapolate_real8_2d
+
+  !-----------------------------------------------------------------
+  ! Comments on the staggered_parallel_halo subroutines:
+  !
+  ! The following subroutines implement a staggered grid halo update for integer and real(dp) arrays
+  !  of various sizes.
+  ! As the grid is staggered, the array 'a' is one smaller in both dimensions than an unstaggered array.
+  !
+  ! The grid is laid out from the SW, and the lower left corner is assigned to this_rank = 0.
+  ! Its eastern neighbor is task_id = 1, proceeding rowwise and starting from the western edge.
+  ! The South-most processes own one additional row of stagggered variables on the southern edge
+  ! and have one less 'southern' halo row than other processes. Likewise, the West-most processes own one 
+  ! additional column of staggered variables on the western edge and have one less 'western' halo column. 
+  !
+  ! The default BCs are periodic, in which case the southernmost and westernmost rows of the 
+  ! global domain are filled with data from the northernmost and easternmost rows.
+  !
+  ! WHL: Comments on the implementation of outflow BC:
+  !
+  ! With outflow BCs, the southernmost and westernmost rows contain correct data (e.g., velocity
+  ! at global boundaries) that should be passed to adjacent processors and should not be overwritten.
+  ! This is implemented by defining variables called staggered_ilo, staggered_ihi, staggered_jlo
+  ! and staggered_jhi, which denote the limits of locally owned staggered data on each processor.
+  !
+  ! For processors that include the western global boundary, staggered_ilo = staggered_lhalo; 
+  !  for other processors (or for all processors when periodic_bc = T), staggered_ilo = staggered_lhalo+1. 
+  ! Similarly, for processors that include the southern global boundary, staggered_jlo = staggered_lhalo; 
+  !  for other processors (or for all processors when periodic_bc = T), staggered_jlo = staggered_lhalo+1.
+  ! For all processors, staggered_ihi = (nx-1)-staggered_uhalo and staggered_jhi = (ny-1)-staggered_uhalo.
+  ! Using these limits, we can correctly pass all and only the locally owned staggered data
+  !  from each processor to its neighbors.
+  ! Data are passed between the northern and southern global rows, and between the eastern and western rows,
+  !  only when periodic_bc = T.
+  !
+  ! In addition to correctly passing staggered data along global boundaries, outflow BC imply
+  !  that all staggered data are zero at points beyond the global boundary. The global boundary
+  !  is delimited by:
+  !    i = staggered_lhalo on the west boundary
+  !    i = nx - 1 - staggered_uhalo on the east boundary
+  !    j = staggered_lhalo on the south boundary
+  !    j = ny - 1 - staggered_uhalo on the north boundary
+  ! 
+  ! TODO: Think about whether code simplifications are possible below using staggered_ilo/ihi/jlo/jhi.
+  !-----------------------------------------------------------------
+
+  subroutine staggered_parallel_halo_integer_2d(a)
+
+    use mpi_mod
+    implicit none
+    integer,dimension(:,:) :: a
+
+    ! Implements a staggered grid halo update for a 2D integer field
+
+    integer :: ierror,nrequest,srequest,erequest,wrequest
+
+    integer,dimension(staggered_lhalo, staggered_jhi-staggered_jlo+1) :: esend,wrecv
+    integer,dimension(staggered_uhalo, staggered_jhi-staggered_jlo+1) :: erecv,wsend
+    integer,dimension(size(a,1),staggered_lhalo) :: nsend,srecv
+    integer,dimension(size(a,1),staggered_uhalo) :: nrecv,ssend
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Prepost expected receives
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_irecv(erecv,size(erecv),mpi_integer,east,east,comm,erequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_irecv(wrecv,size(wrecv),mpi_integer,west,west,comm,wrequest,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_irecv(nrecv,size(nrecv),mpi_integer,north,north,comm,nrequest,ierror)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_irecv(srecv,size(srecv),mpi_integer,south,south,comm,srequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      wsend(:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(wsend,size(wsend),mpi_integer,west,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      esend(:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(esend,size(esend),mpi_integer,east,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_wait(erequest,mpi_status_ignore,ierror)
+      a(size(a,1)-staggered_uhalo+1:size(a,1), staggered_jlo:staggered_jhi) = &
+          erecv(:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_wait(wrequest,mpi_status_ignore,ierror)
+      a(1:staggered_lhalo, staggered_jlo:staggered_jhi) = &
+          wrecv(:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      ssend(:,:) = &
+        a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+      call mpi_send(ssend,size(ssend),mpi_integer,south,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      nsend(:,:) = &
+        a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
+      call mpi_send(nsend,size(nsend),mpi_integer,north,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_wait(nrequest,mpi_status_ignore,ierror)
+      a(:,size(a,2)-staggered_uhalo+1:size(a,2)) = nrecv(:,:)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_wait(srequest,mpi_status_ignore,ierror)
+      a(:,1:staggered_lhalo) = srecv(:,:)
+    endif
+
+    ! For outflow BC, zero the field beyond the global boundary
+
+    if (outflow_bc) then
+
+       if (this_rank <= west) then  ! west edge of global domain
+          a(1:staggered_lhalo-1, :) = 0.0d0
+       endif
+
+       if (this_rank >= east) then  ! east edge of global domain
+          a(size(a,1)-staggered_uhalo+1:size(a,1), :) = 0.0d0
+       endif
+
+       if (this_rank <= south) then  ! south edge of global domain
+          a(:, 1:staggered_lhalo-1) = 0.0d0
+       endif
+
+       if (this_rank >= north) then  ! north edge of global domain
+          a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = 0.0d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine staggered_parallel_halo_integer_2d
+
+
+  subroutine staggered_parallel_halo_integer_3d(a)
+
+    use mpi_mod
+    implicit none
+    integer,dimension(:,:,:) :: a
+
+    ! Implements a staggered grid halo update for a 3D integer field
+
+    integer :: ierror,nrequest,srequest,erequest,wrequest
+
+    integer,dimension(size(a,1), staggered_lhalo, staggered_jhi-staggered_jlo+1) :: esend,wrecv
+    integer,dimension(size(a,1), staggered_uhalo, staggered_jhi-staggered_jlo+1) :: erecv,wsend
+    integer,dimension(size(a,1),size(a,2),staggered_lhalo) :: nsend,srecv
+    integer,dimension(size(a,1),size(a,2),staggered_uhalo) :: nrecv,ssend
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,2)/=local_ewn-1.or.size(a,3)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Prepost expected receives
+
+    if (this_rank < east  .or. periodic_bc) then
+      call mpi_irecv(erecv,size(erecv),mpi_integer,east,east,comm,erequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_irecv(wrecv,size(wrecv),mpi_integer,west,west,comm,wrequest,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_irecv(nrecv,size(nrecv),mpi_integer,north,north,comm,nrequest,ierror)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_irecv(srecv,size(srecv),mpi_integer,south,south,comm,srequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      wsend(:,:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(wsend,size(wsend),mpi_integer,west,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+       esend(:,:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(:, size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(esend,size(esend),mpi_integer,east,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_wait(erequest,mpi_status_ignore,ierror)
+      a(:, size(a,2)-staggered_uhalo+1:size(a,2), staggered_jlo:staggered_jhi) = &
+          erecv(:,:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_wait(wrequest,mpi_status_ignore,ierror)
+      a(:, 1:staggered_lhalo, staggered_jlo:staggered_jhi) = &
+          wrecv(:,:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      ssend(:,:,:) = &
+        a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+      call mpi_send(ssend,size(ssend),mpi_integer,south,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      nsend(:,:,:) = &
+        a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
+      call mpi_send(nsend,size(nsend),mpi_integer,north,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_wait(nrequest,mpi_status_ignore,ierror)
+      a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = nrecv(:,:,:)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_wait(srequest,mpi_status_ignore,ierror)
+      a(:,:,1:staggered_lhalo) = srecv(:,:,:)
+    endif
+
+    ! For outflow BC, zero the field beyond the global boundary
+
+    if (outflow_bc) then
+
+       if (this_rank <= west) then
+          a(:, 1:staggered_lhalo-1, :) = 0.0d0
+       endif
+
+       if (this_rank >= east) then
+          a(:, size(a,2)-staggered_uhalo+1:size(a,2), :) = 0.0d0
+       endif
+
+       if (this_rank <= south) then
+          a(:, :, 1:staggered_lhalo-1) = 0.0d0
+       endif
+
+       if (this_rank >= north) then
+          a(:, :, size(a,3)-staggered_uhalo+1:size(a,3)) = 0.0d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine staggered_parallel_halo_integer_3d
+
+
+  subroutine staggered_parallel_halo_real8_2d(a)
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:) :: a
+
+    ! Implements a staggered grid halo update for a real(dp) 2D field
+
+    integer :: ierror,nrequest,srequest,erequest,wrequest
+
+    real(dp),dimension(staggered_lhalo, staggered_jhi-staggered_jlo+1) :: esend,wrecv
+    real(dp),dimension(staggered_uhalo, staggered_jhi-staggered_jlo+1) :: erecv,wsend
+    real(dp),dimension(size(a,1),staggered_lhalo) :: nsend,srecv
+    real(dp),dimension(size(a,1),staggered_uhalo) :: nrecv,ssend
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Prepost expected receives
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,comm,erequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,comm,wrequest,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,comm,nrequest,ierror)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,comm,srequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      wsend(:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      esend(:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_wait(erequest,mpi_status_ignore,ierror)
+      a(size(a,1)-staggered_uhalo+1:size(a,1), staggered_jlo:staggered_jhi) = &
+          erecv(:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_wait(wrequest,mpi_status_ignore,ierror)
+      a(1:staggered_lhalo, staggered_jlo:staggered_jhi) = &
+          wrecv(:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      ssend(:,:) = &
+        a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+      call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      nsend(:,:) = &
+        a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
+      call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_wait(nrequest,mpi_status_ignore,ierror)
+      a(:,size(a,2)-staggered_uhalo+1:size(a,2)) = nrecv(:,:)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_wait(srequest,mpi_status_ignore,ierror)
+      a(:,1:staggered_lhalo) = srecv(:,:)
+    endif
+
+    ! For outflow BC, zero the field beyond the global boundary
+
+    if (outflow_bc) then
+
+       if (this_rank <= west) then  ! west edge of global domain
+          a(1:staggered_lhalo-1, :) = 0.0d0
+       endif
+
+       if (this_rank >= east) then  ! east edge of global domain
+          a(size(a,1)-staggered_uhalo+1:size(a,1), :) = 0.0d0
+       endif
+
+       if (this_rank <= south) then  ! south edge of global domain
+          a(:, 1:staggered_lhalo-1) = 0.0d0
+       endif
+
+       if (this_rank >= north) then  ! north edge of global domain
+          a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = 0.0d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine staggered_parallel_halo_real8_2d
+
+
+  subroutine staggered_parallel_halo_real8_3d(a)
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:) :: a
+
+    ! Implements a staggered grid halo update for a real(dp) 3D field
+
+    integer :: ierror,nrequest,srequest,erequest,wrequest
+
+    real(dp),dimension(size(a,1), staggered_lhalo, staggered_jhi-staggered_jlo+1) :: esend,wrecv
+    real(dp),dimension(size(a,1), staggered_uhalo, staggered_jhi-staggered_jlo+1) :: erecv,wsend
+    real(dp),dimension(size(a,1),size(a,2),staggered_lhalo) :: nsend,srecv
+    real(dp),dimension(size(a,1),size(a,2),staggered_uhalo) :: nrecv,ssend
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Prepost expected receives
+
+    if (this_rank < east  .or. periodic_bc) then
+      call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,comm,erequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,comm,wrequest,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,comm,nrequest,ierror)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,comm,srequest,ierror)
+    endif
+
+    ! Send and receive east-west messages
+
+    if (this_rank > west .or. periodic_bc) then
+      wsend(:,:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+       esend(:,:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(:, size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_wait(erequest,mpi_status_ignore,ierror)
+      a(:, size(a,2)-staggered_uhalo+1:size(a,2), staggered_jlo:staggered_jhi) = &
+          erecv(:,:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_wait(wrequest,mpi_status_ignore,ierror)
+      a(:, 1:staggered_lhalo, staggered_jlo:staggered_jhi) = &
+          wrecv(:,:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    ! Send and receive north-south messages
+
+    if (this_rank > south .or. periodic_bc) then
+      ssend(:,:,:) = &
+        a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+      call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      nsend(:,:,:) = &
+        a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
+      call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_wait(nrequest,mpi_status_ignore,ierror)
+      a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = nrecv(:,:,:)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_wait(srequest,mpi_status_ignore,ierror)
+      a(:,:,1:staggered_lhalo) = srecv(:,:,:)
+    endif
+
+    ! For outflow BC, zero the field beyond the global boundary
+
+    if (outflow_bc) then
+
+       if (this_rank <= west) then
+          a(:, 1:staggered_lhalo-1, :) = 0.0d0
+       endif
+
+       if (this_rank >= east) then
+          a(:, size(a,2)-staggered_uhalo+1:size(a,2), :) = 0.0d0
+       endif
+
+       if (this_rank <= south) then
+          a(:, :, 1:staggered_lhalo-1) = 0.0d0
+       endif
+
+       if (this_rank >= north) then
+          a(:, :, size(a,3)-staggered_uhalo+1:size(a,3)) = 0.0d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine staggered_parallel_halo_real8_3d
+
+
+  subroutine staggered_parallel_halo_real8_4d(a)
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+
+    ! Implements a staggered grid halo update for a real(dp) 4D field
+
+    integer :: ierror,nrequest,srequest,erequest,wrequest
+
+    real(dp),dimension(size(a,1), size(a,2), staggered_lhalo, staggered_jhi-staggered_jlo+1) :: esend,wrecv
+    real(dp),dimension(size(a,1), size(a,2), staggered_uhalo, staggered_jhi-staggered_jlo+1) :: erecv,wsend
+    real(dp),dimension(size(a,1),size(a,2),size(a,3),staggered_lhalo) :: nsend,srecv
+    real(dp),dimension(size(a,1),size(a,2),size(a,3),staggered_uhalo) :: nrecv,ssend
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,3)/=local_ewn-1 .or. size(a,4)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Prepost expected receives
+
+    if (this_rank < east  .or. periodic_bc) then
+      call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,comm,erequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,comm,wrequest,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,comm,nrequest,ierror)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,comm,srequest,ierror)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      wsend(:,:,:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+       esend(:,:,:, 1:staggered_jhi-staggered_jlo+1) = &
+           a(:,:, size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo, &
+             staggered_jlo:staggered_jhi)
+      call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < east .or. periodic_bc) then
+      call mpi_wait(erequest,mpi_status_ignore,ierror)
+      a(:,:, size(a,3)-staggered_uhalo+1:size(a,3), staggered_jlo:staggered_jhi) = &
+          erecv(:,:,:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > west .or. periodic_bc) then
+      call mpi_wait(wrequest,mpi_status_ignore,ierror)
+      a(:,:, 1:staggered_lhalo, staggered_jlo:staggered_jhi) = &
+          wrecv(:,:,:, 1:staggered_jhi-staggered_jlo+1)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      ssend(:,:,:,:) = &
+        a(:,:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+      call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      nsend(:,:,:,:) = &
+        a(:,:,:,size(a,4)-staggered_uhalo-staggered_lhalo+1:size(a,4)-staggered_uhalo)
+      call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    endif
+
+    if (this_rank < north .or. periodic_bc) then
+      call mpi_wait(nrequest,mpi_status_ignore,ierror)
+      a(:,:,:,size(a,4)-staggered_uhalo+1:size(a,4)) = nrecv(:,:,:,:)
+    endif
+
+    if (this_rank > south .or. periodic_bc) then
+      call mpi_wait(srequest,mpi_status_ignore,ierror)
+      a(:,:,:,1:staggered_lhalo) = srecv(:,:,:,:)
+    endif
+
+    ! For outflow BC, zero the field beyond the global boundary
+
+    if (outflow_bc) then
+
+       if (this_rank <= west) then
+          a(:,:, 1:staggered_lhalo-1, :) = 0.0d0
+       endif
+
+       if (this_rank >= east) then
+          a(:,:, size(a,3)-staggered_uhalo+1:size(a,3), :) = 0.0d0
+       endif
+
+       if (this_rank <= south) then
+          a(:,:, :, 1:staggered_lhalo-1) = 0.0d0
+       endif
+
+       if (this_rank >= north) then
+          a(:,:, :, size(a,4)-staggered_uhalo+1:size(a,4)) = 0.0d0
+       endif
+
+    endif   ! outflow_bc
+
+  end subroutine staggered_parallel_halo_real8_4d
+
+
   subroutine staggered_parallel_halo_extrapolate_integer_2d(a)
 
     implicit none
@@ -4705,634 +5589,6 @@ contains
 !  enddo
   end subroutine staggered_parallel_halo_extrapolate_real8_2d
 
-
-  subroutine staggered_parallel_halo_integer_2d(a)
-    use mpi_mod
-    implicit none
-    integer,dimension(:,:) :: a
-
-    ! Implements a staggered grid halo update.
-    ! As the grid is staggered, the array 'a' is one smaller in both dimensions than an unstaggered array.
-
-    ! The grid is laid out from the SW, and the lower left corner is assigned to this_rank = 0.
-    ! It's eastern nbhr is task_id = 1, proceeding rowwise and starting from the western edge.
-    ! The South-most processes own one additional row of stagggered variables on the southern edge
-    ! and have one less 'southern' halo row than other processes. Likewise, the West-most processes own one 
-    ! additional column of staggered variables on the western edge and have one less 'western' halo column. 
-    ! This is implemented by a modification to the staggered_lhalo value on these processes. 
-
-    !WHL - I don't think we need to say that the South-most processes "own" an additional row of
-    !      staggered variables on the southern edge.  I think we can treat the southern edge as a halo row
-    !      and still enforce the various global BC we want.
-
-    ! Maintaining global boundary conditions are not addressed within this routine (yet).
-
-    ! integer :: erequest,ierror,one,nrequest,srequest,wrequest
-    integer :: ierror,nrequest,srequest,erequest,wrequest
-
-    integer,dimension(staggered_lhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: esend,wrecv
-    integer,dimension(staggered_uhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: erecv,wsend
-    integer,dimension(size(a,1),staggered_lhalo) :: nsend,srecv
-    integer,dimension(size(a,1),staggered_uhalo) :: nrecv,ssend
-
-    !WHL - I defined a logical variable to determine whether or not to fill halo cells
-    !      at the edge of the global domain.  I am setting it to true by default to support
-    !      cyclic global BCs.
-    !TODO: Assume fill_global_halos is true in all cases?  (Here and below)
-
-    logical :: fill_global_halos = .true.
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Prepost expected receives
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_irecv(erecv,size(erecv),mpi_integer,east,east,comm,erequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_irecv(wrecv,size(wrecv),mpi_integer,west,west,comm,wrequest,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_irecv(nrecv,size(nrecv),mpi_integer,north,north,comm,nrequest,ierror)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_irecv(srecv,size(srecv),mpi_integer,south,south,comm,srequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-!      wsend(:,1:size(a,2)-staggered_shalo-staggered_nhalo) = &
-!        a(1+staggered_whalo:1+staggered_whalo+staggered_ehalo-1, &
-!            1+staggered_shalo:size(a,2)-staggered_nhalo)
-      wsend(:,1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-        a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-            1+staggered_lhalo:size(a,2)-staggered_uhalo)
-      call mpi_send(wsend,size(wsend),mpi_integer,west,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-!      esend(:,1:size(a,2)-staggered_shalo-staggered_nhalo) = &
-!        a(size(a,1)-staggered_ehalo-staggered_whalo+1:size(a,1)-staggered_ehalo, &
-!            1+staggered_shalo:size(a,2)-staggered_nhalo)
-      esend(:,1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-        a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
-            1+staggered_lhalo:size(a,2)-staggered_uhalo)
-      call mpi_send(esend,size(esend),mpi_integer,east,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_wait(erequest,mpi_status_ignore,ierror)
-!      a(size(a,1)-staggered_ehalo+1:size(a,1), &
-!          1+staggered_shalo:size(a,2)-staggered_nhalo) = &
-!          erecv(:,1:size(a,2)-staggered_shalo-staggered_nhalo)
-      a(size(a,1)-staggered_uhalo+1:size(a,1), &
-          1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-          erecv(:,1:size(a,2)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_wait(wrequest,mpi_status_ignore,ierror)
-!      a(1:staggered_whalo, &
-!          1+staggered_shalo:size(a,2)-staggered_nhalo) = &
-!          wrecv(:,1:size(a,2)-staggered_shalo-staggered_nhalo)
-      a(1:staggered_lhalo, &
-          1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-          wrecv(:,1:size(a,2)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      ssend(:,:) = &
-!        a(:,1+staggered_shalo:1+staggered_shalo+staggered_nhalo-1)
-        a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-      call mpi_send(ssend,size(ssend),mpi_integer,south,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      nsend(:,:) = &
-!        a(:,size(a,2)-staggered_nhalo-staggered_shalo+1:size(a,2)-staggered_nhalo)
-        a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
-      call mpi_send(nsend,size(nsend),mpi_integer,north,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_wait(nrequest,mpi_status_ignore,ierror)
-!      a(:,size(a,2)-staggered_nhalo+1:size(a,2)) = nrecv(:,:)
-      a(:,size(a,2)-staggered_uhalo+1:size(a,2)) = nrecv(:,:)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_wait(srequest,mpi_status_ignore,ierror)
-!      a(:,1:staggered_shalo) = srecv(:,:)
-      a(:,1:staggered_lhalo) = srecv(:,:)
-    endif
-
-  end subroutine staggered_parallel_halo_integer_2d
-
-
-  subroutine staggered_parallel_halo_integer_3d(a)
-    use mpi_mod
-    implicit none
-    integer,dimension(:,:,:) :: a
-
-    ! Implements a staggered grid halo update for a 3D field.
-    ! As the grid is staggered, the array 'a' is one smaller in both dimensions than an unstaggered array.
-    ! The vertical dimension is assumed to be the first index, i.e., a(k,i,j).
-
-    ! The grid is laid out from the SW, and the lower left corner is assigned to this_rank = 0.
-    ! It's eastern nbhr is task_id = 1, proceeding rowwise and starting from the western edge.
-    ! The South-most processes own one additional row of stagggered variables on the southern edge
-    ! and have one less 'southern' halo row than other processes. Likewise, the West-most processes own one 
-    ! additional column of staggered variables on the western edge and have one less 'western' halo column. 
-    ! This is implemented by a modification to the staggered_lhalo value on these processes. 
-
-    ! Maintaining global boundary conditions are not addressed within this routine (yet).
-
-    ! integer :: erequest,ierror,one,nrequest,srequest,wrequest
-    integer :: ierror,nrequest,srequest,erequest,wrequest
-
-    integer,dimension(size(a,1),staggered_lhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: esend,wrecv
-    integer,dimension(size(a,1),staggered_uhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: erecv,wsend
-    integer,dimension(size(a,1),size(a,2),staggered_lhalo) :: nsend,srecv
-    integer,dimension(size(a,1),size(a,2),staggered_uhalo) :: nrecv,ssend
-
-    !WHL - I defined a logical variable to determine whether or not to fill halo cells
-    !      at the edge of the global domain.  I am setting it to true by default to support
-    !      cyclic global BCs.
-
-    logical :: fill_global_halos = .true.
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,2)/=local_ewn-1.or.size(a,3)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Prepost expected receives
-
-    if (this_rank < east  .or. fill_global_halos) then
-      call mpi_irecv(erecv,size(erecv),mpi_integer,east,east,comm,erequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_irecv(wrecv,size(wrecv),mpi_integer,west,west,comm,wrequest,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_irecv(nrecv,size(nrecv),mpi_integer,north,north,comm,nrequest,ierror)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_irecv(srecv,size(srecv),mpi_integer,south,south,comm,srequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      wsend(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-        a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-            1+staggered_lhalo:size(a,3)-staggered_uhalo)
-      call mpi_send(wsend,size(wsend),mpi_integer,west,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      esend(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-        a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
-            1+staggered_lhalo:size(a,3)-staggered_uhalo)
-      call mpi_send(esend,size(esend),mpi_integer,east,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_wait(erequest,mpi_status_ignore,ierror)
-      a(:,size(a,2)-staggered_uhalo+1:size(a,2), &
-          1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-          erecv(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_wait(wrequest,mpi_status_ignore,ierror)
-      a(:,1:staggered_lhalo, &
-          1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-          wrecv(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      ssend(:,:,:) = &
-        a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-      call mpi_send(ssend,size(ssend),mpi_integer,south,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      nsend(:,:,:) = &
-        a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
-      call mpi_send(nsend,size(nsend),mpi_integer,north,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_wait(nrequest,mpi_status_ignore,ierror)
-      a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = nrecv(:,:,:)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_wait(srequest,mpi_status_ignore,ierror)
-      a(:,:,1:staggered_lhalo) = srecv(:,:,:)
-    endif
-
-  end subroutine staggered_parallel_halo_integer_3d
-
-
-  !WHL - Edited the original subroutine so that values from N and E edges
-  !      of global domain can be written to halo cells at the S and W edges,
-  !      to allow cyclic BCs for staggered variables
-
-  subroutine staggered_parallel_halo_real8_2d(a)
-
-    use mpi_mod
-    implicit none
-    real(dp),dimension(:,:) :: a
-
-    ! Implements a staggered grid halo update.
-    ! As the grid is staggered, the array 'a' is one smaller in both dimensions than an unstaggered array.
-
-    ! The grid is laid out from the SW, and the lower left corner is assigned to this_rank = 0.
-    ! It's eastern nbhr is task_id = 1, proceeding rowwise and starting from the western edge.
-    ! The South-most processes own one additional row of stagggered variables on the southern edge
-    ! and have one less 'southern' halo row than other processes. Likewise, the West-most processes own one 
-    ! additional column of staggered variables on the western edge and have one less 'western' halo column. 
-    ! This is implemented by a modification to the staggered_lhalo value on these processes. 
-
-    ! Maintaining global boundary conditions are not addressed within this routine (yet).
-
-    ! integer :: erequest,ierror,one,nrequest,srequest,wrequest
-    integer :: ierror,nrequest,srequest,erequest,wrequest
-!    real(dp),dimension(staggered_whalo,size(a,2)-staggered_shalo-staggered_nhalo) :: esend,wrecv
-!    real(dp),dimension(staggered_ehalo,size(a,2)-staggered_shalo-staggered_nhalo) :: erecv,wsend
-!    real(dp),dimension(size(a,1),staggered_shalo) :: nsend,srecv
-!    real(dp),dimension(size(a,1),staggered_nhalo) :: nrecv,ssend
-    real(dp),dimension(staggered_lhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: esend,wrecv
-    real(dp),dimension(staggered_uhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: erecv,wsend
-    real(dp),dimension(size(a,1),staggered_lhalo) :: nsend,srecv
-    real(dp),dimension(size(a,1),staggered_uhalo) :: nrecv,ssend
-
-    !WHL - I defined a logical variable to determine whether or not to fill halo cells
-    !      at the edge of the global domain.  I am setting it to true by default to support
-    !      cyclic global BCs.
-
-    logical :: fill_global_halos = .true.
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Prepost expected receives
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,comm,erequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,comm,wrequest,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,comm,nrequest,ierror)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,comm,srequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-!      wsend(:,1:size(a,2)-staggered_shalo-staggered_nhalo) = &
-!        a(1+staggered_whalo:1+staggered_whalo+staggered_ehalo-1, &
-!            1+staggered_shalo:size(a,2)-staggered_nhalo)
-      wsend(:,1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-        a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-            1+staggered_lhalo:size(a,2)-staggered_uhalo)
-      call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-!      esend(:,1:size(a,2)-staggered_shalo-staggered_nhalo) = &
-!        a(size(a,1)-staggered_ehalo-staggered_whalo+1:size(a,1)-staggered_ehalo, &
-!            1+staggered_shalo:size(a,2)-staggered_nhalo)
-      esend(:,1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-        a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
-            1+staggered_lhalo:size(a,2)-staggered_uhalo)
-      call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_wait(erequest,mpi_status_ignore,ierror)
-!      a(size(a,1)-staggered_ehalo+1:size(a,1), &
-!          1+staggered_shalo:size(a,2)-staggered_nhalo) = &
-!          erecv(:,1:size(a,2)-staggered_shalo-staggered_nhalo)
-      a(size(a,1)-staggered_uhalo+1:size(a,1), &
-          1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-          erecv(:,1:size(a,2)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_wait(wrequest,mpi_status_ignore,ierror)
-!      a(1:staggered_whalo, &
-!          1+staggered_shalo:size(a,2)-staggered_nhalo) = &
-!          wrecv(:,1:size(a,2)-staggered_shalo-staggered_nhalo)
-      a(1:staggered_lhalo, &
-          1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-          wrecv(:,1:size(a,2)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      ssend(:,:) = &
-!        a(:,1+staggered_shalo:1+staggered_shalo+staggered_nhalo-1)
-        a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-      call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      nsend(:,:) = &
-!        a(:,size(a,2)-staggered_nhalo-staggered_shalo+1:size(a,2)-staggered_nhalo)
-        a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
-      call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_wait(nrequest,mpi_status_ignore,ierror)
-!      a(:,size(a,2)-staggered_nhalo+1:size(a,2)) = nrecv(:,:)
-      a(:,size(a,2)-staggered_uhalo+1:size(a,2)) = nrecv(:,:)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_wait(srequest,mpi_status_ignore,ierror)
-!      a(:,1:staggered_shalo) = srecv(:,:)
-      a(:,1:staggered_lhalo) = srecv(:,:)
-    endif
-
-  end subroutine staggered_parallel_halo_real8_2d
-
-  !WHL - Edited the original subroutine so that values from N and E edges
-  !      of global domain can be written to halo cells at the S and W edges,
-  !      to allow cyclic BCs for staggered variables
-
-  subroutine staggered_parallel_halo_real8_3d(a)
-
-    use mpi_mod
-    implicit none
-    real(dp),dimension(:,:,:) :: a
-
-    ! Implements a staggered grid halo update for a 3D field.
-    ! As the grid is staggered, the array 'a' is one smaller in both dimensions than an unstaggered array.
-    ! The vertical dimension is assumed to be the first index, i.e., a(k,i,j).
-
-    ! The grid is laid out from the SW, and the lower left corner is assigned to this_rank = 0.
-    ! It's eastern nbhr is task_id = 1, proceeding rowwise and starting from the western edge.
-    ! The South-most processes own one additional row of stagggered variables on the southern edge
-    ! and have one less 'southern' halo row than other processes. Likewise, the West-most processes own one 
-    ! additional column of staggered variables on the western edge and have one less 'western' halo column. 
-    ! This is implemented by a modification to the staggered_lhalo value on these processes. 
-
-    ! Maintaining global boundary conditions are not addressed within this routine (yet).
-
-    ! integer :: erequest,ierror,one,nrequest,srequest,wrequest
-    integer :: ierror,nrequest,srequest,erequest,wrequest
-
-!    real(dp),dimension(size(a,1),staggered_whalo,size(a,3)-staggered_shalo-staggered_nhalo) :: esend,wrecv
-!    real(dp),dimension(size(a,1),staggered_ehalo,size(a,3)-staggered_shalo-staggered_nhalo) :: erecv,wsend
-!    real(dp),dimension(size(a,1),size(a,2),staggered_shalo) :: nsend,srecv
-!    real(dp),dimension(size(a,1),size(a,2),staggered_nhalo) :: nrecv,ssend
-    real(dp),dimension(size(a,1),staggered_lhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: esend,wrecv
-    real(dp),dimension(size(a,1),staggered_uhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: erecv,wsend
-    real(dp),dimension(size(a,1),size(a,2),staggered_lhalo) :: nsend,srecv
-    real(dp),dimension(size(a,1),size(a,2),staggered_uhalo) :: nrecv,ssend
-
-    !WHL - I defined a logical variable to determine whether or not to fill halo cells
-    !      at the edge of the global domain.  I am setting it to true by default to support
-    !      cyclic global BCs.
-
-    logical :: fill_global_halos = .true.
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Prepost expected receives
-
-    if (this_rank < east  .or. fill_global_halos) then
-      call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,comm,erequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,comm,wrequest,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,comm,nrequest,ierror)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,comm,srequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-!      wsend(:,:,1:size(a,3)-staggered_shalo-staggered_nhalo) = &
-!        a(:,1+staggered_whalo:1+staggered_whalo+staggered_ehalo-1, &
-!            1+staggered_shalo:size(a,3)-staggered_nhalo)
-      wsend(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-        a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-            1+staggered_lhalo:size(a,3)-staggered_uhalo)
-      call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-!      esend(:,:,1:size(a,3)-staggered_shalo-staggered_nhalo) = &
-!        a(:,size(a,2)-staggered_ehalo-staggered_whalo+1:size(a,2)-staggered_ehalo, &
-!            1+staggered_shalo:size(a,3)-staggered_nhalo)
-      esend(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-        a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
-            1+staggered_lhalo:size(a,3)-staggered_uhalo)
-      call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_wait(erequest,mpi_status_ignore,ierror)
-!      a(:,size(a,2)-staggered_ehalo+1:size(a,2), &
-!          1+staggered_shalo:size(a,3)-staggered_nhalo) = &
-!          erecv(:,:,1:size(a,3)-staggered_shalo-staggered_nhalo)
-      a(:,size(a,2)-staggered_uhalo+1:size(a,2), &
-          1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-          erecv(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_wait(wrequest,mpi_status_ignore,ierror)
-!      a(:,1:staggered_whalo, &
-!          1+staggered_shalo:size(a,3)-staggered_nhalo) = &
-!          wrecv(:,:,1:size(a,3)-staggered_shalo-staggered_nhalo)
-      a(:,1:staggered_lhalo, &
-          1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-          wrecv(:,:,1:size(a,3)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-!      ssend(:,:,:) = &
-!        a(:,:,1+staggered_shalo:1+staggered_shalo+staggered_nhalo-1)
-      ssend(:,:,:) = &
-        a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-      call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      nsend(:,:,:) = &
-!        a(:,:,size(a,3)-staggered_nhalo-staggered_shalo+1:size(a,3)-staggered_nhalo)
-        a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
-      call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_wait(nrequest,mpi_status_ignore,ierror)
-!      a(:,:,size(a,3)-staggered_nhalo+1:size(a,3)) = nrecv(:,:,:)
-      a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = nrecv(:,:,:)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_wait(srequest,mpi_status_ignore,ierror)
-!      a(:,:,1:staggered_shalo) = srecv(:,:,:)
-      a(:,:,1:staggered_lhalo) = srecv(:,:,:)
-    endif
-
-  end subroutine staggered_parallel_halo_real8_3d
-
-
-  subroutine staggered_parallel_halo_real8_4d(a)
-
-    use mpi_mod
-    implicit none
-    real(dp),dimension(:,:,:,:) :: a
-
-    ! Implements a staggered grid halo update for a 4D field.
-    ! This subroutine is used for the 4D arrays that hold matrix entries.
-
-    ! As the grid is staggered, the array 'a' is one smaller in x and y dimensions than an unstaggered array.
-    ! The vertical dimension is assumed to precede the i and j indices, i.e., a(:,k,i,j).
-    ! The first dimension holds matrix elements for a single row.
-
-    ! The grid is laid out from the SW, and the lower left corner is assigned to this_rank = 0.
-    ! It's eastern neighbor is task_id = 1, proceeding rowwise and starting from the western edge.
-    ! The South-most processes own one additional row of stagggered variables on the southern edge
-    ! and have one less 'southern' halo row than other processes. Likewise, the West-most processes own one 
-    ! additional column of staggered variables on the western edge and have one less 'western' halo column. 
-    ! This is implemented by a modification to the staggered_lhalo value on these processes. 
-
-    ! Maintaining global boundary conditions are not addressed within this routine (yet).
-
-    ! integer :: erequest,ierror,one,nrequest,srequest,wrequest
-    integer :: ierror,nrequest,srequest,erequest,wrequest
-
-    real(dp),dimension(size(a,1),size(a,2), &
-                      staggered_lhalo,size(a,4)-staggered_lhalo-staggered_uhalo) :: esend,wrecv
-    real(dp),dimension(size(a,1),size(a,2), &
-                      staggered_uhalo,size(a,4)-staggered_lhalo-staggered_uhalo) :: erecv,wsend
-    real(dp),dimension(size(a,1),size(a,2),size(a,3),staggered_lhalo) :: nsend,srecv
-    real(dp),dimension(size(a,1),size(a,2),size(a,3),staggered_uhalo) :: nrecv,ssend
-
-    !WHL - I defined a logical variable to determine whether or not to fill halo cells
-    !      at the edge of the global domain.  I am setting it to true by default to support
-    !      cyclic global BCs.
-
-    logical :: fill_global_halos = .true.
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,3)/=local_ewn-1 .or. size(a,4)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Prepost expected receives
-
-    if (this_rank < east  .or. fill_global_halos) then
-      call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,comm,erequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,comm,wrequest,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,comm,nrequest,ierror)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,comm,srequest,ierror)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      wsend(:,:,:,1:size(a,4)-staggered_lhalo-staggered_uhalo) = &
-        a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-              1+staggered_lhalo:size(a,4)-staggered_uhalo)
-      call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      esend(:,:,:,1:size(a,4)-staggered_lhalo-staggered_uhalo) = &
-        a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo, &
-                                        1+staggered_lhalo:size(a,4)-staggered_uhalo)
-      call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < east .or. fill_global_halos) then
-      call mpi_wait(erequest,mpi_status_ignore,ierror)
-      a(:,:,size(a,3)-staggered_uhalo+1:size(a,3), &
-                    1+staggered_lhalo:size(a,4)-staggered_uhalo) = &
-          erecv(:,:,:,1:size(a,4)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > west .or. fill_global_halos) then
-      call mpi_wait(wrequest,mpi_status_ignore,ierror)
-      a(:,:,1:staggered_lhalo, &
-            1+staggered_lhalo:size(a,4)-staggered_uhalo) = &
-          wrecv(:,:,:,1:size(a,4)-staggered_lhalo-staggered_uhalo)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      ssend(:,:,:,:) = &
-        a(:,:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-      call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      nsend(:,:,:,:) = &
-        a(:,:,:,size(a,4)-staggered_uhalo-staggered_lhalo+1:size(a,4)-staggered_uhalo)
-      call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
-    endif
-
-    if (this_rank < north .or. fill_global_halos) then
-      call mpi_wait(nrequest,mpi_status_ignore,ierror)
-      a(:,:,:,size(a,4)-staggered_uhalo+1:size(a,4)) = nrecv(:,:,:,:)
-    endif
-
-    if (this_rank > south .or. fill_global_halos) then
-      call mpi_wait(srequest,mpi_status_ignore,ierror)
-      a(:,:,:,1:staggered_lhalo) = srecv(:,:,:,:)
-    endif
-
-  end subroutine staggered_parallel_halo_real8_4d
 
 ! Following routines imported from the Community Earth System Model
 ! (models/utils/mct/mpeu.m_FcComms.F90)

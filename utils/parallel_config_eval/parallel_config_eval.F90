@@ -15,7 +15,8 @@ program parallel_config_eval
        write(6,2) ewn,nsn,lhalo,uhalo,i
     endif
     call flush(6)
-1 format("WORKED: Grid: (", I6, ",", I6, ") Halo: (", I2, ",", I2, ") Tasks:", I6, " Max Block Size:", I6, " Max Side Diff:", I2, " Config Cnt:", I2)
+1 format("WORKED: Grid: (", I6, ",", I6, ") Halo: (", I2, ",", I2, ") Tasks:", I6, &
+         " Max Block Size:", I6, " Max Side Diff:", I2, " Config Cnt:", I2)
 2 format("FAILED: Grid: (", I6, ",", I6, ") Halo: (", I2, ",", I2, ") Tasks:", I6)
   enddo
 end

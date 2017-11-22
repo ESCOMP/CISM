@@ -656,7 +656,7 @@ module glissade_remap
       !WHL - Changed this condition from 'mass < puny' to 'mass < 0.d0'
       !      to preserve monotonicity in grid cells with very small thickness
       !
-      ! author William H.
+      ! author William H. Lipscomb, LANL
 
       !input/output arguments
 
@@ -1198,13 +1198,11 @@ module glissade_remap
       enddo
 
       !TODO - Write error message to the log file.
-      !       I think this will require broadcasting istop and jstop to main_task.
-      !       For now, just print an error message locally.
 
       if (l_stop) then
          call parallel_globalindex(istop, jstop, istop_global, jstop_global)
          call broadcast(istop_global, proc=this_rank)
-         call broadcast(istop_global, proc=this_rank)
+         call broadcast(jstop_global, proc=this_rank)
          i = istop
          j = jstop
 !         write (message,*) 'Process:',this_rank
@@ -1611,7 +1609,7 @@ module glissade_remap
             do j = jb, je   ! jb = jlo - 1
             do i = ib, ie   ! ib = ilo
                if (dpx(i-1,j)/=0.d0 .or. dpy(i-1,j)/=0.d0   &
-                                  .or.                  &
+                                    .or.                  &
                      dpx(i,j)/=0.d0 .or.   dpy(i,j)/=0.d0) then
                   icellsd = icellsd + 1
                   indxid(icellsd) = i
@@ -1623,7 +1621,7 @@ module glissade_remap
             do j = jb, je   ! jb = jlo
             do i = ib, ie   ! ib = ilo - 1
                if (dpx(i,j-1)/=0.d0 .or. dpy(i,j-1)/=0.d0   &
-                                  .or.                  &
+                                    .or.                  &
                      dpx(i,j)/=0.d0 .or.   dpy(i,j)/=0.d0) then
                   icellsd = icellsd + 1
                   indxid(icellsd) = i
@@ -1695,6 +1693,7 @@ module glissade_remap
          md = (ydr - ydl) / (xdr - xdl)
 
          !WHL - debug - Change from puny to zero to avoid problems with flow along an axis
+         !              If abs(md) is > 0 but < puny, use of 'puny' logic can give wrong value for xic.
 !!         if (abs(md) > puny) then
          if (abs(md) > 0.d0) then         
             xic = xdl - ydl/md
@@ -1967,6 +1966,7 @@ module glissade_remap
                ydm = ydm - (xdr - xdl) * w1
 
                ! compute left and right intersection points
+
                mdl = (ydm - ydl) / (xdm - xdl)
                mdr = (ydr - ydm) / (xdr - xdm)
 
@@ -2686,15 +2686,31 @@ module glissade_remap
                      print*, ''
                      print*, 'WARNING: xp =', xp(i,j,nv,ng)
                      print*, 'i, j, ng, nv =', i, j, ng, nv
-!                     print*, 'yil,xdl,xcl,ydl=',yil,xdl,xcl,ydl
-!                     print*, 'yir,xdr,xcr,ydr=',yir,xdr,xcr,ydr
-!                     print*, 'ydm=',ydm
-!                      stop
+                     !debug
+!                     print*, 'edge =', trim(edge)
+!                     print*, 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
+!                     print*, 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
+!                     print*, 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
+!                     print*, 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
+!                     print*, 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
+!                     print*, 'DP(i,j):', dx(i,j), dy(i,j)
+!                     print*, 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
+!                     stop
                   endif
                   if (abs(yp(i,j,nv,ng)) > 0.5d0+puny) then
                      print*, ''
                      print*, 'WARNING: yp =', yp(i,j,nv,ng)
                      print*, 'i, j, ng, nv =', i, j, ng, nv
+                     !debug
+!                     print*, 'edge =', trim(edge)
+!                     print*, 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
+!                     print*, 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
+!                     print*, 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
+!                     print*, 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
+!                     print*, 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
+!                     print*, 'DP(i,j):', dx(i,j), dy(i,j)
+!                     print*, 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
+!                      stop
                   endif
                endif   ! triarea
             enddo
@@ -3079,6 +3095,9 @@ module glissade_remap
 
       character(len=100) :: message
 
+      integer ::  &
+           iglobal, jglobal  ! global cell indices
+
       integer ::   &
          istop, jstop     ! indices of grid cell where model aborts 
 
@@ -3135,9 +3154,12 @@ module glissade_remap
 !         write (message,*) 'New thickness =', mass(i,j)
 !         call write_log(message)    
 !         write (message,*) 'Net transport =', -w1*tarear
-!         call write_log(message)    
+!         call write_log(message)
+         call parallel_globalindex(i, j, iglobal, jglobal)
+         write (6,*) ' '
          write (6,*) 'Process:',this_rank
          write (6,*) 'Remap, negative ice thickness, i, j =', i, j
+         write (6,*) 'Global i, j =', iglobal, jglobal
          write (6,*) 'Old thickness =', mass(i,j) + w1*tarear
          write (6,*) 'New thickness =', mass(i,j)
          write (6,*) 'Net transport =', -w1*tarear

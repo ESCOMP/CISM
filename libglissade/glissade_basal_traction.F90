@@ -84,8 +84,8 @@ contains
      
   use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
-  use parallel, only: nhalo
-  use parallel, only: this_rank  ! for debugging
+  use parallel, only: nhalo, this_rank
+  use parallel, only: parallel_globalindex
 
   implicit none
 
@@ -113,25 +113,24 @@ contains
 
   real(dp) :: smallnum = 1.0d-2  ! m/yr
 
-  ! SFP added for making beta a function of basal water flux 
-  real(dp), dimension(:,:), allocatable :: unstagbeta
-  real(dp) :: C, m
-
   real(dp) :: Ldomain   ! size of full domain
   real(dp) :: omega     ! frequency of beta field
   real(dp) :: dx, dy
   integer :: ilo, ihi, jlo, jhi  ! limits of beta field for ISHOM C case
   integer :: ew, ns
 
+  real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
+
   ! variables for power law
   real(dp) :: powerlaw_p, powerlaw_q
 
   ! variables for Coulomb friction law
-  real(dp) :: Coulomb_C   ! friction coefficient (unitless)
+  real(dp) :: Coulomb_C   ! Coulomb law friction coefficient (unitless)
+  real(dp) :: powerlaw_C  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
   real(dp) :: lambda_max  ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max       ! maximum bed obstacle slope (unitless)
+  real(dp) :: m           ! exponent m in power law
   real(dp), dimension(size(beta,1), size(beta,2)) :: big_lambda       ! bedrock characteristics
-  real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
   integer,  dimension(size(thck,1), size(thck,2)) :: imask            ! ice grid mask  1=ice, 0=no ice
   real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
                                                                       ! Note: Units are Pa^{-n} yr^{-1}
@@ -149,11 +148,14 @@ contains
   real(dp) :: phimin, phimax ! min and max values of phi for pseudo-plastic law (degrees)
   real(dp) :: bedmin, bedmax ! bed elevations (m) below which phi = phimin and above which phi = phimax
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
+  real(dp) :: numerator, denominator
 
   character(len=300) :: message
 
-  !WHL - debug - for diagnostic output
-!  integer, parameter :: itest = 100, jtest = 100, rtest = 1
+  integer :: iglobal, jglobal
+
+  !WHL - debug
+!!  integer :: istop, jstop
 
   select case(whichbabc)
 
@@ -175,7 +177,7 @@ contains
        !
        ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
        ! where the yield stress tau_c = tan(phi) * N
-       ! N = effective pressure, computed in subroutine calculate_effective_pressure
+       ! N = effective pressure, computed in subroutine calc_effective_pressure
        ! q, u0 and phi are user-configurable parameters:
        !    q = exponent (q = 1 for linear sliding, q = 0 for a plastic bed, 0 < q < 1 for power-law behavior), default = 1/3
        !    u0 = threshold velocity (the velocity at which tau_b = tau_c), default = 100 m/yr
@@ -291,77 +293,121 @@ contains
           call write_log('Invalid value for beta. See log file for details.', GM_FATAL)
        end if
 
-    case(HO_BABC_POWERLAW)   ! A power law that uses effective pressure
+    case(HO_BABC_POWERLAW)   ! a simple power law
+       !   Assume taub = C * ub^(1/m)
+       ! implying beta = C * ub^(1/m - 1) 
+       ! m should be a positive exponent
+
+       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
+       beta(:,:) = basal_physics%powerlaw_C * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
+
+    case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
+       !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
        ! See Cuffey & Paterson, Physics of Glaciers, 4th Ed. (2010), p. 240, eq. 7.17
        ! This is based on Weertman's classic sliding relation (1957) augmented by the bed-separation index described by Bindschadler (1983)
        !   ub = k taub^p N^-q
        ! rearranging for taub gives:
        !   taub = k^(-1/p) ub^(1/p) N^(q/p)
 
-       ! p and q should be _positive_ exponents
-       ! TODO: powerlaw_p and powerlaw_q could be turned into config parameters instead of hard-coded
-       ! If p/=1, this is nonlinear in velocity
+       ! p and q should be _positive_ exponents. If p/=1, this is nonlinear in velocity.
        ! Cuffey & Paterson recommend p=3 and q=1, and k dependent on thermal & mechanical properties of ice and inversely on bed roughness.   
+       !TODO - Change powerlaw_p to powerlaw_m, and make powerlaw_q a config parameter
+
        powerlaw_p = 3.0d0
        powerlaw_q = 1.0d0
 
+       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
        beta(:,:) = basal_physics%friction_powerlaw_k**(-1.0d0/powerlaw_p) &
             * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p) &
-            * dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 )**(1.0d0/powerlaw_p-1.0d0)
+            * speed(:,:)**(1.0d0/powerlaw_p - 1.0d0)
 
-    case(HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
+    case(HO_BABC_COULOMB_FRICTION)
 
       ! Basal stress representation using Coulomb friction law
       ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
 
-      ! Set up parameters needed for the friction law
-      m_max = basal_physics%Coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
-      lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
-      Coulomb_C = basal_physics%Coulomb_C                ! basal shear stress factor (Pa (m^-1 y)^1/3)
+       ! Set up parameters needed for the friction law
+       m_max = basal_physics%Coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
+       lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
+       Coulomb_C = basal_physics%Coulomb_C                ! basal shear stress factor (Pa (m^-1 y)^1/3)
 
-      ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
+       ! Need flwa of the basal layer on the staggered grid
+       !TODO - Pass in ice_mask instead of computing imask here?
+       !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
+       where (thck > 0.0)
+          imask = 1
+       elsewhere
+          imask = 0
+       end where
+       call glissade_stagger(ewn,         nsn,               &
+                             flwa_basal,  flwa_basal_stag,   &
+                             imask,       stagger_margin_in = 1)
+       ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
 
-      if (whichbabc == HO_BABC_COULOMB_FRICTION) then
+       ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
+       big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
 
-         ! Need flwa of the basal layer on the staggered grid
-         !TODO - Pass in ice_mask instead of computing imask here?
-         !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
-         where (thck > 0.0)
-            imask = 1
-         elsewhere
-            imask = 0
-         end where
-         call glissade_stagger(ewn,         nsn,               &
-                               flwa_basal,  flwa_basal_stag,   &
-                               imask,       stagger_margin_in = 1)
-         ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
+       ! Note: For MISMIP3D, Coulomb_C is multiplied by a spatial factor (C_space_factor) which is
+       !       read in during initialization. This factor is typically between 0 and 1.
+       !       If this factor is not present in the input file, it is set to 1 everywhere.
 
-         big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
+       ! Compute beta
+       ! gn = Glen's n from physcon module
+       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
+       beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * &
+            basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
+            (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
 
-      else   ! which babc = HO_BABC_COULOMB_CONST_BASAL_FLWA; use a constant value of basal flwa
-             ! NOTE: Units of flwa_basal are Pa{-n} yr{-1}
+       ! Limit for numerical stability
+       !TODO - Is limiting needed?
+       where (beta > 1.0d8)
+          beta = 1.0d8
+       end where
 
-         big_lambda(:,:) = (lambda_max / m_max) * basal_physics%flwa_basal
+    case(HO_BABC_COULOMB_CONST_BASAL_FLWA) 
 
-      endif
+       ! Use a constant value of basal flwa.
+       ! This allows several Coulomb parameters (lambda_max, m_max and flwa_basal)
+       !  to be combined into a single parameter powerlaw_C, as in the Tsai power law below.
+       !
+       ! The equation for tau_b = beta * u_b is
+       ! 
+       !                    powerlaw_C * Coulomb_C * N
+       ! tau_b = ---------------------------------------------- u_b^{1/m}
+       !         [powerlaw_C^m * u_b + (Coulomb_C * N)^m]^{1/m}
+       !
+       ! where m = powerlaw_m
+       !
+       ! This is the second modified basal traction law in MISMIP+. See Eq. 11 of Asay-Davis et al. (2016).
+       ! Note: powerlaw_C corresponds to beta^2 in their notation, and Coulomb_C corresponds to alpha^2.
 
-      ! Note: For MISMIP3D, Coulomb_C is multiplied by a spatial factor (C_space_factor) which is
-      !       read in during initialization. This factor is typically between 0 and 1.
-      !       If this factor is not present in the input file, it is set to 1 everywhere.
+       powerlaw_C = basal_physics%powerlaw_C
+       Coulomb_C = basal_physics%Coulomb_C
+       m = basal_physics%powerlaw_m
 
-      ! Compute beta
-      ! gn = Glen's n from physcon module
-      speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
-      beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * &
-           basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
-           (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
 
-      ! Limit for numerical stability
-      where (beta > 1.0d8)
-         beta = 1.0d8
-      end where
+             speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
 
-      !WHL - debug - Write values along a flowline
+             numerator = powerlaw_C * Coulomb_C * basal_physics%effecpress_stag(ew,ns)
+             denominator = ( powerlaw_C**m * speed(ew,ns) +  &
+                             (Coulomb_C * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+
+             beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
+
+          enddo
+       enddo
+
+       !TODO - Verify that the results are similar to Tsai
+
+       ! Limit for numerical stability
+       !TODO - Is limiting needed?
+       where (beta > 1.0d8)
+          beta = 1.0d8
+       end where
+
+       !WHL - debug - Write values along a flowline
 !      write(6,*) ' '
 !      write(6,*) 'Apply Coulomb friction: i, j, speed, N_stag, beta, taub:'
 !      ns = jtest
@@ -377,7 +423,8 @@ contains
       ! (2) Coulomb friction:   tau_b = Coulomb_C * N
       !                             N = effective pressure = rhoi*g*(H - H_f)
       !                           H_f = flotation thickness = (rhow/rhoi)*(eus-topg)
-      ! This value of N is obtained by setting basal_water = BWATER_OCEAN_PENETRATION = 4 with p_ocean_penetration = 1.0 in the config file.
+      ! This value of N is obtained by setting basal_water = BWATER_OCEAN_PENETRATION = 4 
+      !  with p_ocean_penetration = 1.0 in the config file.
       ! The other parameters (powerlaw_C, powerlaw_m and Coulomb_C) can also be set in the config file. 
 
        !WHL - debug - write out basal stresses
@@ -474,7 +521,9 @@ contains
          if (beta(ew,ns) >= 0.d0) then
             ! do nothing
          else
-            write(message,*) 'Invalid beta value in calcbeta: ew, ns, beta:', ew, ns, beta(ew,ns)
+            call parallel_globalindex(ew, ns, iglobal, jglobal)
+            write(message,*) 'Invalid beta value in calcbeta: this_rank, i, j, iglobal, jglobal, beta, f_ground:', &
+                 this_rank, ew, ns, iglobal, jglobal, beta(ew,ns), f_ground(ew,ns)
             call write_log(trim(message), GM_FATAL)
          endif
       end do
@@ -628,6 +677,9 @@ contains
 
     case(HO_EFFECPRESS_BWAT)
 
+       ! Initialize for the case where bwat isn't present, and also for points with bwat == 0
+       basal_physics%effecpress(:,:) = overburden(:,:)
+
        if (present(bwat)) then
 
           ! Reduce N where basal water is present.
@@ -639,35 +691,38 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
+                if (bwat(i,j) > 0.0d0) then
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
 
-                ! Eq. 23 from Bueler & van Pelt (2015)
-                basal_physics%effecpress(i,j) = basal_physics%N_0  &
-                     * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
-                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+                   ! Eq. 23 from Bueler & van Pelt (2015)
+                   basal_physics%effecpress(i,j) = basal_physics%N_0  &
+                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
+                        * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
-                ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
-                ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
-                !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
-!!                basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
-!!                     * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+                   ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
+                   ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
+                   !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
+!!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
+!!                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
-                !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
-                !      This might lead to smoother variations in N with spatial variation in bwat.
-!!                basal_physics%effecpress(i,j) = overburden(i,j) * &
-!!                     (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+                   !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
+                   !      This might lead to smoother variations in N with spatial variation in bwat.
+!!                 basal_physics%effecpress(i,j) = overburden(i,j) * &
+!!                      (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
 
 
-                ! limit so as not to exceed overburden
-                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
-
-                ! set to zero for floating ice
-                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
-
+                   ! limit so as not to exceed overburden
+                   basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+                end if
              enddo
           enddo
 
        endif   ! present(bwat)
+
+       where (floating_mask == 1)
+          ! set to zero for floating ice
+          basal_physics%effecpress = 0.0d0
+       end where
 
     case(HO_EFFECPRESS_OCEAN_PENETRATION)
 

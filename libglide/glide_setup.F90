@@ -93,12 +93,13 @@ contains
     end if
 
     ! read parameters
+    !TODO - Put some sets of related parameters in their own section
     call GetSection(config,section,'parameters')
     if (associated(section)) then
        call handle_parameters(section, model)
     end if
 
-    ! read GTHF 
+    ! read geothermal heat flux
     ! NOTE: The [GTHF] section is ignored unless model%options%gthf = GTHF_COMPUTE
     if (model%options%gthf == GTHF_COMPUTE) then
        call GetSection(config,section,'GTHF')
@@ -175,8 +176,8 @@ contains
     ! allow for subcycling of ice transport
     model%numerics%dt_transport = model%numerics%dt / real(model%numerics%subcyc, dp)
 
-    model%numerics%thklim = model%numerics%thklim  / thk0       
-    model%numerics%thklim_temp = model%numerics%thklim_temp  / thk0
+    model%numerics%thklim = model%numerics%thklim / thk0
+    model%numerics%thklim_temp = model%numerics%thklim_temp / thk0
     model%numerics%thck_gradient_ramp = model%numerics%thck_gradient_ramp / thk0
 
     model%numerics%dew = model%numerics%dew / len0
@@ -190,6 +191,7 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%calving_minthck = model%calving%calving_minthck / thk0
     model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
+    model%calving%cliff_timescale = model%calving%cliff_timescale * scyr / tim0
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -202,8 +204,8 @@ contains
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
 
     ! scale basal melting parameters (yr^{-1} -> s^{-1})
-    model%temper%bmlt_float_omega = model%temper%bmlt_float_omega / scyr
-    model%temper%bmlt_float_rate  = model%temper%bmlt_float_rate / scyr
+    model%basal_melt%bmlt_float_omega = model%basal_melt%bmlt_float_omega / scyr
+    model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -482,11 +484,12 @@ contains
 !       For instance, ice_dt_option could be either 'nyears' or 'steps_per_year'.
 !       For timesteps < 1 year, we would use ice_dt_option = 'steps_per_year'.
 !       This would ensure that the ice sheet dynamic timestep divides evenly
-!        into the mass balance timestep (= 1 year) when running with Glint.
+!        into the mass balance timestep (= 1 year) when running with Glint or Glad.
     call GetValue(section,'tstart',model%numerics%tstart)
     call GetValue(section,'tend',model%numerics%tend)
     call GetValue(section,'dt',model%numerics%tinc)
     call GetValue(section,'subcyc',model%numerics%subcyc)
+    call GetValue(section,'adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold)
     call GetValue(section,'ntem',model%numerics%ntem)
     call GetValue(section,'profile',model%numerics%profile_period)
 
@@ -564,14 +567,19 @@ contains
     call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
+    call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
+    call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
+    call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
+    call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
+    call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -584,7 +592,6 @@ contains
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
 
     ! These are not currently supported
-    !call GetValue(section, 'use_plume',model%options%use_plume)
     !call GetValue(section,'basal_proc',model%options%which_bproc)
 
   end subroutine handle_options
@@ -616,7 +623,9 @@ contains
     call GetValue(section, 'which_ho_assemble_beta',      model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
+    call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
+    call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
@@ -719,10 +728,12 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:2), parameter :: which_bmlt_float = (/ &
-         'none                     ', &
-         'constant                 ', &
-         'MISMIP+ melt rate profile' /)
+    character(len=*), dimension(0:4), parameter :: which_bmlt_float = (/ &
+         'none                              ', &
+         'MISMIP+ melt rate profile         ', &
+         'constant melt rate                ', &
+         'Melt rate from MISOMIP T/S profile', &
+         'Melt rate from external file      ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -747,15 +758,17 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
-    character(len=*), dimension(0:7), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
          'relaxed bedrock threshold       ', &
          'present bedrock threshold       ', &
-         'Huybrechts grounding-line scheme', &
+         'calving based on grid location  ', &
          'ice thickness threshold         ', &
-         'damage-based calving scheme     ' /) 
+         'eigencalving scheme             ', & 
+         'damage-based calving scheme     ', & 
+         'Huybrechts grounding-line scheme' /) 
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -787,7 +800,7 @@ contains
          'vertical thermal solve after transport     ', &
          'vertical thermal solve split into two parts' /)
 
-    character(len=*), dimension(0:13), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:14), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
          'till yield stress (Picard)                       ', &
@@ -797,10 +810,11 @@ contains
          'no slip (Dirichlet implementation)               ', &
          'till yield stress (Newton)                       ', &
          'beta as in ISMIP-HOM test C                      ', &
-         'power law using effective pressure               ', &
+         'power law                                        ', &
          'Coulomb friction law w/ effec press              ', &
          'Coulomb friction law w/ effec press, const flwa_b', &
          'min of Coulomb stress and power-law stress (Tsai)', &
+         'power law using effective pressure               ', &
          'simple pattern of beta                           ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
@@ -851,12 +865,11 @@ contains
          'centered gradient (glissade dycore)      ', &
          'upstream gradient (glissade dycore)      ' /)
 
-    !WHL - Choose the better hybrid option
     character(len=*), dimension(0:3), parameter :: ho_whichgradient_margin = (/ &
-         'land-based boundary condition for gradient (glissade dycore) ', &
-         'hybrid boundary condition for gradient (glissade dycore)     ', &
-         'shelf-based boundary condition for gradient (glissade dycore)', &
-         'another hybrid boundary condition for glissade testing       '/)
+         'compute edge gradient when either cell has ice                  ', &
+         'compute edge gradient when grounded ice lies above ice-free cell', &
+         'compute edge gradient only when both cells have ice             ', &
+         'compute edge gradient when ice lies above ice-free land         ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
          'first-order accurate  ', &
@@ -874,10 +887,18 @@ contains
          'standard finite-element assembly (glissade dycore)       ', &
          'use local basal friction at each vertex (glissade dycore)'  /)
 
+    character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
+         'no subgrid calving front parameterization ', &
+         'subgrid calving front parameterization    ' /)
+
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
          '0 <= f_ground <= 1, based on GLP (glissade dycore) ', &
          'f_ground = 1 for all active cells (glissade dycore)' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichground_bmlt = (/ &
+         'bmlt_float applied to partly grounded cells        ', &
+         'bmlt_float not applied to partly grounded cells    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
          'f_pattyn = (-rhow*b)/(rhoi*H)  ', &
@@ -972,18 +993,31 @@ contains
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
           if (model%options%which_ho_precond == HO_PRECOND_SIA) then
-             call write_log('Error, cannot use SIA preconditioning for 2D solve', GM_FATAL)
+             model%options%which_ho_precond = HO_PRECOND_DIAG
+             call write_log('Warning, cannot use SIA preconditioning for 2D solve')
+             call write_log('Defaulting to diagonal preconditioner')
           endif
        endif
 
        if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
           
-          if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
-             call write_log('Error, cannot use first-order dissipation with local SIA solver', GM_FATAL)
-          endif
-
           if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
              call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
+          endif
+
+          if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
+             model%options%which_ho_disp = HO_DISP_SIA
+             call write_log('Warning: Cannot use first-order dissipation with local SIA solver')
+             call write_log('Defaulting to SIA dissipation')
+          endif
+
+          if (model%options%which_ho_gradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND ) then
+             model%options%which_ho_gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
+             write(message,*) 'Warning: Local SIA solver does not support which_ho_gradient_margin =', &
+                  HO_GRADIENT_MARGIN_ICE_OVER_LAND
+             call write_log(message)
+             write(message,*) 'Defaulting to option', HO_GRADIENT_MARGIN_GROUNDED_ICE
+             call write_log(message)
           endif
 
        endif  ! Glissade local SIA solver
@@ -1077,19 +1111,47 @@ contains
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
 
-    ! unsupported calving options
+    ! dycore-dependent calving options
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
+
+       if (model%options%remove_icebergs) then
+          call write_log('Icebergs will be removed')
+       else
+          call write_log('Icebergs will not be removed')
+       endif
+       
+       if (model%options%limit_marine_cliffs) then
+          call write_log('The thickness of marine ice cliffs will be limited')
+          call write_log(message)
+       else
+          call write_log('The thickness of marine ice cliffs will not be limited')
+       endif
+
+       if (model%options%cull_calving_front) then
+          write(message,*) 'Calving-front cells will be culled', model%calving%ncull_calving_front, 'times at initialization'
+          call write_log(message)
+       else
+          call write_log('Calving-front cells will not be culled at initialization')
+       endif
+
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
           write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
           call write_log(message, GM_WARNING)
        endif
+
     else   ! not Glissade
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          call write_log('Error, calving thickness threshold model is supported for Glissade dycore only', GM_FATAL)
+          call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == EIGENCALVING) then
+          call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CALVING_GRID_MASK) then
+          call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_DAMAGE) then
-          call write_log('Error, calving damage model is supported for Glissade dycore only', GM_FATAL)
+          call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
@@ -1144,6 +1206,10 @@ contains
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
     end if
 
+    if (model%options%enable_bmlt_anomaly) then
+       call write_log('bmlt_float anomaly forcing is enabled')
+    endif
+
     write(message,*) 'basal mass balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
     call write_log(message)
 
@@ -1153,6 +1219,10 @@ contains
 
     write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
     call write_log(message)
+
+    if (model%options%enable_acab_anomaly) then
+       call write_log('acab anomaly forcing is enabled')
+    endif
 
     if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
        call write_log('Error, overwrite_acab option out of range',GM_FATAL)
@@ -1240,7 +1310,7 @@ contains
          call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
               &USE AT YOUR OWN RISK.', GM_WARNING)
        endif
-       if (model%options%which_ho_babc == HO_BABC_POWERLAW) then
+       if (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
          call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
               &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        endif
@@ -1359,11 +1429,27 @@ contains
              call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
+          write(message,*) 'ho_whichcalving_front   : ',model%options%which_ho_calving_front,  &
+                            ho_whichcalving_front(model%options%which_ho_calving_front)
+          call write_log(message)
+          if (model%options%which_ho_calving_front < 0 .or. &
+               model%options%which_ho_calving_front >= size(ho_whichcalving_front)) then
+             call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
+          end if
+
           write(message,*) 'ho_whichground          : ',model%options%which_ho_ground,  &
                             ho_whichground(model%options%which_ho_ground)
           call write_log(message)
           if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then
-             call write_log('Error, ground option out of range for glissade dycore', GM_FATAL)
+             call write_log('Error, ho_ground option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          write(message,*) 'ho_whichground_bmlt     : ',model%options%which_ho_ground_bmlt,  &
+                            ho_whichground_bmlt(model%options%which_ho_ground_bmlt)
+          call write_log(message)
+          if (model%options%which_ho_ground_bmlt < 0 .or. &
+              model%options%which_ho_ground_bmlt >= size(ho_whichground_bmlt)) then
+             call write_log('Error, ho_ground_bmlt option out of range for glissade dycore', GM_FATAL)
           end if
 
           write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
@@ -1384,7 +1470,7 @@ contains
           write(message,*) 'glissade_maxiter        : ',model%options%glissade_maxiter
           call write_log(message)
 
-       end if
+       end if   ! DYCORE_GLISSADE
 
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
            model%options%which_ho_ground == HO_GROUND_NO_GLP .and. &
@@ -1442,16 +1528,13 @@ contains
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
     call glimmer_set_msg_level(loglevel)
+
+    !TODO - Change 'ice_limit' to 'thklim'?
     call GetValue(section,'ice_limit',          model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
-    call GetValue(section,'marine_limit',       model%calving%marine_limit)
-    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
-    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
-    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
@@ -1460,6 +1543,23 @@ contains
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
+
+    ! parameters to adjust external forcing
+    call GetValue(section,'acab_factor',        model%climate%acab_factor)
+    call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
+
+    ! calving parameters
+    call GetValue(section,'marine_limit',       model%calving%marine_limit)
+    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
+    call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
+    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
+    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
+    call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
+    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
+    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
+    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -1499,7 +1599,7 @@ contains
     call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
     call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
     call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
-    call GetValue(section, 'C_drainage', model%basal_physics%C_drainage)
+    call GetValue(section, 'c_drainage', model%basal_physics%c_drainage)
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
@@ -1511,16 +1611,27 @@ contains
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
-    ! MISMIP+ basal melting parameters
-    call GetValue(section,'bmlt_float_rate', model%temper%bmlt_float_rate)
-    call GetValue(section,'bmlt_float_omega', model%temper%bmlt_float_omega)
-    call GetValue(section,'bmlt_float_h0', model%temper%bmlt_float_h0)
-    call GetValue(section,'bmlt_float_z0', model%temper%bmlt_float_z0)
-
     ! initMIP parameters
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
     call GetValue(section,'overwrite_acab_value', model%climate%overwrite_acab_value)
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
+    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
+
+    ! MISMIP+ basal melting parameters
+    call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
+    call GetValue(section,'bmlt_float_h0', model%basal_melt%bmlt_float_h0)
+    call GetValue(section,'bmlt_float_z0', model%basal_melt%bmlt_float_z0)
+    call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
+    call GetValue(section,'bmlt_float_xlim', model%basal_melt%bmlt_float_xlim)
+
+    ! MISOMIP plume parameters
+    !TODO - Put MISMIP+ and MISOMIP parameters in their own section?
+    call GetValue(section,'T0',   model%plume%T0)
+    call GetValue(section,'Tbot', model%plume%Tbot)
+    call GetValue(section,'S0',   model%plume%S0)
+    call GetValue(section,'Sbot', model%plume%Sbot)
+    call GetValue(section,'gammaT',    model%plume%gammaT)
+    call GetValue(section,'gammaS',    model%plume%gammaS)
 
   end subroutine handle_parameters
 
@@ -1538,7 +1649,7 @@ contains
     call write_log('Parameters')
     call write_log('----------')
 
-    write(message,*) 'ice limit for dynamics (m)    : ', model%numerics%thklim
+    write(message,*) 'thickness limit for dynamically active ice (m) : ', model%numerics%thklim
     call write_log(message)
 
     !Note: The Glissade dycore is known to crash for thklim = 0, but has not
@@ -1549,8 +1660,19 @@ contains
        call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
     endif
 
+    if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
+         model%numerics%adaptive_cfl_threshold > 0.0d0) then
+       write(message,*) 'Advection will be subcycled when CFL >', model%numerics%adaptive_cfl_threshold
+       call write_log(message)
+       if (model%numerics%subcyc /= 1) then  ! set subcyc = 1 with adaptive CFL subcycling
+          model%numerics%subcyc = 1
+          write(message,*) 'Setting numerics%subcyc = 1; subcycling is adaptive only'
+          call write_log(message)
+       endif
+    endif
+
     if (model%options%whichdycore /= DYCORE_GLIDE) then
-       write(message,*) 'ice limit for temperature (m) : ', model%numerics%thklim_temp
+       write(message,*) 'thickness limit for temperature calculations (m) : ', model%numerics%thklim_temp
        call write_log(message)
        if (model%numerics%thck_gradient_ramp > 0.0d0) then
           write(message,*) 'thickness scale for gradient ramp (m):', model%numerics%thck_gradient_ramp
@@ -1560,8 +1682,13 @@ contains
        call write_log(message)
     endif
 
+    if (model%climate%acab_factor /= 1.0d0) then
+       write(message,*) 'Input acab multiplied by      :', model%climate%acab_factor
+       call write_log(message)
+    endif
+
     if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'ice fraction lost due to calving : ', model%calving%calving_fraction
+       write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
        call write_log(message)
     end if
 
@@ -1571,9 +1698,59 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
+        model%options%whichcalving == EIGENCALVING) then
        write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
        call write_log(message)
+    endif
+
+    if (model%options%whichcalving == EIGENCALVING) then
+       write(message,*) 'eigencalving constant (m*yr)  : ', model%calving%eigencalving_constant
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+        model%options%whichcalving == EIGENCALVING) then
+
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+          model%options%which_ho_calving_front = HO_CALVING_FRONT_SUBGRID
+          write(message,*) 'Setting which_ho_calving_front =', HO_CALVING_FRONT_SUBGRID
+          call write_log(message)
+          write(message,*) 'Calving option ', model%options%whichcalving, ' is unstable without a subgrid calving front'
+          call write_log(message)
+       endif
+
+       if (model%calving%calving_timescale <= 0.0d0) then
+          write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
+          call write_log(message, GM_FATAL)
+       endif
+
+    endif
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (.not.model%options%remove_icebergs) then
+          model%options%remove_icebergs = .true.
+          write(message,*) 'Setting remove_icebergs = T for stability when using the calving_front subgrid scheme'
+          call write_log(message)
+       endif
+    endif
+
+    if (model%options%limit_marine_cliffs) then
+       write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
+       call write_log(message)
+       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_GRID_MASK) then
+       if (model%calving%calving_front_x > 0.0d0) then
+          write(message,*) 'x calving front (m)           : ', model%calving%calving_front_x
+          call write_log(message)
+       endif
+       if (model%calving%calving_front_y > 0.0d0) then
+          write(message,*) 'y calving front (m)           : ', model%calving%calving_front_y
+          call write_log(message)
+       endif
     endif
 
     if (model%options%whichcalving == CALVING_DAMAGE) then
@@ -1698,7 +1875,9 @@ contains
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
-       write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
+       call write_log(message)
+       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
         model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
@@ -1718,6 +1897,10 @@ contains
        write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+    elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
+       !TODO - Use powerlaw_C instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
+       write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
        call write_log(message)
     endif
 
@@ -1745,7 +1928,7 @@ contains
     elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
        write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
        call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%C_drainage
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
        call write_log(message)
     endif
 
@@ -1771,19 +1954,6 @@ contains
        call write_log(message)
     endif
 
-    ! parameters for basal melting of floating ice (including MISMIP+)
-    if (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
-       write(message,*) 'bmlt_float_rate (m/yr)   : ', model%temper%bmlt_float_rate * scyr
-       call write_log(message)
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
-       write(message,*) 'bmlt_float_omega (yr^-1) : ', model%temper%bmlt_float_omega * scyr
-       call write_log(message)
-       write(message,*) 'bmlt_float_h0 (m)        : ', model%temper%bmlt_float_h0
-       call write_log(message)
-       write(message,*) 'bmlt_float_z0 (m)        : ', model%temper%bmlt_float_z0
-       call write_log(message)
-    endif
-
     ! initMIP parameters
     if (model%climate%acab_anomaly_timescale > 0.0d0) then
        write(message,*) 'acab_anomaly_timescale (yr): ', model%climate%acab_anomaly_timescale
@@ -1799,7 +1969,43 @@ contains
        endif
     endif
 
-    call write_log('')
+    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+       write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
+       call write_log(message)
+    endif
+
+    ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
+       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
+          write(message,*) 'Input bmlt_float multiplied by: ', model%basal_melt%bmlt_float_factor
+          call write_log(message)
+       endif
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
+       write(message,*) 'bmlt_float_const (m/yr)  :  ', model%basal_melt%bmlt_float_const
+       call write_log(message)
+       write(message,*) 'bmlt_float_xlim (m)      :  ', model%basal_melt%bmlt_float_xlim
+       call write_log(message)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISMIP) then
+       write(message,*) 'bmlt_float_omega (yr^-1) :  ', model%basal_melt%bmlt_float_omega
+       call write_log(message)
+       write(message,*) 'bmlt_float_h0 (m)        :  ', model%basal_melt%bmlt_float_h0
+       call write_log(message)
+       write(message,*) 'bmlt_float_z0 (m)        :  ', model%basal_melt%bmlt_float_z0
+       call write_log(message)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
+       call write_log(message)
+       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
+       call write_log(message)
+       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
+       call write_log(message)
+       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
+       call write_log(message)
+       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
+       call write_log(message)
+       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+       call write_log(message)
+    endif
 
   end subroutine print_parameters
 
@@ -2101,6 +2307,13 @@ contains
 
     end select  ! smb_input
 
+    ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
+    select case (options%whichbmlt_float)
+
+       case (BMLT_FLOAT_EXTERNAL)
+          call glide_add_to_restart_variable_list('bmlt_float_external')
+
+    end select  ! whichbmlt_float
 
     ! add dycore specific restart variables
     select case (options%whichdycore)
@@ -2213,6 +2426,19 @@ contains
            call glide_add_to_restart_variable_list('bwat')
         end select
 
+        ! calving options for Glissade
+
+        if (options%whichcalving == CALVING_GRID_MASK) then
+           call glide_add_to_restart_variable_list('calving_mask')
+        endif
+
+        ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
+        !  which depends on the stress tensor, which is computed by the HO solver.
+        ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
+        if (options%whichcalving == EIGENCALVING) then
+           call glide_add_to_restart_variable_list('strain_rate_eigenprod')
+        endif
+
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
@@ -2234,16 +2460,6 @@ contains
         call glide_add_to_restart_variable_list('waterfrac')
       case default
         ! no restart variables needed
-    end select
-
-    ! basal melting option
-    select case (options%whichbmlt_float)
-       case (BMLT_FLOAT_CONSTANT)
-          ! bmlt_float_mask needs to be in restart file if not = 0 everywhere
-          ! TODO - Add bmlt_float_mask to the restart file only if not = 0 everywhere?
-          call glide_add_to_restart_variable_list('bmlt_float_mask')
-       case default
-          ! no restart variables needed
     end select
 
     ! basal sliding option

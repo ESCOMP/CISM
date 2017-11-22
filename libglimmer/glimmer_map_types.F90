@@ -107,7 +107,8 @@ module glimmer_map_types
      real(dp) :: sinp                               !< sin of latitude_of_projection_origin
      real(dp) :: cosp                               !< cos of latitude_of_projection_origin
      !WHL - Added local area factor for stereographic projections.
-     ! TODO: Add scale factor for other projections?
+     ! TODO: Add area factor for other projections?
+     logical :: compute_area_factor = .false.
      real(dp), dimension(:,:), pointer :: area_factor => null()   !< scale factor for area of each grid cell
   end type proj_stere
 

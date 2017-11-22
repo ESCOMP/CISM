@@ -293,7 +293,7 @@ contains
 
           ! Add the calved ice to the ablation field
 
-          call glide_get_calving(instance%model, calve_temp)
+          call glide_get_calving_thck(instance%model, calve_temp)
           calve_temp = calve_temp * rhoi/rhow
 
           instance%ablt = instance%ablt + calve_temp/instance%model%numerics%tinc
@@ -309,7 +309,8 @@ contains
 
           call glide_write_diagnostics(instance%model,                  &
                                        instance%model%numerics%time,    &
-                                       tstep_count = instance%model%numerics%tstep_count)
+                                       tstep_count = instance%model%numerics%tstep_count,  &
+                                       minthick_in = instance%model%numerics%thklim*thk0)  ! m 
 
           ! write netCDf output
 
@@ -673,7 +674,8 @@ contains
 
           call glide_write_diagnostics(instance%model,                  &
                                        instance%model%numerics%time,    &
-                                       tstep_count = instance%model%numerics%tstep_count)
+                                       tstep_count = instance%model%numerics%tstep_count,  &
+                                       minthick_in = instance%model%numerics%thklim*thk0)  ! m 
 
           ! write netCDF output
 

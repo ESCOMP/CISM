@@ -217,7 +217,7 @@ module glissade_therm
                                                       ! Note: trpt = 273.15 K
 
        ! Temperature has already been initialized from an input file.
-       ! (We know this because the default initial temps of unphys_val -999 have been overwritten.)
+       ! We know this because the default initial temps of unphys_val (a large negative number) have been overwritten.
 
        call write_log('Initializing ice temperature from an input file')
 
@@ -500,22 +500,18 @@ module glissade_therm
 !=======================================================================
 
   subroutine glissade_therm_driver(whichtemp,                         &
-                                   whichbmlt_float,                   &
                                    temp_init,                         &
                                    dttem,                             &
                                    ewn,             nsn,       upn,   &
                                    itest,           jtest,     rtest, &
                                    sigma,           stagsigma,        &
-                                   thklim,          thklim_temp,      &
+                                   thklim_temp,                       &
                                    thck,            topg,             &
                                    lsrf,            eus,              &
                                    artm,                              &
                                    bheatflx,        bfricflx,         &
                                    dissip,                            &
                                    pmp_threshold,                     &
-                                   bmlt_float_rate, bmlt_float_mask,  &
-                                   bmlt_float_omega,                  &
-                                   bmlt_float_h0,   bmlt_float_z0,    &
                                    bwat,                              &
                                    temp,            waterfrac,        &
                                    bpmp,                              &
@@ -539,8 +535,7 @@ module glissade_therm
     !------------------------------------------------------------------------------------
 
     integer, intent(in) ::   &
-         whichtemp,          & ! option for computing temperature
-         whichbmlt_float       ! option for computing basal melt rate for floating ice
+         whichtemp             ! option for computing temperature
 
     integer, intent(in) ::   &
          temp_init             ! option for initializing the temperature (used for thin ice)
@@ -551,8 +546,7 @@ module glissade_therm
  
     real(dp), intent(in) ::   &
          dttem,           &! time step for temperature solve (s)
-         thklim,          &! minimum ice thickness (m) for velocity calculation
-         thklim_temp,     &! minimum ice thickness (m) for thickness calculation
+         thklim_temp,     &! minimum ice thickness (m) for temperature calculation
          eus               ! eustatic sea level (m), = 0. by default  
 
     real(dp), dimension(:), intent(in) ::   &
@@ -573,16 +567,6 @@ module glissade_therm
 
     real(dp), intent(in) ::  &
          pmp_threshold     ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
-
-    ! The remaining input arguments support basal melting for MISMIP+ experiments
-    integer, dimension(:,:), intent(in) ::  &
-         bmlt_float_mask      ! = 1 where melting is masked out, else = 0
-
-    real(dp), intent(in) :: &
-         bmlt_float_rate,   & ! constant melt rate (m/s)
-         bmlt_float_omega,  & ! time scale for basal melting (s-1)
-         bmlt_float_h0,     & ! scale for sub-shelf cavity thickness (m)
-         bmlt_float_z0        ! scale for ice draft (m)
 
     real(dp), dimension(0:,:,:), intent(out) ::  &
          temp              ! ice temperature (deg C)
@@ -619,19 +603,15 @@ module glissade_therm
                                                ! = coni / (rhoi*shci) for cold ice
 
     integer, dimension(ewn,nsn) ::  &
-         ice_mask,      &! = 1 where ice velocity is computed (thck > thklim), else = 0
-         ice_mask_temp, &! = 1 where ice temperature is computed (thck > thklim_temp), else = 0
-         floating_mask   ! = 1 where ice is floating, else = 0
+         ice_mask,      &! = 1 where ice temperature is computed (thck > thklim_temp), else = 0
+         floating_mask, &! = 1 where ice is present and floating, else = 0
+         ocean_mask      ! = 1 where topg is below sea level and ice is absent
 
     !TODO - ucondflx may be needed for coupling; make it an output argument?
     real(dp), dimension(ewn,nsn) ::  &
          ucondflx,     & ! conductive heat flux (W/m^2) at upper sfc (positive down)
          lcondflx,     & ! conductive heat flux (W/m^2) at lower sfc (positive down)
          dissipcol       ! total heat dissipation rate (W/m^2) in column (>= 0)
-
-    real(dp), dimension(ewn,nsn) ::  &
-         bmlt_ground,     &! basal melt rate for grounded ice (m/s), > 0 for melting
-         bmlt_float        ! basal melt rate for floating ice (m/s), > 0 for melting
 
     integer :: ew, ns, up
     integer :: k
@@ -651,19 +631,16 @@ module glissade_therm
     ucondflx(:,:) = 0.d0
     dissipcol(:,:) = 0.d0
     
-    ! Compute masks: ice_mask = 1 where thck > thklim; floating_mask = 1 where ice is floating
+    ! Compute masks: ice_mask = 1 where thck > thklim_temp;
+    !                floating_mask = 1 where ice is present (thck > thklim_temp) and floating;
+    !                ocean_mask = 1 where topg is below sea level and thck <= thklim_temp
 
-    call glissade_get_masks(ewn,          nsn,     &
-                            thck,         topg,    &
-                            eus,          thklim,  &
-                            ice_mask,     floating_mask)
-
-    ! Compute ice mask for temperature: ice_mask_temp = 1 where thck > thklim_temp
-
-    call glissade_get_masks(ewn,          nsn,          &
-                            thck,         topg,         &
-                            eus,          thklim_temp,  &
-                            ice_mask_temp)
+    call glissade_get_masks(ewn,           nsn,            &
+                            thck,          topg,           &
+                            eus,           thklim_temp,    &
+                            ice_mask,                      &
+                            floating_mask = floating_mask, &
+                            ocean_mask = ocean_mask)
       
     ! Compute basal pressure melting point temperature
     ! (needed for temperature/enthalpy calculation below, and also needed later for
@@ -671,7 +648,7 @@ module glissade_therm
 
     do ns = 1, nsn
        do ew = 1, ewn
-          if (ice_mask_temp(ew,ns) == 1) then
+          if (ice_mask(ew,ns) == 1) then    ! thck > thklim_temp
              call glissade_pressure_melting_point(thck(ew,ns), bpmp(ew,ns))
           else
              bpmp(ew,ns) = 0.d0
@@ -718,7 +695,7 @@ module glissade_therm
              verbose_column = .false.
           endif
 
-          if (ice_mask_temp(ew,ns) == 1) then
+          if (ice_mask(ew,ns) == 1) then   ! thck > thklim_temp
 
              ! Set surface temperature
 
@@ -1013,7 +990,8 @@ module glissade_therm
     end select   ! whichtemp
 
     ! Calculate the basal melt rate for grounded ice.
-    ! Note: This calculation includes internal melting.
+    ! Basal melt for floating ice is handled in a separate module.
+    ! Note: This calculation includes internal melting for all ice, either grounded or floating.
     !       For the prognostic temperature scheme, temperatures above the pressure melting point 
     !        are reset to Tpmp, with excess heat contributing to basal melt.
     !       For the enthalpy scheme, internal meltwater in excess of the prescribed maximum
@@ -1031,28 +1009,7 @@ module glissade_therm
                                        bfricflx,         bheatflx,        &
                                        lcondflx,         bwat,            &
                                        pmp_threshold,                     &
-                                       bmlt_ground)
-
-    ! Calculate the basal melt rate for floating ice.
-    ! Note: The basal melt rate for floating ice is computed even if there is no
-    !       prognostic temperature/enthalpy calculation (e.g., for MISMIP+ tests
-    !       with fixed temperature).
-    ! Note: Any internal melting that was computed above for floating ice
-    !       (and put in array bmlt_ground) is transferred to bmlt_float.
-
-    call glissade_basal_melting_float(whichbmlt_float,                   &
-                                      ewn,              nsn,             &
-                                      ice_mask,         floating_mask,   &
-                                      topg,             lsrf,            &
-                                      eus,                               &
-                                      bmlt_float_rate,  bmlt_float_mask, &
-                                      bmlt_float_omega,                  &
-                                      bmlt_float_h0,    bmlt_float_z0,   &
-                                      bmlt_float)
-
-    ! Combine bmlt_ground and bmlt_float into one array
-
-    bmlt(:,:) = bmlt_ground(:,:) + bmlt_float(:,:)
+                                       bmlt)
 
     ! Check for temperatures that are physically unrealistic.
     ! Thresholds are set at the top of this module.
@@ -1579,8 +1536,8 @@ module glissade_therm
          bwat                    ! depth of basal water (m)
 
     integer, dimension(:,:), intent(in) ::  &
-         ice_mask,             & ! = 1 where ice exists (thck > thklim_temp), else = 0
-         floating_mask           ! = 1 where ice is floating, else = 0
+         ice_mask,             & ! = 1 where ice is present (thck > thklim_temp), else = 0
+         floating_mask           ! = 1 where ice is present and floating, else = 0
 
     real(dp), intent(in) :: &
          pmp_threshold           ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
@@ -1742,132 +1699,6 @@ module glissade_therm
     enddo   ! ns
 
   end subroutine glissade_basal_melting_ground
-
-!=======================================================================
-
-  subroutine glissade_basal_melting_float(whichbmlt_float,                   &
-                                          ewn,              nsn,             &
-                                          ice_mask,         floating_mask,   &
-                                          topg,             lsrf,            &
-                                          eus,                               &
-                                          bmlt_float_rate,  bmlt_float_mask, &
-                                          bmlt_float_omega,                  &
-                                          bmlt_float_h0,    bmlt_float_z0,   &
-                                          bmlt_float)
-
-    ! Compute the rate of basal melting for floating ice.
-
-    !-----------------------------------------------------------------
-    ! Input/output arguments
-    !-----------------------------------------------------------------
-
-    integer, intent(in) :: whichbmlt_float            ! method for computing melt rate of floating ice
-
-    integer, intent(in) :: ewn, nsn                   ! grid dimensions
-
-    real(dp), dimension(:,:), intent(in) :: &
-         topg,                 & ! elevation of bed topography (m)
-         lsrf                    ! elevation of lower ice surface (m)
-
-    real(dp), intent(in) :: &
-         eus               ! eustatic sea level (m), = 0. by default
-
-    integer, dimension(:,:), intent(in) ::  &
-         ice_mask,           &! = 1 where ice exists (thck > thklim_temp), else = 0
-         floating_mask        ! = 1 where ice is floating, else = 0
-
-    ! The remaining input arguments support basal melting for MISMIP+ experiments
-    integer, dimension(:,:), intent(in) ::  &
-         bmlt_float_mask      ! = 1 where melting is masked out, else = 0
-
-    real(dp), intent(in) :: &
-         bmlt_float_rate,   & ! constant melt rate (m/s)
-         bmlt_float_omega,  & ! time scale for basal melting (s-1)
-         bmlt_float_h0,     & ! scale for sub-shelf cavity thickness (m)
-         bmlt_float_z0        ! scale for ice draft (m)
-
-    ! Note: Basal melt rates are > 0 for melting, < 0 for freeze-on
-    ! Note: bmlt_ground is passed in because it includes any internal melting for floating ice.
-    !       Where such melting has occurred, it is transferred from bmlt_ground to bmlt_float.
- 
-    real(dp), dimension(:,:), intent(out):: &
-         bmlt_float           ! basal melt rate for floating ice (m/s)
-
-    !-----------------------------------------------------------------
-    ! Local variables
-    !-----------------------------------------------------------------
-
-    integer :: ew, ns
-    real(dp) :: h_cavity      ! depth of ice cavity beneath floating ice (m)
-    real(dp) :: z_draft       ! draft of floating ice (m below sea level)
-
-    ! Compute the basal melt rate for floating ice
-    ! Note: Basal melting is allowed for floating ice even if the temperature is not being prognosed.
-    !       The main reason for this is to support MISMIP+ and MISOMIP tests.
-
-    bmlt_float(:,:) = 0.0d0
-
-    if (whichbmlt_float == BMLT_FLOAT_NONE) then
-
-       ! nothing to do; bmlt_float already set to zero
-
-    elseif (whichbmlt_float == BMLT_FLOAT_CONSTANT) then
-
-       ! set melt rate to a constant value for floating ice
-
-       do ns = 1, nsn
-          do ew = 1, ewn
-
-             if (ice_mask(ew,ns) == 1 .and. floating_mask(ew,ns) == 1) then   ! ice is present and floating
-
-                ! check that the bmlt_float_mask does not prohibit melting
-                ! Note: For MISMIP+ experiment Ice2r, melting should be masked out (bmlt_float_mask = 1) where x < 480 km
-
-                if (bmlt_float_mask(ew,ns) == 0) then  ! melting is allowed
-                   bmlt_float(ew,ns) = bmlt_float_rate
-                endif
-
-             endif   ! ice is present and floating
-
-          enddo
-       enddo
-
-    elseif (whichbmlt_float == BMLT_FLOAT_MISMIP) then
-
-       ! compute melt rate based on bed depth and cavity thickness
-       ! The MISMIP+ formula is as follows:
-       !
-       ! bmlt_float = omega * tanh(H_c/H_0) * max(z_0 - z_d, 0)
-       !
-       ! where H_c = lsrf - topg is the cavity thickness
-       !       z_d = lsrf - eus is the ice draft
-       !       omega = a time scale = 0.2 yr^{-1} by default
-       !       H_0 = 75 m by default
-       !       z_0 = 100 m by default
-
-       do ns = 1, nsn
-          do ew = 1, ewn
-
-             if (ice_mask(ew,ns) == 1 .and. floating_mask(ew,ns) == 1) then   ! ice is present and floating
-
-                h_cavity = lsrf(ew,ns) - topg(ew,ns)
-                z_draft = lsrf(ew,ns) - eus
-                bmlt_float(ew,ns) = bmlt_float_omega * tanh(h_cavity/bmlt_float_h0) * max(bmlt_float_z0 - z_draft, 0.0d0)
-
-                   !WHL - debug
-                   if (ns == 5) then
-                      print*, 'cavity, tanh, draft, d_draft, melt rate (m/yr):', ew, ns, h_cavity, tanh(h_cavity/bmlt_float_h0), &
-                           z_draft, max(bmlt_float_z0 - z_draft, 0.d0), bmlt_float(ew,ns)*31536000.d0
-                   endif
-
-             endif   ! ice is present and floating
-
-          enddo   ! ew
-       enddo   ! ns
-
-    endif   ! whichbmlt_float
-
-  end subroutine glissade_basal_melting_float
 
 !=======================================================================
 

@@ -53,6 +53,7 @@ module glide_types
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types
   use glimmer_physcon
+  use glimmer_paramets, only: unphys_val
 
   implicit none
 
@@ -115,8 +116,10 @@ module glide_types
   integer, parameter :: BWATER_OCEAN_PENETRATION = 4
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
-  integer, parameter :: BMLT_FLOAT_CONSTANT = 1
-  integer, parameter :: BMLT_FLOAT_MISMIP = 2
+  integer, parameter :: BMLT_FLOAT_MISMIP = 1
+  integer, parameter :: BMLT_FLOAT_CONSTANT = 2
+  integer, parameter :: BMLT_FLOAT_MISOMIP = 3
+  integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -151,11 +154,12 @@ module glide_types
   integer, parameter :: CALVING_FLOAT_FRACTION = 2
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
-  integer, parameter :: CALVING_HUYBRECHTS = 5
+  integer, parameter :: CALVING_GRID_MASK = 5
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
-  integer, parameter :: CALVING_DAMAGE = 7
+  integer, parameter :: EIGENCALVING = 7
+  integer, parameter :: CALVING_DAMAGE = 8
+  integer, parameter :: CALVING_HUYBRECHTS = 9
 
-  !WHL - added an option to determine whether calving occurs at initialization
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
 
@@ -199,6 +203,7 @@ module glide_types
   integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
   integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
   
+  !TODO - Deprecate the last two options? Rarely if ever used.
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
   integer, parameter :: HO_BABC_YIELD_PICARD = 2
@@ -212,12 +217,14 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
   integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
-  integer, parameter :: HO_BABC_SIMPLE = 13
+  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
+  integer, parameter :: HO_BABC_SIMPLE = 14
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
 
+  !TODO - Remove option 2? Rarely used
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BMLT = 2
@@ -254,12 +261,10 @@ module glide_types
   integer, parameter :: HO_GRADIENT_CENTERED = 0
   integer, parameter :: HO_GRADIENT_UPSTREAM = 1
 
-  !WHL - adding a second hybrid option
-  !      After testing, choose just one hybrid option
   integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
-  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
+  integer, parameter :: HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
-  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID2 = 3
+  integer, parameter :: HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
@@ -273,9 +278,15 @@ module glide_types
   integer, parameter :: HO_ASSEMBLE_BFRIC_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_BFRIC_LOCAL = 1
 
+  integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
+  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
+
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
+
+  integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
+  integer, parameter :: HO_GROUND_BMLT_GLP = 1
 
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
@@ -398,11 +409,16 @@ module glide_types
     !> basal melt rate for floating ice:
     !> \begin{description}
     !> \item[0] Basal melt rate = 0 for floating ice
-    !> \item[1] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
-    !> \item[2] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \item[1] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
+    !> \item[3] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
+    !> \item[4] External basal melt rate field (from input file or coupler)
     !> \end{description}
 
-    !TODO - Change default basal_mbal to 1?
+    logical :: enable_bmlt_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to bmlt_float
+
+    !TODO - Change default basal_mbal to 1
     integer :: basal_mbal = 0
 
     !> basal mass balance:
@@ -419,6 +435,9 @@ module glide_types
     !> \item[1] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
+    logical :: enable_acab_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to acab
+
     integer :: overwrite_acab = 0
     !> overwrite acab (m/yr ice) in selected regions:
     !> \begin{description}
@@ -450,16 +469,18 @@ module glide_types
     !> Calving: 
     !> \begin{description} 
     !> \item[0] No calving 
-    !> \item[1] Set thickness to zero if floating 
+    !> \item[1] Set thickness to zero if floating
     !> \item[2] Lose a fraction of floating ice at marine margin
     !> \item[3] Set thickness to zero if relaxed bedrock is more than a
     !>          certain water depth (variable "marine_limit" in glide_types)  
     !> \item[4] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glide_types)  
-    !> \item[5] Huybrechts grounding line scheme for Greenland initialization
+    !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Set thickness to zero if ice at marine margin is thinner than
     !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Calve ice that is sufficiently damaged
+    !> \item[7] Set thickness to zero based on strain rate (eigencalving) criterion
+    !> \item[8] Calve ice that is sufficiently damaged
+    !> \item[9] Huybrechts grounding line scheme for Greenland initialization
     !> \end{description}
 
     integer :: calving_init = 0
@@ -468,13 +489,25 @@ module glide_types
     !> \item[1] Calve at initialization
     !> \end{description}
 
-    integer :: calving_domain = 0
+    integer :: calving_domain = 1
     !> \begin{description}
     !> \item[0] Calve only at ocean edge
     !> \item[1] Calve wherever the calving criterion is met
     !> \item[2] Calve where the calving criterion is met, and there is a connected path
     !>          to the ocean through other cells where the criterion is met.
     !> \end{description}
+
+    logical  :: remove_icebergs = .true. 
+    !> if true, then identify and remove icebergs after calving
+    !> These are connected regions with zero basal traction and no connection to grounded ice.
+    !>       Safer to make it true, but not necessary for all applications
+
+    logical  :: limit_marine_cliffs = .false.
+    !> if true, then thin marine-based cliffs based on a thickness threshold
+
+    logical  :: cull_calving_front = .false.
+    !> if true, then cull calving_front cells at initialization
+    !> This can make the run more stable by removing long, thin peninsulas
 
     integer :: whichwvel = 0
 
@@ -564,11 +597,12 @@ module glide_types
     !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
     !> \item[7] treat beta value as till yield stress (in Pa) using Newton-type iteration (in development)
     !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
-    !> \item[9] power law based using effective pressure
+    !> \item[9] power law
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
     !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
     !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
-    !> \item[13] simple hard-coded pattern (useful for debugging)
+    !> \item[13] power law using effective pressure
+    !> \item[14] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
     integer :: which_ho_bwat = 0
@@ -665,13 +699,22 @@ module glide_types
     !> \item[0] Centered gradient
     !> \item[1] Upstream gradient
 
-    integer :: which_ho_gradient_margin = 1
+    !WHL - Changed default from 1 to 3.
+    !      Option 3 is appropriate for ice sheets with both land and marine boundaries,
+    !       when a lateral spreading force is computed for marine ice cliffs.
+    !      This lateral force ensures spreading where the gradient is zero.
+
+    integer :: which_ho_gradient_margin = 3
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
+    !> Note: Gradients are always computed at edges with ice on both sides.
+    !>       The methods differ in whether gradients are computed when an ice-covered cell
+    !>        lies above an ice-free cell (land or ocean).
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] Use info from all neighbor cells, ice-covered or ice-free
-    !> \item[1] Use info from ice-covered and/or land cells, not ice-free ocean
-    !> \item[2] Use info from ice-covered cells only
+    !> \item[0] Compute edge gradient when either cell is ice-covered
+    !> \item[1] Compute edge gradient for grounded ice above ice-free land or ocean
+    !> \item[2] Compute edge gradient only when both cells have ice
+    !> \item[3] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now so that standard tests are BFB
@@ -703,6 +746,12 @@ module glide_types
     !> \item[0] standard finite-element calculation summing over quadrature points
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
 
+    integer :: which_ho_calving_front = 0
+    !> Flag that indicates whether to use a subgrid calving front parameterization
+    !> \begin{description}
+    !> \item[0] no subgrid calving front parameterization
+    !> \item[1] subgrid calving front parameterization
+
     integer :: which_ho_ground = 0
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
@@ -710,6 +759,12 @@ module glide_types
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
+
+    integer :: which_ho_ground_bmlt = 0
+    !> Flag that indicates how to compute bmlt_float in partly grouned  cells
+    !> \begin{description}
+    !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
+    !> \item[1] Do not apply bmlt_float in partly grounded cells
 
     !TODO - Change default to linear function 2?
     integer :: which_ho_flotation_function = 1
@@ -738,11 +793,6 @@ module glide_types
     !> \item[2] Fast calculation, using Tulaczyk empirical parametrization
     !> \end{description}
 
-    !integer :: use_plume = 0   !! Option to be supported in future releases
-    !> \begin{description}
-    !> \item[0] standard bmlt calculation
-    !> \item[1] use plume to calculate bmlt
-    !> \end{description}
 
   end type glide_options
 
@@ -800,15 +850,20 @@ module glide_types
     integer, dimension(:,:),pointer :: stagmask => null()
     !> see glide_mask.f90 for possible values
 
-    ! mass fluxes at each surface
+    ! mass fluxes at upper, lower and lateral boundaries
+    ! TODO: Move to a flux derived type?
     ! Note: sfc_mbal_flux and basal_mbal_flux are not strictly needed, since they are equal to acab_applied and bmlt_applied
     !       multipled by a constant. For some applications, however, it may be useful to output the mass balance in SI units.
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from acab
     real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt_float and bmlt_ground
+    real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux_tavg =>null() !> basal mass balance (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> surface mass balance (kg m^-2 s^-1), diagnosed from calving_thck
-    real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> surface mass balance (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> calving flux (kg m^-2 s^-1), diagnosed from calving_thck
+    real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> calving flux (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: gl_flux_east =>null()         !> mass flux eastward at grounding line, edge-based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux_north =>null()        !> mass flux northward at grounding line, edge_based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux_tavg =>null()         !> mass flux at grounding line, cell-based (kg m^-1 s^-1, time average)
 
     !* (DFM ----------------- The following 4 fields were added for BISICLES interface --------------)
     !*SFP: These fields need to be passed to POP for ice ocean coupling
@@ -838,7 +893,8 @@ module glide_types
     real(dp) :: imass_above_flotation  ! total ice mass above flotation (kg)
     real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
     real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
-    real(dp) :: total_calving_flux     ! total calving mass balance flux (kg/s)
+    real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
+    real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
 
   end type glide_geometry
 
@@ -957,8 +1013,13 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: resid_v => null()     ! v component of residual Ax - b where x is the velocity
 
     ! for viewing the driving stress on the RHS
-    real(dp),dimension(:,:,:),pointer :: rhs_u => null()     ! u component of b in Ax = b
-    real(dp),dimension(:,:,:),pointer :: rhs_v => null()     ! v component of b in Ax = b
+    real(dp),dimension(:,:,:),pointer :: rhs_u => null()       ! u component of b in Ax = b
+    real(dp),dimension(:,:,:),pointer :: rhs_v => null()       ! v component of b in Ax = b
+
+    ! strain rate tensor (HO only) 
+    type(glide_tensor) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
+
+    real(dp), dimension(:,:), pointer :: divu => null()        ! horizontal divergence rate, eps_xx + eps_yy (s^-1)
 
   end type glide_velocity
 
@@ -966,8 +1027,9 @@ module glide_types
 
   type glide_stress_t      
 
-    type(glide_tensor) :: tau    ! HO only
+    type(glide_tensor) :: tau         ! HO only
     real(dp),dimension(:,:,:),pointer :: efvs => null()    !> effective viscosity
+    real(dp),dimension(:,:),  pointer :: efvs_vertavg => null()  !> vertical mean effective viscosity
     real(dp),dimension(:,:),  pointer :: btractx => null() !> basal traction (Pa), x comp
     real(dp),dimension(:,:),  pointer :: btracty => null() !> basal traction (Pa), y comp
     real(dp),dimension(:,:),  pointer :: btract => null()  !> basal traction (Pa), magnitude = sqrt(btractx^2 + btracty^2)
@@ -1005,12 +1067,12 @@ module glide_types
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
-     real(dp),dimension(:,:),pointer :: flux_correction => null() !> Optional flux correction applied on top of acab (m/y ice)
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask for cells where advance is not allowed 
                                                                   !> (any ice reaching these locations is eliminated)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
+     real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
@@ -1022,11 +1084,16 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_calving
-     !> holds fields and paramters related to calving
+     !> holds fields and parameters related to calving
      !> Note: The 3D damage field is prognostic; the 2D damage_column field is diagnosed from the 3D damage field.
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !< scaled by thk0 like mass balance, thickness, etc.
-     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1
+     integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: thck_calving_front => null()!> effective ice thickness at calving front, divided by \texttt{thk0}.
+     real(dp),dimension(:,:),  pointer :: strain_rate_eigenprod    !> product of eigenvalues of 2D horizontal strain rate tensor (s^-2)
+     real(dp),dimension(:,:),  pointer :: strain_rate_eigen1       !> first principal eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:),  pointer :: strain_rate_eigen2       !> second principal eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
      real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
   
      real(dp) :: marine_limit =    -200.d0  !> minimum value of topg/relx before floating ice calves
@@ -1037,7 +1104,16 @@ module glide_types
      real(dp) :: calving_timescale = 0.0d0  !> time scale (yr) for calving (Glissade only); calving_thck = thck * max(dt/calving_timescale, 1)
                                             !> if calving_timescale = 0, then calving_thck = thck
      real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
-                                            !> (whichcalving = CALVING_THCK_THRESHOLD)
+                                            !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
+     real(dp) :: eigencalving_constant = 1.0d9   !> eigencalving constant from Levermann et al. (2012) (m*yr)
+                                                 !> (whichcalving = EIGENCALVING
+     integer :: ncull_calving_front = 0     !> number of times to cull calving_front cells at initialization
+                                            !> Set to a larger value to remove thicker peninsulas
+     real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
+     real(dp) :: cliff_timescale = 0.0d0    !> time scale (yr) for limiting marine cliffs (yr) (Glissade only)
+     real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
+     real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
+                                            !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
 
@@ -1075,7 +1151,8 @@ module glide_types
      real(dp), dimension(2) :: airt = (/ -3.15d0, 1.d-2 /)  
 
      !> mass balance parameterisation:
-     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.05d-5, 450.0d3 /)
+!!     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.05d-5, 450.0d3 /)
+     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.0d-5, 450.0d3 /)
 
      !> EISMINT time-dep climate forcing period, switched off when set to 0
      real(dp) :: period = 0.d0
@@ -1084,7 +1161,6 @@ module glide_types
      real(dp) :: mb_amplitude = 0.2d0
 
   end type eismint_climate_type
-
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1110,12 +1186,6 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bheatflx => null()  !> basal heat flux (W/m^2) (geothermal, positive down)
     real(dp),dimension(:,:,:),pointer :: flwa => null()      !> Glen's flow factor $A$.
     real(dp),dimension(:,:,:),pointer :: dissip => null()    !> interior heat dissipation rate, divided by rhoi*Ci (deg/s)
-    real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
-    real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
-    real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
-    real(dp),dimension(:,:),  pointer :: bmlt => null()      !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
-    real(dp),dimension(:,:),  pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
-                                                             !> = 0 for ice-free cells with bmlt > 0
     real(dp),dimension(:,:),  pointer :: btemp => null()     !> Basal temperature on ice grid; diagnosed from temp(upn)
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
@@ -1130,6 +1200,12 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
+     ! fields related to basal water
+     !TODO - Move these fields to the basal_physics type?
+     real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
+     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
+     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
+
     !TODO - Change default value to 5.0?  This is the value used for long Greenland initMIP spin-ups. 
     real(dp) :: pmp_offset = 2.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
 
@@ -1143,21 +1219,94 @@ module glide_types
     logical  :: first1  = .true. !>
     logical  :: newtemps = .false. !> new temperatures
 
-    !TODO - Put these parameters in a new basal melting derived type?
-    ! parameters and fields for MISMIP+ experiments with basal melting
-    ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
-    real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
-                                                   !> default value = 0.2 yr^{-1} for MISIMP+
-    real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)
-                                                   !> default value = 75 m for MISMIP+
-    real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
-                                                   !> default value = -100 m for MISMIP+
-    real(dp) :: bmlt_float_rate = 100.d0           !> constant melt rate (m/yr)
-                                                   !> default value = 100 m/yr for MISMIP+ experiment Ice2r
-    integer, dimension(:,:), pointer :: bmlt_float_mask => null()   !> switch off melt where mask = 1
-                                                                    !> mask = 1 where x < 480 km for MISMIP+ experiment Ice2r
-
   end type glide_temper
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_basal_melt
+
+     !> Holds fields and parameters relating to basal melting
+
+     !Note: In the Glide dycore, the only active field in this type is bmlt.
+     !      The other fields are used in Glissade only.
+
+     ! bmlt fields for grounded and floating ice
+     real(dp),dimension(:,:), pointer :: bmlt => null()          !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
+                                                                 !> bmlt = bmlt_ground + bmlt_float
+     real(dp),dimension(:,:), pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
+                                                                 !> = 0 for ice-free cells with bmlt > 0
+     real(dp),dimension(:,:), pointer :: bmlt_ground => null()   !> Basal melt rate for grounded ice
+     real(dp),dimension(:,:), pointer :: bmlt_float => null()    !> basal melt rate for floating ice
+     real(dp),dimension(:,:), pointer :: bmlt_float_external => null() !> External basal melt rate field
+     real(dp),dimension(:,:), pointer :: bmlt_float_anomaly => null()  !> Basal melt rate anomaly field
+
+     real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
+
+     ! MISMIP+ parameters for Ice1 experiments
+     ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
+     real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
+                                                    !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
+     real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)
+                                                    !> default value = 75 m for MISMIP+ Ice1r
+     real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
+                                                    !> default value = -100 m for MISMIP+ Ice1r
+
+     ! MISMIP+ parameters for Ice2 experiments
+     real(dp) :: bmlt_float_const = 0.d0            !> constant melt rate (m/yr)
+                                                    !> set to 100 m/yr for MISMIP+ Ice2r
+     real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
+                                                    !> set to 480 km for MISMIP+ Ice2r
+
+     ! initMIP-Antarctica parameters
+     real(dp) :: bmlt_anomaly_timescale = 0.0d0    !> number of years over which the bmlt_float anomaly is phased in linearly
+                                                   !> If set to zero, then the anomaly is applied immediately.
+
+  end type glide_basal_melt
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_plume
+
+     !> Holds fields and parameters relating to a sub-shelf plume model
+     !> Note: Entrainment/detrainment rates are computed with units of m/s but output with m/yr
+
+     real(dp),dimension(:,:), pointer :: T_basal => null()       !> basal ice temperature; at freezing point (deg C)
+     real(dp),dimension(:,:), pointer :: S_basal => null()       !> basal salinity; at freezing point (psu)
+     real(dp),dimension(:,:), pointer :: u_plume => null()       !> x component of plume velocity at cell centers (m/s)
+     real(dp),dimension(:,:), pointer :: v_plume => null()       !> y component of plume velocity at cell centers (m/s)
+                                                                 !> Note: Plume velocities are prognosed on edges, then interpolated
+                                                                 !>       to cell centers for diagnostics 
+     real(dp),dimension(:,:), pointer :: u_plume_Cgrid => null() !> x component of plume velocity on C grid edges (m/s)
+     real(dp),dimension(:,:), pointer :: v_plume_Cgrid => null() !> y component of plume velocity on C grid edges (m/s)
+     real(dp),dimension(:,:), pointer :: D_plume => null()       !> plume thickness (m)
+     real(dp),dimension(:,:), pointer :: ustar_plume => null()   !> plume friction velocity (m/s) on ice grid
+     real(dp),dimension(:,:), pointer :: drho_plume => null()    !> density difference between plume and ambient ocean (kg/m3)
+     real(dp),dimension(:,:), pointer :: T_plume => null()       !> plume temperature (deg C)
+     real(dp),dimension(:,:), pointer :: S_plume => null()       !> plume salinity (psu)
+     real(dp),dimension(:,:), pointer :: entrainment => null()   !> entrainment rate from ambient ocean to plume (positive up)
+     real(dp),dimension(:,:), pointer :: detrainment => null()   !> detrainment rate from plume to ambient ocean (positive down)
+     real(dp),dimension(:,:), pointer :: divDu_plume => null()   !> divergence of D_plume*u_plume
+     real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
+     real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
+
+     ! MISOMIP parameters
+     ! Note: T0, Tbot, S0, Sbot, gammaT and gammaS can be set in the config file.
+     !     - T0, Tbot, S0 and Sbot are prescribed for cold and warm profiles.
+     !     - gammaT is to be tuned to give a bmlt_float of the desired mean value.
+     !     - gammaS should equal gammaS/35.
+     real(dp) :: T0 = -1.9d0             !> sea surface temperature (deg C)
+     real(dp) :: Tbot =  1.0d0           !> temperature at the sea floor, warm profile (deg C)
+!     real(dp) :: Tbot = -1.9d0          !> temperature at the sea floor, cold profile (deg C)
+     real(dp) :: S0 = 33.8d0             !> sea surface salinity (psu)
+     real(dp) :: Sbot = 34.7d0           !> salinity at the sea floor, warm profile (psu)
+!     real(dp) :: Sbot = 34.55d0         !> salinity at the sea floor, cold profile (psu)
+     real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
+                                         !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
+     real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
+                                         !> for MISOMIP, should be set to gammaT/35 
+     real(dp) :: zbed_deep = -720.d0     !> min sea floor elevation (m)
+
+  end type glide_plume
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1168,7 +1317,7 @@ module glide_types
      !WHL - A reasonable value of beta_grounded_min might be 100 Pa yr/m.  
      !      However, this choice is not BFB for the confined-shelf test case, so I am choosing a default value of 0 for now.
      !      The default can be overridden in the config file.
-     !TODO: Set beta_grounded_min = 10 Pa yr/m
+     !TODO: Set beta_grounded_min = 100 Pa yr/m
      real(dp) :: beta_grounded_min = 0.d0   !> minimum value of beta for grounded ice, Pa yr/m (glissade only; scaled during init)
      
      real(dp) :: ho_beta_const = 1000.d0    !> spatially uniform beta for HO dycores, Pa yr/m (scaled during init)
@@ -1179,10 +1328,11 @@ module glide_types
                                                                 !< Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
      ! Note: It may make sense to move effecpress to a hydrology model when one is available.
-     real(dp), dimension(:,:), pointer :: effecpress => null()          !< effective pressure  
-     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid
+     real(dp), dimension(:,:), pointer :: effecpress => null()          !< effective pressure (Pa)
+     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid (Pa)
      real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
+     real(dp), dimension(:,:), pointer :: tau_c => null()               !< yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
@@ -1206,7 +1356,7 @@ module glide_types
      real(dp) :: pseudo_plastic_bedmax =  700.d0 !< bed elevation (m) above which phi = phimax
 
      ! parameters for friction powerlaw
-     real(dp) :: friction_powerlaw_k = 8.4d-9    !< the friction coefficient for the power-law friction law (m y^-1 Pa^-2).  
+     real(dp) :: friction_powerlaw_k = 8.4d-9    !< coefficient (m y^-1 Pa^-2) for the friction power law based on effective pressure
                                                  !< The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
 
      ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
@@ -1218,7 +1368,7 @@ module glide_types
                                                  !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI
-     ! The default values are from Asay-Davis et al. (2015).
+     ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_C suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
      ! Note: The Tsai et al. Coulomb friction law uses Coulomb_C above, with
@@ -1235,7 +1385,7 @@ module glide_types
      ! parameters for local till model
      ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
      real(dp) :: bwat_till_max = 2.0d0           !< maximum water depth in till (m)
-     real(dp) :: C_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
+     real(dp) :: c_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
      real(dp) :: N_0 = 1000.d0                   !< reference effective pressure (Pa)
      real(dp) :: e_0 = 0.69d0                    !< reference void ratio (dimensionless)
      real(dp) :: C_c = 0.12d0                    !< till compressibility (dimensionless)
@@ -1365,19 +1515,18 @@ module glide_types
     real(dp) :: ntem   =     1.d0 !> multiplier of main time step; allows longer temperature time step
     real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
     real(dp) :: alphas =    0.5d0 !> was a parameter in the original
-    real(dp) :: thklim =   100.d0 ! min thickness for computing ice dynamics (m) 
-    real(dp) :: thklim_temp = 1.d0    ! min thickness for computing vertical temperature (m) (higher-order only)
-    real(dp) :: thck_gradient_ramp = 0.d0 ! thickness scale over which gradients increase from zero to full value (HO only)
-    real(dp) :: dew    =    20.d3     ! grid cell size in east-west direction
-    real(dp) :: dns    =    20.d3     ! grid cell size in north-south direction
-    real(dp) :: dt     =     0.d0     ! ice dynamics timestep
-    real(dp) :: dttem  =     0.d0     ! temperature timestep
-    real(dp) :: dt_transport = 0.d0   ! timestep for subcycling transport within the dynamics timestep dt
+    real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
+    real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
+    real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
+    real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction
+    real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
+    real(dp) :: dt     =     0.d0     !> ice dynamics timestep
+    real(dp) :: dttem  =     0.d0     !> temperature timestep
+    real(dp) :: dt_transport = 0.d0   !> timestep for subcycling transport within the dynamics timestep dt
     real(dp) :: nshlf  =     0.d0          !TODO - not currently used; remove?
     integer  :: subcyc =     1
-    real(dp) :: periodic_offset_ew = 0.d0 ! optional periodic_offsets for ismip-hom and similar tests
-    real(dp) :: periodic_offset_ns = 0.d0 ! These may be needed to ensure continuous ice geometry at
-                                          !  the edges of the global domain.
+    real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
+    real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
     integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
     
     ! Vertical coordinate ---------------------------------------------------
@@ -1399,8 +1548,12 @@ module glide_types
     integer  :: jdiag_local = 1
     integer  :: rdiag_local = 0    ! task number for diagnostic point
 
+    ! CFL diagnostics and adaptive subcycling
     real(dp) :: adv_cfl_dt = 0.0d0  ! maximum allowable dt (yrs) based on advective CFL (calculated by model for each time step)
     real(dp) :: diff_cfl_dt = 0.0d0 ! maximum allowable dt (yrs) based on diffusive CFL (calculated by model for each time step)
+    real(dp) :: adaptive_cfl_threshold = 0.0d0  ! adaptively subcycle the advection when advective CFL exceeds this value
+                                                ! (zero value means no adaptive subcycling)
+
   end type glide_numerics
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1590,8 +1743,10 @@ module glide_types
     type(eismint_climate_type) :: eismint_climate
     type(glide_calving)  :: calving
     type(glide_temper)   :: temper
-    type(glide_basal_physics)  :: basal_physics
-    type(glide_lithot_type) :: lithot
+    type(glide_basal_physics):: basal_physics
+    type(glide_basal_melt)   :: basal_melt
+    type(glide_plume)    :: plume
+    type(glide_lithot_type)  :: lithot
     type(glide_funits)   :: funits
     type(glide_numerics) :: numerics
     type(glide_velowk)   :: velowk
@@ -1624,14 +1779,42 @@ contains
     !> \item \texttt{flwa(upn,ewn,nsn))}           !WHL - 2 choices
     !> \item \texttt{dissip(upn,ewn,nsn))}         !WHL - 2 choices
     !> \item \texttt{bwat(ewn,nsn))}
-    !> \item \texttt{bmlt(ewn,nsn))}
-    !> \item \texttt{bmlt_float_mask(ewn,nsn))}
     !> \item \texttt{bfricflx(ewn,nsn))}
     !> \item \texttt{ucondflx(ewn,nsn))}
     !> \item \texttt{lcondflx(ewn,nsn))}
     !> \item \texttt{dissipcol(ewn,nsn))}
     !> \item \texttt{waterfrac(upn-1,ewn,nsn))}
     !> \item \texttt{enthalpy(0:upn,ewn,nsn))}
+    !> \end{itemize}
+
+    !> In \texttt{model\%basal_melt}:
+    !> \begin{itemize}
+    !> \item \texttt{bmlt(ewn,nsn))}
+    !> \item \texttt{bmlt_ground(ewn,nsn))}
+    !> \item \texttt{bmlt_applied(ewn,nsn))}
+    !> \item \texttt{bmlt_float(ewn,nsn)}
+    !> \item \texttt{bmlt_float_external(ewn,nsn)}
+    !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
+    !> \end{itemize}
+
+    !> In \texttt{model\%plume}:
+    !> \begin{itemize}
+    !> \item \texttt{T_basal(ewn,nsn)}
+    !> \item \texttt{S_basal(ewn,nsn)}
+    !> \item \texttt{u_plume(ewn,nsn)}
+    !> \item \texttt{v_plume(ewn,nsn)}
+    !> \item \texttt{u_plume_Cgrid(ewn,nsn)}
+    !> \item \texttt{v_plume_Cgrid(ewn,nsn)}
+    !> \item \texttt{D_plume(ewn,nsn)}
+    !> \item \texttt{ustar_plume(ewn,nsn)}
+    !> \item \texttt{drho_plume(ewn,nsn)}
+    !> \item \texttt{T_plume(ewn,nsn)}
+    !> \item \texttt{S_plume(ewn,nsn)}
+    !> \item \texttt{entrainment(ewn,nsn)}
+    !> \item \texttt{detrainment(ewn,nsn)}
+    !> \item \texttt{divDu_plume(ewn,nsn)}
+    !> \item \texttt{T_ambient(ewn,nsn)}
+    !> \item \texttt{S_ambient(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%velocity}:
@@ -1701,7 +1884,6 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
-    use glimmer_paramets, only: unphys_val
 
     implicit none
 
@@ -1758,16 +1940,13 @@ contains
 
     ! MJH - Set temp and flwa to physically unrealistic values so we can tell later if 
     !       arrays were initialized correctly
-    model%temper%temp(:,:,:) = unphys_val  ! unphys_val = -999.d0
+    model%temper%temp(:,:,:) = unphys_val  ! large negative number
     model%temper%flwa(:,:,:) = unphys_val
     model%temper%dissip(:,:,:) = 0.d0
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_applied)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bmlt_float_mask)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
@@ -1829,7 +2008,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
        ! Set beta and unstagbeta to physically unrealistic values so we can tell later 
        ! if these fields were read correctly from an input file
-       model%velocity%beta(:,:) = unphys_val   ! unphys_val = -999.0d0
+       model%velocity%beta(:,:) = unphys_val   ! large negative number
        model%velocity%unstagbeta(:,:) = unphys_val
 
        call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
@@ -1840,18 +2019,26 @@ contains
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%ures)
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%vres)
 !       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%magres)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
     endif
 
     ! higher-order stress arrays
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%efvs)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%efvs_vertavg)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%scalar) 
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xz)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yz)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xx)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yy)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xy)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%scalar) 
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xz)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yz)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xx)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yy)
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
@@ -1881,6 +2068,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%basal_mbal_flux_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_east)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_north)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_tavg)
 
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
@@ -1925,12 +2116,43 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
+       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
 !!       endif
 
     endif  ! glam/glissade
+
+    ! bmlt arrays
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+       call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
+       if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
+       endif
+       if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+          call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%S_basal)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume_Cgrid)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume_Cgrid)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%D_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%ustar_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%drho_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%T_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%S_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%entrainment)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%detrainment)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%divDu_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
+       endif
+    endif  ! Glissade
 
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
@@ -1940,14 +2162,24 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%flux_correction)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_calving_front)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigenprod)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigen1)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigen2)
+    if (model%options%whichcalving == CALVING_DAMAGE) then
+       call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
+       call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
+    else
+       ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
+       allocate(model%calving%damage(1,1,1))
+       allocate(model%calving%damage_column(1,1))
+    endif
 
     ! matrix solver arrays
 
@@ -2040,12 +2272,6 @@ contains
         deallocate(model%temper%bwatflx)
     if (associated(model%temper%stagbwat)) &
         deallocate(model%temper%stagbwat)
-    if (associated(model%temper%bmlt)) &
-        deallocate(model%temper%bmlt)
-    if (associated(model%temper%bmlt_applied)) &
-        deallocate(model%temper%bmlt_applied)
-    if (associated(model%temper%bmlt_float_mask)) &
-        deallocate(model%temper%bmlt_float_mask)
     if (associated(model%temper%bpmp)) &
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &
@@ -2152,6 +2378,8 @@ contains
         deallocate(model%velocity%umask_no_penetration)
     if (associated(model%velocity%vmask_no_penetration)) &
         deallocate(model%velocity%vmask_no_penetration)
+    if (associated(model%velocity%divu)) &
+        deallocate(model%velocity%divu)
 
     !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
 !    if (associated(model%velocity%ures)) & 
@@ -2165,6 +2393,8 @@ contains
 
     if (associated(model%stress%efvs)) &
         deallocate(model%stress%efvs)
+    if (associated(model%stress%efvs_vertavg)) &
+        deallocate(model%stress%efvs_vertavg)
     if (associated(model%stress%tau%scalar)) &
         deallocate(model%stress%tau%scalar)
     if (associated(model%stress%tau%xz)) &
@@ -2177,6 +2407,18 @@ contains
         deallocate(model%stress%tau%yy)
     if (associated(model%stress%tau%xy)) &
         deallocate(model%stress%tau%xy)
+    if (associated(model%velocity%strain_rate%scalar)) &
+        deallocate(model%velocity%strain_rate%scalar)
+    if (associated(model%velocity%strain_rate%xz)) &
+        deallocate(model%velocity%strain_rate%xz)
+    if (associated(model%velocity%strain_rate%yz)) &
+        deallocate(model%velocity%strain_rate%yz)
+    if (associated(model%velocity%strain_rate%xx)) &
+        deallocate(model%velocity%strain_rate%xx)
+    if (associated(model%velocity%strain_rate%yy)) &
+        deallocate(model%velocity%strain_rate%yy)
+    if (associated(model%velocity%strain_rate%xy)) &
+        deallocate(model%velocity%strain_rate%xy)
     if (associated(model%stress%btractx)) &
         deallocate(model%stress%btractx)
     if (associated(model%stress%btracty)) &
@@ -2199,12 +2441,63 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
+    if (associated(model%basal_physics%tau_c)) &
+        deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%C_space_factor)) &
         deallocate(model%basal_physics%C_space_factor)
     if (associated(model%basal_physics%C_space_factor_stag)) &
         deallocate(model%basal_physics%C_space_factor_stag)
     if (associated(model%basal_physics%mintauf)) &
        deallocate(model%basal_physics%mintauf)
+
+    ! basal melt arrays
+
+    if (associated(model%basal_melt%bmlt)) &
+        deallocate(model%basal_melt%bmlt)
+    if (associated(model%basal_melt%bmlt_applied)) &
+        deallocate(model%basal_melt%bmlt_applied)
+    if (associated(model%basal_melt%bmlt_ground)) &
+        deallocate(model%basal_melt%bmlt_ground)
+    if (associated(model%basal_melt%bmlt_float)) &
+        deallocate(model%basal_melt%bmlt_float)
+    if (associated(model%basal_melt%bmlt_float_external)) &
+        deallocate(model%basal_melt%bmlt_float_external)
+    if (associated(model%basal_melt%bmlt_float_anomaly)) &
+        deallocate(model%basal_melt%bmlt_float_anomaly)
+
+    ! plume arrays
+    if (associated(model%plume%T_basal)) &
+        deallocate(model%plume%T_basal)
+    if (associated(model%plume%S_basal)) &
+        deallocate(model%plume%S_basal)
+    if (associated(model%plume%u_plume)) &
+        deallocate(model%plume%u_plume)
+    if (associated(model%plume%v_plume)) &
+        deallocate(model%plume%v_plume)
+    if (associated(model%plume%u_plume_Cgrid)) &
+        deallocate(model%plume%u_plume_Cgrid)
+    if (associated(model%plume%v_plume_Cgrid)) &
+        deallocate(model%plume%v_plume_Cgrid)
+    if (associated(model%plume%D_plume)) &
+        deallocate(model%plume%D_plume)
+    if (associated(model%plume%ustar_plume)) &
+        deallocate(model%plume%ustar_plume)
+    if (associated(model%plume%drho_plume)) &
+        deallocate(model%plume%drho_plume)
+    if (associated(model%plume%T_plume)) &
+        deallocate(model%plume%T_plume)
+    if (associated(model%plume%S_plume)) &
+        deallocate(model%plume%S_plume)
+    if (associated(model%plume%entrainment)) &
+        deallocate(model%plume%entrainment)
+    if (associated(model%plume%detrainment)) &
+        deallocate(model%plume%detrainment)
+    if (associated(model%plume%divDu_plume)) &
+        deallocate(model%plume%divDu_plume)
+    if (associated(model%plume%T_ambient)) &
+        deallocate(model%plume%T_ambient)
+    if (associated(model%plume%S_ambient)) &
+        deallocate(model%plume%S_ambient)
 
     ! geometry arrays
 
@@ -2243,9 +2536,14 @@ contains
         deallocate(model%geometry%calving_flux)
     if (associated(model%geometry%calving_flux_tavg)) &
         deallocate(model%geometry%calving_flux_tavg)
-
-!!    if (associated(model%geometry%marine_bc_normal)) &
-!!       deallocate(model%geometry%marine_bc_normal)
+    if (associated(model%geometry%gl_flux_east)) &
+        deallocate(model%geometry%gl_flux_east)
+    if (associated(model%geometry%gl_flux_north)) &
+        deallocate(model%geometry%gl_flux_north)
+    if (associated(model%geometry%gl_flux)) &
+        deallocate(model%geometry%gl_flux)
+    if (associated(model%geometry%gl_flux_tavg)) &
+        deallocate(model%geometry%gl_flux_tavg)
 
     if (associated(model%geometry%ice_mask)) &
        deallocate(model%geometry%ice_mask)
@@ -2322,8 +2620,6 @@ contains
         deallocate(model%climate%smb)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
-    if (associated(model%climate%flux_correction)) &
-        deallocate(model%climate%flux_correction)
     if (associated(model%climate%no_advance_mask)) &
         deallocate(model%climate%no_advance_mask)
     if (associated(model%climate%overwrite_acab_mask)) &
@@ -2332,6 +2628,16 @@ contains
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
         deallocate(model%calving%calving_thck)
+    if (associated(model%calving%calving_mask)) &
+        deallocate(model%calving%calving_mask)
+    if (associated(model%calving%thck_calving_front)) &
+        deallocate(model%calving%thck_calving_front)
+    if (associated(model%calving%strain_rate_eigenprod)) &
+        deallocate(model%calving%strain_rate_eigenprod)
+    if (associated(model%calving%strain_rate_eigen1)) &
+        deallocate(model%calving%strain_rate_eigen1)
+    if (associated(model%calving%strain_rate_eigen2)) &
+        deallocate(model%calving%strain_rate_eigen2)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
     if (associated(model%calving%damage_column)) &

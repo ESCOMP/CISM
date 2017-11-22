@@ -34,7 +34,8 @@ module glint_mbal
   use glint_pdd
   use glint_daily_pdd
 
-#ifdef USE_ENMABAL  ! This option is *not* suppported
+! The USE_ENMABAL option is *not* suppported
+#ifdef USE_ENMABAL  
   use smb_mecons  ! might exist somewhere, but not part of a Glint release
 #else
   use glint_ebm   ! dummy wrapper
