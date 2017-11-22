@@ -60,7 +60,7 @@ contains
 
     !> Initialise a GLINT ice model instance
 
-    use glimmer_paramets, only: GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG, thk0
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -292,7 +292,8 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%tstep_count)
+                                 tstep_count = instance%model%numerics%tstep_count,  &
+                                 minthick_in = instance%model%numerics%thklim*thk0)  ! m 
 
     ! Write netCDF output for this instance
 
@@ -319,7 +320,7 @@ contains
 
     ! Initialise a GLINT ice model instance for GCM coupling
 
-    use glimmer_paramets, only: GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG, thk0
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -536,7 +537,8 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%tstep_count)
+                                 tstep_count = instance%model%numerics%tstep_count,  &
+                                 minthick_in = instance%model%numerics%thklim*thk0)  ! m 
 
     ! Write netCDF output for this instance
 

@@ -85,7 +85,7 @@ contains
        print*, 'ndiag =', model%numerics%ndiag
        print*, 'tstep_count =', tstep_count
     endif
-       
+
     if (model%numerics%ndiag > 0) then
 
        if (mod(tstep_count, model%numerics%ndiag) == 0)  then    ! time to write
@@ -206,9 +206,13 @@ contains
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
          tot_calving,                   &    ! total calving rate (m^3/yr)
+         tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
+         err_dmass_dt,                  &    ! mass conservation error (kg/s)
+                                             ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
          mean_thck,                     &    ! mean ice thickness (m)
          mean_temp,                     &    ! mean ice temperature (deg C)
          mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
@@ -259,13 +263,20 @@ contains
 
     real(dp), parameter ::   &
        eps = 1.0d-11             ! small number
- 
+
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
 
     allocate(cell_area(ewn,nsn))
     cell_area(:,:) = model%numerics%dew * model%numerics%dns
+
+    ! Note: If projection%stere%compute_area_factor = .true., then area factors will differ from 1.
+    !       Then the total ice area and volume computed below will be corrected for area distortions,
+    !        giving a better estimate of the true ice area and volume.
+    !       However, applying scale factors will give a mass conservation error (total dmass_dt > 0)
+    !        in the diagnostics, because horizontal transport does not account for area factors.
+    !        Transport conserves mass only under the assumption of rectangular grid cells.
 
     if (associated(model%projection%stere)) then   ! divide cell area by area_factor^2
        do j = 1, nsn
@@ -392,36 +403,36 @@ contains
     tot_energy = 0.d0
     if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical
        do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             do k = 1, upn-1
-                tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
-                            *(model%numerics%sigma(k+1) - model%numerics%sigma(k))
-             enddo
-          endif
-       enddo
+          do i = lhalo+1, ewn-uhalo
+             if (ice_mask(i,j) == 1) then
+                do k = 1, upn-1
+                   tot_energy = tot_energy +   &
+                                model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
+                                *(model%numerics%sigma(k+1) - model%numerics%sigma(k))
+                enddo
+             endif
+          enddo
        enddo
     
     else   ! temps are unstaggered in vertical
        do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             ! upper half-layer, T = upper sfc temp
-             tot_energy = tot_energy +   &
-                          model%geometry%thck(i,j) * model%temper%temp(1,i,j) * cell_area(i,j)    &
-                         * 0.5d0 * model%numerics%sigma(2)
-             do k = 2, upn-1
+          do i = lhalo+1, ewn-uhalo
+             if (ice_mask(i,j) == 1) then
+                ! upper half-layer, T = upper sfc temp
                 tot_energy = tot_energy +   &
+                             model%geometry%thck(i,j) * model%temper%temp(1,i,j) * cell_area(i,j)    &
+                             * 0.5d0 * model%numerics%sigma(2)
+                do k = 2, upn-1
+                   tot_energy = tot_energy +   &
                              model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                           * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
-             enddo
-             ! lower half-layer, T = lower sfc temp
-             tot_energy = tot_energy +   &
-                          model%geometry%thck(i,j) * model%temper%temp(upn,i,j) * cell_area(i,j)  &
-                         * 0.5d0 * (1.0d0 - model%numerics%sigma(upn-1))
-          endif
-       enddo
+                             * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
+                enddo
+                ! lower half-layer, T = lower sfc temp
+                tot_energy = tot_energy +   &
+                             model%geometry%thck(i,j) * model%temper%temp(upn,i,j) * cell_area(i,j)  &
+                             * 0.5d0 * (1.0d0 - model%numerics%sigma(upn-1))
+             endif
+          enddo
        enddo
     endif
 
@@ -444,77 +455,6 @@ contains
        mean_temp = 0.d0
     endif
  
-    ! total surface accumulation/ablation rate (m^3/yr)
- 
-    tot_acab = 0.d0
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          tot_acab = tot_acab + model%climate%acab_applied(i,j) * cell_area(i,j)
-       enddo
-    enddo
-
-    tot_acab = tot_acab * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
-    tot_acab = parallel_reduce_sum(tot_acab)
-
-    ! total surface mass balance flux (kg/s)
-    tot_smb_flux = tot_acab * rhoi / scyr   ! convert m^3/yr to kg/s
-
-    ! mean accumulation/ablation rate (m/yr)
-    ! Note: This will be only approximate if some ice has melted completely during the time step
-    if (tot_area > eps) then
-       mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
-    else
-       mean_acab = 0.d0
-    endif
-
-    ! total basal melting rate (positive for ice loss)
-
-    tot_bmlt = 0.d0
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-             tot_bmlt = tot_bmlt + model%temper%bmlt_applied(i,j) * cell_area(i,j)
-       enddo
-    enddo
-
-    tot_bmlt = tot_bmlt * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
-    tot_bmlt = parallel_reduce_sum(tot_bmlt)
-
-    ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
-    tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
-
-    ! mean basal melt rate (m/yr)
-    ! Note: This will be only approximate if some ice has melted completely during the time step
-    if (tot_area > eps) then
-       mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
-    else
-       mean_bmlt = 0.d0
-    endif
-
-    ! total calving rate
-    ! Recall that calving_thck is the scaled thickness of ice calving in one time step;
-    !  divide by dt to convert to a rate
-
-    tot_calving = 0.d0
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          tot_calving = tot_calving + model%calving%calving_thck(i,j)/model%numerics%dt  * cell_area(i,j)
-       enddo
-    enddo
-
-    tot_calving = tot_calving * scyr * thk0 / tim0 * len0**2  ! convert to m^3/yr
-    tot_calving = parallel_reduce_sum(tot_calving)
-
-    ! total calving mass balance flux (kg/s, negative for ice loss by calving)
-    tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
-
-    ! mean calving rate (m/yr)
-    ! Note: This will be only approximate if some ice has melted completely during the time step
-    if (tot_area > eps) then
-       mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
-    else
-       mean_calving = 0.d0
-    endif
-
     ! copy some global scalars to the geometry derived type
     ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
 
@@ -524,9 +464,126 @@ contains
     model%geometry%ivol   = tot_volume
     model%geometry%imass  = tot_mass
     model%geometry%imass_above_flotation  = tot_mass_above_flotation
-    model%geometry%total_smb_flux = tot_smb_flux
-    model%geometry%total_bmb_flux = tot_bmb_flux
-    model%geometry%total_calving_flux = tot_calving_flux
+
+    ! For Glissade only, compute a global mass budget and check mass conservation
+
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+
+       ! total surface accumulation/ablation rate (m^3/yr)
+ 
+       tot_acab = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_acab = tot_acab + model%climate%acab_applied(i,j) * cell_area(i,j)
+          enddo
+       enddo
+
+       tot_acab = tot_acab * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
+       tot_acab = parallel_reduce_sum(tot_acab)
+
+       ! total surface mass balance flux (kg/s)
+       tot_smb_flux = tot_acab * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean accumulation/ablation rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
+       else
+          mean_acab = 0.d0
+       endif
+
+       ! total basal melting rate (positive for ice loss)
+       tot_bmlt = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_bmlt = tot_bmlt + model%basal_melt%bmlt_applied(i,j) * cell_area(i,j)
+          enddo
+       enddo
+
+       tot_bmlt = tot_bmlt * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
+       tot_bmlt = parallel_reduce_sum(tot_bmlt)
+
+       ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
+       tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean basal melt rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
+       else
+          mean_bmlt = 0.d0
+       endif
+
+       ! total calving rate
+       ! Recall that calving_thck is the scaled thickness of ice calving in one time step;
+       !  divide by dt to convert to a rate
+
+       tot_calving = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_calving = tot_calving + model%calving%calving_thck(i,j)/model%numerics%dt  * cell_area(i,j)
+          enddo
+       enddo
+
+       tot_calving = tot_calving * scyr * thk0/tim0 * len0**2  ! convert to m^3/yr
+       tot_calving = parallel_reduce_sum(tot_calving)
+
+       ! total calving mass balance flux (kg/s, negative for ice loss by calving)
+       tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean calving rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
+       else
+          mean_calving = 0.d0
+       endif
+
+       ! total grounding line mass balance flux (< 0 by definition)
+       ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
+       !       so tot_gl_flux will have units of kg/s
+
+       tot_gl_flux = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j)) * model%numerics%dns*len0 &
+                                       - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew*len0
+          enddo
+       enddo
+       tot_gl_flux = parallel_reduce_sum(tot_gl_flux)
+
+       ! total rate of change of ice mass (kg/s)
+       ! Note: dthck_dt has units of m/s
+       tot_dmass_dt = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_dmass_dt = tot_dmass_dt + model%geometry%dthck_dt(i,j) * cell_area(i,j)
+          enddo
+       enddo
+       tot_dmass_dt = tot_dmass_dt * rhoi * len0**2  ! convert to kg/s
+       tot_dmass_dt = parallel_reduce_sum(tot_dmass_dt)
+
+       ! mass conservation error
+       ! Note: For most runs, this should be close to zero.
+
+       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux)
+
+       ! uncomment to convert total fluxes from kg/s to Gt/yr
+!!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
+!!!    tot_bmb_flux = tot_bmb_flux * scyr/1.0d12
+!!!    tot_calving_flux = tot_calving_flux * scyr/1.0d12
+!!!    tot_gl_flux = tot_gl_flux * scyr/1.0d12
+!!!    tot_dmass_dt = tot_dmass_dt * scyr/1.0d12
+!!!    err_dmass_dt = err_dmass_dt * scyr/1.0d12
+
+       ! copy some global scalars to the geometry derived type
+       ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
+       model%geometry%total_smb_flux = tot_smb_flux
+       model%geometry%total_bmb_flux = tot_bmb_flux
+       model%geometry%total_calving_flux = tot_calving_flux
+       model%geometry%total_gl_flux = tot_gl_flux
+
+    endif  ! Glissade dycore
 
     ! write global sums and means to log file
 
@@ -557,14 +614,36 @@ contains
     write(message,'(a25,e24.16)') 'Total ice energy (J)     ', tot_energy
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
 
-    write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean basal melt (m/yr)   ', mean_bmlt
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! Glissade dycore
 
     write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck
     call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -572,22 +651,13 @@ contains
     write(message,'(a25,f24.16)') 'Mean temperature (C)     ', mean_temp
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-!    write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
-!    call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-!    write(message,'(a25,e24.16)') 'Mean basal melt (m/yr)   ', mean_bmlt
-!    call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-!    write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
-!    call write_log(trim(message), type = GM_DIAGNOSTIC)
-    
     ! Find various global maxes and mins
 
     ! max thickness
 
     imax = 0
     jmax = 0
-    max_thck = unphys_val   ! = -999.d0 (an arbitrary large negative number)
+    max_thck = unphys_val   ! = an arbitrary large negative number
     do j = lhalo+1, nsn-uhalo
        do i = lhalo+1, ewn-uhalo
           if (model%geometry%thck(i,j) > max_thck) then
@@ -767,7 +837,7 @@ contains
           endif
           artm_diag = model%climate%artm(i,j)
           acab_diag = model%climate%acab(i,j) * thk0*scyr/tim0
-          bmlt_diag = model%temper%bmlt(i,j) * thk0*scyr/tim0
+          bmlt_diag = model%basal_melt%bmlt(i,j) * thk0*scyr/tim0
           bwat_diag = model%temper%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
        

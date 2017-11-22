@@ -64,14 +64,20 @@ module parallel
   integer,save :: east,north,south,west
   integer,save :: ewtasks,nstasks
 
-  !Note: Currently, periodic_bc is always T, since periodic BCs are always applied.                                                             
-  !      Outflow BCs require some additional operations on scalars after periodic BCs are applied.
-  !      No-penetration BCs are enforced by setting velocity masks, without altering halo updates.
+  ! bounds of locally owned vertices on staggered grid
+  ! For periodic BC, staggered_ilo = staggered_jlo = staggered_lhalo+1.
+  ! For outflow BC the locally owned vertices include the southern and western rows
+  !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
+  !  processors that include these rows.
+  integer,save :: staggered_ilo
+  integer,save :: staggered_jlo
+  integer,save :: staggered_ihi
+  integer,save :: staggered_jhi
 
   ! global boundary conditions
   logical,save :: periodic_bc  ! doubly periodic
-  logical,save :: outflow_bc   ! if true, set scalars in global halo to zero
-                               ! does not apply to staggered variables (e.g., uvel, vvel)
+  logical,save :: outflow_bc   ! if true, set scalars in global halo to zero, and set
+                               ! staggered data to zero beyond the global boundary
 
   ! global IDs
   integer,parameter :: ProcsEW = 1
@@ -218,6 +224,11 @@ module parallel
      module procedure parallel_halo_real8_3d
   end interface
 
+  interface parallel_halo_tracers
+     module procedure parallel_halo_tracers_real8_3d
+     module procedure parallel_halo_tracers_real8_4d
+  end interface
+
   interface parallel_halo_verify
      module procedure parallel_halo_verify_integer_2d
      module procedure parallel_halo_verify_real8_2d
@@ -284,6 +295,11 @@ module parallel
      module procedure staggered_parallel_halo_real8_2d
      module procedure staggered_parallel_halo_real8_3d
      module procedure staggered_parallel_halo_real8_4d
+  end interface
+
+  interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_integer_2d
+     module procedure parallel_halo_extrapolate_real8_2d
   end interface
 
   interface staggered_parallel_halo_extrapolate
@@ -556,6 +572,21 @@ contains
            
     integer :: ewrank,nsrank
 
+    ! set the boundary conditions (periodic by default) 
+    ! Note: The no-penetration BC is treated as periodic. This BC may need some more work.
+
+    if (present(outflow_bc_in)) then
+       outflow_bc = outflow_bc_in
+    else
+       outflow_bc = .false.
+    endif
+
+    if (outflow_bc) then
+       periodic_bc = .false.
+    else
+       periodic_bc = .true.
+    endif
+
     ! Optionally, change the halo values
     ! Note: The higher-order dycores (glam, glissade) currently require nhalo = 2.
     !       The Glide SIA dycore requires nhalo = 0.
@@ -621,18 +652,26 @@ contains
     own_nsn = local_nsn - lhalo - uhalo
     nsn = local_nsn
 
-    ! set periodic BC as the default
-    ! Note: Currently, it is not strictly necessary to set periodic_bc = T, because
-    !       all halo updates carried out for periodic BC are also carried out for other BCs.
-    !       (Outflow BCs simply add some additional operations on scalars.)                                                                                        !       But setting it here as the default in case that changes. 
-    periodic_bc = .true.
+    ! Set the limits of locally owned vertices on the staggered grid.
+    ! For periodic BC, staggered_ilo = staggered_jlo = staggered_lhalo+1.
+    ! For outflow BC the locally owned vertices include the southern and western rows
+    !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
+    !  processors that include these rows.
 
-    if (present(outflow_bc_in)) then
-       outflow_bc = outflow_bc_in
+    if (outflow_bc .and. this_rank <= west) then  ! on west edge of global domain
+       staggered_ilo = staggered_lhalo
     else
-       outflow_bc = .false.
+       staggered_ilo = staggered_lhalo+1
     endif
-    
+    staggered_ihi = ewn - 1 - staggered_uhalo
+
+    if (outflow_bc .and. this_rank <= south) then  ! on south edge of global domain
+       staggered_jlo = staggered_lhalo
+    else
+       staggered_jlo = staggered_lhalo+1
+    endif
+    staggered_jhi = nsn - 1 - staggered_uhalo
+
     ! Print grid geometry
     write(*,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
     write(*,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
@@ -1834,7 +1873,7 @@ contains
     ! begin
 
     ! staggered grid
-    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+    if (size(a,2)==local_ewn-1 .and. size(a,3)==local_nsn-1) return
 
     ! unknown grid
     if (size(a,2)/=local_ewn .or. size(a,3)/=local_nsn) then
@@ -1865,6 +1904,162 @@ contains
     endif
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_3d(a)
+
+    implicit none
+    real(dp),dimension(:,:,:) :: a
+
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3)) :: ecopy
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3)) :: wcopy
+    real(dp),dimension(local_ewn,lhalo,size(a,3)) :: ncopy
+    real(dp),dimension(local_ewn,uhalo,size(a,3)) :: scopy
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    if (outflow_bc) then
+
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:) = 0.d0
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:) = 0.d0
+       a(:,:lhalo,:) = 0.d0
+       a(:,local_nsn-uhalo+1:,:) = 0.d0
+
+    else    ! periodic BC
+
+       ecopy(:,:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:)
+       wcopy(:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:)
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:) = ecopy(:,:,:)
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:) = wcopy(:,:,:)
+
+       ncopy(:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:)
+       scopy(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:)
+       a(:,:lhalo,:) = ncopy(:,:,:)
+       a(:,local_nsn-uhalo+1:,:) = scopy(:,:,:)
+
+    endif
+
+  end subroutine parallel_halo_tracers_real8_3d
+
+
+  subroutine parallel_halo_tracers_real8_4d(a)
+
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+
+    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: ecopy
+    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: wcopy
+    real(dp),dimension(local_ewn,lhalo,size(a,3),size(a,4)) :: ncopy
+    real(dp),dimension(local_ewn,uhalo,size(a,3),size(a,4)) :: scopy
+
+    ! begin
+
+    ! staggered grid
+    if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), &
+            ",", size(a,4), ") and local_ewn and local_nsn = ", &
+            local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    if (outflow_bc) then
+
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:,:) = 0.d0
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:,:) = 0.d0
+       a(:,:lhalo,:,:) = 0.d0
+       a(:,local_nsn-uhalo+1:,:,:) = 0.d0
+
+    else    ! periodic BC
+
+       ecopy(:,:,:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:,:)
+       wcopy(:,:,:,:) = a(1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo,:,:)
+       a(:lhalo,1+lhalo:local_nsn-uhalo,:,:) = ecopy(:,:,:,:)
+       a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo,:,:) = wcopy(:,:,:,:)
+
+       ncopy(:,:,:,:) = a(:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo,:,:)
+       scopy(:,:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,:,:)
+       a(:,:lhalo,:,:) = ncopy(:,:,:,:)
+       a(:,local_nsn-uhalo+1:,:,:) = scopy(:,:,:,:)
+
+    endif
+
+  end subroutine parallel_halo_tracers_real8_4d
+
+
+  subroutine parallel_halo_extrapolate_integer_2d(a)
+
+    implicit none
+    integer,dimension(:,:) :: a
+    integer :: i, j
+
+    ! Extrapolate the staggered field into halo cells along the global boundary.
+
+    ! extrapolate eastward
+    do i = size(a,1)-uhalo+1, size(a,1)
+       a(i, :) = a(size(a,1)-uhalo, :)
+    enddo
+
+    ! extrapolate westward
+    do i = 1, lhalo
+       a(i, :) = a(lhalo+1, :)
+    enddo
+
+    ! extrapolate northward
+    do j = size(a,2)-uhalo+1, size(a,2)
+       a(:, j) = a(:, size(a,2)-uhalo)
+    enddo
+ 
+    ! extrapolate southward
+    do j = 1, lhalo
+       a(:, j) = a(:, lhalo+1)
+    enddo
+
+  end subroutine parallel_halo_extrapolate_integer_2d
+
+
+  subroutine parallel_halo_extrapolate_real8_2d(a)
+
+    implicit none
+    real(dp),dimension(:,:) :: a
+    integer :: i, j
+
+    ! Extrapolate the staggered field into halo cells along the global boundary.
+
+    ! extrapolate eastward
+    do i = size(a,1)-uhalo+1, size(a,1)
+       a(i, :) = a(size(a,1)-uhalo, :)
+    enddo
+
+    ! extrapolate westward
+    do i = 1, lhalo
+       a(i, :) = a(lhalo+1, :)
+    enddo
+
+    ! extrapolate northward
+    do j = size(a,2)-uhalo+1, size(a,2)
+       a(:, j) = a(:, size(a,2)-uhalo)
+    enddo
+ 
+    ! extrapolate southward
+    do j = 1, lhalo
+       a(:, j) = a(:, lhalo+1)
+    enddo
+
+  end subroutine parallel_halo_extrapolate_real8_2d
+
 
   function parallel_halo_verify_integer_2d(a)
     implicit none
@@ -2439,93 +2634,6 @@ contains
 
   end subroutine staggered_no_penetration_mask
 
-  subroutine staggered_parallel_halo_extrapolate_integer_2d(a)
-
-    implicit none
-    integer,dimension(:,:) :: a
-    integer :: i, j
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Extrapolate the staggered field into halo cells along the global boundary.
-    ! Currently this is used only for kinbcmask.
-    ! Note: The extrapolation region includes locally owned cells along
-    !       the north and east boundaries of the global domain.
-
-    ! extrapolate westward
-    do i = 1, staggered_lhalo
-       a(i, staggered_lhalo+1:size(a,2)-staggered_uhalo-1) = &
-            a(staggered_lhalo+1, staggered_lhalo+1:size(a,2)-staggered_uhalo-1)
-    enddo
-
-    ! extrapolate eastward
-    do i = size(a,1)-staggered_uhalo, size(a,1)
-       a(i, staggered_lhalo+1:size(a,2)-staggered_uhalo-1) = &
-            a(size(a,1)-staggered_uhalo-1, staggered_lhalo+1:size(a,2)-staggered_uhalo-1)
-    enddo
-
-    ! extrapolate southward
-    do j = 1, staggered_lhalo
-       a(1:size(a,1), j) = a(1:size(a,1), staggered_lhalo+1)
-    enddo
-
-    ! extrapolate northward
-    do j = size(a,2)-staggered_uhalo, size(a,2)
-       a(1:size(a,1), j) = a(1:size(a,1), size(a,2)-staggered_uhalo-1)
-    enddo
-
-  end subroutine staggered_parallel_halo_extrapolate_integer_2d
-
-
-  subroutine staggered_parallel_halo_extrapolate_real8_2d(a)
-
-    implicit none
-    real(dp),dimension(:,:) :: a
-    integer :: i, j
-
-    ! begin
-
-    ! Confirm staggered array
-    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__)
-    endif
-
-    ! Extrapolate the staggered field into halo cells along the global boundary.
-    ! Currently this is used only for kinbcmask.
-    ! Note: The extrapolation region includes locally owned cells along
-    !       the north and east boundaries of the global domain.
-
-    ! extrapolate westward
-    do i = 1, staggered_lhalo
-       a(i, staggered_lhalo+1:size(a,2)-staggered_uhalo-1) = &
-            a(staggered_lhalo+1, staggered_lhalo+1:size(a,2)-staggered_uhalo-1)
-    enddo
-
-    ! extrapolate eastward
-    do i = size(a,1)-staggered_uhalo, size(a,1)
-       a(i, staggered_lhalo+1:size(a,2)-staggered_uhalo-1) = &
-            a(size(a,1)-staggered_uhalo-1, staggered_lhalo+1:size(a,2)-staggered_uhalo-1)
-    enddo
-
-    ! extrapolate southward
-    do j = 1, staggered_lhalo
-       a(1:size(a,1), j) = a(1:size(a,1), staggered_lhalo+1)
-    enddo
-
-    ! extrapolate northward
-    do j = size(a,2)-staggered_uhalo, size(a,2)
-       a(1:size(a,1), j) = a(1:size(a,1), size(a,2)-staggered_uhalo-1)
-    enddo
-
-  end subroutine staggered_parallel_halo_extrapolate_real8_2d
-
 
   subroutine staggered_parallel_halo_integer_2d(a)
 
@@ -2545,25 +2653,41 @@ contains
          call parallel_stop(__FILE__,__LINE__)
     endif
 
-    wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-       a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-         1+staggered_lhalo:size(a,2)-staggered_uhalo)
+    if (periodic_bc) then
 
-    ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-       a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
-         1+staggered_lhalo:size(a,2)-staggered_uhalo)
+       ! copy data along the global boundaries and pass to the opposite side of the domain
 
-    a(size(a,1)-staggered_uhalo+1:size(a,1), 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-       wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
+       wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
+            a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+            1+staggered_lhalo:size(a,2)-staggered_uhalo)
 
-    a(1:staggered_lhalo, 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-       ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
+       ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
+            a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
+            1+staggered_lhalo:size(a,2)-staggered_uhalo)
 
-    scopy(:,:) = a(:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-    ncopy(:,:) = a(:, size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
+       a(size(a,1)-staggered_uhalo+1:size(a,1), 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
+            wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
+       
+       a(1:staggered_lhalo, 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
+            ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
 
-    a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = scopy(:,:)
-    a(:, 1:staggered_lhalo) = ncopy(:,:)
+       scopy(:,:) = a(:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+       ncopy(:,:) = a(:, size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
+
+       a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = scopy(:,:)
+       a(:, 1:staggered_lhalo) = ncopy(:,:)
+
+    elseif (outflow_bc) then
+
+       ! Data are correct along global boundaries and do not need to be copied.
+       ! Zero the field beyond the global boundaries.
+
+       a(1:staggered_lhalo-1, :) = 0.0d0
+       a(size(a,1)-staggered_uhalo+1:size(a,1), :) = 0.0d0
+       a(:, 1:staggered_lhalo-1) = 0.0d0
+       a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = 0.0d0
+
+    endif  ! periodic_bc
 
   end subroutine staggered_parallel_halo_integer_2d
 
@@ -2586,25 +2710,39 @@ contains
          call parallel_stop(__FILE__,__LINE__)
     endif
 
-    wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-       a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-           1+staggered_lhalo:size(a,3)-staggered_uhalo)
+    if (periodic_bc) then
 
-    ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-       a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
-           1+staggered_lhalo:size(a,3)-staggered_uhalo)
+       wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
+            a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+            1+staggered_lhalo:size(a,3)-staggered_uhalo)
 
-    a(:, size(a,2)-staggered_uhalo+1:size(a,2), 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-       wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
+       ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
+            a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
+            1+staggered_lhalo:size(a,3)-staggered_uhalo)
+       
+       a(:, size(a,2)-staggered_uhalo+1:size(a,2), 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
+            wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
+       
+       a(:, 1:staggered_lhalo, 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
+            ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
 
-    a(:, 1:staggered_lhalo, 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-       ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
+       scopy(:,:,:) = a(:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+       ncopy(:,:,:) = a(:,:, size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
 
-    scopy(:,:,:) = a(:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-    ncopy(:,:,:) = a(:,:, size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
+       a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = scopy(:,:,:)
+       a(:,:,1:staggered_lhalo) = ncopy(:,:,:)
 
-    a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = scopy(:,:,:)
-    a(:,:,1:staggered_lhalo) = ncopy(:,:,:)
+    elseif (outflow_bc) then
+
+       ! Data are correct along global boundaries and do not need to be copied.
+       ! Zero the field beyond the global boundaries.
+
+       a(:,1:staggered_lhalo-1, :) = 0.0d0
+       a(:,size(a,2)-staggered_uhalo+1:size(a,2), :) = 0.0d0
+       a(:,:, 1:staggered_lhalo-1) = 0.0d0
+       a(:,:, size(a,3)-staggered_uhalo+1:size(a,3)) = 0.0d0
+
+    endif
 
   end subroutine staggered_parallel_halo_integer_3d
 
@@ -2627,25 +2765,41 @@ contains
          call parallel_stop(__FILE__,__LINE__)
     endif
 
-    wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-       a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-         1+staggered_lhalo:size(a,2)-staggered_uhalo)
+    if (periodic_bc) then
 
-    ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
-       a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
-         1+staggered_lhalo:size(a,2)-staggered_uhalo)
+       ! copy data along the global boundaries and pass to the opposite side of the domain
 
-    a(size(a,1)-staggered_uhalo+1:size(a,1), 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-       wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
+       wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
+            a(1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+            1+staggered_lhalo:size(a,2)-staggered_uhalo)
 
-    a(1:staggered_lhalo, 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
-       ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
+       ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo) = &
+            a(size(a,1)-staggered_uhalo-staggered_lhalo+1:size(a,1)-staggered_uhalo, &
+            1+staggered_lhalo:size(a,2)-staggered_uhalo)
 
-    scopy(:,:) = a(:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-    ncopy(:,:) = a(:, size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
+       a(size(a,1)-staggered_uhalo+1:size(a,1), 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
+            wcopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
+       
+       a(1:staggered_lhalo, 1+staggered_lhalo:size(a,2)-staggered_uhalo) = &
+            ecopy(:, 1:size(a,2)-staggered_lhalo-staggered_uhalo)
 
-    a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = scopy(:,:)
-    a(:, 1:staggered_lhalo) = ncopy(:,:)
+       scopy(:,:) = a(:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+       ncopy(:,:) = a(:, size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo)
+
+       a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = scopy(:,:)
+       a(:, 1:staggered_lhalo) = ncopy(:,:)
+
+    elseif (outflow_bc) then
+
+       ! Data are correct along global boundaries and do not need to be copied.
+       ! Zero the field beyond the global boundaries.
+
+       a(1:staggered_lhalo-1, :) = 0.0d0
+       a(size(a,1)-staggered_uhalo+1:size(a,1), :) = 0.0d0
+       a(:, 1:staggered_lhalo-1) = 0.0d0
+       a(:, size(a,2)-staggered_uhalo+1:size(a,2)) = 0.0d0
+
+    endif
 
   end subroutine staggered_parallel_halo_real8_2d
 
@@ -2668,29 +2822,45 @@ contains
          call parallel_stop(__FILE__,__LINE__)
     endif
 
-    wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-       a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-           1+staggered_lhalo:size(a,3)-staggered_uhalo)
+    if (periodic_bc) then
 
-    ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
-       a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
-           1+staggered_lhalo:size(a,3)-staggered_uhalo)
+       ! copy data along the global boundaries and pass to the opposite side of the domain
 
-    a(:, size(a,2)-staggered_uhalo+1:size(a,2), 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-       wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
+       wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
+            a(:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+            1+staggered_lhalo:size(a,3)-staggered_uhalo)
 
-    a(:, 1:staggered_lhalo, 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
-       ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
+       ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo) = &
+            a(:,size(a,2)-staggered_uhalo-staggered_lhalo+1:size(a,2)-staggered_uhalo, &
+            1+staggered_lhalo:size(a,3)-staggered_uhalo)
 
-    scopy(:,:,:) = a(:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-    ncopy(:,:,:) = a(:,:, size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
+       a(:, size(a,2)-staggered_uhalo+1:size(a,2), 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
+            wcopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
+       
+       a(:, 1:staggered_lhalo, 1+staggered_lhalo:size(a,3)-staggered_uhalo) = &
+            ecopy(:,:, 1:size(a,3)-staggered_lhalo-staggered_uhalo)
 
-    a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = scopy(:,:,:)
-    a(:,:,1:staggered_lhalo) = ncopy(:,:,:)
+       scopy(:,:,:) = a(:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+       ncopy(:,:,:) = a(:,:, size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo)
+       
+       a(:,:,size(a,3)-staggered_uhalo+1:size(a,3)) = scopy(:,:,:)
+       a(:,:,1:staggered_lhalo) = ncopy(:,:,:)
+
+    elseif (outflow_bc) then
+
+       ! Data are correct along global boundaries and do not need to be copied.
+       ! Zero the field beyond the global boundaries.
+
+       a(:,1:staggered_lhalo-1, :) = 0.0d0
+       a(:,size(a,2)-staggered_uhalo+1:size(a,2), :) = 0.0d0
+       a(:,:, 1:staggered_lhalo-1) = 0.0d0
+       a(:,:, size(a,3)-staggered_uhalo+1:size(a,3)) = 0.0d0
+
+    endif
 
   end subroutine staggered_parallel_halo_real8_3d
 
-!WHL - New subroutine for 4D arrays
+
   subroutine staggered_parallel_halo_real8_4d(a)
 
     ! Implements a staggered grid halo update for a 4D field.
@@ -2716,26 +2886,127 @@ contains
          call parallel_stop(__FILE__,__LINE__)
     endif
 
-    wcopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo) = &
-       a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
-             1+staggered_lhalo:size(a,4)-staggered_uhalo)
+    if (periodic_bc) then
 
-    ecopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo) = &
-       a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo, &
-             1+staggered_lhalo:size(a,4)-staggered_uhalo)
+       ! copy data along the global boundaries and pass to the opposite side of the domain
 
-    a(:,:, size(a,3)-staggered_uhalo+1:size(a,3), 1+staggered_lhalo:size(a,4)-staggered_uhalo) = &
-       wcopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo)
+       wcopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo) = &
+            a(:,:,1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1, &
+            1+staggered_lhalo:size(a,4)-staggered_uhalo)
 
-    a(:,:, 1:staggered_lhalo, 1+staggered_lhalo:size(a,4)-staggered_uhalo) = &
-       ecopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo)
+       ecopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo) = &
+            a(:,:,size(a,3)-staggered_uhalo-staggered_lhalo+1:size(a,3)-staggered_uhalo, &
+            1+staggered_lhalo:size(a,4)-staggered_uhalo)
+       
+       a(:,:, size(a,3)-staggered_uhalo+1:size(a,3), 1+staggered_lhalo:size(a,4)-staggered_uhalo) = &
+            wcopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo)
+       
+       a(:,:, 1:staggered_lhalo, 1+staggered_lhalo:size(a,4)-staggered_uhalo) = &
+            ecopy(:,:,:, 1:size(a,4)-staggered_lhalo-staggered_uhalo)
 
-    scopy(:,:,:,:) = a(:,:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
-    ncopy(:,:,:,:) = a(:,:,:, size(a,4)-staggered_uhalo-staggered_lhalo+1:size(a,4)-staggered_uhalo)
+       scopy(:,:,:,:) = a(:,:,:, 1+staggered_lhalo:1+staggered_lhalo+staggered_uhalo-1)
+       ncopy(:,:,:,:) = a(:,:,:, size(a,4)-staggered_uhalo-staggered_lhalo+1:size(a,4)-staggered_uhalo)
 
-    a(:,:,:,size(a,4)-staggered_uhalo+1:size(a,4)) = scopy(:,:,:,:)
-    a(:,:,:,1:staggered_lhalo) = ncopy(:,:,:,:)
+       a(:,:,:,size(a,4)-staggered_uhalo+1:size(a,4)) = scopy(:,:,:,:)
+       a(:,:,:,1:staggered_lhalo) = ncopy(:,:,:,:)
+
+    elseif (outflow_bc) then
+
+       ! Data are correct along global boundaries and do not need to be copied.
+       ! Zero the field beyond the global boundaries.
+
+       a(:,:,1:staggered_lhalo-1, :) = 0.0d0
+       a(:,:,size(a,3)-staggered_uhalo+1:size(a,3), :) = 0.0d0
+       a(:,:,:, 1:staggered_lhalo-1) = 0.0d0
+       a(:,:,:, size(a,4)-staggered_uhalo+1:size(a,4)) = 0.0d0
+
+    endif
 
   end subroutine staggered_parallel_halo_real8_4d
+
+
+  subroutine staggered_parallel_halo_extrapolate_integer_2d(a)
+
+    implicit none
+    integer,dimension(:,:) :: a
+    integer :: i, j
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Extrapolate the staggered field into halo cells along the global boundary.
+    ! Currently this is used only for kinbcmask.
+    ! Note: The extrapolation region includes locally owned cells along
+    !       the north and east boundaries of the global domain.
+
+    ! extrapolate eastward
+    do i = size(a,1)-staggered_uhalo, size(a,1)
+       a(i, :) = a(size(a,1)-staggered_uhalo-1, :)
+    enddo
+
+    ! extrapolate westward
+    do i = 1, staggered_lhalo
+       a(i, :) = a(staggered_lhalo+1, :)
+    enddo
+
+    ! extrapolate northward
+    do j = size(a,2)-staggered_uhalo, size(a,2)
+       a(:, j) = a(:, size(a,2)-staggered_uhalo-1)
+    enddo
+
+    ! extrapolate southward
+    do j = 1, staggered_lhalo
+       a(:, j) = a(:, staggered_lhalo+1)
+    enddo
+
+  end subroutine staggered_parallel_halo_extrapolate_integer_2d
+
+
+  subroutine staggered_parallel_halo_extrapolate_real8_2d(a)
+
+    implicit none
+    real(dp),dimension(:,:) :: a
+    integer :: i, j
+
+    ! begin
+
+    ! Confirm staggered array
+    if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
+         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Extrapolate the staggered field into halo cells along the global boundary.
+    ! Currently this is used only for kinbcmask.
+    ! Note: The extrapolation region includes locally owned cells along
+    !       the north and east boundaries of the global domain.
+
+    ! extrapolate eastward
+    do i = size(a,1)-staggered_uhalo, size(a,1)
+       a(i, :) = a(size(a,1)-staggered_uhalo-1, :)
+    enddo
+
+    ! extrapolate westward
+    do i = 1, staggered_lhalo
+       a(i, :) = a(staggered_lhalo+1, :)
+    enddo
+
+    ! extrapolate northward
+    do j = size(a,2)-staggered_uhalo, size(a,2)
+       a(:, j) = a(:, size(a,2)-staggered_uhalo-1)
+    enddo
+
+    ! extrapolate southward
+    do j = 1, staggered_lhalo
+       a(:, j) = a(:, staggered_lhalo+1)
+    enddo
+
+  end subroutine staggered_parallel_halo_extrapolate_real8_2d
+
 
 end module parallel

@@ -307,17 +307,28 @@
     ! Here a centered gradient is OK because the interior velocities
     !  are computed along cell edges, so checkerboard noise is damped
     !  (unlike Glissade finite-element calculations).
-    ! gradient_margin_in = 0 (HO_GRADIENT_MARGIN_ALL) gives a Glide-style gradient
-    !  (ice-free cells included in the gradient).  This works well for shallow-ice problems.
-    ! gradient_margin_in = 1 (HO_GRADIENT_MARGIN_ICE_LAND) computes the gradient
-    !  using ice-covered and/or land points.  It is equivalent to HO_GRADIENT_MARGIN_ALL
-    !  for the land-based problems where an SIA solver would usually be applied, and is the
-    !  default value.  Requires passing in the surface elevation and a land mask.
-    ! gradient_margin_in = 2 (HO_GRADIENT_MARGIN_ICE) computes the gradient
-    !  using ice-covered points only.  This scheme is very inaccurate for the
-    !  Halfar problem because it underestimates margin velocities.
-    !WHL - gradient_margin = 3 is included for now, but may later replace option 1
-    !TODO - Pass in max_slope and thck_gradient_ramp parameters?
+    !
+    ! Possible settings for whichgradient_margin:
+    !   HO_GRADIENT_MARGIN_ALL = 0
+    !   HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
+    !   HO_GRADIENT_MARGIN_ICE_ONLY = 2
+    !   HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
+    !
+    ! gradient_margin_in = 0 computes gradients at all edges, even if one cell
+    !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
+    !  floating cells lying above ice-free ocean cells, because the gradient is too big.
+    !  It generally works well for land-based shallow-ice problems.
+    ! gradient_margin_in = 1 computes gradients at edges where a grounded ice-covered
+    !  cell lies above an ice-free cell (either land or ocean).
+    ! gradient_margin_in = 2 computes gradients only at edges with ice-covered cells
+    !  on each side.  This is appropriate for problems with ice shelves, but is
+    !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
+    ! gradient_margin_in = 3 is not supported for the SIA solver, because it requires
+    !  that the lateral spreading force is computed at marine margins.
+    !  If option 3 is selected, the solver defaults to option 1 and writes a message
+    !  to the log file.
+
+    !TODO - Pass in max_slope?
 
     call glissade_centered_gradient(nx,        ny,          &
                                     dx,        dy,          &
@@ -325,10 +336,8 @@
                                     dusrf_dx,  dusrf_dy,    &
                                     ice_mask,               &
                                     gradient_margin_in = whichgradient_margin, &
-                                    thck = thck,            &
-                                    thklim_in = thklim,     &
                                     usrf = usrf,            &
-                                    floating_mask = floating_mask,  &
+                                    floating_mask = floating_mask, &
                                     land_mask = land_mask)
 
     if (verbose .and. main_task) then
@@ -909,12 +918,15 @@
 
     ! Compute ice velocity components at cell edges (u at E edge, v at N edge; relative to bed).
     ! Then interpolate the edge velocities to cell vertices.
-    ! Note: By default, whichgradient_margin = HO_GRADIENT_MARGIN_ICE_LAND = 1, which generally
+    ! Note: The higher-order default is whichgradient_margin = HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3,
+    !       which is appropriate for HO problems where we compute lateral spreading at ice cliffs.
+    !       The SIA solver does not do this, so if option 3 is chosen, the solver will
+    !        default to whichgradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE = 1, which
     !       works well for shallow-ice problems.  Using HO_GRADIENT_MARGIN_ALL = 0 gives
-    !       identical results for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
-    !       is likely to give less accurate results.
+    !       the same results as option 1 for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
+    !       is designed for marine-based margins and is likely to give less accurate results here.
     ! See comments above the call to glissade_centered_gradient.
-    !TODO - Pass in max_slope and thck_gradient_ramp parameters?
+    !TODO - Pass in max_slope?
 
     call glissade_gradient_at_edges(nx,               ny,             &
                                     dx,               dy,             &
@@ -922,9 +934,7 @@
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     ice_mask,                         &
                                     gradient_margin_in = whichgradient_margin, &
-                                    thklim_in = thklim,               &
                                     usrf = usrf,                      &
-                                    thck = thck,                      &
                                     floating_mask = floating_mask,    &
                                     land_mask = land_mask)
     

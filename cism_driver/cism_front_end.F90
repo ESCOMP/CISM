@@ -57,6 +57,7 @@ subroutine cism_init_dycore(model)
 
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use glimmer_paramets, only: thk0
 
   implicit none
 
@@ -215,7 +216,8 @@ subroutine cism_init_dycore(model)
 
     call t_startf('initial_write_diagnostics')
     call glide_write_diagnostics(model,        time,       &
-                                 tstep_count = model%numerics%tstep_count)
+                                 tstep_count = model%numerics%tstep_count,  &
+                                 minthick_in = model%numerics%thklim*thk0)  ! m
     call t_stopf('initial_write_diagnostics')
 
   end if ! whichdycore .ne. DYCORE_BISICLES
@@ -253,6 +255,7 @@ subroutine cism_run_dycore(model)
   
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use glimmer_paramets, only: thk0
 
   implicit none
 
@@ -343,7 +346,8 @@ subroutine cism_run_dycore(model)
 
       call t_startf('write_diagnostics')
       call glide_write_diagnostics(model,        time,       &
-                                   tstep_count = model%numerics%tstep_count)
+                                   tstep_count = model%numerics%tstep_count,  &
+                                   minthick_in = model%numerics%thklim*thk0)  ! m
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance
