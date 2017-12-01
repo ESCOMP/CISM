@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # A netCDF file viewer for Glimmer I/O files
 # Written by Glen Granzow on March 28, 2010
 

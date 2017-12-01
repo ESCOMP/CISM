@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 Script to run the Ice Sheet Model Intercomparison Project for Higher-Order
@@ -35,8 +35,9 @@ def unsigned_int(x):
     Allows argparse to understand unsigned integers. 
     """
     x = int(x)
-    if x < 1:
-        raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
+    if x < 0:
+        raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer "
+                                        +"greater than or equal to zero.")
     return x
 
 parser.add_argument('-c','--config', default='./ismip-hom.config', 
@@ -47,7 +48,7 @@ parser.add_argument('--hpc', action='store_true',
         help="Shortcuts parallel run command lookup for High Performance Computing Systems. Will set run command to `time apirun -n N`.")
 parser.add_argument('-m', '--modifier', metavar='MOD', default='',
         help="Add a modifier to file names. FILE.EX will become FILE.MOD.EX")
-parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=0, 
+parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=1, 
         help="Run in parallel using N processors.")
 parser.add_argument('-o', '--output-dir', default='./output',
         help="Write all created files here.")
@@ -76,7 +77,9 @@ parser.add_argument('--scale', type=unsigned_int, default=0,
 #FIXME: do we need a valid range here?
 parser.add_argument('--sizes', nargs='*', default=defaultSizes, type=unsigned_int, metavar='KM', 
         help="List (separated by spaces) the domain sizes to run. Recommended sizes: 5, 10, 20, 40, 80 and 160 km. "
-            +"Note: sizes will only be applied to experiments a though e. Experiment f has only one size (100 km). ")
+            +"Note: sizes will only be applied to experiments a though e. Experiment f has only one size (100 km) "
+            +"but may be run with different slip ratios (0 and 1). As such, the size descriptor in the Exp. f file "
+            +"names will reflect this slip ratio. ")
 parser.add_argument('--vertical', type=unsigned_int,
         help="Override the vertical grid size (upn) in the config file.")
 
@@ -182,7 +185,11 @@ def main():
             dx = float(size)*1000./float(nx)
             dy = float(size)*1000./float(ny)
 
-            res = str(size).zfill(4)
+            if experiment == 'f':
+                res = '0000'
+            else:
+                res = str(size).zfill(4)
+            
             if args.parallel > 0:
                 mod = '-'+experiment+args.modifier+'.'+res+'.p'+str(args.parallel).zfill(3)
             else:
@@ -236,7 +243,7 @@ def main():
                 # Not sure yet how much longer than that to eliminate those.
                 config_parser.set('time', 'tend', '400.0')
                 # Include flwa, efvs and the CFL variables to the output file
-                config_parser.set('CF output', 'variables', 'uvel vvel uvel_extend vvel_extend uvel_icegrid vvel_icegrid topg thk usurf wvel_ho velnorm efvs adv_cfl_dt diff_cfl_dt')  
+                config_parser.set('CF output', 'variables', 'uvel vvel uvel_extend vvel_extend uvel_icegrid vvel_icegrid topg thk usurf wvel velnorm efvs adv_cfl_dt diff_cfl_dt')  
                 # we don't want to output a whole lot of time levels, but want to be able to see we've reached SS.
                 config_parser.set('CF output', 'frequency', '25.0')  
 
@@ -387,13 +394,11 @@ def main():
     if args.setup_only:
         run_script = args.output_dir+os.sep+root+args.modifier+".run" 
         
-        run_file = open(run_script,'w') 
-        
-        run_file.write('#!/bin/bash \n')
-        for command in commands_all:
-            run_file.write(command+" \n")
+        with open(run_script,'w') as run_file:
+            run_file.write('#!/usr/bin/env bash \n \n')
+            for command in commands_all:
+                run_file.write(command+" \n")
 
-        run_file.close()
         os.chmod(run_script, 0o755)   # uses an octal number!
 
         if not args.quiet:

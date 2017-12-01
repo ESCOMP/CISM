@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 This script runs an experiment for an ice sheet with a "dome" shape on a flat
@@ -316,13 +316,11 @@ def main():
     else:
         run_script = args.output_dir+os.sep+root+mod+".run" 
         
-        run_file = open(run_script,'w') 
-        
-        run_file.write('#!/bin/bash \n')
-        for command in commands_all:
-            run_file.write(command+" \n")
+        with open(run_script,'w') as run_file:
+            run_file.write('#!/usr/bin/env bash \n \n')
+            for command in commands_all:
+                run_file.write(command+" \n")
 
-        run_file.close()
         os.chmod(run_script, 0o755)   # uses an octal number!
 
         if not args.quiet:
