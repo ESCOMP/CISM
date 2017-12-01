@@ -94,7 +94,7 @@ test_dict = {
         'higher-order/ismip-hom 20 ismip-hom-c': ('runISMIP_HOM.py -r c --size 20', keep_empty),
         'higher-order/ismip-hom 80 ismip-hom-a': ('runISMIP_HOM.py -r a --size 80', keep_empty),
         'higher-order/ismip-hom 80 ismip-hom-c': ('runISMIP_HOM.py -r c --size 80', keep_empty),
-        'higher-order/ismip-hom 0 ismip-hom-f': ('runISMIP_HOM.py -r f', keep_empty),
+        'higher-order/ismip-hom 0 ismip-hom-f': ('runISMIP_HOM.py -r f --size 0', keep_empty),
         'higher-order/stream stream': ('runStream.py', stream_perf_small),
         }
 

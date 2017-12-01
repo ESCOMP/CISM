@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 The build and test structure (BATS) module. BATS is primarily intended to allow
@@ -33,7 +33,7 @@ def unsigned_int(x):
     return x
 
 parser.add_argument('-p','--platform', default='linux-gnu',  
-        help="A dash-separated string of your platform, compiler, and library specification."
+        help="A dash seperated string of your platform, compiler, and library specification."
             +" BATS will look for a CISM build directory specified by this string (or the longest subset of the string),"
             +" and a `*-cmake.bash` build script with this string as a prefix.")
 

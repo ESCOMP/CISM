@@ -12,7 +12,7 @@ if [ $# -eq 0 ]
 then
     cism_top="../.." 
 else
-    cism_top=${1}
+    cism_top=${1%/}
 fi
 
 echo CISM: ${cism_top}

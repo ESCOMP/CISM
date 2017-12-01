@@ -979,6 +979,8 @@ contains
     type(glide_global_type), intent(inout) :: model   ! model instance
 
     real(dp), intent(in) :: dt   ! time step (s)
+    
+    call t_startf('glissade_therm_driver')
 
     ! unscaled model parameters (SI units)
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
