@@ -125,6 +125,15 @@ titan_dict = {
         'PBS_walltime': '01:00:00',
         }
 
+cheyenne_dict = {
+        'PBS_A': '',
+        'PBS_q': 'regular',
+        'PBS_N': 'reg_test_all',
+        'PBS_RES': '',
+        'RES_NUM': '',
+        'PBS_walltime': '01:00:00',
+        }
+
 
 # MAIN HPC DICTIONARY
 # ===================
@@ -132,4 +141,5 @@ titan_dict = {
 hpc_dict = {
         'titan': titan_dict,
         'hopper': hopper_dict,
+        'cheyenne': cheyenne_dict,
         }

@@ -980,8 +980,6 @@ contains
 
     real(dp), intent(in) :: dt   ! time step (s)
     
-    call t_startf('glissade_therm_driver')
-
     ! unscaled model parameters (SI units)
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
        bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
