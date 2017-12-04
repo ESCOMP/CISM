@@ -1417,7 +1417,12 @@
 
       character(len=100) :: message
 
-      ! Initialize the applied mass balance and the melt potential.
+      ! Temporarily, convert the applied mass balance (intent inout) from m/s to m.
+      ! It is converted back to m/s for output.
+      acab_applied(:,:) = acab_applied(:,:) * dt
+      bmlt_applied(:,:) = bmlt_applied(:,:) * dt
+
+      ! Initialize the melt potential.
       ! These terms are adjusted below if energy is available for melting
       !  when no ice is present.
 
@@ -1602,7 +1607,7 @@
          enddo
       endif
 
-      ! convert diagnostic output from m to m/s
+      ! convert applied mass balance from m to m/s
       acab_applied(:,:) = acab_applied(:,:) / dt
       bmlt_applied(:,:) = bmlt_applied(:,:) / dt
 

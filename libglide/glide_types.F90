@@ -216,10 +216,14 @@ module glide_types
   integer, parameter :: HO_BABC_ISHOMC = 8
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
-  integer, parameter :: HO_BABC_COULOMB_CONST_BASAL_FLWA = 11
+  integer, parameter :: HO_BABC_COULOMB_POWERLAW_SCHOOF = 11
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
   integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
   integer, parameter :: HO_BABC_SIMPLE = 14
+
+  integer, parameter :: HO_INVERSION_NONE = 0
+  integer, parameter :: HO_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_INVERSION_PRESCRIBED = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -607,6 +611,15 @@ module glide_types
     !> \item[14] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
+    integer :: which_ho_inversion
+    !> Flag for basal traction inversion options
+    !> Note: Inversion is currently supported for which_ho_babc = 11 only
+    !> \begin{description}
+    !> \item[0] no inversion
+    !> \item[1] invert for basal traction parameters and subshelf melting
+    !> \item[2] apply parameters and subshelf melting from previous inversion
+    !> \end{description}
+
     integer :: which_ho_bwat = 0
     !> Basal water depth:
     !> \begin{description}
@@ -816,6 +829,9 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
+
+    real(dp),dimension(:,:),pointer :: thck_obs => null()
+    !> Observed ice thickness, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
     !> flotation function, (rhoi*thck) / (-rhoo*(topg-eus))
@@ -1237,14 +1253,20 @@ module glide_types
      !      The other fields are used in Glissade only.
 
      ! bmlt fields for grounded and floating ice
-     real(dp),dimension(:,:), pointer :: bmlt => null()          !> Basal melt rate (> 0 for melt, < 0 for freeze-on) 
-                                                                 !> bmlt = bmlt_ground + bmlt_float
-     real(dp),dimension(:,:), pointer :: bmlt_applied => null()  !> Basal melt rate applied to ice
-                                                                 !> = 0 for ice-free cells with bmlt > 0
-     real(dp),dimension(:,:), pointer :: bmlt_ground => null()   !> Basal melt rate for grounded ice
-     real(dp),dimension(:,:), pointer :: bmlt_float => null()    !> basal melt rate for floating ice
-     real(dp),dimension(:,:), pointer :: bmlt_float_external => null() !> External basal melt rate field
-     real(dp),dimension(:,:), pointer :: bmlt_float_anomaly => null()  !> Basal melt rate anomaly field
+     real(dp), dimension(:,:), pointer :: &
+          bmlt => null(),                         & !> basal melt rate (> 0 for melt, < 0 for freeze-on)
+                                                    !> bmlt = bmlt_ground + bmlt_float
+          bmlt_applied => null(),                 & !> basal melt rate applied to ice
+                                                    !> = 0 for ice-free cells with bmlt > 0
+          bmlt_ground => null(),                  & !> basal melt rate for grounded ice
+          bmlt_float => null(),                   & !> basal melt rate for floating ice
+          bmlt_float_external => null(),          & !> external basal melt rate field
+          bmlt_float_anomaly => null(),           & !> basal melt rate anomaly field
+          bmlt_float_inversion => null()            !> basal melt rate computed by inversion;
+                                                    !> relaxes thickness of floating ice toward observed target
+
+     integer, dimension(:,:), pointer :: &
+          bmlt_inversion_mask => null()             !> = 1 where bmlt is applied for inversion, else = 0
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
@@ -1264,8 +1286,8 @@ module glide_types
                                                     !> set to 480 km for MISMIP+ Ice2r
 
      ! initMIP-Antarctica parameters
-     real(dp) :: bmlt_anomaly_timescale = 0.0d0    !> number of years over which the bmlt_float anomaly is phased in linearly
-                                                   !> If set to zero, then the anomaly is applied immediately.
+     real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
+                                                    !> If set to zero, then the anomaly is applied immediately.
 
   end type glide_basal_melt
 
@@ -1339,6 +1361,8 @@ module glide_types
      real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
      real(dp), dimension(:,:), pointer :: tau_c => null()               !< yield stress for plastic sliding (Pa)
+     real(dp), dimension(:,:), pointer :: powerlaw_c_2d => null()       !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
+     real(dp), dimension(:,:), pointer :: coulomb_c_2d => null()        !< spatially varying coulomb_c field (unitless)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
@@ -1366,23 +1390,38 @@ module glide_types
                                                  !< The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
 
      ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
-     real(dp) :: Coulomb_C = 0.42d0              !< basal stress constant (no dimension)
-                                                 !< Pimentel et al. have Coulomb_C = 0.84*m_max, where m_max = Coulomb_Bump_max_slope
-     real(dp) :: Coulomb_bump_wavelength = 2.0d0 !< bed rock wavelength at subgrid scale precision (m)
-     real(dp) :: Coulomb_bump_max_slope = 0.5d0  !< maximum bed bump slope at subgrid scale precision (no dimension) 
-     real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for the Schoof (2005) Coulomb friction law, in units Pa^{-n} yr^{-1} 
+     real(dp) :: coulomb_c = 0.42d0              !< basal stress constant (no dimension)
+                                                 !< Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
+     real(dp) :: coulomb_bump_wavelength = 2.0d0 !< bedrock wavelength at subgrid scale precision (m)
+     real(dp) :: coulomb_bump_max_slope = 0.5d0  !< maximum bed bump slope at subgrid scale precision (no dimension)
+     real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
                                                  !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI
      ! The default values are from Asay-Davis et al. (2016).
-     ! The value of powerlaw_C suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
+     ! The value of powerlaw_c suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
-     ! Note: The Tsai et al. Coulomb friction law uses Coulomb_C above, with
+     ! Note: The Tsai et al. Coulomb friction law uses coulomb_c above, with
      !       effective pressure N as in Leguy et al. (2014) with p_ocean_penetration = 1.
 
-     real(dp) :: powerlaw_C = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
+     real(dp) :: powerlaw_c = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
       
+     ! parameters for inversion of basal friction coefficients
+     ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
+     ! Note: inversion_timescale and inversion_dthck_dt_scale are later rescaled to SI units (s and m/s).
+
+     real(dp) ::  &
+          powerlaw_c_max = 1.0d5,             &  !< Pa (m/yr)^(-1/3)
+          powerlaw_c_min = 2.0d3,             &  !< Pa (m/yr)^(-1/3)
+          powerlaw_coulomb_ratio = 2.0d4         !< powerlaw_c/coulomb_c (same units as powerlaw_c))
+
+     real(dp) ::  &
+          inversion_timescale = 200.d0,       &  !< inversion timescale (yr); must be > 0
+          inversion_thck_scale = 50.d0,       &  !< thickness inversion scale (m); must be > 0
+          inversion_dthck_dt_scale = 0.50d0,  &  !< dthck_dt inversion scale (m/yr); must be > 0
+          inversion_smoothing_factor = 0.05d0    !< factor for smoothing powerlaw_c (larger => more smoothing)
+
      ! parameter for constant basal water
      ! Note: This parameter applies to HO_BWAT_CONSTANT only.
      !       For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
@@ -1804,6 +1843,8 @@ contains
     !> \item \texttt{bmlt_float(ewn,nsn)}
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
+    !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
+    !> \item \texttt{bmlt_inversion_mask(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%plume}:
@@ -1863,6 +1904,7 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
+    !> \item \texttt{thck_obs(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
@@ -2067,6 +2109,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
@@ -2126,12 +2169,14 @@ contains
        !      whenever running glam/glissade
 !!       if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
 !!            (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
-!!            (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) .or. &
+!!            (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) .or. &
 !!            (model%options%whichbwat == BWATER_OCEAN_PENETRATION)     ) then
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%coulomb_c_2d)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
@@ -2148,6 +2193,10 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
        if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
+       endif
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_inversion_mask)
        endif
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
@@ -2460,6 +2509,10 @@ contains
         deallocate(model%basal_physics%effecpress_stag)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
+    if (associated(model%basal_physics%powerlaw_c_2d)) &
+        deallocate(model%basal_physics%powerlaw_c_2d)
+    if (associated(model%basal_physics%coulomb_c_2d)) &
+        deallocate(model%basal_physics%coulomb_c_2d)
     if (associated(model%basal_physics%C_space_factor)) &
         deallocate(model%basal_physics%C_space_factor)
     if (associated(model%basal_physics%C_space_factor_stag)) &
@@ -2481,6 +2534,10 @@ contains
         deallocate(model%basal_melt%bmlt_float_external)
     if (associated(model%basal_melt%bmlt_float_anomaly)) &
         deallocate(model%basal_melt%bmlt_float_anomaly)
+    if (associated(model%basal_melt%bmlt_float_inversion)) &
+        deallocate(model%basal_melt%bmlt_float_inversion)
+    if (associated(model%basal_melt%bmlt_inversion_mask)) &
+        deallocate(model%basal_melt%bmlt_inversion_mask)
 
     ! plume arrays
     if (associated(model%plume%T_basal)) &
@@ -2526,6 +2583,8 @@ contains
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
         deallocate(model%geometry%topg)
+    if (associated(model%geometry%thck_obs)) &
+        deallocate(model%geometry%thck_obs)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &
