@@ -666,7 +666,7 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta, calc_effective_pressure
+    use glissade_basal_traction, only: calcbeta, calc_effective_pressure, calc_basal_inversion
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -708,6 +708,7 @@
        stagwbndsigma            ! stagsigma augmented by sigma = 0 and 1 at upper and lower surfaces
 
     real(dp)  ::   & 
+       dt,                   &  ! time step (s)
        thklim,               &  ! minimum ice thickness for active grounded cells (m)
        thck_gradient_ramp,   &  ! thickness scale over which gradients are ramped up from zero to full value (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
@@ -719,6 +720,8 @@
        thck,                 &  ! ice thickness (m)
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
+       thck_obs,             &  ! observed ice thickness (m), for inversion
+       dthck_dt,             &  ! rate of change of ice thickness (m/s), for inversion
        bpmp,                 &  ! pressure melting point temperature (C)
        bwat,                 &  ! basal water thickness (m)
        bmlt,                 &  ! basal melt rate (m/yr)
@@ -758,6 +761,7 @@
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
+       whichinversion, &        ! option for basal traction inversion
        whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
@@ -1022,6 +1026,8 @@
      thck     => model%geometry%thck(:,:)
      usrf     => model%geometry%usrf(:,:)
      topg     => model%geometry%topg(:,:)
+     thck_obs => model%geometry%thck_obs(:,:)
+     dthck_dt => model%geometry%dthck_dt(:,:)   ! Note: dthck_dt has units of m/s; no rescaling needed
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
@@ -1060,6 +1066,7 @@
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
+     dt = model%numerics%dt
      thklim = model%numerics%thklim
      thck_gradient_ramp  = model%numerics%thck_gradient_ramp
      max_slope = model%paramets%max_slope
@@ -1068,6 +1075,7 @@
      pmp_threshold = model%temper%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
+     whichinversion       = model%options%which_ho_inversion
      whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
@@ -2140,6 +2148,27 @@
     endif
     
     !------------------------------------------------------------------------------
+    ! Compute powerlaw_c_2d and coulomb_c_2d fields, if needed
+    !  (part of basal_physics derived type)
+    ! Note: dt and thck_obs are not rescaled by the scale_input subroutine, in order
+    !       to avoid accumulating errors by repeated multiplication and division.
+    !------------------------------------------------------------------------------
+
+    if (whichinversion == HO_INVERSION_COMPUTE) then
+
+       call calc_basal_inversion(dt*tim0,                    &  ! s
+                                 nx,       ny,               &
+                                 itest,    jtest,  rtest,    &
+                                 model%basal_physics,        &
+                                 ice_mask,                   &
+                                 floating_mask,              &
+                                 thck,                       &  ! m
+                                 dthck_dt,                   &  ! m/s
+                                 thck_obs*thk0)                 ! m
+
+    endif
+
+    !------------------------------------------------------------------------------
     ! Main outer loop: Iterate to solve the nonlinear problem
     !------------------------------------------------------------------------------
 
@@ -2458,7 +2487,11 @@
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent out)
                       topg,          eus,               &
-                      f_ground)
+                      ice_mask,                         &
+                      floating_mask,                    &
+                      f_ground,                         &
+                      whichinversion,                   &
+                      itest, jtest, rtest)
 
        if (verbose_beta) then
           maxbeta = maxval(beta_internal(:,:))
@@ -2636,7 +2669,7 @@
           endif
 
           if (whichbabc == HO_BABC_COULOMB_FRICTION .or. &
-              whichbabc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
+              whichbabc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
              print*, ' '
              print*, 'C_space_factor_stag, itest, rank =', itest, rtest
              do j = ny-1, 1, -1

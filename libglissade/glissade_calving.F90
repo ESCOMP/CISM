@@ -99,7 +99,7 @@ contains
 
        ! calving_mask was read from the input file; do not need to compute a mask here
 
-       if (main_task) print*, 'Calving_mask was read from the input file'
+       if (verbose_calving .and. main_task) print*, 'Calving_mask was read from the input file'
 
     elseif (calving_front_x > 0.0d0 .or. calving_front_y > 0.0d0) then
 
@@ -490,7 +490,7 @@ contains
 
           print*, ' '
           print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') floating_mask(i,j)
@@ -501,7 +501,7 @@ contains
 
           print*, ' '
           print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') calving_front_mask(i,j)
@@ -511,7 +511,7 @@ contains
           print*, ' '
 
           print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
@@ -521,7 +521,7 @@ contains
 
           print*, ' '
           print*, 'thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -651,7 +651,7 @@ contains
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
           print*, 'eigenprod (yr-2), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(e10.2)',advance='no') eigenprod(i,j) * scyr*scyr
@@ -663,7 +663,7 @@ contains
           print*, 'Finished eigencalving, task =', this_rank
           print*, ' '
           print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
@@ -672,7 +672,7 @@ contains
           enddo
           print*, ' '
           print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -715,7 +715,7 @@ contains
 
           print*, ' '
           print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') calving_front_mask(i,j)
@@ -725,7 +725,7 @@ contains
 
           print*, ' '
           print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
@@ -735,7 +735,7 @@ contains
 
           print*, ' '
           print*, 'thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -831,7 +831,7 @@ contains
           print*, 'Did thickness-based calving, task =', this_rank
           print*, ' '
           print*, 'Thickness-based calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
 !                write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
@@ -841,7 +841,7 @@ contains
           enddo
           print*, ' '
           print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -879,7 +879,7 @@ contains
 
           print*, ' '
           print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') calving_front_mask(i,j)
@@ -890,7 +890,7 @@ contains
 
           print*, ' '
           print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
@@ -900,7 +900,7 @@ contains
 
           print*, ' '
           print*, 'calving_thck (m) from limiting, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') (calving_thck(i,j) - calving_thck_init(i,j))*thk0
@@ -909,7 +909,7 @@ contains
           enddo
           print*, ' '
           print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -928,7 +928,7 @@ contains
           print*, 'Limit advance of calving front'
           print*, ' '
           print*, 'starting thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -941,7 +941,7 @@ contains
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'calving_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') calving_mask(i,j)
@@ -964,7 +964,7 @@ contains
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'new thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -1137,7 +1137,7 @@ contains
           if (verbose_calving .and. this_rank==rtest) then
              print*, ' '
              print*, 'calving_domain_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(L10)',advance='no') calving_domain_mask(i,j)
@@ -1293,7 +1293,7 @@ contains
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'After calving, new thck: itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -1328,7 +1328,7 @@ contains
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
@@ -1341,7 +1341,7 @@ contains
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'thckmax_cliff, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
@@ -1436,7 +1436,7 @@ contains
 
        print*, ' '
        print*, 'Final calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
@@ -1446,7 +1446,7 @@ contains
 
        print*, ' '
        print*, 'Final thck (m), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -1596,7 +1596,7 @@ contains
        print*, 'In glissade_remove_icebergs'
        print*, ' '
        print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -1605,7 +1605,7 @@ contains
        enddo
        print*, ' '
        print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(i10)',advance='no') calving_front_mask(i,j)
@@ -1614,7 +1614,7 @@ contains
        enddo
        print*, ' '
        print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
@@ -1623,7 +1623,7 @@ contains
        enddo
        print*, ' '
        print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(i10)',advance='no') active_ice_mask(i,j)
@@ -1684,7 +1684,7 @@ contains
              print*, 'cull_calving_front: After removing CF cells, n =', n
              print*, ' '
              print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') thck(i,j)*thk0
@@ -1693,7 +1693,7 @@ contains
              enddo
              print*, ' '
              print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(i10)',advance='no') calving_front_mask(i,j)
@@ -1702,7 +1702,7 @@ contains
              enddo
              print*, ' '
              print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') thck_calving_front(i,j)*thk0
@@ -1711,7 +1711,7 @@ contains
              enddo
              print*, ' '
              print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(i10)',advance='no') active_ice_mask(i,j)
@@ -1864,7 +1864,7 @@ contains
        print*, 'Done in glissade_remove_icebergs'
        print*, ' '
        print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+4, jtest-4, -1
+       do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') thck(i,j)*thk0

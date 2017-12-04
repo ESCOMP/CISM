@@ -56,7 +56,7 @@
   implicit none
 
   private
-  public :: calcbeta, calc_effective_pressure
+  public :: calcbeta, calc_effective_pressure, calc_basal_inversion
 
 !***********************************************************************
 
@@ -73,7 +73,11 @@ contains
                        mask,          beta_external, &
                        beta,                         &
                        topg,          eus,           &
-                       f_ground)
+                       ice_mask,                     &
+                       floating_mask,                &
+                       f_ground,                     &
+                       which_ho_inversion,           &
+                       itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -99,20 +103,25 @@ contains
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
   type(glide_basal_physics), intent(in)   :: basal_physics      ! basal physics object
   real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1})
-  real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness
+  real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness (m)
   integer,  intent(in), dimension(:,:)    :: mask               ! staggered grid mask
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
                                                                 ! Note: This is beta_internal in glissade
-  real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
 
   ! Note: Adding fields for parallel ISHOM-C test case
   real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
   real(dp), dimension(:,:), allocatable :: beta_extend          ! beta extended to the ice grid (dimensions ewn, nsn)
 
   ! Note: optional arguments topg and eus are used for pseudo-plastic sliding law
-  real(dp), intent(in), dimension(:,:), optional :: topg        ! bed topography (m)
-  real(dp), intent(in), optional :: eus                         ! eustatic sea level (m) relative to z = 0
+  !TODO - Make these argument non-optional? Can do this after removing the call to calcbeta from Glam.
+  real(dp), intent(in), dimension(:,:), optional :: topg         ! bed topography (m)
+  real(dp), intent(in), optional :: eus                          ! eustatic sea level (m) relative to z = 0
+  integer, intent(in), dimension(:,:), optional :: ice_mask      ! = 1 where ice is present (thck > thklim), else = 0
+  integer, intent(in), dimension(:,:), optional :: floating_mask ! = 1 where ice is present and floating, else = 0
+  real(dp), intent(in), dimension(:,:), optional :: f_ground     ! grounded ice fraction, 0 <= f_ground <= 1
+  integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
+  integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
 
@@ -123,24 +132,29 @@ contains
   real(dp) :: dx, dy
   integer :: ew, ns
 
-  real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
+  real(dp), dimension(size(beta,1), size(beta,2)) :: speed      ! ice speed, sqrt(uvel^2 + vvel^2), m/yr
 
   ! variables for power law
   real(dp) :: powerlaw_p, powerlaw_q
 
   ! variables for Coulomb friction law
-  real(dp) :: Coulomb_C   ! Coulomb law friction coefficient (unitless)
-  real(dp) :: powerlaw_C  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
+  real(dp) :: coulomb_c   ! Coulomb law friction coefficient (unitless)
+  real(dp) :: powerlaw_c  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
   real(dp) :: lambda_max  ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max       ! maximum bed obstacle slope (unitless)
   real(dp) :: m           ! exponent m in power law
-  real(dp), dimension(size(beta,1), size(beta,2)) :: big_lambda       ! bedrock characteristics
-  integer,  dimension(size(thck,1), size(thck,2)) :: imask            ! ice grid mask  1=ice, 0=no ice
-  real(dp), dimension(size(beta,1), size(beta,2)) :: flwa_basal_stag  ! flwa for the basal ice layer on the staggered grid
-                                                                      ! Note: Units are Pa^{-n} yr^{-1}
+  integer, dimension(size(thck,1), size(thck,2)) :: &
+       imask,                      &  ! = 1 where thck > 0, else = 1
+       grounded_mask                  ! = 1 where ice is present (thck > thklim) and not floating
+  real(dp), dimension(size(beta,1), size(beta,2)) ::  &
+       big_lambda,                 &  ! bedrock characteristics
+       flwa_basal_stag,            &  ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
+       stag_powerlaw_c_2d,         &  ! powerlaw_c_2d interpolated to the staggered grid
+       stag_coulomb_c_2d              ! coulomb_c_2d interpolated to the staggered grid
+
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
-  real(dp) :: taub_Coulomb   ! basal shear stress given by Coulomb friction as in Tsai et al. (2015)
+  real(dp) :: taub_coulomb   ! basal shear stress given by Coulomb friction as in Tsai et al. (2015)
 
   ! variables for pseudo-plastic law
   real(dp) :: q              ! exponent for pseudo-plastic law (unitless)
@@ -154,12 +168,23 @@ contains
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
   real(dp) :: numerator, denominator
 
+  ! option to invert for basal parameters
+  integer :: which_inversion ! basal inversion option
+
   character(len=300) :: message
 
   integer :: iglobal, jglobal
 
   !WHL - debug
+  logical, parameter :: verbose_beta = .false.
 !!  integer :: istop, jstop
+
+  !TODO - Can remove the extra variable when which_ho_inversion is a non-optional argument
+  if (present(which_ho_inversion)) then
+     which_inversion = which_ho_inversion
+  else
+     which_inversion = HO_INVERSION_NONE
+  endif
 
   select case(whichbabc)
 
@@ -197,7 +222,6 @@ contains
        q = basal_physics%pseudo_plastic_q
        u0 = basal_physics%pseudo_plastic_u0
 
-       !TODO - Check presence of topg and eus
        if (present(topg) .and. present(eus)) then
 
           do ns = 1, nsn-1
@@ -245,8 +269,6 @@ contains
 
       !!! since beta is updated here, communicate that info to halos
       call staggered_parallel_halo(beta)
-
-    !WHL - Removed the unused BETA_BWAT option
 
     case(HO_BABC_BETA_LARGE)      ! frozen (u=v=0) ice-bed interface
 
@@ -332,7 +354,7 @@ contains
        ! m should be a positive exponent
 
        speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
-       beta(:,:) = basal_physics%powerlaw_C * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
+       beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
@@ -360,14 +382,14 @@ contains
       ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
 
        ! Set up parameters needed for the friction law
-       m_max = basal_physics%Coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
-       lambda_max = basal_physics%Coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
-       Coulomb_C = basal_physics%Coulomb_C                ! basal shear stress factor (Pa (m^-1 y)^1/3)
+       m_max = basal_physics%coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
+       lambda_max = basal_physics%coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
+       coulomb_c = basal_physics%coulomb_c                ! basal shear stress factor (Pa (m^-1 y)^1/3)
 
        ! Need flwa of the basal layer on the staggered grid
        !TODO - Pass in ice_mask instead of computing imask here?
        !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
-       where (thck > 0.0)
+       where (thck > 0.d0)
           imask = 1
        elsewhere
           imask = 0
@@ -380,14 +402,14 @@ contains
        ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
        big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
 
-       ! Note: For MISMIP3D, Coulomb_C is multiplied by a spatial factor (C_space_factor) which is
+       ! Note: For MISMIP3D, coulomb_c is multiplied by a spatial factor (C_space_factor) which is
        !       read in during initialization. This factor is typically between 0 and 1.
        !       If this factor is not present in the input file, it is set to 1 everywhere.
 
        ! Compute beta
        ! gn = Glen's n from physcon module
        speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
-       beta(:,:) = Coulomb_C * basal_physics%C_space_factor_stag(:,:) * &
+       beta(:,:) = coulomb_c * basal_physics%C_space_factor_stag(:,:) * &
             basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
             (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
 
@@ -397,42 +419,107 @@ contains
           beta = 1.0d8
        end where
 
-    case(HO_BABC_COULOMB_CONST_BASAL_FLWA) 
+    case(HO_BABC_COULOMB_POWERLAW_SCHOOF)
 
        ! Use a constant value of basal flwa.
        ! This allows several Coulomb parameters (lambda_max, m_max and flwa_basal)
-       !  to be combined into a single parameter powerlaw_C, as in the Tsai power law below.
+       !  to be combined into a single parameter powerlaw_c, as in the Tsai power law below.
        !
        ! The equation for tau_b = beta * u_b is
        ! 
-       !                    powerlaw_C * Coulomb_C * N
+       !                    powerlaw_c * coulomb_c * N
        ! tau_b = ---------------------------------------------- u_b^{1/m}
-       !         [powerlaw_C^m * u_b + (Coulomb_C * N)^m]^{1/m}
+       !         [powerlaw_c^m * u_b + (coulomb_c * N)^m]^{1/m}
        !
        ! where m = powerlaw_m
        !
        ! This is the second modified basal traction law in MISMIP+. See Eq. 11 of Asay-Davis et al. (2016).
-       ! Note: powerlaw_C corresponds to beta^2 in their notation, and Coulomb_C corresponds to alpha^2.
+       ! Note: powerlaw_c corresponds to beta^2 in their notation, and coulomb_c corresponds to alpha^2.
+       !
+       ! Depending on the value of which_ho_inversion, there are different ways to apply this sliding law:
+       ! (0) Set powerlaw_c and coulomb_c to a constant everywhere.
+       ! (1) Obtain spatially varying powerlaw_c_2d and coulomb_c_2d fields by inversion.
+       ! (2) Use spatially varying powerlaw_c_2d and coulomb_c_2d fields prescribed from a previous inversion.
+       ! For either (1) or (2), use the 2D fields.
 
-       powerlaw_C = basal_physics%powerlaw_C
-       Coulomb_C = basal_physics%Coulomb_C
-       m = basal_physics%powerlaw_m
+       if (which_inversion == HO_INVERSION_NONE) then
 
-       do ns = 1, nsn-1
-          do ew = 1, ewn-1
+          ! use constant powerlaw_c and coulomb_c
+          powerlaw_c = basal_physics%powerlaw_c
+          coulomb_c = basal_physics%coulomb_c
+          m = basal_physics%powerlaw_m
 
-             speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
+          do ns = 1, nsn-1
+             do ew = 1, ewn-1
 
-             numerator = powerlaw_C * Coulomb_C * basal_physics%effecpress_stag(ew,ns)
-             denominator = ( powerlaw_C**m * speed(ew,ns) +  &
-                             (Coulomb_C * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+                speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
 
-             beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
+                numerator = powerlaw_c * coulomb_c * basal_physics%effecpress_stag(ew,ns)
+                denominator = ( powerlaw_c**m * speed(ew,ns) +  &
+                               (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
 
+                beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
+
+             enddo
           enddo
-       enddo
 
-       !TODO - Verify that the results are similar to Tsai
+       else   ! use powerlaw_c and coulomb_c from inversion
+
+          m = basal_physics%powerlaw_m
+
+          ! Interpolate powerlaw_c_2d and coulomb_c_2d to the velocity grid.
+          ! stagger_margin_in = 1: Interpolate using only the values in cells with grounded ice.
+
+          where (ice_mask == 1 .and. floating_mask == 0)
+             grounded_mask = 1
+          elsewhere
+             grounded_mask = 0
+          endwhere
+
+          call glissade_stagger(ewn,                         nsn,                 &
+                                basal_physics%powerlaw_c_2d, stag_powerlaw_c_2d,  &
+                                grounded_mask,               stagger_margin_in = 1)
+
+          call glissade_stagger(ewn,                         nsn,                 &
+                                basal_physics%coulomb_c_2d,  stag_coulomb_c_2d,   &
+                                grounded_mask,               stagger_margin_in = 1)
+
+          ! Replace zeroes with default values to avoid divzero issues
+          where (stag_powerlaw_c_2d == 0.0d0)
+             stag_powerlaw_c_2d = basal_physics%powerlaw_c
+          endwhere
+
+          where (stag_coulomb_c_2d == 0.0d0)
+             stag_coulomb_c_2d = basal_physics%coulomb_c
+          endwhere
+
+          do ns = 1, nsn-1
+             do ew = 1, ewn-1
+
+                speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
+
+                numerator = stag_powerlaw_c_2d(ew,ns) * stag_coulomb_c_2d(ew,ns)  &
+                          * basal_physics%effecpress_stag(ew,ns)
+                denominator = ( stag_powerlaw_c_2d(ew,ns)**m * speed(ew,ns) +  &
+                     (stag_coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+
+                beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
+
+                !WHL - debug
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                      write(6,*) 'r, i, j, denom_u, denom_N, speed, beta, taub:', &
+                           rtest, itest, jtest, &
+                           (stag_powerlaw_c_2d(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
+                           stag_coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns), &
+                           speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
+                   endif
+                endif
+
+             enddo
+          enddo
+
+       endif   ! which_inversion
 
        ! Limit for numerical stability
        !TODO - Is limiting needed?
@@ -452,36 +539,40 @@ contains
 
       ! Basal stress representation based on Tsai et al. (2015)
       ! The basal stress is the minimum of two values:
-      ! (1) power law:          tau_b = powerlaw_C * |u_b|^(1/powerlaw_m)
-      ! (2) Coulomb friction:   tau_b = Coulomb_C * N
+      ! (1) power law:          tau_b = powerlaw_c * |u_b|^(1/powerlaw_m)
+      ! (2) Coulomb friction:   tau_b = coulomb_c * N
       !                             N = effective pressure = rhoi*g*(H - H_f)
       !                           H_f = flotation thickness = (rhow/rhoi)*(eus-topg)
       ! This value of N is obtained by setting basal_water = BWATER_OCEAN_PENETRATION = 4 
       !  with p_ocean_penetration = 1.0 in the config file.
-      ! The other parameters (powerlaw_C, powerlaw_m and Coulomb_C) can also be set in the config file. 
+      ! The other parameters (powerlaw_c, powerlaw_m and coulomb_c) can also be set in the config file.
 
        !WHL - debug - write out basal stresses
 !       write(6,*) ' '
-!       write(6,*) 'powerlaw_C, powerlaw_m, Coulomb_C =', basal_physics%powerlaw_C, basal_physics%powerlaw_m, basal_physics%Coulomb_C
-!       write(6,*) 'Apply Tsai parameterization: i, j, speed, beta, taub, taub_powerlaw, taub_Coulomb, effecpress:'
+!       write(6,*) 'powerlaw_c, powerlaw_m, Coulomb_c =', &
+!           basal_physics%powerlaw_c, basal_physics%powerlaw_m, basal_physics%coulomb_c
+!       write(6,*) 'Apply Tsai parameterization: i, j, speed, beta, taub, taub_powerlaw, taub_coulomb, effecpress:'
+
+       !TODO - Add basal inversion option for Tsai, if it works for Schoof
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
              
              speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
 
-             taub_powerlaw = basal_physics%powerlaw_C * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
-             taub_Coulomb  = basal_physics%Coulomb_C * basal_physics%effecpress_stag(ew,ns)
+             taub_powerlaw = basal_physics%powerlaw_c * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
+             taub_coulomb  = basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)
 
-             if (taub_Coulomb <= taub_powerlaw) then   ! apply Coulomb stress, which is smaller
-                beta(ew,ns) = taub_Coulomb / speed(ew,ns)
+             if (taub_coulomb <= taub_powerlaw) then   ! apply Coulomb stress, which is smaller
+                beta(ew,ns) = taub_coulomb / speed(ew,ns)
              else  ! apply power-law stress
                 beta(ew,ns) = taub_powerlaw / speed(ew,ns)
              endif
 
 !             !WHL - debug - Write values along a flowline
 !             if (ns == jtest .and. ew >= itest .and. ew <= itest+15) then
-!                write(6,*) ew, ns, speed(ew,ns), beta(ew,ns), speed(ew,ns)*beta(ew,ns), taub_powerlaw, taub_Coulomb, basal_physics%effecpress_stag(ew,ns)
+!                write(6,*) ew, ns, speed(ew,ns), beta(ew,ns), speed(ew,ns)*beta(ew,ns), &
+!                     taub_powerlaw, taub_coulomb, basal_physics%effecpress_stag(ew,ns)
 !             endif
 
           enddo   ! ew
@@ -512,6 +603,7 @@ contains
    !
    ! If f_ground in not passed in (as for Glam), then check for areas where the ice is floating
    !  and make sure beta in these regions is 0. 
+   !TODO - Replace GLIDE_IS_FLOAT with floating_mask
 
    if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
 
@@ -711,6 +803,7 @@ contains
     case(HO_EFFECPRESS_BWAT)
 
        ! Initialize for the case where bwat isn't present, and also for points with bwat == 0
+
        basal_physics%effecpress(:,:) = overburden(:,:)
 
        if (present(bwat)) then
@@ -724,7 +817,9 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
+
                 if (bwat(i,j) > 0.0d0) then
+
                    relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
 
                    ! Eq. 23 from Bueler & van Pelt (2015)
@@ -735,6 +830,7 @@ contains
                    ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
                    ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
                    !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
+
 !!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
 !!                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
 
@@ -742,7 +838,6 @@ contains
                    !      This might lead to smoother variations in N with spatial variation in bwat.
 !!                 basal_physics%effecpress(i,j) = overburden(i,j) * &
 !!                      (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
-
 
                    ! limit so as not to exceed overburden
                    basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
@@ -814,6 +909,269 @@ contains
                           ice_mask,                  stagger_margin_in = 0)
 
  end subroutine calc_effective_pressure
+
+!***********************************************************************
+
+ subroutine calc_basal_inversion(dt,                           &
+                                 nx,            ny,            &
+                                 itest, jtest,  rtest,         &
+                                 basal_physics,                &
+                                 ice_mask,      floating_mask, &
+                                 thck,          dthck_dt,      &
+                                 thck_obs)
+
+    ! Compute spatially varying fields, powerlaw_c_2d and coulomb_c_2d, by inversion.
+    ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
+    ! Where thck > thck_obs, powerlaw_c and coulomb_c are reduced to increase sliding.
+    ! Where thck < thck_obs, powerlaw_c and coulomb_c are increased to reduce sliding.
+    ! Note: powerlaw_c is constrained to lie within a prescribed range.
+    !       The ratio of powerlaw_c to coulomb_c is fixed (except that coulomb_c must be <= 1).
+
+    use parallel
+
+    real(dp), intent(in) ::  dt  ! time step (s)
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    type(glide_basal_physics), intent(inout) :: &
+         basal_physics           ! basal physics object
+
+    integer, dimension(nx,ny), intent(in) :: &
+         ice_mask,             & ! = 1 where ice is present (thk > thklim), else = 0
+         floating_mask           ! = 1 where ice is present and floating, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck,                 & ! ice thickness (m)
+         dthck_dt,             & ! rate of change of ice thickness (m/s)
+         thck_obs                ! observed thickness (m)
+
+    ! local variables
+
+    real(dp), dimension(nx,ny) ::  &
+         dthck,                & ! thck - thck_obs on ice grid
+         old_powerlaw_c,       & ! old value of powerlaw_c_2d (start of timestep)
+         temp_powerlaw_c,      & ! temporary value of powerlaw_c_2d (before smoothing)
+         dpowerlaw_c             ! change in powerlaw_c
+
+    real(dp) :: term1, term2
+    real(dp) :: factor
+    real(dp) :: dpowerlaw_c_smooth
+
+    integer :: i, j
+    integer :: ii, jj
+
+    ! inversion parameters in basal_physics derived type:
+    ! * powerlaw_c_max              = upper bound for powerlaw_c, Pa (m/yr)^(-1/3)
+    ! * powerlaw_c_min              = lower bound for powerlaw_c, Pa (m/yr)^(-1/3)
+    ! * powerlaw_coulomb_ratio      = powerlaw_c/coulomb_c (same units as powerlaw_c)
+    ! * inversion_timescale         = inversion timescale (s); must be > 0
+    ! * inversion_thck_scale        = thickness inversion scale (m); must be > 0
+    ! * inversion_dthck_dt_scale    = dthck_dt inversion scale (m/s); must be > 0
+    ! * inversion_smoothing_factor  = factor for smoothing powerlaw_c_2d; higher => more smoothing
+    !
+    ! Note on smoothing: A smoothing factor of 1/8 gives a 4-1-1-1-1 smoother.
+    !       This is numerically well behaved, but may oversmooth in bowl-shaped regions;
+    !        a smaller value may be better as H converges toward H_obs.
+
+    logical, parameter :: verbose_inversion = .false.
+
+    ! Save the starting value
+    old_powerlaw_c(:,:) = basal_physics%powerlaw_c_2d(:,:)
+    dpowerlaw_c(:,:) = 0.0d0
+
+    ! Compute difference between current and target thickness
+    dthck(:,:) = thck(:,:) - thck_obs(:,:)
+
+    ! Loop over cells
+    ! Note: powerlaw_c_2d and coulomb_c_2d are computed at cell centers where thck is located.
+    !       Later, they are interpolated to vertices where beta and basal velocity are located.
+
+    do j = 1, ny
+       do i = 1, nx
+
+          if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! ice is present and grounded
+
+             ! Invert for powerlaw_c_2d and coulomb_c based on dthck and dthck_dt
+             term1 = -dthck(i,j) / basal_physics%inversion_thck_scale
+             term2 = -dthck_dt(i,j) / basal_physics%inversion_dthck_dt_scale
+
+             dpowerlaw_c(i,j) = (dt/basal_physics%inversion_timescale) &
+                  * basal_physics%powerlaw_c_2d(i,j) * (term1 + term2)
+
+             ! Limit to prevent huge change in one step
+             if (abs(dpowerlaw_c(i,j)) > 0.05 * basal_physics%powerlaw_c_2d(i,j)) then
+                if (dpowerlaw_c(i,j) > 0.0d0) then
+                   dpowerlaw_c(i,j) =  0.05d0 * basal_physics%powerlaw_c_2d(i,j)
+                else
+                   dpowerlaw_c(i,j) = -0.05d0 * basal_physics%powerlaw_c_2d(i,j)
+                endif
+             endif
+
+             basal_physics%powerlaw_c_2d(i,j) = basal_physics%powerlaw_c_2d(i,j) + dpowerlaw_c(i,j)
+
+             ! Limit to a physically reasonable range
+             basal_physics%powerlaw_c_2d(i,j) = min(basal_physics%powerlaw_c_2d(i,j), basal_physics%powerlaw_c_max)
+             basal_physics%powerlaw_c_2d(i,j) = max(basal_physics%powerlaw_c_2d(i,j), basal_physics%powerlaw_c_min)
+
+             !WHL - debug
+             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'Invert for powerlaw_c and coulomb_c: rank, i, j =', rtest, itest, jtest
+                print*, 'thck, thck_obs, dthck, dthck_dt:', thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
+                print*, '-dthck/thck_scale, -dthck_dt/dthck_dt_scale, sum =', &
+                     -dthck(i,j)/basal_physics%inversion_thck_scale, &
+                     -dthck_dt(i,j)/basal_physics%inversion_dthck_dt_scale, &
+                     term1 + term2
+                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), basal_physics%powerlaw_c_2d(i,j)
+             endif
+
+          else  ! ice_mask = 0 or floating_mask = 1
+
+             ! set to default value
+             basal_physics%powerlaw_c_2d(i,j) = basal_physics%powerlaw_c
+
+          endif  ! ice_mask = 1 and floating_mask = 0
+
+       enddo  ! i
+    enddo  ! j
+
+    !WHL - debug
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'Before smoothing, powerlaw_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_2d(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+ 
+    ! Save the value just computed
+    temp_powerlaw_c(:,:) = basal_physics%powerlaw_c_2d(:,:)
+
+    ! Apply Laplacian smoothing to C_p.
+    ! Since C_p is at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
+    !TODO - Write an operator for Laplacian smoothing?
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! cell (i,j) is grounded
+
+             dpowerlaw_c_smooth = -4.0d0 * basal_physics%inversion_smoothing_factor * temp_powerlaw_c(i,j)
+             do jj = j-1, j+1
+                do ii = i-1, i+1
+                   if ((ii == i .or. jj == j) .and. (ii /= i .or. jj /= j)) then  ! edge neighbor
+                      if (ice_mask(ii,jj) == 1 .and. floating_mask(ii,jj) == 0) then   ! cell (ii,jj) is grounded
+                         dpowerlaw_c_smooth = dpowerlaw_c_smooth &
+                              + basal_physics%inversion_smoothing_factor*temp_powerlaw_c(ii,jj)
+                      else
+                         dpowerlaw_c_smooth = dpowerlaw_c_smooth &
+                              + basal_physics%inversion_smoothing_factor*temp_powerlaw_c(i,j)
+                      endif
+                   endif
+                enddo
+             enddo
+
+             ! Note: If smoothing is too strong, it can reverse the sign of the change in powerlaw_c.
+             !       The logic below ensures that if powerlaw_c_2d is increasing, the smoothing can reduce
+             !        the change to zero, but not cause powerlaw_c to decrease relative to old_powerlaw_c
+             !        (and similarly if powerlaw_c_2d is decreasing).
+
+             if (dpowerlaw_c(i,j) > 0.0d0) then
+                if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth > old_powerlaw_c(i,j)) then
+                   basal_physics%powerlaw_c_2d(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+                else
+                  ! allow the smoothing to hold Cp at its old value, but not reduce Cp
+                   basal_physics%powerlaw_c_2d(i,j) = old_powerlaw_c(i,j)
+                endif
+             elseif (dpowerlaw_c(i,j) < 0.0d0) then
+                if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth < old_powerlaw_c(i,j)) then
+                   basal_physics%powerlaw_c_2d(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+                else
+                  ! allow the smoothing to hold Cp at its old value, but not increase Cp
+                   basal_physics%powerlaw_c_2d(i,j) = old_powerlaw_c(i,j)
+                endif
+             endif  ! dpowerlaw_c > 0
+
+             ! The next 5 lines are commented out. If used in place of the limiting above,
+             !  this code not only prevents the sign of the change from reversing, but also
+             !  prevents the smoothing from more than doubling the original change.
+             ! It would take more testing to determine whether or not this is a good idea.
+
+!             if (abs(dpowerlaw_c_smooth) > abs(dpowerlaw_c(i,j))) then
+!                factor = abs(dpowerlaw_c(i,j)) / abs(dpowerlaw_c_smooth)
+!                dpowerlaw_c_smooth = dpowerlaw_c_smooth * factor
+!             endif
+!             basal_physics%powerlaw_c_2d(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+
+          endif  ! cell is grounded
+
+          if (verbose_inversion .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+             print*, 'Smoothing correction, new powerlaw_c:', dpowerlaw_c_smooth, basal_physics%powerlaw_c_2d(i,j)
+          endif
+
+       enddo
+    enddo
+
+    call parallel_halo(basal_physics%powerlaw_c_2d)
+
+    ! Set coulomb_c assuming a fixed ratio of powerlaw_c/coulomb_c
+    basal_physics%coulomb_c_2d(:,:) = basal_physics%powerlaw_c_2d(:,:) / basal_physics%powerlaw_coulomb_ratio
+
+    ! Limit coulomb_c to be <= 1, so that basal stress <= effective pressure N
+    basal_physics%coulomb_c_2d(:,:) = min(basal_physics%coulomb_c_2d(:,:), 1.0d0)
+
+    !WHL - debug
+    if (verbose_inversion .and. this_rank == rtest) then
+
+       i = itest
+       j = jtest
+       print*, 'thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, 'thck - thck_obs:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dthck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, 'dthck_dt (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dthck_dt(i,j)*scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'After smoothing, powerlaw_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_2d(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, 'coulomb_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') basal_physics%coulomb_c_2d(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+    endif
+
+  end subroutine calc_basal_inversion
 
 !***********************************************************************
 

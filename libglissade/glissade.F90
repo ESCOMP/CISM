@@ -95,6 +95,7 @@ contains
     use glissade_therm, only: glissade_init_therm
     use glissade_transport, only: glissade_overwrite_acab_mask
     use glissade_basal_water, only: glissade_basal_water_init
+    use glissade_masks, only: glissade_get_masks
     use glimmer_scales
     use glide_mask
     use isostasy
@@ -119,9 +120,10 @@ contains
 
     character(len=100) :: message
 
-    real(dp) :: smb_maxval   ! max value of abs(smb)
+    real(dp) :: var_maxval   ! max value of a given variable; = 0 if not yet read in
     integer :: i, j, k
     logical :: l_evolve_ice  ! local version of evolve_ice
+    integer, dimension(:,:), allocatable :: ice_mask
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -218,9 +220,9 @@ contains
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
 
        ! make sure a nonzero SMB was read in
-       smb_maxval = maxval(abs(model%climate%smb))
-       smb_maxval = parallel_reduce_max(smb_maxval)
-       if (smb_maxval < 1.0d-11) then
+       var_maxval = maxval(abs(model%climate%smb))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval < 1.0d-11) then
           write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
           call write_log(trim(message), GM_FATAL)
        endif
@@ -592,6 +594,53 @@ contains
     !       An update is done here regardless of code options, just to be on the safe side.
     call parallel_halo(model%stress%efvs)
 
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+
+       ! Save the initial ice thickness, if it will be used as the observational target for inversion.
+       ! Note: If calving is done at initialization, the target is the post-calving thickness.
+       !       The inversion will not try to put ice where, e.g., initial icebergs are removed.
+
+       ! Check whether thck_obs has been read in already.
+       ! If not, then set thck_obs to the initial thickness (possibly modified by initial calving).
+       var_maxval = maxval(model%geometry%thck_obs)
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval > 0.0d0) then
+          ! do nothing; thck_obs has been read in already (e.g., after restart)
+       else
+          model%geometry%thck_obs(:,:) = model%geometry%thck(:,:)
+       endif
+
+       call parallel_halo(model%geometry%thck_obs)
+
+       ! Initialize a mask for inversion.
+       ! Basal melting will be applied wherever the observed target ice is floating.
+
+       allocate(ice_mask(model%general%ewn, model%general%nsn))  ! required argument for subroutine
+
+       call glissade_get_masks(model%general%ewn, model%general%nsn, &
+                               model%geometry%thck_obs*thk0,         &
+                               model%geometry%topg*thk0,             &
+                               model%climate%eus*thk0,               &
+                               0.0d0,                                &  ! thklim = 0
+                               ice_mask,                             &
+                               floating_mask = model%basal_melt%bmlt_inversion_mask)
+
+       !TODO - Modify bmlt_inversion_mask adjacent to land cells.
+
+       ! Check whether powerlaw_c_2d has been read in already.
+       ! If not, then set to a constant value.
+       var_maxval = maxval(model%basal_physics%powerlaw_c_2d)
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval > 0.0d0) then
+          ! do nothing; powerlaw_c_2d has been read in already (e.g., after restart)
+       else
+          model%basal_physics%powerlaw_c_2d(:,:) = model%basal_physics%powerlaw_c
+       endif
+
+       call parallel_halo(model%basal_physics%powerlaw_c_2d)
+
+    endif  ! which_ho_inversion
+
     ! recalculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
@@ -850,6 +899,13 @@ contains
 
     integer :: i, j
 
+    integer :: itest, jtest, rtest
+
+    ! Set debug diagnostics
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+
     ! ------------------------------------------------------------------------
     ! Compute the basal melt rate beneath floating ice.
     ! Note: model%basal_melt is a derived type with various fields and parameters
@@ -902,14 +958,6 @@ contains
                                          model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
                                          previous_time)                                ! yr
 
-          !WHL - debug
-!          if (this_rank==model%numerics%rdiag_local) then
-!             i = model%numerics%idiag_local
-!             j = model%numerics%jdiag_local
-!             print*, 'i, j, total anomaly (m/yr), previous_time, new bmlt (m/yr):', &
-!                      i, j, model%basal_melt%bmlt_float_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%basal_melt%bmlt_float(i,j)
-!          endif
-
        endif
 
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP AND BMLT_FLOAT_MISOMIP
@@ -934,9 +982,10 @@ contains
 
     endif  ! whichbmlt_float
 
-    ! For all bmlt_float options, limit the melting to cells where ice is present and floating
+    ! Limit the melting to cells where ice is present and floating.
     ! Note: For this to work correctly, basal melting must be applied before the floating mask changes
     !       (i.e., before horizontal transport).
+
     where (floating_mask == 0)
        model%basal_melt%bmlt_float = 0.0d0
     endwhere
@@ -1096,6 +1145,7 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
+    logical, parameter :: verbose_inversion = .false.
 
     ! --- Local variables ---
 
@@ -1107,6 +1157,7 @@ contains
        acab_unscaled,     & ! surface mass balance (m/s)
        bmlt_unscaled        ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
 
+    !TODO - Remove ice_mask obs, compute inversion mask at startup
     ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
        ice_mask,          & ! = 1 if thck > 0, else = 0
@@ -1130,11 +1181,13 @@ contains
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
                                     ! set to true for EVOL_UPWIND, else = false
 
-    integer :: ntracers       ! number of tracers to be transported
+    integer :: ntracers             ! number of tracers to be transported
+
+    real(dp) :: thck_flotation
 
     integer :: i, j, k
     integer :: ewn, nsn, upn
-    
+
     !WHL - debug
     integer :: itest, jtest, rtest
 
@@ -1224,7 +1277,6 @@ contains
                                        model%climate%acab_corrected)
        endif
 
-
        ! temporary in/out arrays in SI units
        thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
@@ -1311,8 +1363,8 @@ contains
                                          thck_unscaled(:,:),                                   &  ! m
                                          acab_unscaled(:,:),                                   &  ! m/s
                                          bmlt_unscaled(:,:),                                   &  ! m/s
-                                         model%climate%acab_applied(:,:),                      &  ! m on output; m/s below
-                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m on output; m/s below
+                                         model%climate%acab_applied(:,:),                      &  ! m/s
+                                         model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
                                          ocean_mask(:,:),                                      &
                                          effective_areafrac(:,:),                              &
                                          model%geometry%ntracers,                              &
@@ -1320,10 +1372,6 @@ contains
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap)
-
-       ! convert applied mass balance from m/s back to scaled model units
-       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
-       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 * tim0
 
        ! halo updates for thickness and tracers, to prepare for transport.
        call parallel_halo(thck_unscaled)
@@ -1428,8 +1476,172 @@ contains
 
        enddo     ! subcycling
 
+       ! If inverting for bmlt beneath floating ice, then compute bmlt_float_inversion here,
+       !  and again call the mass balance driver.
+       ! Note: It would be simpler to include bmlt_float_inversion in the previous call
+       !        to the mass balance driver. However, the relaxation of thck toward thck_obs would then
+       !        be followed by horizontal transport, causing thck and thck_obs to diverge again.
+
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+
+          ! thickness tendency dH/dt from one step to the next (m/s)
+          ! This tendency is used when inverting for basal traction parameters.
+          ! It is recomputed at the end of the time step for diagnostics.
+
+          model%geometry%dthck_dt(:,:) = (thck_unscaled(:,:) - model%geometry%thck_old(:,:)*thk0) &
+                                       / (model%numerics%dt * tim0)
+
+          ! Where the observed ice is floating, compute a basal melt rate (or freezing rate, if bmlt < 0)
+          !  that will restore the ice thickness to the observed target.
+
+          where (model%basal_melt%bmlt_inversion_mask == 1)
+             model%basal_melt%bmlt_float_inversion = &
+                  (thck_unscaled - model%geometry%thck_obs*thk0) / (model%numerics%dt*tim0)
+          elsewhere
+             model%basal_melt%bmlt_float_inversion = 0.0d0
+          endwhere
+
+          ! ------------------------------------------------------------------------
+          ! Get masks used by glissade_mass_balance_driver.
+          ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
+          ! ------------------------------------------------------------------------
+
+          call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                                  thck_unscaled,                              &   ! m
+                                  model%geometry%topg*thk0,                   &   ! m
+                                  model%climate%eus*thk0,                     &   ! m
+                                  0.0d0,                                      &   ! thklim = 0
+                                  ice_mask,                                   &
+                                  floating_mask = floating_mask,              &
+                                  ocean_mask = ocean_mask)
+
+          ! For purposes of inversion, assign all cells an effective fraction of 1 or 0.
+          ! Calving-front cells are treated the same as other ice-covered cells.
+          where (ocean_mask == 1)
+             effective_areafrac = 0.0d0
+          elsewhere
+             effective_areafrac = 1.0d0
+          endwhere
+
+          !WHL - debug
+          if (verbose_inversion .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
+             print*, 'thck (m), thck_obs (m), bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
+                  model%geometry%thck_obs(i,j)*thk0, model%basal_melt%bmlt_float_inversion(i,j)*scyr
+             print*, ' '
+             print*, 'bmlt_inversion_mask:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(i12)',advance='no') model%basal_melt%bmlt_inversion_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'floating_mask:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(i12)',advance='no') floating_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck - thck_obs (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck_flotation (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(f12.5)',advance='no') -(rhoo/rhoi)*model%geometry%topg(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'bmlt_float_inversion (m/yr):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(f12.5)',advance='no') model%basal_melt%bmlt_float_inversion(i,j)*scyr
+                enddo
+                write(6,*) ' '
+             enddo
+
+
+          endif
+
+          ! Zero out acab since this call uses bmlt_float_inversion only
+          acab_unscaled(:,:) = 0.0d0
+
+          ! Apply basal melting for inversion.
+          ! Note: Basal melting applied during this call is added to bmlt_applied.
+          call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &
+                                            model%numerics%dew * len0, model%numerics%dns * len0, &
+                                            model%general%ewn,         model%general%nsn,         &
+                                            model%general%upn-1,       model%numerics%sigma,      &
+                                            thck_unscaled(:,:),                                   &  ! m
+                                            acab_unscaled(:,:),                                   &  ! m/s
+                                            model%basal_melt%bmlt_float_inversion(:,:),           &  ! m/s
+                                            model%climate%acab_applied(:,:),                      &  ! m/s
+                                            model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
+                                            ocean_mask(:,:),                                      &
+                                            effective_areafrac(:,:),                              &
+                                            model%geometry%ntracers,                              &
+                                            model%geometry%tracers(:,:,:,:),                      &
+                                            model%geometry%tracers_usrf(:,:,:),                   &
+                                            model%geometry%tracers_lsrf(:,:,:),                   &
+                                            model%options%which_ho_vertical_remap)
+
+          !WHL - debug
+          if (verbose_inversion .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'After inversion:'
+             print*, ' '
+             print*, 'thck (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck - thck_obs (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-4, itest+4
+                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif
+
+          ! Note: Subroutine calc_basal_inversion, which inverts for basal parameters,
+          !       is called later, during the velocity solve.
+          !       It requires the same ice mask and floating mask as the velocity solver.
+
+       endif   ! which_ho_inversion
+
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
+
+       ! convert applied mass balance from m/s back to scaled model units
+       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
+       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 * tim0
 
        ! convert thck back to scaled units
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
@@ -2349,6 +2561,16 @@ contains
        enddo
     enddo
 
+    ! thickness tendency dH/dt from one step to the next (m/s)
+    ! Note: This diagnostic will not be correct on the first step of a restart
+
+    do j = 1, model%general%nsn
+       do i = 1, model%general%ewn
+          model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j))*thk0 &
+                                       / (model%numerics%dt * tim0)
+       enddo
+    enddo
+
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab * scale_acab) has units of m/yr of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
@@ -2361,16 +2583,6 @@ contains
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
-
-    ! thickness tendency dH/dt from one step to the next (m/s)
-    ! Note: This diagnostic will not be correct on the first step of a restart
-
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
-          model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) * thk0 &
-                                       / (model%numerics%dt * tim0)
-       enddo
-    enddo
 
     ! real-valued masks
 

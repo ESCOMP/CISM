@@ -207,6 +207,10 @@ contains
     model%basal_melt%bmlt_float_omega = model%basal_melt%bmlt_float_omega / scyr
     model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
 
+    ! scale basal inversion parameters
+    model%basal_physics%inversion_timescale = model%basal_physics%inversion_timescale * scyr
+    model%basal_physics%inversion_dthck_dt_scale = model%basal_physics%inversion_dthck_dt_scale / scyr
+
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
     model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
@@ -610,6 +614,7 @@ contains
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
+    call GetValue(section, 'which_ho_inversion',          model%options%which_ho_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
@@ -817,6 +822,11 @@ contains
          'min of Coulomb stress and power-law stress (Tsai)', &
          'power law using effective pressure               ', &
          'simple pattern of beta                           ' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_whichinversion = (/ &
+         'no inversion for basal parameters or melting     ', &
+         'invert for basal parameters and subshelf melting ', &
+         'prescribe parameters from previous inversion     ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -1292,6 +1302,30 @@ contains
           call write_log('Error, HO basal BC input out of range', GM_FATAL)
        end if
 
+       write(message,*) 'ho_whichinversion : ',model%options%which_ho_inversion,  &
+                         ho_whichinversion(model%options%which_ho_inversion)
+       call write_log(message)
+       if (model%options%which_ho_inversion < 0 .or. &
+           model%options%which_ho_inversion >= size(ho_whichinversion)) then
+          call write_log('Error, HO basal inversion input out of range', GM_FATAL)
+       end if
+
+       ! Note: Inversion is currently supported only for Schoof sliding law
+       ! TODO - Support for Tsai law also
+       if (model%options%which_ho_inversion /= 0) then
+!          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
+!              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
+             ! inversion is supported
+          else
+             call write_log('Error, basal inversion is not supported for this basal BC option')
+             write(message,*) 'Inversion is supported for which_ho_babc =', &
+!                  HO_BABC_COULOMB_POWERLAW_SCHOOF, ' or ', HO_BABC_COULOMB_POWERLAW_TSAI
+                  HO_BABC_COULOMB_POWERLAW_SCHOOF
+             call write_log(message, GM_FATAL)
+          endif
+       endif
+
        ! unsupported ho-babc options
        !TODO - Decide if some of these are now supported?
        if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
@@ -1301,11 +1335,6 @@ contains
        if (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
          call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
               &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
-       endif
-       if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
-           model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
-         call write_log('Coulomb friction law higher-order basal boundary condition is not currently scientifically supported.  &
-              &USE AT YOUR OWN RISK.', GM_WARNING)
        endif
 
        write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
@@ -1574,27 +1603,41 @@ contains
     call GetValue(section,'ho_beta_small', model%basal_physics%ho_beta_small)
     call GetValue(section,'ho_beta_large', model%basal_physics%ho_beta_large)
 
-    ! basal physics parameters
+    ! basal friction parameters
     call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
-    call GetValue(section, 'coulomb_c', model%basal_physics%Coulomb_C)
-    call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%Coulomb_Bump_max_slope)
-    call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%Coulomb_bump_wavelength)
+    call GetValue(section, 'coulomb_c', model%basal_physics%coulomb_c)
+    call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
+    call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
     call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
-    call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_C)
+    call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_c)
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
+
+    ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
     call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
     call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
+
+    ! basal water parameters
     call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
     call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
     call GetValue(section, 'c_drainage', model%basal_physics%c_drainage)
+
+    ! pseudo-plastic parameters
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
     call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
     call GetValue(section, 'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
+
+    ! basal inversion parameters
+    call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
+    call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
+    call GetValue(section, 'powerlaw_coulomb_ratio', model%basal_physics%powerlaw_coulomb_ratio)
+    call GetValue(section, 'inversion_timescale', model%basal_physics%inversion_timescale)
+    call GetValue(section, 'inversion_thck_scale', model%basal_physics%inversion_thck_scale)
+    call GetValue(section, 'inversion_dthck_dt_scale', model%basal_physics%inversion_dthck_dt_scale)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -1867,31 +1910,48 @@ contains
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
-       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
+       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
-    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION          .or.  &
-        model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
-       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%Coulomb_C
+    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
+       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
        call write_log(message)
-       write(message,*) 'bed bump max. slope for Coulomb friction law : ', model%basal_physics%Coulomb_Bump_max_slope
+       write(message,*) 'bed bump max slope for Coulomb friction law : ', model%basal_physics%coulomb_bump_max_slope
        call write_log(message)
-       write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%Coulomb_bump_wavelength
+       write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%coulomb_bump_wavelength
        call write_log(message)
-       if (model%options%which_ho_babc == HO_BABC_COULOMB_CONST_BASAL_FLWA) then
-          write(message,*) 'constant basal flwa for Coulomb friction law : ', model%basal_physics%flwa_basal
+    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
+       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
+       call write_log(message)
+       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
+       call write_log(message)
+       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+          call write_log(' NOTE: powerlaw_c and coulomb_c will be modified by inversion')
+          write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', model%basal_physics%powerlaw_c_max
+          call write_log(message)
+          write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', model%basal_physics%powerlaw_c_min
+          call write_log(message)
+          write(message,*) 'powerlaw_c/coulomb_c ratio                   : ', model%basal_physics%powerlaw_coulomb_ratio
+          call write_log(message)
+          write(message,*) 'inversion timescale (yr)                     : ', model%basal_physics%inversion_timescale
+          call write_log(message)
+          write(message,*) 'inversion thickness scale (m)                : ', model%basal_physics%inversion_thck_scale
+          call write_log(message)
+          write(message,*) 'inversion dthck/dt scale (m/yr)              : ', model%basal_physics%inversion_dthck_dt_scale
           call write_log(message)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
-       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%Coulomb_C
+       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
        call write_log(message)
-       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_C
+       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
-       !TODO - Use powerlaw_C instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
+       !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
        call write_log(message)
     endif
@@ -2299,9 +2359,9 @@ contains
 
     end select  ! smb_input
 
-    ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
     select case (options%whichbmlt_float)
 
+       ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
        case (BMLT_FLOAT_EXTERNAL)
           call glide_add_to_restart_variable_list('bmlt_float_external')
 
@@ -2456,7 +2516,7 @@ contains
 
     ! basal sliding option
     select case (options%which_ho_babc)
-      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_CONST_BASAL_FLWA)
+      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_POWERLAW_SCHOOF)
         ! These friction laws need effective pressure
          !TODO - Does effecpress need to be a restart variable?
         call glide_add_to_restart_variable_list('effecpress')
@@ -2471,6 +2531,21 @@ contains
         !      and not the internal beta field that may have been weighted by the grounded fraction or otherwise adjusted.
         call glide_add_to_restart_variable_list('beta')
     end select
+
+    ! basal inversion option
+    select case(options%which_ho_inversion)
+      case (HO_INVERSION_COMPUTE, HO_INVERSION_PRESCRIBED)
+         ! If computing powerlaw_c_2d by inversion, this field is needed for restart.
+         ! Also needed if prescribing powerlaw_c_2d from a previous inversion.
+         ! Note: coulomb_c_2d is not a restart field, since the ratio powerlaw_c/coulomb_c is fixed.
+         call glide_add_to_restart_variable_list('powerlaw_c_2d')
+    end select
+
+    ! If inverting for basal parameters and/or subshelf melting based on thck_obs,
+    !  then thck_obs needs to be in the restart file;
+    if (options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+       call glide_add_to_restart_variable_list('thck_obs')
+    endif
 
     ! geothermal heat flux option
     select case (options%gthf)
