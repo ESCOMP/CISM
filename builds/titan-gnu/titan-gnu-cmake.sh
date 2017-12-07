@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # After this executes, do:
 #   make -j 8
@@ -15,12 +15,12 @@ else
     cism_top=${1%/}
 fi
 
-echo CISM: ${cism_top}
+echo CISM: "${cism_top}"
 
 
 export CRAY_CPU_TARGET=istanbul
 
-source $MODULESHOME/init/bash
+. "$MODULESHOME/init/bash"
 
 module unload cmake
 module unload hdf5-parallel/cray
@@ -43,9 +43,6 @@ module load cray-netcdf-hdf5parallel/4.3.2
 module load python
 module load boost
 
-echo "\nmodule list"
-module list
-
 # remove old build data:
 rm -f ./CMakeCache.txt
 rm -rf ./CMakeFiles
@@ -67,7 +64,7 @@ cmake \
   -D CISM_ENABLE_BISICLES=OFF \
   -D CISM_ENABLE_FELIX=OFF \
 \
-  -D CISM_USE_TRILINOS:BOOL=${CISM_USE_TRILINOS:=ON} \
+  -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=ON}" \
   -D CISM_MPI_MODE:BOOL=ON \
   -D CISM_SERIAL_MODE:BOOL=OFF \
 \
@@ -81,7 +78,7 @@ cmake \
   -D CISM_GPTL_DIR=/lustre/atlas/world-shared/cli900/cesm/software/libgptl/libgptl-titan-gnu \
   -D CISM_NETCDF_DIR=/opt/cray/netcdf-hdf5parallel/4.3.2/GNU/49 \
 \
-  -D CMAKE_INSTALL_PREFIX:PATH=$cism_top/builds/titan-gnu/install \
+  -D CMAKE_INSTALL_PREFIX:PATH="$cism_top/builds/titan-gnu/install" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
 \
@@ -92,9 +89,9 @@ cmake \
   -D CMAKE_CXX_FLAGS:STRING="-O2 -fopenmp" \
   -D CISM_Fortran_FLAGS:STRING="-O2 -ffree-line-length-none -fno-range-check -fopenmp" \
   -D BISICLES_LIB_SUBDIR=libgnu \
-  -D BISICLES_INTERFACE_DIR=$cism_top/../BISICLES/CISM-interface/interface \
+  -D BISICLES_INTERFACE_DIR="$cism_top/../BISICLES/CISM-interface/interface" \
   -D CISM_MPI_LIBS:STRING="mpichf90" \
   -D CISM_USE_CXX_IMPLICIT_LIBS:BOOL=OFF \
   -D CISM_STATIC_LINKING:BOOL=ON \
-  ${cism_top}
+  "${cism_top}"
 

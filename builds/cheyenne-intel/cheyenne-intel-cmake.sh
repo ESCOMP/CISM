@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # After this script completes, type: make -j 8
 # If rebuilding, type 'make clean' before running 'make -j 8'
@@ -15,7 +15,7 @@ else
     cism_top=${1%/}
 fi
 
-echo CISM: ${cism_top}
+echo CISM: "${cism_top}"
 
 
 module purge
@@ -54,11 +54,11 @@ cmake \
   -D CISM_MPI_MODE:BOOL=ON \
   -D CISM_SERIAL_MODE:BOOL=OFF \
 \
-  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=${CISM_USE_GPTL_INSTRUMENTATION:=ON} \
+  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL="${CISM_USE_GPTL_INSTRUMENTATION:=ON}" \
   -D CISM_COUPLED:BOOL=OFF \
   -D CISM_USE_CISM_FRONT_END:BOOL=OFF \
 \
-  -D CISM_NETCDF_DIR=$NETCDF \
+  -D CISM_NETCDF_DIR="$NETCDF" \
   -D CISM_GPTL_DIR= "utils/libgptl" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=OFF \
 \
@@ -69,5 +69,5 @@ cmake \
   -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
   -D CMAKE_C_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
   -D CMAKE_CXX_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
-  ${cism_top}
+  "${cism_top}"
 
