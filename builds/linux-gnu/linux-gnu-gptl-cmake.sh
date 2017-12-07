@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # cmake configuration script that works on the Linux box in Matt's office (blueskies) with GCC
 # Others will need to modify the Netcdf path.
@@ -32,7 +32,7 @@ else
 fi
 
 
-echo CISM: ${cism_top}
+echo CISM: "${cism_top}"
 
 echo
 echo Run this script by typing: source linux-gnu-cism-cmake
@@ -52,14 +52,16 @@ cmake \
   -D CISM_ENABLE_BISICLES=OFF \
   -D CISM_ENABLE_FELIX=OFF \
 \
-  -D CISM_USE_TRILINOS:BOOL=${CISM_USE_TRILINOS:=OFF} \
+  -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=ON}" \
   -D CISM_MPI_MODE:BOOL=ON \
   -D CISM_SERIAL_MODE:BOOL=OFF \
 \
-  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
+  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=ON \
   -D CISM_COUPLED:BOOL=OFF \
 \
-  -D CISM_TRILINOS_DIR=$CISM_TRILINOS_DIR \
+  -D CISM_GPTL_DIR="utils/libgptl" \
+\
+  -D CISM_TRILINOS_DIR="$CISM_TRILINOS_DIR" \
   -D CISM_NETCDF_DIR="/usr" \
   -D CISM_NETCDF_LIBS="netcdff" \
 \
@@ -75,5 +77,5 @@ cmake \
   -D CISM_MPI_LIB_DIR=/usr/lib/openmpi/lib \
 \
   -D CMAKE_VERBOSE_MAKEFILE=OFF \
-  ${cism_top}
+  "${cism_top}"
 

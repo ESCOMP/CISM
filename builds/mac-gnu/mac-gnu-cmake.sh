@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # This cmake configuration script builds cism_driver on a Mac using the Gnu compiler suite.
 # If Trilinos is used, it relies on a build of Trilinos located in $CISM_TRILINOS_DIR (set below).
@@ -49,20 +49,20 @@ cmake \
   -D CISM_ENABLE_BISICLES=OFF \
   -D CISM_ENABLE_FELIX=OFF \
 \
-  -D CISM_USE_TRILINOS:BOOL=${CISM_USE_TRILINOS:=OFF} \
+  -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=OFF}" \
   -D CISM_MPI_MODE:BOOL=ON \
   -D CISM_SERIAL_MODE:BOOL=OFF \
 \
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
   -D CISM_COUPLED:BOOL=OFF \
 \
-  -D CISM_TRILINOS_DIR=$CISM_TRILINOS_DIR \
+  -D CISM_TRILINOS_DIR="$CISM_TRILINOS_DIR" \
   -D CISM_NETCDF_DIR=/opt/local \
   -D CISM_MPI_BASE_DIR=/opt/local \
   -D CISM_MPI_INC_DIR=/opt/local/lib \
   -D CISM_EXTRA_LIBS="-lblas" \
 \
-  -D CMAKE_INSTALL_PREFIX:PATH=$PWD/install \
+  -D CMAKE_INSTALL_PREFIX:PATH="$PWD/install" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
 \
@@ -74,5 +74,5 @@ cmake \
   -D CMAKE_Fortran_FLAGS="-g -O2 -ffree-line-length-none" \
 \
   -D BISICLES_INTERFACE_DIR=~/BISICLES/CISM-interface/interface \
-  ${cism_top}
+  "${cism_top}"
 
