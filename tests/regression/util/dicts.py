@@ -126,11 +126,11 @@ titan_dict = {
         }
 
 cheyenne_dict = {
-        'PBS_A': '',
+        'PBS_A': 'P93300601',
         'PBS_q': 'regular',
         'PBS_N': 'reg_test_all',
-        'PBS_RES': '',
-        'RES_NUM': '',
+        'PBS_RES': 'select',
+        'RES_NUM': '2:ncpus=36:mpiprocs=36',
         'PBS_walltime': '01:00:00',
         }
 
