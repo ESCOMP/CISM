@@ -1644,7 +1644,10 @@ module glide_types
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down
     real(dp) :: flow_enhancement_factor = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                   ! typically used in SIA model to speed up the ice
-                                       ! (NOTE change relative to prev. versions of code - used to be 3)
+                                                  ! (Note the change relative to prev. versions of code - used to be 3.0)
+    real(dp) :: flow_enhancement_factor_ssa = 1.0d0   ! flow enhancement parameter for floating ice
+                                                      ! Default is 1.0, but for marine simulations a smaller value
+                                                      !  may be needed to match observed shelf speeds
     real(dp) :: slip_ratio = 1.0d0     ! Slip ratio, used only in higher order code when the slip ratio beta computation is requested
     real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
                                        ! 0 if no drainage
