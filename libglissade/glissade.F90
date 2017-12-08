@@ -1846,7 +1846,9 @@ contains
                               model%temper%temp(1:model%general%upn-1,:,:),  &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
-                              model%paramets%flow_enhancement_factor,   &
+                              model%paramets%flow_enhancement_factor,     &
+                              model%paramets%flow_enhancement_factor_ssa, &
+                              floating_mask,                      &
                               model%temper%waterfrac(:,:,:))
 
     !TODO - flwa halo update not needed?

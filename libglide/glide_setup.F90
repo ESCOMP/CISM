@@ -1527,6 +1527,7 @@ contains
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
     call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
+    call GetValue(section,'flow_factor_ssa',    model%paramets%flow_enhancement_factor_ssa)
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
@@ -1772,7 +1773,10 @@ contains
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
     call write_log(message)
 
-    write(message,*) 'flow enhancement factor       : ', model%paramets%flow_enhancement_factor
+    write(message,*) 'flow enhancement factor (SIA) : ', model%paramets%flow_enhancement_factor
+    call write_log(message)
+
+    write(message,*) 'flow enhancement factor (SSA) : ', model%paramets%flow_enhancement_factor_ssa
     call write_log(message)
 
     write(message,*) 'basal hydro time constant (yr): ', model%paramets%hydtim

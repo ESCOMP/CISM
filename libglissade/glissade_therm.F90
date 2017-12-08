@@ -1997,8 +1997,11 @@ module glissade_therm
                                   stagsigma,                           &
                                   thck,                    ice_mask,   &
                                   temp,                    flwa,       &
-                                  default_flwa_arg,                    &
-                                  flow_enhancement_factor, waterfrac)
+                                  default_flwa,                        &
+                                  flow_enhancement_factor,             &
+                                  flow_enhancement_factor_ssa,         &
+                                  floating_mask,                       &
+                                  waterfrac)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
     !
@@ -2037,10 +2040,11 @@ module glissade_therm
     integer, dimension(:,:),    intent(in)    :: ice_mask  !> = 1 where ice is present (thck > thklim), else = 0
     real(dp),dimension(:,:,:),  intent(in)    :: temp      !> 3D temperature field (deg C)
     real(dp),dimension(:,:,:),  intent(inout)   :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
-    real(dp), intent(in)                      :: default_flwa_arg  !> Glen's A to use in isothermal case 
-                                                                   !> Units: Pa^{-n} s^{-1} 
-    real(dp), intent(in), optional            :: flow_enhancement_factor !> flow enhancement factor in Arrhenius relationship
-    real(dp),dimension(:,:,:), intent(in), optional :: waterfrac   !> internal water content fraction, 0 to 1
+    real(dp), intent(in)                      :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
+    real(dp), intent(in), optional            :: flow_enhancement_factor     !> flow enhancement factor in Arrhenius relationship
+    real(dp), intent(in), optional            :: flow_enhancement_factor_ssa !> flow enhancement factor for floating ice
+    integer, dimension(:,:),   intent(in), optional :: floating_mask !> = 1 where ice is present and floating, else = 0
+    real(dp),dimension(:,:,:), intent(in), optional :: waterfrac     !> internal water content fraction, 0 to 1
 
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
@@ -2052,10 +2056,12 @@ module glissade_therm
     ! Internal variables
     !------------------------------------------------------------------------------------
 
-    real(dp) :: default_flwa   ! Glen's A for isothermal case, in units of Pa{-n} s^{-1}
     integer :: ew, ns, up, ewn, nsn, nlayers
     real(dp), dimension(size(stagsigma)) :: pmptemp   ! pressure melting point temperature
-    real(dp) :: enhancement_factor      ! flow enhancement factor in Arrhenius relationship
+
+    real(dp), dimension(:,:), allocatable :: &
+         enhancement_factor      ! flow enhancement factor in Arrhenius relationship
+
     real(dp) :: tempcor                 ! temperature relative to pressure melting point
 
     real(dp),dimension(4), parameter ::  &
@@ -2073,10 +2079,24 @@ module glissade_therm
     ewn = size(flwa,2)
     nsn = size(flwa,3)
 
+    allocate(enhancement_factor(ewn,nsn))
+
     if (present(flow_enhancement_factor)) then
-       enhancement_factor = flow_enhancement_factor
+       if (present(flow_enhancement_factor_ssa) .and. present(floating_mask)) then
+          do ns = 1, nsn
+             do ew = 1, ewn
+                if (floating_mask(ew,ns) == 1) then
+                   enhancement_factor(ew,ns) = flow_enhancement_factor_ssa
+                else
+                   enhancement_factor(ew,ns) = flow_enhancement_factor
+                endif
+             enddo
+          enddo
+       else  ! no separate factor for floating ice
+          enhancement_factor(:,:) = flow_enhancement_factor
+       endif
     else
-       enhancement_factor = 1.d0
+       enhancement_factor(:,:) = 1.d0
     endif
 
     ! Check that the temperature array has the desired vertical dimension
@@ -2089,11 +2109,13 @@ module glissade_therm
     ! Note: Here, default_flwa is assumed to have units of Pa^{-n} s^{-1},
     !       whereas model%paramets%default_flwa has units of Pa^{-n} yr^{-1}.
 
-    default_flwa = enhancement_factor * default_flwa_arg
-
     ! initialize
     if (whichflwa /= FLWA_INPUT) then
-       flwa(:,:,:) = default_flwa
+       do ns = 1, nsn
+          do ew = 1, ewn
+             flwa(:,ew,ns) = enhancement_factor(ew,ns) * default_flwa
+          enddo
+       enddo
     endif
 
     select case(whichflwa)
@@ -2117,9 +2139,9 @@ module glissade_therm
                   ! Calculate Glen's A (including flow enhancement factor)
 
                   if (tempcor >= -10.d0) then
-                     flwa(up,ew,ns) = enhancement_factor * arrfact(1) * exp(arrfact(3)/(tempcor + trpt))
+                     flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + trpt))
                   else
-                     flwa(up,ew,ns) = enhancement_factor * arrfact(2) * exp(arrfact(4)/(tempcor + trpt))
+                     flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + trpt))
                   endif
 
                   ! BDM added correction for a liquid water fraction 
@@ -2150,7 +2172,7 @@ module glissade_therm
                ! Calculate Glen's A with a fixed temperature (including flow enhancement factor)
 
 !!               if (const_temp >= -10.d0) then
-                  flwa(:,ew,ns) = enhancement_factor * arrfact(1) * exp(arrfact(3)/(const_temp + trpt))
+                 flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + trpt))
 !!               else
 !!                  flwa(:,ew,ns) = enhancement_factor * arrfact(2) * exp(arrfact(4)/(const_temp + trpt))
 !!               endif
