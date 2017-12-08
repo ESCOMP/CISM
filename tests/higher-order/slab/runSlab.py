@@ -41,8 +41,10 @@ parser.add_argument('-c','--config', default='./slab.config',
         help="The configure file used to setup the test case and run CISM")
 parser.add_argument('-e','--executable', default='./cism_driver', 
         help="The CISM driver")
-parser.add_argument('--hpc', action='store_true',
-        help="Shortcuts parallel run command lookup for High Performance Computing Systems. Will set run command to `time apirun -n N`.")
+parser.add_argument('--hpc', nargs='?', const='aprun',
+        help=" ".join(["Flag to Shortcut parallel run command lookup for High Performance Computing Systems.", 
+                       "If flag apears without an argument, it will set run command to `aprun`,", 
+                       "otherwise it will use the argument given."]))
 parser.add_argument('-m', '--modifier', metavar='MOD', default='',
         help="Add a modifier to file names. FILE.EX will become FILE.MOD.EX")
 parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=0, 
@@ -86,7 +88,7 @@ def prep_commands(args, config_name):
     commands.append("cd "+os.path.abspath(args.output_dir))
     
     if args.hpc and (args.parallel > 0):
-        mpiexec = 'aprun -n ' + str(args.parallel)+" "
+        mpiexec = args.hpc+' -n ' + str(args.parallel)+" "
     elif (args.parallel > 0):
         # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure
         if os.system('which openmpirun > /dev/null') == 0:

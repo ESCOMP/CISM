@@ -105,7 +105,9 @@ perf_dict = {
 # HPC PLATFORM DICTIONARIES
 # =========================
 # There should be a dictionary for each supported HPC platform which specifies 
-# the default batch scheduler options to use. 
+# the default batch scheduler options to use. Additionally, there is an
+# optional 'RUN_CMD' key whose value will replace the run command ('aprun' is
+# the default).
 hopper_dict = {
         'PBS_A': 'm1795',
         'PBS_q': 'regular',
@@ -132,6 +134,7 @@ cheyenne_dict = {
         'PBS_RES': 'select',
         'RES_NUM': '2:ncpus=36:mpiprocs=36',
         'PBS_walltime': '01:00:00',
+        'RUN_CMD': 'mpiexec_mpt',
         }
 
 

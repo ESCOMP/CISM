@@ -134,7 +134,7 @@ def mkdir_test(args, test_dict):
 
 def cmake(args): 
     args.cmake_dir = []
-    args.cmake_file = args.platform+'-cmake.bash'
+    args.cmake_file = args.platform+'-cmake.sh'
     spec = args.platform.split("-")
     tried = []
     for i in reversed(range(len(spec)+1)):
