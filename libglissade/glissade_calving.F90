@@ -1877,6 +1877,230 @@ contains
 
 !****************************************************************************
 
+  subroutine glissade_find_lakes(nx,           ny,             &
+                                 itest, jtest, rtest,          &
+                                 ice_mask,     floating_mask,  &
+                                 ocean_mask,   lake_mask)
+
+  ! Identify cells with basal lakes: i.e., cells that are floating but have
+  ! no connection through other floating cells to the ocean.
+
+  !TODO - Move this subroutine elsewhere (e.g., glissade_basal_traction)
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask,               & !> = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,          & !> = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask                !> = 1 where topg is below sea level and ice is absent, else = 0
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         lake_mask                 !> = 1 for floating cells disconnected from the ocean, else = 0
+
+    ! local variables
+
+    integer, dimension(nx,ny) ::  &
+         color                     ! integer 'color' for identifying icebergs
+
+    integer :: i, j
+    integer :: count, maxcount_fill  ! loop counters
+
+    logical, parameter :: verbose_lakes = .false.
+
+    !WHL - debug
+    real(dp) :: sum_fill_local, sum_fill_global
+    integer :: ig, jg
+
+    if (verbose_lakes .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_find_lakes, itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'ice_mask'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') ice_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'floating_mask'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') floating_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! initialize
+    ! Floating cells receive the initial color;
+    !  grounded cells and ice-free cells receive the boundary color.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (floating_mask(i,j) == 1) then
+             color(i,j) = initial_color
+          else    ! grounded or ice-free
+             color(i,j) = boundary_color
+          endif
+       enddo
+    enddo
+
+    ! Loop through cells, identifying floating cells that border the ocean.
+    ! Fill each such floating cell, and then recursively fill floating neighbor cells.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+
+    maxcount_fill = max(ewtasks,nstasks)
+
+    if (verbose_lakes .and. main_task) print*, 'maxcount_fill =', maxcount_fill
+
+    do count = 1, maxcount_fill
+
+       if (count == 1) then   ! identify floating cells adjacent to ocean cells, which can seed the fill
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (floating_mask(i,j) == 1) then
+                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or.   &
+                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+
+                      if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
+
+                         ! assign the fill color to this cell, and recursively fill floating neighbor cells
+                         call glissade_fill(nx,    ny,    &
+                                            i,     j,     &
+                                            color, floating_mask)
+                      endif
+                   endif  ! adjacent to ocean
+                endif  ! floating
+             enddo  ! i
+          enddo  ! j
+
+       else  ! count > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
+          !       but also must be an active cell.
+          !TODO - Only need to check whether color = fill_color?
+
+          call parallel_halo(color)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, floating_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, floating_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, floating_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, floating_mask)
+             endif
+          enddo
+
+       endif  ! count = 1
+
+       sum_fill_local = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+          enddo
+       enddo
+
+       !WHL - If running a large problem, may want to reduce the frequency of this global sum
+       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+
+       if (verbose_lakes .and. main_task) then
+          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+       endif
+
+    enddo  ! count
+
+    ! Identify lake cells: floating cells that still have the initial color.
+
+    lake_mask(:,:) = 0
+
+    do j = 1, ny
+       do i = 1, nx
+          if (color(i,j) == initial_color .and. floating_mask(i,j) == 1) then
+             lake_mask(i,j) = 1
+
+             if (verbose_lakes .and. this_rank == rtest) then
+                call parallel_globalindex(i, j, ig, jg)
+                print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
+             endif
+
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(lake_mask)
+
+    if (verbose_lakes .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'color, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = nx-10, nx
+             write(6,'(i10)',advance='no') color(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'floating_mask, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = nx-10, nx
+             write(6,'(i10)',advance='no') floating_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'lake_mask, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = nx-10, nx
+             write(6,'(i10)',advance='no') lake_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_find_lakes
+
+!****************************************************************************
+
   recursive subroutine glissade_fill(nx,  ny,         &
                                      i,   j,          &
                                      color,           &
