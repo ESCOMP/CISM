@@ -112,6 +112,12 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # ----------------------
     platform_key = args.platform.split("-")[0]
     platform_dict = dicts.hpc_dict[platform_key]
+    
+    if 'RUN_CMD' in platform_dict:
+        run_cmd = platform_dict['RUN_CMD']
+    else:
+        run_cmd = ''
+    
     perf_large_dict = dicts.perf_dict
 
     jobs_dir = os.path.join(data_dir, 'all_jobs')
@@ -138,7 +144,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
         print("   Setting up "+case+" tests")
         test_commands = ["cd "+cism_test_dir,
                 "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
-               "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" -s -n 1 --hpc",
+               "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" -s -n 1 --hpc "+run_cmd,
                "exit"] 
         
         subprocess.check_call(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
@@ -151,7 +157,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc",
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc "+run_cmd,
                         "exit"]
                 
                 subprocess.check_call(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
@@ -171,14 +177,14 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 timing_commands.extend(["cd "+cism_test_dir, 
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc "+run_cmd])
 
                 for mod in mod_dict:
                     run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
                     case_run_dir = paths.case_run_directory(case_dir, run_args)
                 
                     timing_commands.extend(["cd "+cism_test_dir, 
-                            "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
+                            "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc "+run_cmd])
        
 
     # -------------------------
@@ -223,7 +229,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 
                 test_commands = ["cd "+cism_test_dir,
                         "export PYTHONPATH=$PYTHONPATH:"+cism_test_dir,
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc",
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+mod_arg+" "+mod_dict[mod]+" -s --hpc "+run_cmd,
                         "exit"]
                
                 subprocess.check_call(str.join(" ; ",test_commands),executable='/bin/bash',shell=True)
@@ -242,14 +248,14 @@ def hpc(args, cism_driver, data_dir, test_dict):
                 
                 timing_exports.add("export PYTHONPATH=$PYTHONPATH:"+cism_test_dir)
                 large_timing_commands.extend(["cd "+cism_test_dir, 
-                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc"])
+                        "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" -s -n 1 --hpc "+run_cmd])
 
                 for mod in mod_dict:
                     run_args, ignore_args = paths.run_parser.parse_known_args(str.split(run_script," ")+mod_dict[mod].split())
                     case_run_dir = paths.case_run_directory(case_dir, run_args)
                     
                     large_timing_commands.extend(["cd "+cism_test_dir, 
-                            "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc"])
+                            "./"+run_script+" -q -e "+cism_driver+" -o "+case_run_dir+timing_mod+" "+mod_dict[mod]+" -s --hpc "+run_cmd])
  
     # -------------------------
     # Setup the large batch job

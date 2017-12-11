@@ -65,7 +65,7 @@ def mkdir_test(args, test_dict):
     Sets up a regression testing data directory that looks like:
         reg_test
         |-- PLATFORM-COMPILER
-            |-- ICE-MODEL
+            |-- ICE_MODEL
                 |-- TEST
                     |-- CASE
                         |-- DOF (degrees of freedom)
@@ -76,7 +76,7 @@ def mkdir_test(args, test_dict):
 
     #TODO: ice_model will be a indicator for which particular ice-sheet model was used.
     #      right now, this is a rather moot point as BATS only works for CISM-GLISADE
-    ice_model = "CISM-glissade"
+    ice_model = "CISM_glissade"
     data_dir = os.path.join(args.out_dir, args.platform, ice_model)
 
     # make the output directories softly
@@ -134,7 +134,7 @@ def mkdir_test(args, test_dict):
 
 def cmake(args): 
     args.cmake_dir = []
-    args.cmake_file = args.platform+'-cmake.bash'
+    args.cmake_file = args.platform+'-cmake.sh'
     spec = args.platform.split("-")
     tried = []
     for i in reversed(range(len(spec)+1)):

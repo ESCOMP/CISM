@@ -94,7 +94,7 @@ test_dict = {
         'higher-order/ismip-hom 20 ismip-hom-c': ('runISMIP_HOM.py -r c --size 20', keep_empty),
         'higher-order/ismip-hom 80 ismip-hom-a': ('runISMIP_HOM.py -r a --size 80', keep_empty),
         'higher-order/ismip-hom 80 ismip-hom-c': ('runISMIP_HOM.py -r c --size 80', keep_empty),
-        'higher-order/ismip-hom 0 ismip-hom-f': ('runISMIP_HOM.py -r f', keep_empty),
+        'higher-order/ismip-hom 0 ismip-hom-f': ('runISMIP_HOM.py -r f --size 0', keep_empty),
         'higher-order/stream stream': ('runStream.py', stream_perf_small),
         }
 
@@ -105,7 +105,9 @@ perf_dict = {
 # HPC PLATFORM DICTIONARIES
 # =========================
 # There should be a dictionary for each supported HPC platform which specifies 
-# the default batch scheduler options to use. 
+# the default batch scheduler options to use. Additionally, there is an
+# optional 'RUN_CMD' key whose value will replace the run command ('aprun' is
+# the default).
 hopper_dict = {
         'PBS_A': 'm1795',
         'PBS_q': 'regular',
@@ -125,6 +127,16 @@ titan_dict = {
         'PBS_walltime': '01:00:00',
         }
 
+cheyenne_dict = {
+        'PBS_A': 'P93300601',
+        'PBS_q': 'regular',
+        'PBS_N': 'reg_test_all',
+        'PBS_RES': 'select',
+        'RES_NUM': '2:ncpus=36:mpiprocs=36',
+        'PBS_walltime': '01:00:00',
+        'RUN_CMD': 'mpiexec_mpt',
+        }
+
 
 # MAIN HPC DICTIONARY
 # ===================
@@ -132,4 +144,5 @@ titan_dict = {
 hpc_dict = {
         'titan': titan_dict,
         'hopper': hopper_dict,
+        'cheyenne': cheyenne_dict,
         }

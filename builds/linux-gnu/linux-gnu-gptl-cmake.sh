@@ -1,9 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
-# This cmake configuration script builds cism_driver on a Mac using the Gnu compiler suite.
-# If Trilinos is used, it relies on a build of Trilinos located in $CISM_TRILINOS_DIR (set below).
-# If BISICLES is used, it relies on a build of BISICLES located in $BISICLES_INTERFACE_DIR (set below).
-
+# cmake configuration script that works on the Linux box in Matt's office (blueskies) with GCC
+# Others will need to modify the Netcdf path.
+# This config script is setup to perform a parallel build with Trilinos.
+#
 # BUILD OPTIONS:
 # The call to cmake below includes several input ON/OFF switch parameters, to
 # provide a simple way to select different build options.  These are:
@@ -28,11 +28,14 @@ if [ $# -eq 0 ]
 then
     cism_top="../.." 
 else
-    cism_top=${1}
+    cism_top=${1%/}
 fi
 
+
+echo CISM: "${cism_top}"
+
 echo
-echo Run this script by typing: source mac-gnu-cmake
+echo Run this script by typing: source linux-gnu-cism-cmake
 echo
 echo Set CISM_TRILINOS_DIR to your Trilinos installation directory.
 echo
@@ -49,30 +52,30 @@ cmake \
   -D CISM_ENABLE_BISICLES=OFF \
   -D CISM_ENABLE_FELIX=OFF \
 \
-  -D CISM_USE_TRILINOS:BOOL=${CISM_USE_TRILINOS:=OFF} \
+  -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=ON}" \
   -D CISM_MPI_MODE:BOOL=ON \
   -D CISM_SERIAL_MODE:BOOL=OFF \
 \
-  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
+  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=ON \
   -D CISM_COUPLED:BOOL=OFF \
 \
-  -D CISM_TRILINOS_DIR=$CISM_TRILINOS_DIR \
-  -D CISM_NETCDF_DIR=/opt/local \
-  -D CISM_MPI_BASE_DIR=/opt/local \
-  -D CISM_MPI_INC_DIR=/opt/local/lib \
-  -D CISM_EXTRA_LIBS="-lblas" \
+  -D CISM_GPTL_DIR="utils/libgptl" \
 \
-  -D CMAKE_INSTALL_PREFIX:PATH=$PWD/install \
-  -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
-  -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
+  -D CISM_TRILINOS_DIR="$CISM_TRILINOS_DIR" \
+  -D CISM_NETCDF_DIR="/usr" \
+  -D CISM_NETCDF_LIBS="netcdff" \
+\
+  -D CMAKE_Fortran_FLAGS="-g -O2 -ffree-line-length-none -fPIC -fno-range-check" \
 \
   -D CMAKE_CXX_COMPILER=mpicxx \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
 \
-  -D CMAKE_CXX_FLAGS="" \
-  -D CMAKE_Fortran_FLAGS="-g -O2 -ffree-line-length-none" \
+  -D CISM_EXTRA_LIBS:STRING="-lblas" \
 \
-  -D BISICLES_INTERFACE_DIR=~/BISICLES/CISM-interface/interface \
-  ${cism_top}
+  -D CISM_MPI_INC_DIR=/usr/lib/openmpi/lib \
+  -D CISM_MPI_LIB_DIR=/usr/lib/openmpi/lib \
+\
+  -D CMAKE_VERBOSE_MAKEFILE=OFF \
+  "${cism_top}"
 

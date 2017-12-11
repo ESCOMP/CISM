@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # After this executes, do:
 #   make -j 8
@@ -12,45 +12,47 @@ if [ $# -eq 0 ]
 then
     cism_top="../.." 
 else
-    cism_top=${1}
+    cism_top=${1%/}
 fi
 
-echo CISM: ${cism_top}
+echo CISM: "${cism_top}"
 
-
-export CRAY_CPU_TARGET=istanbul
-
-source $MODULESHOME/init/bash
 
 module unload cmake
-module unload cray-hdf5 
+module unload cray-hdf5
 module unload cray-hdf5-parallel
 module unload netcdf
 module unload python
 module unload cray-shmem
 module unload cray-mpich cray-mpich2
-module unload netcdf-hdf5parallel cray-netcdf-hdf5parallel cray-parallel-netcdf cray-hdf5-parallel
-module unload boost 
+module unload netcdf-hdf5parallel cray-netcdf-hdf5parallel cray-parallel-netcdf
+module unload boost
 module unload pgi
 module unload PrgEnv-cray PrgEnv-gnu PrgEnv-intel PrgEnv-pathscale PrgEnv-pgi
 
-module load modules
-module load cmake/2.8.11.2
+module load modules/3.2.10.2
+module load cmake/3.1.3
 module load PrgEnv-pgi/5.2.40
 module unload pgi
-module load cray-shmem
-module load cray-mpich
+module load cray-shmem/7.1.1
+module load cray-mpich/7.1.1
 module load pgi/14.2.0
-module load cray-hdf5-parallel/1.8.13
 module load cray-netcdf-hdf5parallel/4.3.2
-module load python
-module load boost/1.57.0
+module load cray-parallel-netcdf/1.5.0
+module load python/2.7.9
+module load boost/1.57
 
-echo module list
+module list
+
 
 # remove old build data:
-rm -f ./CMakeCache.txt
+rm -rf ./CMakeCache.txt
 rm -rf ./CMakeFiles
+
+# This cmake configuration script builds cism_driver
+# on hopper using the PGI compiler suite.  It no longer relies on a build
+# of Trilinos, but does need a BISICLES build located in BISICLES_INTERFACE_DIR
+# (currently set to /global/u2/d/dmartin/BISICLES/code/interface)
 
 # BUILD OPTIONS:
 # The call to cmake below includes several input ON/OFF switch parameters, to
@@ -64,26 +66,29 @@ rm -rf ./CMakeFiles
 # CISM_USE_GPTL_INSTRUMENTATION -- ON by default, set to OFF to not use GPTL instrumentation.
 # CISM_COUPLED -- OFF by default, set to ON to build with CESM.
 
+
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
   -D CISM_ENABLE_BISICLES=OFF \
   -D CISM_ENABLE_FELIX=OFF \
 \
-  -D CISM_USE_TRILINOS:BOOL=${CISM_USE_TRILINOS:=ON} \
+  -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=ON}" \
   -D CISM_MPI_MODE:BOOL=ON \
   -D CISM_SERIAL_MODE:BOOL=OFF \
 \
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=ON \
   -D CISM_COUPLED:BOOL=OFF \
 \
-  -D CISM_TRILINOS_DIR=/lustre/atlas/world-shared/cli900/cesm/software/Trilinos/Trilinos-11.12.1_gptl/titan-pgi-ci-nophal/install \
-  -D CISM_TRILINOS_GPTL_DIR=/lustre/atlas/world-shared/cli900/cesm/software/Trilinos/Trilinos-11.12.1_gptl/titan-pgi-ci-nophal/install \
-  -D CISM_TRILINOS_ALBANY_DIR=/lustre/atlas/world-shared/cli900/cesm/software/Trilinos/Trilinos-11.12.1_gptl/titan-pgi-ci-nophal/install \
+  -D CISM_TRILINOS_DIR=/project/projectdirs/piscees/trilinos-default/hopper-pgi/install \
+  -D CISM_TRILINOS_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/Trilinos-11.12.1/hopper-pgi-ci-nophal/install \
+  -D CISM_TRILINOS_ALBANY_DIR=/project/projectdirs/piscees/trilinos-default/hopper-pgi-albany/install \
 \
-  -D CISM_GPTL_DIR=/lustre/atlas/world-shared/cli900/cesm/software/libgptl/libgptl-titan-pgi \
-  -D CISM_NETCDF_DIR=/opt/cray/netcdf-hdf5parallel/4.3.2/PGI/141 \
+  -D CISM_NETCDF_DIR="$NETCDF_DIR" \
+  -D CISM_MPI_BASE_DIR="$MPICH_DIR" \
 \
-  -D CMAKE_INSTALL_PREFIX:PATH=$cism_top/builds/titan-gnu/install \
+  -D CISM_FMAIN=/opt/pgi/14.2.0/linux86-64/14.2/lib/f90main.o \
+\
+  -D CMAKE_INSTALL_PREFIX:PATH="$cism_top/builds/hopper-pgi/install" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
 \
@@ -91,13 +96,25 @@ cmake \
   -D CMAKE_C_COMPILER=cc \
   -D CMAKE_Fortran_COMPILER=ftn \
 \
-  -D CMAKE_CXX_FLAGS:STRING="-fast -Kieee --diag_suppress 554,111,611" \
-  -D CISM_Fortran_FLAGS:STRING="-fast -Kieee" \
-  -D CISM_FMAIN=/opt/pgi/14.2.0/linux86-64/14.2/lib/f90main.o \
+  -D CISM_SCI_LIB_DIR="$CRAY_LIBSCI_PREFIX_DIR/lib" \
+  -D CISM_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/libgptl/libgptl-hopper-pgi \
+\
+  -D CMAKE_CXX_FLAGS:STRING="-O2 -mp --diag_suppress 554,111,611 -DH5_USE_16_API" \
+  -D CISM_Fortran_FLAGS:STRING="-O2 -mp" \
   -D BISICLES_LIB_SUBDIR=libpgi \
-  -D BISICLES_INTERFACE_DIR=$cism_top/../BISICLES/CISM-interface/interface \
+  -D BISICLES_INTERFACE_DIR="$cism_top/../BISICLES/CISM-interface/interface" \
   -D CISM_MPI_LIBS:STRING="mpichf90" \
-  -D CISM_USE_CXX_IMPLICIT_LIBS:BOOL=OFF \
   -D CISM_STATIC_LINKING:BOOL=ON \
-  ${cism_top}
+  "${cism_top}"
+
+
+###
+
+# This line must be added for working Trilinos build; must be absent for build without Trilinos
+
+#  -D CISM_FMAIN=/opt/pgi/14.2.0/linux86-64/14.2/lib/f90main.o \
+
+# This is Pat's old line, wich NERSC help recommended be replaced with env var $MPI_DIR
+
+#  -D CISM_MPI_BASE_DIR=$CRAY_MPICH2_DIR \
 
