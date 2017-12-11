@@ -107,6 +107,7 @@ contains
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
+    use glissade_calving, only: glissade_find_lakes  !TODO - Move this subroutine?
     use glimmer_paramets, only: thk0, len0, tim0, evs0
     use felix_dycore_interface, only: felix_velo_init
 
@@ -123,7 +124,13 @@ contains
     real(dp) :: var_maxval   ! max value of a given variable; = 0 if not yet read in
     integer :: i, j, k
     logical :: l_evolve_ice  ! local version of evolve_ice
-    integer, dimension(:,:), allocatable :: ice_mask
+    integer, dimension(:,:), allocatable :: &
+         ice_mask,          & ! = 1 where ice is present, else = 0
+         floating_mask,     & ! = 1 where ice is present and floating, else = 0
+         ocean_mask,        & ! = 1 if topg is below sea level and ice is absent, else = 0
+         lake_mask            ! = 1 for floating cells disconnected from the ocean 
+
+    integer :: itest, jtest, rtest
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -507,6 +514,11 @@ contains
        endwhere
     endif
 
+    ! Set debug diagnostics
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+
     ! initialize the calving scheme as needed
     ! Currently, only the CALVING_GRID_MASK option requires initialization
     ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0
@@ -543,8 +555,7 @@ contains
                                model%options%which_ho_calving_front, &
                                model%options%remove_icebergs,     &
                                model%options%limit_marine_cliffs, &
-                               model%numerics%idiag_local, model%numerics%jdiag_local,   &
-                               model%numerics%rdiag_local,                               &
+                               itest, jtest, rtest,             &
                                model%geometry%thck,             &
                                model%isostasy%relx,             &
                                model%geometry%topg,             &
@@ -596,6 +607,8 @@ contains
 
     if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
+       !TODO - Move the following code to an inversion_init subroutine?
+
        ! Save the initial ice thickness, if it will be used as the observational target for inversion.
        ! Note: If calving is done at initialization, the target is the post-calving thickness.
        !       The inversion will not try to put ice where, e.g., initial icebergs are removed.
@@ -613,9 +626,13 @@ contains
        call parallel_halo(model%geometry%thck_obs)
 
        ! Initialize a mask for inversion.
-       ! Basal melting will be applied wherever the observed target ice is floating.
+       ! Basal melting will be applied wherever the observed target ice is floating,
+       !  provided the floating ice has a connection to the ocean.
 
-       allocate(ice_mask(model%general%ewn, model%general%nsn))  ! required argument for subroutine
+       allocate(ice_mask(model%general%ewn, model%general%nsn))
+       allocate(floating_mask(model%general%ewn, model%general%nsn))
+       allocate(ocean_mask(model%general%ewn, model%general%nsn))
+       allocate(lake_mask(model%general%ewn, model%general%nsn))
 
        call glissade_get_masks(model%general%ewn, model%general%nsn, &
                                model%geometry%thck_obs*thk0,         &
@@ -623,7 +640,21 @@ contains
                                model%climate%eus*thk0,               &
                                0.0d0,                                &  ! thklim = 0
                                ice_mask,                             &
-                               floating_mask = model%basal_melt%bmlt_inversion_mask)
+                               floating_mask = floating_mask,        &
+                               ocean_mask = ocean_mask)
+
+       ! Identify floating cells that will not be restored to the target thickness
+
+       call glissade_find_lakes(model%general%ewn, model%general%nsn, &
+                                itest,   jtest,    rtest,             &
+                                ice_mask,          floating_mask,     &
+                                ocean_mask,        lake_mask)
+
+       where (floating_mask == 1 .and. lake_mask == 0)
+          model%basal_melt%bmlt_inversion_mask = 1
+       elsewhere
+          model%basal_melt%bmlt_inversion_mask = 0
+       endwhere
 
        !TODO - Modify bmlt_inversion_mask adjacent to land cells.
 
