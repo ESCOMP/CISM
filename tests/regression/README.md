@@ -117,45 +117,38 @@ will then run a set of CISM's higher-order tests:
 * Stream
 
 All of the files associated with each test will be output to a directory called
-`reg_test/titan-gnu/` which has a directory structure that mirrors CISM's test
-directory structure: 
+`reg_test/titan-gnu/CISM_glissade/` which has a leaf-node directory structure that 
+provides some metadata for each test: 
 
 ```sh
  reg_test/
     └── PLATFORM-COMPILER/
-        ├── CMakeCache.txt
-        ├── higher-order/
-        │    ├── dome/
-        │    │   ├── dome.RESO.pPRC.*
-        │    │   └── timing/
-        │    │       └── dome-t?.RESO.pPRC.*
-        │    ├── ismip-hom
-        │    │   ├── ismip-hom-a.RESO.pPRC.*
-        │    │   ├── ismip-hom-c.RESO.pPRC.*
-        │    │   └── ismip-hom-f.0100.pPRC.*
-        │    ├── shelf
-        │    │   ├── shelf-circular.RESO.pPRC.*
-        │    │   └── shelf-confined.RESO.pPRC.*
-        │    └── stream
-        │        └── stream.RESO.pPRC.*
-    --------------------------------------------
-        ├── Jobs/
-        │    ├── platform_job.small
-        │    ├── platform_job.small_timing_?
-        │    ├── platform_job.large
-        │    └── platform_job.large_timing_?
-        ├── submit_all_jobs.bash
-        └── clean_timing.bash
+        └── CISM_glissade/
+            ├── CMakeCache.txt
+            |-- TEST/
+                |-- CASE/
+                    |-- DOF/ (degrees of freedom)
+                        |-- PROCESSORS/
+                            |-- [OPTIONAL TEST SPECIFIC DIRS]
+                                |-- files.ext
+        --------------------------------------------
+            ├── all_jobs/
+            │    ├── platform_job.small
+            │    ├── platform_job.small_timing_?
+            │    ├── platform_job.large
+            │    └── platform_job.large_timing_?
+            ├── submit_all_jobs.bash
+            └── clean_timing.bash
 ```
 
-where `RESO` is a four-digit number indicating the model resolution (units are
-test specific), and `pPRC` is an optional three-digit number, prefixed by a
-`p`, indicating the number of processors used to run the model. Everything
-below the dashed line will only appear on HPC systems. `submit_all_jobs.bash`
-will submit all the jobs in the `jobs/` directory and `clean_timing.bash` will
-clean out any `higher-order/*/timing/` directory such that only the timing
-files remain (to be used once all jobs have finished). This
-`reg_test/titan-gnu/` directory is formatted to be used with LIVVkit directly. 
+where `DOF` is an s-prefixed integer indicating the test's size (units are test
+specific), and `PROCESSORS` is p-prefixed integer indicating the number of
+processors used to run the test. Everything below the dashed line will only
+appear on HPC systems. `submit_all_jobs.bash` will submit all the jobs in the
+`jobs/` directory and `clean_timing.bash` will clean out any repeated test run
+for performance profiling such that only the timing files remain (to be used
+once all jobs have finished). This `reg_test/titan-gnu/CISM_glissade`
+directory is formatted to be used with LIVVkit 2.1+ directly. 
 
 BATS is designed to be flexible and work with any LIVVkit usage scenario. In
 order to do that, BATS provides a number of options to configure which system

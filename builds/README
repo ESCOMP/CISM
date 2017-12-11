@@ -1,4 +1,4 @@
-The seacism/builds directory is intended to contain cmake builds of CISM for the
+The cism/builds directory is intended to contain cmake builds of CISM for the
 most common platform/compiler-suite combinations.  Each subdirectory of this
 directory should contain a README file and a configure script file whose name
 is <directory name>-cmake, for example, hopper-pgi-cmake.  The README

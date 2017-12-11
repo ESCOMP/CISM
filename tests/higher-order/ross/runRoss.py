@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 #FIXME: More detailed description of this test case!!!
 """
@@ -37,8 +37,10 @@ parser.add_argument('-c','--config', default='./ross.config',
         help="The configure file used to setup the test case and run CISM")
 parser.add_argument('-e','--executable', default='./cism_driver', 
         help="The CISM driver")
-parser.add_argument('--hpc', action='store_true',
-        help="Shortcuts parallel run command lookup for High Performance Computing Systems. Will set run command to `time apirun -n N`.")
+parser.add_argument('--hpc', nargs='?', const='aprun',
+        help=" ".join(["Flag to Shortcut parallel run command lookup for High Performance Computing Systems.", 
+                       "If flag apears without an argument, it will set run command to `aprun`,", 
+                       "otherwise it will use the argument given."]))
 parser.add_argument('-m', '--modifier', metavar='MOD', default='',
         help="Add a modifier to file names. FILE.EX will become FILE.MOD.EX")
 parser.add_argument('-n','--parallel', metavar='N', type=unsigned_int, default=0, 
@@ -80,7 +82,7 @@ def prep_commands(args, config_name):
     commands.append("cd "+os.path.abspath(args.output_dir))
     
     if args.hpc and (args.parallel > 0):
-        mpiexec = 'aprun -n ' + str(args.parallel)+" "
+        mpiexec = args.hpc+' -n ' + str(args.parallel)+" "
     elif (args.parallel > 0):
         # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure
         if os.system('which openmpirun > /dev/null') == 0:
@@ -217,27 +219,26 @@ def main():
         # Read the main data file into a dictionary mapping names to lists (of lists)
         # The dictionary keys are the headers that begin each section in the file
         inputname = os.path.join('data','111by147Grid.dat')
-        inputfile = open(inputname)
-        if not args.quiet:
-            print("\nReading: "+inputname)
-        
-        currentKey = None
-        currentList = list()
-        data = dict()
-        for line in inputfile:
-            line = line.strip()
-            if line.startswith('#'):
-                if currentKey != None:
-                    data[currentKey] = currentList
-                    currentList = list()
-                currentKey = line[1:].strip().lower()
-            elif len(line) > 0:
-                if line.find('.') > 0:
-                    currentList.append([float(x) for x in line.split()])
-                else:
-                    currentList.append([int(x) for x in line.split()])
-        data[currentKey] = currentList
-        inputfile.close()
+        with open(inputname) as inputfile:
+            if not args.quiet:
+                print("\nReading: "+inputname)
+            
+            currentKey = None
+            currentList = list()
+            data = dict()
+            for line in inputfile:
+                line = line.strip()
+                if line.startswith('#'):
+                    if currentKey != None:
+                        data[currentKey] = currentList
+                        currentList = list()
+                    currentKey = line[1:].strip().lower()
+                elif len(line) > 0:
+                    if line.find('.') > 0:
+                        currentList.append([float(x) for x in line.split()])
+                    else:
+                        currentList.append([int(x) for x in line.split()])
+            data[currentKey] = currentList
 
         if not args.quiet:
             print("The "+str(len(data.keys()))+" data fields read from 111by147Grid.dat are:")
@@ -268,12 +269,10 @@ def main():
         if not args.quiet:
             print("\nReading"+inputname)
         
-        inputfile = open(inputname)
-        for line in inputfile:
-            i,j = map(int,line.split())
-            kbc_mask[i,j] = 1   # 1=where we have Dirichlet; 0=otherwise
-        inputfile.close()
-        
+        with open(inputname) as inputfile:
+            for line in inputfile:
+                i,j = map(int,line.split())
+                kbc_mask[i,j] = 1   # 1=where we have Dirichlet; 0=otherwise
 
         if not args.quiet:
             print(str(numpy.sum(kbc_mask))+" points were read from kbc.dat")
@@ -284,26 +283,26 @@ def main():
             print("\nReading "+filename)
 
         counter = [0,0]
-        inputfile = open(filename)
-        for line in inputfile:
-            i, j, azimuth, magnitude = line.split()
-            i,j = map(int,(i,j))
-            if use_inlets == 'reverse':
-                magnitude,azimuth = map(float,(azimuth,magnitude))
-            else:
-                azimuth,magnitude = map(float,(azimuth,magnitude))
-            if use_inlets:
+        with open(filename) as inputfile:
+            for line in inputfile:
+                i, j, azimuth, magnitude = line.split()
+                i,j = map(int,(i,j))
+                if use_inlets == 'reverse':
+                    magnitude,azimuth = map(float,(azimuth,magnitude))
+                else:
+                    azimuth,magnitude = map(float,(azimuth,magnitude))
+                if use_inlets:
+                    if not args.quiet:
+                        indices = '(%d,%d):' % (i,j)
+                        print("Changing azimuth at "+indices+str(data["ice velocity azimuth grid"][i][j])+"->"+str(azimuth))
+                        print("Changing velocity at"+indices+str(data["ice velocity magnitude"][i][j])+"->"+str(magnitude))
+                    data['ice velocity azimuth grid'][i][j] = azimuth
+                    data['ice velocity magnitude'][i][j] = magnitude
+                counter[kbc_mask[i,j]] += 1
                 if not args.quiet:
-                    indices = '(%d,%d):' % (i,j)
-                    print("Changing azimuth at "+indices+str(data["ice velocity azimuth grid"][i][j])+"->"+str(azimuth))
-                    print("Changing velocity at"+indices+str(data["ice velocity magnitude"][i][j])+"->"+str(magnitude))
-                data['ice velocity azimuth grid'][i][j] = azimuth
-                data['ice velocity magnitude'][i][j] = magnitude
-            counter[kbc_mask[i,j]] += 1
-            if not args.quiet:
-                print(str(i)+","+str(j)+": "+str(kbc_mask[i,j]) )
-            kbc_mask[i,j] += 2
-        inputfile.close()
+                    print(str(i)+","+str(j)+": "+str(kbc_mask[i,j]) )
+                kbc_mask[i,j] += 2
+        
         print("inlets.dat contains"+str(counter[0])+"points that are not in kbc.dat")
         print("inlets.dat contains"+str(counter[1])+"points that are in kbc.dat")
 
@@ -518,13 +517,11 @@ def main():
     else:
         run_script = args.output_dir+os.sep+root+mod+".run" 
         
-        run_file = open(run_script,'w') 
-        
-        run_file.write('#!/bin/bash \n')
-        for command in commands_all:
-            run_file.write(command+" \n")
+        with open(run_script,'w') as run_file:
+            run_file.write('#!/usr/bin/env bash \n \n')
+            for command in commands_all:
+                run_file.write(command+" \n")
 
-        run_file.close()
         os.chmod(run_script, 0o755)   # uses an octal number!
 
         if not args.quiet:
