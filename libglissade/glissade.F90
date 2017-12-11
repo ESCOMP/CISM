@@ -519,20 +519,6 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
-    ! initialize the calving scheme as needed
-    ! Currently, only the CALVING_GRID_MASK option requires initialization
-    ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0
-
-    if (model%options%whichcalving == CALVING_GRID_MASK .and. model%options%is_restart == RESTART_FALSE) then
-
-       call glissade_calving_mask_init(&
-                                       model%numerics%dew*len0,       model%numerics%dns*len0,        &
-                                       model%geometry%thck*thk0,      model%geometry%topg*thk0,       &
-                                       model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
-                                       model%calving%calving_front_x, model%calving%calving_front_y,  &
-                                       model%calving%calving_mask)
-    endif
-
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
@@ -546,6 +532,8 @@ contains
        !        which if true can remove floating peninsulas in the input data by
        !        preceding the call to remove_icebergs with removal of one or more
        !        layers of calving_front cells.
+       !       Culling may also be used to remove a row of thin cells (~1 m)
+       !        at the calving front, as present in some input data sets.
        !       The call to calving during glissade_tstep does not include this argument,
        !        since we do not want to remove calving_front cells every timestep.
        ! ------------------------------------------------------------------------        
@@ -596,6 +584,21 @@ contains
                            model%geometry%iarea, model%geometry%ivol)
 
     endif  ! initial calving
+
+    ! Initialize the no-advance calving_mask, if desired
+    ! Note: This is done after initial calving, which may include iceberg removal or front culling.
+    !       The calving front that exists after initial culling is the one that is held fixed during the simulation.
+    ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0.
+
+    if (model%options%whichcalving == CALVING_GRID_MASK .and. model%options%is_restart == RESTART_FALSE) then
+
+       call glissade_calving_mask_init(&
+                                       model%numerics%dew*len0,       model%numerics%dns*len0,        &
+                                       model%geometry%thck*thk0,      model%geometry%topg*thk0,       &
+                                       model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
+                                       model%calving%calving_front_x, model%calving%calving_front_y,  &
+                                       model%calving%calving_mask)
+    endif
 
     ! Note: The DIVA solver needs a halo update for effective viscosity.
     !       This is done at the end of glissade_diagnostic_variable_solve, which in most cases is sufficient.
@@ -1565,7 +1568,7 @@ contains
              print*, ' '
              print*, 'bmlt_inversion_mask:'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(i12)',advance='no') model%basal_melt%bmlt_inversion_mask(i,j)
                 enddo
                 write(6,*) ' '
@@ -1573,7 +1576,7 @@ contains
              print*, ' '
              print*, 'floating_mask:'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(i12)',advance='no') floating_mask(i,j)
                 enddo
                 write(6,*) ' '
@@ -1581,7 +1584,7 @@ contains
              print*, ' '
              print*, 'thck (m):'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
                 enddo
                 write(6,*) ' '
@@ -1589,7 +1592,7 @@ contains
              print*, ' '
              print*, 'thck - thck_obs (m):'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(f12.5)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
                 enddo
                 write(6,*) ' '
@@ -1597,7 +1600,7 @@ contains
              print*, ' '
              print*, 'thck_flotation (m):'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(f12.5)',advance='no') -(rhoo/rhoi)*model%geometry%topg(i,j)*thk0
                 enddo
                 write(6,*) ' '
@@ -1605,12 +1608,11 @@ contains
              print*, ' '
              print*, 'bmlt_float_inversion (m/yr):'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(f12.5)',advance='no') model%basal_melt%bmlt_float_inversion(i,j)*scyr
                 enddo
                 write(6,*) ' '
              enddo
-
 
           endif
 
@@ -1645,7 +1647,7 @@ contains
              print*, ' '
              print*, 'thck (m):'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
                 enddo
                 write(6,*) ' '
@@ -1653,7 +1655,7 @@ contains
              print*, ' '
              print*, 'thck - thck_obs (m):'
              do j = jtest+3, jtest-3, -1
-                do i = itest-4, itest+4
+                do i = itest-3, itest+3
                    write(6,'(f12.5)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
                 enddo
                 write(6,*) ' '
