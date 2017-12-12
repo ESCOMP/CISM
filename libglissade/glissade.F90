@@ -128,6 +128,7 @@ contains
          ice_mask,          & ! = 1 where ice is present, else = 0
          floating_mask,     & ! = 1 where ice is present and floating, else = 0
          ocean_mask,        & ! = 1 if topg is below sea level and ice is absent, else = 0
+         land_mask,         & ! = 1 if topg is at or above sea level, else = 0
          lake_mask            ! = 1 for floating cells disconnected from the ocean 
 
     integer :: itest, jtest, rtest
@@ -634,6 +635,7 @@ contains
 
        allocate(ice_mask(model%general%ewn, model%general%nsn))
        allocate(floating_mask(model%general%ewn, model%general%nsn))
+       allocate(land_mask(model%general%ewn, model%general%nsn))
        allocate(ocean_mask(model%general%ewn, model%general%nsn))
        allocate(lake_mask(model%general%ewn, model%general%nsn))
 
@@ -644,7 +646,8 @@ contains
                                0.0d0,                                &  ! thklim = 0
                                ice_mask,                             &
                                floating_mask = floating_mask,        &
-                               ocean_mask = ocean_mask)
+                               ocean_mask = ocean_mask,              &
+                               land_mask = land_mask)
 
        ! Identify floating cells that will not be restored to the target thickness
 
@@ -653,13 +656,25 @@ contains
                                 ice_mask,          floating_mask,     &
                                 ocean_mask,        lake_mask)
 
-       where (floating_mask == 1 .and. lake_mask == 0)
-          model%basal_melt%bmlt_inversion_mask = 1
-       elsewhere
-          model%basal_melt%bmlt_inversion_mask = 0
-       endwhere
+       model%basal_melt%bmlt_inversion_mask(:,:) = 0
 
-       !TODO - Modify bmlt_inversion_mask adjacent to land cells.
+       do j = 2, model%general%nsn-1
+          do i = 2, model%general%ewn-1
+             if (floating_mask(i,j) == 1) then
+                ! check for land neighbors
+                if (land_mask(i-1,j) == 1 .or. land_mask(i+1,j) == 1 .or. &
+                    land_mask(i,j-1) == 1 .or. land_mask(i,j+1) == 1) then
+                   ! mask = 0; do not invert for bmlt_float
+                elseif (lake_mask(i,j) == 1) then
+                   ! mask = 0; do not invert for bmlt_float
+                else
+                   model%basal_melt%bmlt_inversion_mask(i,j) = 1
+                endif
+             endif
+          enddo
+       enddo
+
+       call parallel_halo(model%basal_melt%bmlt_inversion_mask)
 
        ! Check whether powerlaw_c_2d has been read in already.
        ! If not, then set to a constant value.
