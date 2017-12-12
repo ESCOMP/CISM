@@ -277,7 +277,7 @@
                    !  and choose the minimum nonzero thickness
                    do jj = j-1, j+1
                       do ii = i-1, i+1
-                         if (ii == i .or. jj == j) then  ! edge neighbors only
+                         if ((ii == i .or. jj == j) .and. (ii /= i .or. jj /= j)) then  ! edge neighbors
                             if ( (grounded_mask(ii,jj) == 1 .and. topg(ii,jj) < eus) .or. &
                                  floating_interior_mask(ii,jj) == 1) then
                                if (thck_calving_front(i,j) > 0.0d0) then
@@ -321,22 +321,34 @@
 
           if (present(active_ice_mask)) then
 
+             if (.not.present(land_mask)) then
+                call write_log('Must pass land_mask to compute active_ice_mask with calving-front option', GM_FATAL)
+             endif
+
              ! reset active_ice_mask
              active_ice_mask(:,:) = 0
 
-             ! Mark ice-filled cells as active, except cells on the calving front with thck < thck_calving front.
-             do j = 1, ny
-                do i = 1, nx
+             ! Mark ice-filled cells as active.
+             ! Calving-front cells, however, are inactive, unless they have thck >= thck_calving front or
+             !  are adjacent to land cells.
+             do j = 2, ny-1
+                do i = 2, nx-1
                    if (ice_mask(i,j) == 1) then
                       if (calving_front_mask(i,j) == 0) then
                          active_ice_mask(i,j) = 1
-                      elseif (calving_front_mask(i,j) == 1 .and.   &
-                              thck_calving_front(i,j) > 0.0d0 .and. thck(i,j) >= thck_calving_front(i,j)) then 
-                         active_ice_mask(i,j) = 1
+                      elseif (calving_front_mask(i,j) == 1) then
+                         if (thck_calving_front(i,j) > 0.0d0 .and. thck(i,j) >= thck_calving_front(i,j)) then 
+                            active_ice_mask(i,j) = 1
+                         elseif (land_mask(i-1,j) == 1 .or. land_mask(i+1,j) == 1 .or. &
+                                 land_mask(i,j-1) == 1 .or. land_mask(i,j+1) == 1) then
+                            active_ice_mask(i,j) = 1
+                         endif
                       endif
                    endif  ! ice_mask
                 enddo
              enddo
+
+             call parallel_halo(active_ice_mask)
 
           endif   ! active_ice_mask is present
  
