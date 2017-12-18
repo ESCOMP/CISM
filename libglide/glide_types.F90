@@ -1108,7 +1108,7 @@ module glide_types
      !> holds fields and parameters related to calving
      !> Note: The 3D damage field is prognostic; the 2D damage_column field is diagnosed from the 3D damage field.
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
-                                                                   !< scaled by thk0 like mass balance, thickness, etc.
+                                                                   !> scaled by thk0 like mass balance, thickness, etc.
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:),  pointer :: thck_calving_front => null()!> effective ice thickness at calving front, divided by \texttt{thk0}.
      real(dp),dimension(:,:),  pointer :: strain_rate_eigenprod    !> product of eigenvalues of 2D horizontal strain rate tensor (s^-2)
@@ -1262,8 +1262,9 @@ module glide_types
           bmlt_float => null(),                   & !> basal melt rate for floating ice
           bmlt_float_external => null(),          & !> external basal melt rate field
           bmlt_float_anomaly => null(),           & !> basal melt rate anomaly field
-          bmlt_float_inversion => null()            !> basal melt rate computed by inversion;
+          bmlt_float_inversion => null(),         & !> basal melt rate computed by inversion;
                                                     !> relaxes thickness of floating ice toward observed target
+          bmlt_float_inversion_tavg => null()       !> basal melt rate computed by inversion (time average)
 
      integer, dimension(:,:), pointer :: &
           bmlt_inversion_mask => null()             !> = 1 where bmlt is applied for inversion, else = 0
@@ -1337,7 +1338,7 @@ module glide_types
   end type glide_plume
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
+  !TODO - Change '!<' to '!>'
   type glide_basal_physics
      !< Holds variables related to basal physics associated with ice dynamics
      !< See glissade_basal_traction.F90 for usage details
@@ -1362,6 +1363,8 @@ module glide_types
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
      real(dp), dimension(:,:), pointer :: tau_c => null()               !< yield stress for plastic sliding (Pa)
      real(dp), dimension(:,:), pointer :: powerlaw_c_2d => null()       !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
+     real(dp), dimension(:,:), pointer :: powerlaw_c_2d_tavg => null()  !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
+                                                                        !< time-averaged to provide input for a forward run
      real(dp), dimension(:,:), pointer :: coulomb_c_2d => null()        !< spatially varying coulomb_c field (unitless)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
@@ -1844,6 +1847,7 @@ contains
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
+    !> \item \texttt{bmlt_float_inversion_tavg(ewn,nsn)}
     !> \item \texttt{bmlt_inversion_mask(ewn,nsn)}
     !> \end{itemize}
 
@@ -2176,6 +2180,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_2d_tavg)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%coulomb_c_2d)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
@@ -2196,6 +2201,7 @@ contains
        endif
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion_tavg)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_inversion_mask)
        endif
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
@@ -2511,6 +2517,8 @@ contains
         deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%powerlaw_c_2d)) &
         deallocate(model%basal_physics%powerlaw_c_2d)
+    if (associated(model%basal_physics%powerlaw_c_2d_tavg)) &
+        deallocate(model%basal_physics%powerlaw_c_2d_tavg)
     if (associated(model%basal_physics%coulomb_c_2d)) &
         deallocate(model%basal_physics%coulomb_c_2d)
     if (associated(model%basal_physics%C_space_factor)) &
@@ -2536,6 +2544,8 @@ contains
         deallocate(model%basal_melt%bmlt_float_anomaly)
     if (associated(model%basal_melt%bmlt_float_inversion)) &
         deallocate(model%basal_melt%bmlt_float_inversion)
+    if (associated(model%basal_melt%bmlt_float_inversion_tavg)) &
+        deallocate(model%basal_melt%bmlt_float_inversion_tavg)
     if (associated(model%basal_melt%bmlt_inversion_mask)) &
         deallocate(model%basal_melt%bmlt_inversion_mask)
 

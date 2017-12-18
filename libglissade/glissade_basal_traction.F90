@@ -463,7 +463,8 @@ contains
              enddo
           enddo
 
-       else   ! use powerlaw_c and coulomb_c from inversion
+       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
+               which_inversion == HO_INVERSION_PRESCRIBED) then   ! use powerlaw_c and coulomb_c from inversion
 
           m = basal_physics%powerlaw_m
 
