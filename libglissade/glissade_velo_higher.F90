@@ -666,7 +666,8 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta, calc_effective_pressure, calc_basal_inversion
+    use glissade_basal_traction, only: calcbeta, calc_effective_pressure
+    use glissade_inversion, only: invert_basal_traction
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -2156,15 +2157,15 @@
 
     if (whichinversion == HO_INVERSION_COMPUTE) then
 
-       call calc_basal_inversion(dt*tim0,                    &  ! s
-                                 nx,       ny,               &
-                                 itest,    jtest,  rtest,    &
-                                 model%basal_physics,        &
-                                 ice_mask,                   &
-                                 floating_mask,              &
-                                 thck,                       &  ! m
-                                 dthck_dt,                   &  ! m/s
-                                 thck_obs*thk0)                 ! m
+       call invert_basal_traction(dt*tim0,                    &  ! s
+                                  nx,       ny,               &
+                                  itest,    jtest,  rtest,    &
+                                  model%basal_physics,        &
+                                  ice_mask,                   &
+                                  floating_mask,              &
+                                  thck,                       &  ! m
+                                  dthck_dt,                   &  ! m/s
+                                  thck_obs*thk0)                 ! m
 
     endif
 

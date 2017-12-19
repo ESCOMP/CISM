@@ -108,6 +108,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
     use glissade_calving, only: glissade_find_lakes  !TODO - Move this subroutine?
+    use glissade_inversion, only: glissade_init_inversion
     use glimmer_paramets, only: thk0, len0, tim0, evs0
     use felix_dycore_interface, only: felix_velo_init
 
@@ -609,124 +610,11 @@ contains
     !       An update is done here regardless of code options, just to be on the safe side.
     call parallel_halo(model%stress%efvs)
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
-       !TODO - Move the following code to an inversion_init subroutine?
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
 
-       ! Save the initial ice thickness, if it will be used as the observational target for inversion.
-       ! Note: If calving is done at initialization, the target is the post-calving thickness.
-       !       The inversion will not try to put ice where, e.g., initial icebergs are removed.
-
-       ! Check whether thck_obs has been read in already.
-       ! If not, then set thck_obs to the initial thickness (possibly modified by initial calving).
-       var_maxval = maxval(model%geometry%thck_obs)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; thck_obs has been read in already (e.g., after restart)
-       else
-          model%geometry%thck_obs(:,:) = model%geometry%thck(:,:)
-       endif
-
-       call parallel_halo(model%geometry%thck_obs)
-
-       ! Initialize a mask for inversion.
-       ! Basal melting will be applied wherever the observed target ice is floating,
-       !  provided the floating ice has a connection to the ocean.
-
-       allocate(ice_mask(model%general%ewn, model%general%nsn))
-       allocate(floating_mask(model%general%ewn, model%general%nsn))
-       allocate(land_mask(model%general%ewn, model%general%nsn))
-       allocate(ocean_mask(model%general%ewn, model%general%nsn))
-       allocate(lake_mask(model%general%ewn, model%general%nsn))
-
-       call glissade_get_masks(model%general%ewn, model%general%nsn, &
-                               model%geometry%thck_obs*thk0,         &
-                               model%geometry%topg*thk0,             &
-                               model%climate%eus*thk0,               &
-                               0.0d0,                                &  ! thklim = 0
-                               ice_mask,                             &
-                               floating_mask = floating_mask,        &
-                               ocean_mask = ocean_mask,              &
-                               land_mask = land_mask)
-
-       ! Identify floating cells that will not be restored to the target thickness
-
-       call glissade_find_lakes(model%general%ewn, model%general%nsn, &
-                                itest,   jtest,    rtest,             &
-                                ice_mask,          floating_mask,     &
-                                ocean_mask,        lake_mask)
-
-       model%basal_melt%bmlt_inversion_mask(:,:) = 0
-
-       do j = 2, model%general%nsn-1
-          do i = 2, model%general%ewn-1
-             if (floating_mask(i,j) == 1) then
-                ! check for land neighbors
-                if (land_mask(i-1,j) == 1 .or. land_mask(i+1,j) == 1 .or. &
-                    land_mask(i,j-1) == 1 .or. land_mask(i,j+1) == 1) then
-                   ! mask = 0; do not invert for bmlt_float
-                elseif (lake_mask(i,j) == 1) then
-                   ! mask = 0; do not invert for bmlt_float
-                else
-                   model%basal_melt%bmlt_inversion_mask(i,j) = 1
-                endif
-             endif
-          enddo
-       enddo
-
-       call parallel_halo(model%basal_melt%bmlt_inversion_mask)
-
-       ! Check whether powerlaw_c_2d has been read in already.
-       ! If not, then set to a constant value.
-       var_maxval = maxval(model%basal_physics%powerlaw_c_2d)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; powerlaw_c_2d has been read in already (e.g., after restart)
-       else
-          model%basal_physics%powerlaw_c_2d(:,:) = model%basal_physics%powerlaw_c
-       endif
-
-       call parallel_halo(model%basal_physics%powerlaw_c_2d)
-
-    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
-
-       ! prescribing basal friction coefficient and basal melting from previous inversion
-
-       ! Check that the required fields from the inversion are present: powerlaw_c_2d and bmlt_float_inversion.
-
-       ! Note: A good way to supply powerlaw_c_2d is to compute powerlaw_c_2d_tavg
-       !        over some period at the end of the inversion run, after the ice is spun up.
-       !       To output this field from the inversion run, uncomment 'average: 1' under
-       !         powerlaw_c_2d in glide_vars.def, then configure and rebuild the code.
-       !       After the inversion run, rename powerlaw_c_2d_tavg as powerlaw_c_2d and
-       !        copy it to the input file for the prescribed run.
-       !       And similarly for bmlt_float_inversion_tavg and bmlt_float_inversion
-
-       var_maxval = maxval(model%basal_physics%powerlaw_c_2d)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! powerlaw_c_2d has been read in as required
-          write(message,*) 'powerlaw_c_2d has been read from input file'
-          call write_log(trim(message))
-       else
-          write(message,*) 'ERROR: Must read powerlaw_c_2d from input file to use this inversion option'
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       call parallel_halo(model%basal_physics%powerlaw_c_2d)
-
-       var_maxval = maxval(abs(model%basal_melt%bmlt_float_inversion))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! bmlt_float_inversion has been read in as required
-          write(message,*) 'bmlt_float_inversion has been read from input file'
-          call write_log(trim(message))
-       else
-          write(message,*) 'ERROR: Must read bmlt_float_inversion from input file to use this inversion option'
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       call parallel_halo(model%basal_melt%bmlt_float_inversion)
+       call glissade_init_inversion(model)
 
     endif  ! which_ho_inversion
 
@@ -1718,8 +1606,8 @@ contains
 
           endif
 
-          ! Note: Subroutine calc_basal_inversion, which inverts for basal parameters,
-          !       is called later, during the velocity solve.
+          ! Note: Subroutine invert_basal_traction, which inverts for basal parameters,
+          !        is called later, during the velocity solve.
           !       It requires the same ice mask and floating mask as the velocity solver.
 
        elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
