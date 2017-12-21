@@ -208,8 +208,9 @@ contains
     model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
 
     ! scale basal inversion parameters
-    model%basal_physics%inversion_timescale = model%basal_physics%inversion_timescale * scyr
-    model%basal_physics%inversion_dthck_dt_scale = model%basal_physics%inversion_dthck_dt_scale / scyr
+    model%basal_physics%inversion_babc_timescale = model%basal_physics%inversion_babc_timescale * scyr
+    model%basal_physics%inversion_babc_dthck_dt_scale = model%basal_physics%inversion_babc_dthck_dt_scale / scyr
+    model%basal_melt%inversion_bmlt_timescale = model%basal_melt%inversion_bmlt_timescale * scyr
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -1635,9 +1636,12 @@ contains
     call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
     call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
     call GetValue(section, 'powerlaw_coulomb_ratio', model%basal_physics%powerlaw_coulomb_ratio)
-    call GetValue(section, 'inversion_timescale', model%basal_physics%inversion_timescale)
-    call GetValue(section, 'inversion_thck_scale', model%basal_physics%inversion_thck_scale)
-    call GetValue(section, 'inversion_dthck_dt_scale', model%basal_physics%inversion_dthck_dt_scale)
+    call GetValue(section, 'inversion_babc_timescale', model%basal_physics%inversion_babc_timescale)
+    call GetValue(section, 'inversion_babc_thck_scale', model%basal_physics%inversion_babc_thck_scale)
+    call GetValue(section, 'inversion_babc_dthck_dt_scale', model%basal_physics%inversion_babc_dthck_dt_scale)
+    call GetValue(section, 'inversion_babc_smoothing_factor', model%basal_physics%inversion_babc_smoothing_factor)
+    call GetValue(section, 'inversion_bmlt_timescale', model%basal_melt%inversion_bmlt_timescale)
+    call GetValue(section, 'inversion_bmlt_smoothing_factor', model%basal_melt%inversion_bmlt_smoothing_factor)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -1930,17 +1934,31 @@ contains
        call write_log(message)
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
           call write_log(' NOTE: powerlaw_c and coulomb_c will be modified by inversion')
-          write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', model%basal_physics%powerlaw_c_max
+          write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', &
+               model%basal_physics%powerlaw_c_max
           call write_log(message)
-          write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', model%basal_physics%powerlaw_c_min
+          write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', &
+               model%basal_physics%powerlaw_c_min
           call write_log(message)
-          write(message,*) 'powerlaw_c/coulomb_c ratio                   : ', model%basal_physics%powerlaw_coulomb_ratio
+          write(message,*) 'powerlaw_c/coulomb_c ratio                   : ', &
+               model%basal_physics%powerlaw_coulomb_ratio
           call write_log(message)
-          write(message,*) 'inversion timescale (yr)                     : ', model%basal_physics%inversion_timescale
+          write(message,*) 'inversion basal traction timescale (yr)      : ', &
+               model%basal_physics%inversion_babc_timescale
           call write_log(message)
-          write(message,*) 'inversion thickness scale (m)                : ', model%basal_physics%inversion_thck_scale
+          write(message,*) 'inversion thickness scale (m)                : ', &
+               model%basal_physics%inversion_babc_thck_scale
           call write_log(message)
-          write(message,*) 'inversion dthck/dt scale (m/yr)              : ', model%basal_physics%inversion_dthck_dt_scale
+          write(message,*) 'inversion dthck/dt scale (m/yr)              : ', &
+               model%basal_physics%inversion_babc_dthck_dt_scale
+          call write_log(message)
+          write(message,*) 'inversion basal traction smoothing factor    : ', &
+               model%basal_physics%inversion_babc_smoothing_factor
+          write(message,*) 'inversion basal melting timescale (yr)       : ', &
+               model%basal_melt%inversion_bmlt_timescale
+          call write_log(message)
+          write(message,*) 'inversion basal melting smoothing factor     : ', &
+               model%basal_melt%inversion_bmlt_smoothing_factor
           call write_log(message)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then

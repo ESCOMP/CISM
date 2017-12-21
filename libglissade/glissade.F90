@@ -129,8 +129,7 @@ contains
          ice_mask,          & ! = 1 where ice is present, else = 0
          floating_mask,     & ! = 1 where ice is present and floating, else = 0
          ocean_mask,        & ! = 1 if topg is below sea level and ice is absent, else = 0
-         land_mask,         & ! = 1 if topg is at or above sea level, else = 0
-         lake_mask            ! = 1 for floating cells disconnected from the ocean 
+         land_mask            ! = 1 if topg is at or above sea level, else = 0
 
     integer :: itest, jtest, rtest
 
@@ -1116,13 +1115,15 @@ contains
                                   glissade_overwrite_acab,  &
                                   glissade_add_mbal_anomaly
     use glissade_masks, only: glissade_get_masks
+    use glissade_inversion, only: invert_bmlt_float
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
     ! --- Local variables ---
 
@@ -1134,12 +1135,12 @@ contains
        acab_unscaled,     & ! surface mass balance (m/s)
        bmlt_unscaled        ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
 
-    !TODO - Remove ice_mask obs, compute inversion mask at startup
     ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
        ice_mask,          & ! = 1 if thck > 0, else = 0
        floating_mask,     & ! = 1 where ice is present and floating, else = 0
        ocean_mask,        & ! = 1 if topg is below sea level and thck = 0, else = 0
+       land_mask,         & ! = 1 if topg is at or above sea level, else = 0
        calving_front_mask   ! = 1 where ice is floating and borders an ocean cell, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
@@ -1164,8 +1165,6 @@ contains
 
     integer :: i, j, k
     integer :: ewn, nsn, upn
-
-    !WHL - debug
     integer :: itest, jtest, rtest
 
     rtest = -999
@@ -1463,23 +1462,13 @@ contains
 
           ! thickness tendency dH/dt from one step to the next (m/s)
           ! This tendency is used when inverting for basal traction parameters.
-          ! It is recomputed at the end of the time step for diagnostics.
+          ! It is recomputed at the end of the time step for diagnostic output.
 
           model%geometry%dthck_dt(:,:) = (thck_unscaled(:,:) - model%geometry%thck_old(:,:)*thk0) &
                                        / (model%numerics%dt * tim0)
 
-          ! Where the observed ice is floating, compute a basal melt rate (or freezing rate, if bmlt < 0)
-          !  that will restore the ice thickness to the observed target.
-
-          where (model%basal_melt%bmlt_inversion_mask == 1)
-             model%basal_melt%bmlt_float_inversion = &
-                  (thck_unscaled - model%geometry%thck_obs*thk0) / (model%numerics%dt*tim0)
-          elsewhere
-             model%basal_melt%bmlt_float_inversion = 0.0d0
-          endwhere
-
           ! ------------------------------------------------------------------------
-          ! Get masks used by glissade_mass_balance_driver.
+          ! Get masks used by glissade_mass_balance_driver and the inversion calculation.
           ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
           ! ------------------------------------------------------------------------
 
@@ -1490,7 +1479,8 @@ contains
                                   0.0d0,                                      &   ! thklim = 0
                                   ice_mask,                                   &
                                   floating_mask = floating_mask,              &
-                                  ocean_mask = ocean_mask)
+                                  ocean_mask = ocean_mask,                    &
+                                  land_mask = land_mask)
 
           ! For purposes of inversion, assign all cells an effective fraction of 1 or 0.
           ! Calving-front cells are treated the same as other ice-covered cells.
@@ -1499,6 +1489,21 @@ contains
           elsewhere
              effective_areafrac = 1.0d0
           endwhere
+
+          ! Invert for bmlt_float_inversion, adjusting the melt rate to relax toward the observed thickness.
+          ! As the inversion converges, the difference (thck - thck_obs) should approach zero.
+          ! Note: basal_melt%bmlt_float_inversion is passed out with units of m/s
+
+          call invert_bmlt_float(model%numerics%dt * tim0,               &    ! s
+                                 model%general%ewn, model%general%nsn,   &
+                                 itest,   jtest,    rtest,               &
+                                 model%basal_melt,                       &
+                                 thck_unscaled,                          &
+                                 model%geometry%thck_obs*thk0,           &
+                                 ice_mask,                               &
+                                 floating_mask,                          &
+                                 ocean_mask,                             &
+                                 land_mask)
 
           !WHL - debug
           if (verbose_inversion .and. this_rank == rtest) then
@@ -1586,7 +1591,7 @@ contains
              i = itest
              j = jtest
              print*, ' '
-             print*, 'After inversion:'
+             print*, 'After inversion and BMB:'
              print*, ' '
              print*, 'thck (m):'
              do j = jtest+3, jtest-3, -1
@@ -1634,11 +1639,11 @@ contains
              effective_areafrac = 1.0d0
           endwhere
 
-          ! Zero out bmlt_float for floating cells.
-          !TODO - Modify to apply bmlt_float to cells that were fully floating before transport.
-
-          where (floating_mask == 0)
-             model%basal_melt%bmlt_float_inversion = 0.0d0
+          ! Set bmlt_float based on bmlt_float_inversion, limited to floating cells
+          where (floating_mask == 1)
+             bmlt_unscaled = model%basal_melt%bmlt_float_inversion
+          elsewhere
+             bmlt_unscaled = 0.0d0
           endwhere
 
           !WHL - debug
@@ -1647,8 +1652,7 @@ contains
              j = jtest
              print*, ' '
              print*, 'Prescribing bmlt_float from inversion: rank, i, j =', rtest, i, j
-             print*, 'thck (m), bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
-                  model%basal_melt%bmlt_float_inversion(i,j)*scyr
+             print*, 'thck (m), bmlt_float (m/yr):', thck_unscaled(i,j), bmlt_unscaled(i,j)*scyr
              print*, ' '
              print*, 'floating_mask:'
              do j = jtest+3, jtest-3, -1
@@ -1687,7 +1691,7 @@ contains
                                             model%general%upn-1,       model%numerics%sigma,      &
                                             thck_unscaled(:,:),                                   &  ! m
                                             acab_unscaled(:,:),                                   &  ! m/s
-                                            model%basal_melt%bmlt_float_inversion(:,:),           &  ! m/s
+                                            bmlt_unscaled(:,:),                                   &  ! m/s
                                             model%climate%acab_applied(:,:),                      &  ! m/s
                                             model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
                                             ocean_mask(:,:),                                      &
