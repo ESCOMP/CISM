@@ -49,7 +49,6 @@ contains
   subroutine glissade_init_inversion(model)
 
     use glissade_masks, only: glissade_get_masks
-    use glissade_calving, only: glissade_find_lakes  !TODO - Move this subroutine?
 
     ! Initialize inversion for fields of basal traction and basal melting
 
@@ -59,31 +58,9 @@ contains
 
     real(dp) :: var_maxval          ! max value of a given variable; = 0 if not yet read in
 
-    integer :: ewn, nsn
-    integer :: itest, jtest, rtest  ! coordinates of diagnostic point
-    integer :: i, j
-
-    integer, dimension(:,:), allocatable :: &
-         ice_mask,          & ! = 1 where ice is present, else = 0
-         floating_mask,     & ! = 1 where ice is present and floating, else = 0
-         ocean_mask,        & ! = 1 if topg is below sea level and ice is absent, else = 0
-         land_mask,         & ! = 1 if topg is at or above sea level, else = 0
-         lake_mask            ! = 1 for floating cells disconnected from the ocean 
-
     character(len=100) :: message
 
-    ! set grid dimensions
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-
-    ! Set debug diagnostics
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-
     if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
-
-       !TODO - Move the following code to an inversion_init subroutine?
 
        ! Save the initial ice thickness, if it will be used as the observational target for inversion.
        ! Note: If calving is done at initialization, the target is the post-calving thickness.
@@ -100,54 +77,6 @@ contains
        endif
 
        call parallel_halo(model%geometry%thck_obs)
-
-       ! Initialize a mask for inversion.
-       ! Basal melting will be applied wherever the observed target ice is floating,
-       !  provided the floating ice has a connection to the ocean.
-
-       allocate(ice_mask(ewn,nsn))
-       allocate(floating_mask(ewn,nsn))
-       allocate(land_mask(ewn,nsn))
-       allocate(ocean_mask(ewn,nsn))
-       allocate(lake_mask(ewn,nsn))
-
-       call glissade_get_masks(ewn,           nsn,                   &
-                               model%geometry%thck_obs*thk0,         &
-                               model%geometry%topg*thk0,             &
-                               model%climate%eus*thk0,               &
-                               0.0d0,                                &  ! thklim = 0
-                               ice_mask,                             &
-                               floating_mask = floating_mask,        &
-                               ocean_mask = ocean_mask,              &
-                               land_mask = land_mask)
-
-       ! Identify lake cells: floating interior cells that will not be restored 
-       ! to the target thickness
-
-       call glissade_find_lakes(ewn,              nsn,               &
-                                itest,   jtest,   rtest,             &
-                                ice_mask,         floating_mask,     &
-                                ocean_mask,       lake_mask)
-
-       model%basal_melt%bmlt_inversion_mask(:,:) = 0
-
-       do j = 2, nsn - 1
-          do i = 2, ewn - 1
-             if (floating_mask(i,j) == 1) then
-                ! check for land neighbors
-                if (land_mask(i-1,j) == 1 .or. land_mask(i+1,j) == 1 .or. &
-                    land_mask(i,j-1) == 1 .or. land_mask(i,j+1) == 1) then
-                   ! mask = 0; do not invert for bmlt_float
-                elseif (lake_mask(i,j) == 1) then
-                   ! mask = 0; do not invert for bmlt_float
-                else
-                   model%basal_melt%bmlt_inversion_mask(i,j) = 1
-                endif
-             endif
-          enddo
-       enddo
-
-       call parallel_halo(model%basal_melt%bmlt_inversion_mask)
 
        ! Check whether powerlaw_c_2d has been read in already.
        ! If not, then set to a constant value.
@@ -207,7 +136,11 @@ contains
 
 !***********************************************************************
 
-!TODO - Change to invert_basal_traction?
+  !TODO - Add code to set powerlaw_c for prescribed case.
+  !       Use prescribed values where available, and otherwise extrapolate from nearby values.
+  !       In this way, we can avoid having very wrong values where the GL has advanced.
+
+!***********************************************************************
 
   subroutine invert_basal_traction(dt,                           &
                                    nx,            ny,            &
@@ -260,13 +193,13 @@ contains
     integer :: ii, jj
 
     ! inversion parameters in basal_physics derived type:
-    ! * powerlaw_c_max              = upper bound for powerlaw_c, Pa (m/yr)^(-1/3)
-    ! * powerlaw_c_min              = lower bound for powerlaw_c, Pa (m/yr)^(-1/3)
-    ! * powerlaw_coulomb_ratio      = powerlaw_c/coulomb_c (same units as powerlaw_c)
-    ! * inversion_timescale         = inversion timescale (s); must be > 0
-    ! * inversion_thck_scale        = thickness inversion scale (m); must be > 0
-    ! * inversion_dthck_dt_scale    = dthck_dt inversion scale (m/s); must be > 0
-    ! * inversion_smoothing_factor  = factor for smoothing powerlaw_c_2d; higher => more smoothing
+    ! * powerlaw_c_max                  = upper bound for powerlaw_c, Pa (m/yr)^(-1/3)
+    ! * powerlaw_c_min                  = lower bound for powerlaw_c, Pa (m/yr)^(-1/3)
+    ! * powerlaw_coulomb_ratio          = powerlaw_c/coulomb_c (same units as powerlaw_c)
+    ! * inversion_babc_timescale        = inversion timescale (s); must be > 0
+    ! * inversion_babc_thck_scale       = thickness inversion scale (m); must be > 0
+    ! * inversion_babc_dthck_dt_scale   = dthck_dt inversion scale (m/s); must be > 0
+    ! * inversion_babc_smoothing_factor = factor for smoothing powerlaw_c_2d; higher => more smoothing
     !
     ! Note on smoothing: A smoothing factor of 1/8 gives a 4-1-1-1-1 smoother.
     !       This is numerically well behaved, but may oversmooth in bowl-shaped regions;
@@ -291,10 +224,10 @@ contains
           if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! ice is present and grounded
 
              ! Invert for powerlaw_c_2d and coulomb_c based on dthck and dthck_dt
-             term1 = -dthck(i,j) / basal_physics%inversion_thck_scale
-             term2 = -dthck_dt(i,j) / basal_physics%inversion_dthck_dt_scale
+             term1 = -dthck(i,j) / basal_physics%inversion_babc_thck_scale
+             term2 = -dthck_dt(i,j) / basal_physics%inversion_babc_dthck_dt_scale
 
-             dpowerlaw_c(i,j) = (dt/basal_physics%inversion_timescale) &
+             dpowerlaw_c(i,j) = (dt/basal_physics%inversion_babc_timescale) &
                   * basal_physics%powerlaw_c_2d(i,j) * (term1 + term2)
 
              ! Limit to prevent huge change in one step
@@ -318,8 +251,8 @@ contains
                 print*, 'Invert for powerlaw_c and coulomb_c: rank, i, j =', rtest, itest, jtest
                 print*, 'thck, thck_obs, dthck, dthck_dt:', thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
                 print*, '-dthck/thck_scale, -dthck_dt/dthck_dt_scale, sum =', &
-                     -dthck(i,j)/basal_physics%inversion_thck_scale, &
-                     -dthck_dt(i,j)/basal_physics%inversion_dthck_dt_scale, &
+                     -dthck(i,j)/basal_physics%inversion_babc_thck_scale, &
+                     -dthck_dt(i,j)/basal_physics%inversion_babc_dthck_dt_scale, &
                      term1 + term2
                 print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), basal_physics%powerlaw_c_2d(i,j)
              endif
@@ -358,16 +291,16 @@ contains
        do i = 2, nx-1
           if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! cell (i,j) is grounded
 
-             dpowerlaw_c_smooth = -4.0d0 * basal_physics%inversion_smoothing_factor * temp_powerlaw_c(i,j)
+             dpowerlaw_c_smooth = -4.0d0 * basal_physics%inversion_babc_smoothing_factor * temp_powerlaw_c(i,j)
              do jj = j-1, j+1
                 do ii = i-1, i+1
                    if ((ii == i .or. jj == j) .and. (ii /= i .or. jj /= j)) then  ! edge neighbor
                       if (ice_mask(ii,jj) == 1 .and. floating_mask(ii,jj) == 0) then   ! cell (ii,jj) is grounded
                          dpowerlaw_c_smooth = dpowerlaw_c_smooth &
-                              + basal_physics%inversion_smoothing_factor*temp_powerlaw_c(ii,jj)
+                              + basal_physics%inversion_babc_smoothing_factor*temp_powerlaw_c(ii,jj)
                       else
                          dpowerlaw_c_smooth = dpowerlaw_c_smooth &
-                              + basal_physics%inversion_smoothing_factor*temp_powerlaw_c(i,j)
+                              + basal_physics%inversion_babc_smoothing_factor*temp_powerlaw_c(i,j)
                       endif
                    endif
                 enddo
@@ -470,17 +403,261 @@ contains
 
   !***********************************************************************
 
-  subroutine invert_basal_melt(model)
+  subroutine invert_bmlt_float(dt,                           &
+                               nx,            ny,            &
+                               itest, jtest,  rtest,         &
+                               basal_melt,                   &
+                               thck,                         &
+                               thck_obs,                     &
+                               ice_mask,                     &
+                               floating_mask,                &
+                               ocean_mask,                   &
+                               land_mask)
 
-    !TODO - Add computations including smoothing
+    ! Compute spatially varying bmlt_float by inversion.
+    ! Where thck > thck_obs, bmlt_float_inversion is increased.
+    ! Where thck < thck_obs, bmlt_float_inversion is decreased.
+    ! Note: bmlt_float_inversion is defined as positive for melting, negative for freezing.
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    !TODO - Move this subroutine?
+    use glissade_calving, only: glissade_find_lakes
+
+    real(dp), intent(in) ::  dt  ! time step (s)
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    type(glide_basal_melt), intent(inout) :: &
+         basal_melt              ! basal melt object
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck,                 & ! ice thickness (m)
+         thck_obs                ! observed thickness (m)
+
+    ! Note: When this subroutine is called, ice_mask = 1 where thck > 0, not thck > thklim.
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask,             & ! = 1 where ice is present, else = 0
+         floating_mask,        & ! = 1 where ice is present and floating, else = 0
+         ocean_mask,           & ! = 1 where ice is absent and topg < eus, else = 0
+         land_mask               ! = 1 where topg >= eus, else = 0
+
+    ! local variables
+
+    integer, dimension(nx,ny) ::  &
+         lake_mask               ! = 1 for floating cells disconnected from the ocean
+
+    real(dp), dimension(nx,ny) ::  &
+         dthck,                & ! thck - thck_obs on ice grid
+         old_bmlt_float,       & ! old value of bmlt_float_inversion (start of timestep)
+         temp_bmlt_float,      & ! temporary value of bmlt_float_inversion (before smoothing)
+         dbmlt_float             ! change in bmlt_float_inversion
+
+    real(dp) :: term1, dbmlt_float_smooth
+
+    integer :: i, j, ii, jj
+
+    ! Where the observed ice is floating, adjust the basal melt rate (or freezing rate, if bmlt < 0)
+    !  so as to relax the ice thickness toward the observed target.
+    ! Note: This subroutine should be called after other mass-balance terms have been applied,
+    !  and after horizontal transport.
+    ! We compute the difference (H - bmlt_float_inversion*dt) - H_obs,
+    !  which is the thickness error that would remain after applying the current bmlt_float_inversion.
+    ! We then increase or decrease bmlt_float_inversion with a characteristic timescale,
+    !  thereby reducing the thickness error.
+    ! As the timescale approaches zero, the adjusted bmlt_float_inversion will approach the value
+    !  needed to give H = H_obs.
+
+    logical, parameter :: verbose_inversion = .false.
+
+    if (verbose_inversion .and. main_task) then
+       print*, ' '
+       print*, 'In invert_bmlt_float'
+    endif
+
+    ! Identify lake cells: floating interior cells that will not be restored
+    ! to the target thickness
+
+    call glissade_find_lakes(nx,               ny,                &
+                             itest,   jtest,   rtest,             &
+                             ice_mask,         floating_mask,     &
+                             ocean_mask,       lake_mask)
+
+    ! Compute a mask of cells where bmlt_float_inversion will be computed
+    !TODO - Make bmlt_inversion_mask a local field?
+
+    basal_melt%bmlt_inversion_mask(:,:) = 0
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (floating_mask(i,j) == 1) then
+             ! check for land neighbors
+             if (land_mask(i-1,j) == 1 .or. land_mask(i+1,j) == 1 .or. &
+                 land_mask(i,j-1) == 1 .or. land_mask(i,j+1) == 1) then
+                ! mask = 0; do not invert for bmlt_float
+             elseif (lake_mask(i,j) == 1) then
+                ! mask = 0; do not invert for bmlt_float
+             else
+                basal_melt%bmlt_inversion_mask(i,j) = 1
+             endif
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(basal_melt%bmlt_inversion_mask)
+
+    ! Save the starting value of bmlt_float_inversion
+    old_bmlt_float(:,:) = basal_melt%bmlt_float_inversion(:,:)
+    dbmlt_float(:,:) = 0.0d0
+
+    ! Compute difference between the current and target thickness
+    dthck(:,:) = thck(:,:) - thck_obs(:,:)
+
+    ! Loop over cells
+    do j = 1, ny
+       do i = 1, nx
+
+          if (basal_melt%bmlt_inversion_mask(i,j) == 1) then
+
+             if (basal_melt%inversion_bmlt_timescale > 0.0d0) then
+                ! Adjust bmlt_float_inversion to reduce the thickness error
+                dbmlt_float(i,j) = (dthck(i,j) - basal_melt%bmlt_float_inversion(i,j)*dt)  &
+                                  / basal_melt%inversion_bmlt_timescale 
+             else
+                ! Set bmlt_float_inversion such that thck = thck_obs after inversion
+                dbmlt_float(i,j) = dthck(i,j)/dt - basal_melt%bmlt_float_inversion(i,j)
+             endif
+
+             basal_melt%bmlt_float_inversion(i,j) = basal_melt%bmlt_float_inversion(i,j) + dbmlt_float(i,j)
+
+             !WHL - I think this may not be needed
+             ! Limit to a physically reasonable range
+!             basal_melt%bmlt_float_inversion(i,j) = min(basal_melt%bmlt_float_inversion(i,j), basal_melt%bmlt_float_inversion_max)
+!             basal_melt%bmlt_float_inversion(i,j) = max(basal_melt%bmlt_float_inversion(i,j), basal_melt%bmlt_float_inversion_min)
+
+             !WHL - debug
+             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'Invert for bmlt_float_inversion: rank, i, j =', rtest, itest, jtest
+                print*, 'thck, thck_obs, dthck, bmlt*dt:', &
+                     thck(i,j), thck_obs(i,j), dthck(i,j), basal_melt%bmlt_float_inversion(i,j)*dt
+                print*, 'dbmlt_float, new bmlt_float (m/yr) =', dbmlt_float(i,j)*scyr, basal_melt%bmlt_float_inversion(i,j)*scyr
+             endif
+
+          else  ! bmlt_inversion_mask = 0
+
+             basal_melt%bmlt_float_inversion(i,j) = 0.0d0
+
+          endif  ! bmlt_inversion_mask
+
+       enddo  ! i
+    enddo  ! j
+
+    !WHL - debug
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'Before smoothing, bmlt_float (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') basal_melt%bmlt_float_inversion(i,j)*scyr
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! Save the value just computed
+    temp_bmlt_float(:,:) = basal_melt%bmlt_float_inversion(:,:)
+
+    ! Apply Laplacian smoothing to bmlt_float_inversion.
+    !TODO - Write an operator for Laplacian smoothing?
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (basal_melt%bmlt_inversion_mask(i,j) == 1) then
+
+             dbmlt_float_smooth = -4.0d0 * basal_melt%inversion_bmlt_smoothing_factor * temp_bmlt_float(i,j)
+             do jj = j-1, j+1
+                do ii = i-1, i+1
+                   if ((ii == i .or. jj == j) .and. (ii /= i .or. jj /= j)) then  ! edge neighbor
+                      if (basal_melt%bmlt_inversion_mask(ii,jj) == 1) then   ! inverting for bmlt_float in cell (ii,jj)
+                         dbmlt_float_smooth = dbmlt_float_smooth &
+                              + basal_melt%inversion_bmlt_smoothing_factor*temp_bmlt_float(ii,jj)
+                      else
+                         dbmlt_float_smooth = dbmlt_float_smooth &
+                              + basal_melt%inversion_bmlt_smoothing_factor*temp_bmlt_float(i,j)
+                      endif
+                   endif
+                enddo
+             enddo
+
+             ! Note: If smoothing is too strong, it can reverse the sign of the change in bmlt_float.
+             !       The logic below ensures that if bmlt_float is increasing, the smoothing can reduce
+             !        the change to zero, but not cause bmlt_float to decrease relative to old_bmlt_float
+             !        (and similarly if bmlt_float is decreasing).
+
+             if (dbmlt_float(i,j) > 0.0d0) then
+                if (temp_bmlt_float(i,j) + dbmlt_float_smooth > old_bmlt_float(i,j)) then
+                   basal_melt%bmlt_float_inversion(i,j) = temp_bmlt_float(i,j) + dbmlt_float_smooth
+                else
+                  ! allow the smoothing to hold bmlt_float at its old value, but not reduce bmlt_float
+                   basal_melt%bmlt_float_inversion(i,j) = old_bmlt_float(i,j)
+                endif
+             elseif (dbmlt_float(i,j) < 0.0d0) then
+                if (temp_bmlt_float(i,j) + dbmlt_float_smooth < old_bmlt_float(i,j)) then
+                   basal_melt%bmlt_float_inversion(i,j) = temp_bmlt_float(i,j) + dbmlt_float_smooth
+                else
+                   ! allow the smoothing to hold bmlt_float at its old value, but not increase bmlt_float
+                   basal_melt%bmlt_float_inversion(i,j) = old_bmlt_float(i,j)
+                endif
+             endif  ! dbmlt_float > 0
+
+          endif  ! bmlt_inversion_mask = 1
+
+          if (verbose_inversion .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+             print*, 'Smoothing correction, new bmlt_float:', dbmlt_float_smooth*scyr, basal_melt%bmlt_float_inversion(i,j)*scyr
+          endif
+
+       enddo
+    enddo
+
+    call parallel_halo(basal_melt%bmlt_float_inversion)
+
+    !WHL - debug
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, 'thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, 'thck - bmlt*dt - thck_obs:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dthck(i,j) - basal_melt%bmlt_float_inversion(i,j)*dt
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'After smoothing, bmlt_float_inversion (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') basal_melt%bmlt_float_inversion(i,j)*scyr
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
 
-  end subroutine invert_basal_melt
+  end subroutine invert_bmlt_float
   
 !=======================================================================
 
-  end module glissade_inversion
+end module glissade_inversion
 
 !=======================================================================

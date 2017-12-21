@@ -1289,6 +1289,11 @@ module glide_types
      ! initMIP-Antarctica parameters
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
+     ! inversion parameters
+     real(dp) ::  &
+          inversion_bmlt_timescale =  10.d0,      & !> inversion timescale (yr);
+                                                    !> relaxation is immediate if timescale = 0
+          inversion_bmlt_smoothing_factor = 0.01d0  !> factor for smoothing bmlt_float_inversion (larger => more smoothing)
 
   end type glide_basal_melt
 
@@ -1412,7 +1417,7 @@ module glide_types
       
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
-     ! Note: inversion_timescale and inversion_dthck_dt_scale are later rescaled to SI units (s and m/s).
+     ! Note: inversion_babc_timescale and inversion_babc_dthck_dt_scale are later rescaled to SI units (s and m/s).
 
      real(dp) ::  &
           powerlaw_c_max = 1.0d5,             &  !< Pa (m/yr)^(-1/3)
@@ -1420,10 +1425,10 @@ module glide_types
           powerlaw_coulomb_ratio = 2.0d4         !< powerlaw_c/coulomb_c (same units as powerlaw_c))
 
      real(dp) ::  &
-          inversion_timescale = 200.d0,       &  !< inversion timescale (yr); must be > 0
-          inversion_thck_scale = 50.d0,       &  !< thickness inversion scale (m); must be > 0
-          inversion_dthck_dt_scale = 0.50d0,  &  !< dthck_dt inversion scale (m/yr); must be > 0
-          inversion_smoothing_factor = 0.05d0    !< factor for smoothing powerlaw_c (larger => more smoothing)
+          inversion_babc_timescale = 200.d0,      & !< inversion timescale (yr); must be > 0
+          inversion_babc_thck_scale = 50.d0,      & !< thickness inversion scale (m); must be > 0
+          inversion_babc_dthck_dt_scale = 0.50d0, & !< dthck_dt inversion scale (m/yr); must be > 0
+          inversion_babc_smoothing_factor = 0.05d0  !< factor for smoothing powerlaw_c (larger => more smoothing)
 
      ! parameter for constant basal water
      ! Note: This parameter applies to HO_BWAT_CONSTANT only.
