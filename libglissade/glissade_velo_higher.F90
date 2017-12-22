@@ -2149,8 +2149,8 @@
     endif
     
     !------------------------------------------------------------------------------
-    ! Compute powerlaw_c_2d and coulomb_c_2d fields, if needed
-    !  (part of basal_physics derived type)
+    ! Compute powerlaw_c and coulomb_c fields by inversion, if needed
+    !  (part of basal_physics derived type).
     ! Note: dt and thck_obs are not rescaled by the scale_input subroutine, in order
     !       to avoid accumulating errors by repeated multiplication and division.
     !------------------------------------------------------------------------------

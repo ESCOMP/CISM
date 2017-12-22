@@ -78,57 +78,55 @@ contains
 
        call parallel_halo(model%geometry%thck_obs)
 
-       ! Check whether powerlaw_c_2d has been read in already.
+       ! Check whether powerlaw_c_inversion has been read in already.
        ! If not, then set to a constant value.
-       var_maxval = maxval(model%basal_physics%powerlaw_c_2d)
+       var_maxval = maxval(model%basal_physics%powerlaw_c_inversion)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
-          ! do nothing; powerlaw_c_2d has been read in already (e.g., after restart)
+          ! do nothing; powerlaw_c_inversion has been read in already (e.g., after restart)
        else
-          model%basal_physics%powerlaw_c_2d(:,:) = model%basal_physics%powerlaw_c
+          model%basal_physics%powerlaw_c_inversion(:,:) = model%basal_physics%powerlaw_c
        endif
 
-       call parallel_halo(model%basal_physics%powerlaw_c_2d)
+       call parallel_halo(model%basal_physics%powerlaw_c_inversion)
 
     elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
 
        ! prescribing basal friction coefficient and basal melting from previous inversion
 
-       ! Check that the required fields from the inversion are present: powerlaw_c_2d and bmlt_float_inversion.
+       ! Check that the required fields from the inversion are present: powerlaw_c_inversion and bmlt_float_inversion.
 
-       ! Note: A good way to supply powerlaw_c_2d is to compute powerlaw_c_2d_tavg
+       ! Note: A good way to supply powerlaw_c_prescribed is to compute powerlaw_c_inversion_tavg
        !        over some period at the end of the inversion run, after the ice is spun up.
-       !       To output this field from the inversion run, uncomment 'average: 1' under
-       !         powerlaw_c_2d in glide_vars.def, then configure and rebuild the code.
-       !       After the inversion run, rename powerlaw_c_2d_tavg as powerlaw_c_2d and
+       !       After the inversion run, rename powerlaw_c_inversion_tavg as powerlaw_c_presribed and
        !        copy it to the input file for the prescribed run.
-       !       And similarly for bmlt_float_inversion_tavg and bmlt_float_inversion
+       !       And similarly for bmlt_float_inversion_tavg and bmlt_float_prescribed
 
-       var_maxval = maxval(model%basal_physics%powerlaw_c_2d)
+       var_maxval = maxval(model%basal_physics%powerlaw_c_prescribed)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
-          ! powerlaw_c_2d has been read in as required
-          write(message,*) 'powerlaw_c_2d has been read from input file'
+          ! powerlaw_c_prescribed has been read in as required
+          write(message,*) 'powerlaw_c_prescribed has been read from input file'
           call write_log(trim(message))
        else
-          write(message,*) 'ERROR: Must read powerlaw_c_2d from input file to use this inversion option'
+          write(message,*) 'ERROR: Must read powerlaw_c_prescribed from input file to use this inversion option'
           call write_log(trim(message), GM_FATAL)
        endif
 
-       call parallel_halo(model%basal_physics%powerlaw_c_2d)
+       call parallel_halo(model%basal_physics%powerlaw_c_prescribed)
 
-       var_maxval = maxval(abs(model%basal_melt%bmlt_float_inversion))
+       var_maxval = maxval(abs(model%basal_melt%bmlt_float_prescribed))
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
-          ! bmlt_float_inversion has been read in as required
-          write(message,*) 'bmlt_float_inversion has been read from input file'
+          ! bmlt_float_prescribed has been read in as required
+          write(message,*) 'bmlt_float_prescribed has been read from input file'
           call write_log(trim(message))
        else
-          write(message,*) 'ERROR: Must read bmlt_float_inversion from input file to use this inversion option'
+          write(message,*) 'ERROR: Must read bmlt_float_prescribed from input file to use this inversion option'
           call write_log(trim(message), GM_FATAL)
        endif
 
-       call parallel_halo(model%basal_melt%bmlt_float_inversion)
+       call parallel_halo(model%basal_melt%bmlt_float_prescribed)
 
     endif  ! which_ho_inversion
 
@@ -136,7 +134,7 @@ contains
 
 !***********************************************************************
 
-  !TODO - Add code to set powerlaw_c for prescribed case.
+  !TODO - Add code to extend powerlaw_c for prescribed case.
   !       Use prescribed values where available, and otherwise extrapolate from nearby values.
   !       In this way, we can avoid having very wrong values where the GL has advanced.
 
@@ -150,7 +148,7 @@ contains
                                    thck,          dthck_dt,      &
                                    thck_obs)
 
-    ! Compute spatially varying fields, powerlaw_c_2d and coulomb_c_2d, by inversion.
+    ! Compute spatially varying fields, powerlaw_c_inversion and coulomb_c_inversion, by inversion.
     ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
     ! Where thck > thck_obs, powerlaw_c and coulomb_c are reduced to increase sliding.
     ! Where thck < thck_obs, powerlaw_c and coulomb_c are increased to reduce sliding.
@@ -181,8 +179,8 @@ contains
 
     real(dp), dimension(nx,ny) ::  &
          dthck,                & ! thck - thck_obs on ice grid
-         old_powerlaw_c,       & ! old value of powerlaw_c_2d (start of timestep)
-         temp_powerlaw_c,      & ! temporary value of powerlaw_c_2d (before smoothing)
+         old_powerlaw_c,       & ! old value of powerlaw_c_inversion (start of timestep)
+         temp_powerlaw_c,      & ! temporary value of powerlaw_c_inversion (before smoothing)
          dpowerlaw_c             ! change in powerlaw_c
 
     real(dp) :: term1, term2
@@ -199,7 +197,7 @@ contains
     ! * inversion_babc_timescale        = inversion timescale (s); must be > 0
     ! * inversion_babc_thck_scale       = thickness inversion scale (m); must be > 0
     ! * inversion_babc_dthck_dt_scale   = dthck_dt inversion scale (m/s); must be > 0
-    ! * inversion_babc_smoothing_factor = factor for smoothing powerlaw_c_2d; higher => more smoothing
+    ! * inversion_babc_smoothing_factor = factor for smoothing powerlaw_c_inversion; higher => more smoothing
     !
     ! Note on smoothing: A smoothing factor of 1/8 gives a 4-1-1-1-1 smoother.
     !       This is numerically well behaved, but may oversmooth in bowl-shaped regions;
@@ -208,42 +206,44 @@ contains
     logical, parameter :: verbose_inversion = .false.
 
     ! Save the starting value
-    old_powerlaw_c(:,:) = basal_physics%powerlaw_c_2d(:,:)
+    old_powerlaw_c(:,:) = basal_physics%powerlaw_c_inversion(:,:)
     dpowerlaw_c(:,:) = 0.0d0
 
     ! Compute difference between current and target thickness
     dthck(:,:) = thck(:,:) - thck_obs(:,:)
 
     ! Loop over cells
-    ! Note: powerlaw_c_2d and coulomb_c_2d are computed at cell centers where thck is located.
-    !       Later, they are interpolated to vertices where beta and basal velocity are located.
+    ! Note: powerlaw_c_inversion and coulomb_c_inversion are computed at cell centers where thck is located.
+    !       Later, they are interpolated to vertices where bdeta and basal velocity are located.
 
     do j = 1, ny
        do i = 1, nx
 
           if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! ice is present and grounded
 
-             ! Invert for powerlaw_c_2d and coulomb_c based on dthck and dthck_dt
+             ! Invert for powerlaw_c and coulomb_c based on dthck and dthck_dt
              term1 = -dthck(i,j) / basal_physics%inversion_babc_thck_scale
              term2 = -dthck_dt(i,j) / basal_physics%inversion_babc_dthck_dt_scale
 
              dpowerlaw_c(i,j) = (dt/basal_physics%inversion_babc_timescale) &
-                  * basal_physics%powerlaw_c_2d(i,j) * (term1 + term2)
+                  * basal_physics%powerlaw_c_inversion(i,j) * (term1 + term2)
 
              ! Limit to prevent huge change in one step
-             if (abs(dpowerlaw_c(i,j)) > 0.05 * basal_physics%powerlaw_c_2d(i,j)) then
+             if (abs(dpowerlaw_c(i,j)) > 0.05 * basal_physics%powerlaw_c_inversion(i,j)) then
                 if (dpowerlaw_c(i,j) > 0.0d0) then
-                   dpowerlaw_c(i,j) =  0.05d0 * basal_physics%powerlaw_c_2d(i,j)
+                   dpowerlaw_c(i,j) =  0.05d0 * basal_physics%powerlaw_c_inversion(i,j)
                 else
-                   dpowerlaw_c(i,j) = -0.05d0 * basal_physics%powerlaw_c_2d(i,j)
+                   dpowerlaw_c(i,j) = -0.05d0 * basal_physics%powerlaw_c_inversion(i,j)
                 endif
              endif
 
-             basal_physics%powerlaw_c_2d(i,j) = basal_physics%powerlaw_c_2d(i,j) + dpowerlaw_c(i,j)
+             basal_physics%powerlaw_c_inversion(i,j) = basal_physics%powerlaw_c_inversion(i,j) + dpowerlaw_c(i,j)
 
              ! Limit to a physically reasonable range
-             basal_physics%powerlaw_c_2d(i,j) = min(basal_physics%powerlaw_c_2d(i,j), basal_physics%powerlaw_c_max)
-             basal_physics%powerlaw_c_2d(i,j) = max(basal_physics%powerlaw_c_2d(i,j), basal_physics%powerlaw_c_min)
+             basal_physics%powerlaw_c_inversion(i,j) = min(basal_physics%powerlaw_c_inversion(i,j), &
+                                                           basal_physics%powerlaw_c_max)
+             basal_physics%powerlaw_c_inversion(i,j) = max(basal_physics%powerlaw_c_inversion(i,j), &
+                                                           basal_physics%powerlaw_c_min)
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
@@ -254,13 +254,13 @@ contains
                      -dthck(i,j)/basal_physics%inversion_babc_thck_scale, &
                      -dthck_dt(i,j)/basal_physics%inversion_babc_dthck_dt_scale, &
                      term1 + term2
-                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), basal_physics%powerlaw_c_2d(i,j)
+                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), basal_physics%powerlaw_c_inversion(i,j)
              endif
 
           else  ! ice_mask = 0 or floating_mask = 1
 
              ! set to default value
-             basal_physics%powerlaw_c_2d(i,j) = basal_physics%powerlaw_c
+             basal_physics%powerlaw_c_inversion(i,j) = basal_physics%powerlaw_c
 
           endif  ! ice_mask = 1 and floating_mask = 0
 
@@ -275,14 +275,14 @@ contains
        print*, 'Before smoothing, powerlaw_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_2d(i,j)
+             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_inversion(i,j)
           enddo
           write(6,*) ' '
        enddo
     endif
  
     ! Save the value just computed
-    temp_powerlaw_c(:,:) = basal_physics%powerlaw_c_2d(:,:)
+    temp_powerlaw_c(:,:) = basal_physics%powerlaw_c_inversion(:,:)
 
     ! Apply Laplacian smoothing to C_p.
     ! Since C_p is at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
@@ -307,23 +307,23 @@ contains
              enddo
 
              ! Note: If smoothing is too strong, it can reverse the sign of the change in powerlaw_c.
-             !       The logic below ensures that if powerlaw_c_2d is increasing, the smoothing can reduce
+             !       The logic below ensures that if powerlaw_c is increasing, the smoothing can reduce
              !        the change to zero, but not cause powerlaw_c to decrease relative to old_powerlaw_c
-             !        (and similarly if powerlaw_c_2d is decreasing).
+             !        (and similarly if powerlaw_c is decreasing).
 
              if (dpowerlaw_c(i,j) > 0.0d0) then
                 if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth > old_powerlaw_c(i,j)) then
-                   basal_physics%powerlaw_c_2d(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+                   basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
                 else
                   ! allow the smoothing to hold Cp at its old value, but not reduce Cp
-                   basal_physics%powerlaw_c_2d(i,j) = old_powerlaw_c(i,j)
+                   basal_physics%powerlaw_c_inversion(i,j) = old_powerlaw_c(i,j)
                 endif
              elseif (dpowerlaw_c(i,j) < 0.0d0) then
                 if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth < old_powerlaw_c(i,j)) then
-                   basal_physics%powerlaw_c_2d(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+                   basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
                 else
                   ! allow the smoothing to hold Cp at its old value, but not increase Cp
-                   basal_physics%powerlaw_c_2d(i,j) = old_powerlaw_c(i,j)
+                   basal_physics%powerlaw_c_inversion(i,j) = old_powerlaw_c(i,j)
                 endif
              endif  ! dpowerlaw_c > 0
 
@@ -336,24 +336,26 @@ contains
 !                factor = abs(dpowerlaw_c(i,j)) / abs(dpowerlaw_c_smooth)
 !                dpowerlaw_c_smooth = dpowerlaw_c_smooth * factor
 !             endif
-!             basal_physics%powerlaw_c_2d(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+!             basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
 
           endif  ! cell is grounded
 
           if (verbose_inversion .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-             print*, 'Smoothing correction, new powerlaw_c:', dpowerlaw_c_smooth, basal_physics%powerlaw_c_2d(i,j)
+             print*, 'Smoothing correction, new powerlaw_c:', &
+                  dpowerlaw_c_smooth, basal_physics%powerlaw_c_inversion(i,j)
           endif
 
        enddo
     enddo
 
-    call parallel_halo(basal_physics%powerlaw_c_2d)
+    call parallel_halo(basal_physics%powerlaw_c_inversion)
 
     ! Set coulomb_c assuming a fixed ratio of powerlaw_c/coulomb_c
-    basal_physics%coulomb_c_2d(:,:) = basal_physics%powerlaw_c_2d(:,:) / basal_physics%powerlaw_coulomb_ratio
+    basal_physics%coulomb_c_inversion(:,:) = basal_physics%powerlaw_c_inversion(:,:) &
+                                           / basal_physics%powerlaw_coulomb_ratio
 
     ! Limit coulomb_c to be <= 1, so that basal stress <= effective pressure N
-    basal_physics%coulomb_c_2d(:,:) = min(basal_physics%coulomb_c_2d(:,:), 1.0d0)
+    basal_physics%coulomb_c_inversion(:,:) = min(basal_physics%coulomb_c_inversion(:,:), 1.0d0)
 
     !WHL - debug
     if (verbose_inversion .and. this_rank == rtest) then
@@ -385,14 +387,14 @@ contains
        print*, 'After smoothing, powerlaw_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_2d(i,j)
+             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_inversion(i,j)
           enddo
           write(6,*) ' '
        enddo
        print*, 'coulomb_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') basal_physics%coulomb_c_2d(i,j)
+             write(6,'(f10.4)',advance='no') basal_physics%coulomb_c_inversion(i,j)
           enddo
           write(6,*) ' '
        enddo

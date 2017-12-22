@@ -491,6 +491,13 @@ contains
   !*****************************************************************************  
 #ifdef HAVE_AVG
   subroutine NAME_avg_accumulate(outfile,data,model)
+
+    ! Accumulate time averages for 'tavg' variables
+    ! NOTE: This subroutine works for tavg variables that are written to exactly one output file.
+    !       If we try to write tavg variables to multiple output files, the accumulated values
+    !        will be too large, because this subroutine will be called more than once per time step.
+    ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
+
     use parallel
     use glide_types
     use DATAMOD
