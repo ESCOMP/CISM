@@ -306,6 +306,7 @@ units:         meter/year
 long_name:     basal melt rate for floating ice from inversion
 data:          data%basal_melt%bmlt_float_inversion
 factor:        scyr
+load:          1
 coordinates:   lon lat
 average:       1
 
@@ -315,6 +316,7 @@ units:         meter/year
 long_name:     prescribed basal melt rate for floating ice
 data:          data%basal_melt%bmlt_float_prescribed
 factor:        scyr
+load:          1
 coordinates:   lon lat
 
 #WHL - A number of plume-related fields follow.

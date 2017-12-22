@@ -40,6 +40,9 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
+    logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .true.
+
 !***********************************************************************
 
 contains
@@ -47,8 +50,6 @@ contains
 !***********************************************************************
 
   subroutine glissade_init_inversion(model)
-
-    use glissade_masks, only: glissade_get_masks
 
     ! Initialize inversion for fields of basal traction and basal melting
 
@@ -128,15 +129,26 @@ contains
 
        call parallel_halo(model%basal_melt%bmlt_float_prescribed)
 
+       ! If not a restart, then initialize powerlaw_c_inversion and bmlt_float_inversion to presribed values.
+       ! If a restart run, both fields are read from the restart file.
+       ! Note: powerlaw_c_inversion is adjusted at runtime where either
+       !       (1) Ice is grounded in the forward run but powerlaw_c was not computed in the inversion run, or
+       !       (2) Ice is floating in the forward run
+       ! Note: bmlt_float_inversion is not adjusted at runtime.
+       !       If an interior lake were to form at runtime in a region that was an ice shelf during inversion,
+       !       we might have nonzero bmlt_float_prescribed where we want bmlt_float_inversion = 0.
+       !       Ignore that possibility for now.
+
+       if (model%options%is_restart == RESTART_FALSE) then
+
+          model%basal_physics%powerlaw_c_inversion(:,:) = model%basal_physics%powerlaw_c_prescribed(:,:)
+          model%basal_melt%bmlt_float_inversion(:,:) = model%basal_melt%bmlt_float_prescribed(:,:)
+
+       endif
+
     endif  ! which_ho_inversion
 
   end subroutine glissade_init_inversion
-
-!***********************************************************************
-
-  !TODO - Add code to extend powerlaw_c for prescribed case.
-  !       Use prescribed values where available, and otherwise extrapolate from nearby values.
-  !       In this way, we can avoid having very wrong values where the GL has advanced.
 
 !***********************************************************************
 
@@ -203,8 +215,6 @@ contains
     !       This is numerically well behaved, but may oversmooth in bowl-shaped regions;
     !        a smaller value may be better as H converges toward H_obs.
 
-    logical, parameter :: verbose_inversion = .false.
-
     ! Save the starting value
     old_powerlaw_c(:,:) = basal_physics%powerlaw_c_inversion(:,:)
     dpowerlaw_c(:,:) = 0.0d0
@@ -221,7 +231,13 @@ contains
 
           if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! ice is present and grounded
 
-             ! Invert for powerlaw_c and coulomb_c based on dthck and dthck_dt
+             ! If this cell has just grounded, it will have powerlaw_c = 0 from when it was ice-free or floating.
+             ! Give it a sensible default value before proceeding.
+             if (basal_physics%powerlaw_c_inversion(i,j) == 0.0d0) then
+                basal_physics%powerlaw_c_inversion(i,j) = basal_physics%powerlaw_c
+             endif
+
+             ! Invert for powerlaw_c based on dthck and dthck_dt
              term1 = -dthck(i,j) / basal_physics%inversion_babc_thck_scale
              term2 = -dthck_dt(i,j) / basal_physics%inversion_babc_dthck_dt_scale
 
@@ -259,15 +275,20 @@ contains
 
           else  ! ice_mask = 0 or floating_mask = 1
 
-             ! set to default value
-             basal_physics%powerlaw_c_inversion(i,j) = basal_physics%powerlaw_c
+             ! set powerlaw_c = 0
+             ! Note: Zero values are ignored when interpolating powerlaw_c to vertices,
+             !       and in forward runs where powerlaw_c is prescribed from a previous inversion.
+             ! Warning: If a cell is grounded some of the time and floating the rest of the time,
+             !           the time-averaging routine will accumulate zero values as if they are real.
+             !          Time-average fields should be used with caution.
+
+             basal_physics%powerlaw_c_inversion(i,j) = 0.0d0
 
           endif  ! ice_mask = 1 and floating_mask = 0
 
        enddo  ! i
     enddo  ! j
 
-    !WHL - debug
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
        j = jtest
@@ -284,8 +305,8 @@ contains
     ! Save the value just computed
     temp_powerlaw_c(:,:) = basal_physics%powerlaw_c_inversion(:,:)
 
-    ! Apply Laplacian smoothing to C_p.
-    ! Since C_p is at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
+    ! Apply Laplacian smoothing.
+    ! Since powerlaw_c lives at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
     !TODO - Write an operator for Laplacian smoothing?
     do j = 2, ny-1
        do i = 2, nx-1
@@ -340,11 +361,6 @@ contains
 
           endif  ! cell is grounded
 
-          if (verbose_inversion .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-             print*, 'Smoothing correction, new powerlaw_c:', &
-                  dpowerlaw_c_smooth, basal_physics%powerlaw_c_inversion(i,j)
-          endif
-
        enddo
     enddo
 
@@ -357,9 +373,7 @@ contains
     ! Limit coulomb_c to be <= 1, so that basal stress <= effective pressure N
     basal_physics%coulomb_c_inversion(:,:) = min(basal_physics%coulomb_c_inversion(:,:), 1.0d0)
 
-    !WHL - debug
     if (verbose_inversion .and. this_rank == rtest) then
-
        i = itest
        j = jtest
        print*, 'thck (m):'
@@ -398,12 +412,139 @@ contains
           enddo
           write(6,*) ' '
        enddo
-
     endif
 
   end subroutine invert_basal_traction
 
   !***********************************************************************
+
+  subroutine prescribe_basal_traction(nx,            ny,            &
+                                      itest, jtest,  rtest,         &
+                                      ice_mask,                     &
+                                      floating_mask,                &
+                                      powerlaw_c_prescribed,        &
+                                      powerlaw_c)
+
+    ! Compute Cp = powerlaw_c when Cp is prescribed from a previous inversion run.
+    ! - For cells where the ice is grounded and a prescribed Cp exists,
+    !   we simply have Cp = Cp_prescribed.
+    ! - For cells where the ice is grounded and prescribed Cp = 0 (since the cell
+    !   was floating or ice-free in the inversion run), we set Cp by extrapolating
+    !   from neighboring cells, if possible. In principle, the extrapolation could
+    !   be extended indefinitely as the grounding line advances, but the extrapolation
+    !   would likely not be accurate over large distances.
+    ! - For cells where the ice is floating (whether or not a prescribed Cp exists),
+    !   we set Cp = 0.
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    integer, dimension(nx,ny), intent(in) :: &
+         ice_mask,             & ! = 1 where ice is present, else = 0
+         floating_mask           ! = 1 where ice is present and floating, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         powerlaw_c_prescribed   ! powerlaw_c prescribed from previous inversion
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         powerlaw_c              ! powerlaw_c adjusted or extended as needed
+
+    ! local variables
+
+    real(dp), dimension(nx,ny) :: &
+         new_powerlaw_c          ! new powerlaw_c values extrapolated from existing values
+
+    integer :: i, j, ii, jj
+
+    integer :: count              ! counter
+    real(dp) :: sum_powerlaw_c    ! sum of powerlaw_c in neighbor cells
+
+    ! Zero out powerlaw_c where ice is not grounded
+    where (ice_mask == 0 .or. floating_mask == 1)
+       powerlaw_c = 0.0d0
+    endwhere
+
+    ! Compute new values of powerlaw_c in newly grounded cells 
+    new_powerlaw_c(:,:) = 0.0d0
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
+
+             if (powerlaw_c(i,j) > 0.0d0) then
+
+                ! cell was already grounded; use the current value
+
+             elseif (powerlaw_c_prescribed(i,j) > 0.0d0) then ! use the prescribed value
+
+                new_powerlaw_c(i,j) = powerlaw_c_prescribed(i,j)
+
+             else  ! extrapolate from neighbor cells
+
+                count = 0
+                sum_powerlaw_c = 0.0d0
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if ( (ii == i .or. jj == j) .and. (ii /= i .or. jj /= j) ) then   ! edge neighbors
+                         if (powerlaw_c(ii,jj) > 0.0d0) then
+                            count = count + 1
+                            sum_powerlaw_c = sum_powerlaw_c + powerlaw_c(ii,jj)
+                         endif
+                      endif
+                   enddo
+                enddo
+                if (count > 0) then
+                   new_powerlaw_c(i,j) = sum_powerlaw_c/count
+                endif
+
+             endif  ! powerlaw_c > 0
+
+          endif  ! grounded
+       enddo  ! i
+    enddo  ! j
+
+    ! Fill in new values
+    where (new_powerlaw_c > 0.0d0)
+       powerlaw_c = new_powerlaw_c
+    endwhere
+
+    call parallel_halo(powerlaw_c)
+
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'floating_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') floating_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'powerlaw_c_prescribed:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') powerlaw_c_prescribed(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'computed powerlaw_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') powerlaw_c(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif  ! verbose
+
+  end subroutine prescribe_basal_traction
+
+!***********************************************************************
 
   subroutine invert_bmlt_float(dt,                           &
                                nx,            ny,            &
@@ -471,8 +612,6 @@ contains
     !  thereby reducing the thickness error.
     ! As the timescale approaches zero, the adjusted bmlt_float_inversion will approach the value
     !  needed to give H = H_obs.
-
-    logical, parameter :: verbose_inversion = .false.
 
     if (verbose_inversion .and. main_task) then
        print*, ' '

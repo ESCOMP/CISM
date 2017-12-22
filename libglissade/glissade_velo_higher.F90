@@ -667,7 +667,7 @@
     !----------------------------------------------------------------
 
     use glissade_basal_traction, only: calcbeta, calc_effective_pressure
-    use glissade_inversion, only: invert_basal_traction
+    use glissade_inversion, only: invert_basal_traction, prescribe_basal_traction
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -2151,6 +2151,9 @@
     !------------------------------------------------------------------------------
     ! Compute powerlaw_c and coulomb_c fields by inversion, if needed
     !  (part of basal_physics derived type).
+    ! Note: If powerlaw_c is prescribed from a previous inversion, it may need to be
+    !       adjusted in cells that were floating during the inversion but are now grounded,
+    !       or vice versa.
     ! Note: dt and thck_obs are not rescaled by the scale_input subroutine, in order
     !       to avoid accumulating errors by repeated multiplication and division.
     !------------------------------------------------------------------------------
@@ -2166,6 +2169,15 @@
                                   thck,                       &  ! m
                                   dthck_dt,                   &  ! m/s
                                   thck_obs*thk0)                 ! m
+
+    elseif (whichinversion == HO_INVERSION_PRESCRIBED) then
+
+       call prescribe_basal_traction(nx,       ny,               &
+                                     itest,    jtest,  rtest,    &
+                                     ice_mask,                   &
+                                     floating_mask,              &
+                                     model%basal_physics%powerlaw_c_prescribed, &
+                                     model%basal_physics%powerlaw_c_inversion)
 
     endif
 
@@ -2334,7 +2346,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') f_ground(i,j)
+                write(6,'(f10.5)',advance='no') f_ground(i,j)
              enddo
              write(6,*) ' '
           enddo          
