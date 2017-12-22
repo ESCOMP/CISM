@@ -1122,8 +1122,8 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-!!    logical, parameter :: verbose_inversion = .false.
-    logical, parameter :: verbose_inversion = .true.
+    logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .true.
 
     ! --- Local variables ---
 
@@ -1458,14 +1458,8 @@ contains
        !        to the mass balance driver. However, the relaxation of thck toward thck_obs would then
        !        be followed by horizontal transport, causing thck and thck_obs to diverge again.
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
-
-          ! thickness tendency dH/dt from one step to the next (m/s)
-          ! This tendency is used when inverting for basal traction parameters.
-          ! It is recomputed at the end of the time step for diagnostic output.
-
-          model%geometry%dthck_dt(:,:) = (thck_unscaled(:,:) - model%geometry%thck_old(:,:)*thk0) &
-                                       / (model%numerics%dt * tim0)
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
+           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
 
           ! ------------------------------------------------------------------------
           ! Get masks used by glissade_mass_balance_driver and the inversion calculation.
@@ -1490,20 +1484,37 @@ contains
              effective_areafrac = 1.0d0
           endwhere
 
-          ! Invert for bmlt_float_inversion, adjusting the melt rate to relax toward the observed thickness.
-          ! As the inversion converges, the difference (thck - thck_obs) should approach zero.
-          ! Note: basal_melt%bmlt_float_inversion is passed out with units of m/s
+          ! For the inversion run, compute bmlt_float_inversion, and compute dthck_dt
+          !  for use in the later computation of powerlaw_c_inversion.
+          ! Note: powerlaw_c_inversion is computed in the velocity solver.
+          ! If bmlt_float is prescribed from a previous inversion, it does not need
+          !  to be recomputed here.
 
-          call invert_bmlt_float(model%numerics%dt * tim0,               &    ! s
-                                 model%general%ewn, model%general%nsn,   &
-                                 itest,   jtest,    rtest,               &
-                                 model%basal_melt,                       &
-                                 thck_unscaled,                          &
-                                 model%geometry%thck_obs*thk0,           &
-                                 ice_mask,                               &
-                                 floating_mask,                          &
-                                 ocean_mask,                             &
-                                 land_mask)
+          if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+
+             ! thickness tendency dH/dt from one step to the next (m/s)
+             ! This tendency is used when inverting for basal traction parameters.
+             ! It is recomputed at the end of the time step for diagnostic output.
+
+             model%geometry%dthck_dt(:,:) = (thck_unscaled(:,:) - model%geometry%thck_old(:,:)*thk0) &
+                                          / (model%numerics%dt * tim0)
+
+             ! Invert for bmlt_float_inversion, adjusting the melt rate to relax toward the observed thickness.
+             ! As the inversion converges, the difference (thck - thck_obs) should approach zero.
+             ! Note: basal_melt%bmlt_float_inversion is passed out with units of m/s
+
+             call invert_bmlt_float(model%numerics%dt * tim0,               &    ! s
+                                    model%general%ewn, model%general%nsn,   &
+                                    itest,   jtest,    rtest,               &
+                                    model%basal_melt,                       &
+                                    thck_unscaled,                          &
+                                    model%geometry%thck_obs*thk0,           &
+                                    ice_mask,                               &
+                                    floating_mask,                          &
+                                    ocean_mask,                             &
+                                    land_mask)
+
+          endif  ! which_ho_inversion
 
           !WHL - debug
           if (verbose_inversion .and. this_rank == rtest) then
@@ -1514,18 +1525,10 @@ contains
              print*, 'thck (m), thck_obs (m), bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
                   model%geometry%thck_obs(i,j)*thk0, model%basal_melt%bmlt_float_inversion(i,j)*scyr
              print*, ' '
-             print*, 'bmlt_inversion_mask:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(i12)',advance='no') model%basal_melt%bmlt_inversion_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
              print*, 'floating_mask:'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(i12)',advance='no') floating_mask(i,j)
+                   write(6,'(i10)',advance='no') floating_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -1533,7 +1536,7 @@ contains
              print*, 'thck (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
+                   write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -1541,7 +1544,7 @@ contains
              print*, 'thck - thck_obs (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
+                   write(6,'(f10.3)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
                 enddo
                 write(6,*) ' '
              enddo
@@ -1549,7 +1552,7 @@ contains
              print*, 'thck_flotation (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') -(rhoo/rhoi)*model%geometry%topg(i,j)*thk0
+                   write(6,'(f10.3)',advance='no') -(rhoo/rhoi)*model%geometry%topg(i,j)*thk0
                 enddo
                 write(6,*) ' '
              enddo
@@ -1557,7 +1560,7 @@ contains
              print*, 'bmlt_float_inversion (m/yr):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') model%basal_melt%bmlt_float_inversion(i,j)*scyr
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float_inversion(i,j)*scyr
                 enddo
                 write(6,*) ' '
              enddo
@@ -1596,7 +1599,7 @@ contains
              print*, 'thck (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
+                   write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -1604,11 +1607,10 @@ contains
              print*, 'thck - thck_obs (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
+                   write(6,'(f10.3)',advance='no') thck_unscaled(i,j) - model%geometry%thck_obs(i,j)*thk0
                 enddo
                 write(6,*) ' '
              enddo
-
           endif
 
           ! Note: Subroutine invert_basal_traction, which inverts for basal parameters,

@@ -470,6 +470,7 @@ contains
 
           ! Interpolate powerlaw_c and coulomb_c to the velocity grid.
           ! stagger_margin_in = 1: Interpolate using only the values in cells with grounded ice.
+          !                        Zero values in floating and ice-free cells are ignored.
 
           where (ice_mask == 1 .and. floating_mask == 0)
              grounded_mask = 1

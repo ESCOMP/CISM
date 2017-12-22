@@ -1303,7 +1303,7 @@ contains
           call write_log('Error, HO basal BC input out of range', GM_FATAL)
        end if
 
-       write(message,*) 'ho_whichinversion : ',model%options%which_ho_inversion,  &
+       write(message,*) 'ho_whichinversion       : ',model%options%which_ho_inversion,  &
                          ho_whichinversion(model%options%which_ho_inversion)
        call write_log(message)
        if (model%options%which_ho_inversion < 0 .or. &
@@ -2566,18 +2566,23 @@ contains
          !  but included for generality)
          ! Note: If these fields are written to the restart file, they should not be written
          !       to any other output file; else the time average will be wrong.
+         !TODO - Consider whether it is better to restart from snapshots.
          call glide_add_to_restart_variable_list('powerlaw_c_inversion_tavg')
          call glide_add_to_restart_variable_list('bmlt_float_inversion_tavg')
       case (HO_INVERSION_PRESCRIBED)
-         ! If powerlaw_c and bmlt_float are prescribed from a previous inversion,
-         !  then the prescribed fields are needed to initialize the model.
-         ! Note: At startup, the '_prescribed' fields typically are copies of '_tavg' fields
-         !       from the inversion.
-         !       The powerlaw_c_prescribed field can be extrapolated at startup
-         !       using a nearest-neighbor approach so that a value is available everywhere.
-         !       The extrapolated field is then written out and read in for subsequent restarts.
+         ! Write powerlaw_c_inversion to the restart file, because it is
+         !  continually adjusted at runtime as the grounding line moves.
+         ! Also write bmlt_float_inversion. It is not adjusted at runtime, so we need
+         !  either bmlt_float_inversion or bmlt_float_prescribed, but not both.
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         ! If powerlaw_c is prescribed from a previous inversion, then the
+         !  prescribed field is needed at runtime to set powerlaw_c_inversion
+         !  when floating ice regrounds.
+         ! The prescribed bmlt_float field is needed only at initialization
+         !  to set bmlt_float_inversion, so it is not needed for restart.
          call glide_add_to_restart_variable_list('powerlaw_c_prescribed')
-         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
+!!         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on thck_obs,
