@@ -307,8 +307,15 @@ long_name:     basal melt rate for floating ice from inversion
 data:          data%basal_melt%bmlt_float_inversion
 factor:        scyr
 coordinates:   lon lat
-#WHL - Uncomment to compute bmlt_float_inversion_tavg
-#average:       1
+average:       1
+
+[bmlt_float_prescribed]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     prescribed basal melt rate for floating ice
+data:          data%basal_melt%bmlt_float_prescribed
+factor:        scyr
+coordinates:   lon lat
 
 #WHL - A number of plume-related fields follow.
 
@@ -836,21 +843,28 @@ data:          data%basal_physics%C_space_factor
 load:          1
 coordinates:   lon lat
 
-[powerlaw_c_2d]
+[powerlaw_c_inversion]
 dimensions:    time, y1, x1
 units:         Pa (m/yr)**(-1/3)
 long_name:     spatially varying C for powerlaw sliding
-data:          data%basal_physics%powerlaw_c_2d
+data:          data%basal_physics%powerlaw_c_inversion
 load:          1
 coordinates:   lon lat
-#WHL - Uncomment to compute powerlaw_c_2d_tavg
-#average:       1
+average:       1
 
-[coulomb_c_2d]
+[powerlaw_c_prescribed]
+dimensions:    time, y1, x1
+units:         Pa (m/yr)**(-1/3)
+long_name:     prescribed spatially varying C for powerlaw sliding
+data:          data%basal_physics%powerlaw_c_prescribed
+load:          1
+coordinates:   lon lat
+
+[coulomb_c_inversion]
 dimensions:    time, y1, x1
 units:         unitless [0,1]
 long_name:     spatially varying C for Coulomb sliding
-data:          data%basal_physics%coulomb_c_2d
+data:          data%basal_physics%coulomb_c_inversion
 load:          0
 coordinates:   lon lat
 

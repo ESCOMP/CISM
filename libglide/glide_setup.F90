@@ -1954,6 +1954,7 @@ contains
           call write_log(message)
           write(message,*) 'inversion basal traction smoothing factor    : ', &
                model%basal_physics%inversion_babc_smoothing_factor
+          call write_log(message)
           write(message,*) 'inversion basal melting timescale (yr)       : ', &
                model%basal_melt%inversion_bmlt_timescale
           call write_log(message)
@@ -2534,15 +2535,16 @@ contains
 
     ! basal sliding option
     select case (options%which_ho_babc)
-      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_POWERLAW_SCHOOF)
-        ! These friction laws need effective pressure
-         !TODO - Does effecpress need to be a restart variable?
-        call glide_add_to_restart_variable_list('effecpress')
+       !WHL - Removed effecpress as a restart variable; it is recomputed with each velocity solve.
+!!      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_POWERLAW_SCHOOF)
+!!        ! These friction laws need effective pressure
+!!        call glide_add_to_restart_variable_list('effecpress')
+!!      case(HO_BABC_COULOMB_POWERLAW_TSAI)
+!!        call glide_add_to_restart_variable_list('effecpress')
+      case (HO_BABC_COULOMB_FRICTION)
+        call glide_add_to_restart_variable_list('C_space_factor')
         ! C_space_factor needs to be in restart file if not = 1 everywhere
         !TODO - Add C_space_factor to the restart file only if not = 1 everywhere?
-        call glide_add_to_restart_variable_list('C_space_factor')
-      case(HO_BABC_COULOMB_POWERLAW_TSAI)
-        call glide_add_to_restart_variable_list('effecpress')
       case default
         ! Other HO basal boundary conditions may need the external beta field  (although there are a few that don't)
         !Note: If using beta from an external file, then 'beta' here needs to be the fixed, external field,
@@ -2552,11 +2554,30 @@ contains
 
     ! basal inversion option
     select case(options%which_ho_inversion)
-      case (HO_INVERSION_COMPUTE, HO_INVERSION_PRESCRIBED)
-         ! If computing powerlaw_c_2d by inversion, this field is needed for restart.
-         ! Also needed if prescribing powerlaw_c_2d from a previous inversion.
-         ! Note: coulomb_c_2d is not a restart field, since the ratio powerlaw_c/coulomb_c is fixed.
-         call glide_add_to_restart_variable_list('powerlaw_c_2d')
+      case (HO_INVERSION_COMPUTE)
+         ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
+         ! Note: coulomb_c_inversion is not a restart field, since the ratio powerlaw_c/coulomb_c is fixed.
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         ! If the restart file will be used to initialize a forward run,
+         !  then we also want the time-average versions of these fields,
+         !  which will serve as prescribed fields for the forward run.
+         ! (Not strictly necessary except for the final run of the inversion,
+         !  but included for generality)
+         ! Note: If these fields are written to the restart file, they should not be written
+         !       to any other output file; else the time average will be wrong.
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion_tavg')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion_tavg')
+      case (HO_INVERSION_PRESCRIBED)
+         ! If powerlaw_c and bmlt_float are prescribed from a previous inversion,
+         !  then the prescribed fields are needed to initialize the model.
+         ! Note: At startup, the '_prescribed' fields typically are copies of '_tavg' fields
+         !       from the inversion.
+         !       The powerlaw_c_prescribed field can be extrapolated at startup
+         !       using a nearest-neighbor approach so that a value is available everywhere.
+         !       The extrapolated field is then written out and read in for subsequent restarts.
+         call glide_add_to_restart_variable_list('powerlaw_c_prescribed')
+         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on thck_obs,

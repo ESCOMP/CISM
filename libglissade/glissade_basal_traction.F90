@@ -149,8 +149,8 @@ contains
   real(dp), dimension(size(beta,1), size(beta,2)) ::  &
        big_lambda,                 &  ! bedrock characteristics
        flwa_basal_stag,            &  ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
-       stag_powerlaw_c_2d,         &  ! powerlaw_c_2d interpolated to the staggered grid
-       stag_coulomb_c_2d              ! coulomb_c_2d interpolated to the staggered grid
+       stag_powerlaw_c_inversion,  &  ! powerlaw_c_inversion interpolated to the staggered grid
+       stag_coulomb_c_inversion       ! coulomb_c_inversion interpolated to the staggered grid
 
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
@@ -438,8 +438,8 @@ contains
        !
        ! Depending on the value of which_ho_inversion, there are different ways to apply this sliding law:
        ! (0) Set powerlaw_c and coulomb_c to a constant everywhere.
-       ! (1) Obtain spatially varying powerlaw_c_2d and coulomb_c_2d fields by inversion.
-       ! (2) Use spatially varying powerlaw_c_2d and coulomb_c_2d fields prescribed from a previous inversion.
+       ! (1) Obtain spatially varying powerlaw_c and coulomb_c fields by inversion.
+       ! (2) Use spatially varying powerlaw_c and coulomb_c fields prescribed from a previous inversion.
        ! For either (1) or (2), use the 2D fields.
 
        if (which_inversion == HO_INVERSION_NONE) then
@@ -468,7 +468,7 @@ contains
 
           m = basal_physics%powerlaw_m
 
-          ! Interpolate powerlaw_c_2d and coulomb_c_2d to the velocity grid.
+          ! Interpolate powerlaw_c and coulomb_c to the velocity grid.
           ! stagger_margin_in = 1: Interpolate using only the values in cells with grounded ice.
 
           where (ice_mask == 1 .and. floating_mask == 0)
@@ -477,21 +477,25 @@ contains
              grounded_mask = 0
           endwhere
 
-          call glissade_stagger(ewn,                         nsn,                 &
-                                basal_physics%powerlaw_c_2d, stag_powerlaw_c_2d,  &
-                                grounded_mask,               stagger_margin_in = 1)
+          call glissade_stagger(ewn,                         nsn,      &
+                                basal_physics%powerlaw_c_inversion,    &
+                                stag_powerlaw_c_inversion,             &
+                                grounded_mask,                         &
+                                stagger_margin_in = 1)
 
-          call glissade_stagger(ewn,                         nsn,                 &
-                                basal_physics%coulomb_c_2d,  stag_coulomb_c_2d,   &
-                                grounded_mask,               stagger_margin_in = 1)
+          call glissade_stagger(ewn,                         nsn,      &
+                                basal_physics%coulomb_c_inversion,     &
+                                stag_coulomb_c_inversion,              &
+                                grounded_mask,                         &
+                                stagger_margin_in = 1)
 
           ! Replace zeroes with default values to avoid divzero issues
-          where (stag_powerlaw_c_2d == 0.0d0)
-             stag_powerlaw_c_2d = basal_physics%powerlaw_c
+          where (stag_powerlaw_c_inversion == 0.0d0)
+             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
           endwhere
 
-          where (stag_coulomb_c_2d == 0.0d0)
-             stag_coulomb_c_2d = basal_physics%coulomb_c
+          where (stag_coulomb_c_inversion == 0.0d0)
+             stag_coulomb_c_inversion = basal_physics%coulomb_c
           endwhere
 
           do ns = 1, nsn-1
@@ -499,10 +503,10 @@ contains
 
                 speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
 
-                numerator = stag_powerlaw_c_2d(ew,ns) * stag_coulomb_c_2d(ew,ns)  &
+                numerator = stag_powerlaw_c_inversion(ew,ns) * stag_coulomb_c_inversion(ew,ns)  &
                           * basal_physics%effecpress_stag(ew,ns)
-                denominator = ( stag_powerlaw_c_2d(ew,ns)**m * speed(ew,ns) +  &
-                     (stag_coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+                denominator = ( stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns) +  &
+                     (stag_coulomb_c_inversion(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
 
                 beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
 
@@ -511,8 +515,8 @@ contains
                    if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
                       write(6,*) 'r, i, j, denom_u, denom_N, speed, beta, taub:', &
                            rtest, itest, jtest, &
-                           (stag_powerlaw_c_2d(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
-                           stag_coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns), &
+                           (stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
+                           stag_coulomb_c_inversion(ew,ns) * basal_physics%effecpress_stag(ew,ns), &
                            speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
                    endif
                 endif

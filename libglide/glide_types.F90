@@ -1264,7 +1264,8 @@ module glide_types
           bmlt_float_anomaly => null(),           & !> basal melt rate anomaly field
           bmlt_float_inversion => null(),         & !> basal melt rate computed by inversion;
                                                     !> relaxes thickness of floating ice toward observed target
-          bmlt_float_inversion_tavg => null()       !> basal melt rate computed by inversion (time average)
+          bmlt_float_inversion_tavg => null(),    & !> basal melt rate computed by inversion (time average)
+          bmlt_float_prescribed => null()           !> basal melt rate prescribed from a previous inversion
 
      integer, dimension(:,:), pointer :: &
           bmlt_inversion_mask => null()             !> = 1 where bmlt is applied for inversion, else = 0
@@ -1367,10 +1368,10 @@ module glide_types
      real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
      real(dp), dimension(:,:), pointer :: tau_c => null()               !< yield stress for plastic sliding (Pa)
-     real(dp), dimension(:,:), pointer :: powerlaw_c_2d => null()       !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
-     real(dp), dimension(:,:), pointer :: powerlaw_c_2d_tavg => null()  !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
-                                                                        !< time-averaged to provide input for a forward run
-     real(dp), dimension(:,:), pointer :: coulomb_c_2d => null()        !< spatially varying coulomb_c field (unitless)
+     real(dp), dimension(:,:), pointer :: powerlaw_c_inversion => null()      !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
+     real(dp), dimension(:,:), pointer :: powerlaw_c_inversion_tavg => null() !< spatially varying powerlaw_c field, time average
+     real(dp), dimension(:,:), pointer :: powerlaw_c_prescribed => null()     !< powerlaw_c field, prescribed from a previous inversion
+     real(dp), dimension(:,:), pointer :: coulomb_c_inversion => null()       !< spatially varying coulomb_c field (unitless)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
@@ -1853,6 +1854,7 @@ contains
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion_tavg(ewn,nsn)}
+    !> \item \texttt{bmlt_float_prescribed(ewn,nsn)}
     !> \item \texttt{bmlt_inversion_mask(ewn,nsn)}
     !> \end{itemize}
 
@@ -2184,14 +2186,17 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_2d_tavg)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%coulomb_c_2d)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
 !!       endif
-
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
+           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
+          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_inversion)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_inversion_tavg)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_prescribed)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%coulomb_c_inversion)
+       endif
     endif  ! glam/glissade
 
     ! bmlt arrays
@@ -2204,9 +2209,11 @@ contains
        if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        endif
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
+           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion_tavg)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_prescribed)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_inversion_mask)
        endif
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
@@ -2520,12 +2527,14 @@ contains
         deallocate(model%basal_physics%effecpress_stag)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
-    if (associated(model%basal_physics%powerlaw_c_2d)) &
-        deallocate(model%basal_physics%powerlaw_c_2d)
-    if (associated(model%basal_physics%powerlaw_c_2d_tavg)) &
-        deallocate(model%basal_physics%powerlaw_c_2d_tavg)
-    if (associated(model%basal_physics%coulomb_c_2d)) &
-        deallocate(model%basal_physics%coulomb_c_2d)
+    if (associated(model%basal_physics%powerlaw_c_inversion)) &
+        deallocate(model%basal_physics%powerlaw_c_inversion)
+    if (associated(model%basal_physics%powerlaw_c_inversion_tavg)) &
+        deallocate(model%basal_physics%powerlaw_c_inversion_tavg)
+    if (associated(model%basal_physics%powerlaw_c_prescribed)) &
+        deallocate(model%basal_physics%powerlaw_c_prescribed)
+    if (associated(model%basal_physics%coulomb_c_inversion)) &
+        deallocate(model%basal_physics%coulomb_c_inversion)
     if (associated(model%basal_physics%C_space_factor)) &
         deallocate(model%basal_physics%C_space_factor)
     if (associated(model%basal_physics%C_space_factor_stag)) &
@@ -2551,6 +2560,8 @@ contains
         deallocate(model%basal_melt%bmlt_float_inversion)
     if (associated(model%basal_melt%bmlt_float_inversion_tavg)) &
         deallocate(model%basal_melt%bmlt_float_inversion_tavg)
+    if (associated(model%basal_melt%bmlt_float_prescribed)) &
+        deallocate(model%basal_melt%bmlt_float_prescribed)
     if (associated(model%basal_melt%bmlt_inversion_mask)) &
         deallocate(model%basal_melt%bmlt_inversion_mask)
 
