@@ -2681,20 +2681,6 @@
              enddo
           endif
 
-          if (whichbabc == HO_BABC_COULOMB_FRICTION .or. &
-              whichbabc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
-             print*, ' '
-             print*, 'C_space_factor_stag, itest, rank =', itest, rtest
-             do j = ny-1, 1, -1
-                write(6,'(i6)',advance='no') j
-!!                do i = 1, nx-1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%basal_physics%C_space_factor_stag(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
        endif   ! verbose_beta
 
        !-------------------------------------------------------------------

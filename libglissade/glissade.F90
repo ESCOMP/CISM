@@ -1122,8 +1122,8 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    logical, parameter :: verbose_inversion = .false.
-!!    logical, parameter :: verbose_inversion = .true.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
     ! --- Local variables ---
 
@@ -1144,6 +1144,7 @@ contains
        calving_front_mask   ! = 1 where ice is floating and borders an ocean cell, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+       thck_flotation,       & ! thickness at which ice is exactly floating
        thck_calving_front,   & ! effective thickness of ice at the calving front
        effective_areafrac      ! effective fractional area of ice at the calving front
 
@@ -1160,8 +1161,6 @@ contains
                                     ! set to true for EVOL_UPWIND, else = false
 
     integer :: ntracers             ! number of tracers to be transported
-
-    real(dp) :: thck_flotation
 
     integer :: i, j, k
     integer :: ewn, nsn, upn
@@ -1484,6 +1483,13 @@ contains
              effective_areafrac = 1.0d0
           endwhere
 
+          ! Compute the flotation thickness
+          where (model%geometry%topg < 0.0d0)
+             thck_flotation = -(rhoo/rhoi)*model%geometry%topg*thk0
+          elsewhere
+             thck_flotation = 0.0d0
+          endwhere
+
           ! For the inversion run, compute bmlt_float_inversion, and compute dthck_dt
           !  for use in the later computation of powerlaw_c_inversion.
           ! Note: powerlaw_c_inversion is computed in the velocity solver.
@@ -1507,8 +1513,9 @@ contains
                                     model%general%ewn, model%general%nsn,   &
                                     itest,   jtest,    rtest,               &
                                     model%basal_melt,                       &
-                                    thck_unscaled,                          &
-                                    model%geometry%thck_obs*thk0,           &
+                                    thck_unscaled,                          &    ! m
+                                    model%geometry%thck_obs*thk0,           &    ! m
+                                    thck_flotation,                         &    ! m
                                     ice_mask,                               &
                                     floating_mask,                          &
                                     ocean_mask,                             &
@@ -1552,7 +1559,7 @@ contains
              print*, 'thck_flotation (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') -(rhoo/rhoi)*model%geometry%topg(i,j)*thk0
+                   write(6,'(f10.3)',advance='no') thck_flotation(i,j)
                 enddo
                 write(6,*) ' '
              enddo
