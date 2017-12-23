@@ -1292,9 +1292,9 @@ module glide_types
                                                     !> If set to zero, then the anomaly is applied immediately.
      ! inversion parameters
      real(dp) ::  &
-          inversion_bmlt_timescale =  10.d0,      & !> inversion timescale (yr);
+          inversion_bmlt_timescale =  0.d0,       & !> inversion timescale (yr);
                                                     !> relaxation is immediate if timescale = 0
-          inversion_bmlt_smoothing_factor = 0.01d0  !> factor for smoothing bmlt_float_inversion (larger => more smoothing)
+          inversion_bmlt_smoothing_factor = 0.0d0   !> factor for smoothing bmlt_float_inversion (larger => more smoothing)
 
   end type glide_basal_melt
 
