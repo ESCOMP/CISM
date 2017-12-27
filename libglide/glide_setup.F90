@@ -2579,10 +2579,11 @@ contains
          ! If powerlaw_c is prescribed from a previous inversion, then the
          !  prescribed field is needed at runtime to set powerlaw_c_inversion
          !  when floating ice regrounds.
-         ! The prescribed bmlt_float field is needed only at initialization
-         !  to set bmlt_float_inversion, so it is not needed for restart.
+         ! Currently, the prescribed bmlt_float field is used only at initialization
+         !  to set bmlt_float_inversion, so it is not strictly needed for restart.
+         !  Might want to remove it later.
          call glide_add_to_restart_variable_list('powerlaw_c_prescribed')
-!!         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
+         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on thck_obs,
