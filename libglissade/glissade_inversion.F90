@@ -97,11 +97,11 @@ contains
 
        ! Check that the required fields from the inversion are present: powerlaw_c_inversion and bmlt_float_inversion.
 
-       ! Note: A good way to supply powerlaw_c_prescribed is to compute powerlaw_c_inversion_tavg
+       ! Note: A good way to supply powerlaw_c_prescribed is to compute powerlaw_c_inversion
        !        over some period at the end of the inversion run, after the ice is spun up.
        !       After the inversion run, rename powerlaw_c_inversion_tavg as powerlaw_c_presribed and
        !        copy it to the input file for the prescribed run.
-       !       And similarly for bmlt_float_inversion_tavg and bmlt_float_prescribed
+       !       And similarly for bmlt_float_inversion and bmlt_float_prescribed
 
        var_maxval = maxval(model%basal_physics%powerlaw_c_prescribed)
        var_maxval = parallel_reduce_max(var_maxval)
@@ -130,23 +130,43 @@ contains
        call parallel_halo(model%basal_melt%bmlt_float_prescribed)
 
        ! If not a restart, then initialize powerlaw_c_inversion and bmlt_float_inversion to presribed values.
-       ! If a restart run, both fields are read from the restart file.
+       ! If a restart run, both fields typically are read from the restart file.
+       !  An exception would be if we are starting an inversion run in restart mode, using a restart file
+       !  from the end of a spin-up with inversion. In this case the restart file would contain the fields
+       !  powerlaw_c_prescribed and bmlt_float_prescribed, and we still need to initialize powerlaw_c_inversion
+       !   and bmlt_float_inversion.
+ 
        ! Note: powerlaw_c_inversion is adjusted at runtime where either
        !       (1) Ice is grounded in the forward run but powerlaw_c was not computed in the inversion run, or
        !       (2) Ice is floating in the forward run
-       ! Note: bmlt_float_inversion is not adjusted at runtime.
+       ! Note: Currently, bmlt_float_inversion is not adjusted at runtime.
        !       If an interior lake were to form at runtime in a region that was an ice shelf during inversion,
        !       we might have nonzero bmlt_float_prescribed where we want bmlt_float_inversion = 0.
        !       Ignore that possibility for now.
 
-       if (model%options%is_restart == RESTART_FALSE) then
-
+       var_maxval = maxval(abs(model%basal_physics%powerlaw_c_inversion))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval > 0.0d0) then
+          ! powerlaw_c_inversion has been read from a restart file; nothing to do here
+       else
+          ! initialize powerlaw_c_inversion
           model%basal_physics%powerlaw_c_inversion(:,:) = model%basal_physics%powerlaw_c_prescribed(:,:)
-          model%basal_melt%bmlt_float_inversion(:,:) = model%basal_melt%bmlt_float_prescribed(:,:)
-
        endif
 
-    endif  ! which_ho_inversion
+       call parallel_halo(model%basal_physics%powerlaw_c_inversion)
+
+       var_maxval = maxval(abs(model%basal_melt%bmlt_float_inversion))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval > 0.0d0) then
+          ! bmlt_float_inversion has been read from a restart file; nothing to do here
+       else
+          ! initialize bmlt_float_inversion
+          model%basal_melt%bmlt_float_inversion(:,:) = model%basal_melt%bmlt_float_prescribed(:,:)
+       endif
+
+       call parallel_halo(model%basal_melt%bmlt_float_inversion)
+
+   endif  ! which_ho_inversion
 
   end subroutine glissade_init_inversion
 

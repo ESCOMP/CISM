@@ -1521,16 +1521,23 @@ contains
                                     ocean_mask,                             &
                                     land_mask)
 
+             !WHL - debug
+             if (verbose_inversion .and. this_rank == rtest) then
+                i = itest
+                j = jtest
+                print*, ' '
+                print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
+                print*, 'thck (m), thck_obs (m), bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
+                     model%geometry%thck_obs(i,j)*thk0, model%basal_melt%bmlt_float_inversion(i,j)*scyr
+                print*, ' '
+             endif
+
           endif  ! which_ho_inversion
 
           !WHL - debug
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
              j = jtest
-             print*, ' '
-             print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
-             print*, 'thck (m), thck_obs (m), bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
-                  model%geometry%thck_obs(i,j)*thk0, model%basal_melt%bmlt_float_inversion(i,j)*scyr
              print*, ' '
              print*, 'floating_mask:'
              do j = jtest+3, jtest-3, -1
@@ -1571,7 +1578,6 @@ contains
                 enddo
                 write(6,*) ' '
              enddo
-
           endif
 
           ! Zero out acab since this call uses bmlt_float_inversion only
@@ -1623,93 +1629,6 @@ contains
           ! Note: Subroutine invert_basal_traction, which inverts for basal parameters,
           !        is called later, during the velocity solve.
           !       It requires the same ice mask and floating mask as the velocity solver.
-
-       elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
-
-          ! ------------------------------------------------------------------------
-          ! Get masks used by glissade_mass_balance_driver.
-          ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
-          ! ------------------------------------------------------------------------
-
-          call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                                  thck_unscaled,                              &   ! m
-                                  model%geometry%topg*thk0,                   &   ! m
-                                  model%climate%eus*thk0,                     &   ! m
-                                  0.0d0,                                      &   ! thklim = 0
-                                  ice_mask,                                   &
-                                  floating_mask = floating_mask,              &
-                                  ocean_mask = ocean_mask)
-
-          ! For purposes of inversion, assign all cells an effective fraction of 1 or 0.
-          ! Calving-front cells are treated the same as other ice-covered cells.
-          where (ocean_mask == 1)
-             effective_areafrac = 0.0d0
-          elsewhere
-             effective_areafrac = 1.0d0
-          endwhere
-
-          ! Set bmlt_float based on bmlt_float_inversion, limited to floating cells
-          where (floating_mask == 1)
-             bmlt_unscaled = model%basal_melt%bmlt_float_inversion
-          elsewhere
-             bmlt_unscaled = 0.0d0
-          endwhere
-
-          !WHL - debug
-          if (verbose_inversion .and. this_rank == rtest) then
-             i = itest
-             j = jtest
-             print*, ' '
-             print*, 'Prescribing bmlt_float from inversion: rank, i, j =', rtest, i, j
-             print*, 'thck (m), bmlt_float (m/yr):', thck_unscaled(i,j), bmlt_unscaled(i,j)*scyr
-             print*, ' '
-             print*, 'floating_mask:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(i12)',advance='no') floating_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'thck (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') thck_unscaled(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'bmlt_float_inversion (m/yr):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f12.5)',advance='no') model%basal_melt%bmlt_float_inversion(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-
-          endif
-
-          ! Zero out acab since this call uses bmlt_float_inversion only
-          acab_unscaled(:,:) = 0.0d0
-
-          ! Apply basal melting for inversion.
-          ! Note: Basal melting applied during this call is added to bmlt_applied.
-          call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &
-                                            model%numerics%dew * len0, model%numerics%dns * len0, &
-                                            model%general%ewn,         model%general%nsn,         &
-                                            model%general%upn-1,       model%numerics%sigma,      &
-                                            thck_unscaled(:,:),                                   &  ! m
-                                            acab_unscaled(:,:),                                   &  ! m/s
-                                            bmlt_unscaled(:,:),                                   &  ! m/s
-                                            model%climate%acab_applied(:,:),                      &  ! m/s
-                                            model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
-                                            ocean_mask(:,:),                                      &
-                                            effective_areafrac(:,:),                              &
-                                            model%geometry%ntracers,                              &
-                                            model%geometry%tracers(:,:,:,:),                      &
-                                            model%geometry%tracers_usrf(:,:,:),                   &
-                                            model%geometry%tracers_lsrf(:,:,:),                   &
-                                            model%options%which_ho_vertical_remap)
 
        endif   ! which_ho_inversion
 
