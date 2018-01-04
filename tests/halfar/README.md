@@ -13,7 +13,7 @@ You will need to either copy your executable into this directory, have the
 executable in your path, or create a symbolic link to your executable, using:
 
 ```sh
-ln -s ../../../builds/platform-compiler/cism_driver/cism_driver ./
+ln -s ../../builds/platform-compiler/cism_driver/cism_driver ./
 ```
 
 runHalfar.py
@@ -34,7 +34,7 @@ but advanced commandline options are available.  For details, execute:
 The test should only take a few seconds for the default run duration of 200
 years.
 
-The script create a netCDF input file for CISM and then runs CISM, generating a
+The script creates a netCDF input file for CISM and then runs CISM, generating a
 netCDF output file.  Input and output `*.nc` files are written into the
 `output` subdirectory, which is controlled by the `-o/--output-dir` option.
 
@@ -86,8 +86,8 @@ Glissade dycore.  To do so, use the `halfar.HO.config` file:
 
 In this case, the model output should not be expected to match the analytic
 solution, but results will be reasonably close (using a no-slip basal boundary
-condition, anyway).  The test should take a few minutes for the default run
-duration of 200 years.
+condition, anyway).  The test should take no more than a few minutes for the
+default run duration of 200 years.
 
 
 PREREQUISITES:
