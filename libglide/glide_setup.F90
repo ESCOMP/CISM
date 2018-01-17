@@ -862,9 +862,10 @@ contains
          'Diagonal preconditioner (glissade PCG)  ', &
          'SIA preconditioner (glissade PCG)       ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichgradient = (/ &
-         'centered gradient (glissade dycore)      ', &
-         'upstream gradient (glissade dycore)      ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichgradient = (/ &
+         'centered gradient (glissade)             ', &
+         'first-order upstream gradient (glissade) ', &
+         'second-order upstream gradient (glissade)' /)
 
     character(len=*), dimension(0:3), parameter :: ho_whichgradient_margin = (/ &
          'compute edge gradient when either cell has ice                  ', &

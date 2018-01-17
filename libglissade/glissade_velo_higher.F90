@@ -261,6 +261,10 @@
        dphi_dyr_3d_vav,    &! vertical avg of dphi_dyr_3d
        dphi_dzr_3d_vav      ! vertical avg of dphi_dzr_3d
 
+    !WHL - debug for gradient
+    logical :: new_gradient = .false.
+!!    logical :: new_gradient = .true.
+
     contains
 
 !****************************************************************************
@@ -1542,6 +1546,23 @@
 
 !pw call t_startf('glissade_gradient')
 
+ if (new_gradient) then
+
+    call glissade_surface_elevation_gradient_new(nx,          ny,           &
+                                             dx,          dy,           &
+                                             active_ice_mask,           &
+                                             land_mask,                 &
+                                             usrf,        thck,         &
+                                             topg,        eus,          &
+                                             thklim,                    &
+                                             thck_gradient_ramp,        &
+                                             dusrf_dx,    dusrf_dy,     &
+                                             whichgradient,             &
+                                             whichgradient_margin,      &
+                                             max_slope = max_slope)
+
+ else  ! old calculation; new answers should be the same
+
     if (whichgradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND) then
 
        ! newer option; compute edge gradients when active ice lies over land but not ice-free ocean
@@ -1555,7 +1576,7 @@
                                                 thklim,                    &
                                                 thck_gradient_ramp,        &
                                                 dusrf_dx,    dusrf_dy,     &
-                                                max_slope)
+                                                max_slope = max_slope)
 
     else   ! older option
 
@@ -1572,7 +1593,7 @@
                                           land_mask = land_mask,        &
                                           max_slope = max_slope)
 
-       else          ! 2nd order upstream
+       else          ! upstream (1st or 2nd order, depending on whichgradient)
 
           call glissade_upstream_gradient(nx,             ny,           &
                                           dx,             dy,           &
@@ -1580,8 +1601,8 @@
                                           dusrf_dx,       dusrf_dy,     &
                                           active_ice_mask,              &
                                           usrf,                         &
-                                          gradient_margin_in = whichgradient_margin, &
-                                          accuracy_flag_in = 2,         &
+                                          ho_gradient_margin_in = whichgradient_margin, &
+                                          ho_gradient_in = whichgradient, &
                                           floating_mask = floating_mask,&
                                           land_mask = land_mask,        &
                                           max_slope = max_slope)
@@ -1589,6 +1610,8 @@
        endif   ! whichgradient
 
     endif   ! whichgradient_margin
+
+ endif  ! new gradient
 
 !pw call t_stopf('glissade_gradient')
 
@@ -6081,6 +6104,33 @@
        work2(:,:) = efvs_integral_z_to_s(k,:,:) *      (du_dy(:,:) + dv_dx(:,:))
        work3(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*dv_dy(:,:) + du_dx(:,:)) 
 
+    if (new_gradient) then
+
+       ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
+       ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work1,                        &
+                              dwork1_dx,        dwork1_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
+
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work2,                        &
+                              dwork2_dx,        dwork2_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
+
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work3,                        &
+                              dwork3_dx,        dwork3_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
+
+   else  ! old gradient
+
        call glissade_centered_gradient(nx,               ny,         &
                                        dx,               dy,         &
                                        work1,                        &
@@ -6101,6 +6151,8 @@
                                        dwork3_dx,        dwork3_dy,  &
                                        ice_mask,                     &
                                        gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY)
+
+    endif  ! new_gradient
 
        ! Loop over locally owned active vertices, evaluating tau_xz and tau_yz for this layer
        do j = staggered_jlo, staggered_jhi

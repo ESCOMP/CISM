@@ -260,7 +260,8 @@ module glide_types
   integer, parameter :: HO_PRECOND_SIA  = 2
 
   integer, parameter :: HO_GRADIENT_CENTERED = 0
-  integer, parameter :: HO_GRADIENT_UPSTREAM = 1
+  integer, parameter :: HO_GRADIENT_UPSTREAM1 = 1
+  integer, parameter :: HO_GRADIENT_UPSTREAM2 = 2
 
   integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
   integer, parameter :: HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
@@ -696,10 +697,11 @@ module glide_types
     integer :: which_ho_gradient = 0    
     !> Flag that indicates which gradient operator to use in the glissade dycore.
     !> Not valid for other dycores
-    !> NOTE: Option 1 may be better for ice evolution because it damps checkerboard noise.
+    !> NOTE: Upstream may be better for ice evolution because it damps checkerboard noise.
     !> \begin{description}
     !> \item[0] Centered gradient
-    !> \item[1] Upstream gradient
+    !> \item[1] First-order accurate upstream gradient
+    !> \item[2] Second-order accurate upstream gradient
 
     !WHL - Changed default from 1 to 3.
     !      Option 3 is appropriate for ice sheets with both land and marine boundaries,
