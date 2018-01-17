@@ -60,8 +60,9 @@
 !    use glimmer_log, only: write_log
 
     use glide_types
+    !TODO - Remove deprecated subroutine
     use glissade_grid_operators, only: glissade_stagger, glissade_centered_gradient, &
-                                       glissade_gradient_at_edges
+                                       glissade_gradient, glissade_gradient_at_edges
     use parallel
 
     implicit none
@@ -77,6 +78,9 @@
 
     integer :: itest, jtest    ! coordinates of diagnostic point                                                                                    
     integer :: rtest           ! task number for processor containing diagnostic point
+
+    logical, parameter :: new_gradient = .false.
+!!    logical, parameter :: new_gradient = .true.
 
   contains
 
@@ -304,9 +308,12 @@
 
     ! Compute surface elevation gradient
     !
-    ! Here a centered gradient is OK because the interior velocities
-    !  are computed along cell edges, so checkerboard noise is damped
-    !  (unlike Glissade finite-element calculations).
+    ! Note: This is a standard second-order centered gradient.
+    !       For the higher-order velocity solvers, a centered gradient can lead
+    !        to checkerboard noise in the surface elevation field, because a checkerboard
+    !        pattern is invisible to the gradient operator.
+    !       For the SIA solver, however, checkerboard noise is damped, because
+    !        interior ice velocities are computed at cell edges rather than vertices.
     !
     ! Possible settings for whichgradient_margin:
     !   HO_GRADIENT_MARGIN_ALL = 0
@@ -330,6 +337,17 @@
 
     !TODO - Pass in max_slope?
 
+ if (new_gradient) then
+
+    call glissade_gradient(nx,        ny,          &
+                           dx,        dy,          &
+                           usrf,                   &
+                           dusrf_dx,  dusrf_dy,    &
+                           ice_mask,               &
+                           gradient_margin_in = whichgradient_margin)
+
+ else   ! old gradient calculation
+
     call glissade_centered_gradient(nx,        ny,          &
                                     dx,        dy,          &
                                     usrf,                   &
@@ -339,6 +357,8 @@
                                     usrf = usrf,            &
                                     floating_mask = floating_mask, &
                                     land_mask = land_mask)
+
+ endif
 
     if (verbose .and. main_task) then
        print*, ' '
