@@ -60,9 +60,8 @@
 !    use glimmer_log, only: write_log
 
     use glide_types
-    !TODO - Remove deprecated subroutine
-    use glissade_grid_operators, only: glissade_stagger, glissade_centered_gradient, &
-                                       glissade_gradient, glissade_gradient_at_edges
+    use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
+                                       glissade_gradient_at_edges
     use parallel
 
     implicit none
@@ -78,9 +77,6 @@
 
     integer :: itest, jtest    ! coordinates of diagnostic point                                                                                    
     integer :: rtest           ! task number for processor containing diagnostic point
-
-    logical, parameter :: new_gradient = .false.
-!!    logical, parameter :: new_gradient = .true.
 
   contains
 
@@ -177,7 +173,6 @@
 
     integer, dimension(nx,ny) ::     &
        ice_mask,            & ! = 1 where ice is present, else = 0
-       floating_mask,       & ! = 1 for cells where ice is present and floating
        land_mask              ! = 1 for land cells, else = 0
 
     integer :: i, j, k
@@ -244,15 +239,13 @@
     !------------------------------------------------------------------------------
     ! Compute masks: 
     ! (1) ice_mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
-    ! (2) floating_mask = 1 in cells where ice is present and floating
-    ! (3) land_mask = 1 in land cells
+    ! (2) land_mask = 1 in land cells
     !------------------------------------------------------------------------------
 
     call glissade_get_masks(nx,          ny,         &
                             thck,        topg,       &
                             eus,         thklim,     &
                             ice_mask,                &
-                            floating_mask = floating_mask, &
                             land_mask = land_mask)
 
     !------------------------------------------------------------------------------
@@ -317,27 +310,19 @@
     !
     ! Possible settings for whichgradient_margin:
     !   HO_GRADIENT_MARGIN_ALL = 0
-    !   HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
+    !   HO_GRADIENT_MARGIN_HYBRID = 1
     !   HO_GRADIENT_MARGIN_ICE_ONLY = 2
-    !   HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
     !
     ! gradient_margin_in = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
     !  floating cells lying above ice-free ocean cells, because the gradient is too big.
-    !  It generally works well for land-based shallow-ice problems.
-    ! gradient_margin_in = 1 computes gradients at edges where a grounded ice-covered
-    !  cell lies above an ice-free cell (either land or ocean).
+    !  It generally is the best choice for land-based shallow-ice problems.
+    ! gradient_margin_in = 1 computes gradients at edges where an ice-covered cell
+    !  lies above ice-free land. It should give the same results as method 0 for
+    !  problems without marine ice (unless there are nunataks).
     ! gradient_margin_in = 2 computes gradients only at edges with ice-covered cells
     !  on each side.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
-    ! gradient_margin_in = 3 is not supported for the SIA solver, because it requires
-    !  that the lateral spreading force is computed at marine margins.
-    !  If option 3 is selected, the solver defaults to option 1 and writes a message
-    !  to the log file.
-
-    !TODO - Pass in max_slope?
-
- if (new_gradient) then
 
     call glissade_gradient(nx,        ny,          &
                            dx,        dy,          &
@@ -345,20 +330,6 @@
                            dusrf_dx,  dusrf_dy,    &
                            ice_mask,               &
                            gradient_margin_in = whichgradient_margin)
-
- else   ! old gradient calculation
-
-    call glissade_centered_gradient(nx,        ny,          &
-                                    dx,        dy,          &
-                                    usrf,                   &
-                                    dusrf_dx,  dusrf_dy,    &
-                                    ice_mask,               &
-                                    gradient_margin_in = whichgradient_margin, &
-                                    usrf = usrf,            &
-                                    floating_mask = floating_mask, &
-                                    land_mask = land_mask)
-
- endif
 
     if (verbose .and. main_task) then
        print*, ' '
@@ -480,7 +451,6 @@
                                     dusrf_dx, dusrf_dy,      &
                                     stagflwa,                &
                                     ice_mask,                &
-                                    floating_mask,           &
                                     land_mask,               &
                                     whichgradient_margin,    &
                                     ubas,     vbas,          &
@@ -802,7 +772,6 @@
                                         dusrf_dx, dusrf_dy,     &
                                         stagflwa,               &
                                         ice_mask,               &
-                                        floating_mask,          &
                                         land_mask,              &
                                         whichgradient_margin,   &
                                         ubas,     vbas,         &
@@ -839,7 +808,6 @@
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask,              & ! = 1 where ice is present, else = 0
-       floating_mask,         & ! = 1 for cells where ice is present and floating, else = 0
        land_mask                ! = 1 for land cells, else = 0
 
     integer, intent(in) ::   &
@@ -938,15 +906,10 @@
 
     ! Compute ice velocity components at cell edges (u at E edge, v at N edge; relative to bed).
     ! Then interpolate the edge velocities to cell vertices.
-    ! Note: The higher-order default is whichgradient_margin = HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3,
+    ! Note: The higher-order default is whichgradient_margin = HO_GRADIENT_MARGIN_HYBRID = 1,
     !       which is appropriate for HO problems where we compute lateral spreading at ice cliffs.
-    !       The SIA solver does not do this, so if option 3 is chosen, the solver will
-    !        default to whichgradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE = 1, which
-    !       works well for shallow-ice problems.  Using HO_GRADIENT_MARGIN_ALL = 0 gives
-    !       the same results as option 1 for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
-    !       is designed for marine-based margins and is likely to give less accurate results here.
-    ! See comments above the call to glissade_centered_gradient.
-    !TODO - Pass in max_slope?
+    !       The SIA solver does not do this, so this option is a bad idea for SIA problems
+    !        with marine ice. (In fact, the SIA is generally ill-suited for problems with marine ice.)
 
     call glissade_gradient_at_edges(nx,               ny,             &
                                     dx,               dy,             &
@@ -955,7 +918,6 @@
                                     ice_mask,                         &
                                     gradient_margin_in = whichgradient_margin, &
                                     usrf = usrf,                      &
-                                    floating_mask = floating_mask,    &
                                     land_mask = land_mask)
     
     do k = nz-1, 1, -1

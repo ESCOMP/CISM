@@ -867,11 +867,10 @@ contains
          'first-order upstream gradient (glissade) ', &
          'second-order upstream gradient (glissade)' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whichgradient_margin = (/ &
-         'compute edge gradient when either cell has ice                  ', &
-         'compute edge gradient when grounded ice lies above ice-free cell', &
-         'compute edge gradient only when both cells have ice             ', &
-         'compute edge gradient when ice lies above ice-free land         ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichgradient_margin = (/ &
+         'compute edge gradient when either cell has ice         ', &
+         'compute edge gradient when ice lies above ice-free land', & 
+         'compute edge gradient when both cells have ice         ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
          'first-order accurate  ', &
@@ -1011,15 +1010,6 @@ contains
              model%options%which_ho_disp = HO_DISP_SIA
              call write_log('Warning: Cannot use first-order dissipation with local SIA solver')
              call write_log('Defaulting to SIA dissipation')
-          endif
-
-          if (model%options%which_ho_gradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND ) then
-             model%options%which_ho_gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
-             write(message,*) 'Warning: Local SIA solver does not support which_ho_gradient_margin =', &
-                  HO_GRADIENT_MARGIN_ICE_OVER_LAND
-             call write_log(message)
-             write(message,*) 'Defaulting to option', HO_GRADIENT_MARGIN_GROUNDED_ICE
-             call write_log(message)
           endif
 
        endif  ! Glissade local SIA solver

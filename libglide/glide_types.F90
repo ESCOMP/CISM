@@ -264,9 +264,8 @@ module glide_types
   integer, parameter :: HO_GRADIENT_UPSTREAM2 = 2
 
   integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
-  integer, parameter :: HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
+  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
   integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
-  integer, parameter :: HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
@@ -708,7 +707,7 @@ module glide_types
     !       when a lateral spreading force is computed for marine ice cliffs.
     !      This lateral force ensures spreading where the gradient is zero.
 
-    integer :: which_ho_gradient_margin = 3
+    integer :: which_ho_gradient_margin = 1
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
     !> Note: Gradients are always computed at edges with ice on both sides.
     !>       The methods differ in whether gradients are computed when an ice-covered cell
@@ -716,9 +715,8 @@ module glide_types
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] Compute edge gradient when either cell is ice-covered
-    !> \item[1] Compute edge gradient for grounded ice above ice-free land or ocean
+    !> \item[1] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
     !> \item[2] Compute edge gradient only when both cells have ice
-    !> \item[3] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now so that standard tests are BFB
