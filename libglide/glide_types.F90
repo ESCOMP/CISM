@@ -263,9 +263,9 @@ module glide_types
   integer, parameter :: HO_GRADIENT_UPSTREAM1 = 1
   integer, parameter :: HO_GRADIENT_UPSTREAM2 = 2
 
-  integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
+  integer, parameter :: HO_GRADIENT_MARGIN_LAND = 0
   integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
-  integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
+  integer, parameter :: HO_GRADIENT_MARGIN_MARINE = 2
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1

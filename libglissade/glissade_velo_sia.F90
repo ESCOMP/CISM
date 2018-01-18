@@ -309,9 +309,9 @@
     !        interior ice velocities are computed at cell edges rather than vertices.
     !
     ! Possible settings for whichgradient_margin:
-    !   HO_GRADIENT_MARGIN_ALL = 0
+    !   HO_GRADIENT_MARGIN_LAND = 0
     !   HO_GRADIENT_MARGIN_HYBRID = 1
-    !   HO_GRADIENT_MARGIN_ICE_ONLY = 2
+    !   HO_GRADIENT_MARGIN_MARINE = 2
     !
     ! gradient_margin_in = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
