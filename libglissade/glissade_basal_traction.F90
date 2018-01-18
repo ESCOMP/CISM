@@ -85,7 +85,8 @@ contains
   use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
   use parallel, only: nhalo, this_rank
-  use parallel, only: parallel_globalindex
+  use parallel, only: parallel_globalindex, global_ewn, global_nsn
+  use parallel, only: distributed_scatter_var, parallel_halo
 
   implicit none
 
@@ -105,6 +106,10 @@ contains
                                                                 ! Note: This is beta_internal in glissade
   real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
 
+  ! Note: Addinng fields for parallel ISHOM-C test case
+  real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
+  real(dp), dimension(:,:), allocatable :: unstagbeta           ! beta unstaggered
+
   ! Note: optional arguments topg and eus are used for pseudo-plastic sliding law
   real(dp), intent(in), dimension(:,:), optional :: topg        ! bed topography (m)
   real(dp), intent(in), optional :: eus                         ! eustatic sea level (m) relative to z = 0
@@ -116,7 +121,6 @@ contains
   real(dp) :: Ldomain   ! size of full domain
   real(dp) :: omega     ! frequency of beta field
   real(dp) :: dx, dy
-  integer :: ilo, ihi, jlo, jhi  ! limits of beta field for ISHOM C case
   integer :: ew, ns
 
   real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
@@ -257,25 +261,44 @@ contains
        !      However, this is not possible given that the global velocity grid is smaller
        !       than the ice grid and hence not able to fit the full beta field.
        !      The following code sets beta on the full grid as prescribed by Pattyn et al. (2008).
-       !NOTE: This works only in serial!
 
-       Ldomain = (ewn-2*nhalo) * dew   ! size of full domain (must be square)
+       allocate(beta_global(global_ewn, global_nsn))
+       allocate(unstagbeta(ewn, nsn))
+
+       Ldomain = global_ewn * dew   ! size of full domain (must be square)
        omega = 2.d0*pi / Ldomain
 
-       ilo = nhalo
-       ihi = ewn-nhalo
-       jlo = nhalo
-       jhi = nsn-nhalo
-       
        ! Prescribe beta as in Pattyn et al., The Cryosphere, 2008
-       beta(:,:) = 0.d0
-       do ns = jlo, jhi
-          do ew = ilo, ihi
-             dx = dew * (ew-ilo)
-             dy = dns * (ns-jlo)
-             beta(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
+       beta_global(:,:) = 0.d0
+       do ns = 1, global_nsn
+          do ew = 1, global_ewn
+             dx = dew * ew
+             dy = dns * ns
+             beta_global(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
           enddo
        enddo
+       
+       ! Scatter the global beta values back to local arrays
+       unstagbeta(:,:) = 0.d0
+       call distributed_scatter_var(unstagbeta, beta_global)
+
+       ! distributed_scatter_var does not update the halo, so do an update here
+       call parallel_halo(unstagbeta)
+
+      ! Copying unstagbeta to beta
+      beta(:,:) = 0.d0
+      do ns = 1, nsn-1
+         do ew = 1, ewn-1
+            beta(ew,ns) = unstagbeta(ew, ns)
+         enddo
+      enddo
+
+      ! unstagbeta is no longer needed (beta_global is deallocated in distributed_scatter_var)
+      deallocate(unstagbeta)
+
+      ! Updating the halo on the staggered beta
+      call staggered_parallel_halo(beta)
+
 
     case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file
 
