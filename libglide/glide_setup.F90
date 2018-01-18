@@ -975,10 +975,6 @@ contains
        call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
     end if
 
-    if (tasks > 1 .and. model%options%which_ho_babc==HO_BABC_ISHOMC) then
-       call write_log('Error, ISHOM C basal BCs not supported for more than one processor', GM_FATAL)
-    endif
-
     if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
        call write_log('Error, flux-based basal water option not supported for more than one processor', GM_FATAL)
     endif
