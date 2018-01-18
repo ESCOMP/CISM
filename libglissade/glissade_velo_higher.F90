@@ -1505,9 +1505,9 @@
     ! (requires that usrf is up to date in halo cells)
     !
     ! Possible settings for whichgradient_margin:
-    !   HO_GRADIENT_MARGIN_ALL = 0
+    !   HO_GRADIENT_MARGIN_LAND = 0
     !   HO_GRADIENT_MARGIN_HYBRID = 1
-    !   HO_GRADIENT_MARGIN_ICE_ONLY = 2
+    !   HO_GRADIENT_MARGIN_MARINE = 2
     !
     ! gradient_margin = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
@@ -6032,7 +6032,7 @@
        ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx.
        ! The calls to glissade_centered_gradient compute a couple of extraneous derivatives,
        !  but these calls are simpler than inlining the gradient code.
-       ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY uses only ice-covered cells to
+       ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_MARINE uses only ice-covered cells to
        !  compute the gradient.  This is the appropriate flag for these
        !  calls, because efvs and strain rates have no meaning in ice-free cells.
 
@@ -6126,7 +6126,7 @@
     !  are ice-covered.
     ! At a land margin, either 0 or 1 is appropriate, but 2 is inaccurate.
     ! At a shelf margin, either 1 or 2 is appropriate, but 0 is inaccurate.
-    ! So HO_GRADIENT_MARGIN_ICE_LAND = 1 is the safest value.
+    ! So HO_GRADIENT_MARGIN_NYBRID = 1 is the safest value.
 
     if (edge_velocity) then
 

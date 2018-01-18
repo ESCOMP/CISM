@@ -505,7 +505,7 @@ contains
     edge_mask_x(:,:) = .false.
     edge_mask_y(:,:) = .false.
 
-    if (gradient_margin == HO_GRADIENT_MARGIN_ALL) then
+    if (gradient_margin == HO_GRADIENT_MARGIN_LAND) then
 
        edge_mask_x(:,:) = .true.       ! true for all edges
        edge_mask_y(:,:) = .true.
@@ -523,7 +523,7 @@ contains
           call write_log('Must pass in land_mask and usrf to use this gradient_margin option', GM_FATAL)
        endif
 
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
+    elseif (gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
 
        ! mask for east and west cell edges
        do j = 1, ny
@@ -741,7 +741,7 @@ contains
     ! At the ice margin, where one or both cells adjacent to a given edge may be ice-free,
     !  edge gradients may be masked in the following ways:
     !
-    ! HO_GRADIENT_MARGIN_ALL = 0: Values in both adjacent cells are used to compute the gradient,
+    ! HO_GRADIENT_MARGIN_LAND = 0: Values in both adjacent cells are used to compute the gradient,
     !  including values in ice-free cells.  In other words, there is no masking of edges.
     !  This convention is used by Glide. It works well at land-terminating margins, but performs poorly
     !  for ice shelves with a sharp drop in ice thickness and surface elevation at the margin.
@@ -759,7 +759,7 @@ contains
     ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
     !  margins the gradient is zero.
     !
-    ! HO_GRADIENT_MARGIN_ICE_ONLY = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
+    ! HO_GRADIENT_MARGIN_MARINE = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
     !  are used to compute gradients.  If one or both adjacent cells is ice-free, the edge is masked out.
     !  This option works well at shelf margins but less well for land margins (e.g., the Halfar test case).
     !
@@ -848,7 +848,7 @@ contains
     ds_dx(:,:) = 0.0d0
     ds_dy(:,:) = 0.0d0
 
-    if (ho_gradient_margin == HO_GRADIENT_MARGIN_ALL) then
+    if (ho_gradient_margin == HO_GRADIENT_MARGIN_LAND) then
 
        ! Compute ds_dx and ds_dy on all edges, whether or not adjacent cells are ice-covered
        do j = 1, ny
@@ -863,7 +863,7 @@ contains
           enddo
        enddo
 
-    elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_ICE_ONLY) then
+    elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
 
        ! Compute ds_dx and ds_dy only on edges with active ice in each adjacent cell
        do j = 1, ny
