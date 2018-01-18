@@ -1183,6 +1183,7 @@ module glide_types
     !       whereas bheatflx is defined as positive downward.
 
     real(dp),dimension(:,:,:),pointer :: temp => null()      !> 3D temperature field.
+    real(dp),dimension(:,:,:),pointer :: tempunstag => null()!> 3D temperature field unstaggered in the vertical.
     real(dp),dimension(:,:),  pointer :: bheatflx => null()  !> basal heat flux (W/m^2) (geothermal, positive down)
     real(dp),dimension(:,:,:),pointer :: flwa => null()      !> Glen's flow factor $A$.
     real(dp),dimension(:,:,:),pointer :: dissip => null()    !> interior heat dissipation rate, divided by rhoi*Ci (deg/s)
@@ -1934,6 +1935,9 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn, model%temper%dissip)
     else    ! glam/glissade dycore
        allocate(model%temper%temp(0:upn,1:ewn,1:nsn))
+       ! tempunstag has the same horizontal grid as the glam/glissade temp, but a
+       ! vertical axis like the glide temp
+       allocate(model%temper%tempunstag(upn,1:ewn,1:nsn))
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%flwa)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%dissip)
     endif
@@ -1941,6 +1945,7 @@ contains
     ! MJH - Set temp and flwa to physically unrealistic values so we can tell later if 
     !       arrays were initialized correctly
     model%temper%temp(:,:,:) = unphys_val  ! large negative number
+    model%temper%tempunstag(:,:,:) = unphys_val
     model%temper%flwa(:,:,:) = unphys_val
     model%temper%dissip(:,:,:) = 0.d0
 
@@ -2264,6 +2269,8 @@ contains
 
     if (associated(model%temper%temp)) &
         deallocate(model%temper%temp)
+    if (associated(model%temper%tempunstag)) &
+        deallocate(model%temper%tempunstag)
     if (associated(model%temper%bheatflx)) &
         deallocate(model%temper%bheatflx)
     if (associated(model%temper%bwat)) &

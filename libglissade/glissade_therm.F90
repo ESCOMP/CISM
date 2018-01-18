@@ -102,7 +102,7 @@ module glissade_therm
                                   artm,                          &
                                   acab,                          &
                                   bheatflx,                      &
-                                  pmp_offset, temp)
+                                  pmp_offset, temp, tempunstag)
 
     ! initialization subroutine for higher-order dycores, where temperature is defined at
     ! the midpoint of each layer plus the upper and lower surfaces
@@ -137,6 +137,12 @@ module glissade_therm
          temp              ! ice temperature
                            ! intent(inout) because it might have been read already from an input file,
                            !  but otherwise is set in this subroutine
+
+    real(dp), dimension(:,:,:), intent(inout) ::  &
+         tempunstag        ! ice temperature un unstaggered grid
+                           ! may be used to initialize from an unstaggered glide temperature field
+                           ! intent(inout) because it might have been read from an input file,
+                           ! but otherwise it is set (diagnostically) in this subroutine
          
     ! Local variables
 
@@ -176,14 +182,17 @@ module glissade_therm
     ! staggered incorrectly), but the temperature in layer 0 will remain at an unphysical value.
     ! Let the user know if this has happened.
     !WHL - Nov. 2014 - I verified that the code aborts here if temp (rather than tempstag) is in the restart file.
+    !HG - Jan. 2018 - Added option to interpolate variable tempunstag to tempstag.
 
     if (minval(temp(0,:,:)) < (-1.d0*trpt) .and. minval(temp(1:upn,:,:)) > (-1.d0*trpt)) then
        call write_log('Error, temperature field has been read incorrectly. Note that the '  &
-                   // 'Glissade dycore must be initialized with tempstag, not temp.', GM_FATAL)
+            // 'Glissade dycore must be initialized with tempstag, not temp.' &
+            // 'You can rename temp to tempunstag if you want it to be interpolated' &
+            // 'to the vertically staggered tempstag (loss of detail).', GM_FATAL)
     endif
 
     !==== Initialize ice temperature.============
-    ! Six possibilities:
+    ! Seven possibilities:
     ! (1) Set ice temperature to 0 C everywhere in column (TEMP_INIT_ZERO).
     ! (2) Set ice temperature to surface air temperature everywhere in column (TEMP_INIT_ARTM).
     ! (3) Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
@@ -194,12 +203,15 @@ module glissade_therm
     !     The temperature at each level is capped at the value computed by method (3).
     ! (5) Read ice temperature from an initial input file.
     ! (6) Read ice temperature from a restart file.
+    ! (7) Read unstaggered ice temperature from a restart/input file and interpolate to
+    !     The staggered ice temperature needed by the Glissade dycore.
     !
     ! The default is (2).
     ! Method (4) may be optimal for reducing spinup time in the interior of large ice sheets.
     ! If not restarting and the temperature field is present in the input file, we do (5).
     ! If restarting, we always do (6).
-    ! If (5) or (6), then the temperature field should already have been read from a file,
+    ! (7) happens when neither (5) nor (6) are evoked and tempunstag is in restart or input file.
+    ! If (5) or (6) or (7), then the temperature field should already have been read from a file,
     !  and the rest of this subroutine will do nothing.
     ! Otherwise, the initial temperature is controlled by model%options%temp_init,
     !  which can be read from the config file.
@@ -220,6 +232,22 @@ module glissade_therm
        ! We know this because the default initial temps of unphys_val (a large negative number) have been overwritten.
 
        call write_log('Initializing ice temperature from an input file')
+
+!    elseif ( .TRUE. ) then ! for debugging
+    elseif ( maxval(tempunstag(:,:,:)) > (-1.0d0 * trpt) .and. .not.overwrite_input_temps ) then
+     ! Test if any temperature in physical range
+     ! If yes, we have data from restart or input for unstaggered tempunstag that we use to initialise temp
+
+       call write_log('Initializing ice temperature by interpolating tempunstag from restart/input file')
+
+       ! Set temp to linear interpolation from tempunstag at layer interfaces
+       do up = 1, upn-1
+         temp(up,:,:) = (tempunstag(up,:,:) + tempunstag(up+1,:,:)) * 0.5d0
+       end do
+       ! boundary conditions are identical on both grids, but temp starts at index 0
+       temp(0,:,:) = tempunstag(1,:,:)
+       temp(upn,:,:) = tempunstag(upn,:,:)
+
 
     else   ! not reading temperature from restart or input file
            ! initialize it here based on temp_init

@@ -364,7 +364,8 @@ contains
                              model%climate%acab*thk0/tim0,                          & ! m/s
                              model%temper%bheatflx,                                 & ! W/m^2, positive down
                              model%temper%pmp_offset,                               & ! deg C
-                             model%temper%temp)                                       ! deg C
+                             model%temper%temp,                                     & ! deg C
+                             model%temper%tempunstag)                                 ! deg C
 
     if (model%options%gthf == GTHF_COMPUTE) then
        call not_parallel(__FILE__,__LINE__)
@@ -985,6 +986,8 @@ contains
        bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
        bwat_unscaled             ! basal water thickness (m)
 
+    integer :: k
+
     call t_startf('glissade_thermal_solve')
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
@@ -1033,6 +1036,14 @@ contains
     ! convert bmlt and bwat from SI units (m/s and m) to scaled model units
     model%basal_melt%bmlt_ground(:,:) = bmlt_ground_unscaled(:,:) * tim0/thk0
     model%temper%bwat(:,:) = bwat_unscaled(:,:) / thk0
+
+    ! Update tempunstag as linear interpolation from temp to layer interfaces
+    do k = 2, model%general%upn-1
+      model%temper%tempunstag(k,:,:) = (model%temper%temp(k-1,:,:) + model%temper%temp(k,:,:)) * 0.5d0
+    end do
+    ! boundary conditions are identical on both grids, but temp starts at index 0
+    model%temper%tempunstag(1,:,:) = model%temper%temp(0,:,:)
+    model%temper%tempunstag(model%general%upn,:,:) = model%temper%temp(model%general%upn,:,:)
 
     !------------------------------------------------------------------------ 
     ! Halo updates
