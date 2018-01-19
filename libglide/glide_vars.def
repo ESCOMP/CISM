@@ -1220,7 +1220,7 @@ coordinates:   lon lat
 dimensions:    time, level, y1, x1
 units:         degree_Celsius
 long_name:     ice temperature on unstaggered vertical levels
-data:          data%temper%tempunstag(up,:,:)
+data:          data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn)
 standard_name: land_ice_temperature_unstag
 load:          1
 coordinates:   lon lat

@@ -689,11 +689,12 @@ contains
          'constant in time      ', &
          'prognostic enthalpy   ' /)
 
-    character(len=*), dimension(0:3), parameter :: temp_init = (/ &
+    character(len=*), dimension(0:4), parameter :: temp_init = (/ &
          'set to 0 C                  ', &
          'set to surface air temp     ', &
          'linear vertical profile     ', &
-         'advective-diffusive balance ' /)
+         'advective-diffusive balance ',&
+         'temp from external file     ' /)
 
     character(len=*), dimension(0:3), parameter :: flow_law = (/ &
          'const 1e-16 Pa^-n a^-1      ', &

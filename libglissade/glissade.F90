@@ -986,7 +986,7 @@ contains
        bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
        bwat_unscaled             ! basal water thickness (m)
 
-    integer :: k
+    integer :: up
 
     call t_startf('glissade_thermal_solve')
 
@@ -1037,9 +1037,12 @@ contains
     model%basal_melt%bmlt_ground(:,:) = bmlt_ground_unscaled(:,:) * tim0/thk0
     model%temper%bwat(:,:) = bwat_unscaled(:,:) / thk0
 
-    ! Update tempunstag as linear interpolation from temp to layer interfaces
-    do k = 2, model%general%upn-1
-      model%temper%tempunstag(k,:,:) = (model%temper%temp(k-1,:,:) + model%temper%temp(k,:,:)) * 0.5d0
+    ! Update tempunstag as sigma weighted interpolation from temp to layer interfaces
+    do up = 2, model%general%upn-1
+      model%temper%tempunstag(up,:,:) = model%temper%temp(up-1,:,:) +       &
+           (model%temper%temp(up,:,:) - model%temper%temp(up-1,:,:)) *      &
+           (model%numerics%sigma(up) - model%numerics%stagsigma(up-1)) /    &
+           (model%numerics%stagsigma(up) - model%numerics%stagsigma(up-1))
     end do
     ! boundary conditions are identical on both grids, but temp starts at index 0
     model%temper%tempunstag(1,:,:) = model%temper%temp(0,:,:)
