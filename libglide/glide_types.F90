@@ -95,6 +95,7 @@ module glide_types
   integer, parameter :: TEMP_INIT_ARTM = 1
   integer, parameter :: TEMP_INIT_LINEAR = 2
   integer, parameter :: TEMP_INIT_ADVECTIVE_DIFFUSIVE = 3
+  integer, parameter :: TEMP_INIT_EXTERNAL = 4
 
   integer, parameter :: FLWA_CONST_FLWA = 0
   integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
@@ -368,6 +369,7 @@ module glide_types
     !> \item[1] Initialize temperature to surface air temperature
     !> \item[2] Initialize temperature with a linear profile in each column
     !> \item[3] Initialize temperature with an advective-diffusive balance in each column
+    !> \item[4] Initialize temperature from external file
     !> \end{description}
 
     !> Method for calculating flow factor $A$:
@@ -1183,6 +1185,7 @@ module glide_types
     !       whereas bheatflx is defined as positive downward.
 
     real(dp),dimension(:,:,:),pointer :: temp => null()      !> 3D temperature field.
+    real(dp),dimension(:,:,:),pointer :: tempunstag => null()!> 3D temperature field unstaggered in the vertical.
     real(dp),dimension(:,:),  pointer :: bheatflx => null()  !> basal heat flux (W/m^2) (geothermal, positive down)
     real(dp),dimension(:,:,:),pointer :: flwa => null()      !> Glen's flow factor $A$.
     real(dp),dimension(:,:,:),pointer :: dissip => null()    !> interior heat dissipation rate, divided by rhoi*Ci (deg/s)
@@ -1934,6 +1937,9 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn, model%temper%dissip)
     else    ! glam/glissade dycore
        allocate(model%temper%temp(0:upn,1:ewn,1:nsn))
+       ! tempunstag has the same horizontal grid as the glam/glissade temp, but a
+       ! vertical axis like the glide temp
+       allocate(model%temper%tempunstag(upn,1:ewn,1:nsn))
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%flwa)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%dissip)
     endif
@@ -1943,6 +1949,8 @@ contains
     model%temper%temp(:,:,:) = unphys_val  ! large negative number
     model%temper%flwa(:,:,:) = unphys_val
     model%temper%dissip(:,:,:) = 0.d0
+    if (associated(model%temper%tempunstag)) &
+         model%temper%tempunstag(:,:,:) = unphys_val
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
@@ -2264,6 +2272,8 @@ contains
 
     if (associated(model%temper%temp)) &
         deallocate(model%temper%temp)
+    if (associated(model%temper%tempunstag)) &
+        deallocate(model%temper%tempunstag)
     if (associated(model%temper%bheatflx)) &
         deallocate(model%temper%bheatflx)
     if (associated(model%temper%bwat)) &
