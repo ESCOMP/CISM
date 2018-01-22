@@ -226,13 +226,16 @@ def main():
                     offset = float(size)*1000.0 * tan(3.0 * pi/180.0)
                 config_parser.set('parameters', 'periodic_offset_ew', str(offset))
 
-            if experiment in ('c','d'):
-                # These tests have beta passed in from the input file, so change option accordingly.
+#            if experiment in ('c' 'd'):
+            if experiment in ('d'):
+                # This test has beta passed in from the input file, so change option accordingly.
                 config_parser.set('ho_options', 'which_ho_babc', '5')
 
-            ##Optional: if doing experiment C, one can alternatively use the ho_babc option setup for this test case rather than passing in a beta
-            #if experiment in ('c'):
-            #    config_parser.set('ho_options', 'which_ho_babc', '8')
+            # If doing experiment C, it is more accurate to use which_ho_babc = 8 than pass in beta.
+            # If beta is read in on the global ice grid, there will be interpolation errors when it is
+            #  averaged to the velocity grid. Constructing beta on the velocity grid at runtime avoids these errors.
+            if experiment in ('c'):
+                config_parser.set('ho_options', 'which_ho_babc', '8')
 
             # For test case F we need to make a few additional adjustments to the config
             if experiment in ('f'):
