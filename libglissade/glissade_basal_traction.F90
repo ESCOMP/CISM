@@ -86,7 +86,7 @@ contains
   use glimmer_physcon, only: gn, pi
   use parallel, only: nhalo, this_rank
   use parallel, only: parallel_globalindex, global_ewn, global_nsn
-  use parallel, only: distributed_scatter_var, parallel_halo
+  use parallel, only: distributed_scatter_var, parallel_halo, main_task
 
   implicit none
 
@@ -106,9 +106,9 @@ contains
                                                                 ! Note: This is beta_internal in glissade
   real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
 
-  ! Note: Addinng fields for parallel ISHOM-C test case
+  ! Note: Adding fields for parallel ISHOM-C test case
   real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
-  real(dp), dimension(:,:), allocatable :: unstagbeta           ! beta unstaggered
+  real(dp), dimension(:,:), allocatable :: beta_extend          ! beta extended to the ice grid (dimensions ewn, nsn)
 
   ! Note: optional arguments topg and eus are used for pseudo-plastic sliding law
   real(dp), intent(in), dimension(:,:), optional :: topg        ! bed topography (m)
@@ -262,43 +262,53 @@ contains
        !       than the ice grid and hence not able to fit the full beta field.
        !      The following code sets beta on the full grid as prescribed by Pattyn et al. (2008).
 
-       allocate(beta_global(global_ewn, global_nsn))
-       allocate(unstagbeta(ewn, nsn))
-
-       Ldomain = global_ewn * dew   ! size of full domain (must be square)
-       omega = 2.d0*pi / Ldomain
+       ! Allocate a global array on the main task only.
+       ! On other tasks, allocate a size 0 array, since distributed_scatter_var wants to deallocate on all tasks.
+       if (main_task) then
+          allocate(beta_global(global_ewn, global_nsn))
+       else
+          allocate(beta_global(0,0))
+       endif
 
        ! Prescribe beta as in Pattyn et al., The Cryosphere, 2008
-       beta_global(:,:) = 0.d0
-       do ns = 1, global_nsn
-          do ew = 1, global_ewn
-             dx = dew * ew
-             dy = dns * ns
-             beta_global(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
+       ! Note: These beta values live at vertices, not cell centers.
+       !       They need a global array of size (ewn,nsn) to hold values on the global boundary.
+       if (main_task) then
+
+          Ldomain = global_ewn * dew   ! size of full domain (must be square)
+          omega = 2.d0*pi / Ldomain
+
+          beta_global(:,:) = 0.d0
+          do ns = 1, global_nsn
+             do ew = 1, global_ewn
+                dx = dew * ew
+                dy = dns * ns
+                beta_global(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
+             enddo
           enddo
-       enddo
-       
+
+       endif
+
        ! Scatter the global beta values back to local arrays
-       unstagbeta(:,:) = 0.d0
-       call distributed_scatter_var(unstagbeta, beta_global)
+       ! Note: beta_extend has dimensions (ewn,nsn), so it can receive scattered data from beta_global.
+       allocate(beta_extend(ewn, nsn))
+       beta_extend(:,:) = 0.d0
+       call distributed_scatter_var(beta_extend, beta_global)
 
        ! distributed_scatter_var does not update the halo, so do an update here
-       call parallel_halo(unstagbeta)
+       call parallel_halo(beta_extend)
 
-      ! Copying unstagbeta to beta
-      beta(:,:) = 0.d0
-      do ns = 1, nsn-1
-         do ew = 1, ewn-1
-            beta(ew,ns) = unstagbeta(ew, ns)
-         enddo
-      enddo
+       ! Copy beta_extend to beta on the local processor.
+       ! This is done since beta lives on the velocity grid and has dimensions (ewn-1,nsn-1).
+       beta(:,:) = 0.d0
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
+             beta(ew,ns) = beta_extend(ew, ns)
+          enddo
+       enddo
 
-      ! unstagbeta is no longer needed (beta_global is deallocated in distributed_scatter_var)
-      deallocate(unstagbeta)
-
-      ! Updating the halo on the staggered beta
-      call staggered_parallel_halo(beta)
-
+      ! beta_extend is no longer needed (beta_global is deallocated in distributed_scatter_var)
+      deallocate(beta_extend)
 
     case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file
 
