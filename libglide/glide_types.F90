@@ -1947,9 +1947,10 @@ contains
     ! MJH - Set temp and flwa to physically unrealistic values so we can tell later if 
     !       arrays were initialized correctly
     model%temper%temp(:,:,:) = unphys_val  ! large negative number
-    model%temper%tempunstag(:,:,:) = unphys_val
     model%temper%flwa(:,:,:) = unphys_val
     model%temper%dissip(:,:,:) = 0.d0
+    if (associated(model%temper%tempunstag)) &
+         model%temper%tempunstag(:,:,:) = unphys_val
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)

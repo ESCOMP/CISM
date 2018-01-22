@@ -102,7 +102,8 @@ module glissade_therm
                                   artm,                          &
                                   acab,                          &
                                   bheatflx,                      &
-                                  pmp_offset, temp, tempunstag)
+                                  pmp_offset,                    &
+                                  temp,       tempunstag)
 
     ! initialization subroutine for higher-order dycores, where temperature is defined at
     ! the midpoint of each layer plus the upper and lower surfaces
