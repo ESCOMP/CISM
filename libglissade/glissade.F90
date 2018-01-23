@@ -310,6 +310,7 @@ contains
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
+    call parallel_halo(model%temper%tempunstag)
 
     ! calculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
