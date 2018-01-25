@@ -27,7 +27,7 @@
 ! from glide_types.F90:
 !  integer, parameter :: DYCORE_GLIDE = 0     ! old shallow-ice dycore from Glimmer
 !  integer, parameter :: DYCORE_GLAM = 1      ! Payne-Price finite-difference solver
-!  integer, parameter :: DYCORE_GLISSADE = 2  ! prototype finite-element solver
+!  integer, parameter :: DYCORE_GLISSADE = 2  ! finite-element solver
 !  integer, parameter :: DYCORE_ALBANYFELIX = 3  ! External Albany-Felix finite-element solver
 !  integer, parameter :: DYCORE_BISICLES = 4     ! BISICLES external dycore
 
