@@ -21,7 +21,7 @@ import numpy
 import netCDF
 from math import tan, sin, pi, exp
 
-defaultSizes=[20,80]
+defaultSizes=[5,10,20,40,80,160]
 defaultExperiments=['a','c']
 
 # Parse the command line options
