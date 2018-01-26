@@ -8,7 +8,7 @@ physics.  For more information, see
 
 The python scripts provided here (`runISMIP_HOM.py` and `plotISMIP_HOM.py`,
 referred to in the following as the ISMIP-HOM scripts) were created to run the
-experiments using Glimmer/CISM and compare the results with results from other
+experiments using CISM and compare the results with results from other
 models.
 
 PREREQUISITES:
@@ -77,6 +77,13 @@ runs experiments a and c using the default domain sizes.  Combine these as
 ```
 
 to run experiments a and c with domain sizes 40, 80, and 160 km.
+The experiment can also be run in parallel. For example,
+
+```sh
+./runMISMIP_HOM.py -n 4
+```
+
+runs the default settings on 4 processors. 
 
 CISM may not converge for every experiment with the default values of the grid
 size and other parameters.  Some additional parameters can be changed using

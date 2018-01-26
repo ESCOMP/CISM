@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 
 """
-This script plots the results of running ISMIP-HOM experiments using Glimmer.
+This script plots the results of running ISMIP-HOM experiments using CISM.
 Before running this script, run runISMIP_HOM.py to generate the results.
 runISMIP_HOM.py generates a set of output files that will follow the pattern:
 ismip-hom-?[-MOD].RESO.[pPROC.]out.nc, where `?` is a POSIX metacharacter,
