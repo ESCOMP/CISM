@@ -699,9 +699,11 @@ contains
     integer :: lower,upper
 
     real(dp) :: fyear
+    integer  :: nt     ! used to access the number of years of available forcing 
 
     ! Calculate fraction of year
-    fyear = real(mod(time,real(params%hours_in_year,dp))) / real(params%hours_in_year,dp)
+    nt = size(params%st_time)
+    fyear = mod(time / real(params%hours_in_year,dp), params%st_time(nt))
 
     ! Do temperature interpolation
     call bracket_point(fyear, params%st_time, lower, upper, pos)
