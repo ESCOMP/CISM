@@ -834,6 +834,9 @@ module glide_types
     real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency, divided by \texttt{thk0/tim0}
     real(dp),dimension(:,:),pointer :: dthck_dt_tavg => null()   !> ice thickness tendency, divided by \texttt{thk0/tim0} (time average)
 
+    real(dp),dimension(:,:),pointer :: cell_area => null()
+    !> The cell area of the grid, divided by \texttt{len0*len0}.
+
     integer :: ntracers
     !> number of tracers to be transported
 
@@ -2063,6 +2066,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagthck)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
@@ -2533,6 +2537,9 @@ contains
         deallocate(model%geomderv%dusrfdew)
     if (associated(model%geomderv%dusrfdns)) &
         deallocate(model%geomderv%dusrfdns)
+
+    if (associated(model%geometry%cell_area)) &
+        deallocate(model%geometry%cell_area)
 
     if (associated(model%geometry%sfc_mbal_flux)) &
         deallocate(model%geometry%sfc_mbal_flux)
