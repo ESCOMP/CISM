@@ -42,6 +42,9 @@ module glimmer_ncdf
 
   implicit none
 
+  integer, parameter :: glimmer_nc_vars_len = 1024
+  !> maximum length for lists of variables in file
+
   integer, parameter :: glimmer_nc_meta_len = 100
   !> maximum length for meta data
 
@@ -114,9 +117,9 @@ module glimmer_ncdf
      ! TODO - Create a variable for vars length so it can be made longer (Matt has this implemented in his subglacial hydrology branch)
      !        Apply it here for vars, vars_copy and to restart_variable_list in glimmer_ncparams.F90
 
-     character(len=310) vars           !> string containing variables to be processed
-     logical :: restartfile = .false.  !> Set to true if we're writing a restart file
-     character(len=310) vars_copy      !> string containing variables to be processed (retained copy)
+     character(len=glimmer_nc_vars_len) :: vars      !> string containing variables to be processed
+     logical :: restartfile = .false.                !> Set to true if we're writing a restart file
+     character(len=glimmer_nc_vars_len) :: vars_copy !> string containing variables to be processed (retained copy)
 
   end type glimmer_nc_stat
 
