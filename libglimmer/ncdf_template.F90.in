@@ -40,14 +40,14 @@ module NAME_io
   ! written by Magnus Hagdorn, 2004
 
   use DATAMOD
+  use glimmer_ncdf
 
   implicit none
 
   private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
        is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
 
-  character(310), save :: restart_variable_list=''    ! list of variables needed for a restart
-!TODO change 310 to a variable - see glimmer_ncdf.F90 in the definition for type glimmer_nc_stat for other instances of this value.
+  character(glimmer_nc_vars_len), save :: restart_variable_list=''    ! list of variables needed for a restart
 
   interface is_enabled  ! MJH 10/21/13: Interface needed for determining if arrays have been enabled.  See notes below in NAME_io_create.
     module procedure is_enabled_0dint
@@ -68,7 +68,6 @@ contains
     ! open all netCDF files for output
     use DATAMOD
     use glide_types
-    use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(glide_global_type) :: model
@@ -94,7 +93,6 @@ contains
     ! if necessary write to netCDF files
     use DATAMOD
     use glide_types
-    use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -141,7 +139,6 @@ contains
     use parallel
     use glide_types
     use DATAMOD
-    use glimmer_ncdf
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
@@ -232,7 +229,6 @@ contains
   subroutine NAME_io_write(outfile,data)
     use parallel
     use DATAMOD
-    use glimmer_ncdf
     use glimmer_paramets
     use glimmer_scales
     implicit none
@@ -367,7 +363,6 @@ contains
     ! read from netCDF file
     use DATAMOD
     use glide_types
-    use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -403,7 +398,6 @@ contains
     ! Read data from forcing files
     use glimmer_log
     use glide_types
-    use glimmer_ncdf
 
     implicit none
     type(DATATYPE) :: data
@@ -455,7 +449,6 @@ contains
     ! read variables from a netCDF file
     use parallel
     use glimmer_log
-    use glimmer_ncdf
     use DATAMOD
     use glimmer_paramets
     use glimmer_scales
@@ -478,7 +471,6 @@ contains
     ! check if dimension sizes in file match dims of model
     use parallel
     use glimmer_log
-    use glimmer_ncdf
     use glide_types
     use DATAMOD
     implicit none
@@ -502,7 +494,6 @@ contains
     use parallel
     use glide_types
     use DATAMOD
-    use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -523,7 +514,6 @@ contains
   subroutine NAME_avg_reset(outfile,data)
     use parallel
     use DATAMOD
-    use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -545,7 +535,6 @@ contains
 
   !> apply default type to be used in netCDF file
   integer function get_xtype(outfile,xtype)
-    use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile !< derived type holding information about output file
     integer, intent(in) :: xtype                !< the external netCDF type
