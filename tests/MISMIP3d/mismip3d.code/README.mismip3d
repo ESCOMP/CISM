@@ -92,7 +92,6 @@ Here are the optional arguments for the run script:
   -x EXPT, --expt=experiment  MISMIP3d experiment(s) to run [default: allIce]
   -n NUMPROCS, --parallel=NUMPROCS
                         Number of processors: if specified then run in parallel
-  --restart, if present at the command line, it restarts an experiment where it lefts off
   --job,     if present at the command line, creates a batch job submission script for a 
              given experiment
   --submit,  if present at the command line, submit the job created with the --job option  
@@ -111,9 +110,11 @@ on your personal computer. You can also run all the experiments on several proce
 
 It can take a long time to run some experiment when running with a resolution of 2km and 
 higher. If for some reason you need to interrupt your run, you can restart it at a later 
-time using the restart option by running (for example the Stnd experiment on 4 processors):
+time. If the restart of a given experiment is present in the directory, the script 
+mismip3dRun.py will atumatically restart from that restart file. For example, continuiing
+the Stnd experiment on 4 processors:
 
-> python mismip3dRun.py -x Stnd -n 4 --restart
+> python mismip3dRun.py -x Stnd -n 4 
 
 Note that before restarting your run you might want to save a copy of the log file  
 'mismip3dStnd.config.log' under a different name as it will be overwritten on restart.
