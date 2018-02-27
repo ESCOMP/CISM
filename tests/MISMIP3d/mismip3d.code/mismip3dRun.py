@@ -65,7 +65,6 @@ optparser = OptionParser()
 optparser.add_option('-e', '--exec',     dest='executable', type = 'string', default='./cism_driver', help='Path to the CISM executable')
 optparser.add_option('-x', '--expt',     dest='experiment', type='string',   default='all', help='MISMIP3d experiment(s) to run', metavar='EXPT')
 optparser.add_option('-n', '--parallel', dest='parallel',   type='int', help='Number of processors: if specified then run in parallel', metavar='NUMPROCS')
-optparser.add_option('--restart', action="store_true", dest='restart',   help='option to restart an experiment where it left off')
 optparser.add_option('--job',     action="store_true", dest='jobscript', help='option to set up a script to run on HPC')
 optparser.add_option('--submit',  action="store_true", dest='jobsubmit', help='option to submit the run script directly after executing this script')
 
@@ -185,23 +184,23 @@ for expt in experiments:
         # Write the modified config file.
         with open(configfile, 'w') as newconfigfile:
             config.write(newconfigfile)
-             
-    # Checking whether we want to restart an existing experiment.
-    if options.restart:
-        # We need modify the config file by adding restart=1, read the name of the restart file and adjust tstart.
-        # The config file is already opened for reading.
-        restartname = config.get('CF restart','name')
-        restartConfig = Dataset(restartname)
-        if restartConfig['internal_time'][-1] != 0:
-            restarttime = restartConfig['time'][-1]
-            config.set('options','restart','1')
-            config.set('time','tstart',restarttime)
-            with open(configfile, 'w') as newconfigfile:
-                config.write(newconfigfile)
-        else:
-            print 'there is nothing to restart from, executing from the beginning'
 
-        restartConfig.close()
+
+    # Checking whether an existing experiment only needs to be restarted.
+    # We need modify the config file by adding restart=1, read the name of the restart file and adjust tstart.
+    # The config file is already opened for reading.
+    restartName = config.get('CF restart','name')
+    if os.path.exists(restartName):
+        restartFile = Dataset(restartName,'r')
+        restartTime = restartFile['time'][-1]
+        restartFile.close()
+        config.set('options','restart','1')
+        config.set('time','tstart',restartTime)
+        with open(configfile, 'w') as newconfigfile:
+            config.write(newconfigfile)
+        print 'Continuing experiment from restart.'
+    else:
+        print 'there is nothing to restart from, executing from the beginning'
 
 
 
