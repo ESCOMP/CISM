@@ -12,8 +12,8 @@ tstart = 0.
 tend = 20000.0
 dt = 0.5
 dt_diag = 0.5
-idiag = 225
-jdiag = 20
+#idiag = 5
+#jdiag = 5
 
 [options]
 dycore = 2              # 0 = glide, 1 = glam, 2 = glissade

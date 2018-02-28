@@ -338,8 +338,8 @@ for expt in experiments:
         inputdir    = '../'
         inputfile   = initfile
         inputslice  = 1
-        outputfreq  = 1000.0
-        restartfreq = restartfreqSpinup 
+        outputfreq  = min(1000.0, yearsSpinup)
+        restartfreq = min(restartfreqSpinup, yearsSpinup)
     elif expt == 'Ice0':
         tstart      = 0.0
         tend        = 100.0
