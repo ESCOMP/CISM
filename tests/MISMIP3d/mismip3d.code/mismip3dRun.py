@@ -88,10 +88,12 @@ else:
 
 
 if (options.jobsubmit) and (not options.jobscript):
-    print 'You are trying to submit a batch job without a job script. No job will be submitted.'
+    print 'You are trying to submit a batch job without the job option. No job will be submitted.'
 
 if (options.parallel is not None) and (options.jobscript):
     print 'The number of processors will not be taken into account as you will be submitting a batch job script.'
+
+restart = 0  # constant meant to keep track of restart status.
 
 # Loop through experiments.
 for expt in experiments:
@@ -107,8 +109,29 @@ for expt in experiments:
     config = ConfigParser()
     config.read(configfile)
 
+
+    # Checking whether an existing experiment only needs to be restarted.
+    # We need modify the config file by adding restart=1, read the name of the restart file and adjust tstart.
+    # The config file is already opened for reading.
+    restartName = config.get('CF restart','name')
+    if os.path.exists(restartName):
+        restart = 1
+        restartFile = Dataset(restartName,'r')
+        restartTime = restartFile['time'][-1]
+        restartFile.close()
+        config.set('options','restart','1')
+        config.set('time','tstart',restartTime)
+        with open(configfile, 'w') as newconfigfile:
+            config.write(newconfigfile)
+        print 'Continuing experiment from restart.'
+    else:
+        print 'there is nothing to restart from, executing from the beginning'
+
+
     # Make sure we are starting from the final time slice of the input file,
     # (Except for Stnd, the input file is a restart file from a previous run.)
+
+
 
     if expt != 'Stnd':
 
@@ -129,7 +152,7 @@ for expt in experiments:
 
 
         # For experiment P75S we need to induce the perturbation and modify C_space_factor.
-        if (expt == 'P75S') and (not options.restart):
+        if (expt == 'P75S') and (restart==0):
             
             # We need to calculate the grounding line location from the input file of the experiment at the center line location.
             infileOut = Dataset(inputfileOut,'r')
@@ -168,7 +191,7 @@ for expt in experiments:
 
     
         # We need to reset C_space_factor to 1 and internal_time to 0.
-        if (expt == 'P75R') and (not options.restart):
+        if (expt == 'P75R') and (restart==0):
              infile = Dataset(inputfile,'r+')
              print 'opening inputfile ',inputfile
              infile.variables['C_space_factor'][:,:,:] = 1
@@ -184,23 +207,6 @@ for expt in experiments:
         # Write the modified config file.
         with open(configfile, 'w') as newconfigfile:
             config.write(newconfigfile)
-
-
-    # Checking whether an existing experiment only needs to be restarted.
-    # We need modify the config file by adding restart=1, read the name of the restart file and adjust tstart.
-    # The config file is already opened for reading.
-    restartName = config.get('CF restart','name')
-    if os.path.exists(restartName):
-        restartFile = Dataset(restartName,'r')
-        restartTime = restartFile['time'][-1]
-        restartFile.close()
-        config.set('options','restart','1')
-        config.set('time','tstart',restartTime)
-        with open(configfile, 'w') as newconfigfile:
-            config.write(newconfigfile)
-        print 'Continuing experiment from restart.'
-    else:
-        print 'there is nothing to restart from, executing from the beginning'
 
 
 
