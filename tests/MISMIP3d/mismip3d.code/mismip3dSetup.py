@@ -320,7 +320,7 @@ for expt in experiments:
         inputfileOut = 'mismip3dStnd.out.nc'  # we will need f_ground from this file to calculate the GL (not in the restart file)
         inputslice   = int(yearsStnd/restartfreqStnd)
         outputfreq   = 10.0
-        restartfreq  = 10.0
+        restartfreq  = 100.0
     elif expt == 'P75R':
         tstart      = 0.0
         tend        = yearsStnd

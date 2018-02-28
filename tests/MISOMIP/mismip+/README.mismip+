@@ -91,17 +91,28 @@ If you set up all the experiments, you should have the following subdirectories 
 the setup script:
 Spinup, Ice0, Ice1r, Ice1ra, Ice1rr, Ice1rax, Ice1rrx, Ice2r, Ice2ra, Ice2rr, Ice2rax, Ice2rrx.
 
-After setup, you should first run the Spinup experiment.  You can do this using a Python run script.
+After setup, you should first run the Spinup experiment.  You can do this using the Python run 
+script: mismip+Run.py.
 To run the Spinup experiment on 16 processors:
 
-> python mismip_Run.py -x Spinup -n 16
+> python mismip+Run.py -x Spinup -n 16
 
 Here are the optional arguments for the run script:
   -e EXECUTABLE, --exec=EXECUTABLE
                         Path to the CISM executable [default: ./cism_driver]
-  -x EXPT, --expt=EXPT  MISMIP+ experiment(s) to run [default: allIce]
+  -x EXPT,     --expt=EXPT  MISMIP+ experiment(s) to run [default: allIce]
   -n NUMPROCS, --parallel=NUMPROCS
                         Number of processors: if specified then run in parallel
+
+If the run is interrupted for any reason and you need to restart it in order to finish your
+experiment, simply relaunch your experiment using the same command line used originally. Using 
+the same previous example of the Spinup run:
+
+> python mismip+Run.py -x Spinup -n 16
+
+The script will automatically read the restart file name, modify the config file and restart 
+the run from the latest time saved in the restart file.
+
 
 Alternatively, you may want to submit a batch job.  If so, then change to the subdirectory
 ('cd Spinup'), and launch your batch job from the subdirectory.
@@ -123,10 +134,16 @@ Before proceeding, you may want to confirm that the GL has reached a steady stat
 One way to do this is to list f_ground (the grounded fraction, 0 < f_ground < 1) along the x direction at y ~ 40 km.
 The value of f_ground in the last (partially) grounded cell should be stable within some small tolerance, e.g. ~10^{-3}.
 
-The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
-for the Ice0, Ice1r and Ice2r experiments. However, you will need to edit it so that
-CISM's internal_time coordinate for the final time slice is 0. 
+# The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
+# for the Ice0, Ice1r and Ice2r experiments. However, you will need to edit it so that
+# CISM's internal_time coordinate for the final time slice is 0. 
 
+The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
+for the Ice0, Ice1r and Ice2r experiments. However, it needs to edited so that CISM's
+internal_time coordinate for the final time slice is 0. If you are running interactively, 
+the script mismip+Run.py will do this automatically and you simply need to launch your 
+next experiment.
+If you are not running interactively and submitting jobs, you will need to edit it yourself.
 Suppose the final time is 20000 years. You can set internal_time = 0 with a one-line NCO command:
 
 > ncap2 -s 'internal_time=internal_time-20000' mismip+Spinup.restart.nc out.nc
