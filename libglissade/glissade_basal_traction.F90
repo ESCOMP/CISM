@@ -186,6 +186,20 @@ contains
      which_inversion = HO_INVERSION_NONE
   endif
 
+  ! Compute the ice speed: used in power laws where beta = beta(u).
+  ! Enforce a minimum speed to prevent beta from become very large when velocity is small.
+  speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
+
+  ! If beta_powerlaw_umax is set to a nonzero value, then limit the speed to this value.
+  ! Note: The actual ice speed can be greater than umax.  This is just a way of shutting off the feedback
+  !        between beta and ice speed (beta down as speed up) when the ice speed is large.
+  !       It helps make the model more stable.
+  if (basal_physics%beta_powerlaw_umax > 0.0d0) then
+     speed(:,:) = min(speed(:,:), basal_physics%beta_powerlaw_umax)
+  endif
+
+  ! Compute beta based on whichbabc
+
   select case(whichbabc)
 
     case(HO_BABC_BETA_CONSTANT)   ! spatially uniform beta value; useful for debugging and test cases
@@ -240,7 +254,6 @@ contains
 
                 ! compute beta based on tan(phi), N and u
                 tau_c = tanphi * basal_physics%effecpress_stag(ew,ns) 
-                speed(ew,ns) = sqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
                 beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
 
                 !WHL - debug
@@ -353,7 +366,6 @@ contains
        ! implying beta = C * ub^(1/m - 1) 
        ! m should be a positive exponent
 
-       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
        beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
@@ -371,7 +383,6 @@ contains
        powerlaw_p = 3.0d0
        powerlaw_q = 1.0d0
 
-       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
        beta(:,:) = basal_physics%friction_powerlaw_k**(-1.0d0/powerlaw_p) &
             * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p) &
             * speed(:,:)**(1.0d0/powerlaw_p - 1.0d0)
@@ -408,7 +419,6 @@ contains
 
        ! Compute beta
        ! gn = Glen's n from physcon module
-       speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
        beta(:,:) = coulomb_c * basal_physics%C_space_factor_stag(:,:) * &
             basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
             (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
@@ -452,12 +462,9 @@ contains
           do ns = 1, nsn-1
              do ew = 1, ewn-1
 
-                speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
-
                 numerator = powerlaw_c * coulomb_c * basal_physics%effecpress_stag(ew,ns)
                 denominator = ( powerlaw_c**m * speed(ew,ns) +  &
                                (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
-
                 beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
 
              enddo
@@ -501,8 +508,6 @@ contains
 
           do ns = 1, nsn-1
              do ew = 1, ewn-1
-
-                speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
 
                 numerator = stag_powerlaw_c_inversion(ew,ns) * stag_coulomb_c_inversion(ew,ns)  &
                           * basal_physics%effecpress_stag(ew,ns)
@@ -564,8 +569,6 @@ contains
        do ns = 1, nsn-1
           do ew = 1, ewn-1
              
-             speed(ew,ns) = dsqrt(thisvel(ew,ns)**2 + othervel(ew,ns)**2 + smallnum**2)
-
              taub_powerlaw = basal_physics%powerlaw_c * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
              taub_coulomb  = basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)
 

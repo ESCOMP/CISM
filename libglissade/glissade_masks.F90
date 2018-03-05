@@ -143,6 +143,9 @@
     real(dp), dimension(nx,ny), intent(out), optional :: &
          thck_calving_front     ! effective ice thickness at the calving front
 
+    !TODO - Make eps10 a model parameter?
+    real(dp), parameter :: eps10 = 1.0d-10  ! small number
+
     !----------------------------------------------------------------
     ! Local arguments
     !----------------------------------------------------------------
@@ -225,7 +228,7 @@
 
     ! Optionally, compute the calving_front mask and effective calving_front thickness
 
-    if (present(calving_front_mask) .and. present(thck_calving_front) .and. present(which_ho_calving_front)) then
+    if (present(calving_front_mask) .and. present(which_ho_calving_front)) then
 
        if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -264,12 +267,14 @@
           call parallel_halo(calving_front_mask)
           call parallel_halo(floating_interior_mask)
 
-          ! Compute an effective thickness in calving-front cells.
-          ! This is set to the minimum nonzero thickness in a marine-based neighbor (either floating
-          ! or grounded) that is not at the calving front.
-          thck_calving_front(:,:) = 0.0d0
+          if (present(thck_calving_front)) then
 
-          do j = 2, ny-1
+             ! Compute an effective thickness in calving-front cells.
+             ! This is set to the minimum nonzero thickness in a marine-based neighbor (either floating
+             ! or grounded) that is not at the calving front.
+             thck_calving_front(:,:) = 0.0d0
+
+             do j = 2, ny-1
              do i = 2, nx-1
                 if (calving_front_mask(i,j) == 1) then
 
@@ -312,17 +317,20 @@
 
                 endif   ! calving front cell
              enddo   ! i
-          enddo   ! j
+             enddo   ! j
 
-          call parallel_halo(thck_calving_front)
+             call parallel_halo(thck_calving_front)
+
+          endif   ! present(thck_calving_front)
 
           ! Optionally, update the active_ice_mask so that calving_front cells with thck < thck_calving_front are inactive,
           ! but those with thck >= thck_calving_front are active.
 
           if (present(active_ice_mask)) then
 
-             if (.not.present(land_mask)) then
-                call write_log('Must pass land_mask to compute active_ice_mask with calving-front option', GM_FATAL)
+             if (.not.present(thck_calving_front)) then
+                call write_log  &
+                     ('Must pass thck_calving_front to compute active_ice_mask with calving-front option', GM_FATAL)
              endif
 
              ! reset active_ice_mask
@@ -330,17 +338,25 @@
 
              ! Mark ice-filled cells as active.
              ! Calving-front cells, however, are inactive, unless they have thck >= thck_calving front or
-             !  are adjacent to land cells.
+             !  are adjacent to grounded cells.
+
              do j = 2, ny-1
                 do i = 2, nx-1
                    if (ice_mask(i,j) == 1) then
                       if (calving_front_mask(i,j) == 0) then
                          active_ice_mask(i,j) = 1
                       elseif (calving_front_mask(i,j) == 1) then
-                         if (thck_calving_front(i,j) > 0.0d0 .and. thck(i,j) >= thck_calving_front(i,j)) then 
+                         !WHL - There is a possible rounding issue here, if two adjacent cells are both being restored
+                         !      (via inversion for bmlt_float) to the same thickness. For this reason, let the
+                         !      cell be active if thck is very close to thck_calving front, but slightly less.
+
+                         if (thck_calving_front(i,j) > 0.0d0 .and. &
+                             thck(i,j)*(1.0d0 + eps10) >= thck_calving_front(i,j)) then
                             active_ice_mask(i,j) = 1
-                         elseif (land_mask(i-1,j) == 1 .or. land_mask(i+1,j) == 1 .or. &
-                                 land_mask(i,j-1) == 1 .or. land_mask(i,j+1) == 1) then
+                         elseif (grounded_mask(i-1,j) == 1 .or. grounded_mask(i+1,j) == 1 .or. &
+                                 grounded_mask(i,j-1) == 1 .or. grounded_mask(i,j+1) == 1 .or. &
+                                 grounded_mask(i-1,j+1) == 1 .or. grounded_mask(i+1,j+1) == 1 .or. &
+                                 grounded_mask(i-1,j-1) == 1 .or. grounded_mask(i+1,j-1) == 1) then
                             active_ice_mask(i,j) = 1
                          endif
                       endif
@@ -355,18 +371,13 @@
        else   ! no subgrid calving front
 
           calving_front_mask(:,:) = 0
-          thck_calving_front(:,:) = 0.0d0
+          if (present(thck_calving_front)) thck_calving_front(:,:) = 0.0d0
+
           ! Note: active_ice_mask, if present, was set above and need not be reset
 
        endif  ! which_ho_calving_front
 
-    elseif ( (present(calving_front_mask) .and. .not.present(thck_calving_front)) &
-                                           .or.   &
-             (present(thck_calving_front) .and. .not.present(calving_front_mask)) ) then
-
-       call write_log('Must pass calving_front_mask and thck_calving_front together', GM_FATAL)
-
-    endif   ! calving_front_mask, thck_calving_front and which_ho_calving_front are present
+    endif   ! calving_front_mask and which_ho_calving_front are present
 
     ! Optionally, compute the marine_cliff mask
 
