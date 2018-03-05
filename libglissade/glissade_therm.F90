@@ -193,7 +193,14 @@ module glissade_therm
     ! Method (3) may be optimal for reducing spinup time in the interior of large ice sheets.
     ! Option (4) requires that temperature is present in the input file.
 
-    if (temp_init == TEMP_INIT_EXTERNAL) then
+    if (is_restart == RESTART_TRUE) then
+
+       ! Temperature has already been initialized from a restart file.
+       ! (Temperature is always a restart variable.)
+
+       call write_log('Initializing ice temperature from the restart file')
+
+    elseif (temp_init == TEMP_INIT_EXTERNAL) then
 
        ! Temperature from external file
 
@@ -229,8 +236,7 @@ module glissade_therm
           tempunstag(1,:,:) = temp(0,:,:)
           tempunstag(upn,:,:) = temp(upn,:,:)
 
-          call write_log('Initializing ice temperature from a restart/input file')
-
+          call write_log('Initializing ice temperature from an input file')
 
        elseif ( maxval(tempunstag(:,:,:)) > (-1.0d0 * trpt)) then
 
