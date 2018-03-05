@@ -224,8 +224,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-    logical :: verbose_beta = .false.
-!    logical :: verbose_beta = .true.
+!    logical :: verbose_beta = .false.
+    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -2149,39 +2149,6 @@
     endif
     
     !------------------------------------------------------------------------------
-    ! Compute powerlaw_c and coulomb_c fields by inversion, if needed
-    !  (part of basal_physics derived type).
-    ! Note: If powerlaw_c is prescribed from a previous inversion, it may need to be
-    !       adjusted in cells that were floating during the inversion but are now grounded,
-    !       or vice versa.
-    ! Note: dt and thck_obs are not rescaled by the scale_input subroutine, in order
-    !       to avoid accumulating errors by repeated multiplication and division.
-    !------------------------------------------------------------------------------
-
-    if (whichinversion == HO_INVERSION_COMPUTE) then
-
-       call invert_basal_traction(dt*tim0,                    &  ! s
-                                  nx,       ny,               &
-                                  itest,    jtest,  rtest,    &
-                                  model%basal_physics,        &
-                                  ice_mask,                   &
-                                  floating_mask,              &
-                                  thck,                       &  ! m
-                                  dthck_dt,                   &  ! m/s
-                                  thck_obs*thk0)                 ! m
-
-    elseif (whichinversion == HO_INVERSION_PRESCRIBED) then
-
-       call prescribe_basal_traction(nx,       ny,               &
-                                     itest,    jtest,  rtest,    &
-                                     ice_mask,                   &
-                                     floating_mask,              &
-                                     model%basal_physics%powerlaw_c_prescribed, &
-                                     model%basal_physics%powerlaw_c_inversion)
-
-    endif
-
-    !------------------------------------------------------------------------------
     ! Main outer loop: Iterate to solve the nonlinear problem
     !------------------------------------------------------------------------------
 
@@ -2399,6 +2366,9 @@
              write(6,*) ' '
           enddo
 
+          !WHL - debug - Skip the next few fields for now
+          go to 500
+
           print*, ' '
           print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2459,6 +2429,8 @@
              write(6,*) ' '
           enddo
 
+500       continue
+
           print*, ' '
           print*, 'effecpress/overburden, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2514,16 +2486,15 @@
        endif
 
        if (verbose_beta .and. main_task) then
-          print*, ' '
-          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
+!!          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,30)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
           print*, ' '
           print*, 'log(beta), itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
-          do j = jtest+4, jtest-4, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
@@ -2541,7 +2512,7 @@
              print*, ' '
              print*, 'Mean uvel field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 !!             do i = 1, nx-1
                 do i = itest-3, itest+3
@@ -2552,7 +2523,7 @@
              print*, ' '
              print*, 'Mean vvel field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 !!             do i = 1, nx-1
                 do i = itest-3, itest+3
@@ -2566,7 +2537,7 @@
              print*, ' ' 	       
              print*, 'Basal uvel field, itest, jtest, rank =', itest, jtest, rtest
 !!             do j = ny-1, 1, -1
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                 do i = 1, nx-1
                 do i = itest-3, itest+3
@@ -2578,7 +2549,7 @@
              print*, ' '
              print*, 'Basal vvel field, itest, jtest, rank =', itest, jtest, rtest
 !!             do j = ny-1, 1, -1
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                do i = 1, nx-1
                 do i = itest-3, itest+3
@@ -2590,7 +2561,7 @@
              print*, ' '
              print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
 !!             do j = ny-1, 1, -1
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                do i = 1, nx-1
                 do i = itest-3, itest+3
@@ -2602,7 +2573,7 @@
              print*, ' '
              print*, 'Sfc vvel field, itest, jtest, rank =', itest, jtest, rtest
 !!              do j = ny-1, 1, -1
-             do j = jtest+4, jtest-4, -1
+             do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
 !!                 do i = 1, nx-1
                 do i = itest-3, itest+3
@@ -8903,7 +8874,12 @@
     real(dp), intent(out), optional ::    &
        L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
 
-    integer :: i, j, iA, jA, m 
+    real(dp), dimension(nx-1,ny-1) ::  &
+       resid_sq            ! resid_u^2 + resid_v^2
+
+    real(dp) :: my_max_resid, global_max_resid
+
+    integer :: i, j, iA, jA, m, iglobal, jglobal
 
     real(dp) :: L2_norm_rhs   ! L2 norm of rhs vector, |b|
 
@@ -8950,6 +8926,7 @@
     ! Sum up squared L2 norm as we go
 
     L2_norm = 0.d0
+    resid_sq(:,:) = 0.0d0
 
     ! Loop over locally owned vertices
 
@@ -8958,8 +8935,8 @@
        if (active_vertex(i,j)) then
           resid_u(i,j) = resid_u(i,j) - bu(i,j)
           resid_v(i,j) = resid_v(i,j) - bv(i,j)
-          L2_norm = L2_norm + resid_u(i,j)*resid_u(i,j)  &
-                            + resid_v(i,j)*resid_v(i,j)
+          resid_sq(i,j) = resid_u(i,j)*resid_u(i,j) + resid_v(i,j)*resid_v(i,j)
+          L2_norm = L2_norm + resid_sq(i,j)
        endif     ! active vertex
     enddo        ! i
     enddo        ! j
@@ -8969,17 +8946,39 @@
     L2_norm = parallel_reduce_sum(L2_norm)
     L2_norm = sqrt(L2_norm)
 
-    if (verbose_residual .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, 'In compute_residual_vector_2d: i, j =', i, j
-       print*, 'u,  v :', uvel(i,j), vvel(i,j)
-       print*, 'bu, bv:', bu(i,j), bv(i,j)
-       print*, 'resid_u, resid_v:', resid_u(i,j), resid_v(i,j)
-       print*, ' '
-       print*, 'maxval/minval(resid_u) =', maxval(resid_u), minval(resid_u)
-       print*, 'maxval/minval(resid_v) =', maxval(resid_v), minval(resid_v)
-    endif
+    if (verbose_residual) then
+
+       if (this_rank==rtest) then
+          i = itest
+          j = jtest
+!          print*, ' '
+!          print*, 'In compute_residual_vector_2d: i, j =', i, j
+!          print*, 'u,  v :', uvel(i,j), vvel(i,j)
+!          print*, 'bu, bv:', bu(i,j), bv(i,j)
+!          print*, 'resid_u, resid_v:', resid_u(i,j), resid_v(i,j)
+       endif
+
+       !TODO - Add this calculation to the 3D residual subroutine
+
+       ! Compute max value of (squared) residual on this task.
+       ! If this task owns the vertex with the global max residual, then print a diagnostic message.
+       my_max_resid = maxval(resid_sq)
+       global_max_resid = parallel_reduce_max(my_max_resid)
+
+       if (abs((my_max_resid - global_max_resid)/global_max_resid) < 1.0d-6) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (abs((resid_sq(i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
+                   print*, 'task, i, j, global_max_resid^2:', this_rank, i, j, global_max_resid
+                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   print*, 'global i, j =', iglobal, jglobal
+                   print*, 'residu, residv:', resid_u(i,j), resid_v(i,j)
+                endif
+             enddo
+          enddo
+       endif
+
+    endif  ! verbose_residual
 
     if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
 

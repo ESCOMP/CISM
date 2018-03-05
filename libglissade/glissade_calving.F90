@@ -1836,16 +1836,35 @@ contains
     ! Icebergs are cells that still have the initial color and are not on land.
     ! Remove ice in these cells, adding it to the calving field.
     ! Note: Inactive land-based cells are not considered to be icebergs.
-    do j = 1, ny
-       do i = 1, nx
+    ! Note: Another exception is that we do not remove cells that are
+    !       (1) adjacent to at least one floating cell (sharing an edge), and
+    !       (2) connected diagonally to active cells with the fill color.
+    !       Such cells are considered part of the inactive calving front and are
+    !        allowed to continue filling instead of calving.
+
+
+    do j = 2, ny-1
+       do i = 2, nx-1
           if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
-             !WHL - debug
-             if (verbose_calving .and. thck(i,j) > 0.0 .and. this_rank == rtest) then
-!!                print*, 'Remove iceberg: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
+             if (  ( color(i-1,j+1)==fill_color .and. active_ice_mask(i-1,j+1)==1 .and. &
+                       (floating_mask(i-1,j)==1 .or. floating_mask(i,j+1)==1) ) &
+              .or. ( color(i+1,j+1)==fill_color .and. active_ice_mask(i+1,j+1)==1 .and. &
+                       (floating_mask(i+1,j)==1 .or. floating_mask(i,j+1)==1) ) &
+              .or. ( color(i-1,j-1)==fill_color .and. active_ice_mask(i-1,j-1)==1 .and. &
+                       (floating_mask(i-1,j)==1 .or. floating_mask(i,j-1)==1) ) &
+              .or. ( color(i+1,j-1)==fill_color .and. active_ice_mask(i+1,j-1)==1 .and. &
+                       (floating_mask(i+1,j)==1 .or. floating_mask(i,j-1)==1) ) ) then
+                ! do nothing; this cell is part of the inactive calving front
+             else  ! not part of the inactive calving front; calve as an iceberg
+                !WHL - debug
+!!                if (verbose_calving .and. thck(i,j) > 0.0 .and. this_rank == rtest) then
+!!                   print*, 'Remove iceberg: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
+!!                endif
+                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                thck(i,j) = 0.0d0
+                !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
              endif
-             calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
-             thck(i,j) = 0.0d0
-             !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
+
           endif
        enddo
     enddo
@@ -2072,7 +2091,7 @@ contains
        print*, 'color, rank =', this_rank
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
-          do i = nx-10, nx
+          do i = itest-3, itest+3
              write(6,'(i10)',advance='no') color(i,j)
           enddo
           write(6,*) ' '
@@ -2081,7 +2100,7 @@ contains
        print*, 'floating_mask, rank =', this_rank
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
-          do i = nx-10, nx
+          do i = itest-3, itest+3
              write(6,'(i10)',advance='no') floating_mask(i,j)
           enddo
           write(6,*) ' '
@@ -2090,7 +2109,7 @@ contains
        print*, 'lake_mask, rank =', this_rank
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
-          do i = nx-10, nx
+          do i = itest-3, itest+3
              write(6,'(i10)',advance='no') lake_mask(i,j)
           enddo
           write(6,*) ' '

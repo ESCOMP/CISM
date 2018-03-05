@@ -210,7 +210,6 @@ contains
     ! scale basal inversion parameters
     model%basal_physics%inversion_babc_timescale = model%basal_physics%inversion_babc_timescale * scyr
     model%basal_physics%inversion_babc_dthck_dt_scale = model%basal_physics%inversion_babc_dthck_dt_scale / scyr
-    model%basal_melt%inversion_bmlt_timescale = model%basal_melt%inversion_bmlt_timescale * scyr
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -1612,6 +1611,7 @@ contains
     call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
     call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_c)
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
+    call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
@@ -1635,13 +1635,10 @@ contains
     ! basal inversion parameters
     call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
     call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
-    call GetValue(section, 'powerlaw_coulomb_ratio', model%basal_physics%powerlaw_coulomb_ratio)
     call GetValue(section, 'inversion_babc_timescale', model%basal_physics%inversion_babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%basal_physics%inversion_babc_thck_scale)
     call GetValue(section, 'inversion_babc_dthck_dt_scale', model%basal_physics%inversion_babc_dthck_dt_scale)
     call GetValue(section, 'inversion_babc_smoothing_factor', model%basal_physics%inversion_babc_smoothing_factor)
-    call GetValue(section, 'inversion_bmlt_timescale', model%basal_melt%inversion_bmlt_timescale)
-    call GetValue(section, 'inversion_bmlt_smoothing_factor', model%basal_melt%inversion_bmlt_smoothing_factor)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -1940,9 +1937,6 @@ contains
           write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', &
                model%basal_physics%powerlaw_c_min
           call write_log(message)
-          write(message,*) 'powerlaw_c/coulomb_c ratio                   : ', &
-               model%basal_physics%powerlaw_coulomb_ratio
-          call write_log(message)
           write(message,*) 'inversion basal traction timescale (yr)      : ', &
                model%basal_physics%inversion_babc_timescale
           call write_log(message)
@@ -1955,12 +1949,6 @@ contains
           write(message,*) 'inversion basal traction smoothing factor    : ', &
                model%basal_physics%inversion_babc_smoothing_factor
           call write_log(message)
-          write(message,*) 'inversion basal melting timescale (yr)       : ', &
-               model%basal_melt%inversion_bmlt_timescale
-          call write_log(message)
-          write(message,*) 'inversion basal melting smoothing factor     : ', &
-               model%basal_melt%inversion_bmlt_smoothing_factor
-          call write_log(message)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
        write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
@@ -1972,6 +1960,16 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       call write_log(message)
+    endif
+
+    if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
+       write(message,*) 'max ice speed (m/yr) when evaluating beta(u) : ', model%basal_physics%beta_powerlaw_umax
+       call write_log(message)
+    endif
+
+    if (model%basal_physics%beta_grounded_min > 0.d0) then
+       write(message,*) 'min beta, grounded ice (Pa yr/m)             : ', model%basal_physics%beta_grounded_min
        call write_log(message)
     endif
 
@@ -2003,11 +2001,6 @@ contains
        call write_log(message)
     endif
 
-    if (model%basal_physics%beta_grounded_min > 0.d0) then
-       write(message,*) 'min beta, grounded ice (Pa yr/m): ', model%basal_physics%beta_grounded_min
-       call write_log(message)
-    endif
-    
     if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
                                         .or.                                                     &
         model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
@@ -2566,8 +2559,8 @@ contains
          !  but included for generality)
          ! Note: If these fields are written to the restart file, they should not be written
          !       to any other output file; else the time average will be wrong.
-         !TODO - Consider whether it is better to restart from snapshots.
-         call glide_add_to_restart_variable_list('powerlaw_c_inversion_tavg')
+         !TODO - If bmlt_float_inversion is steady, do not need a tavg version?
+!!         call glide_add_to_restart_variable_list('powerlaw_c_inversion_tavg')
          call glide_add_to_restart_variable_list('bmlt_float_inversion_tavg')
       case (HO_INVERSION_PRESCRIBED)
          ! Write powerlaw_c_inversion to the restart file, because it is

@@ -1252,7 +1252,13 @@ module glide_types
      !Note: In the Glide dycore, the only active field in this type is bmlt.
      !      The other fields are used in Glissade only.
 
+     !WHL - debug
+     real(dp), dimension(:,:), pointer :: &
+          bmlt_applied_old => null(),  &
+          bmlt_applied_diff => null()
+
      ! bmlt fields for grounded and floating ice
+
      real(dp), dimension(:,:), pointer :: &
           bmlt => null(),                         & !> basal melt rate (> 0 for melt, < 0 for freeze-on)
                                                     !> bmlt = bmlt_ground + bmlt_float
@@ -1261,14 +1267,22 @@ module glide_types
           bmlt_ground => null(),                  & !> basal melt rate for grounded ice
           bmlt_float => null(),                   & !> basal melt rate for floating ice
           bmlt_float_external => null(),          & !> external basal melt rate field
-          bmlt_float_anomaly => null(),           & !> basal melt rate anomaly field
+          bmlt_float_anomaly => null()              !> basal melt rate anomaly field
+
+     ! Notes on inversion fields:
+     ! With which_ho_inversion = HO_INVERSION_COMPUTE, bmlt_float_inversion is computed and applied during each step.
+     ! For which_ho_inversion = HO_INVERSION_PRESCRIBED, bmlt_float_prescribed (as computed in a
+     !  previous inversion run) is read from the input file. 
+
+     real(dp), dimension(:,:), pointer :: &
           bmlt_float_inversion => null(),         & !> basal melt rate computed by inversion;
                                                     !> relaxes thickness of floating ice toward observed target
           bmlt_float_inversion_tavg => null(),    & !> basal melt rate computed by inversion (time average)
           bmlt_float_prescribed => null()           !> basal melt rate prescribed from a previous inversion
 
      integer, dimension(:,:), pointer :: &
-          bmlt_inversion_mask => null()             !> = 1 where bmlt is applied for inversion, else = 0
+          grounded_mask_start=> null(),           & !> = 1 where ice is grounded at start of timestep, else = 0
+          floating_mask_start=> null()              !> = 1 where ice is floating at start of timestep, else = 0
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
@@ -1290,11 +1304,6 @@ module glide_types
      ! initMIP-Antarctica parameters
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
-     ! inversion parameters
-     real(dp) ::  &
-          inversion_bmlt_timescale =  0.d0,       & !> inversion timescale (yr);
-                                                    !> relaxation is immediate if timescale = 0
-          inversion_bmlt_smoothing_factor = 0.0d0   !> factor for smoothing bmlt_float_inversion (larger => more smoothing)
 
   end type glide_basal_melt
 
@@ -1406,7 +1415,7 @@ module glide_types
      real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
                                                  !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
-     ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI
+     ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
      ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_c suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
@@ -1416,20 +1425,23 @@ module glide_types
      real(dp) :: powerlaw_c = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
       
+     ! parameter to limit the min value of beta for various power laws
+     real(dp) :: beta_powerlaw_umax = 0.0d0      !< upper limit of ice speed (m/yr) when evaluating powerlaw beta
+                                                 !< Where u > umax, let u = umax when evaluating beta(u)
+
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
      ! Note: inversion_babc_timescale and inversion_babc_dthck_dt_scale are later rescaled to SI units (s and m/s).
 
      real(dp) ::  &
           powerlaw_c_max = 1.0d5,             &  !< Pa (m/yr)^(-1/3)
-          powerlaw_c_min = 2.0d3,             &  !< Pa (m/yr)^(-1/3)
-          powerlaw_coulomb_ratio = 2.0d4         !< powerlaw_c/coulomb_c (same units as powerlaw_c))
+          powerlaw_c_min = 1.0d2                 !< Pa (m/yr)^(-1/3)
 
      real(dp) ::  &
-          inversion_babc_timescale = 200.d0,      & !< inversion timescale (yr); must be > 0
-          inversion_babc_thck_scale = 50.d0,      & !< thickness inversion scale (m); must be > 0
-          inversion_babc_dthck_dt_scale = 0.50d0, & !< dthck_dt inversion scale (m/yr); must be > 0
-          inversion_babc_smoothing_factor = 0.05d0  !< factor for smoothing powerlaw_c (larger => more smoothing)
+          inversion_babc_timescale = 500.d0,      & !< inversion timescale (yr); must be > 0
+          inversion_babc_thck_scale = 100.d0,     & !< thickness inversion scale (m); must be > 0
+          inversion_babc_dthck_dt_scale = 0.10d0, & !< dthck_dt inversion scale (m/yr); must be > 0
+          inversion_babc_smoothing_factor = 1.0d-2  !< factor for smoothing powerlaw_c (larger => more smoothing)
 
      ! parameter for constant basal water
      ! Note: This parameter applies to HO_BWAT_CONSTANT only.
@@ -1855,7 +1867,8 @@ contains
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion_tavg(ewn,nsn)}
     !> \item \texttt{bmlt_float_prescribed(ewn,nsn)}
-    !> \item \texttt{bmlt_inversion_mask(ewn,nsn)}
+    !> \item \texttt{grounded_mask_start(ewn,nsn)}
+    !> \item \texttt{floating_mask_start(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%plume}:
@@ -2202,6 +2215,11 @@ contains
     ! bmlt arrays
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
+
+    !WHL - debug
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_old)
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_diff)
+
     if (model%options%whichdycore == DYCORE_GLISSADE) then
        call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
@@ -2214,7 +2232,8 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion_tavg)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_prescribed)
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_inversion_mask)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%grounded_mask_start)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%floating_mask_start)
        endif
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
@@ -2562,8 +2581,14 @@ contains
         deallocate(model%basal_melt%bmlt_float_inversion_tavg)
     if (associated(model%basal_melt%bmlt_float_prescribed)) &
         deallocate(model%basal_melt%bmlt_float_prescribed)
-    if (associated(model%basal_melt%bmlt_inversion_mask)) &
-        deallocate(model%basal_melt%bmlt_inversion_mask)
+    if (associated(model%basal_melt%grounded_mask_start)) &
+        deallocate(model%basal_melt%grounded_mask_start)
+    if (associated(model%basal_melt%floating_mask_start)) &
+        deallocate(model%basal_melt%floating_mask_start)
+    if (associated(model%basal_melt%bmlt_applied_old)) &
+        deallocate(model%basal_melt%bmlt_applied_old)
+    if (associated(model%basal_melt%bmlt_applied_diff)) &
+        deallocate(model%basal_melt%bmlt_applied_diff)
 
     ! plume arrays
     if (associated(model%plume%T_basal)) &
