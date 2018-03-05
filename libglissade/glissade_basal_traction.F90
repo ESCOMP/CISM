@@ -770,9 +770,13 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
-                f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
-                basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
+                if (thck(i,j) > 0.0d0) then
+                   f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
+                   f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
+                   basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
+                else
+                   basal_physics%effecpress(i,j) = 0.0d0
+                endif
              enddo
           enddo
 
