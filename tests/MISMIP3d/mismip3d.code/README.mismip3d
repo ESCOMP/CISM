@@ -44,7 +44,7 @@ To create the grid topography and set the appropriate config options for each te
 
 This script has the following optional arguments:
   -c FILE, --config=FILE
-                        config file template [default: mismip+3d.config.template]
+                        config file template [default: mismip3d.config.template]
   -e EXECUTABLE, --exec=EXECUTABLE
                         Path to the CISM executable [default: cism_driver]
   -x EXPT, --expt=EXPT  MISMIP3d experiment(s) to set up [default: all]
