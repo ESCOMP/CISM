@@ -231,7 +231,6 @@ for expt in experiments:
     config.read(configfile)
     
     inputFile   = config.get('CF input',   'name')
-    #    restartFile = config.get('CF restart', 'name')
     outputFile  = config.get('CF output',  'name')
     endTime     = config.get('time',       'tend')
     endTime     = float(endTime)

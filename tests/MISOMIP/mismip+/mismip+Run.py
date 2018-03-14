@@ -61,10 +61,11 @@ for expt in experiments:
     # Make sure we are starting from the final time slice of the input file,
     # (Except for Spinup, the input file is a restart file from a previous run.)
 
+    # Read the config file.
+    config = ConfigParser()
+    config.read(configfile)
+
     if expt != 'Spinup':
-        # Read the config file.
-        config = ConfigParser()
-        config.read(configfile)
 
         # Edit the 'time' entry in the [CF input] section.
         inputfile = config.get('CF input', 'name')
@@ -79,11 +80,7 @@ for expt in experiments:
         # the restart file and adjust tstart.
         restartName = config.get('CF restart','name')
         if os.path.exists(restartName):
-            restartFile = Dataset(restartName,'r')
-            restartTime = restartFile['time'][-1]
-            restartFile.close()
             config.set('options','restart','1')
-            config.set('time','tstart',restartTime)
             print 'Continuing experiment from restart.'
         else:
             print 'There is nothing to restart from, executing from the beginning.'
@@ -103,20 +100,10 @@ for expt in experiments:
         infile.close()
 
 
-    # Checking whether an existing experiment only needs to be restarted.
-    # We need modify the config file by adding restart=1, read the name of
-    # the restart file and adjust tstart.
-    if expt == 'Spinup':
-        # Read the config file.
-        config = ConfigParser()
-        config.read(configfile)
+    elif expt == 'Spinup':
         restartName = config.get('CF restart','name')
         if os.path.exists(restartName):
-            restartFile = Dataset(restartName,'r')
-            restartTime = restartFile['time'][-1]
-            restartFile.close()
             config.set('options','restart','1')
-            config.set('time','tstart',restartTime)
             print 'Continuing experiment from restart.'
 
             # Write the modified config file.
