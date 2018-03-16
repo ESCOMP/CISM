@@ -683,7 +683,7 @@
                             print*, 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
                          endif
 
-                         if (abs(-a*d/(b*c)) > eps06) then  ! the usual case
+                         if (abs(b*c - a*d) > eps06) then  ! the usual case
                             f_corner1 = ((b*c - a*d) * log(1.d0 - (a*d)/(b*c)) + a*d) / (d*d)
                             f_corner2 = ((b*c - a*d) * log((b*c - a*d)/((b+d)*(c+d)))  &
                                       + d*(a + b + c + d)) / (d*d)

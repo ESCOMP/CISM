@@ -49,7 +49,7 @@ module glissade_inversion
          powerlaw_c_marine = 1000.d0
 
     real(dp), parameter :: &
-         bmlt_inversion_thck_over_flot = 1.0d0   ! Ice restored from floating to grounded is this much thicker than thck_flotation (m)
+         bmlt_inversion_thck_buffer = 3.0d0   ! Ice is restored to this much above or below thck_flotation
 
 !***********************************************************************
 
@@ -83,6 +83,11 @@ contains
          ocean_mask,           & ! = 1 where ice is absent and topg < eus, else = 0
          land_mask               ! = 1 where topg >= eus, else = 0
 
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         thck_flotation          ! flotation thickness (m)
+
+    real(dp) :: dthck
+
     ! Set local diagnostic point
     rtest = -999
     itest = 1
@@ -105,9 +110,50 @@ contains
        var_maxval = maxval(model%geometry%thck_obs)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
+
           ! do nothing; thck_obs has been read in already (e.g., after restart)
+
        else
+
+          ! initialize to the input thickness
           model%geometry%thck_obs(:,:) = model%geometry%thck(:,:)
+
+          ! Adjust thck_obs so that the observational target is not too close to thck_flotation.
+          ! The reason for this is that if we restore H to values very close to thck_flotation,
+          !  it is easy for cells to flip between grounded and floating in the forward run, even with
+          !  bmlt_float_inversion and powerlaw_c_inversion equal to values from the inversion run.
+
+          where (model%geometry%topg - model%climate%eus < 0.0d0)
+             thck_flotation = -(rhoo/rhoi) * (model%geometry%topg - model%climate%eus) * thk0   ! convert to m
+          elsewhere
+             thck_flotation = 0.0d0
+          endwhere
+
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                if (model%geometry%thck_obs(i,j) > 0.0d0) then
+                   dthck = model%geometry%thck_obs(i,j)*thk0 - thck_flotation(i,j)  ! difference (m)
+                   if (abs(dthck) < bmlt_inversion_thck_buffer) then
+                      if (dthck > 0.0d0) then
+                         model%geometry%thck_obs(i,j) = (thck_flotation(i,j) + bmlt_inversion_thck_buffer) / thk0
+                      else
+                         model%geometry%thck_obs(i,j) = (thck_flotation(i,j) - bmlt_inversion_thck_buffer) / thk0
+                      endif
+                   endif
+                endif
+                model%geometry%thck_obs(i,j) = max(model%geometry%thck_obs(i,j), 0.0d0)
+             enddo
+          enddo
+
+          ! Another adjustment: Make sure the observational target thickness is not too close to thklim.
+          ! If thck_obs is close to thklim, there is a greater chance that the modeled thickness will
+          !  flicker on either side of thklim.
+
+          where (model%geometry%thck_obs > 0.0d0)
+             model%geometry%thck_obs = max(model%geometry%thck_obs, &
+                                           model%numerics%thklim + bmlt_inversion_thck_buffer/thk0)
+          endwhere
+
        endif
 
        call parallel_halo(model%geometry%thck_obs)
@@ -371,55 +417,59 @@ contains
        enddo
     endif
  
-    ! Save the value just computed
-    temp_powerlaw_c(:,:) = basal_physics%powerlaw_c_inversion(:,:)
+    if (basal_physics%inversion_babc_smoothing_factor > 0.0d0) then
 
-    ! Apply Laplacian smoothing.
-    ! Since powerlaw_c lives at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
-    !TODO - Write an operator for Laplacian smoothing?
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! cell (i,j) is grounded
+       ! Save the value just computed
+       temp_powerlaw_c(:,:) = basal_physics%powerlaw_c_inversion(:,:)
 
-             dpowerlaw_c_smooth = -4.0d0 * basal_physics%inversion_babc_smoothing_factor * temp_powerlaw_c(i,j)
-             do jj = j-1, j+1
-                do ii = i-1, i+1
-                   if ((ii == i .or. jj == j) .and. (ii /= i .or. jj /= j)) then  ! edge neighbor
-                      if (ice_mask(ii,jj) == 1 .and. floating_mask(ii,jj) == 0) then   ! cell (ii,jj) is grounded
-                         dpowerlaw_c_smooth = dpowerlaw_c_smooth &
-                              + basal_physics%inversion_babc_smoothing_factor*temp_powerlaw_c(ii,jj)
-                      else
-                         dpowerlaw_c_smooth = dpowerlaw_c_smooth &
-                              + basal_physics%inversion_babc_smoothing_factor*temp_powerlaw_c(i,j)
+       ! Apply Laplacian smoothing.
+       ! Since powerlaw_c lives at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
+       !TODO - Write an operator for Laplacian smoothing?
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! cell (i,j) is grounded
+
+                dpowerlaw_c_smooth = -4.0d0 * basal_physics%inversion_babc_smoothing_factor * temp_powerlaw_c(i,j)
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if ((ii == i .or. jj == j) .and. (ii /= i .or. jj /= j)) then  ! edge neighbor
+                         if (ice_mask(ii,jj) == 1 .and. floating_mask(ii,jj) == 0) then   ! cell (ii,jj) is grounded
+                            dpowerlaw_c_smooth = dpowerlaw_c_smooth &
+                                 + basal_physics%inversion_babc_smoothing_factor*temp_powerlaw_c(ii,jj)
+                         else
+                            dpowerlaw_c_smooth = dpowerlaw_c_smooth &
+                                 + basal_physics%inversion_babc_smoothing_factor*temp_powerlaw_c(i,j)
+                         endif
                       endif
-                   endif
+                   enddo
                 enddo
-             enddo
 
-             ! Note: If smoothing is too strong, it can reverse the sign of the change in powerlaw_c.
-             !       The logic below ensures that if powerlaw_c is increasing, the smoothing can reduce
-             !        the change to zero, but not cause powerlaw_c to decrease relative to old_powerlaw_c
-             !        (and similarly if powerlaw_c is decreasing).
+                ! Note: If smoothing is too strong, it can reverse the sign of the change in powerlaw_c.
+                !       The logic below ensures that if powerlaw_c is increasing, the smoothing can reduce
+                !        the change to zero, but not cause powerlaw_c to decrease relative to old_powerlaw_c
+                !        (and similarly if powerlaw_c is decreasing).
 
-             if (dpowerlaw_c(i,j) > 0.0d0) then
-                if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth > old_powerlaw_c(i,j)) then
-                   basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
-                else
-                  ! allow the smoothing to hold Cp at its old value, but not reduce Cp
-                   basal_physics%powerlaw_c_inversion(i,j) = old_powerlaw_c(i,j)
-                endif
-             elseif (dpowerlaw_c(i,j) < 0.0d0) then
-                if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth < old_powerlaw_c(i,j)) then
-                   basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
-                else
-                  ! allow the smoothing to hold Cp at its old value, but not increase Cp
-                   basal_physics%powerlaw_c_inversion(i,j) = old_powerlaw_c(i,j)
-                endif
-             endif  ! dpowerlaw_c > 0
+                if (dpowerlaw_c(i,j) > 0.0d0) then
+                   if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth > old_powerlaw_c(i,j)) then
+                      basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+                   else
+                      ! allow the smoothing to hold Cp at its old value, but not reduce Cp
+                      basal_physics%powerlaw_c_inversion(i,j) = old_powerlaw_c(i,j)
+                   endif
+                elseif (dpowerlaw_c(i,j) < 0.0d0) then
+                   if (temp_powerlaw_c(i,j) + dpowerlaw_c_smooth < old_powerlaw_c(i,j)) then
+                      basal_physics%powerlaw_c_inversion(i,j) = temp_powerlaw_c(i,j) + dpowerlaw_c_smooth
+                   else
+                      ! allow the smoothing to hold Cp at its old value, but not increase Cp
+                      basal_physics%powerlaw_c_inversion(i,j) = old_powerlaw_c(i,j)
+                   endif
+                endif  ! dpowerlaw_c > 0
 
-          endif  ! cell is grounded
-       enddo
-    enddo
+             endif  ! cell is grounded
+          enddo   ! i
+       enddo   ! j
+
+    endif  ! smoothing factor > 0
 
     call parallel_halo(basal_physics%powerlaw_c_inversion)
 
@@ -447,18 +497,20 @@ contains
        print*, 'dthck_dt (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dthck_dt(i,j)*scyr
+             write(6,'(f10.5)',advance='no') dthck_dt(i,j)*scyr
           enddo
           write(6,*) ' '
        enddo
-       print*, ' '
-       print*, 'After smoothing, powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_inversion(i,j)
+       if (basal_physics%inversion_babc_smoothing_factor > 0.0d0) then
+          print*, ' '
+          print*, 'After smoothing, powerlaw_c:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.2)',advance='no') basal_physics%powerlaw_c_inversion(i,j)
+             enddo
+             write(6,*) ' '
           enddo
-          write(6,*) ' '
-       enddo
+       endif
     endif
 
   end subroutine invert_basal_traction
@@ -580,6 +632,7 @@ contains
                                thck,                         &
                                thck_obs,                     &
                                topg,                         &
+                               eus,                          &
                                acab,                         &
                                bmlt,                         &
                                ice_mask,                     &
@@ -609,6 +662,9 @@ contains
          topg,                 & ! bedrock topography (m)
          acab,                 & ! surface mass balance (m/s), including runtime adjustments
          bmlt
+
+    real(dp), intent(in) :: &
+         eus                     ! eustatic sea level (m)
 
    ! Note: When this subroutine is called, ice_mask = 1 where thck > 0, not thck > thklim.
     integer, dimension(nx,ny), intent(in) ::  &
@@ -647,15 +703,15 @@ contains
     endif
 
     ! Compute the flotation thickness
-    where (topg < 0.0d0)
-       thck_flotation = -(rhoo/rhoi)*topg
+    where (topg - eus < 0.0d0)
+       thck_flotation = -(rhoo/rhoi) *(topg - eus)
     elsewhere
        thck_flotation = 0.0d0
     endwhere
 
     ! Compute the ocean cavity thickness beneath floating ice
     where (floating_mask == 1)
-       thck_cavity = -topg - (rhoi/rhoo)*thck
+       thck_cavity = -(topg - eus) - (rhoi/rhoo)*thck
     elsewhere
        thck_cavity = 0.0d0
     endwhere
@@ -667,9 +723,9 @@ contains
     !     This includes cells that are either floating or grounded after transport.
     ! (2) Any ice-filled cell that is grounded in observations but floating (or very lightly grounded)
     !      after transport is restored to a target grounded thickness.  This grounded thickness, however,
-    !      is not the observed thickness, but rather Hf + thck_over_flot.
-    !     Here, thck_over_float is a small thickness (1 m by default), and "very lightly grounded"
-    !      means that Hf < H < Hf + thck_over_flot.
+    !      is not the observed thickness, but rather Hf + thck_buffer.
+    !     Here, thck_buffer is a small thickness (2 m by default), and "very lightly grounded"
+    !      means that Hf < H < (Hf + thck_buffer).
     !     The reason for not restoring grounded cells all the way to the observed value is that
     !      we would like the basal sliding coefficients to adjust to help ground the ice more firmly,
     !      rather than rely on large negative basal melt rates.
@@ -699,9 +755,12 @@ contains
                 ! floating in obs; restore to thck_obs
 
                 bmlt_inversion_mask(i,j) = 1
-                thck_target(i,j) = thck_obs(i,j)
+
+                thck_target(i,j) = min(thck_obs(i,j), thck_flotation(i,j) - bmlt_inversion_thck_buffer)
+                thck_target(i,j) = max(thck_target(i,j), 0.0d0)  ! just to be safe
 
                 !TODO - Remove the error check when satisfied that things are working.
+                ! Note: This gives false positives on the first step.
                 if (thck(i,j) >= thck_flotation(i,j) .and. basal_melt%grounded_mask_start(i,j) == 1) then
                    ! This is not supposed to happen, so throw a fatal error.
                    call parallel_globalindex(i, j, iglobal, jglobal)
@@ -710,17 +769,18 @@ contains
                         this_rank, i, j, thck_obs(i,j), thck_flotation(i,j), thck(i,j)
                    print*, 'iglobal, jglobal =', iglobal, jglobal
                    write(message,*) 'ERROR in invert_bmlt_float: Cell that should be floating has grounded'
-                   call write_log(message, GM_FATAL)
+!!                   call write_log(message, GM_FATAL)
+                   call write_log(message)
                 endif
 
              elseif (thck_obs(i,j) >= thck_flotation(i,j) .and. &
-                     thck(i,j) < thck_flotation(i,j) + bmlt_inversion_thck_over_flot) then
+                     thck(i,j) < thck_flotation(i,j) + bmlt_inversion_thck_buffer) then
 
                 ! grounded in obs but currently floating; reground but do not set thck = thck_obs.
                 ! The reason for this is that we would prefer to adjust basal sliding parameters to bring
                 !  the thickness closer to observations, instead of relying on an artificially large bmlt_float.
                 bmlt_inversion_mask(i,j) = 1
-                thck_target(i,j) = thck_flotation(i,j) + bmlt_inversion_thck_over_flot
+                thck_target(i,j) = thck_flotation(i,j) + bmlt_inversion_thck_buffer
 
              endif
 
@@ -762,8 +822,6 @@ contains
 
              basal_melt%bmlt_float_inversion(i,j) = (thck(i,j) - thck_target(i,j))/dt + acab(i,j) - bmlt(i,j)
 
-             ! Adjust to account for the surface mass balance.
-
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
@@ -778,21 +836,7 @@ contains
        enddo   ! i
     enddo   ! j
 
-    !WHL - debug
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'bmlt_inversion_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') bmlt_inversion_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-    !TODO - Test this code further, or delete it?  So far, I haven't found a timescale to work well.
+    !TODO - Test the following code further, or delete it?  So far, I haven't found a timescale to work well.
     ! If a nonzero timescale is specified, then multiply bmlt_float_inversion by a factor
     !  proportional to dt/timescale, in the range (0,1].
 
@@ -808,6 +852,14 @@ contains
        i = itest
        j = jtest
        print*, ' '
+       print*, 'bmlt_inversion_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') bmlt_inversion_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
        print*, 'thck_flotation (m):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
@@ -816,7 +868,7 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'Before bmlt inversion, floating_mask:'
+       print*, 'floating_mask:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(i10)',advance='no') floating_mask(i,j)
@@ -867,6 +919,9 @@ contains
                                   basal_melt,                   &
                                   thck,                         &
                                   topg,                         &
+                                  eus,                          &
+                                  acab,                         &
+                                  bmlt,                         &
                                   ice_mask,                     &
                                   floating_mask,                &
                                   land_mask)
@@ -888,7 +943,12 @@ contains
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck,                 & ! ice thickness (m)
-         topg                    ! bedrock elevation (m)
+         topg,                 & ! bedrock elevation (m)
+         acab,                 & ! surface mass balance (m/s), including runtime adjustments
+         bmlt
+
+    real(dp), intent(in) :: &
+         eus                     ! eustatic sea level (m)
 
    ! Note: When this subroutine is called, ice_mask = 1 where thck > 0, not thck > thklim.
     integer, dimension(nx,ny), intent(in) ::  &
@@ -903,11 +963,10 @@ contains
 
     real(dp), dimension(nx,ny):: &
          thck_flotation,       & ! flotation thickness (m)
+         thck_cavity,          & ! thickness (m) of ocean cavity (diagnostic only)
          thck_final              ! final thickness (m) if full melt rate is applied
 
-    integer :: i, j, ii, jj
-
-    real(dp) :: dthck                ! thickness change (m)
+    integer :: i, j
 
     ! Note: This subroutine should be called after other mass-balance terms have been applied,
     !  after horizontal transport, and preferably after calving.
@@ -917,65 +976,84 @@ contains
        print*, 'In prescribe_bmlt_float'
     endif
 
-    ! Make a mask to identify cells that were floating at the start of the time step (before transport)
-    !  or are floating now (after transport). These are cells to which
-
     ! Compute the flotation thickness
-    where (topg < 0.0d0)
-       thck_flotation = -(rhoo/rhoi)*topg
+    where (topg - eus < 0.0d0)
+       thck_flotation = -(rhoo/rhoi) * (topg - eus)
     elsewhere
        thck_flotation = 0.0d0
     endwhere
 
-    ! Compute a mask of floating cells where bmlt_float_inversion can potentially be computed.
-    ! The rule is that bmlt_float_inversion can be applied to any grid cell that is afloat either
-    !  before or after transport, with the exception of ice-free cells (with thck = 0) and land-based cells.
+    ! Compute the ocean cavity thickness beneath floating ice (diagnostic only)
+    where (floating_mask == 1)
+       thck_cavity = -(topg - eus) - (rhoi/rhoo)*thck
+    elsewhere
+       thck_cavity = 0.0d0
+    endwhere
+
+    ! Compute a mask of cells where bmlt_float_inversion can potentially be applied.
+    ! The rule is that bmlt_float_inversion can be applied to any marine-based cell with ice.
+    ! This means that some marine-based grounded cells will have nonzero basal melting/freezing rates.
+    !  This is not physically realistic, but it helps prevent rapid, irreversible ice growth
+    !  in forward runs when floating cells ground.
     ! Note: The land mask is probably not needed, since land cells are excluded from the inversion.
     !       But this mask is included for generality, in case of dynamic topography.
 
     bmlt_inversion_mask(:,:) = 0.0d0
+    basal_melt%bmlt_float_inversion(:,:) = 0.0d0
     thck_final(:,:) = 0.0d0
 
-    do j = 2, ny-1
-       do i = 2, nx-1
+    do j = 1, ny
+       do i = 1, nx
           if (land_mask(i,j) == 1) then
 
              ! do nothing; bmlt_float_inversion = 0
 
-          elseif ( ice_mask(i,j) == 1 .and. &
-                   (basal_melt%floating_mask_start(i,j) == 1 .or. floating_mask(i,j) == 1) ) then
+          elseif (ice_mask(i,j) == 1) then
 
              bmlt_inversion_mask(i,j) = 1
-             dthck = -basal_melt%bmlt_float_prescribed(i,j) * dt
-             thck_final(i,j) = min(thck(i,j) + dthck, thck_flotation(i,j) + bmlt_inversion_thck_over_flot)
+             basal_melt%bmlt_float_inversion(i,j) = basal_melt%bmlt_float_prescribed(i,j)
 
-          endif
-       enddo
-    enddo
+             ! Make sure the final thickness meets certain conditions:
+             ! (1) if bmlt_float_inversion < 0, then thck_final <= thck_flotation + thck_buffer
+             !     (unless this would require basal melting)
+             ! (2) thck_final >= 0
 
-    call parallel_halo(bmlt_inversion_mask)
-    call parallel_halo(thck_final)
+             thck_final(i,j) = thck(i,j) + (acab(i,j) - bmlt(i,j) - basal_melt%bmlt_float_inversion(i,j)) * dt
 
-    ! Now compute bmlt_float_inversion based on the final thickness.
+             if (basal_melt%bmlt_float_inversion(i,j) < 0.0d0) then
 
-    basal_melt%bmlt_float_inversion(:,:) = 0.0d0
+                if (thck_final(i,j) > thck_flotation(i,j) + bmlt_inversion_thck_buffer) then
 
-    do j = 1, ny
-       do i = 1, nx
-          if (bmlt_inversion_mask(i,j) == 1) then
+                   ! limit bmlt_float_inversion so the ice does not ground too strongly
+                   thck_final(i,j) = thck_flotation(i,j) + bmlt_inversion_thck_buffer
+                   basal_melt%bmlt_float_inversion(i,j) = (thck(i,j) - thck_final(i,j))/dt + acab(i,j) - bmlt(i,j)
 
-             basal_melt%bmlt_float_inversion(i,j) = (thck(i,j) - thck_final(i,j)) / dt
+                   ! but do not flip the sign of bmlt_float_inversion
+                   if (basal_melt%bmlt_float_inversion(i,j) > 0.0d0) then
+                      basal_melt%bmlt_float_inversion(i,j) = 0.0d0
+                      thck_final(i,j) = thck(i,j) + acab(i,j) - bmlt(i,j)  ! diagnostic only
+                   endif
+
+                endif
+
+             else  ! bmlt_float_inversion > 0
+
+                if (thck_final(i,j) < 0.0d0) then
+                   thck_final(i,j) = 0.0d0
+                   basal_melt%bmlt_float_inversion(i,j) = (thck(i,j) - thck_final(i,j))/dt + acab(i,j) - bmlt(i,j)
+                endif
+
+             endif
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'Prescribe bmlt_float_inversion: rank, i, j =', rtest, itest, jtest
-                print*, 'thck, mask, bmlt*dt:', thck(i,j), bmlt_inversion_mask(i,j), &
+                print*, 'thck, thck_final, bmlt_float_inversion*dt:', thck(i,j), thck_final(i,j), &
                      basal_melt%bmlt_float_inversion(i,j)*dt
              endif
 
-          endif  ! bmlt_inversion_mask = 1
-
+          endif   ! masks
        enddo   ! i
     enddo   ! j
 
@@ -984,10 +1062,10 @@ contains
        i = itest
        j = jtest
        print*, ' '
-       print*, 'thck_final:'
+       print*, 'bmlt_float_prescribed (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck_final(i,j)
+             write(6,'(f10.3)',advance='no') basal_melt%bmlt_float_prescribed(i,j)*scyr
           enddo
           write(6,*) ' '
        enddo
@@ -1000,7 +1078,47 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'prescribed bmlt_float (m/yr):'
+       print*, 'thck_flotation (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck_flotation(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'floating_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') floating_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck_cavity (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck_cavity(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck_final:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck_final(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'bmlt_float_inversion (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') basal_melt%bmlt_float_inversion(i,j)*scyr

@@ -1489,6 +1489,7 @@ contains
                                  thck_unscaled,                          &    ! m
                                  model%geometry%thck_obs*thk0,           &    ! m
                                  model%geometry%topg*thk0,               &    ! m
+                                 model%climate%eus*thk0,                 &    ! m
                                  model%climate%acab_corrected*thk0/tim0, &    ! m/s
                                  model%basal_melt%bmlt*thk0/tim0,        &    ! m/s
                                  ice_mask,                               &
@@ -1512,14 +1513,17 @@ contains
           ! Although bmlt_float is prescribed, it may need to be limited or ignored,
           !  for example to avoid melting beneath grounded ice.
 
-          call prescribe_bmlt_float(model%numerics%dt * tim0,             &    ! s 
-                                    model%general%ewn, model%general%nsn, &
-                                    itest, jtest, rtest,                  &
-                                    model%basal_melt,                     &
-                                    thck_unscaled,                        &    ! m
-                                    model%geometry%topg*thk0,             &    ! m
-                                    ice_mask,                             &
-                                    floating_mask,                        &
+          call prescribe_bmlt_float(model%numerics%dt * tim0,               &    ! s
+                                    model%general%ewn, model%general%nsn,   &
+                                    itest, jtest, rtest,                    &
+                                    model%basal_melt,                       &
+                                    thck_unscaled,                          &    ! m
+                                    model%geometry%topg*thk0,               &    ! m
+                                    model%climate%eus*thk0,                 &    ! m
+                                    model%climate%acab_corrected*thk0/tim0, &    ! m/s
+                                    model%basal_melt%bmlt*thk0/tim0,        &    ! m/s
+                                    ice_mask,                               &
+                                    floating_mask,                          &
                                     land_mask)
 
           !WHL - debug
@@ -1596,6 +1600,8 @@ contains
                                          model%options%which_ho_vertical_remap)
 
        !WHL - debug
+       call parallel_halo(thck_unscaled)
+
        if (verbose_inversion .and. this_rank == rtest) then
           i = itest
           j = jtest
@@ -1681,17 +1687,26 @@ contains
           if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
              ! Compute the thickness tendency dH/dt from one step to the next (m/s).
-             ! This tendency is used when inverting for powerlaw_c_inversion.
+             ! This tendency is used when inverting for powerlaw_c_inversion in grounded grid cells.
              ! Note: We set dthck_dt = 0 for inactive cells (thck <= thklim at the start of the time step).
              !       This helps prevent the following cycle:
              !       - While Cp is increasing, a cell thins to H < thklim and becomes inactive.
              !       - Once inactive, the cell thickens (reducing Cp) and becomes active.
              !       - Once active again, the cell resumes thinning, reducing Cp.  And so on.
+             ! Note: Some cells have powerlaw_c_inversion > 0 (because they are grounded after mass balance),
+             !        and also have bmlt_float_inversion < 0 (because they are floating after transport
+             !        and need a negative melt rate to reground).
+             !       For these cells we remove bmlt_float_inversion from dthck_dt, because we want
+             !        dthck_dt to reflect how fast the ice is thinning without the inversion.
+             !       Since bmlt_float_inversion < 0 in this situation, adding it will make dthck_dt
+             !        more negative as desired.
              ! Note: dthck_dt is recomputed at the end of the time step for diagnostic output.
+             !TODO - Divide bmlt_float_inversion by effective_areafrac? Probably not needed for grounded cells.
 
              where (model%geometry%thck_old > model%numerics%thklim)
                 model%geometry%dthck_dt = (model%geometry%thck - model%geometry%thck_old) * thk0 &
-                                        / (model%numerics%dt * tim0)
+                                         /(model%numerics%dt * tim0) &
+                                        + model%basal_melt%bmlt_float_inversion
              elsewhere
                 model%geometry%dthck_dt = 0.0d0
              endwhere
@@ -2018,6 +2033,7 @@ contains
 
     !WHL - debug
     real(dp) :: my_max_diff, global_max_diff
+    real(dp) :: my_min_diff, global_min_diff
     integer :: iglobal, jglobal, ii, jj
 
     rtest = -999
@@ -2655,9 +2671,11 @@ contains
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
-    !WHL - temporary debug - compute max diff in bmlt_applied
+    !WHL - inversion debug
 
-    if (model%numerics%tstep_count > 0) then
+    if (verbose_inversion .and. model%numerics%tstep_count > 0) then
+
+       !WHL - temporary debug - compute max diff in bmlt_applied
        model%basal_melt%bmlt_applied_diff(:,:) = &
             abs(model%basal_melt%bmlt_applied(:,:) - model%basal_melt%bmlt_applied_old(:,:))
 
@@ -2673,10 +2691,9 @@ contains
                    print*, 'task, i, j, global_max_diff (m/yr):', this_rank, i, j, global_max_diff * scyr*thk0/tim0
                    print*, 'bmlt_float_inversion:', model%basal_melt%bmlt_float_inversion(i,j) * scyr
                    print*, 'bmlt_applied old, new:', model%basal_melt%bmlt_applied_old(i,j) * scyr*thk0/tim0, &
-                                        model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
+                        model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
                    call parallel_globalindex(i, j, iglobal, jglobal)
                    print*, 'global i, j =', iglobal, jglobal
-
                    print*, ' '
                    print*, 'bmlt_applied:'
                    do jj = j-3, j+3
@@ -2686,14 +2703,44 @@ contains
                       enddo
                       print*, ' '
                    enddo
-
                 endif
              enddo
           enddo
        endif
 
        model%basal_melt%bmlt_applied_old(:,:) = model%basal_melt%bmlt_applied(:,:)
-    endif
+
+       ! repeat for dthck_dt
+       my_max_diff = maxval(model%geometry%dthck_dt)
+       my_min_diff = minval(model%geometry%dthck_dt)
+       global_max_diff = parallel_reduce_max(my_max_diff)
+       global_min_diff = parallel_reduce_min(my_min_diff)
+
+       if (abs((my_max_diff - global_max_diff)/global_max_diff) < 1.0d-6) then
+          do j = nhalo+1, model%general%nsn-nhalo
+             do i = nhalo+1, model%general%ewn-nhalo
+
+                if (abs((model%geometry%dthck_dt(i,j) - global_max_diff)/global_max_diff) < 1.0d-6) then
+                   print*, ' '
+                   print*, 'task, i, j, global_max_diff dthck/dt (m/yr):', this_rank, i, j, global_max_diff * scyr
+                   print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
+                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   print*, 'global i, j =', iglobal, jglobal
+                endif
+
+                if (abs((model%geometry%dthck_dt(i,j) - global_min_diff)/global_min_diff) < 1.0d-6) then
+                   print*, ' '
+                   print*, 'task, i, j, global_min_diff dthck/dt (m/yr):', this_rank, i, j, global_min_diff * scyr
+                   print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
+                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   print*, 'global i, j =', iglobal, jglobal
+                endif
+
+             enddo
+          enddo
+       endif
+
+    endif ! verbose_inversion
 
     ! real-valued masks
 
@@ -2703,20 +2750,23 @@ contains
           if (ice_mask(i,j) == 1) then
              model%geometry%ice_mask(i,j) = 1.0d0
              if (floating_mask(i,j) == 1) then
+                !WHL - debug - Identify cells where floating_mask flips between time steps.
+!!                if (model%geometry%floating_mask(i,j) == 0) then   ! grounded or ice-free at previous step
+!!                   call parallel_globalindex(i, j, iglobal, jglobal)
+!!                   print*, 'floating_mask flipped from 0 to 1:, rank, i, j, iglobal, jglobal, thck_old, thck =', &
+!!                           this_rank, i, j, iglobal, jglobal, &
+!!                           model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
+!!                endif
                 model%geometry%floating_mask(i,j) = 1.0d0
                 model%geometry%grounded_mask(i,j) = 0.0d0
              else
-
                 !WHL - debug - Identify cells where grounded_mask flips between time steps.
-                if (model%geometry%grounded_mask(i,j) == 0) then   ! grounded at previous step
-                   if (i == itest .and. j == jtest .and. this_rank == rtest) then
-                      print*, 'grounded_mask flipped from 0 to 1:, rank, i, j, ice_mask, thck =', &
-                           this_rank, i, j, ice_mask(i,j), model%geometry%thck(i,j)*thk0
-                      call parallel_globalindex(i, j, iglobal, jglobal)
-                      print*, 'iglobal, jglobal =', iglobal, jglobal
-                   endif
-                endif
-
+!!                if (model%geometry%grounded_mask(i,j) == 0) then   ! floating or ice-free at previous step
+!!                   call parallel_globalindex(i, j, iglobal, jglobal)
+!!                   print*, 'grounded_mask flipped from 0 to 1:, rank, i, j, iglobal, jglobal, thck_old, thck =', &
+!!                           this_rank, i, j, iglobal, jglobal, &
+!!                           model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
+!!                endif
                 model%geometry%grounded_mask(i,j) = 1.0d0
                 model%geometry%floating_mask(i,j) = 0.0d0
              endif

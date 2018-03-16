@@ -2501,7 +2501,7 @@
                 if (beta_internal(i,j) > 0.0d0) then
                    write(6,'(f10.3)',advance='no') log10(beta_internal(i,j))
                 else
-                   write(6,'(f10.3)',advance='no') 0.0d0
+                   write(6,'(f10.3)',advance='no') -999.0d0
                 endif
              enddo
              write(6,*) ' '
