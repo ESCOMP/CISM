@@ -22,7 +22,7 @@ External Packages
 * [HDF5 1.8.6](https://www.hdfgroup.org/HDF5/)
 
 If you have a working install of CISM, and you installed the suggested packages
-in the [CISM](http://oceans11.lanl.gov/cism/documentation.html) users manual,
+in the [CISM](https://github.com/CISM/cism-documentation) users manual,
 you'll likely already have everything you need. If you haven't previously built
 CISM on your machine, we suggest following the installation instructions as they
 are laid out in the users manual first.
