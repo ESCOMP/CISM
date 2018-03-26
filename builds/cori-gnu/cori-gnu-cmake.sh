@@ -77,16 +77,16 @@ cmake \
   -D ALBANY_FELIX_DYCORE:BOOL=OFF \
 \
   -D CISM_TRILINOS_DIR=/project/projectdirs/piscees/trilinos/trilinos-albany-build/install \
-  -D CISM_TRILINOS_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/Trilinos-11.12.1/hopper-gnu-ci-nophal/install \
+  -D CISM_TRILINOS_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/Trilinos-11.12.1/cori-gnu-ci-nophal/install \
   -D CISM_TRILINOS_ALBANY_DIR=/project/projectdirs/piscees/trilinos/trilinos-albany-build/install \
 \
   -D CISM_NETCDF_DIR="$NETCDF_DIR" \
   -D CISM_HDF5_LIB_DIR="$HDF5_DIR" \
   -D CISM_MPI_BASE_DIR="$MPICH_DIR" \
 \
-  -D CISM_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/libgptl/libgptl-hopper-gnu \
+  -D CISM_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/libgptl/libgptl-cori-gnu \
 \
-  -D CMAKE_INSTALL_PREFIX:PATH="$cism_top/builds/hopper-gnu/install" \
+  -D CMAKE_INSTALL_PREFIX:PATH="$cism_top/builds/cori-gnu/install" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
 \
