@@ -50,7 +50,7 @@ rm -rf ./CMakeCache.txt
 rm -rf ./CMakeFiles
 
 # This cmake configuration script builds cism_driver
-# on hopper using the PGI compiler suite.  It no longer relies on a build
+# on cori using the PGI compiler suite.  It no longer relies on a build
 # of Trilinos, but does need a BISICLES build located in BISICLES_INTERFACE_DIR
 # (currently set to /global/u2/d/dmartin/BISICLES/code/interface)
 
@@ -79,16 +79,16 @@ cmake \
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=ON \
   -D CISM_COUPLED:BOOL=OFF \
 \
-  -D CISM_TRILINOS_DIR=/project/projectdirs/piscees/trilinos-default/hopper-pgi/install \
-  -D CISM_TRILINOS_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/Trilinos-11.12.1/hopper-pgi-ci-nophal/install \
-  -D CISM_TRILINOS_ALBANY_DIR=/project/projectdirs/piscees/trilinos-default/hopper-pgi-albany/install \
+  -D CISM_TRILINOS_DIR=/project/projectdirs/piscees/trilinos-default/cori-pgi/install \
+  -D CISM_TRILINOS_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/Trilinos-11.12.1/cori-pgi-ci-nophal/install \
+  -D CISM_TRILINOS_ALBANY_DIR=/project/projectdirs/piscees/trilinos-default/cori-pgi-albany/install \
 \
   -D CISM_NETCDF_DIR="$NETCDF_DIR" \
   -D CISM_MPI_BASE_DIR="$MPICH_DIR" \
 \
   -D CISM_FMAIN=/opt/pgi/14.2.0/linux86-64/14.2/lib/f90main.o \
 \
-  -D CMAKE_INSTALL_PREFIX:PATH="$cism_top/builds/hopper-pgi/install" \
+  -D CMAKE_INSTALL_PREFIX:PATH="$cism_top/builds/cori-pgi/install" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
 \
@@ -97,7 +97,7 @@ cmake \
   -D CMAKE_Fortran_COMPILER=ftn \
 \
   -D CISM_SCI_LIB_DIR="$CRAY_LIBSCI_PREFIX_DIR/lib" \
-  -D CISM_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/libgptl/libgptl-hopper-pgi \
+  -D CISM_GPTL_DIR=/project/projectdirs/piscees/cism_gptl/libgptl/libgptl-cori-pgi \
 \
   -D CMAKE_CXX_FLAGS:STRING="-O2 -mp --diag_suppress 554,111,611 -DH5_USE_16_API" \
   -D CISM_Fortran_FLAGS:STRING="-O2 -mp" \
