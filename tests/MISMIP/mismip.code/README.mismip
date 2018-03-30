@@ -1,31 +1,33 @@
 Instructions for setting up and running the MISMIP experiments with CISM.
 
-Note: part of the instruction assumes that you have access to the NCAR HPC
- Cheyenne and have access to the LIWG HPC spending account.
+Note: These instructions assume that you have access to the NCAR HPC Cheyenne,
+with an LIWG HPC account. If you do not have an account and would like one,
+please contact Gunter Leguy (gunterl@ucar.edu).
 
 See this paper for details on MISMIP:
 Pattyn,F., et al., Results of the Marine Ice Sheet Model Intercomparison Project, MISMIP, 
 The Cryosphere, 6, 573-588, doi:10.5194/tc-6-573-2012, 2012. 
 
-The MISMIP experiments consists in a set of advance and retreat experiments of the 
+The MISMIP experiments consist of a set of advance and retreat experiments of the 
 grounding line. This is achieved by modifying the flow rate factor A. 
 A simulation with a new A value begins using the steady-state solution profile from
-the old A value and so on. 
+the old A value and so on.
 
-The script used to run the experiment use the naming convention "mismip_Aval.ext"
-where "Aval" is the value of A used in a given experiment and "ext" in the filename
+The script used to run the experiment uses the naming convention "mismip_Aval.ext"
+where "Aval" is the value of A used in a given experiment and "ext" is the filename
 extension such as "config" (for a config file), "out.nc" for the output file or
 "restart.nc" for the restart file.
 
-The experiment can be set to run on either bed rock topography:
+The experiment can be set to run on either of two kinds of bedrock topography:
 1/ a linear bed sloping downward toward the ocean.
 2/ a polynomial bed which begins and ends by sloping downward towards the ocean but
    include an in-between reversed sloping region meant to mimic an unstable region. 
 
 
-The files needed to run the experiment are located in directory ../tests/MISMMIP/mismip.code.
-If you plan to run more than one test suite, you will likely want to keep this directory clean. Instead
-create a new directory and make a fresh copy of the code for each test. For example, from ../tests/MISMMIP:
+The files needed to run the experiment are located in directory ../tests/MISMIP/mismip.code.
+If you plan to run more than one test suite, you will likely want to keep this directory clean.
+Instead, create a new directory and make a fresh copy of the code for each test.
+For example, from ../tests/MISMIP:
 
 > cp -rf mismip3d.code mismip.test1
 > cp -rf mismip3d.code mismip.test2
@@ -37,7 +39,7 @@ Go to the directory where you are setting up and running the experiments:
 
 This directory should contain several Python scripts, along with a template config file
 (mismip.config.template) with default settings for MISMIP and a template run file
-(runCISM.cheyenne.template) with setups to run MISMIP on the Cheyenne super computer.
+(runCISM.cheyenne.template) with setups to run MISMIP on Cheyenne.
 
 Put a copy or link of cism_driver in your directory. For example:
 
@@ -93,18 +95,17 @@ Notes on optional arguments:
   (2) a profile using the semi-analytical solution form Schoof2007 with an initial grounding line guess
       at 900. km. Note: this option requires a smaller initial time step to avoid CFL violation.
 
-The config template file includes sensible default values for a number of parameters 
-associated with the Stokes approximation, the basal friction law and the MISMIP3d basal friction
-perturbation. To change any of these parameters, you need to edit the template file.
+The config template file includes sensible default values for a number of parameters associated with
+the Stokes approximation, the basal friction law and the MISMIP3d basal friction perturbation.
+To change any of these parameters, you need to edit the template file.
 
 If you set up all the experiments, you should have the following subdirectories after running
 the setup script:
 bedtype
 
 where bedtype = "linear" or "poly".
-Within the bedtype folder you should have 2 folders: "advance" and "retreat". Within each of these folder you 
-should have one folder for each A-value. 
-
+Within the bedtype folder you should have 2 folders: "advance" and "retreat".
+Within each of these folders you should have one folder for each A-value. 
 
 After setup, you can run all the experiments by using the Python run script:
 
@@ -125,10 +126,7 @@ Here are the optional arguments for the run script:
 Notes on optional arguments:
 - The option "-s" is only meant to be used when a single A-value is specified with the "-x" option.
 
-
-Experiments with coarse resolution (2km or coarser) can be run on your personal computer.
-
-By default this script will run all experiments at once. You can also run part of the experiment 
+By default, this script will run all experiments at once. You can also run part of the experiment 
 at a time by specifying its set (advance, retreat) or a single A value:
 
 > python mismipRun.py -x advance
@@ -137,16 +135,16 @@ or
 
 > python mismipRun.py -x 14.638e-18
 
-Experiments run at coarse resolutions (2km or coarser) can be run on a single processor 
-on your personal computer. You can also run all the experiments on several processor using:
+Experiments run at coarse resolutions (2 km or coarser) can be run on a single processor 
+on your personal computer. You can also run all the experiments on several processors using:
 
 > python mismipRun.py -n 4
 
-It can take a long time to run some experiment when running with a resolution of 2km and 
-higher. If for some reason you need to interrupt your run, you can restart it at a later 
-time. If the restart of a given experiment is present in the directory, the script 
-mismipRun.py will atumatically restart from that restart file. For example, continuiing
-the advance set of experiments on 4 processors:
+It can take a long time to run some experiment when running with a resolution finer than 2 km. 
+If for some reason you need to interrupt your run, you can restart it at a later time.
+If the restart of a given experiment is present in the directory, the script mismipRun.py
+will automatically restart from that restart file.
+For example, continuing the advance set of experiments on 4 processors:
 
 > python mismipRun.py -x advance -n 4 
 
@@ -154,6 +152,7 @@ Note that before restarting your run you might want to save a copy of the log fi
 A-value experiment 'mismip_Aval.config.log' under a different name as it will be overwritten 
 on restart. The output file, mismip_Aval.out.nc, will be appended on restart and does not 
 need to be copied. Continue as needed until you have completed the experiment.
+
 Alternatively, you may want to submit a batch job.  If so, do the following:
 1/ Change to the subdirectory of the A-value you want to run.
 2/ Copy the script runCISM.cheyenne.template into the A-value directory.

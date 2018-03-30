@@ -224,7 +224,7 @@ ncfile.createDimension('stagwbndlevel',nz+1)  # similar to staglevel but includi
 # Note: (x1,y1) are loadable and need to be in the input file.
 #       (x0,y0) are not loadable, but are derived in CISM from (x1,y1). May not be needed.
 ncfile.createVariable('time','f4',('time',))[:] = [0]
-x1 = ncfile.createVariable('x1',' f4', ('x1',))
+x1 = ncfile.createVariable('x1', 'f4', ('x1',))
 y1 = ncfile.createVariable('y1', 'f4', ('y1',))
 x0 = ncfile.createVariable('x0', 'f4', ('x0',))
 y0 = ncfile.createVariable('y0', 'f4', ('y0',))
@@ -379,6 +379,7 @@ for expt in experiments:
     os.chdir(expt)
     
     # Move the config file from the parent directory to the subdirectory.
+    shutil.move('../' + newConfigFile, newConfigFile)
     print 'Created config file', newConfigFile
     
     # Link to the cism_driver executable in the parent directory.

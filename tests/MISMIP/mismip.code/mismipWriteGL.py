@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# This script read a CISM output file from a MISMIP experiment, and creates a netCDF output file.
+# This script reads a CISM output file from a MISMIP experiment, and creates a netCDF output file.
 # The input file should include the following:
 #      Coordinates: x0, y0, x1, y1, time
 #      Global scalars: ivol, ice_mass_above_flotation, iareag

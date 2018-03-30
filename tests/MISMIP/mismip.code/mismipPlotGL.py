@@ -339,7 +339,7 @@ plt.gca().invert_xaxis()
 plt.semilogx(invAret,xgret*1.e-3, '+', ms=10, mfc='blue',mec='blue',label='simulation retreat')
 plt.gca().invert_xaxis()
 
-# Turn on logarythmic grid display.
+# Turn on logarithmic grid display.
 plt.grid(True,which="both",ls="-")
 
 # Set limit display for x and y axis.
@@ -367,5 +367,3 @@ elif bedType == 'poly':
 else:
     print('Saving the figure with a randome name')
     plt.savefig("mismipPlotGLRandomBed.pdf")
-
-
