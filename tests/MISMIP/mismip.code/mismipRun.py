@@ -206,7 +206,6 @@ else:
 # loop through A values.
 bedType   = options.bedtopo
 countStat = -1                # counter to access status matrix. Taking into account zero-arrays indexing
-buffer    = 999.              # time buffer to remedy the restart pb when switching to different time step within a run
 
 for expt in experiments:
     countStat = countStat+1
@@ -232,9 +231,13 @@ for expt in experiments:
     
     inputFile   = config.get('CF input',   'name')
     outputFile  = config.get('CF output',  'name')
+    outputFreq  = config.get('CF output',  'frequency')
     endTime     = config.get('time',       'tend')
     endTime     = float(endTime)
     
+    # Time buffer to remedy the restart pb when switching to different time step within a run.
+    buffer = float(outputFreq) - 1.
+
     # Read output file content information.
     lastTimeEntry     = 0
     lastEntryInternal = 0
@@ -254,7 +257,8 @@ for expt in experiments:
         pass
     elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
         # The run for this A value is not done and needs to continue.
-        
+        print 'Continuing experiment from restart.'
+
         # Make sure restart is set to 1 in config file.
         config.set('options', 'restart', 1)
 
@@ -312,6 +316,3 @@ for expt in experiments:
     print('Switching back to original directory.')
     # Change to parent directory and continue.
     os.chdir('../../..')
-
-
-

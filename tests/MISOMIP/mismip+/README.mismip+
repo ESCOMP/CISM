@@ -114,29 +114,33 @@ The script will automatically read the restart file name, modify the config file
 the run from the latest time saved in the restart file.
 
 
-Alternatively, you may want to submit a batch job.  If so, then change to the subdirectory
-('cd Spinup'), and launch your batch job from the subdirectory.
-
-If the spin-up cannot be completed with one job submission, you can finish it by initializing
-subsequent runs from the restart file, mismip+Spinup.restart.nc.  To do this, simply edit
-the config file (mismip+Spinup.config) by uncommenting the line 'restart = 1' under [options].
-(You may want to save a copy of the log file under a different name so that it will not
-be overwritten on restart.  The output file, mismip+Spinup.out.nc, will be appended on restart
-and does not need to be copied.)
-
-Then launch the restart run. For example, to submit an mpi run on 16 processors:
-
-> mpirun -n 16 cism_driver mismip+Spinup.config.restart
-
 Continue as needed until you have completed the spin-up period.
+
+Alternatively, you may want to submit a batch job.  If so, do the following:
+1/ Change to the subdirectory of the experiment you want to run. For example, if you'd like
+   to submit a job for the "Spinup" experiment, type: "cd Spinup".
+2/ Copy the script runCISM.cheyenne.template into the directory.
+3/ Modify the script:
+    a/ Adjust the number of nodes and processors.
+    b/ Adjust the time you'd like to run on HPC.
+    c/ Modify the name of the config file to reflect the one in your current directory.
+4/ launch the job from your subdirectory by typing at the command line:
+   > qsub runCISM.cheyenne.template
+
 
 Before proceeding, you may want to confirm that the GL has reached a steady state.
 One way to do this is to list f_ground (the grounded fraction, 0 < f_ground < 1) along the x direction at y ~ 40 km.
 The value of f_ground in the last (partially) grounded cell should be stable within some small tolerance, e.g. ~10^{-3}.
 
-# The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
-# for the Ice0, Ice1r and Ice2r experiments. However, you will need to edit it so that
-# CISM's internal_time coordinate for the final time slice is 0. 
+If the spin-up cannot be completed with one job submission, you can finish it by initializing
+subsequent runs from the restart file, mismip+Spinup.restart.nc.  To do this, simply edit
+the config file (mismip+Spinup.config) by uncommenting the line 'restart = 1' under [options].
+If this option is not present, simply add it under this configuration segment.
+(You may want to save a copy of the log file under a different name so that it will not
+be overwritten on restart.  The output file, mismip+Spinup.out.nc, will be appended on restart
+and does not need to be copied.)
+
+Continue as needed until you have completed the spin-up period.
 
 The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
 for the Ice0, Ice1r and Ice2r experiments. However, it needs to edited so that CISM's
@@ -144,13 +148,17 @@ internal_time coordinate for the final time slice is 0. If you are running inter
 the script mismip+Run.py will do this automatically and you simply need to launch your 
 next experiment.
 If you are not running interactively and submitting jobs, you will need to edit it yourself.
+You can check on the maximum internal_time value by typing at the command line:
+
+> ncdump -v internal_time mismip+Spinup.restart.nc
+
 Suppose the final time is 20000 years. You can set internal_time = 0 with a one-line NCO command:
 
 > ncap2 -s 'internal_time=internal_time-20000' mismip+Spinup.restart.nc out.nc
 
 You may have to precede this command with 'module load nco' if NCO is not loaded automatically.
 
-To verify that the time correction worked, you can do 'ncdump -v internal_time outputfilename.nc'.
+To verify that the time correction worked, you can do 'ncdump -v internal_time out.nc'.
 The final internal_time value should be 0, with negative values for earlier times.
 
 Then you can overwrite the original restart file:

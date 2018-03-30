@@ -5,7 +5,9 @@
 # Pattyn et al., Results of the Marine Ice Sheet Model Intercomparison Project, MISMIP,
 #    The Cryosphere, 6, 573-588, 2012, doi:10.5194/tc-6-573-2012.
 #
-# Note: This experiment is meant to analyse flow line models. There will not be any perturbation whatsoever in the y direction. Therefore the domain will be limited to 6 grid cells in the y direction.
+# Note: This experiment is meant to analyse flowline models.
+#       There is no perturbation whatsoever in the y direction.
+#       Therefore the domain is limited to 6 grid cells in the y direction.
 
 import sys, os
 import shutil
@@ -707,6 +709,3 @@ for expt in experiments:
 
     # Go back to the parent directory and continue.
     os.chdir('../../..')
-
-
-

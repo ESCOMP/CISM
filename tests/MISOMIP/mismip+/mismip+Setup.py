@@ -161,12 +161,6 @@ config.set('grid', 'upn', nz)
 config.set('grid', 'dew', dx)
 config.set('grid', 'dns', dy)
 
-# Set the time step in the msster config file.
-# Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
-
-config.set('time', 'dt', options.timestep)
-config.set('time', 'dt_diag', options.timestep)
-
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
     which_ho_approx = 1 
@@ -434,6 +428,18 @@ for expt in experiments:
         inputslice   = 1
         outputfreq  = 100.0
         restartfreq = 800.0
+
+
+    # Set the time step in the master config file.
+    # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
+    # Note: this step is necessary when running at resolution coarser that 4 km as the output files
+    #       needs to be written every 10 years to satisfy plotting criteria.
+    if expt != 'Spinup':
+        config.set('time', 'dt',      min(options.timestep, 2.))
+        config.set('time', 'dt_diag', min(options.timestep, 2.))
+    else:
+        config.set('time', 'dt',      options.timestep)
+        config.set('time', 'dt_diag', options.timestep)
 
     # Set the start and end times.
     config.set('time', 'tstart', tstart)

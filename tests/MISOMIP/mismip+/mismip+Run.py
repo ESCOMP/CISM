@@ -75,20 +75,6 @@ for expt in experiments:
         print 'input file =', inputfile
         print 'time slice =', ntime
         
-        # Checking whether an existing experiment only needs to be restarted.
-        # We need modify the config file by adding restart=1, read the name of
-        # the restart file and adjust tstart.
-        restartName = config.get('CF restart','name')
-        if os.path.exists(restartName):
-            config.set('options','restart','1')
-            print 'Continuing experiment from restart.'
-        else:
-            print 'There is nothing to restart from, executing from the beginning.'
-        
-        # Write the modified config file.
-        with open(configfile, 'w') as newconfigfile:
-            config.write(newconfigfile)
-
         # Before starting each test suite experiment, we need to make sure
         # the Spinup restart file internal_time last entry is shifted to 0.
         if (expt=='Ice0') or (expt=='Ice1r') or (expt=='Ice2r'):
@@ -101,12 +87,39 @@ for expt in experiments:
 
 
     elif expt == 'Spinup':
-        restartName = config.get('CF restart','name')
-        if os.path.exists(restartName):
-            config.set('options','restart','1')
-            print 'Continuing experiment from restart.'
+        inputFile   = config.get('CF input',   'name')
+        outputFile  = config.get('CF output',  'name')
+        outputFreq  = config.get('CF output',  'frequency')
+        endTime     = config.get('time',       'tend')
+        endTime     = float(endTime)
 
-            # Write the modified config file.
+        # Time buffer to remedy the restart pb when switching to different time step within a run.
+        buffer = outputFreq - 1.
+    
+        # Read output file content information.
+        lastTimeEntry     = 0
+        lastEntryInternal = 0
+        sizeTimeOutput    = 0
+        if os.path.exists(outputFile):
+            outputData = Dataset(outputFile,'r')
+            if outputData['time'].size != 0:
+                sizeTimeOutput = outputData['time'].size
+                lastTimeEntry  = outputData['time'][-1]
+        
+            outputData.close()
+
+        # Take action based on the stage of the experimental run.
+        if (lastTimeEntry >= (endTime - buffer)) and (sizeTimeOutput > 1):
+            # The run for this A value is done, moving to the next one.
+            pass
+        elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
+            # The run for this A value is not done and needs to continue.
+            print 'Continuing experiment from restart.'
+        
+            # Make sure restart is set to 1 in config file.
+            config.set('options', 'restart', 1)
+        
+            # Write to config file.
             with open(configfile, 'w') as newconfigfile:
                 config.write(newconfigfile)
 

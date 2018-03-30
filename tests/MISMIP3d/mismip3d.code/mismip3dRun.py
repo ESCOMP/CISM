@@ -102,28 +102,46 @@ for expt in experiments:
     os.chdir(expt)
     print 'Changed directory to ', expt
 
-    # Set config file.
+    # Set and open config file for reading.
     configfile = 'mismip3d' + expt + '.config'
-
-    # Read the config file.
     config = ConfigParser()
     config.read(configfile)
 
+    inputFile   = config.get('CF input',   'name')
+    outputFile  = config.get('CF output',  'name')
+    outputFreq  = config.get('CF output',  'frequency')
+    endTime     = config.get('time',       'tend')
+    endTime     = float(endTime)
+    
+    # Time buffer to remedy the restart pb when switching to different time step within a run.
+    buffer = float(outputFreq) - 1.
 
-    # Checking whether an existing experiment only needs to be restarted.
-    # We need modify the config file by adding restart=1, read the name of the restart file and adjust tstart.
-    # The config file is already opened for reading.
-    restartName = config.get('CF restart','name')
-    if os.path.exists(restartName):
-        restart = 1
-        restartFile = Dataset(restartName,'r')
-        restartTime = restartFile['time'][-1]
-        restartFile.close()
-        config.set('options','restart','1')
-        config.set('time','tstart',restartTime)
+    # Read output file content information.
+    lastTimeEntry     = 0
+    lastEntryInternal = 0
+    sizeTimeOutput    = 0
+    if os.path.exists(outputFile):
+        outputData = Dataset(outputFile,'r')
+        if outputData['time'].size != 0:
+            sizeTimeOutput = outputData['time'].size
+            lastTimeEntry  = outputData['time'][-1]
+        
+        outputData.close()
+
+    # Take action based on the stage of the experimental run.
+    if (lastTimeEntry >= (endTime - buffer)) and (sizeTimeOutput > 1):
+        # The run for this A value is done, moving to the next one.
+        pass
+    elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
+        # The run for this A value is not done and needs to continue.
+        
+        # Make sure restart is set to 1 in config file.
+        config.set('options', 'restart', 1)
+        
+        # Write to config file.
         with open(configfile, 'w') as newconfigfile:
             config.write(newconfigfile)
-        print 'Continuing experiment from restart.'
+    
     else:
         print 'there is nothing to restart from, executing from the beginning'
 
@@ -179,7 +197,7 @@ for expt in experiments:
             print 'writing peturbation to C_space_factor'
             for i in range(nx):
                 for j in range(ny):
-                     infile.variables['C_space_factor'][:,j,i] = computeBasalPerturbation(x0[i]/1000,y0[j]/1000,xGL/1000)
+                     infile.variables['C_space_factor'][-1,j,i] = computeBasalPerturbation(x0[i]/1000,y0[j]/1000,xGL/1000)
 
             # We first check that the variable "internal_time" from the Stnd restart file has 0 for its last entry.
             lastentry = infile['internal_time'][-1]
