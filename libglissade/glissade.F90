@@ -2141,7 +2141,6 @@ contains
                               model%options%whichtemp,            &
                               model%numerics%stagsigma,           &
                               model%geometry%thck * thk0,         &  ! scale to m
-                              ice_mask,                           &
                               model%temper%temp(1:model%general%upn-1,:,:),  &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}

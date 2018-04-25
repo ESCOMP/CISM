@@ -1999,10 +1999,13 @@ module glissade_therm
 
 !=======================================================================
 
+  !TODO - For damage-based calving, try multiplying flwa by a damage factor, (1 - damage)
+
   subroutine glissade_flow_factor(whichflwa,               whichtemp,  &
                                   stagsigma,                           &
-                                  thck,                    ice_mask,   &
-                                  temp,                    flwa,       &
+                                  thck,                                &
+                                  temp,                                &
+                                  flwa,                                &
                                   default_flwa,                        &
                                   flow_enhancement_factor,             &
                                   flow_enhancement_factor_ssa,         &
@@ -2037,15 +2040,17 @@ module glissade_therm
 
 !   Note: The flwa, temp, and stagsigma arrays should have vertical dimension 1:upn-1.
 !         The temperatures at the upper surface (k=1) and bed (k=upn) are not included in the input array.
+!   Note: A flow factor is computed for all cells, including cells of zero thickness.
+!         Provided zero-thickness cells have a sensible default temperature (e.g., artm),
+!          the resulting flwa should be physically reasonable if used in any calculations.
 
     integer,                    intent(in)    :: whichflwa !> which method of calculating A
     integer,                    intent(in)    :: whichtemp !> which method of calculating temperature;
                                                            !> include waterfrac in calculation if using enthalpy method
     real(dp),dimension(:),      intent(in)    :: stagsigma !> vertical coordinate at layer midpoints
     real(dp),dimension(:,:),    intent(in)    :: thck      !> ice thickness (m)
-    integer, dimension(:,:),    intent(in)    :: ice_mask  !> = 1 where ice is present (thck > thklim), else = 0
     real(dp),dimension(:,:,:),  intent(in)    :: temp      !> 3D temperature field (deg C)
-    real(dp),dimension(:,:,:),  intent(inout)   :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
+    real(dp),dimension(:,:,:),  intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
     real(dp), intent(in)                      :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
     real(dp), intent(in), optional            :: flow_enhancement_factor     !> flow enhancement factor in Arrhenius relationship
     real(dp), intent(in), optional            :: flow_enhancement_factor_ssa !> flow enhancement factor for floating ice
@@ -2132,58 +2137,52 @@ module glissade_therm
 
       do ns = 1,nsn
          do ew = 1,ewn
-            if (ice_mask(ew,ns) == 1) then
             
-               call glissade_pressure_melting_point_column (thck(ew,ns), stagsigma, pmptemp)
+            call glissade_pressure_melting_point_column (thck(ew,ns), stagsigma, pmptemp)
 
-               do up = 1, nlayers   ! nlayers = upn - 1
+            do up = 1, nlayers   ! nlayers = upn - 1
 
-                  ! Calculate the corrected temperature
-                  tempcor = min(0.0d0, temp(up,ew,ns) - pmptemp(up))   ! pmptemp < 0
-                  tempcor = max(-50.0d0, tempcor)
+               ! Calculate the corrected temperature
+               tempcor = min(0.0d0, temp(up,ew,ns) - pmptemp(up))   ! pmptemp < 0
+               tempcor = max(-50.0d0, tempcor)
 
-                  ! Calculate Glen's A (including flow enhancement factor)
+               ! Calculate Glen's A (including flow enhancement factor)
 
-                  if (tempcor >= -10.d0) then
-                     flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + trpt))
-                  else
-                     flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + trpt))
+               if (tempcor >= -10.d0) then
+                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + trpt))
+               else
+                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + trpt))
+               endif
+
+               ! BDM added correction for a liquid water fraction
+               ! Using Greve and Blatter (2009) formulation for Glen's A flow rate factor:
+               !    A = A(theta_PMP) * (1 + 181.25 * waterfrac)
+               if (whichtemp == TEMP_ENTHALPY .and. present(waterfrac)) then
+                  if (waterfrac(up,ew,ns) > 0.0d0) then
+                     flwa(up,ew,ns) = flwa(up,ew,ns) * (1.d0 + flwa_waterfrac_enhance_factor * waterfrac(up,ew,ns))
                   endif
+               endif
 
-                  ! BDM added correction for a liquid water fraction 
-                  ! Using Greve and Blatter (2009) formulation for Glen's A flow rate factor:
-                  !    A = A(theta_PMP) * (1 + 181.25 * waterfrac)
-                  if (whichtemp == TEMP_ENTHALPY .and. present(waterfrac)) then
-                     if (waterfrac(up,ew,ns) > 0.0d0) then
-                        flwa(up,ew,ns) = flwa(up,ew,ns) * (1.d0 + flwa_waterfrac_enhance_factor * waterfrac(up,ew,ns))      
-                     endif
-                  endif
+            enddo   ! up
 
-               enddo   ! up
-            end if     ! ice_mask
-         end do        ! ew
-      end do           ! ns
+         end do     ! ew
+      end do        ! ns
 
     case(FLWA_PATERSON_BUDD_CONST_TEMP)
 
-      ! This is the Paterson and Budd relationship, but with the temperature held constant at -5 deg C
-      !WHL - If we are assuming a constant temperature of -5 deg C, then I think we should always use 
-      !      the Arrhenius factors appropriate for a warm temperature (T > -10).
-      !      I changed the code accordingly by commenting out some lines below.
+      ! This is the Paterson and Budd relationship, but with the temperature held to a constant parameter.
 
       do ns = 1,nsn
          do ew = 1,ewn
-            if (ice_mask(ew,ns) == 1) then
 
-               ! Calculate Glen's A with a fixed temperature (including flow enhancement factor)
+            ! Calculate Glen's A with a fixed temperature (including flow enhancement factor)
 
-!!               if (const_temp >= -10.d0) then
-                 flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + trpt))
-!!               else
-!!                  flwa(:,ew,ns) = enhancement_factor * arrfact(2) * exp(arrfact(4)/(const_temp + trpt))
-!!               endif
+            if (const_temp >= -10.d0) then
+               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + trpt))
+            else
+               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(const_temp + trpt))
+            endif
 
-            end if
          end do
       end do
 
