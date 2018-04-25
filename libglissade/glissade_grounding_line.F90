@@ -179,16 +179,17 @@
     !TODO - Test sensitivity to these values
     ! These are set to large negative values, so vertices with land-based neighbors are strongly grounded.
     real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
-    real(dp), parameter :: f_flotation_land_linear = -10000.d0       ! meters
 
     !----------------------------------------------------------------
-    ! Compute ice mask at vertices (= 1 if any surrounding cells have ice)
+    ! Compute ice mask at vertices (= 1 if any surrounding cells have ice or are land)
     !----------------------------------------------------------------
 
     do j = 1, ny-1
        do i = 1, nx-1
-          if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or.   &
-              ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1 ) then
+          if (ice_mask(i,j+1)==1  .or. ice_mask(i+1,j+1)==1  .or.   &
+              ice_mask(i,j)  ==1  .or. ice_mask(i+1,j)  ==1  .or.   &
+              land_mask(i,j+1)==1 .or. land_mask(i+1,j+1)==1 .or.   &
+              land_mask(i,j)  ==1 .or. land_mask(i+1,j+1)==1) then
              vmask(i,j) = 1
           else
              vmask(i,j) = 0
@@ -245,7 +246,7 @@
        do j = 1, ny
           do i = 1, nx
              if (land_mask(i,j) == 1) then
-                f_flotation(i,j) = f_flotation_land_linear
+                f_flotation(i,j) = -(topg(i,j) - eus)
              elseif (ice_mask(i,j) == 1) then
                 f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
              else  ! ice-free ocean
@@ -293,7 +294,7 @@
 
     case(HO_GROUND_ALL)
 
-       ! all vertices with ice-covered neighbors are assumed grounded, regardless of thck and topg
+       ! all vertices with ice-covered or land-based neighbors are assumed grounded, regardless of thck and topg
 
        do j = 1, ny-1
           do i = 1, nx-1
@@ -305,25 +306,26 @@
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization
 
-       ! In ice-free cells, fill in f_flotation by extrapolation.
+       ! In ice-free ocean cells, fill in f_flotation by extrapolation.
        ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
        !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
        ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
-       !  (i.e., with at least one ice-filled neighbor cell) has physically sensible values
+       !  (i.e., with at least one ice-filled or land-based neighbor cell) has physically sensible values
        !  of f_flotation in all four neighbor cells, for purposes of interpolation.
 
        f_flotation_extrap(:,:) = f_flotation(:,:)
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (ice_mask(i,j) == 0) then
+             if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
 
                 filled = .false.
 
                 ! loop over edge neighbors
                 do jj = j-1, j+1
                    do ii = i-1, i+1
-                      if ((ii==i .or. jj==j) .and. ice_mask(ii,jj) == 1) then  ! edge neighbor with ice
+                      if ((ii == i .or. jj == j) .and. &
+                           (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then  ! edge neighbor with ice or land
                          if (.not.filled) then
                             filled = .true.
                             f_flotation_extrap(i,j) = f_flotation(ii,jj)
@@ -338,7 +340,8 @@
                 if (.not.filled) then
                    do jj = j-1, j+1
                       do ii = i-1, i+1
-                         if ((abs(ii-i)==1 .and. abs(jj-j)==1) .and. ice_mask(ii,jj)==1) then ! corner neighbor with ice
+                         if ((abs(ii-i) == 1 .and. abs(jj-j) == 1) .and. &
+                             (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then ! corner neighbor with ice or land
                             if (.not.filled) then
                                filled = .true.
                                f_flotation_extrap(i,j) = f_flotation(ii,jj)
@@ -393,7 +396,7 @@
        do j = 1, ny-1
           do i = 1, nx-1
 
-             if (vmask(i,j) == 1) then  ! ice is present in at least one neighboring cell
+             if (vmask(i,j) == 1) then  ! at least one neighboring cell is ice-covered or land-based
 
                    ! First count the number of floating cells surrounding this vertex
 
