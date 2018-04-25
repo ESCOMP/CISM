@@ -743,11 +743,7 @@ contains
 
     ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
 
-    where (ice_mask == 1)  ! active ice, thck > thklim
-       overburden = rhoi*grav*thck
-    elsewhere
-       overburden = 0.0d0
-    endwhere
+    overburden(:,:) = rhoi*grav*thck(:,:)
 
     select case(which_effecpress)
 
