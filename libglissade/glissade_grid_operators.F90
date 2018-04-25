@@ -61,6 +61,9 @@ contains
                               var,          stagvar,   &
                               ice_mask,     stagger_margin_in)
 
+    !TODO - Make the mask optional, and drop the stagger_margin_in argument?
+    !       Then the mask says where to ignore values when interpolating.
+
     !----------------------------------------------------------------
     ! Given a variable on the unstaggered grid (dimension nx, ny), interpolate
     ! to find values on the staggered grid (dimension nx-1, ny-1).
@@ -134,6 +137,13 @@ contains
        enddo  
 
     endif
+
+    ! Note: In most cases it would be safe here to do a staggered parallel halo update of stagvar.
+    !       However, if running a problem with nonzero periodic_offset_ew/ns (e.g., the ISMIP-HOM and stream cases),
+    !        a halo update would copy incorrect values to vertices on the west and south boundaries
+    !        of the global domain. So there is no halo update here.
+    !       To ensure correct halo values, the user should either pass in a 'var' field that has already
+    !        been updated in halo cells, or do a halo update of 'stagvar' upon return.
 
   end subroutine glissade_stagger
 
@@ -632,6 +642,8 @@ contains
     
     !----------------------------------------------------------------
     ! Compute edge masks required for option gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+    ! Called from subroutine glissade_gradient_at_edges.
+    ! TODO: Make consistent with glissade_surface_elevation_gradient?
     !
     ! The mask is set to true at all edges where either
     ! (1) Both adjacent cells are ice-covered.
@@ -645,6 +657,11 @@ contains
     ! This method aims to give a reasonable gradient at both land-terminating and marine-terminating margins.
     ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
     !  margins the gradient is zero.
+    !
+    ! TODO: Update this subroutine to be consistent with the logic in glissade_surface_elevation_gradient.
+    !       I.e., add the case of ice-covered land over ice-free ocean, and incorporate thck_gradient_ramp.
+    !       For now, this subroutine is used only by the glissade SIA solver (which is not run with marine
+    !        boundaries) and the L1L2 solver (which is no longer supported), so the differences should not matter.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -719,15 +736,16 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_surface_elevation_gradient(nx,          ny,         &
-                                                 dx,          dy,         &
+  subroutine glissade_surface_elevation_gradient(nx,           ny,        &
+                                                 dx,           dy,        &
+                                                 itest, jtest, rtest,     &
                                                  active_ice_mask,         &
                                                  land_mask,               &
-                                                 usrf,        thck,       &
-                                                 topg,        eus,        &
+                                                 usrf,         thck,      &
+                                                 topg,         eus,       &
                                                  thklim,                  &
                                                  thck_gradient_ramp,      &
-                                                 ds_dx,       ds_dy,      &
+                                                 ds_dx,        ds_dy,     &
                                                  ho_gradient,             &
                                                  ho_gradient_margin,      &
                                                  max_slope)
@@ -748,10 +766,11 @@ contains
     !
     ! HO_GRADIENT_MARGIN_HYBRID = 1: The gradient is computed at edges where either
     ! (1) Both adjacent cells are ice-covered.
-    ! (2) One cell is ice-covered and lies above ice-free land.
+    ! (2) One cell is ice-covered (land or marine-based) and lies above ice-free land.
+    ! (3) One cell is ice-covered land and lies above ice-free ocean.
     !
     ! This method sets the gradient to zero at edges where
-    ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
+    ! (1) An ice-covered marine-based cell (grounded or floating) lies above ice-free ocean.
     !     Note: Inactive calving-front cells are treated as ice-free ocean.
     ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
     !
@@ -788,6 +807,9 @@ contains
 
     real(dp), intent(in) ::     &
          dx, dy                   ! horizontal grid size
+
+    integer, intent(in) ::      &
+         itest, jtest, rtest      ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::        &
          active_ice_mask,       & ! = 1 where active ice is present, else = 0
@@ -833,12 +855,6 @@ contains
          sign_factor              ! sign factor, +1 or -1
 
     real(dp) :: sum1, sum2        ! temporary sums
-
-    !WHL - debug
-    real(dp) :: alpha
-
-    real(dp) :: ds_dx_up, ds_dy_up
-    real(dp) :: ds_dx_ctr, ds_dy_ctr
 
     ! initialize
 
@@ -919,6 +935,11 @@ contains
                 ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
                 ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
+             elseif (active_ice_mask(iu,j) == 1 .and. land_mask(iu,j) == 1 .and. land_mask(il,j) == 0) then
+
+                ! upper cell has active ice on land, and ice-free lower cell is ocean; compute the gradient
+                ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
+
              endif  ! both cells have ice
 
           enddo   ! i
@@ -957,6 +978,11 @@ contains
              elseif (active_ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
 
                 ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
+
+             elseif (active_ice_mask(i,ju) == 1 .and. land_mask(i,ju) == 1 .and. land_mask(i,jl) == 0) then
+
+                ! upper cell has active ice on land, and ice-free lower cell is ocean; compute the gradient
                 ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
              endif  ! both cells have ice
@@ -1113,24 +1139,41 @@ contains
     call staggered_parallel_halo(ds_dx)
     call staggered_parallel_halo(ds_dy)
 
-    if (verbose_gradient .and. main_task) then
+    if (verbose_gradient .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Hybrid gradient:'
+       print*, 'Hybrid gradient, i, j, task =', itest, jtest, rtest
+       print*, ' '
+       print*, 'ds_dx_edge:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f9.6)',advance='no') ds_dx_edge(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'ds_dy_edge:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f9.6)',advance='no') ds_dy_edge(i,j)
+          enddo
+          print*, ' '
+       enddo
        print*, ' '
        print*, 'ds_dx:'
-       do j = ny-2, 2, -1
-!!          do i = 1, nx-1
-          do i = 1, nx/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
              write(6,'(f9.6)',advance='no') ds_dx(i,j)
           enddo
           print*, ' '
        enddo
-
        print*, ' '
        print*, 'ds_dy:'
-       do j = ny-2, 2, -1
-!!          do i = 1, nx-1
-          do i = 1, nx/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
              write(6,'(f9.6)',advance='no') ds_dy(i,j)
           enddo
           print*, ' '
@@ -1143,15 +1186,13 @@ contains
 
   subroutine glissade_vertical_average(nx,         ny,        &
                                        nz,         sigma,     &
-                                       mask,                  &
-                                       var,        var_2d)
+                                       var,        var_2d,    &
+                                       mask)
 
     !----------------------------------------------------------------
     ! Compute the vertical average of a given variable.
     ! Note: It is assumed that the variable is defined at layer midpoints,
     !       and hence has vertical dimension (nz-1).
-    ! Note: This subroutine will work for variables on the staggered
-    !       horizontal grid if stagthck is passed in place of thck.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -1165,14 +1206,15 @@ contains
     real(dp), dimension(nz), intent(in) ::    &
        sigma                    ! sigma vertical coordinate
 
-    logical, dimension(nx, ny), intent(in) ::    &
-       mask                     ! compute var_2d where mask = .true.
-
     real(dp), dimension(nz-1,nx, ny), intent(in) ::    &
        var                      ! 3D field to be averaged vertically
 
     real(dp), dimension(nx, ny), intent(out) ::    &
        var_2d                   ! 2D vertically averaged field
+
+    logical, dimension(nx, ny), intent(in), optional ::    &
+       mask                     ! compute var_2d where mask = .true.
+
 
     !--------------------------------------------------------
     ! Local variables
@@ -1180,19 +1222,31 @@ contains
 
     integer :: i, j, k
 
-    do j = 1, ny
-       do i = 1, nx
+    if (present(mask)) then
 
-          var_2d(i,j) = 0.d0
+       do j = 1, ny
+          do i = 1, nx
+             var_2d(i,j) = 0.d0
+             if (mask(i,j)) then
+                do k = 1, nz-1
+                   var_2d(i,j) = var_2d(i,j) + var(k,i,j) * (sigma(k+1) - sigma(k))
+                enddo
+             endif
+          enddo
+       enddo
 
-          if (mask(i,j)) then
+    else
+
+       do j = 1, ny
+          do i = 1, nx
+             var_2d(i,j) = 0.d0
              do k = 1, nz-1
                 var_2d(i,j) = var_2d(i,j) + var(k,i,j) * (sigma(k+1) - sigma(k))
              enddo
-          endif
-
+          enddo
        enddo
-    enddo
+
+    endif   ! present(mask)
 
   end subroutine glissade_vertical_average
 

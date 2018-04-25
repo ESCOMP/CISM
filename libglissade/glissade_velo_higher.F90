@@ -1547,6 +1547,7 @@
 
     call glissade_surface_elevation_gradient(nx,          ny,           &
                                              dx,          dy,           &
+                                             itest, jtest, rtest,       &
                                              active_ice_mask,           &
                                              land_mask,                 &
                                              usrf,        thck,         &
@@ -5321,7 +5322,6 @@
     if (whichapprox == HO_APPROX_SSA) then
        call glissade_vertical_average(nx,       ny,      &
                                       nz,       sigma,   &
-                                      active_cell,       &
                                       flwafact, flwafact_2d)
     endif
 
@@ -6129,7 +6129,7 @@
     !  are ice-covered.
     ! At a land margin, either 0 or 1 is appropriate, but 2 is inaccurate.
     ! At a shelf margin, either 1 or 2 is appropriate, but 0 is inaccurate.
-    ! So HO_GRADIENT_MARGIN_NYBRID = 1 is the safest value.
+    ! So HO_GRADIENT_MARGIN_HYBRID = 1 is the safest value.
 
     if (edge_velocity) then
 
