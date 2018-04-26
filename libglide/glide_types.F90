@@ -1106,16 +1106,15 @@ module glide_types
 
   type glide_calving
      !> holds fields and parameters related to calving
-     !> Note: The 3D damage field is prognostic; the 2D damage_column field is diagnosed from the 3D damage field.
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !> scaled by thk0 like mass balance, thickness, etc.
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
-     real(dp),dimension(:,:),  pointer :: thck_calving_front => null()!> effective ice thickness at calving front, divided by \texttt{thk0}.
-     real(dp),dimension(:,:),  pointer :: strain_rate_eigenprod    !> product of eigenvalues of 2D horizontal strain rate tensor (s^-2)
-     real(dp),dimension(:,:),  pointer :: strain_rate_eigen1       !> first principal eigenvalue of 2D horizontal strain rate tensor (s^-1)
-     real(dp),dimension(:,:),  pointer :: strain_rate_eigen2       !> second principal eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:),  pointer :: calving_lateral => null()!> lateral calving rate (m/yr, not scaled)
+                                                                   ! (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
+     real(dp),dimension(:,:),  pointer :: tau_eigen1               !> first eigenvalue of 2D horizontal stress tensor (Pa)
+     real(dp),dimension(:,:),  pointer :: tau_eigen2               !> second eigenvalue of 2D horizontal stress tensor (Pa)
+     real(dp),dimension(:,:),  pointer :: tau_eff_calving          !> effective stress (Pa) for calving; derived from tau_eigen1, tau_eigen2
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
-     real(dp),dimension(:,:),  pointer :: damage_column => null()  !> 2D vertically integrated damage tracer, 0 > damage_column < 1
   
      real(dp) :: marine_limit =    -200.d0  !> minimum value of topg/relx before floating ice calves
                                             !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
@@ -1126,8 +1125,11 @@ module glide_types
                                             !> if calving_timescale = 0, then calving_thck = thck
      real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
                                             !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
-     real(dp) :: eigencalving_constant = 1.0d9   !> eigencalving constant from Levermann et al. (2012) (m*yr)
-                                                 !> (whichcalving = EIGENCALVING
+     real(dp) :: eigencalving_constant = 0.01d0  !> eigencalving constant, lateral calving rate (m/yr) per unit stress (Pa)
+                                                 !> (whichcalving = EIGENCALVING)
+     real(dp) :: eigen2_weight = 1.0d0      !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff_calving (unitless)
+     real(dp) :: damage_constant = 1.0d-7   !> damage constant; rate of change of damage (1/yr) per unit stress (Pa)
+                                            !> (whichcalving = CALVING_DAMAGE) 
      integer :: ncull_calving_front = 0     !> number of times to cull calving_front cells at initialization
                                             !> Set to a larger value to remove thicker peninsulas
      real(dp) :: taumax_cliff = 1.0d6       !> yield stress (Pa) for marine-based ice cliffs
@@ -1135,7 +1137,7 @@ module glide_types
      real(dp) :: calving_front_x = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.d0     !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                             !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
-     real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
+     real(dp) :: damage_threshold = 0.75d0  !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
 
   end type glide_calving
@@ -2269,17 +2271,15 @@ contains
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_calving_front)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigenprod)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigen1)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%strain_rate_eigen2)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_lateral)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eff_calving)
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
-       call coordsystem_allocate(model%general%ice_grid, model%calving%damage_column)
     else
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
-       allocate(model%calving%damage_column(1,1))
     endif
 
     ! matrix solver arrays
@@ -2760,18 +2760,16 @@ contains
         deallocate(model%calving%calving_thck)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
-    if (associated(model%calving%thck_calving_front)) &
-        deallocate(model%calving%thck_calving_front)
-    if (associated(model%calving%strain_rate_eigenprod)) &
-        deallocate(model%calving%strain_rate_eigenprod)
-    if (associated(model%calving%strain_rate_eigen1)) &
-        deallocate(model%calving%strain_rate_eigen1)
-    if (associated(model%calving%strain_rate_eigen2)) &
-        deallocate(model%calving%strain_rate_eigen2)
+    if (associated(model%calving%calving_lateral)) &
+        deallocate(model%calving%calving_lateral)
+    if (associated(model%calving%tau_eigen1)) &
+        deallocate(model%calving%tau_eigen1)
+    if (associated(model%calving%tau_eigen2)) &
+        deallocate(model%calving%tau_eigen2)
+    if (associated(model%calving%tau_eff_calving)) &
+        deallocate(model%calving%tau_eff_calving)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
-    if (associated(model%calving%damage_column)) &
-        deallocate(model%calving%damage_column)
 
     ! matrix solver arrays
 
