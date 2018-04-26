@@ -261,6 +261,9 @@
        dphi_dyr_3d_vav,    &! vertical avg of dphi_dyr_3d
        dphi_dzr_3d_vav      ! vertical avg of dphi_dzr_3d
 
+    logical, parameter :: new_stagger = .true.
+!!    logical, parameter :: new_stagger = .false.
+
     contains
 
 !****************************************************************************
@@ -1499,8 +1502,39 @@
     ! Compute the ice thickness and upper surface elevation on the staggered grid.
     ! (requires that thck and usrf are up to date in all cells that border locally owned vertices).
     ! For stagger_margin_in = 0, all cells (including ice-free) are included in interpolation.
-    ! For stagger_margin_in = 1, only ice-covered cells are included.
+    ! For stagger_margin_in = 1, only masked cells (*_mask = 1) are included.
+    ! Note: There can be cells at the land margin which are not currently active,
+    !        but receive ice from upstream and could activate at the next time step
+    !        (if the inflow exceeds the SMB loss).
+    !       Including their small or zero thickness (thck <= thklim) in the gradient
+    !        prevents abrupt changes in stagthck when these cells activate.
     !------------------------------------------------------------------------------
+
+  if (new_stagger) then
+
+    ! Compute a mask which is the union of active ice cells and land-based cells (including ice-free land).
+    ! This mask identifies all cells where thck and usrf should be included in staggered averages.
+    do j = 1, ny
+       do i = 1, nx
+          if (active_ice_mask(i,j) == 1 .or. land_mask(i,j) == 1) then
+             ice_plus_land_mask(i,j) = 1
+          else
+             ice_plus_land_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    call glissade_stagger(nx,       ny,         &
+                          thck,     stagthck,   &
+                          ice_plus_land_mask,   &
+                          stagger_margin_in = 1)
+
+    call glissade_stagger(nx,       ny,         &
+                          usrf,     stagusrf,   &
+                          ice_plus_land_mask,   &
+                          stagger_margin_in = 1)
+
+  else
 
 !pw call t_startf('glissade_stagger')
     call glissade_stagger(nx,       ny,         &
@@ -1513,6 +1547,8 @@
                           active_ice_mask,      &
                           stagger_margin_in = 1)
 !pw call t_stopf('glissade_stagger')
+
+  endif  ! new_stagger
 
     ! Compute a subset of active_ice_mask, consisting of marine-based cells only
     where (land_mask == 0 .and. active_ice_mask == 1)
@@ -2783,9 +2819,21 @@
              if (diva_level_index == 0) then   ! solving for 2D mean velocity field
 
                 ! Interpolate omega to the staggered grid
-                call glissade_stagger(nx,           ny,                       &
+              if (new_stagger) then
+
+                call glissade_stagger(nx,           ny,               &
                                       omega(:,:),   stag_omega(:,:),  &
-                                      ice_mask,     stagger_margin_in = 1)
+                                      ice_plus_land_mask,             &
+                                      stagger_margin_in = 1)
+
+              else
+
+                call glissade_stagger(nx,           ny,               &
+                                      omega(:,:),   stag_omega(:,:),  &
+                                      ice_mask,                       &
+                                      stagger_margin_in = 1)
+
+              endif
 
              else  ! solving for the velocity at level k (k = 1 at upper surface)
 
@@ -2793,10 +2841,21 @@
 
                 call parallel_halo(omega_k(k,:,:))
 
-                call glissade_stagger(nx,              ny,                           &
+              if (new_stagger) then
+
+                call glissade_stagger(nx,              ny,               &
                                       omega_k(k,:,:),  stag_omega(:,:),  &
-                                      ice_mask,        stagger_margin_in = 1)
-                
+                                      ice_plus_land_mask,                &
+                                      stagger_margin_in = 1)
+              else
+
+                call glissade_stagger(nx,              ny,               &
+                                      omega_k(k,:,:),  stag_omega(:,:),  &
+                                      ice_mask,                          &
+                                      stagger_margin_in = 1)
+
+              endif
+
              endif
                 
              !-------------------------------------------------------------------
@@ -2834,6 +2893,22 @@
                 print*, ' '
                 print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_omega(i,j), beta_eff(i,j), btractx(i,j)
                 print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
+                print*, 'omega:'
+                do j = jtest+3, jtest-3, -1
+                   do i = itest-3, itest+3
+                      write(6,'(e10.3)',advance='no') omega(i,j)
+                   enddo
+                   write(6,*) ' '
+                enddo
+                print*, ' '
+                print*, 'stag_omega:'
+                do j = jtest+3, jtest-3, -1
+                   do i = itest-3, itest+3
+                      write(6,'(e10.3)',advance='no') stag_omega(i,j)
+                   enddo
+                   write(6,*) ' '
+                enddo
+                print*, ' '
                 print*, ' '
                 print*, 'beta_eff:'
                 do j = jtest+3, jtest-3, -1
@@ -3677,11 +3752,25 @@
 
           ! Interpolate omega_k to the staggered grid
 
+         if (new_stagger) then
+
           do k = 1, nz
-             call glissade_stagger(nx,              ny,                           &
+             call glissade_stagger(nx,              ny,                   &
                                    omega_k(k,:,:),  stag_omega_k(k,:,:),  &
-                                   ice_mask,        stagger_margin_in = 1)
+                                   ice_plus_land_mask,                    &
+                                   stagger_margin_in = 1)
           enddo
+
+         else
+
+          do k = 1, nz
+             call glissade_stagger(nx,              ny,                   &
+                                   omega_k(k,:,:),  stag_omega_k(k,:,:),  &
+                                   ice_mask,                              &
+                                   stagger_margin_in = 1)
+          enddo
+
+         endif
 
           ! Compute the new 3D velocity field
           ! NOTE: The full velocity field is not needed to update efvs and solve 
