@@ -506,6 +506,24 @@ factor:        thk0
 load:          1
 coordinates:   lon lat
 
+[usrf_obs]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     observed surface elevation
+data:          data%geometry%usrf_obs
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
+[topg_obs]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     observed bed topography
+data:          data%geometry%topg_obs
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
 [calving_thck]
 dimensions:    time, y1, x1
 units:         meter
@@ -852,13 +870,22 @@ data:          data%basal_physics%powerlaw_c_prescribed
 load:          1
 coordinates:   lon lat
 
-[coulomb_c_inversion]
-dimensions:    time, y1, x1
-units:         unitless [0,1]
-long_name:     spatially varying C for Coulomb sliding
-data:          data%basal_physics%coulomb_c_inversion
-load:          0
+[usrf_inversion]
+dimensions:    time, y1,x1
+units:         meter
+long_name:     surface elevation used for inversion
+data:          data%basal_physics%usrf_inversion
 coordinates:   lon lat
+load:          1
+
+[dthck_dt_inversion]
+dimensions:    time, y1,x1
+units:         meter/year
+long_name:     dH/dt used for inversion
+data:          data%basal_physics%dthck_dt_inversion
+factor:        scyr
+coordinates:   lon lat
+load:          1
 
 [artm]
 dimensions:    time, y1, x1

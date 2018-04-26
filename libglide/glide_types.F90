@@ -833,6 +833,12 @@ module glide_types
     real(dp),dimension(:,:),pointer :: thck_obs => null()
     !> Observed ice thickness, divided by \texttt{thk0}.
 
+    real(dp),dimension(:,:),pointer :: usrf_obs => null()
+    !> Observed upper surface elevation, divided by \texttt{thk0}.
+
+    real(dp),dimension(:,:),pointer :: topg_obs => null()
+    !> Observed basal topography, divided by \texttt{thk0}.
+
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
     !> flotation function, (rhoi*thck) / (-rhoo*(topg-eus))
     !> previously was f_pattyn = -rhoo*(topg-eus)/(rhoi*thck)
@@ -847,8 +853,8 @@ module glide_types
     !> Used to be called 'age', but changed to 'ice_age' for easier grepping
 
     real(dp),dimension(:,:),pointer :: thck_old => null()        !> old ice thickness, divided by \texttt{thk0}
-    real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency, divided by \texttt{thk0/tim0}
-    real(dp),dimension(:,:),pointer :: dthck_dt_tavg => null()   !> ice thickness tendency, divided by \texttt{thk0/tim0} (time average)
+    real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency (m/s)
+    real(dp),dimension(:,:),pointer :: dthck_dt_tavg => null()   !> ice thickness tendency (m/s, time average)
 
     real(dp),dimension(:,:),pointer :: cell_area => null()
     !> The cell area of the grid, divided by \texttt{len0*len0}.
@@ -1382,7 +1388,8 @@ module glide_types
      real(dp), dimension(:,:), pointer :: powerlaw_c_inversion => null()      !< spatially varying powerlaw_c field, Pa m^(-1/3) yr^(1/3)
      real(dp), dimension(:,:), pointer :: powerlaw_c_inversion_tavg => null() !< spatially varying powerlaw_c field, time average
      real(dp), dimension(:,:), pointer :: powerlaw_c_prescribed => null()     !< powerlaw_c field, prescribed from a previous inversion
-     real(dp), dimension(:,:), pointer :: coulomb_c_inversion => null()       !< spatially varying coulomb_c field (unitless)
+     real(dp), dimension(:,:), pointer :: usrf_inversion => null()      !< upper surface elevation used for Cp inversion (m)
+     real(dp), dimension(:,:), pointer :: dthck_dt_inversion => null()  !< dH/dt used for Cp inversion (m/s)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
@@ -1440,10 +1447,12 @@ module glide_types
           powerlaw_c_min = 1.0d2                 !< Pa (m/yr)^(-1/3)
 
      real(dp) ::  &
-          inversion_babc_timescale = 500.d0,      & !< inversion timescale (yr); must be > 0
-          inversion_babc_thck_scale = 100.d0,     & !< thickness inversion scale (m); must be > 0
-          inversion_babc_dthck_dt_scale = 0.10d0, & !< dthck_dt inversion scale (m/yr); must be > 0
-          inversion_babc_smoothing_factor = 1.0d-2  !< factor for smoothing powerlaw_c (larger => more smoothing)
+          inversion_babc_timescale = 500.d0,        & !< inversion timescale (yr); must be > 0
+          inversion_babc_thck_scale = 100.d0,       & !< thickness inversion scale (m); must be > 0
+          inversion_babc_dthck_dt_scale = 0.10d0,   & !< dthck_dt inversion scale (m/yr); must be > 0
+          inversion_babc_space_smoothing = 1.0d-2,  & !< factor for spatial smoothing of powerlaw_c; larger => more smoothing
+          inversion_babc_time_smoothing = 0.0d0       !< factor for exponential moving average of usrf/dthck_dt_inversion
+                                                      !< range [0,1]; larger => slower discounting of old values, more smoothing
 
      ! parameter for constant basal water
      ! Note: This parameter applies to HO_BWAT_CONSTANT only.
@@ -1931,6 +1940,8 @@ contains
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
     !> \item \texttt{thck_obs(ewn,nsn))}
+    !> \item \texttt{usrf_obs(ewn,nsn))}
+    !> \item \texttt{topg_obs(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
@@ -2136,6 +2147,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_obs)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
@@ -2210,7 +2223,8 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_inversion)
           call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_inversion_tavg)
           call coordsystem_allocate(model%general%ice_grid, model%basal_physics%powerlaw_c_prescribed)
-          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%coulomb_c_inversion)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%usrf_inversion)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_physics%dthck_dt_inversion)
        endif
     endif  ! glam/glissade
 
@@ -2552,8 +2566,10 @@ contains
         deallocate(model%basal_physics%powerlaw_c_inversion_tavg)
     if (associated(model%basal_physics%powerlaw_c_prescribed)) &
         deallocate(model%basal_physics%powerlaw_c_prescribed)
-    if (associated(model%basal_physics%coulomb_c_inversion)) &
-        deallocate(model%basal_physics%coulomb_c_inversion)
+    if (associated(model%basal_physics%usrf_inversion)) &
+        deallocate(model%basal_physics%usrf_inversion)
+    if (associated(model%basal_physics%dthck_dt_inversion)) &
+        deallocate(model%basal_physics%dthck_dt_inversion)
     if (associated(model%basal_physics%C_space_factor)) &
         deallocate(model%basal_physics%C_space_factor)
     if (associated(model%basal_physics%C_space_factor_stag)) &
@@ -2636,6 +2652,10 @@ contains
         deallocate(model%geometry%topg)
     if (associated(model%geometry%thck_obs)) &
         deallocate(model%geometry%thck_obs)
+    if (associated(model%geometry%usrf_obs)) &
+        deallocate(model%geometry%usrf_obs)
+    if (associated(model%geometry%topg_obs)) &
+        deallocate(model%geometry%topg_obs)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &
