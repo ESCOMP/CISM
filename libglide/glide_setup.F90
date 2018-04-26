@@ -1640,7 +1640,8 @@ contains
     call GetValue(section, 'inversion_babc_timescale', model%basal_physics%inversion_babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%basal_physics%inversion_babc_thck_scale)
     call GetValue(section, 'inversion_babc_dthck_dt_scale', model%basal_physics%inversion_babc_dthck_dt_scale)
-    call GetValue(section, 'inversion_babc_smoothing_factor', model%basal_physics%inversion_babc_smoothing_factor)
+    call GetValue(section, 'inversion_babc_space_smoothing', model%basal_physics%inversion_babc_space_smoothing)
+    call GetValue(section, 'inversion_babc_time_smoothing', model%basal_physics%inversion_babc_time_smoothing)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -1954,8 +1955,11 @@ contains
           write(message,*) 'inversion dthck/dt scale (m/yr)              : ', &
                model%basal_physics%inversion_babc_dthck_dt_scale
           call write_log(message)
-          write(message,*) 'inversion basal traction smoothing factor    : ', &
-               model%basal_physics%inversion_babc_smoothing_factor
+          write(message,*) 'inversion basal traction space smoothing     : ', &
+               model%basal_physics%inversion_babc_space_smoothing
+          call write_log(message)
+          write(message,*) 'inversion basal traction time smoothing      : ', &
+               model%basal_physics%inversion_babc_time_smoothing
           call write_log(message)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
@@ -2558,8 +2562,11 @@ contains
     select case(options%which_ho_inversion)
       case (HO_INVERSION_COMPUTE)
          ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
+         ! usrf_inversion and dthck_dt_inversion are computed as moving averages while adjusting powerlaw_c
          call glide_add_to_restart_variable_list('powerlaw_c_inversion')
          call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         call glide_add_to_restart_variable_list('dthck_dt_inversion')
+         call glide_add_to_restart_variable_list('usrf_inversion')
       case (HO_INVERSION_PRESCRIBED)
          ! Write powerlaw_c_inversion to the restart file, because it is
          !  continually adjusted at runtime as the grounding line moves.
@@ -2580,7 +2587,9 @@ contains
     !  then thck_obs needs to be in the restart file;
     !TODO - Remove thck_obs, keep usrf_obs?
     if (options%which_ho_inversion == HO_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('thck_obs')
+!!       call glide_add_to_restart_variable_list('thck_obs')
+       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('topg_obs')
     endif
 
     ! geothermal heat flux option
