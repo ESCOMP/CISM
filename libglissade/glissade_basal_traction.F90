@@ -75,6 +75,7 @@ contains
                        topg,          eus,           &
                        ice_mask,                     &
                        floating_mask,                &
+                       land_mask,                    &
                        f_ground,                     &
                        which_ho_inversion,           &
                        itest, jtest,  rtest)
@@ -117,8 +118,12 @@ contains
   !TODO - Make these argument non-optional? Can do this after removing the call to calcbeta from Glam.
   real(dp), intent(in), dimension(:,:), optional :: topg         ! bed topography (m)
   real(dp), intent(in), optional :: eus                          ! eustatic sea level (m) relative to z = 0
-  integer, intent(in), dimension(:,:), optional :: ice_mask      ! = 1 where ice is present (thck > thklim), else = 0
-  integer, intent(in), dimension(:,:), optional :: floating_mask ! = 1 where ice is present and floating, else = 0
+
+  integer, intent(in), dimension(:,:), optional :: &
+       ice_mask,        & ! = 1 where ice is present (thck > thklim), else = 0
+       floating_mask,   & ! = 1 where ice is present and floating, else = 0
+       land_mask          ! = 1 where topg > eus
+
   real(dp), intent(in), dimension(:,:), optional :: f_ground     ! grounded ice fraction, 0 <= f_ground <= 1
   integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
@@ -144,13 +149,13 @@ contains
   real(dp) :: m_max       ! maximum bed obstacle slope (unitless)
   real(dp) :: m           ! exponent m in power law
   integer, dimension(size(thck,1), size(thck,2)) :: &
-       imask,                      &  ! = 1 where thck > 0, else = 1
-       grounded_mask                  ! = 1 where ice is present (thck > thklim) and not floating
+       ice_or_land_mask, &! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
+       imask              ! = 1 where thck > 0, else = 1
+
   real(dp), dimension(size(beta,1), size(beta,2)) ::  &
        big_lambda,                 &  ! bedrock characteristics
        flwa_basal_stag,            &  ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
-       stag_powerlaw_c_inversion,  &  ! powerlaw_c_inversion interpolated to the staggered grid
-       stag_coulomb_c_inversion       ! coulomb_c_inversion interpolated to the staggered grid
+       stag_powerlaw_c_inversion      ! powerlaw_c_inversion interpolated to the staggered grid
 
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
@@ -257,9 +262,12 @@ contains
                 beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
 
                 !WHL - debug
-!                if (ew==itest .and. ns==jtest) then
-!                   write(6,*) 'i, j, bed, phi, tanphi, tau_c, speed, beta:', ew, ns, bed, phi, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
-!                endif
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                      write(6,*) 'i, j, bed, phi, tanphi, tau_c, speed, beta:', &
+                           ew, ns, bed, phi, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
+                   endif
+                endif
 
              enddo
           enddo
@@ -313,7 +321,7 @@ contains
           Ldomain = global_ewn * dew   ! size of full domain (must be square)
           omega = 2.d0*pi / Ldomain
 
-          beta_global(:,:) = 0.d0
+          beta_global(:,:) = 0.0d0
           do ns = 1, global_nsn
              do ew = 1, global_ewn
                 dx = dew * ew
@@ -366,7 +374,47 @@ contains
        ! implying beta = C * ub^(1/m - 1) 
        ! m should be a positive exponent
 
-       beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
+       if (which_ho_inversion == HO_INVERSION_NONE) then
+
+          ! Set beta assuming a spatially uniform value of powerlaw_c
+          beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
+
+       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
+               which_inversion == HO_INVERSION_PRESCRIBED) then   ! use powerlaw_c from inversion
+
+          m = basal_physics%powerlaw_m
+
+          ! Interpolate powerlaw_c to the velocity grid.
+
+          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered cells.
+
+          call glissade_stagger(ewn,                         nsn,      &
+                                basal_physics%powerlaw_c_inversion,    &
+                                stag_powerlaw_c_inversion,             &
+                                ice_mask,                              &
+                                stagger_margin_in = 1)
+
+          ! Replace zeroes with default values to avoid divzero issues
+          where (stag_powerlaw_c_inversion == 0.0d0)
+             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
+          endwhere
+
+          do ns = 1, nsn-1
+             do ew = 1, ewn-1
+                beta(ew,ns) = stag_powerlaw_c_inversion(ew,ns) &
+                            * speed(ew,ns)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
+
+                !WHL - debug
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                      write(6,*) 'r, i, j, Cp, speed, beta:', &
+                           rtest, itest, jtest, stag_powerlaw_c_inversion(ew,ns), speed(ew,ns), beta(ew,ns)
+                   endif
+                endif
+             enddo
+          enddo
+
+       endif   ! which_ho_inversion
 
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
@@ -466,7 +514,6 @@ contains
                 denominator = ( powerlaw_c**m * speed(ew,ns) +  &
                                (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
                 beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
-
              enddo
           enddo
 
@@ -475,54 +522,43 @@ contains
 
           m = basal_physics%powerlaw_m
 
-          ! Interpolate powerlaw_c and coulomb_c to the velocity grid.
-          ! stagger_margin_in = 1: Interpolate using only the values in cells with grounded ice.
-          !                        Zero values in floating and ice-free cells are ignored.
+          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered and land-based cells.
 
-          where (ice_mask == 1 .and. floating_mask == 0)
-             grounded_mask = 1
+          where (ice_mask == 1 .or. land_mask == 1)
+             ice_or_land_mask = 1
           elsewhere
-             grounded_mask = 0
+             ice_or_land_mask = 0
           endwhere
 
           call glissade_stagger(ewn,                         nsn,      &
                                 basal_physics%powerlaw_c_inversion,    &
                                 stag_powerlaw_c_inversion,             &
-                                grounded_mask,                         &
+                                ice_or_land_mask,                      &
                                 stagger_margin_in = 1)
 
-          call glissade_stagger(ewn,                         nsn,      &
-                                basal_physics%coulomb_c_inversion,     &
-                                stag_coulomb_c_inversion,              &
-                                grounded_mask,                         &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid divzero issues
+          ! Replace zeroes with default values to avoid possible divzero
           where (stag_powerlaw_c_inversion == 0.0d0)
              stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
-          where (stag_coulomb_c_inversion == 0.0d0)
-             stag_coulomb_c_inversion = basal_physics%coulomb_c
           endwhere
 
           do ns = 1, nsn-1
              do ew = 1, ewn-1
 
-                numerator = stag_powerlaw_c_inversion(ew,ns) * stag_coulomb_c_inversion(ew,ns)  &
+                numerator = stag_powerlaw_c_inversion(ew,ns) * basal_physics%coulomb_c  &
                           * basal_physics%effecpress_stag(ew,ns)
                 denominator = ( stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns) +  &
-                     (stag_coulomb_c_inversion(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
-
+                     (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
                 beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
 
                 !WHL - debug
                 if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                    if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                      write(6,*) 'r, i, j, denom_u, denom_N, speed, beta, taub:', &
-                           rtest, itest, jtest, &
+!!                   if (this_rank == rtest .and. ew == itest-1 .and. ns == jtest) then
+                      print*, ' '
+                      write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
+                           rtest, ew, ns, stag_powerlaw_c_inversion(ew,ns), &
                            (stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
-                           stag_coulomb_c_inversion(ew,ns) * basal_physics%effecpress_stag(ew,ns), &
+                           (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)), &
                            speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
                    endif
                 endif
@@ -637,7 +673,6 @@ contains
    ! However, beta_grounded_min can be set to a nonzero value in the config file.
   
    if (present(f_ground)) then
-
       do ns = 1, nsn-1
          do ew = 1, ewn-1
             if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
@@ -645,7 +680,6 @@ contains
             endif
          enddo
       enddo
-
    endif   ! present(f_ground)
 
    ! Bug check: Make sure beta >= 0
@@ -665,6 +699,16 @@ contains
    
    ! halo update
    call staggered_parallel_halo(beta)
+
+                !WHL - debug
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                   if (this_rank == rtest) then
+                      ew = itest; ns = jtest
+!!                      ew = itest-1; ns = jtest
+                      write(6,*) 'End of calcbeta, r, i, j, speed, beta:', &
+                           rtest, ew, ns, speed(ew,ns), beta(ew,ns)
+                   endif
+                endif
 
   end subroutine calcbeta
 
@@ -908,6 +952,7 @@ contains
     ! Interpolate the effective pressure to the staggered grid.
     ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells
     ! (to give a smooth transition in N_stag as a cell switches from ice-free to ice-covered)
+    !TODO - Does ice_mask need to be passed in? Modify glissade_stagger so it can be called without a mask.
 
     call glissade_stagger(ewn,                       nsn,                             &
                           basal_physics%effecpress,  basal_physics%effecpress_stag,   &
