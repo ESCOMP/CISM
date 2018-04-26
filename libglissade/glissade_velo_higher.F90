@@ -261,13 +261,6 @@
        dphi_dyr_3d_vav,    &! vertical avg of dphi_dyr_3d
        dphi_dzr_3d_vav      ! vertical avg of dphi_dzr_3d
 
-    !WHL - debug
-    logical, parameter :: new_assembly = .true.
-!!    logical, parameter :: new_assembly = .false.
-
-    logical, parameter :: new_stagger = .true.
-!!    logical, parameter :: new_stagger = .false.
-
     contains
 
 !****************************************************************************
@@ -1513,8 +1506,6 @@
     !        prevents abrupt changes in stagthck when these cells activate.
     !------------------------------------------------------------------------------
 
-  if (new_stagger) then
-
     ! Compute a mask which is the union of active ice cells and land-based cells (including ice-free land).
     ! This mask identifies all cells where thck and usrf should be included in staggered averages.
     do j = 1, ny
@@ -1536,21 +1527,6 @@
                           usrf,     stagusrf,   &
                           ice_plus_land_mask,   &
                           stagger_margin_in = 1)
-
-  else
-
-!pw call t_startf('glissade_stagger')
-    call glissade_stagger(nx,       ny,         &
-                          thck,     stagthck,   &
-                          active_ice_mask,      &
-                          stagger_margin_in = 1)
-
-    call glissade_stagger(nx,       ny,         &
-                          usrf,     stagusrf,   &
-                          active_ice_mask,      &
-                          stagger_margin_in = 1)
-!pw call t_stopf('glissade_stagger')
-  endif  ! new_stagger
 
     ! Compute a subset of active_ice_mask, consisting of marine-based cells only
     where (land_mask == 0 .and. active_ice_mask == 1)
@@ -2825,20 +2801,10 @@
              if (diva_level_index == 0) then   ! solving for 2D mean velocity field
 
                 ! Interpolate omega to the staggered grid
-              if (new_stagger) then
-
                 call glissade_stagger(nx,           ny,               &
                                       omega(:,:),   stag_omega(:,:),  &
                                       ice_plus_land_mask,             &
                                       stagger_margin_in = 1)
-              else
-
-                call glissade_stagger(nx,           ny,               &
-                                      omega(:,:),   stag_omega(:,:),  &
-                                      ice_mask,                       &
-                                      stagger_margin_in = 1)
-
-              endif
 
              else  ! solving for the velocity at level k (k = 1 at upper surface)
 
@@ -2846,20 +2812,11 @@
 
                 call parallel_halo(omega_k(k,:,:))
 
-              if (new_stagger) then
-
+                ! Interpolate omega_k to the staggered grid
                 call glissade_stagger(nx,              ny,               &
                                       omega_k(k,:,:),  stag_omega(:,:),  &
                                       ice_plus_land_mask,                &
                                       stagger_margin_in = 1)
-
-              else
-
-                call glissade_stagger(nx,              ny,               &
-                                      omega_k(k,:,:),  stag_omega(:,:),  &
-                                      ice_mask,                          &
-                                      stagger_margin_in = 1)
-              endif
 
              endif
                 
@@ -3764,25 +3721,12 @@
 
           ! Interpolate omega_k to the staggered grid
 
-         if (new_stagger) then
-
           do k = 1, nz
              call glissade_stagger(nx,              ny,                   &
                                    omega_k(k,:,:),  stag_omega_k(k,:,:),  &
                                    ice_plus_land_mask,                    &
                                    stagger_margin_in = 1)
           enddo
-
-         else
-
-          do k = 1, nz
-             call glissade_stagger(nx,              ny,                   &
-                                   omega_k(k,:,:),  stag_omega_k(k,:,:),  &
-                                   ice_mask,                              &
-                                   stagger_margin_in = 1)
-          enddo
-
-         endif
 
           ! Compute the new 3D velocity field
           ! NOTE: The full velocity field is not needed to update efvs and solve 
@@ -4519,9 +4463,7 @@
        print*, 'In load_vector_gravity: itest, jtest, ktest, rtest =', itest, jtest, ktest, rtest
     endif
                 
-    !TODO - Compare to older local assembly and make sure answers agree.
-    !       Looks OK for 2D DIVA; compare for 3D
-    if (new_assembly .and. whichassemble_taud == HO_ASSEMBLE_TAUD_LOCAL) then
+    if (whichassemble_taud == HO_ASSEMBLE_TAUD_LOCAL) then
 
        ! Sum over active vertices
        do j = 1, ny-1
@@ -4532,7 +4474,7 @@
                    print*, 'i, j, dsdx, dsdy:', i, j, dusrf_dx(i,j), dusrf_dy(i,j)
                 endif
 
-                do k = 1, nz-1    ! loop over elements in this column 
+                do k = 1, nz-1    ! loop over elements in this column
                                   ! assume k increases from upper surface to bed
 
                    dz = stagthck(i,j) * (sigma(k+1) - sigma(k))
@@ -4555,79 +4497,57 @@
 
        return
 
-    endif  ! new_assembly and whichassemble_taud
+    else   ! standard assembly
 
-    ! Sum over elements in active cells 
-    ! Loop over all cells that border locally owned vertices
-    ! This includes halo cells to the north and east
+       ! Sum over elements in active cells 
+       ! Loop over all cells that border locally owned vertices
+       ! This includes halo cells to the north and east
 
-    do j = nhalo+1, ny-nhalo+1
-    do i = nhalo+1, nx-nhalo+1
+       do j = nhalo+1, ny-nhalo+1
+       do i = nhalo+1, nx-nhalo+1
        
-       if (active_cell(i,j)) then
+          if (active_cell(i,j)) then
 
-          do k = 1, nz-1    ! loop over elements in this column 
-                            ! assume k increases from upper surface to bed
+             do k = 1, nz-1    ! loop over elements in this column 
+                               ! assume k increases from upper surface to bed
 
-             ! compute spatial coordinates and upper surface elevation gradient for each node
+                ! compute spatial coordinates and upper surface elevation gradient for each node
 
-             do n = 1, nNodesPerElement_3d
+                do n = 1, nNodesPerElement_3d
 
-                ! Determine (k,i,j) for this node
-                ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
-                ! Indices for other nodes are computed relative to this node.
-                iNode = i + ishift(7,n)
-                jNode = j + jshift(7,n)
-                kNode = k + kshift(7,n)
+                   ! Determine (k,i,j) for this node
+                   ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
+                   ! Indices for other nodes are computed relative to this node.
+                   iNode = i + ishift(7,n)
+                   jNode = j + jshift(7,n)
+                   kNode = k + kshift(7,n)
 
-                x(n) = xVertex(iNode,jNode)
-                y(n) = yVertex(iNode,jNode)
-                z(n) = stagusrf(iNode,jNode) - sigma(kNode)*stagthck(iNode,jNode)
-                dsdx(n) = dusrf_dx(iNode,jNode)
-                dsdy(n) = dusrf_dy(iNode,jNode)
-
-                if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
-                   print*, 'i, j, k, n, x, y, z, dsdx, dsdy:', i, j, k, n, x(n), y(n), z(n), dsdx(n), dsdy(n)
-                endif
-
-             enddo   ! nodes per element
-
-             ! Loop over quadrature points for this element
-   
-             do p = 1, nQuadPoints_3d
-
-                ! Evaluate detJ at the quadrature point.
-                ! TODO: The derivatives are not used.  Make these optional arguments?
-                !WHL - debug - Pass in i, j, k, and p for now
-
-                call get_basis_function_derivatives_3d(x(:),          y(:),          z(:),                    &
-                                                       dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
-                                                       dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
-                                                       detJ , i, j, k, p   )
-
-                ! Increment the load vector with the gravitational contribution from this quadrature point
-                ! The standard finite-element treatment (HO_ASSEMBLE_TAUD_STANDARD) is to take a 
-                !  phi-weighted sum over neighboring vertices.
-                ! For local driving stress (HO_ASSEMBLE_TAUD_LOCAL), use the value at the nearest vertex.
-                ! (Note: Vertex numbering is the same as QP numbering, CCW from 1 to 4 on bottom face and from 5 to 8 on top face.)
-
-                if (whichassemble_taud == HO_ASSEMBLE_TAUD_LOCAL) then
-
-                   ! Determine (k,i,j) for the node nearest to this quadrature point
-                   iNode = i + ishift(7,p)
-                   jNode = j + jshift(7,p)
-                   kNode = k + kshift(7,p)
-         
-                   ! Add the ds/dx and ds/dy terms to the load vector for this node
-                   loadu(kNode,iNode,jNode) = loadu(kNode,iNode,jNode) - rhoi*grav * detJ/vol0 * dsdx(p)
-                   loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - rhoi*grav * detJ/vol0 * dsdy(p)
+                   x(n) = xVertex(iNode,jNode)
+                   y(n) = yVertex(iNode,jNode)
+                   z(n) = stagusrf(iNode,jNode) - sigma(kNode)*stagthck(iNode,jNode)
+                   dsdx(n) = dusrf_dx(iNode,jNode)
+                   dsdy(n) = dusrf_dy(iNode,jNode)
 
                    if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
-                      print*, 'p, delta(loadu), delta(loadv):', p, -rhoi*grav*detJ/vol0 * dsdx(p), &
-                                                                   -rhoi*grav*detJ/vol0 * dsdy(p)
+                      print*, 'i, j, k, n, x, y, z, dsdx, dsdy:', i, j, k, n, x(n), y(n), z(n), dsdx(n), dsdy(n)
                    endif
 
-                else   ! standard FE assembly (HO_ASSEMBLE_TAUD_STANDARD)
+                enddo   ! nodes per element
+
+                ! Loop over quadrature points for this element
+   
+                do p = 1, nQuadPoints_3d
+
+                   ! Evaluate detJ at the quadrature point.
+                   ! TODO: The derivatives are not used.  Make these optional arguments?
+                   !WHL - debug - Pass in i, j, k, and p for now
+
+                   call get_basis_function_derivatives_3d(x(:),          y(:),          z(:),                    &
+                                                          dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
+                                                          dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
+                                                          detJ , i, j, k, p   )
+
+                   ! Increment the load vector with the gravitational contribution from this quadrature point
 
                    ! Evaluate dsdx and dsdy at this quadrature point
                    dsdx_qp = 0.d0
@@ -4668,16 +4588,16 @@
 
                    enddo   ! nNodesPerElement_3d
 
-                endif   ! whichassemble_taud
+                enddo      ! nQuadPoints_3d
 
-             enddo      ! nQuadPoints_3d
+             enddo         ! k
 
-          enddo         ! k
+          endif            ! active_cell
 
-       endif            ! active_cell
+       enddo               ! i
+       enddo               ! j
 
-    enddo               ! i
-    enddo               ! j
+    endif   ! whichasssemble_taud
 
   end subroutine load_vector_gravity
 
@@ -5025,7 +4945,7 @@
              print*, 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
           endif
 
-          call get_basis_function_derivatives_2d(x(:),              y(:),               & 
+          call get_basis_function_derivatives_2d(x(:),              y(:),               &
                                                  dphi_dxr_2d(:,p),  dphi_dyr_2d(:,p),   &
                                                  dphi_dx_2d(:),     dphi_dy_2d(:),      &
                                                  detJ, iCell, jCell, p)
@@ -8365,8 +8285,7 @@
        enddo
     endif
 
-    !TODO - Compare to older local assembly and make sure answers agree.
-    if (new_assembly .and. whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
+    if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
 
        if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
           m = indxA_3d(0,0,0)
@@ -8384,85 +8303,69 @@
           enddo   ! i
        enddo   ! j
 
-       return
+    else   ! standard assembly
 
-    endif  ! new_assembly and whichassemble_beta
-
-    ! Sum over elements in active cells 
-    ! Loop over all cells that contain locally owned vertices
-    do j = nhalo+1, ny-nhalo+1
-    do i = nhalo+1, nx-nhalo+1
+       ! Sum over elements in active cells
+       ! Loop over all cells that contain locally owned vertices
+       do j = nhalo+1, ny-nhalo+1
+       do i = nhalo+1, nx-nhalo+1
        
-       !TODO - Should we exclude cells that have Dirichlet basal BCs for all vertices?
+          !TODO - Should we exclude cells that have Dirichlet basal BCs for all vertices?
 
-       if (active_cell(i,j)) then
+          if (active_cell(i,j)) then
 
-          ! Set x and y for each node
+             ! Set x and y for each node
 
-          !     4-----3       y
-          !     |     |       ^
-          !     |     |       |
-          !     1-----2       ---> x
+             !     4-----3       y
+             !     |     |       ^
+             !     |     |       |
+             !     1-----2       ---> x
 
-          x(1) = xVertex(i-1,j-1)
-          x(2) = xVertex(i,j-1)
-          x(3) = xVertex(i,j)
-          x(4) = xVertex(i-1,j)
+             x(1) = xVertex(i-1,j-1)
+             x(2) = xVertex(i,j-1)
+             x(3) = xVertex(i,j)
+             x(4) = xVertex(i-1,j)
 
-          y(1) = yVertex(i-1,j-1)
-          y(2) = yVertex(i,j-1)
-          y(3) = yVertex(i,j)
-          y(4) = yVertex(i-1,j)
+             y(1) = yVertex(i-1,j-1)
+             y(2) = yVertex(i,j-1)
+             y(3) = yVertex(i,j)
+             y(4) = yVertex(i-1,j)
 
-          b(1) = beta(i-1,j-1)
-          b(2) = beta(i,j-1)
-          b(3) = beta(i,j)
-          b(4) = beta(i-1,j)
+             b(1) = beta(i-1,j-1)
+             b(2) = beta(i,j-1)
+             b(3) = beta(i,j)
+             b(4) = beta(i-1,j)
 
-          ! loop over quadrature points
+             ! loop over quadrature points
 
-          do p = 1, nQuadPoints_2d
+             do p = 1, nQuadPoints_2d
 
-             ! Compute basis function derivatives and det(J) for this quadrature point
-             ! For now, pass in i, j, k, p for debugging
-             !TODO - Modify this subroutine so that the output derivatives are optional?
+                ! Compute basis function derivatives and det(J) for this quadrature point
+                ! For now, pass in i, j, k, p for debugging
+                !TODO - Modify this subroutine so that the output derivatives are optional?
 
-             call get_basis_function_derivatives_2d(x(:),             y(:),               & 
-                                                    dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &   
-                                                    dphi_dx_2d(:),    dphi_dy_2d(:),      &
-                                                    detJ, i, j, p)
+                call get_basis_function_derivatives_2d(x(:),             y(:),               &
+                                                       dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
+                                                       dphi_dx_2d(:),    dphi_dy_2d(:),      &
+                                                       detJ, i, j, p)
           
-             ! Evaluate beta at this quadrature point
-             ! Standard finite-element treatment is to take a phi-weighted sum over neighboring vertices.
-             ! For local beta, use the value at the nearest vertex.
-             !  (Note that vertex numbering is the same as QP numbering, CCW from 1 to 4 starting at SW corner.)
- 
-             if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
-                beta_qp = b(p)
-             else
+                ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
                 beta_qp = 0.d0
                 do n = 1, nNodesPerElement_2d
                    beta_qp = beta_qp + phi_2d(n,p) * b(n)
                 enddo
-             endif
 
-             if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Increment basal traction, i, j, p =', i, j, p
-                print*, 'beta_qp, detJ/vol0 =', beta_qp, detJ/vol0
-             endif
+                if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'Increment basal traction, i, j, p =', i, j, p
+                   print*, 'beta_qp, detJ/vol0 =', beta_qp, detJ/vol0
+                endif
 
-             ! Compute the element matrix for this quadrature point
-             ! (Note volume scaling)
-             !TODO - Replace detJ/vol0 with dx*dy?
+                ! Compute the element matrix for this quadrature point
+                ! (Note volume scaling)
+                !TODO - Replace detJ/vol0 with dx*dy?
 
-             Kuu(:,:) = 0.d0
-
-             if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then  ! Use the value at the nearest vertex
-                ! Then Kuu is diagonal, so the traction parameter at a vertex depends only on beta at that vertex
-                Kuu(p,p) = beta_qp * (detJ/vol0)
-
-             else
+                Kuu(:,:) = 0.d0
 
                 do nc = 1, nNodesPerElement_2d      ! columns of K
                    do nr = 1, nNodesPerElement_2d   ! rows of K
@@ -8470,68 +8373,68 @@
                    enddo  ! m (rows)
                 enddo     ! n (columns)
 
-             endif        ! local beta
+                !Note: Is this true for all sliding laws?
+                Kvv(:,:) = Kuu(:,:)
 
-             !Note: Is this true for all sliding laws?
-             Kvv(:,:) = Kuu(:,:)
+                ! Insert terms of basal element matrices into global matrices Auu and Avv
 
-             ! Insert terms of basal element matrices into global matrices Auu and Avv
+                do nr = 1, nNodesPerElement_2d     ! rows of K
 
-             do nr = 1, nNodesPerElement_2d     ! rows of K
+                   ! Determine (i,j) for this node
+                   ! The reason for the '3' is that node 3, in the NE corner of the cell, has horizontal indices (i,j).
+                   ! Indices for other nodes are computed relative to this node.
 
-                ! Determine (i,j) for this node
-                ! The reason for the '3' is that node 3, in the NE corner of the cell, has horizontal indices (i,j).
-                ! Indices for other nodes are computed relative to this node.
-
-                ii = i + ishift(3,nr)
-                jj = j + jshift(3,nr)
+                   ii = i + ishift(3,nr)
+                   jj = j + jshift(3,nr)
       
-                do nc = 1, nNodesPerElement_2d ! columns of K
+                   do nc = 1, nNodesPerElement_2d ! columns of K
 
-                   iA = ishift(nr,nc)          ! iA index of A into which K(nr,nc) is summed
-                   jA = jshift(nr,nc)          ! similarly for jA
+                      iA = ishift(nr,nc)          ! iA index of A into which K(nr,nc) is summed
+                      jA = jshift(nr,nc)          ! similarly for jA
 
-                   if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-                      m = indxA_3d(iA,jA,0)
-                   else  ! 2D problem
-                      m = indxA_2d(iA,jA)
-                   endif
+                      if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+                         m = indxA_3d(iA,jA,0)
+                      else  ! 2D problem
+                         m = indxA_2d(iA,jA)
+                      endif
 
-                   Auu(m,ii,jj) = Auu(m,ii,jj) + Kuu(nr,nc)
-                   Avv(m,ii,jj) = Avv(m,ii,jj) + Kvv(nr,nc)
+                      Auu(m,ii,jj) = Auu(m,ii,jj) + Kuu(nr,nc)
+                      Avv(m,ii,jj) = Avv(m,ii,jj) + Kvv(nr,nc)
 
-                   if (verbose_basal .and. this_rank==rtest .and. ii==itest .and. jj==jtest .and. m==5) then
-                      ! m = 5 gives the influence of beta at vertex(i,j) on velocity at vertex(ii,jj).
-                      ! For local assembly, Auu and Avv get nonzero increments only for m = 5.
-                      print*, 'Basal increment for Auu and Avv: source (i,j), Kuu, new Auu, ii, jj, m =', &
-                           i, j, Kuu(nr,nc), Auu(m,ii,jj), ii, jj, m
-                   endif
+                      if (verbose_basal .and. this_rank==rtest .and. ii==itest .and. jj==jtest .and. m==5) then
+                         ! m = 5 gives the influence of beta at vertex(i,j) on velocity at vertex(ii,jj).
+                         ! For local assembly, Auu and Avv get nonzero increments only for m = 5.
+                         print*, 'Basal increment for Auu and Avv: source (i,j), Kuu, new Auu, ii, jj, m =', &
+                              i, j, Kuu(nr,nc), Auu(m,ii,jj), ii, jj, m
+                      endif
 
-                enddo     ! nc
-             enddo        ! nr
+                   enddo     ! nc
+                enddo        ! nr
 
-             if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-!                print*, ' '
-!                print*, 'i, j =', i, j
-!                print*, 'Kuu:'
-!                do nr = 1, nNodesPerElement_2d
-!                   print*, nr, Kuu(nr,:)
-!                enddo
-!                print*, ' '
-!                print*, 'rowsum(Kuu):'
-!                do nr = 1, nNodesPerElement_2d
-!                   print*, nr, sum(Kuu(nr,:))
-!                enddo
-!                print*, ' '
-!                print*, 'sum(Kuu):', sum(Kuu(:,:))
-             endif
+                if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+!                  print*, ' '
+!                  print*, 'i, j =', i, j
+!                  print*, 'Kuu:'
+!                  do nr = 1, nNodesPerElement_2d
+!                     print*, nr, Kuu(nr,:)
+!                  enddo
+!                  print*, ' '
+!                  print*, 'rowsum(Kuu):'
+!                  do nr = 1, nNodesPerElement_2d
+!                     print*, nr, sum(Kuu(nr,:))
+!                  enddo
+!                  print*, ' '
+!                  print*, 'sum(Kuu):', sum(Kuu(:,:))
+                endif
 
-          enddo   ! nQuadPoints_2d
+             enddo   ! nQuadPoints_2d
 
-       endif      ! active_cell
+          endif      ! active_cell
 
-    enddo         ! i
-    enddo         ! j
+       enddo         ! i
+       enddo         ! j
+
+    endif   ! whichassemble_beta
 
     if (verbose_basal .and. this_rank==rtest) then
        i = itest
