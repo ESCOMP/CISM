@@ -523,19 +523,19 @@ load:          1
 type:          int
 coordinates:   lon lat
 
+[calving_lateral]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     lateral calving rate
+data:          data%calving%calving_lateral
+coordinates:   lon lat
+
 [damage]
 dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]
 long_name:     ice damage
 data:          data%calving%damage(up,:,:)
 load:          1
-coordinates:   lon lat
-
-[damage_column]
-dimensions:    time, y1, x1
-units:         unitless [0,1]
-long_name:     vertically integrated ice damage
-data:          data%calving%damage_column
 coordinates:   lon lat
 
 [area_factor]
@@ -634,16 +634,6 @@ data:          data%geometry%topg
 factor:        thk0
 load:          1
 standard_name: bedrock_altitude
-coordinates:   lon lat
-
-[thck_calving_front]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     effective ice thickness at calving front
-data:          data%calving%thck_calving_front
-factor:        thk0
-load:          1
-standard_name: ice_thickness_at_calving_front
 coordinates:   lon lat
 
 ## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
@@ -1130,28 +1120,6 @@ long_name:  xy component of strain rate tensor
 data:       data%velocity%strain_rate%xy(up,:,:)
 factor:     scyr
 
-[strain_rate_eigenprod]
-dimensions: time, y1, x1
-units:      1/(year*year)
-long_name:  product of eigenvalues of horizontal strain rate tensor
-data:       data%calving%strain_rate_eigenprod
-factor:     scyr*scyr
-load:       1
-
-[strain_rate_eigen1]
-dimensions: time, y1, x1
-units:      1/year
-long_name:  first eigenvalue of horizontal strain rate tensor
-data:       data%calving%strain_rate_eigen1
-factor:     scyr
-
-[strain_rate_eigen2]
-dimensions: time, y1, x1
-units:      1/year
-long_name:  second eigenvalue of horizontal strain rate tensor
-data:       data%calving%strain_rate_eigen2
-factor:     scyr
-
 [tau_eff]
 dimensions: time, staglevel, y1, x1
 units:      Pa
@@ -1193,6 +1161,26 @@ units:      Pa
 long_name:  xy component of deviatoric stress tensor
 data:       data%stress%tau%xy(up,:,:)
 factor:     scale_tau
+
+[tau_eigen1]
+dimensions: time, y1, x1
+units:      Pa
+long_name:  first eigenvalue of horizontal stress tensor
+data:       data%calving%tau_eigen1
+load:       1
+
+[tau_eigen2]
+dimensions: time, y1, x1
+units:      Pa
+long_name:  second eigenvalue of horizontal stress tensor
+data:       data%calving%tau_eigen2
+load:       1
+
+[tau_eff_calving]
+dimensions: time, y1, x1
+units:      Pa
+long_name:  effective stress for calving
+data:       data%calving%tau_eff_calving
 
 [wvel]
 dimensions:    time, level, y1, x1

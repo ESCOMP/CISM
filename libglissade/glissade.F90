@@ -559,16 +559,20 @@ contains
                                model%numerics%dt,               &
                                model%numerics%dew*len0,         &        ! m
                                model%numerics%dns*len0,         &        ! m
-                               model%calving%strain_rate_eigenprod,    & ! s^(-2)
-                               model%calving%eigencalving_constant,    &
+                               model%calving%eigencalving_constant,  &   ! m/yr/Pa
+                               model%calving%eigen2_weight,     &
+                               model%calving%tau_eigen1,        &        ! Pa
+                               model%calving%tau_eigen2,        &        ! Pa
+                               model%calving%tau_eff_calving,   &        ! Pa
                                model%calving%calving_minthck,   &
                                model%calving%taumax_cliff,      &
                                model%calving%cliff_timescale,   &
                                model%calving%calving_mask,      &
                                model%calving%damage,            &
+                               model%calving%damage_constant,   &
                                model%calving%damage_threshold,  &
-                               model%calving%damage_column,     &
                                model%numerics%sigma,            &
+                               model%calving%calving_lateral,   &
                                model%calving%calving_thck,      &
                                cull_calving_front_in = model%options%cull_calving_front, &
                                ncull_calving_front_in = model%calving%ncull_calving_front)
@@ -624,6 +628,9 @@ contains
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
+    !WHL - debug
+    if (main_task) print*, 'Done in glissade_initialise'
+
   end subroutine glissade_initialise
   
 !=======================================================================
@@ -646,12 +653,20 @@ contains
     ! --- Local variables ---
 
     integer :: i, j
+    integer :: itest, jtest, rtest
 
     ! ========================
+
+    ! Set debug diagnostics
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
 
     ! Update internal clock
     model%numerics%time = time  
     model%numerics%tstep_count = model%numerics%tstep_count + 1
+
+    if (main_task .and. verbose_glissade) print*, 'glissade_tstep, test_count =', model%numerics%tstep_count
 
     ! optional transport test
     ! code execution will end when this is done
@@ -1867,16 +1882,20 @@ contains
                             model%numerics%dt,               &
                             model%numerics%dew*len0,         &        ! m
                             model%numerics%dns*len0,         &        ! m
-                            model%calving%strain_rate_eigenprod,    & ! s^(-2)
-                            model%calving%eigencalving_constant,    &
+                            model%calving%eigencalving_constant,  &   ! m/yr/Pa
+                            model%calving%eigen2_weight,     &
+                            model%calving%tau_eigen1,        &        ! Pa
+                            model%calving%tau_eigen2,        &        ! Pa
+                            model%calving%tau_eff_calving,   &        ! Pa
                             model%calving%calving_minthck,   &
                             model%calving%taumax_cliff,      &
                             model%calving%cliff_timescale,   &
                             model%calving%calving_mask,      &
                             model%calving%damage,            &
+                            model%calving%damage_constant,   &
                             model%calving%damage_threshold,  &
-                            model%calving%damage_column,     &
                             model%numerics%sigma,            &
+                            model%calving%calving_lateral,   &
                             model%calving%calving_thck)
     
     !TODO: Are any other halo updates needed after calving?
@@ -1997,9 +2016,10 @@ contains
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
+    use glissade_calving, only: verbose_calving
     use glam_grid_operators, only: glam_geometry_derivs
     use felix_dycore_interface, only: felix_velo_driver
-
+     
     !WHL - debug
     use glissade_bmlt_float, only: glissade_basal_melting_float
 
@@ -2021,11 +2041,12 @@ contains
          active_ice_mask       ! = 1 where ice is dynamically active, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-       thck_calving_front     ! effective thickness of ice at the calving front
+       thck_calving_front      ! effective thickness of ice at the calving front
 
     real(dp) :: &
-         dsigma,          & ! layer thickness in sigma coordinates
-         strain_rate_xx, strain_rate_yy, strain_rate_xy  ! strain rate components
+         dsigma,                   & ! layer thickness in sigma coordinates
+         tau_xx, tau_yy, tau_xy,   & ! stress tensor components
+         strain_rate_xx, strain_rate_yy, strain_rate_xy  ! strain rate tensor components
 
     real(dp) :: &
          a, b, c, root,   & ! terms in quadratic formula
@@ -2096,7 +2117,10 @@ contains
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &
-                            land_mask = land_mask)
+                            land_mask = land_mask,                      &
+                            which_ho_calving_front = model%options%which_ho_calving_front, &
+                            calving_front_mask = calving_front_mask,    &
+                            thck_calving_front = thck_calving_front)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell
@@ -2440,7 +2464,103 @@ contains
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
 
-    ! strain rate tensor (s^-1)
+    ! Compute the vertically integrated stress tensor (Pa) and its eigenvalues.
+    ! These are used for some calving schemes.
+
+    if ( (model%options%is_restart == RESTART_TRUE) .and. &
+         (model%numerics%time == model%numerics%tstart) ) then
+
+       ! do nothing, since the tau eigenvalues are read from the restart file
+
+    else  ! compute the eigenvalues given the stress just computed in the velocity solver
+
+       model%calving%tau_eigen1(:,:) = 0.0d0
+       model%calving%tau_eigen2(:,:) = 0.0d0
+
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+
+             ! compute vertically averaged stress components
+             tau_xx = 0.0d0
+             tau_yy = 0.0d0
+             tau_xy = 0.0d0
+
+             do k = 1, model%general%upn-1
+                dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
+                tau_xx = tau_xx + tau0 * model%stress%tau%xx(k,i,j) * dsigma
+                tau_yy = tau_yy + tau0 * model%stress%tau%yy(k,i,j) * dsigma
+                tau_xy = tau_xy + tau0 * model%stress%tau%xy(k,i,j) * dsigma
+             enddo
+
+             ! compute the eigenvalues of the vertically integrated stress tensor
+             a = 1.0d0
+             b = -(tau_xx + tau_yy)
+             c = tau_xx*tau_yy - tau_xy*tau_xy
+             if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
+                root = sqrt(b*b - 4.0d0*a*c)
+                lambda1 = (-b + root) / (2.0d0*a)
+                lambda2 = (-b - root) / (2.0d0*a)
+                if (lambda1 > lambda2) then
+                   model%calving%tau_eigen1(i,j) = lambda1
+                   model%calving%tau_eigen2(i,j) = lambda2
+                else
+                   model%calving%tau_eigen1(i,j) = lambda2
+                   model%calving%tau_eigen2(i,j) = lambda1
+                endif
+             endif  ! b^2 - 4ac > 0
+
+          enddo   ! i
+       enddo   ! j
+
+       ! Extrapolate tau eigenvalues to inactive CF cells where the stress tensor is not computed.
+       do j = 2, model%general%nsn-1
+          do i = 2, model%general%ewn-1
+             if (calving_front_mask(i,j) == 1 .and. &
+                  model%calving%tau_eigen1(i,j) == 0.0d0 .and. model%calving%tau_eigen2(i,j) == 0.0d0) then
+
+                !  Look for nonzero values in an upstream cell
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (thck_calving_front(i,j) > 0.0d0 .and. &
+                           model%geometry%thck(ii,jj) == thck_calving_front(i,j)) then
+                         model%calving%tau_eigen1(i,j) = model%calving%tau_eigen1(ii,jj)
+                         model%calving%tau_eigen2(i,j) = model%calving%tau_eigen2(ii,jj)
+                      endif
+                   enddo
+                enddo
+
+             endif  ! inactive CF cell
+          enddo
+       enddo
+
+    endif   ! restart
+
+    call parallel_halo(model%calving%tau_eigen1)
+    call parallel_halo(model%calving%tau_eigen2)
+
+    !WHL - debug
+    if (this_rank == rtest .and. verbose_calving) then
+       print*, ' '
+       print*, 'tau eigen1 (Pa), i, j, rtest =:', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(e11.3)',advance='no') model%calving%tau_eigen1(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'tau eigen2 (Pa), i, j, rtest =:', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(e11.3)',advance='no') model%calving%tau_eigen2(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif  ! this_rank = rtest
+
+    ! Compute the 3D strain rate tensor (s^{-1})
     ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
     !       The strain rate tensor is simply diagnosed from the stress tensor.
     where (model%stress%efvs > 0.0d0) 
@@ -2459,8 +2579,10 @@ contains
        model%velocity%strain_rate%xy = 0.0d0
     endwhere
 
-    ! vertical mean effective viscosity
+    ! Compute various vertical means.
     ! TODO - Write a utility subroutine for vertical averaging
+
+    ! Compute the vertical mean effective viscosity
     model%stress%efvs_vertavg = 0.0d0
     do j = 1, model%general%nsn
        do i = 1, model%general%ewn
@@ -2472,6 +2594,7 @@ contains
     enddo
 
     ! Compute the vertically integrated divergence of the horizontal velocity field.
+    ! Note: Units of divu and strain_rate components are s^{-1}.
     model%velocity%divu(:,:) = 0.0d0
 
     do j = 1, model%general%nsn
@@ -2483,85 +2606,6 @@ contains
           enddo
        enddo
     enddo
-
-    ! Compute the determinant (= product of eigenvalues) of horizontal strain rate tensor; used for eigencalving
-    ! Note: For floating ice the vertical shear should be negligible, but sum over layers for generality.
-    ! Note: On restart, the correct stress and strain rate tensors are not available. Instead of computing eigenprod
-    !       at initialization, it is read from the restart file.
-
-    if (model%options%whichcalving == EIGENCALVING) then
-
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
-
-          ! do nothing, since the eigenproduct is read from the restart file
-
-       else
-
-          model%calving%strain_rate_eigenprod(:,:) = 0.0d0
-          model%calving%strain_rate_eigen1(:,:) = 0.0d0
-          model%calving%strain_rate_eigen2(:,:) = 0.0d0
-
-          do j = 1, model%general%nsn
-             do i = 1, model%general%ewn
-
-                ! compute vertically averaged strain rate components
-                strain_rate_xx = 0.0d0
-                strain_rate_yy = 0.0d0
-                strain_rate_xy = 0.0d0
-
-                do k = 1, model%general%upn-1
-                   dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
-                   strain_rate_xx = strain_rate_xx + model%velocity%strain_rate%xx(k,i,j) * dsigma
-                   strain_rate_yy = strain_rate_yy + model%velocity%strain_rate%yy(k,i,j) * dsigma
-                   strain_rate_xy = strain_rate_xy + model%velocity%strain_rate%xy(k,i,j) * dsigma
-                enddo
-
-                ! compute the eigenvalues of the vertically integrated strain rate tensor
-                ! If both eigenvalues are positive, set the eigenproduct to their product
-                a = 1.0d0
-                b = -(strain_rate_xx + strain_rate_yy)
-                c = strain_rate_xx*strain_rate_yy - strain_rate_xy*strain_rate_xy
-                if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
-                   root = sqrt(b*b - 4.0d0*a*c)
-                   lambda1 = (-b + root) / (2.0d0*a)
-                   lambda2 = (-b - root) / (2.0d0*a)
-                   if (lambda1 > 0.0d0 .and. lambda2 > 0.0d0) then
-                      model%calving%strain_rate_eigenprod(i,j) = lambda1 * lambda2
-                   endif
-
-                   !Note: eigen1 and eigen2 fields are diagnostic only, at least for now
-                   if (lambda1 > lambda2) then
-                      model%calving%strain_rate_eigen1(i,j) = lambda1
-                      model%calving%strain_rate_eigen2(i,j) = lambda2
-                   else
-                      model%calving%strain_rate_eigen1(i,j) = lambda2
-                      model%calving%strain_rate_eigen2(i,j) = lambda1
-                   endif
-
-                endif  ! b^2 - 4ac > 0
-
-             enddo   ! i
-          enddo   ! j
-
-          call parallel_halo(model%calving%strain_rate_eigenprod)
-
-          !WHL - debug
-          if (this_rank == rtest .and. verbose_glissade) then
-             print*, ' '
-             print*, 'strain_rate_eigenprod (yr^-2), i, j, rtest =:', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i8)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(e11.3)',advance='no') model%calving%strain_rate_eigenprod(i,j)*scyr*scyr
-                enddo
-                print*, ' '
-             enddo
-          endif  ! this_rank = rtest
-
-       endif   ! is_restart
-
-    endif  ! eigencalving
 
     ! magnitude of basal traction
     model%stress%btract(:,:) = sqrt(model%stress%btractx(:,:)**2 + model%stress%btracty(:,:)**2)

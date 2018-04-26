@@ -1571,6 +1571,8 @@ contains
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
     call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
+    call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
+    call GetValue(section,'damage_constant',    model%calving%damage_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
@@ -1732,13 +1734,19 @@ contains
     endif
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
-        model%options%whichcalving == EIGENCALVING) then
+        model%options%whichcalving == EIGENCALVING .or.  &
+        model%options%whichcalving == CALVING_DAMAGE) then
        write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
        call write_log(message)
     endif
 
     if (model%options%whichcalving == EIGENCALVING) then
-       write(message,*) 'eigencalving constant (m*yr)  : ', model%calving%eigencalving_constant
+       write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
+       call write_log(message)
+       write(message,*) 'weight of eigenvalue 2 (unitless)    : ', model%calving%eigen2_weight
+       call write_log(message)
+    elseif (model%options%whichcalving == CALVING_DAMAGE) then
+       write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
        call write_log(message)
     endif
 
@@ -2499,8 +2507,9 @@ contains
         ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-        if (options%whichcalving == EIGENCALVING) then
-           call glide_add_to_restart_variable_list('strain_rate_eigenprod')
+        if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
+           call glide_add_to_restart_variable_list('tau_eigen1')
+           call glide_add_to_restart_variable_list('tau_eigen2')
         endif
 
         ! other Glissade options
@@ -2549,38 +2558,27 @@ contains
     select case(options%which_ho_inversion)
       case (HO_INVERSION_COMPUTE)
          ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
-         ! Note: coulomb_c_inversion is not a restart field, since the ratio powerlaw_c/coulomb_c is fixed.
          call glide_add_to_restart_variable_list('powerlaw_c_inversion')
          call glide_add_to_restart_variable_list('bmlt_float_inversion')
-         ! If the restart file will be used to initialize a forward run,
-         !  then we also want the time-average versions of these fields,
-         !  which will serve as prescribed fields for the forward run.
-         ! (Not strictly necessary except for the final run of the inversion,
-         !  but included for generality)
-         ! Note: If these fields are written to the restart file, they should not be written
-         !       to any other output file; else the time average will be wrong.
-         !TODO - If bmlt_float_inversion is steady, do not need a tavg version?
-!!         call glide_add_to_restart_variable_list('powerlaw_c_inversion_tavg')
-         call glide_add_to_restart_variable_list('bmlt_float_inversion_tavg')
       case (HO_INVERSION_PRESCRIBED)
          ! Write powerlaw_c_inversion to the restart file, because it is
          !  continually adjusted at runtime as the grounding line moves.
-         ! Also write bmlt_float_inversion. It is not adjusted at runtime, so we need
-         !  either bmlt_float_inversion or bmlt_float_prescribed, but not both.
+         ! Also write bmlt_float_inversion, in case it is also adjusted at runtime.
          call glide_add_to_restart_variable_list('powerlaw_c_inversion')
          call glide_add_to_restart_variable_list('bmlt_float_inversion')
          ! If powerlaw_c is prescribed from a previous inversion, then the
          !  prescribed field is needed at runtime to set powerlaw_c_inversion
          !  when floating ice regrounds.
          ! Currently, the prescribed bmlt_float field is used only at initialization
-         !  to set bmlt_float_inversion, so it is not strictly needed for restart.
-         !  Might want to remove it later.
+         !  to set bmlt_float_inversion, so it might not be needed for restart.
+         !  Remove it later?
          call glide_add_to_restart_variable_list('powerlaw_c_prescribed')
          call glide_add_to_restart_variable_list('bmlt_float_prescribed')
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on thck_obs,
     !  then thck_obs needs to be in the restart file;
+    !TODO - Remove thck_obs, keep usrf_obs?
     if (options%which_ho_inversion == HO_INVERSION_COMPUTE) then
        call glide_add_to_restart_variable_list('thck_obs')
     endif
