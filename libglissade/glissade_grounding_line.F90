@@ -151,6 +151,7 @@
     real(dp) :: f1, f2, f3, f4   ! f_flotation at different cell centers
 
     real(dp) ::  &
+       topg_eus_diff,       &! topg - eus, limited to be >= f_flotation_land_topg_min
        var,                 &! combination of f_flotation terms that determines regions to be integrated
        f_flotation_vertex    ! f_flotation interpolated to vertex
 
@@ -170,6 +171,9 @@
        f_trapezoid         ! fractional area in a trapezoidal region of the cell
 
     logical :: adjacent   ! true if two grounded vertices are adjacent (rather than opposite)
+
+    real(dp), parameter :: &
+       f_flotation_land_topg_min = 1.0d0   ! min value of (topg - eus) in f_flotation expression for land cells (m)
 
     real(dp), parameter :: &
        eps06 = 1.d-06     ! small number
@@ -246,7 +250,9 @@
        do j = 1, ny
           do i = 1, nx
              if (land_mask(i,j) == 1) then
-                f_flotation(i,j) = -(topg(i,j) - eus)
+                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
+                topg_eus_diff = max((topg(i,j) - eus), f_flotation_land_topg_min)
+                f_flotation(i,j) = -topg_eus_diff
              elseif (ice_mask(i,j) == 1) then
                 f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
              else  ! ice-free ocean
@@ -510,9 +516,10 @@
                       !     = a^2 / (2bc)
                       !
                       ! Note: We cannot have bc = 0, because f_flotation varies in both x and y
-                      !       The above rotations ensure that we always take the log of a positive number
- 
-                      if (abs(a*d/(b*c)) > eps06) then
+                      !       The above rotations ensure that we always take the log of a positive number.
+                      ! Note: This expression will give a NaN if f_flotation = 0 for land cells.
+                      !       Thus, f_flotation must be < 0 for land, even if topg - eus = 0.
+                      if (abs((a*d)/(b*c)) > eps06) then
                          f_corner = ((b*c - a*d) * log(abs(1.d0 - (a*d)/(b*c))) + a*d) / (d*d)
                       else
                          f_corner = (a*a) / (2.d0*b*c)
