@@ -805,8 +805,10 @@
 
     real(dp), dimension(nx-1,ny-1) :: &
        xVertex, yVertex,    & ! x and y coordinates of each vertex (m)
-       stagusrf,            & ! upper surface averaged to vertices (m)
-       stagthck,            & ! ice thickness averaged to vertices (m)
+       stagusrf,            & ! upper surface averaged to vertices, for active cells (m)
+       stagthck,            & ! ice thickness averaged to vertices, for active cells (m)
+       stagusrf_marine,     & ! upper surface averaged to vertices, for active marine cells only (m)
+       stagthck_marine,     & ! ice thickness averaged to vertices, for active marine cells only (m)
        dusrf_dx, dusrf_dy,  & ! gradient of upper surface elevation (m/m)
        ubas, vbas             ! basal ice velocity (m/yr); input to calcbeta 
 
@@ -816,7 +818,9 @@
        ocean_mask,          & ! = 1 for cells where topography is below sea level and ice is absent
        land_mask,           & ! = 1 for cells where topography is above sea level
        calving_front_mask,  & ! = 1 for floating cells that border at least one ocean cell
-       active_ice_mask        ! = 1 for active cells (ice_mask = 1, excluding inactive calving_front cells)
+       active_ice_mask,     & ! = 1 for active cells (ice_mask = 1, excluding inactive calving_front cells)
+       active_marine_mask,  & ! = 1 for active marine-based cells
+       ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
 
     real(dp), dimension(nx,ny) ::     &
        thck_calving_front     ! effective thickness of ice at the calving front
@@ -1289,6 +1293,7 @@
     umask_dirichlet(:,:,:) = 0 
     vmask_dirichlet(:,:,:) = 0   
 
+    ! Set the Dirichlet mask at the bed for no-slip BCs.
     if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_DIVA) then
        ! Impose zero sliding everywhere at the bed
        ! Note: For the DIVA case, this BC is handled by setting beta_eff = 1/omega
@@ -1461,13 +1466,13 @@
     endif   ! verbose_dirichlet
 
     !------------------------------------------------------------------------------
-    ! Compute masks: 
+    ! Compute masks for the velocity solver: 
     ! (1) ice mask = 1 in cells where ice is present (thck > thklim)
     ! (2) floating mask = 1 in cells where ice is present (thck > thklim) and floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
-    ! (5) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0
-    ! (6) active_ice_mask = 1 for dynamically active cells, else = 0
+    ! (5) active_ice_mask = 1 for dynamically active cells, else = 0
+    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0
     !     With the subgrid calving front scheme, all cells with ice_mask = 1 are active, unless they lie on the
     !      calving front and have thck <= thck_calving_front. Here, thck_calving_front is the effective thickness
     !      defined by adjacent cells not on the calving front. 
@@ -1491,8 +1496,8 @@
                             thck_calving_front = thck_calving_front)
 
     !------------------------------------------------------------------------------
-    ! Compute ice thickness and upper surface on staggered grid
-    ! (requires that thck and usrf are up to date in halo cells).
+    ! Compute the ice thickness and upper surface elevation on the staggered grid.
+    ! (requires that thck and usrf are up to date in all cells that border locally owned vertices).
     ! For stagger_margin_in = 0, all cells (including ice-free) are included in interpolation.
     ! For stagger_margin_in = 1, only ice-covered cells are included.
     !------------------------------------------------------------------------------
@@ -1509,8 +1514,57 @@
                           stagger_margin_in = 1)
 !pw call t_stopf('glissade_stagger')
 
+    ! Compute a subset of active_ice_mask, consisting of marine-based cells only
+    where (land_mask == 0 .and. active_ice_mask == 1)
+       active_marine_mask = 1
+    elsewhere
+       active_marine_mask = 0
+    endwhere
+
+    ! Compute marine version of stagthck and stagusrf, used for lateral shelf BCs
+
+    call glissade_stagger(nx,       ny,               &
+                          thck,     stagthck_marine,  &
+                          active_marine_mask,         &
+                          stagger_margin_in = 1)
+
+    call glissade_stagger(nx,       ny,               &
+                          usrf,     stagusrf_marine,  &
+                          active_marine_mask,         &
+                          stagger_margin_in = 1)
+
+    if (verbose_gridop .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'stagthck, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') stagthck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'stagthck_marine, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') stagthck_marine(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
     !------------------------------------------------------------------------------
-    ! Compute surface gradient on staggered grid
+    ! Compute the surface elevation gradient on the staggered grid
     ! (requires that usrf is up to date in halo cells)
     !
     ! Possible settings for whichgradient_margin:
@@ -1520,10 +1574,12 @@
     !
     ! gradient_margin = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
-    !  floating cells lying above ice-free ocean cells, because the gradient is too big.
-    ! gradient_margin_in = 1 computes gradients at edges with ice-covered cells
-    !  above ice-free land, but not above ice-free ocean. This setting is appropriate
-    !  for both land- and ocean-terminating boundaries. It is the default.
+    !  marine-based cells lying above ice-free ocean cells, because the gradient is too big.
+    ! gradient_margin_in = 1 computes gradients at edges with
+    !  (1) ice-covered cells on either side,
+    !  (2) ice-covered cells (land or marine-based) above ice-free land, or
+    !  (3) ice-covered land cells above ice-free ocean.
+    !  This option is designed for both land- and ocean-terminating boundaries. It is the default.
     ! gradient_margin_in = 2 computes gradients only at edges with ice-covered cells
     !  on each side.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
@@ -1545,16 +1601,16 @@
 
 !pw call t_startf('glissade_gradient')
 
-    call glissade_surface_elevation_gradient(nx,          ny,           &
-                                             dx,          dy,           &
+    call glissade_surface_elevation_gradient(nx,           ny,          &
+                                             dx,           dy,          &
                                              itest, jtest, rtest,       &
                                              active_ice_mask,           &
                                              land_mask,                 &
-                                             usrf,        thck,         &
-                                             topg,        eus,          &
+                                             usrf,         thck,        &
+                                             topg,         eus,         &
                                              thklim,                    &
                                              thck_gradient_ramp,        &
-                                             dusrf_dx,    dusrf_dy,     &
+                                             dusrf_dx,     dusrf_dy,    &
                                              whichgradient,             &
                                              whichgradient_margin,      &
                                              max_slope = max_slope)
@@ -1901,6 +1957,10 @@
 
     flwafact(:,:,:) = 0.d0
 
+    ! Note: flwa is available in all cells, so flwafact can be computed in all cells.
+    !       This includes cells with thck < thklim, in case a value of flwa is needed
+    !        (e.g., inactive land-margin cells adjacent to active cells).
+
     ! Loop over all cells that border locally owned vertices.
     ! This includes halo rows to the north and east.
     ! OK to skip cells outside the global domain.
@@ -1908,12 +1968,22 @@
 
     do j = 1+nhalo, ny-nhalo+1
        do i = 1+nhalo, nx-nhalo+1
-          if (active_cell(i,j)) then
-             ! gn = exponent in Glen's flow law (= 3 by default)
-             flwafact(:,i,j) = 0.5d0 * flwa(:,i,j)**(-1.d0/real(gn,dp))  
-          endif
+          ! gn = exponent in Glen's flow law (= 3 by default)
+          flwafact(:,i,j) = 0.5d0 * flwa(:,i,j)**(-1.d0/real(gn,dp))  
        enddo
     enddo
+
+    if (verbose_efvs .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'flwafact (k=1), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') flwafact(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
     !------------------------------------------------------------------------------
     ! If using SLAP solver, then allocate space for the sparse matrix (A), rhs (b), 
@@ -2023,8 +2093,8 @@
     taudx(:,:) = taudx(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
     taudy(:,:) = taudy(:,:) * vol0/(dx*dy)
 
-    if (verbose_glp .and. this_rank==rtest) then
-       ! Note: The first of these quantities is the load vector on the rhs of the matrix
+    if (verbose_load .and. this_rank==rtest) then
+       ! Note: The first of these quantities is the load vector on the rhs of the matrix.
        !       The second is the value that would go on the rhs by simply taking rho*g*H*ds/dx.
        !       These will not agree exactly because of the way H is handled in FE assembly,
        !        but they should be close if which_ho_assemble_taud = HO_ASSEMBLE_TAUD_LOCAL.
@@ -2068,11 +2138,11 @@
     call load_vector_lateral_bc(nx,               ny,              &
                                 nz,               sigma,           &
                                 nhalo,                             &
-                                floating_mask,    ocean_mask,      &
+                                land_mask,        ocean_mask,      &
                                 calving_front_mask,                &
                                 active_cell,                       &
                                 xVertex,          yVertex,         &
-                                stagusrf,         stagthck,        &
+                                stagusrf_marine,  stagthck_marine, &
                                 loadu,            loadv)
     call t_stopf('glissade_load_vector_lateral_bc')
 
@@ -2104,7 +2174,7 @@
     if (verbose_load .and. this_rank==rtest) then
 
        print*, ' '
-       print*, 'loadu_2d (taudx only), itest, jtest, rank =', itest, jtest, rtest
+       print*, 'loadu_2d (taudx term only), itest, jtest, rank =', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -2114,7 +2184,7 @@
        enddo
 
        print*, ' '
-       print*, 'loadv_2d (taudv only), itest, jtest, rank =', itest, jtest, rtest
+       print*, 'loadv_2d (taudy term only), itest, jtest, rank =', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -2475,6 +2545,7 @@
                       topg,          eus,               &
                       ice_mask,                         &
                       floating_mask,                    &
+                      land_mask,                        &
                       f_ground,                         &
                       whichinversion,                   &
                       itest, jtest, rtest)
@@ -2491,7 +2562,7 @@
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,30)==0) then
           print*, ' '
           print*, 'log(beta), itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2765,11 +2836,9 @@
                 print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
                 print*, ' '
                 print*, 'beta_eff:'
-!!                do j = ny-1, 1, -1
-!!                   do i = 1, nx-1
-                do j = jtest-5, jtest+5, -1
+                do j = jtest+3, jtest-3, -1
                    do i = itest-3, itest+3
-                      write(6,'(e10.3)',advance='no') beta_eff(i,j)
+                      write(6,'(f10.0)',advance='no') beta_eff(i,j)
                    enddo
                    write(6,*) ' '
                 enddo
@@ -4245,7 +4314,7 @@
 
     do j = staggered_jlo, staggered_jhi    ! locally owned vertices only
     do i = staggered_ilo, staggered_ihi
-       if (active_vertex(i,j)) then   ! all nodes in column are active
+       if (active_vertex(i,j)) then   ! all nodes in ice column are active
           nVerticesSolve = nVerticesSolve + 1
           vertexID(i,j) = nVerticesSolve     ! unique local index for each vertex
           iVertexIndex(nVerticesSolve) = i
@@ -4466,11 +4535,12 @@
   subroutine load_vector_lateral_bc(nx,               ny,              &
                                     nz,               sigma,           &
                                     nhalo,                             &
-                                    floating_mask,    ocean_mask,      &
+                                    land_mask,                         &
+                                    ocean_mask,                        &
                                     calving_front_mask,                &
                                     active_cell,                       &
                                     xVertex,          yVertex,         &
-                                    stagusrf,         stagthck,        &
+                                    stagusrf_marine,  stagthck_marine, &
                                     loadu,            loadv)
 
     integer, intent(in) ::      &
@@ -4487,16 +4557,16 @@
                                      ! and is not an inactive calving_front cell
 
     integer, dimension(nx,ny), intent(in) ::  &
-       floating_mask,               &! = 1 if ice is present and is floating
-       calving_front_mask,          &! = 1 if ice is floating and borders the ocean
-       ocean_mask                    ! = 1 if topography is below sea level and ice is absent
+       land_mask,                  & ! = 1 if topg >= eus
+       ocean_mask,                 & ! = 1 if topography is below sea level and ice is absent
+       calving_front_mask            ! = 1 if ice is floating and borders the ocean
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stagusrf,       &  ! upper surface elevation on staggered grid (m)
-       stagthck           ! ice thickness on staggered grid (m)
+       stagusrf_marine, & ! upper surface elevation (m) on staggered grid, for marine-based cells only
+       stagthck_marine    ! ice thickness (m) on staggered grid, for marine-based cells only
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        loadu, loadv       ! load vector, divided into u and v components
@@ -4519,7 +4589,6 @@
        
        if ((verbose_shelf .or. verbose_load) .and. i==itest .and. j==jtest .and. this_rank==rtest) then
           print*, 'i, j =', i, j
-          print*, 'floating_mask =', floating_mask(i,j)
           print*, 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
           print*, 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
           print*, 'calving_front_mask (i-1:i,j)  =', calving_front_mask(i-1:i, j)
@@ -4527,56 +4596,57 @@
        endif
 
        !WHL - Old method is to compute the spreading term only for active floating cells.
-       !      New method is to compute the spreading term for any cliff; i.e., any active cell that borders the ocean.
+       !      New method is to compute the spreading term for all active marine-based cells that border the ocean.
+
 !!       if (active_cell(i,j) .and. floating_mask(i,j) == 1) then   ! ice is active and floating
-       if (active_cell(i,j)) then
+       if (active_cell(i,j) .and. land_mask(i,j) == 0) then
 
           if ( ocean_mask(i-1,j) == 1 .or.  &
               (calving_front_mask(i-1,j) == 1 .and. .not.active_cell(i-1,j)) ) then ! compute lateral BC for west face
 
-             call lateral_shelf_bc(nx,            ny,          &
-                                   nz,            sigma,       &
-                                   'west',                     &
-                                   i,             j,           &
-                                   stagusrf,      stagthck,    &
-                                   xVertex,       yVertex,     &
-                                   loadu,         loadv)
+             call lateral_shelf_bc(nx,              ny,              &
+                                   nz,              sigma,           &
+                                   'west',                           &
+                                   i,               j,               &
+                                   stagusrf_marine, stagthck_marine, &
+                                   xVertex,         yVertex,         &
+                                   loadu,           loadv)
           endif
 
           if ( ocean_mask(i+1,j) == 1 .or.  &
-              (calving_front_mask(i+1,j) == 1 .and. .not.active_cell(i+1,j)) ) then ! compute lateral BC for west face
+              (calving_front_mask(i+1,j) == 1 .and. .not.active_cell(i+1,j)) ) then ! compute lateral BC for east face
 
-             call lateral_shelf_bc(nx,            ny,          &
-                                   nz,            sigma,       &
-                                   'east',                     &
-                                   i,             j,           &
-                                   stagusrf,      stagthck,    &
-                                   xVertex,       yVertex,     &
-                                   loadu,         loadv)
+             call lateral_shelf_bc(nx,              ny,              &
+                                   nz,              sigma,           &
+                                   'east',                           &
+                                   i,               j,               &
+                                   stagusrf_marine, stagthck_marine, &
+                                   xVertex,         yVertex,         &
+                                   loadu,           loadv)
           endif
 
           if ( ocean_mask(i,j-1) == 1 .or.  &
-              (calving_front_mask(i,j-1) == 1 .and. .not.active_cell(i,j-1)) ) then ! compute lateral BC for west face
+              (calving_front_mask(i,j-1) == 1 .and. .not.active_cell(i,j-1)) ) then ! compute lateral BC for south face
 
-             call lateral_shelf_bc(nx,            ny,          &
-                                   nz,            sigma,       &
-                                   'south',                    &
-                                   i,             j,           &
-                                   stagusrf,      stagthck,    &
-                                   xVertex,       yVertex,     &
-                                   loadu,         loadv)
+             call lateral_shelf_bc(nx,              ny,              &
+                                   nz,              sigma,           &
+                                   'south',                          &
+                                   i,               j,               &
+                                   stagusrf_marine, stagthck_marine, &
+                                   xVertex,         yVertex,         &
+                                   loadu,           loadv)
           endif
 
           if ( ocean_mask(i,j+1) == 1 .or.  &
-              (calving_front_mask(i,j+1) == 1 .and. .not.active_cell(i,j+1)) ) then ! compute lateral BC for west face
+              (calving_front_mask(i,j+1) == 1 .and. .not.active_cell(i,j+1)) ) then ! compute lateral BC for north face
 
-             call lateral_shelf_bc(nx,            ny,          &
-                                   nz,            sigma,       &
-                                   'north',                    &
-                                   i,             j,           &
-                                   stagusrf,      stagthck,    &
-                                   xVertex,       yVertex,     &
-                                   loadu,         loadv)
+             call lateral_shelf_bc(nx,              ny,              &
+                                   nz,              sigma,           &
+                                   'north',                          &
+                                   i,               j,               &
+                                   stagusrf_marine, stagthck_marine, &
+                                   xVertex,         yVertex,         &
+                                   loadu,           loadv)
           endif
 
        endif      ! active_cell
@@ -4588,12 +4658,12 @@
 
 !****************************************************************************
 
-  subroutine lateral_shelf_bc(nx,                  ny,           &
-                              nz,                  sigma,        &
-                              face,                              &
-                              iCell,               jCell,        &
-                              stagusrf,            stagthck,     &
-                              xVertex,             yVertex,      &
+  subroutine lateral_shelf_bc(nx,                  ny,              &
+                              nz,                  sigma,           &
+                              face,                                 &
+                              iCell,               jCell,           &
+                              stagusrf_marine,     stagthck_marine, &
+                              xVertex,             yVertex,         &
                               loadu,               loadv)
 
     !----------------------------------------------------------------------------------
@@ -4646,8 +4716,8 @@
        xVertex, yVertex   ! x and y coordinates of vertices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stagusrf,       &  ! upper surface elevation on staggered grid (m)
-       stagthck           ! ice thickness on staggered grid (m)
+       stagusrf_marine,   &  ! upper surface elevation (m) on staggered grid, for marine-based cells only
+       stagthck_marine       ! ice thickness (m) on staggered grid (m), for marine-based cells only
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        loadu, loadv          ! load vector, divided into u and v components
@@ -4761,13 +4831,13 @@
     x(3) = x(2)
     x(4) = x(1)
 
-    s(1) = stagusrf(iNode(1), jNode(1))
-    s(2) = stagusrf(iNode(2), jNode(2))
+    s(1) = stagusrf_marine(iNode(1), jNode(1))
+    s(2) = stagusrf_marine(iNode(2), jNode(2))
     s(3) = s(2)
     s(4) = s(1)
 
-    h(1) = stagthck(iNode(1), jNode(1))
-    h(2) = stagthck(iNode(2), jNode(2))
+    h(1) = stagthck_marine(iNode(1), jNode(1))
+    h(2) = stagthck_marine(iNode(2), jNode(2))
     h(3) = h(2)
     h(4) = h(1)
 
@@ -4837,7 +4907,7 @@
           ! Increment loadu for east/west faces and loadv for north/south faces.
 
           ! This formula works not just for floating ice, but for any edge between
-          !  an active ice-covered cell and an ocean cell.
+          !  an ice-covered marine-based cell and an ocean cell.
           p_av = 0.5d0*rhoi*grav*h_qp &                                   ! p_out
                - 0.5d0*rhoo*grav*h_qp * (1.d0 - min(s_qp/h_qp,1.d0))**2   ! p_in
 
@@ -5802,7 +5872,7 @@
        sigma              ! sigma vertical coordinate
 
     integer, dimension(nx,ny), intent(in) ::  &
-       ice_mask,        & ! = 1 for cells where ice is present (thk > thklim), else = 0
+       ice_mask,        & ! = 1 for cells where ice is present (thck > thklim), else = 0
        land_mask          ! = 1 for cells with topg >= eus, else = 0
 
     logical, dimension(nx,ny), intent(in) ::  &
@@ -7805,7 +7875,7 @@
     !------------------------------------------------------------------
     ! Increment the stiffness matrices Kuu, Kuv, Kvu, Kvv with the
     ! contribution from a particular quadrature point, 
-    ! based on the Blatter-Pattyn first-order equations.
+    ! based on the chosen Stokes approximation.
     !
     ! Note: Elements can be either 2D or 3D
     !------------------------------------------------------------------
