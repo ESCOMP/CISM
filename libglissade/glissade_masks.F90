@@ -59,6 +59,7 @@
                                 floating_mask,            &
                                 ocean_mask,               &
                                 land_mask,                &
+                                grounding_line_mask,      &
                                 active_ice_mask,          &
                                 which_ho_calving_front,   &
                                 calving_front_mask,       &
@@ -81,6 +82,7 @@
     ! (2) floating_mask = 1 if ice is present (thck > thklim) and floating, else = 0
     ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thklim, else = 0
     ! (4) land_mask = 1 if the topography is at or above sea level (topg >= eus), else = 0
+    ! (5) grounding_line_mask = 1 if a cell is adjacent to the grounding line, else = 0
     ! (5) active_ice_mask = 1 for dynamically active cells, else = 0
     !     With the subgrid calving front scheme, cells that lie on the calving front and have
     !     thck < thck_calving_front are inactive. Otherwise, all cells with ice_mask = 1 are active.
@@ -129,9 +131,10 @@
          ice_mask               ! = 1 if thck > thklim, else = 0  
 
     integer, dimension(nx,ny), intent(out), optional ::  &
-         floating_mask,       & ! = 1 if thck > thklim and ice is floating; else = 0
-         ocean_mask,          & ! = 1 if topg is below sea level and thk <= thklim; else = 0
-         land_mask,           & ! = 1 if topg is at or above sea level; else = 0
+         floating_mask,       & ! = 1 if thck > thklim and ice is floating, else = 0
+         ocean_mask,          & ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         land_mask,           & ! = 1 if topg is at or above sea level, else = 0
+         grounding_line_mask, & ! = 1 if a cell is adjacent to the grounding line, else = 0
          active_ice_mask,     & ! = 1 if dynamically active, else = 0
          calving_front_mask,  & ! = 1 if ice is floating and borders at least one ocean cell, else = 0
          marine_cliff_mask      ! = 1 if ice is grounded and marine_based and borders at least one ocean
@@ -213,6 +216,55 @@
     if (present(floating_mask)) call parallel_halo(floating_mask)
     if (present(active_ice_mask)) call parallel_halo(active_ice_mask)
 
+    ! Identify grounded cells; this mask is used in some calculations below
+    if (present(floating_mask)) then
+       where (ice_mask == 1 .and. floating_mask == 0)
+          grounded_mask = 1
+       elsewhere
+          grounded_mask = 0
+       endwhere
+    endif
+
+    ! Optionally, compute grounding line mask using grounded_mask, floating_mask and ocean_mask
+
+    if (present(grounding_line_mask)) then
+
+       if (.not.present(floating_mask) .or. .not.present(ocean_mask)) then
+          call write_log('Need floating_mask and ocean_mask to compute grounding_line_mask', GM_FATAL)
+       endif
+
+       grounding_line_mask(:,:) = 0
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+
+             if (grounded_mask(i,j) == 1) then
+                ! check whether one or more neighbors is a floating or ocean cell
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (floating_mask(ii,jj) == 1 .or. ocean_mask(ii,jj) == 1) then
+                         grounding_line_mask(i,j) = 1
+                      endif
+                   enddo
+                enddo
+             elseif (floating_mask(i,j) == 1) then
+                ! check whether one or more neighbors is a grounded cell
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (grounded_mask(ii,jj) == 1) then
+                         grounding_line_mask(i,j) = 1
+                      endif
+                   enddo
+                enddo
+             endif   ! grounded_mask or floating_mask
+
+          enddo   ! i
+       enddo   ! j
+
+       call parallel_halo(grounding_line_mask)
+
+    endif   ! present(grounding_line_mask)
+
     ! Note: Halo calls are not included for the ocean and land masks.
     !       Halo values will still be correct, provided that topg is correct in halo cells.
     !       The reason not to include these calls is that for outflow global BCs,
@@ -228,7 +280,11 @@
 
     ! Optionally, compute the calving_front mask and effective calving_front thickness
 
-    if (present(calving_front_mask) .and. present(which_ho_calving_front)) then
+    if (present(calving_front_mask)) then
+
+       if (.not.present(which_ho_calving_front)) then
+          call write_log('Need which_ho_calving_front to compute calving_front_mask', GM_FATAL)
+       endif
 
        if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -238,16 +294,6 @@
 
           calving_front_mask(:,:) = 0
           floating_interior_mask(:,:) = 0
-          grounded_mask(:,:) = 0
-
-          ! Identify grounded cells
-          do j = 1, ny
-             do i = 1, nx
-                if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then
-                   grounded_mask(i,j) = 1
-                endif
-             enddo
-          enddo
 
           ! Identify calving front cells (floating cells that border ice-free ocean)
           ! and floating interior cells (floating cells not at the calving front).
