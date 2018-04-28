@@ -18,7 +18,7 @@ from netCDF4 import Dataset
 optparser = OptionParser()
 
 optparser.add_option('-e', '--exec',     dest='executable', type = 'string', default ='./cism_driver', help="Path to the CISM executable")
-optparser.add_option('-x', '--expt',     dest='experiment', type ='string',  default = 'allIce', help="MISMIP+ experiment(s) to run", metavar="EXPT")
+optparser.add_option('-x', '--expt',     dest='experiment', type ='string',  default = 'all', help="MISMIP+ experiment(s) to run", metavar="EXPT")
 optparser.add_option('-n', '--parallel', dest='parallel',   type ='int', help="Number of processors: if specified then run in parallel", metavar="NUMPROCS")
 
 
@@ -94,8 +94,8 @@ for expt in experiments:
         endTime     = float(endTime)
 
         # Time buffer to remedy the restart pb when switching to different time step within a run.
-        buffer = outputFreq - 1.
-    
+        buffer = float(outputFreq) - 1.    
+
         # Read output file content information.
         lastTimeEntry     = 0
         lastEntryInternal = 0

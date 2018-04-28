@@ -76,7 +76,10 @@ Notes on optional arguments:
   than the Spinup experiment.  For instance, a spin-up using DIVA at 2 km is typically stable with dt = 1.0 yr.
   With identical config settings, Ice1r is unstable and requires a shorter time step, e.g. dt = 0.5 yr.
   If so, you might need to manually reduce dt in the config file for a given experiment
-  (assuming you don't want to repeat the Spinup).
+  (assuming you don't want to repeat the Spinup). Alternatively you might choose to run all Ice1 
+  or Ice2 experiments with this shorter time step. In that case simply setup those experiments
+  separately from the Spinup and Ice0 experiment using (for res = 2km and Ice1 only):
+  > python mismip+Setup -r 2000 -t 0.5 -x Ice1
 - Three Stokes approximations are supported for MISMIP+: SSA, DIVA and BP.
 - Three basal BCs are supported:
   (1) a Weertman-type power law: 'powerlaw'
@@ -100,7 +103,7 @@ To run the Spinup experiment on 16 processors:
 Here are the optional arguments for the run script:
   -e EXECUTABLE, --exec=EXECUTABLE
                         Path to the CISM executable [default: ./cism_driver]
-  -x EXPT,     --expt=EXPT  MISMIP+ experiment(s) to run [default: allIce]
+  -x EXPT,     --expt=EXPT  MISMIP+ experiment(s) to run [default: all]
   -n NUMPROCS, --parallel=NUMPROCS
                         Number of processors: if specified then run in parallel
 

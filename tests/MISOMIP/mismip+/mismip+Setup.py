@@ -91,6 +91,15 @@ options, args = optparser.parse_args()
 if options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
     print 'Setting up all the MISMIP+ experiments'
+elif options.experiment == 'allIce':
+    experiments = ['Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice1rax', 'Ice1rrx', 'Ice2rax', 'Ice2rrx']
+    print 'Run all the MISMIP+ experiments, excluding Spinup'
+elif options.experiment == 'Ice1':
+    experiments = ['Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx']
+    print 'Run the MISMIP+ Ice1 experiments'
+elif options.experiment == 'Ice2':
+    experiments = ['Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
+    print 'Run the MISMIP+ Ice2 experiments'
 elif options.experiment in ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']:
     experiments = [options.experiment]
     print 'Setting up experiment', options.experiment
