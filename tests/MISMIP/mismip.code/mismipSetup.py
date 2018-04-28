@@ -600,7 +600,7 @@ for expt in experiments:
         elif (expt == AsRetreat[0]) and (stat == 'retreat'):
             tstart = 0.0
             tend   = float(options.yearsRun)
-            inputdir    = '../../advance' + AprevString + '/'
+            inputdir    = '../../advance/' + AprevString + '/'
             inputfile   = 'mismip_' + AprevString + '.restart.nc'
             inputslice  = 1
             outputfreq  = min(1000.0, restartfreqSpinup)

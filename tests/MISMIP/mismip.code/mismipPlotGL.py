@@ -263,10 +263,14 @@ for expt in experiments:
     os.chdir(expt)
 
     # Read the file and extract grounding line position.
-    file  = expt + model + '.nc'
-    ncid  = Dataset(file, 'r')
-    xgval[count] = ncid.variables["xGL"][-1][-1]
-    ncid.close()
+    try:
+       file  = expt + model + '.nc'
+       ncid  = Dataset(file, 'r')
+       xgval[count] = ncid.variables["xGL"][-1][-1]
+       ncid.close()
+    except:
+       print 'Results for experiment',stat,'and',expt,'is not available'
+       
 
     # Switch back to original directory.
     os.chdir('../../../')
