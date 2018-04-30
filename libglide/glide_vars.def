@@ -79,6 +79,14 @@ units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
 
+[cell_area]
+dimensions:   time, y1, x1
+units:        meter2
+long_name:    cell area of cism grid
+data:         data%geometry%cell_area
+factor:       len0*len0
+load:         1
+
 [relx]
 dimensions:    time, y1, x1
 units:         meter

@@ -259,6 +259,9 @@ contains
     ! create glide variables
     call glide_io_createall(model, model)
 
+    ! Compute the cell areas of the grid
+    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
+
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
     !  a uniform heat flux instead.
@@ -1843,7 +1846,9 @@ contains
                               model%temper%temp(1:model%general%upn-1,:,:),  &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
-                              model%paramets%flow_enhancement_factor,   &
+                              model%paramets%flow_enhancement_factor,     &
+                              model%paramets%flow_enhancement_factor_ssa, &
+                              floating_mask,                      &
                               model%temper%waterfrac(:,:,:))
 
     !TODO - flwa halo update not needed?

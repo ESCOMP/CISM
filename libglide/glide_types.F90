@@ -260,12 +260,12 @@ module glide_types
   integer, parameter :: HO_PRECOND_SIA  = 2
 
   integer, parameter :: HO_GRADIENT_CENTERED = 0
-  integer, parameter :: HO_GRADIENT_UPSTREAM = 1
+  integer, parameter :: HO_GRADIENT_UPSTREAM1 = 1
+  integer, parameter :: HO_GRADIENT_UPSTREAM2 = 2
 
-  integer, parameter :: HO_GRADIENT_MARGIN_ALL = 0
-  integer, parameter :: HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
-  integer, parameter :: HO_GRADIENT_MARGIN_ICE_ONLY = 2
-  integer, parameter :: HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
+  integer, parameter :: HO_GRADIENT_MARGIN_LAND = 0
+  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
+  integer, parameter :: HO_GRADIENT_MARGIN_MARINE = 2
 
   integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
   integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
@@ -696,17 +696,18 @@ module glide_types
     integer :: which_ho_gradient = 0    
     !> Flag that indicates which gradient operator to use in the glissade dycore.
     !> Not valid for other dycores
-    !> NOTE: Option 1 may be better for ice evolution because it damps checkerboard noise.
+    !> NOTE: Upstream may be better for ice evolution because it damps checkerboard noise.
     !> \begin{description}
     !> \item[0] Centered gradient
-    !> \item[1] Upstream gradient
+    !> \item[1] First-order accurate upstream gradient
+    !> \item[2] Second-order accurate upstream gradient
 
     !WHL - Changed default from 1 to 3.
     !      Option 3 is appropriate for ice sheets with both land and marine boundaries,
     !       when a lateral spreading force is computed for marine ice cliffs.
     !      This lateral force ensures spreading where the gradient is zero.
 
-    integer :: which_ho_gradient_margin = 3
+    integer :: which_ho_gradient_margin = 1
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
     !> Note: Gradients are always computed at edges with ice on both sides.
     !>       The methods differ in whether gradients are computed when an ice-covered cell
@@ -714,9 +715,8 @@ module glide_types
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] Compute edge gradient when either cell is ice-covered
-    !> \item[1] Compute edge gradient for grounded ice above ice-free land or ocean
+    !> \item[1] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
     !> \item[2] Compute edge gradient only when both cells have ice
-    !> \item[3] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now so that standard tests are BFB
@@ -833,6 +833,9 @@ module glide_types
     real(dp),dimension(:,:),pointer :: thck_old => null()        !> old ice thickness, divided by \texttt{thk0}
     real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency, divided by \texttt{thk0/tim0}
     real(dp),dimension(:,:),pointer :: dthck_dt_tavg => null()   !> ice thickness tendency, divided by \texttt{thk0/tim0} (time average)
+
+    real(dp),dimension(:,:),pointer :: cell_area => null()
+    !> The cell area of the grid, divided by \texttt{len0*len0}.
 
     integer :: ntracers
     !> number of tracers to be transported
@@ -1641,7 +1644,10 @@ module glide_types
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down
     real(dp) :: flow_enhancement_factor = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                   ! typically used in SIA model to speed up the ice
-                                       ! (NOTE change relative to prev. versions of code - used to be 3)
+                                                  ! (Note the change relative to prev. versions of code - used to be 3.0)
+    real(dp) :: flow_enhancement_factor_ssa = 1.0d0   ! flow enhancement parameter for floating ice
+                                                      ! Default is 1.0, but for marine simulations a smaller value
+                                                      !  may be needed to match observed shelf speeds
     real(dp) :: slip_ratio = 1.0d0     ! Slip ratio, used only in higher order code when the slip ratio beta computation is requested
     real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
                                        ! 0 if no drainage
@@ -2063,6 +2069,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagthck)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
@@ -2533,6 +2540,9 @@ contains
         deallocate(model%geomderv%dusrfdew)
     if (associated(model%geomderv%dusrfdns)) &
         deallocate(model%geomderv%dusrfdns)
+
+    if (associated(model%geometry%cell_area)) &
+        deallocate(model%geometry%cell_area)
 
     if (associated(model%geometry%sfc_mbal_flux)) &
         deallocate(model%geometry%sfc_mbal_flux)

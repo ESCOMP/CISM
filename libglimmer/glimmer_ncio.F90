@@ -394,6 +394,12 @@ contains
     !
     nfreq = nint(outfile%freq / model%numerics%tinc)
 
+    if (nfreq == 0) then  ! freq < tinc/2
+       nfreq = 1
+       write(message,*) 'WARNING: output file frequency is smaller than timestep; writing output every timestep'
+       call write_log(trim(message))
+    endif
+
     ! Write output if any of the following is true:
     ! (1) forcewrite = T
     ! (2) tstep_count = 0 & write_init = T

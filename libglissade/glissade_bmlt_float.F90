@@ -515,8 +515,6 @@ contains
        entrainment,      detrainment,   &
        divDu_plume,      bmlt_float)
 
-    use glissade_grid_operators, only: glissade_centered_gradient
-
     ! Compute the melt rate at the ice-ocean interface based on a steady-state plume model
 
     ! References:
@@ -2241,8 +2239,6 @@ contains
        v_plume_north,       &
        plume_speed_east,    &
        plume_speed_north)
-
-    use glissade_grid_operators, only: glissade_centered_gradient
 
     integer, intent(in) ::  &
          nx,     ny             ! number of grid cells in each dimension

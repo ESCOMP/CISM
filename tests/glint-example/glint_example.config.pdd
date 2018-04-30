@@ -3,7 +3,6 @@
 days_in_year  = 360
 total_years   = 10
 climate_tstep = 6    # hours
-diurnal_cycle = 0.0
 gcm_smb = .false.
 
 [GLEX precip]

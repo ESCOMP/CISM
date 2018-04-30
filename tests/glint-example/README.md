@@ -16,12 +16,7 @@ You will also need a 20-km Greenland input file:
 
 * `gland20.input.nc`
 
-These three netCDF files are part of a tar file, `glint-example.1.0.0.tar.gz`,
-that can be downloaded from the CISM website:
-
- <http://oceans11.lanl.gov/cism/data/glint-example.1.0.0.tar.gz>
-
-These files are also available in the CESM inputdata repository (account
+These three netCDF files are available in the CESM inputdata repository (account
 required), here:
 
 <https://svn-ccsm-inputdata.cgd.ucar.edu/trunk/inputdata/glc/cism/gland20.input.nc>

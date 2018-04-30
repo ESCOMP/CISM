@@ -289,6 +289,9 @@ contains
 !    print*, 'Created Glide variables'
 !    print*, 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
 
+    ! Compute the cell areas of the grid
+    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
+
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
     !  a uniform heat flux instead.

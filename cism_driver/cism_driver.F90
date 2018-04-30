@@ -25,7 +25,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 program cism_driver
 
-  use parallel
 !  use glimmer_commandline
 !  use glide
   use gcm_cism_interface

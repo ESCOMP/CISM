@@ -4,7 +4,7 @@ CISM README file:
 
 CISM is a land ice model designed to be used as part of an earth-system model 
 or as a stand-alone model. Full documentation can be found at:
-http://oceans11.lanl.gov/cism/documentation.html
+https://github.com/CISM/cism-documentation
 
 Licensing:
 =========
@@ -52,7 +52,7 @@ Building / Installing CISM:
 ===========================
 
 For detailed instructions on how to install and build CISM, please see Chapter 2 of the users
-guide (available at: http://oceans11.lanl.gov/cism/documentation.html)
+guide (available at: https://github.com/CISM/cism-documentation)
 
 
 last updated: 10/21/2014
