@@ -260,6 +260,16 @@ contains
         return
     end if
 
+    call GetSection(config,section,'MISMIP+')
+    if (associated(section)) then
+        return
+    end if
+
+    call GetSection(config,section,'MISMIP')
+    if (associated(section)) then
+        return
+    end if
+
     !TODO - Any other allowed tests to add here?
 
     ! Abort if one of the above cases has not been specified.

@@ -63,7 +63,7 @@
     use glimmer_log
     use glimmer_sparse_type
     use glimmer_sparse
-    use glissade_grid_operators     
+    use glissade_grid_operators
     use glissade_masks, only: glissade_get_masks
 
     use glide_types
@@ -1505,24 +1505,19 @@
     ! (requires that usrf is up to date in halo cells)
     !
     ! Possible settings for whichgradient_margin:
-    !   HO_GRADIENT_MARGIN_ALL = 0
-    !   HO_GRADIENT_MARGIN_GROUNDED_ICE = 1
-    !   HO_GRADIENT_MARGIN_ICE_ONLY = 2
-    !   HO_GRADIENT_MARGIN_ICE_OVER_LAND = 3
+    !   HO_GRADIENT_MARGIN_LAND = 0
+    !   HO_GRADIENT_MARGIN_HYBRID = 1
+    !   HO_GRADIENT_MARGIN_MARINE = 2
     !
     ! gradient_margin = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
     !  floating cells lying above ice-free ocean cells, because the gradient is too big.
-    ! gradient_margin = 1 computes gradients at edges where a grounded ice-covered
-    !  cell lies above an ice-free cell (either land or ocean).
-    !  This used to be the default, but it overestimates driving stress for grounded marine
-    !   cliffs with a large lateral spreading force (in addition to the surface gradient).
+    ! gradient_margin_in = 1 computes gradients at edges with ice-covered cells
+    !  above ice-free land, but not above ice-free ocean. This setting is appropriate
+    !  for both land- and ocean-terminating boundaries. It is the default.
     ! gradient_margin_in = 2 computes gradients only at edges with ice-covered cells
     !  on each side.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
-    ! gradient_margin_in = 3 computes gradients at edges with ice-covered cells
-    !  above ice-free land, but not above ice-free ocean. This setting is appropriate
-    !  for both land- and ocean-terminating boundaries. It is the default.
     !
     ! Passing in max_slope ensures that the surface elevation gradient on the edge
     !  between two cells does not exceed a prescribed value.
@@ -1531,64 +1526,28 @@
     !  slopes of up to ~0.3 between adjacent grid cells, leading to very large velocities
     !  even with a no-slip basal boundary condition. 
     !
-    ! Both the centered and upstream gradients are 2nd order accurate in space.
-    ! The upstream gradient may be preferable for evolution problems using 
-    !  whichapprox = HO_APPROX_BP or HO_APPROX_SIA, because in these cases
-    !  the centered gradient fails to cancel checkerboard noise.
-    ! The L1L2 solver computes 3D velocities in a way that damps checkerboard noise,
-    !  so a centered difference should work well (and for the Halfar problem is more 
-    !  accurate than upstream).
+    ! There are three options for whichgradient:
+    ! (0) centered
+    ! (1) first-order upstream
+    ! (2) second-order upstream.
+    ! Centered gradients are the default, but an upstream gradient may be preferred
+    !  to damp checkerboard noise.
     !------------------------------------------------------------------------------
 
 !pw call t_startf('glissade_gradient')
 
-    if (whichgradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND) then
-
-       ! newer option; compute edge gradients when active ice lies over land but not ice-free ocean
-
-       call glissade_surface_elevation_gradient(nx,          ny,           &
-                                                dx,          dy,           &
-                                                active_ice_mask,           &
-                                                land_mask,                 &
-                                                usrf,        thck,         &
-                                                topg,        eus,          &
-                                                thklim,                    &
-                                                thck_gradient_ramp,        &
-                                                dusrf_dx,    dusrf_dy,     &
-                                                max_slope)
-
-    else   ! older option
-
-       if (whichgradient == HO_GRADIENT_CENTERED) then     ! 2nd order centered
-
-          call glissade_centered_gradient(nx,               ny,         &
-                                          dx,               dy,         &
-                                          usrf,                         &
-                                          dusrf_dx,         dusrf_dy,   &
-                                          active_ice_mask,              &
-                                          gradient_margin_in = whichgradient_margin, &
-                                          usrf = usrf,                  &
-                                          floating_mask = floating_mask,&
-                                          land_mask = land_mask,        &
-                                          max_slope = max_slope)
-
-       else          ! 2nd order upstream
-
-          call glissade_upstream_gradient(nx,             ny,           &
-                                          dx,             dy,           &
-                                          usrf,                         &
-                                          dusrf_dx,       dusrf_dy,     &
-                                          active_ice_mask,              &
-                                          usrf,                         &
-                                          gradient_margin_in = whichgradient_margin, &
-                                          accuracy_flag_in = 2,         &
-                                          floating_mask = floating_mask,&
-                                          land_mask = land_mask,        &
-                                          max_slope = max_slope)
-
-       endif   ! whichgradient
-
-    endif   ! whichgradient_margin
+    call glissade_surface_elevation_gradient(nx,          ny,           &
+                                             dx,          dy,           &
+                                             active_ice_mask,           &
+                                             land_mask,                 &
+                                             usrf,        thck,         &
+                                             topg,        eus,          &
+                                             thklim,                    &
+                                             thck_gradient_ramp,        &
+                                             dusrf_dx,    dusrf_dy,     &
+                                             whichgradient,             &
+                                             whichgradient_margin,      &
+                                             max_slope = max_slope)
 
 !pw call t_stopf('glissade_gradient')
 
@@ -5806,7 +5765,7 @@
                                       nz,               sigma,           &
                                       dx,               dy,              &
                                       nhalo,                             &
-                                      ice_mask,         floating_mask,   &
+                                      ice_mask,         land_mask,       &
                                       active_cell,      active_vertex,   &
                                       umask_dirichlet,  vmask_dirichlet, &
                                       xVertex,          yVertex,         &
@@ -5841,7 +5800,7 @@
 
     integer, dimension(nx,ny), intent(in) ::  &
        ice_mask,        & ! = 1 for cells where ice is present (thk > thklim), else = 0
-       floating_mask      ! = 1 for cells where ice is present and floating
+       land_mask          ! = 1 for cells with topg >= eus, else = 0
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -6073,7 +6032,7 @@
        ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx.
        ! The calls to glissade_centered_gradient compute a couple of extraneous derivatives,
        !  but these calls are simpler than inlining the gradient code.
-       ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY uses only ice-covered cells to
+       ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_MARINE uses only ice-covered cells to
        !  compute the gradient.  This is the appropriate flag for these
        !  calls, because efvs and strain rates have no meaning in ice-free cells.
 
@@ -6081,26 +6040,28 @@
        work2(:,:) = efvs_integral_z_to_s(k,:,:) *      (du_dy(:,:) + dv_dx(:,:))
        work3(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*dv_dy(:,:) + du_dx(:,:)) 
 
-       call glissade_centered_gradient(nx,               ny,         &
-                                       dx,               dy,         &
-                                       work1,                        &
-                                       dwork1_dx,        dwork1_dy,  &
-                                       ice_mask,                     &
-                                       gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY)
+       ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
+       ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work1,                        &
+                              dwork1_dx,        dwork1_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
 
-       call glissade_centered_gradient(nx,               ny,         &
-                                       dx,               dy,         &
-                                       work2,                        &
-                                       dwork2_dx,        dwork2_dy,  &
-                                       ice_mask,                     &
-                                       gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY)
- 
-       call glissade_centered_gradient(nx,               ny,         &
-                                       dx,               dy,         &
-                                       work3,                        &
-                                       dwork3_dx,        dwork3_dy,  &
-                                       ice_mask,                     &
-                                       gradient_margin_in = HO_GRADIENT_MARGIN_ICE_ONLY)
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work2,                        &
+                              dwork2_dx,        dwork2_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
+
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work3,                        &
+                              dwork3_dx,        dwork3_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
 
        ! Loop over locally owned active vertices, evaluating tau_xz and tau_yz for this layer
        do j = staggered_jlo, staggered_jhi
@@ -6165,7 +6126,7 @@
     !  are ice-covered.
     ! At a land margin, either 0 or 1 is appropriate, but 2 is inaccurate.
     ! At a shelf margin, either 1 or 2 is appropriate, but 0 is inaccurate.
-    ! So HO_GRADIENT_MARGIN_ICE_LAND = 1 is the safest value.
+    ! So HO_GRADIENT_MARGIN_NYBRID = 1 is the safest value.
 
     if (edge_velocity) then
 
@@ -6176,9 +6137,10 @@
                                        dx,               dy,                &
                                        usrf,                                &
                                        dusrf_dx_edge,    dusrf_dy_edge,     &
+                                       ice_mask,                            &
                                        gradient_margin_in = whichgradient_margin, &
-                                       ice_mask = ice_mask,                 &
-                                       floating_mask = floating_mask,       &
+                                       usrf = usrf,                         &
+                                       land_mask = land_mask,               &
                                        max_slope = max_slope)
     endif
 

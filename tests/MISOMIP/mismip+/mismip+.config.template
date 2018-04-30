@@ -1,4 +1,4 @@
-[DOME-TEST]
+[MISMIP+]
 
 [grid]
 upn = 3
@@ -12,8 +12,8 @@ tstart = 0.
 tend = 20000.0
 dt = 0.5
 dt_diag = 0.5
-idiag = 225
-jdiag = 20
+#idiag = 5
+#jdiag = 5
 
 [options]
 dycore = 2              # 0 = glide, 1 = glam, 2 = glissade
@@ -27,20 +27,20 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 #restart = 1            # uncomment for a restart run
 
 [ho_options]
-which_ho_babc = 11      # 11 = Coulomb w/const basal flwa, 12 = Tsai law, 9 = power law
-which_ho_effecpress = 3 # 3 = ocean connection
-which_ho_efvs = 2       # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
-which_ho_sparse = 3     # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
-which_ho_nonlinear = 0  # 0 = Picard, 1 = JFNK
-which_ho_approx = 4     # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
-which_ho_precond = 1    # 1 = diagonal precond, 2 = shallow ice preconditioner
-which_ho_gradient_margin = 2    # 2 = marine BC
-which_ho_gradient = 0   #0 = centered, 1 = upstream
-which_ho_assemble_beta = 1   #0 = standard FE, 1 = local
-which_ho_assemble_taud = 1   #0 = standard FE, 1 = local
-which_ho_assemble_bfric = 1   #0 = standard FE, 1 = local
-which_ho_ground = 1     #0 = no GLP, 1 = GLP
-which_ho_resid = 4      #3 = absolute, 4 = relative
+which_ho_babc = 11                # 11 = Coulomb w/const basal flwa, 12 = Tsai law, 9 = power law
+which_ho_effecpress = 3           # 3 = ocean connection
+which_ho_efvs = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
+which_ho_sparse = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
+which_ho_nonlinear = 0            # 0 = Picard, 1 = JFNK
+which_ho_approx = 4               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
+which_ho_precond = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
+which_ho_gradient_margin = 2      # 2 = marine BC
+which_ho_gradient = 0             # 0 = centered, 1 = upstream
+which_ho_assemble_beta = 1        # 0 = standard FE, 1 = local
+which_ho_assemble_taud = 1        # 0 = standard FE, 1 = local
+which_ho_assemble_bfric = 1       # 0 = standard FE, 1 = local
+which_ho_ground = 1               # 0 = no GLP, 1 = GLP
+which_ho_resid = 4                # 3 = absolute, 4 = relative
 which_ho_flotation_function = 2   # 0 = f_pattyn, 2 = linear
 glissade_maxiter = 50
 

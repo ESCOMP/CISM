@@ -43,7 +43,9 @@ def garplot(ncfile, label, color, marker):
         plt.plot(tscale(time), gar, 'o-', mfc=color,
                  color='black', label=label, marker=marker)
     ncid.close()
-    return np.max(gar)
+    lmax = max(gar)
+    lmin = min(gar)
+    return lmax, lmin
 
 #TODO - Modify so the label is optional
 def glplot(ncfile, times, colora, label):
@@ -73,7 +75,7 @@ xmin, xmax = glplot('Ice1r/Ice1r' + model + '.nc', [0, 100], ['black', 'red'], '
 xmaxplot = xmax  # xmax based on Ice1r at t = 0
 xmin, xmax = glplot('Ice1rr/Ice1rr' + model + '.nc', [200], ['yellow'], 'Ice1rr')
 xminplot = xmin  # xmin based on Ice1rr at t = 200
-plt.xlim([xminplot-20.0, xmaxplot+50.0])
+plt.xlim([xminplot-50.0, xmaxplot+50.0])
 xmin, xmax = glplot('Ice1ra/Ice1ra' + model + '.nc', [200], ['orange'], 'Ice1ra')
 xmin, xmax = glplot('Ice2r/Ice2r' + model + '.nc', [100], ['blue'], 'Ice2r')
 xmin, xmax = glplot('Ice2rr/Ice2rr' + model + '.nc', [200], ['pink'], 'Ice2rr')
@@ -89,7 +91,6 @@ plt.subplot(212)
 plt.plot(tscale([100, 100]), [0, 100], color="grey")
 plt.plot(tscale([200, 200]), [0, 100], color="grey")
 plt.xlim(tscale([0, 1000]))
-plt.ylim([25, 40])
 
 xtlocs = tscale([0, 10, 50, 100, 200, 400, 800])
 plt.xticks(xtlocs, intscale(xtlocs))
@@ -97,21 +98,25 @@ plt.xlabel(r'Time,  $t$ (a)')
 plt.ylabel(r'Grounded area (1000 km$^3$)')
 
 #Ice0
-maxa = garplot('Ice0/Ice0' + model + '.nc', 'Ice0', 'grey', 'd')
+maxa, mina = garplot('Ice0/Ice0' + model + '.nc', 'Ice0', 'grey', 'd')
+xmaxplot = maxa
 
 #Ice1
-maxa = garplot('Ice1r/Ice1r' + model + '.nc', 'Ice1r', 'red', 'o')
-maxa = garplot('Ice1rr/Ice1rr' + model + '.nc', 'Ice1rr', 'purple', 'o')
-maxa = garplot('Ice1ra/Ice1ra' + model + '.nc', 'Ice1ra', 'orange', 'o')
-maxa = garplot('Ice1rrx/Ice1rrx' + model + '.nc', 'nolabel', 'purple', 'o')
-maxa = garplot('Ice1rax/Ice1rax' + model + '.nc', 'nolabel', 'orange', 'o')
+maxa, mina = garplot('Ice1r/Ice1r' + model + '.nc', 'Ice1r', 'red', 'o')
+maxa, mina = garplot('Ice1rr/Ice1rr' + model + '.nc', 'Ice1rr', 'purple', 'o')
+maxa, mina = garplot('Ice1ra/Ice1ra' + model + '.nc', 'Ice1ra', 'orange', 'o')
+maxa, mina = garplot('Ice1rrx/Ice1rrx' + model + '.nc', 'nolabel', 'purple', 'o')
+xminplot = mina
+maxa, mina = garplot('Ice1rax/Ice1rax' + model + '.nc', 'nolabel', 'orange', 'o')
+
+plt.ylim([xminplot-2., xmaxplot+2.])
 
 #Ice2
-maxa = garplot('Ice2r/Ice2r' + model + '.nc', 'Ice2r', 'blue', 's')
-maxa = garplot('Ice2rr/Ice2rr' + model + '.nc', 'Ice2rr', 'pink', 's')
-maxa = garplot('Ice2ra/Ice2ra' + model + '.nc', 'Ice2ra', 'yellow', 's')
-maxa = garplot('Ice2rrx/Ice2rrx' + model + '.nc', 'nolabel', 'pink', 's')
-maxa = garplot('Ice2rax/Ice2rax' + model + '.nc', 'nolabel', 'yellow', 's')
+maxa, mina = garplot('Ice2r/Ice2r' + model + '.nc', 'Ice2r', 'blue', 's')
+maxa, mina = garplot('Ice2rr/Ice2rr' + model + '.nc', 'Ice2rr', 'pink', 's')
+maxa, mina = garplot('Ice2ra/Ice2ra' + model + '.nc', 'Ice2ra', 'yellow', 's')
+maxa, mina = garplot('Ice2rrx/Ice2rrx' + model + '.nc', 'nolabel', 'pink', 's')
+maxa, mina = garplot('Ice2rax/Ice2rax' + model + '.nc', 'nolabel', 'yellow', 's')
 
 plt.legend(loc='lower left', ncol=2, frameon=True, borderaxespad=0)
 

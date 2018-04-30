@@ -862,15 +862,15 @@ contains
          'Diagonal preconditioner (glissade PCG)  ', &
          'SIA preconditioner (glissade PCG)       ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichgradient = (/ &
-         'centered gradient (glissade dycore)      ', &
-         'upstream gradient (glissade dycore)      ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichgradient = (/ &
+         'centered gradient (glissade)             ', &
+         'first-order upstream gradient (glissade) ', &
+         'second-order upstream gradient (glissade)' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whichgradient_margin = (/ &
-         'compute edge gradient when either cell has ice                  ', &
-         'compute edge gradient when grounded ice lies above ice-free cell', &
-         'compute edge gradient only when both cells have ice             ', &
-         'compute edge gradient when ice lies above ice-free land         ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichgradient_margin = (/ &
+         'compute edge gradient when either cell has ice         ', &
+         'compute edge gradient when ice lies above ice-free land', & 
+         'compute edge gradient when both cells have ice         ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
          'first-order accurate  ', &
@@ -975,10 +975,6 @@ contains
        call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
     end if
 
-    if (tasks > 1 .and. model%options%which_ho_babc==HO_BABC_ISHOMC) then
-       call write_log('Error, ISHOM C basal BCs not supported for more than one processor', GM_FATAL)
-    endif
-
     if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
        call write_log('Error, flux-based basal water option not supported for more than one processor', GM_FATAL)
     endif
@@ -1010,15 +1006,6 @@ contains
              model%options%which_ho_disp = HO_DISP_SIA
              call write_log('Warning: Cannot use first-order dissipation with local SIA solver')
              call write_log('Defaulting to SIA dissipation')
-          endif
-
-          if (model%options%which_ho_gradient_margin == HO_GRADIENT_MARGIN_ICE_OVER_LAND ) then
-             model%options%which_ho_gradient_margin = HO_GRADIENT_MARGIN_GROUNDED_ICE
-             write(message,*) 'Warning: Local SIA solver does not support which_ho_gradient_margin =', &
-                  HO_GRADIENT_MARGIN_ICE_OVER_LAND
-             call write_log(message)
-             write(message,*) 'Defaulting to option', HO_GRADIENT_MARGIN_GROUNDED_ICE
-             call write_log(message)
           endif
 
        endif  ! Glissade local SIA solver
@@ -1540,6 +1527,7 @@ contains
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
     call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
+    call GetValue(section,'flow_factor_ssa',    model%paramets%flow_enhancement_factor_ssa)
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
@@ -1785,7 +1773,10 @@ contains
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
     call write_log(message)
 
-    write(message,*) 'flow enhancement factor       : ', model%paramets%flow_enhancement_factor
+    write(message,*) 'flow enhancement factor (SIA) : ', model%paramets%flow_enhancement_factor
+    call write_log(message)
+
+    write(message,*) 'flow enhancement factor (SSA) : ', model%paramets%flow_enhancement_factor_ssa
     call write_log(message)
 
     write(message,*) 'basal hydro time constant (yr): ', model%paramets%hydtim

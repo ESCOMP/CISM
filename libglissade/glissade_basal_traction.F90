@@ -85,7 +85,8 @@ contains
   use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
   use parallel, only: nhalo, this_rank
-  use parallel, only: parallel_globalindex
+  use parallel, only: parallel_globalindex, global_ewn, global_nsn
+  use parallel, only: distributed_scatter_var, parallel_halo, main_task
 
   implicit none
 
@@ -105,6 +106,10 @@ contains
                                                                 ! Note: This is beta_internal in glissade
   real(dp), intent(in), dimension(:,:), optional :: f_ground    ! grounded ice fraction, 0 <= f_ground <= 1
 
+  ! Note: Adding fields for parallel ISHOM-C test case
+  real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
+  real(dp), dimension(:,:), allocatable :: beta_extend          ! beta extended to the ice grid (dimensions ewn, nsn)
+
   ! Note: optional arguments topg and eus are used for pseudo-plastic sliding law
   real(dp), intent(in), dimension(:,:), optional :: topg        ! bed topography (m)
   real(dp), intent(in), optional :: eus                         ! eustatic sea level (m) relative to z = 0
@@ -116,7 +121,6 @@ contains
   real(dp) :: Ldomain   ! size of full domain
   real(dp) :: omega     ! frequency of beta field
   real(dp) :: dx, dy
-  integer :: ilo, ihi, jlo, jhi  ! limits of beta field for ISHOM C case
   integer :: ew, ns
 
   real(dp), dimension(size(beta,1), size(beta,2)) :: speed            ! ice speed, sqrt(uvel^2 + vvel^2), m/yr 
@@ -257,25 +261,54 @@ contains
        !      However, this is not possible given that the global velocity grid is smaller
        !       than the ice grid and hence not able to fit the full beta field.
        !      The following code sets beta on the full grid as prescribed by Pattyn et al. (2008).
-       !NOTE: This works only in serial!
 
-       Ldomain = (ewn-2*nhalo) * dew   ! size of full domain (must be square)
-       omega = 2.d0*pi / Ldomain
+       ! Allocate a global array on the main task only.
+       ! On other tasks, allocate a size 0 array, since distributed_scatter_var wants to deallocate on all tasks.
+       if (main_task) then
+          allocate(beta_global(global_ewn, global_nsn))
+       else
+          allocate(beta_global(0,0))
+       endif
 
-       ilo = nhalo
-       ihi = ewn-nhalo
-       jlo = nhalo
-       jhi = nsn-nhalo
-       
        ! Prescribe beta as in Pattyn et al., The Cryosphere, 2008
+       ! Note: These beta values live at vertices, not cell centers.
+       !       They need a global array of size (ewn,nsn) to hold values on the global boundary.
+       if (main_task) then
+
+          Ldomain = global_ewn * dew   ! size of full domain (must be square)
+          omega = 2.d0*pi / Ldomain
+
+          beta_global(:,:) = 0.d0
+          do ns = 1, global_nsn
+             do ew = 1, global_ewn
+                dx = dew * ew
+                dy = dns * ns
+                beta_global(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
+             enddo
+          enddo
+
+       endif
+
+       ! Scatter the global beta values back to local arrays
+       ! Note: beta_extend has dimensions (ewn,nsn), so it can receive scattered data from beta_global.
+       allocate(beta_extend(ewn, nsn))
+       beta_extend(:,:) = 0.d0
+       call distributed_scatter_var(beta_extend, beta_global)
+
+       ! distributed_scatter_var does not update the halo, so do an update here
+       call parallel_halo(beta_extend)
+
+       ! Copy beta_extend to beta on the local processor.
+       ! This is done since beta lives on the velocity grid and has dimensions (ewn-1,nsn-1).
        beta(:,:) = 0.d0
-       do ns = jlo, jhi
-          do ew = ilo, ihi
-             dx = dew * (ew-ilo)
-             dy = dns * (ns-jlo)
-             beta(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
+             beta(ew,ns) = beta_extend(ew, ns)
           enddo
        enddo
+
+      ! beta_extend is no longer needed (beta_global is deallocated in distributed_scatter_var)
+      deallocate(beta_extend)
 
     case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file
 
@@ -737,9 +770,13 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
-                f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
-                basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
+                if (thck(i,j) > 0.0d0) then
+                   f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
+                   f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
+                   basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
+                else
+                   basal_physics%effecpress(i,j) = 0.0d0
+                endif
              enddo
           enddo
 
