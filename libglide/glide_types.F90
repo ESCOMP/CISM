@@ -1288,10 +1288,6 @@ module glide_types
           bmlt_float_inversion_tavg => null(),    & !> basal melt rate computed by inversion (time average)
           bmlt_float_prescribed => null()           !> basal melt rate prescribed from a previous inversion
 
-     integer, dimension(:,:), pointer :: &
-          grounded_mask_start=> null(),           & !> = 1 where ice is grounded at start of timestep, else = 0
-          floating_mask_start=> null()              !> = 1 where ice is floating at start of timestep, else = 0
-
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
      ! MISMIP+ parameters for Ice1 experiments
@@ -1878,8 +1874,6 @@ contains
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion_tavg(ewn,nsn)}
     !> \item \texttt{bmlt_float_prescribed(ewn,nsn)}
-    !> \item \texttt{grounded_mask_start(ewn,nsn)}
-    !> \item \texttt{floating_mask_start(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%plume}:
@@ -2248,8 +2242,6 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_inversion_tavg)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_prescribed)
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%grounded_mask_start)
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%floating_mask_start)
        endif
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
@@ -2597,10 +2589,6 @@ contains
         deallocate(model%basal_melt%bmlt_float_inversion_tavg)
     if (associated(model%basal_melt%bmlt_float_prescribed)) &
         deallocate(model%basal_melt%bmlt_float_prescribed)
-    if (associated(model%basal_melt%grounded_mask_start)) &
-        deallocate(model%basal_melt%grounded_mask_start)
-    if (associated(model%basal_melt%floating_mask_start)) &
-        deallocate(model%basal_melt%floating_mask_start)
     if (associated(model%basal_melt%bmlt_applied_old)) &
         deallocate(model%basal_melt%bmlt_applied_old)
     if (associated(model%basal_melt%bmlt_applied_diff)) &
