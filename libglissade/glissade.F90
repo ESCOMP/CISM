@@ -75,8 +75,6 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
-    logical, parameter :: new_inversion = .true.
-
 contains
 
 !=======================================================================
@@ -1156,8 +1154,6 @@ contains
     use glissade_masks, only: glissade_get_masks
     use glissade_inversion, only: invert_bmlt_float, prescribe_bmlt_float, &
                                   invert_basal_traction, prescribe_basal_traction
-    use glissade_inversion, only: invert_bmlt_float_new, prescribe_bmlt_float_new, &
-                                  invert_basal_traction_new, prescribe_basal_traction_new
     use glissade_inversion, only: invert_basal_topography, verbose_inversion
 
     implicit none
@@ -1641,15 +1637,13 @@ contains
                 enddo
              endif
 
-          if (new_inversion) then
-
              ! Determine the basal traction field, powerlaw_c_inversion, if desired.
              ! Notes: (1) For inversion purposes, ice_mask = 1 where thck > 0.0 (not where thck > thklim).
              !        (2) usrf_unscaled is the expected new value after applying the mass balance.
              !        (3) These masks are computed before horizontal transport. So for instance, if a cell
              !            is grounded before transport and floating afterward, it is treated as grounded.
 
-             call invert_basal_traction_new(model%numerics%dt*tim0,              &  ! s
+             call invert_basal_traction(model%numerics%dt*tim0,              &  ! s
                                         model%general%ewn, model%general%nsn,   &
                                         itest,    jtest,   rtest,               &
                                         model%basal_physics,                    &
@@ -1657,7 +1651,6 @@ contains
                                         floating_mask,                          &  !TODO - before transport?
                                         land_mask,                              &
                                         grounding_line_mask,                    &
-!!                                        usrf_new_unscaled,                      &  ! m
                                         model%basal_physics%usrf_inversion,     &  ! m
                                         model%geometry%usrf_obs*thk0,           &  ! m
                                         model%basal_physics%dthck_dt_inversion)    ! m/s
@@ -1677,7 +1670,7 @@ contains
 
              !TODO - Are masks needed? Is it OK to have them computed pre-transport?
 
-             call invert_bmlt_float_new(model%numerics%dt * tim0,               &    ! s
+             call invert_bmlt_float(model%numerics%dt * tim0,               &    ! s
                                     model%general%ewn, model%general%nsn,   &
                                     itest,   jtest,    rtest,               &
                                     model%basal_melt,                       &
@@ -1701,69 +1694,13 @@ contains
                 print*, ' '
              endif
 
-          else   ! old inversion
-
-             call invert_basal_traction(model%numerics%dt*tim0,                 &  ! s
-                                        model%general%ewn, model%general%nsn,   &
-                                        itest,    jtest,   rtest,               &
-                                        model%basal_physics,                    &
-                                        ice_mask,                               &
-                                        floating_mask,                          &
-                                        land_mask,                              &
-                                        grounding_line_mask,                    &
-                                        model%geometry%thck*thk0,               &  ! m
-                                        model%basal_physics%dthck_dt_inversion, &  ! m/s
-                                        model%geometry%thck_obs*thk0)              ! m
-
-             ! Invert for bmlt_float_inversion, adjusting the melt rate to relax toward the observed thickness.
-             ! Note: basal_melt%bmlt_float_inversion is passed out with units of m/s
-
-             ! Note: Other kinds of basal melting are handled in subroutine glissade_bmlt_float_solve.
-             !       Inversion is done here, after transport, when there is an updated ice thickness.
-             !       Then bmlt_float_inversion is added to the previously computed bmlt.
-             ! Note: Usually, whichbmlt_float = 0 when doing inversion.
-             !       However, for the HO_INVERSION_PRESCRIBED option, we may want to add a basal melting anomaly
-             !        as for the initMIP anomaly experiments. In that case the anomaly is already part of bmlt_float.
-             ! Note: If the basal melt GLP is turned on, it sets bmlt_float = 0 in partly floating cells.
-             !       However, it does not limit bmlt_float_inversion, which is applied to all floating cells,
-             !       including partly floating cells (in order to match observed thicknesses at the grounding line).
-
-             call invert_bmlt_float(model%numerics%dt * tim0,               &    ! s
-                                    model%general%ewn, model%general%nsn,   &
-                                    itest,   jtest,    rtest,               &
-                                    model%basal_melt,                       &
-                                    thck_unscaled,                          &    ! m
-                                    model%geometry%thck_obs*thk0,           &    ! m
-                                    model%geometry%topg*thk0,               &    ! m
-                                    model%climate%eus*thk0,                 &    ! m
-                                    model%climate%acab_corrected*thk0/tim0, &    ! m/s
-                                    model%basal_melt%bmlt*thk0/tim0,        &    ! m/s
-                                    ice_mask,                               &
-                                    floating_mask,                          &
-                                    land_mask)
-             
-             !WHL - debug
-             if (verbose_inversion .and. this_rank == rtest) then
-                i = itest
-                j = jtest
-                print*, ' '
-                print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
-                print*, 'thck (m), thck_obs (m), bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
-                     model%geometry%thck_obs(i,j)*thk0, model%basal_melt%bmlt_float_inversion(i,j)*scyr
-                print*, ' '
-             endif
-
-          endif   ! new_inversion
-
           elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
-
-           if (new_inversion) then
 
              ! Prescribe the traction parameter powerlaw_c based on a previous inversion.
              ! Although powerlaw_c is prescribed, it may need to be modified,
              !  for example if a cell flips from grounded to floating or vice versa.
 
-             call prescribe_basal_traction_new(model%general%ewn, model%general%nsn,  &
+             call prescribe_basal_traction(model%general%ewn, model%general%nsn,  &
                                            itest,    jtest,  rtest,    &
                                            model%basal_physics,        &
                                            ice_mask,                   &
@@ -1775,7 +1712,7 @@ contains
              ! Although bmlt_float is prescribed, it may need to be limited or ignored,
              !  for example to avoid melting beneath grounded ice.
 
-             call prescribe_bmlt_float_new(model%numerics%dt * tim0,               &    ! s
+             call prescribe_bmlt_float(model%numerics%dt * tim0,               &    ! s
                                        model%general%ewn, model%general%nsn,   &
                                        itest, jtest, rtest,                    &
                                        model%basal_melt,                       &
@@ -1786,38 +1723,6 @@ contains
                                        floating_mask,                          &
                                        land_mask,                              &
                                        grounding_line_mask)
-
-           else   ! old inversion
-
-             ! Prescribe the traction parameter powerlaw_c based on a previous inversion.
-             ! Although powerlaw_c is prescribed, it may need to be modified,
-             !  for example if a cell flips from grounded to floating or vice versa.
-
-             call prescribe_basal_traction(model%general%ewn, model%general%nsn,  &
-                                           itest,    jtest,  rtest,    &
-                                           model%basal_physics,        &
-                                           ice_mask,                   &
-                                           floating_mask,              &
-                                           land_mask)
-
-             ! Prescribe bmlt_float based on a previous inversion.
-             ! Although bmlt_float is prescribed, it may need to be limited or ignored,
-             !  for example to avoid melting beneath grounded ice.
-
-             call prescribe_bmlt_float(model%numerics%dt * tim0,               &    ! s
-                                       model%general%ewn, model%general%nsn,   &
-                                       itest, jtest, rtest,                    &
-                                       model%basal_melt,                       &
-                                       thck_unscaled,                          &    ! m
-                                       model%geometry%topg*thk0,               &    ! m
-                                       model%climate%eus*thk0,                 &    ! m
-                                       model%climate%acab_corrected*thk0/tim0, &    ! m/s
-                                       model%basal_melt%bmlt*thk0/tim0,        &    ! m/s
-                                       ice_mask,                               &
-                                       floating_mask,                          &
-                                       land_mask)
-
-           endif  ! new inversion
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest) then
