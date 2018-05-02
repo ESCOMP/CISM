@@ -304,17 +304,16 @@ load:          1
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     basal melt rate for floating ice from inversion
-data:          data%basal_melt%bmlt_float_inversion
+data:          data%inversion%bmlt_float_inversion
 factor:        scyr
 load:          1
 coordinates:   lon lat
-average:       1
 
 [bmlt_float_prescribed]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     prescribed basal melt rate for floating ice
-data:          data%basal_melt%bmlt_float_prescribed
+data:          data%inversion%bmlt_float_prescribed
 factor:        scyr
 load:          1
 coordinates:   lon lat
@@ -857,16 +856,15 @@ coordinates:   lon lat
 dimensions:    time, y1, x1
 units:         Pa (m/yr)**(-1/3)
 long_name:     spatially varying C for powerlaw sliding
-data:          data%basal_physics%powerlaw_c_inversion
+data:          data%inversion%powerlaw_c_inversion
 load:          1
 coordinates:   lon lat
-average:       1
 
 [powerlaw_c_prescribed]
 dimensions:    time, y1, x1
 units:         Pa (m/yr)**(-1/3)
 long_name:     prescribed spatially varying C for powerlaw sliding
-data:          data%basal_physics%powerlaw_c_prescribed
+data:          data%inversion%powerlaw_c_prescribed
 load:          1
 coordinates:   lon lat
 
@@ -874,7 +872,7 @@ coordinates:   lon lat
 dimensions:    time, y1,x1
 units:         meter
 long_name:     surface elevation used for inversion
-data:          data%basal_physics%usrf_inversion
+data:          data%inversion%usrf_inversion
 coordinates:   lon lat
 load:          1
 
@@ -882,7 +880,7 @@ load:          1
 dimensions:    time, y1,x1
 units:         meter/year
 long_name:     dH/dt used for inversion
-data:          data%basal_physics%dthck_dt_inversion
+data:          data%inversion%dthck_dt_inversion
 factor:        scyr
 coordinates:   lon lat
 load:          1
