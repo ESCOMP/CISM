@@ -78,6 +78,7 @@ contains
                        land_mask,                    &
                        f_ground,                     &
                        which_ho_inversion,           &
+                       powerlaw_c_inversion,         &
                        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
@@ -126,6 +127,7 @@ contains
 
   real(dp), intent(in), dimension(:,:), optional :: f_ground     ! grounded ice fraction, 0 <= f_ground <= 1
   integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
+  real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
@@ -380,7 +382,7 @@ contains
           beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
        elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBED) then   ! use powerlaw_c from inversion
+               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c from inversion
 
           m = basal_physics%powerlaw_m
 
@@ -389,7 +391,7 @@ contains
           ! stagger_margin_in = 1: Interpolate using only the values in ice-covered cells.
 
           call glissade_stagger(ewn,                         nsn,      &
-                                basal_physics%powerlaw_c_inversion,    &
+                                powerlaw_c_inversion,                  &
                                 stag_powerlaw_c_inversion,             &
                                 ice_mask,                              &
                                 stagger_margin_in = 1)
@@ -518,7 +520,7 @@ contains
           enddo
 
        elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBED) then   ! use powerlaw_c and coulomb_c from inversion
+               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c and coulomb_c from inversion
 
           m = basal_physics%powerlaw_m
 
@@ -531,7 +533,7 @@ contains
           endwhere
 
           call glissade_stagger(ewn,                         nsn,      &
-                                basal_physics%powerlaw_c_inversion,    &
+                                powerlaw_c_inversion,                  &
                                 stag_powerlaw_c_inversion,             &
                                 ice_or_land_mask,                      &
                                 stagger_margin_in = 1)

@@ -617,7 +617,7 @@ contains
 
     ! Optionally, do initial calculations for inversion
     if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
+        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
 
        call glissade_init_inversion(model)
 
@@ -1441,7 +1441,7 @@ contains
        !-------------------------------------------------------------------------
 
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
+           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
 
           ! Compute the new ice thickness that would be computed after applying the SMB and BMB, without inversion.
           thck_new_unscaled = thck_unscaled(:,:) + (acab_unscaled - bmlt_unscaled) * model%numerics%dt*tim0
@@ -1492,7 +1492,7 @@ contains
        enddo
 
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
+           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
 
           ! Add bmlt_float_inversion to bmlt_unscaled, the melt rate passed to the mass balance driver.
           ! Both fields have units of m/s.
@@ -1509,7 +1509,7 @@ contains
           !        in glissade_mass_balance_driver.
 
           where (effective_areafrac > 0.0d0)
-             bmlt_unscaled = bmlt_unscaled + model%basal_melt%bmlt_float_inversion/effective_areafrac
+             bmlt_unscaled = bmlt_unscaled + model%inversion%bmlt_float_inversion/effective_areafrac
           endwhere
 
        endif  ! which_ho_inversion
@@ -1721,7 +1721,7 @@ contains
        usrf_new_unscaled,    & ! expected new upper surface elevation (m)
        dthck_dt_inversion      ! dH/dt resulting from transport and mass balance (m/s)
 
-    real(dp) :: alpha               ! shorthand for inversion_babc_time_smoothing, in range [0,1]
+    real(dp) :: alpha               ! shorthand for inversion%babc_time_smoothing, in range [0,1]
 
     !TODO - Make invert_topg a config option
     logical, parameter :: invert_topg = .false.
@@ -1790,19 +1790,19 @@ contains
 
        ! Optionally, compute an exponential moving average of usrf and dthck_dt
        ! The larger the factor, the more rapidly earlier values are discounted.
-       alpha = model%basal_physics%inversion_babc_time_smoothing
+       alpha = model%inversion%babc_time_smoothing
        alpha = min(alpha, 1.0d0 - 1.0d0/real(model%numerics%tstep_count,dp))  ! decrease smoother for first few time steps
        alpha = min(1.0d0, max(alpha,0.0d0))  ! limit to [0,1]
        if (alpha < 1.0d0) then
           ! take moving averages of usrf and dthck_dt with contributions from previous values
-          model%basal_physics%usrf_inversion(:,:) = (1.d0 - alpha) * usrf_new_unscaled(:,:)  &
-                                                          + alpha  * model%basal_physics%usrf_inversion(:,:)
-          model%basal_physics%dthck_dt_inversion(:,:) = (1.d0 - alpha) * dthck_dt_inversion(:,:)  &
-                                                              + alpha  * model%basal_physics%dthck_dt_inversion(:,:)
+          model%inversion%usrf_inversion(:,:) = (1.d0 - alpha) * usrf_new_unscaled(:,:)  &
+                                                      + alpha  * model%inversion%usrf_inversion(:,:)
+          model%inversion%dthck_dt_inversion(:,:) = (1.d0 - alpha) * dthck_dt_inversion(:,:)  &
+                                                      + alpha  * model%inversion%dthck_dt_inversion(:,:)
        else
           ! simply copy the latest values
-          model%basal_physics%usrf_inversion(:,:) = usrf_new_unscaled(:,:)
-          model%basal_physics%dthck_dt_inversion(:,:) = dthck_dt_inversion(:,:)
+          model%inversion%usrf_inversion(:,:) = usrf_new_unscaled(:,:)
+          model%inversion%dthck_dt_inversion(:,:) = dthck_dt_inversion(:,:)
        endif   ! alpha < 1
 
        !WHL - debug
@@ -1823,7 +1823,7 @@ contains
           print*, 'moving average usrf:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') model%basal_physics%usrf_inversion(i,j)
+                write(6,'(f10.4)',advance='no') model%inversion%usrf_inversion(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1839,7 +1839,7 @@ contains
           print*, 'moving average dH/dt:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') model%basal_physics%dthck_dt_inversion(i,j)*scyr
+                write(6,'(f10.4)',advance='no') model%inversion%dthck_dt_inversion(i,j)*scyr
              enddo
              write(6,*) ' '
           enddo
@@ -1854,14 +1854,14 @@ contains
        call invert_basal_traction(model%numerics%dt*tim0,                 &  ! s
                                   ewn,               nsn,                 &
                                   itest,    jtest,   rtest,               &
-                                  model%basal_physics,                    &
+                                  model%inversion,                        &
                                   ice_mask,                               &
                                   floating_mask,                          &  !TODO - before transport?
                                   land_mask,                              &
                                   grounding_line_mask,                    &
-                                  model%basal_physics%usrf_inversion,     &  ! m
+                                  model%inversion%usrf_inversion,         &  ! m
                                   model%geometry%usrf_obs*thk0,           &  ! m
-                                  model%basal_physics%dthck_dt_inversion)    ! m/s
+                                  model%inversion%dthck_dt_inversion)        ! m/s
 
 
        ! Invert for bmlt_float_inversion, adjusting the melt rate to relax toward the observed thickness.
@@ -1871,7 +1871,7 @@ contains
        !       Inversion is done here, after transport, when there is an updated ice thickness.
        !       Then bmlt_float_inversion is added to the previously computed bmlt.
        ! Note: Usually, whichbmlt_float = 0 when doing inversion.
-       !       However, for the HO_INVERSION_PRESCRIBED option, we may want to add a basal melting anomaly
+       !       However, for the HO_INVERSION_PRESCRIBE option, we may want to add a basal melting anomaly
        !        as for the initMIP anomaly experiments. In that case the anomaly is already part of bmlt_float.
        ! Note: If the basal melt GLP is turned on, it sets bmlt_float = 0 in partly floating cells.
        !       However, it does not limit bmlt_float_inversion, which is applied to all floating cells,
@@ -1880,15 +1880,14 @@ contains
        call invert_bmlt_float(model%numerics%dt * tim0,               &    ! s
                               ewn,               nsn,                 &
                               itest,   jtest,    rtest,               &
-                              model%basal_melt,                       &
+                              model%inversion,                        &
                               thck_new_unscaled,                      &    ! m
                               model%geometry%usrf_obs*thk0,           &    ! m
                               topg_unscaled,                          &    ! m
                               model%climate%eus*thk0,                 &    ! m
                               ice_mask,                               &
                               floating_mask,                          &
-                              land_mask,                              &
-                              grounding_line_mask)
+                              land_mask)
 
        !WHL - debug
        if (verbose_inversion .and. this_rank == rtest) then
@@ -1897,11 +1896,11 @@ contains
           print*, ' '
           print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
           print*, 'usrf (m), usrf_obs (m), bmlt_float_inversion (m/yr):', usrf_new_unscaled(i,j), &
-               model%geometry%usrf_obs(i,j)*thk0, model%basal_melt%bmlt_float_inversion(i,j)*scyr
+               model%geometry%usrf_obs(i,j)*thk0, model%inversion%bmlt_float_inversion(i,j)*scyr
           print*, ' '
        endif
 
-    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED) then
+    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
 
        ! Prescribe the traction parameter powerlaw_c based on a previous inversion.
        ! Although powerlaw_c is prescribed, it may need to be modified,
@@ -1909,7 +1908,7 @@ contains
 
        call prescribe_basal_traction(ewn,      nsn,              &
                                      itest,    jtest,  rtest,    &
-                                     model%basal_physics,        &
+                                     model%inversion,            &
                                      ice_mask,                   &
                                      floating_mask,              &
                                      land_mask,                  &
@@ -1922,7 +1921,7 @@ contains
        call prescribe_bmlt_float(model%numerics%dt * tim0,     &    ! s
                                  ewn,     nsn,                 &
                                  itest,   jtest,  rtest,       &
-                                 model%basal_melt,             &
+                                 model%inversion,              &
                                  thck_new_unscaled,            &    ! m
                                  topg_unscaled,                &    ! m
                                  model%climate%eus*thk0,       &    ! m
@@ -1938,8 +1937,8 @@ contains
           print*, ' '
           print*, 'Prescribe bmlt_float: rank, i, j =', rtest, i, j
           print*, 'thck (m), bmltd_float_prescribed, bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
-               model%basal_melt%bmlt_float_prescribed(i,j)*scyr, &
-               model%basal_melt%bmlt_float_inversion(i,j)*scyr
+               model%inversion%bmlt_float_prescribed(i,j)*scyr, &
+               model%inversion%bmlt_float_inversion(i,j)*scyr
           print*, ' '
        endif
 
@@ -2839,7 +2838,7 @@ contains
     !WHL - inversion debug
 
     if ( (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-          model%options%which_ho_inversion == HO_INVERSION_PRESCRIBED)  &
+          model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE)  &
           .and. verbose_inversion .and. model%numerics%tstep_count > 0 ) then
 
        !WHL - temporary debug - compute max diff in bmlt_applied
@@ -2856,7 +2855,7 @@ contains
                    ii = i; jj = j
                    print*, ' '
                    print*, 'task, i, j, global_max_diff (m/yr):', this_rank, i, j, global_max_diff * scyr*thk0/tim0
-                   print*, 'bmlt_float_inversion:', model%basal_melt%bmlt_float_inversion(i,j) * scyr
+                   print*, 'bmlt_float_inversion:', model%inversion%bmlt_float_inversion(i,j) * scyr
                    print*, 'bmlt_applied old, new:', model%basal_melt%bmlt_applied_old(i,j) * scyr*thk0/tim0, &
                         model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
                    call parallel_globalindex(i, j, iglobal, jglobal)
