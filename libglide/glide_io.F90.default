@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Mon, 26 Feb 2018 02:27:00 +0000
+! Fri, 04 May 2018 11:43:09 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -1530,6 +1530,32 @@ contains
        end if
      else
      call write_log('Variable calving_thck was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     cell_area -- cell area of cism grid
+    pos = index(NCO%vars,' cell_area ')
+    status = parallel_inq_varid(NCO%id,'cell_area',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+9) = '         '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%geometry%cell_area)) then
+       call write_log('Creating variable cell_area')
+       status = parallel_def_var(NCO%id,'cell_area',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(len0*len0))
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'cell area of cism grid')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'meter2')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+       end if
+     else
+     call write_log('Variable cell_area was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -3793,6 +3819,34 @@ contains
      end if
      end if
 
+    !     tempunstag -- ice temperature on unstaggered vertical levels
+    pos = index(NCO%vars,' tempunstag ')
+    status = parallel_inq_varid(NCO%id,'tempunstag',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+10) = '          '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%temper%tempunstag)) then
+       call write_log('Creating variable tempunstag')
+       status = parallel_def_var(NCO%id,'tempunstag',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, level_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'ice temperature on unstaggered vertical levels')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', &
+            'land_ice_temperature_unstag')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            'degree_Celsius')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable tempunstag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     thck_calving_front -- effective ice thickness at calving front
     pos = index(NCO%vars,' thck_calving_front ')
     status = parallel_inq_varid(NCO%id,'thck_calving_front',varid)
@@ -5114,6 +5168,13 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    status = parallel_inq_varid(NCO%id,'cell_area',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%geometry%cell_area, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'damage',varid)
     if (status .eq. nf90_noerr) then
        do up=1,NCO%nstaglevel
@@ -5750,6 +5811,15 @@ contains
        do up=0,NCO%nstagwbndlevel
           status = distributed_put_var(NCO%id, varid, &
                data%temper%temp(up,1:data%general%ewn,1:data%general%nsn), (/1,1,up+1,outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+       end do
+    end if
+
+    status = parallel_inq_varid(NCO%id,'tempunstag',varid)
+    if (status .eq. nf90_noerr) then
+       do up=1,NCO%nlevel
+          status = distributed_put_var(NCO%id, varid, &
+               data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn), (/1,1,up,outfile%timecounter/))
           call nc_errorhandle(__FILE__,__LINE__,status)
        end do
     end if
@@ -6753,6 +6823,31 @@ contains
 
     end if
 
+    status = parallel_inq_varid(NCI%id,'cell_area',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%geometry%cell_area)) then
+       call write_log('  Loading cell_area')
+       status = distributed_get_var(NCI%id, varid, &
+            data%geometry%cell_area, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0/(len0*len0)
+       else
+          scaling_factor = scaling_factor/(len0*len0)
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling cell_area",GM_DIAGNOSTIC)
+          data%geometry%cell_area = &
+               data%geometry%cell_area*scaling_factor
+       end if
+    else
+    call write_log('Variable cell_area was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
     status = parallel_inq_varid(NCI%id,'damage',varid)
     if (status .eq. nf90_noerr) then
     if (is_enabled(data%calving%damage)) then
@@ -7325,6 +7420,31 @@ contains
        end do
     else
     call write_log('Variable tempstag was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'tempunstag',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%temper%tempunstag)) then
+       call write_log('  Loading tempunstag')
+       do up=1,NCI%nlevel
+          status = distributed_get_var(NCI%id, varid, &
+               data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn), (/1,1,up,infile%current_time/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+          if (status.ne.NF90_NOERR) then
+             scaling_factor = 1.0d0
+          end if
+          if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+             call write_log("scaling tempunstag",GM_DIAGNOSTIC)
+             data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn) = &
+                  data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn)*scaling_factor
+          end if
+       end do
+    else
+    call write_log('Variable tempunstag was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -8761,6 +8881,28 @@ contains
 
     data%calving%calving_thck = inarray/(thk0)
   end subroutine glide_set_calving_thck
+
+  subroutine glide_get_cell_area(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = (len0*len0)*(data%geometry%cell_area)
+  end subroutine glide_get_cell_area
+
+  subroutine glide_set_cell_area(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%geometry%cell_area = inarray/(len0*len0)
+  end subroutine glide_set_cell_area
 
   subroutine glide_get_damage_column(data,outarray)
     use glimmer_scales
