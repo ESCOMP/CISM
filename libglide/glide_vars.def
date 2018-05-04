@@ -544,7 +544,7 @@ coordinates:   lon lat
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     lateral calving rate
-data:          data%calving%calving_lateral
+data:          data%calving%lateral_rate
 coordinates:   lon lat
 
 [damage]
@@ -1205,7 +1205,7 @@ load:       1
 dimensions: time, y1, x1
 units:      Pa
 long_name:  effective stress for calving
-data:       data%calving%tau_eff_calving
+data:       data%calving%tau_eff
 
 [wvel]
 dimensions:    time, level, y1, x1

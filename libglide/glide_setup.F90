@@ -189,8 +189,8 @@ contains
 
     ! scale calving parameters
     model%calving%marine_limit = model%calving%marine_limit / thk0
-    model%calving%calving_minthck = model%calving%calving_minthck / thk0
-    model%calving%calving_timescale = model%calving%calving_timescale * scyr / tim0
+    model%calving%minthck = model%calving%minthck / thk0
+    model%calving%timescale = model%calving%timescale * scyr / tim0
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr / tim0
 
     ! scale periodic offsets for ISMIP-HOM
@@ -1155,7 +1155,7 @@ contains
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
        endif
-       if (model%calving%calving_timescale > 0.0d0) then
+       if (model%calving%timescale > 0.0d0) then
           write(message,*) 'WARNING: calving timescale option suppored for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
        endif
@@ -1569,14 +1569,15 @@ contains
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_minthck',    model%calving%calving_minthck)
+    call GetValue(section,'calving_minthck',    model%calving%minthck)
+    call GetValue(section,'lateral_rate_max',   model%calving%lateral_rate_max)
     call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
     call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
     call GetValue(section,'damage_constant',    model%calving%damage_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
-    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
+    call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
@@ -1743,7 +1744,7 @@ contains
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
         model%options%whichcalving == EIGENCALVING .or.  &
         model%options%whichcalving == CALVING_DAMAGE) then
-       write(message,*) 'calving thickness limit (m)   : ', model%calving%calving_minthck
+       write(message,*) 'calving thickness limit (m)   : ', model%calving%minthck
        call write_log(message)
     endif
 
@@ -1754,6 +1755,10 @@ contains
        call write_log(message)
     elseif (model%options%whichcalving == CALVING_DAMAGE) then
        write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
+       call write_log(message)
+       write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+       call write_log(message)
+       write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
        call write_log(message)
     endif
 
@@ -1768,7 +1773,7 @@ contains
           call write_log(message)
        endif
 
-       if (model%calving%calving_timescale <= 0.0d0) then
+       if (model%calving%timescale <= 0.0d0) then
           write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
           call write_log(message, GM_FATAL)
        endif
@@ -1801,13 +1806,8 @@ contains
        endif
     endif
 
-    if (model%options%whichcalving == CALVING_DAMAGE) then
-       write(message,*) 'calving damage threshold      : ', model%calving%damage_threshold
-       call write_log(message)
-    end if
-
-    if (model%calving%calving_timescale > 0.0d0) then
-       write(message,*) 'calving time scale (yr)       : ', model%calving%calving_timescale
+    if (model%calving%timescale > 0.0d0) then
+       write(message,*) 'calving time scale (yr)       : ', model%calving%timescale
        call write_log(message)
     endif
 
