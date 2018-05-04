@@ -189,9 +189,11 @@ contains
 
     ! scale calving parameters
     model%calving%marine_limit = model%calving%marine_limit / thk0
-    model%calving%minthck = model%calving%minthck / thk0
-    model%calving%timescale = model%calving%timescale * scyr / tim0
-    model%calving%cliff_timescale = model%calving%cliff_timescale * scyr / tim0
+    model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
+    model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
+    model%calving%eigencalving_constant = model%calving%eigencalving_constant / scyr    ! convert from m/yr/Pa to m/s/Pa
+    model%calving%damage_constant = model%calving%damage_constant / scyr    ! convert from yr^{-1} to s^{-1}
+    model%calving%lateral_rate_max = model%calving%lateral_rate_max / scyr  ! convert from m/yr to m/s
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0

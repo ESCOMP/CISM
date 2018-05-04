@@ -1925,6 +1925,9 @@ contains
 
     ! --- Local variables ---
 
+    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+         thck_unscaled              ! model%geometry%thck converted to m
+
     logical :: cull_calving_front   ! true iff init_calving = T and options%cull_calving_front = T
 
     integer :: i, j
@@ -1940,29 +1943,35 @@ contains
 
     ! ------------------------------------------------------------------------ 
     ! Calve ice, based on the value of whichcalving 
-    !TODO - Pass in model%calving (or model) instead of a long argument list?
     !       Pass in thck, topg, etc. with units of meters.
     ! ------------------------------------------------------------------------ 
 
-    call glissade_calve_ice(model%options%whichcalving,      &
-                            model%options%calving_domain,    &
+    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
+
+    call glissade_calve_ice(model%options%whichcalving,        &
+                            model%options%calving_domain,      &
                             model%options%which_ho_calving_front, &
                             model%options%remove_icebergs,     &
                             model%options%limit_marine_cliffs, &
-                            cull_calving_front,              &
-                            model%calving,                   &
-                            model%numerics%idiag_local, model%numerics%jdiag_local,   &
-                            model%numerics%rdiag_local,                               &
-                            model%numerics%dt,               &
-                            model%numerics%dew*len0,         &        ! m
-                            model%numerics%dns*len0,         &        ! m
-                            model%numerics%sigma,            &
-                            model%numerics%thklim,           &
-                            model%geometry%thck,             &
-                            model%isostasy%relx,             &
-                            model%geometry%topg,             &
-                            model%climate%eus)
+                            cull_calving_front,                &
+                            model%calving,                     &        ! calving object; includes calving_thck (m)
+                            model%numerics%idiag_local,        &
+                            model%numerics%jdiag_local,        &
+                            model%numerics%rdiag_local,        &
+                            model%numerics%dt*tim0,            &        ! s
+                            model%numerics%dew*len0,           &        ! m
+                            model%numerics%dns*len0,           &        ! m
+                            model%numerics%sigma,              &
+                            model%numerics%thklim*thk0,        &        ! m
+                            thck_unscaled,                     &        ! m
+                            model%isostasy%relx*thk0,          &        ! m
+                            model%geometry%topg*thk0,          &        ! m
+                            model%climate%eus*thk0)                     ! m
     
+    ! Convert geometry%thck and calving%calving_thck to scaled model units
+    model%geometry%thck(:,:) = thck_unscaled(:,:)/thk0
+    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:)/thk0
+
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
     call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calclsrf
