@@ -545,6 +545,7 @@ dimensions:    time, y1, x1
 units:         meter/year
 long_name:     lateral calving rate
 data:          data%calving%lateral_rate
+factor:        scyr
 coordinates:   lon lat
 
 [damage]
