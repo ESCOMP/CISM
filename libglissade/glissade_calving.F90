@@ -47,9 +47,6 @@ module glissade_calving
 !!    logical, parameter :: verbose_calving = .false.
     logical, parameter :: verbose_calving = .true.
   
-    !TODO - Move these constants to glide_types
-  real(dp), parameter :: calving_lateral_max = 3000.d0  ! max lateral calving rate (m/yr)
-
 contains
 
 !-------------------------------------------------------------------------------
@@ -202,31 +199,15 @@ contains
                                 which_ho_calving_front,  &
                                 remove_icebergs,         &
                                 limit_marine_cliffs,     &
+                                cull_calving_front,      &
+                                calving,                 &  ! calving derived type
                                 itest,   jtest,   rtest, &
-                                thck,             relx,  &
-                                topg,             eus,   &
-                                thklim,                  &
-                                marine_limit,            &
-                                calving_fraction,        &
-                                calving_timescale,       &
                                 dt,                      &
                                 dx,               dy,    &
-                                eigencalving_constant,   &
-                                eigen2_weight,           &
-                                tau_eigen1, tau_eigen2,  &
-                                tau_eff_calving,         &
-                                calving_minthck,         &
-                                taumax_cliff,            &
-                                cliff_timescale,         &
-                                calving_mask,            &
-                                damage,                  &
-                                damage_constant,         &
-                                damage_threshold,        &
                                 sigma,                   &
-                                calving_lateral,         &
-                                calving_thck,            &
-                                cull_calving_front_in,   &
-                                ncull_calving_front_in)
+                                thklim,                  &
+                                thck,             relx,  &
+                                topg,             eus)
 
     ! Calve ice according to one of several methods
 
@@ -235,66 +216,65 @@ contains
     implicit none
 
     !TODO - Convert input/output arguments to SI units
-    !TODO - Shorten the argument list by passing in a calving derived type
+    ! TODO - Remove thickness scaling from this subroutine.  Would need to multiply several input arguments by thk0. 
+
     !---------------------------------------------------------------------
     ! Subroutine arguments
-    ! Currently, thck, relx, topg, eus, marine_limit, calving_minthck and calving_thck are scaled by thk0
-    ! TODO - Remove thickness scaling from this subroutine.  Would need to multiply several input arguments by thk0. 
+    ! Currently, thck, relx, topg, eus, marine_limit, calving%minthck and calving_thck are scaled by thk0
     !---------------------------------------------------------------------
 
-    integer, intent(in) :: which_calving          !> option for calving law
-    integer, intent(in) :: calving_domain         !> option for where calving can occur
-                                                  !> = 0 if calving occurs at the ocean edge only
-                                                  !> = 1 if calving occurs everywhere the calving criterion is met
-                                                  !> = 2 if calving occurs where criterion is met and there is a connected path
-                                                  !>     to the ocean through other cells where the criterion is met
-    integer, intent(in) :: which_ho_calving_front !> = 1 for subgrid calving-front scheme, else = 0
-    logical, intent(in) :: remove_icebergs        !> if true, then remove icebergs after calving
-    logical, intent(in) :: limit_marine_cliffs    !> if true, then limit the thickness of marine-based ice cliffs
-    integer, intent(in) :: itest, jtest, rtest    !> coordinates of diagnostic point
+    integer, intent(in) :: which_calving           !> option for calving law
+    integer, intent(in) :: calving_domain          !> option for where calving can occur
+                                                   !> = 0 if calving occurs at the ocean edge only
+                                                   !> = 1 if calving occurs everywhere the calving criterion is met
+                                                   !> = 2 if calving occurs where criterion is met and there is a connected path
+                                                   !>     to the ocean through other cells where the criterion is met
+    integer, intent(in) :: which_ho_calving_front  !> = 1 for subgrid calving-front scheme, else = 0
+    logical, intent(in) :: remove_icebergs         !> if true, then remove icebergs after calving
+    logical, intent(in) :: limit_marine_cliffs     !> if true, then limit the thickness of marine-based ice cliffs
+    logical, intent(in) :: cull_calving_front      !> if true, then cull calving_front cells to improve model stability;
+                                                   !> generally applied only at initialization
 
+    type(glide_calving), intent(inout) :: calving !> calving object
+
+!    Note: The calving object includes the following fields and parameters used in this subroutine:
+!    real(dp), intent(in)                     :: marine_limit        !> lower limit on topography elevation at marine edge before ice calves
+!    real(dp), intent(in)                     :: calving_fraction    !> fraction of ice lost at marine edge when calving; 
+                                                                     !> used with CALVING_FLOAT_FRACTION
+!    real(dp), intent(in)                     :: timescale           !> time scale for calving; calving_thck = thck * max(dt/timescale, 1)
+                                                                     !> if timescale = 0, then calving_thck = thck
+!    real(dp), intent(in)                     :: minthck             !> min thickness of floating ice before it calves;
+                                                                     !> used with CALVING_THCK_THRESHOLD, EIGENCALVING and CALVING_DAMAGE
+!    real(dp), intent(in)                     :: eigencalving_constant !> eigencalving constant; m/yr (lateral calving rate) per Pa (tensile stress)
+!    real(dp), intent(in)                     :: eigen2_weight       !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
+!    real(dp), dimension(:,:), intent(in)     :: tau_eigen1          !> first eigenvalue of 2D horizontal stress tensor (Pa)
+!    real(dp), dimension(:,:), intent(in)     :: tau_eigen2          !> second eigenvalue of 2D horizontal stress tensor (Pa)
+!    real(dp), dimension(:,:), intent(inout)  :: tau_eff             !> effective stress (Pa) for calving; derived from tau_eigen1/2
+
+!    integer, intent(in)                      :: ncull_calving_front !> number of times to cull calving_front cells at initialization
+!    real(dp), intent(in)                     :: taumax_cliff        !> yield stress (Pa) for marine-based ice cliffs
+                                                                     !> used with limit_marine_cliffs option
+!    real(dp), intent(in)                     :: cliff_timescale     !> time scale for limiting marine cliff thickness
+!    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
+!    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
+!    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/yr) per unit stress (Pa)
+!    real(dp) :: intent(in)                   :: lateral_rate_max    !> max lateral calving rate (m/yr) for damaged ice
+!    real(dp), dimension(:,:), intent(inout)  :: lateral_rate        !> lateral calving rate (m/yr) at the calving front
+                                                                     !> used with EIGENCALVING and CALVING_DAMAGE
+!    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
+!    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell
+
+    integer, intent(in) :: itest, jtest, rtest                   !> coordinates of diagnostic point
+    real(dp), intent(in)                    :: dt                !> model timestep (used with calving%timescale)
+    real(dp), intent(in)                    :: dx, dy            !> grid cell size in x and y directions (m)
+    real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
+    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography
     real(dp), intent(in)                    :: eus               !> eustatic sea level
-    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice
-    real(dp), intent(in)                    :: marine_limit      !> lower limit on topography elevation at marine edge before ice calves
-    real(dp), intent(in)                    :: calving_fraction  !> fraction of ice lost at marine edge when calving; 
-                                                                 !> used with CALVING_FLOAT_FRACTION
-    real(dp), intent(in)                    :: calving_timescale !> time scale for calving; calving_thck = thck * max(dt/calving_timescale, 1)
-                                                                 !> if calving_timescale = 0, then calving_thck = thck
-    real(dp), intent(in)                    :: dt                !> model timestep (used with calving_timescale)
-    real(dp), intent(in)                    :: dx, dy            !> grid cell size in x and y directions (m)
-    real(dp), intent(in)                    :: eigencalving_constant  !> eigencalving constant; m/yr (lateral calving rate) per Pa (tensile stress)
-    real(dp), intent(in)                    :: eigen2_weight     !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff_calving (unitless)
-    real(dp), dimension(:,:), intent(in)    :: tau_eigen1        !> first eigenvalue of 2D horizontal stress tensor (Pa)
-    real(dp), dimension(:,:), intent(in)    :: tau_eigen2        !> second eigenvalue of 2D horizontal stress tensor (Pa)
-    real(dp), dimension(:,:), intent(inout) :: tau_eff_calving   !> effective stress (Pa) for calving; derived from tau_eigen1/2
-    real(dp), intent(in)                    :: calving_minthck   !> min thickness of floating ice before it calves;
-                                                                 !> used with CALVING_THCK_THRESHOLD, EIGENCALVING and CALVING_DAMAGE
-    real(dp), intent(in)                    :: taumax_cliff      !> yield stress (Pa) for marine-based ice cliffs
-                                                                 !> used with limit_marine_cliffs option
-    real(dp), intent(in)                    :: cliff_timescale   !> time scale for limiting marine cliff thickness
-    integer,  dimension(:,:), intent(in)    :: calving_mask      !> integer mask: calve ice where calving_mask = 1
-    real(dp), dimension(:,:,:), intent(inout)  :: damage         !> 3D scalar damage parameter
-    real(dp), intent(in)                    :: damage_threshold  !> threshold value where ice is sufficiently damaged to calve
-    real(dp), intent(in)                    :: damage_constant   !> rate of change of damage (1/yr) per unit stress (Pa)
-    real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
-    real(dp), dimension(:,:), intent(inout) :: calving_lateral   !> lateral calving rate (m/yr) at the calving front
-                                                                 !> used with EIGENCALVING and CALVING_DAMAGE
-    real(dp), dimension(:,:), intent(out)   :: calving_thck      !> thickness lost due to calving in each grid cell
-
-    logical, intent(in), optional :: &
-         cull_calving_front_in         !> if true, then cull calving_front cells to improve model stability
-                                       !> generally should be called only at model initialization
-
-    integer, intent(in), optional :: &
-         ncull_calving_front_in        !> number of times to cull calving_front cells at initialization
 
     ! local variables
-
-    logical :: cull_calving_front     ! local version of cull_calving_front_in
-    integer :: ncull_calving_front    ! local version of ncull_calving_front_in
 
     integer :: nx, ny      ! horizontal grid dimensions
     integer :: nz          ! number of vertical levels
@@ -340,18 +320,17 @@ contains
          calving_domain_mask    ! = T in the domain where calving is allowed to occur (e.g., at ocean edge), else = F
 
     real(dp) :: &
-         float_fraction_calve  ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
-                               ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
-
-    real(dp) :: &
-         thinning_rate,      & ! vertical thinning rate (m/yr, converted to scaled model units)
-         calving_frac,       & ! fraction of potential calving that is actually applied
-         frac_lateral,       & ! calving_lateral / calving_lateral_max 
-         areafrac,           & ! fractional ice-covered area in a calving_front cell
-         dthck,              & ! thickness change (model units)
-         d_damage_dt,        & ! rate of change of damage scalar
-         thckmax_cliff,      & ! max stable ice thickness in marine_cliff cells
-         factor                ! factor in quadratic formula
+         float_fraction_calve, & ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
+                                 ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
+         thinning_rate,        & ! vertical thinning rate (m/yr, converted to scaled model units)
+         calving_frac,         & ! fraction of potential calving that is actually applied
+         upstream_lateral_rate,& ! lateral calving rate (m/yr) applied to upstream cell
+         frac_lateral,         & ! lateral_rate / lateral_rate_max 
+         areafrac,             & ! fractional ice-covered area in a calving_front cell
+         dthck,                & ! thickness change (model units)
+         d_damage_dt,          & ! rate of change of damage scalar
+         thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
+         factor                  ! factor in quadratic formula
 
     real(dp), parameter :: &
          thinning_limit = 0.99d0  ! When ice not originally on the calving front is allowed to thin,
@@ -364,19 +343,7 @@ contains
 
     ! initialize
 
-    if (present(cull_calving_front_in)) then
-       cull_calving_front = cull_calving_front_in
-    else
-       cull_calving_front = .false.
-    endif
-
-    if (present(ncull_calving_front_in)) then
-       ncull_calving_front = ncull_calving_front_in
-    else
-       ncull_calving_front = 1  ! only used if cull_calving_front = T
-    endif
-
-    calving_thck(:,:) = 0.d0
+    calving%calving_thck(:,:) = 0.d0
 
     nx = size(thck,1)
     ny = size(thck,2)
@@ -403,9 +370,9 @@ contains
                topg,          eus,      &
                thklim,                  &
                which_ho_calving_front,  &
-               calving_thck,            &
+               calving%calving_thck,    &
                cull_calving_front,      &
-               ncull_calving_front)
+               calving%ncull_calving_front)
 
        endif
 
@@ -440,7 +407,7 @@ contains
     endif
 
     ! Set the thickness fraction to be removed in each calving cell
-    ! Note: The CALVING_FLOAT_FRACTION option has been superseded by the calving_timescale variable,
+    ! Note: The CALVING_FLOAT_FRACTION option has been superseded by the calving%timescale variable,
     !       but is included here for consistency with Glide.
     ! TODO: Remove CALVING_FLOAT_FRACTION option?
 
@@ -448,14 +415,14 @@ contains
 
        !WHL - Changed definition of calving fraction; now it is the fraction lost
        !      rather than the fraction remaining
-       float_fraction_calve = calving_fraction
+       float_fraction_calve = calving%calving_fraction
        
     else  ! other calving options
 
-       if (calving_timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
+       if (calving%timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
           float_fraction_calve = 1.0d0
        else  ! calve a fraction of the column based on the calving time scale
-          float_fraction_calve = min(dt/calving_timescale, 1.0d0)
+          float_fraction_calve = min(dt/calving%timescale, 1.0d0)
        endif
        
     endif
@@ -542,8 +509,8 @@ contains
        allocate(tau2(nx,ny))
 
        ! Ignore negative eigenvalues corresponding to compressive stresses
-       tau1 = max(tau_eigen1, 0.0d0)
-       tau2 = max(tau_eigen2, 0.0d0)
+       tau1 = max(calving%tau_eigen1, 0.0d0)
+       tau2 = max(calving%tau_eigen2, 0.0d0)
 
        ! Ignore values on grounded ice
        where (floating_mask == 0)
@@ -580,7 +547,7 @@ contains
        ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
        !       This may be useful in calving unbuttressed shelves that are spreading in both directions.
 
-       tau_eff_calving(:,:) = sqrt(tau1(:,:)**2 + (eigen2_weight*tau2(:,:))**2)
+       calving%tau_eff(:,:) = sqrt(tau1(:,:)**2 + (calving%eigen2_weight * tau2(:,:))**2)
 
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
@@ -602,11 +569,11 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'tau_eff_calving (Pa), itest, jtest, rank =', itest, jtest, rtest
+          print*, 'tau_eff (Pa), itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') tau_eff_calving(i,j)
+                write(6,'(f10.2)',advance='no') calving%tau_eff(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -615,7 +582,7 @@ contains
        ! Use the effective stress either to directly compute a lateral calving rate (for eigencalving),
        ! or to accumulate damage which is then used to derive a lateral calving rate (for damage-based calving).
 
-       calving_lateral(:,:) = 0.0d0
+       calving%lateral_rate(:,:) = 0.0d0
 
        if (which_calving == EIGENCALVING) then
 
@@ -624,7 +591,7 @@ contains
           do j = 2, ny-1
              do i = 2, nx-1
                 if (calving_front_mask(i,j) == 1) then
-                   calving_lateral(i,j) = eigencalving_constant * tau_eff_calving(i,j)
+                   calving%lateral_rate(i,j) = calving%eigencalving_constant * calving%tau_eff(i,j)
                 endif
              enddo   ! i
           enddo   ! j
@@ -632,7 +599,7 @@ contains
        elseif (which_calving == CALVING_DAMAGE) then
 
           ! Prognose changes in damage.
-          ! For now, this is done using a simple scheme based on the effective tensile stress, tau_eff_calving.
+          ! For now, this is done using a simple scheme based on the effective tensile stress, calving%tau_eff
           ! The damage is subsequently advected downstream.
           ! Note: The damage is formally a 3D field, which makes it easier to advect, even though
           !       (in the current scheme) the damage source term is uniform in each column.
@@ -640,12 +607,12 @@ contains
           do j = 2, ny-1
              do i = 2, nx-1
                 if (floating_mask(i,j) == 1) then
-                   d_damage_dt = damage_constant * tau_eff_calving(i,j)  ! d_damage_dt has units of yr^{-1}
-                   damage(:,i,j) = damage(:,i,j) + d_damage_dt * (dt*tim0/scyr)  ! convert dt to yr
-                   damage(:,i,j) = min(damage(:,i,j), 1.0d0)
-                   damage(:,i,j) = max(damage(:,i,j), 0.0d0)
+                   d_damage_dt = calving%damage_constant * calving%tau_eff(i,j)  ! d_damage_dt has units of yr^{-1}
+                   calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt * (dt*tim0/scyr)  ! convert dt to yr
+                   calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
+                   calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
                 else  ! set damage to zero for grounded ice
-                   damage(:,i,j) = 0.0d0
+                   calving%damage(:,i,j) = 0.0d0
                 endif
              enddo
           enddo
@@ -657,7 +624,7 @@ contains
           do j = 1, ny
              do i = 1, nx
                 do k = 1, nz-1
-                   damage_column(i,j) = damage_column(i,j) + damage(k,i,j) * (sigma(k+1) - sigma(k))
+                   damage_column(i,j) = damage_column(i,j) + calving%damage(k,i,j) * (sigma(k+1) - sigma(k))
                 enddo
              enddo
           enddo
@@ -666,13 +633,13 @@ contains
           ! Note: Although eigenprod = 0 in inactive calving-front cells, these cells can have significant damage
           !       advected from upstream, so in general we should not have to interpolate damage from upstream.
           !TODO - Verify this.
-          ! Note: calving_lateral_max has units of m/yr
+          ! Note: calving%lateral_rate_max has units of m/yr
           do j = 2, ny-1
              do i = 2, nx-1
                 if (calving_front_mask(i,j) == 1) then
-                   frac_lateral = (damage_column(i,j) - damage_threshold) / (1.0d0 - damage_threshold)
+                   frac_lateral = (damage_column(i,j) - calving%damage_threshold) / (1.0d0 - calving%damage_threshold)
                    frac_lateral = max(0.0d0, min(1.0d0, frac_lateral))
-                   calving_lateral(i,j) = calving_lateral_max * frac_lateral  ! m/yr
+                   calving%lateral_rate(i,j) = calving%lateral_rate_max * frac_lateral  ! m/yr
                 endif
              enddo
           enddo
@@ -683,7 +650,7 @@ contains
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.6)',advance='no') damage_constant * tau_eff_calving(i,j) * (dt*tim0/scyr)
+                   write(6,'(f10.6)',advance='no') calving%damage_constant * calving%tau_eff(i,j) * (dt*tim0/scyr)
                 enddo
                 write(6,*) ' '
              enddo
@@ -703,7 +670,7 @@ contains
 
        ! The following operations are shared by eigencalving and damage-based calving.
 
-       call parallel_halo(calving_lateral)
+       call parallel_halo(calving%lateral_rate)
 
        ! Convert the lateral calving rate to a vertical thinning rate, conserving volume.
        ! Note: The calved volume is proportional to the effective shelf-edge thickness (thck_calving_front),
@@ -712,16 +679,16 @@ contains
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (calving_lateral(i,j) >  0.0d0) then
+             if (calving%lateral_rate(i,j) >  0.0d0) then
 
-                thinning_rate = calving_lateral(i,j) * thck_calving_front(i,j)*thk0 / sqrt(dx*dy)  ! m/yr
+                thinning_rate = calving%lateral_rate(i,j) * thck_calving_front(i,j)*thk0 / sqrt(dx*dy)  ! m/yr
                 dthck = thinning_rate * (tim0/scyr)/thk0  * dt  ! convert to model units
 
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
                    print*, ' '
                    print*, 'Calving: r, i, j =', rtest, itest, jtest
                    print*, 'dx (m), dt (yr) =', sqrt(dx*dy), dt*tim0/scyr
-                   print*, 'calving rate (m/yr) =', calving_lateral(i,j)
+                   print*, 'lateral calving rate (m/yr) =', calving%lateral_rate(i,j)
                    print*, 'dthck (m) =', thinning_rate * dt*tim0/scyr
                 endif
 
@@ -730,8 +697,8 @@ contains
 
                 if (dthck > thck(i,j)) then
                    calving_frac = thck(i,j)/dthck
-                   calving_lateral(i,j) = calving_lateral(i,j) * (1.0d0 - calving_frac)  ! remaining for upstream cell
-                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                   upstream_lateral_rate = calving%lateral_rate(i,j) * (1.0d0 - calving_frac)  ! remaining for upstream cell
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
                    thck(i,j) = 0.0d0
 
                    ! Apply some calving to the upstream cell with thck_init = thck_calving_front(i,j).
@@ -740,22 +707,22 @@ contains
                    do jj = j-1, j+1
                       do ii = i-1, i+1
                          if (thck_init(ii,jj) > 0.0d0 .and. thck_init(ii,jj) == thck_calving_front(i,j)) then
-                            thinning_rate = calving_lateral(i,j) * thck_calving_front(i,j)*thk0 / sqrt(dx*dy)  ! m/yr
+                            thinning_rate = upstream_lateral_rate * thck_calving_front(i,j)*thk0 / sqrt(dx*dy)  ! m/yr
                             dthck = thinning_rate * (tim0/scyr)/thk0  * dt  ! convert to model units
                             dthck = min(dthck, thck(ii,jj))
 
                             thck(ii,jj) = thck(ii,jj) - dthck
-                            calving_thck(ii,jj) = calving_thck(ii,jj) + dthck
+                            calving%calving_thck(ii,jj) = calving%calving_thck(ii,jj) + dthck
                          endif
                       enddo   ! ii
                    enddo   ! jj
 
                 else   ! dthck <= thck
                    thck(i,j) = thck(i,j) - dthck
-                   calving_thck(i,j) = calving_thck(i,j) + dthck
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
                 endif
 
-             endif   ! calving_lateral > 0
+             endif   ! calving%lateral_rate > 0
           enddo   ! i
        enddo   ! j
 
@@ -767,7 +734,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving_lateral(i,j)
+                write(6,'(f10.3)',advance='no') calving%lateral_rate(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -776,7 +743,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
+                write(6,'(f10.3)',advance='no') calving%calving_thck(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
@@ -801,7 +768,7 @@ contains
        !       This helps get rid of thin ice near the CF where stress eigenvalues might be small.
 
        !WHL - debug
-       calving_thck_init(:,:) = calving_thck(:,:)
+       calving_thck_init(:,:) = calving%calving_thck(:,:)
 
        ! Save the initial thickness, which is used below to identify upstream interior cells.
        thck_init(:,:) = thck(:,:)
@@ -858,14 +825,14 @@ contains
        endif
 
        ! Apply thinning in calving-front cells whose effective thickness H_e (thck_calving_front) is less than
-       !  a prescribed minimum value Hc_min (calving_minthck).
+       !  a prescribed minimum value Hc_min (calving%minthck).
        !
        ! The effective thinning rate is given by
        !
        !    dH_e/dt = -(Hc_min - H_e) / tau_c  where Hc_min > H_e
        !    dH_e/dt = 0 elsewhere
        !
-       ! where tau_c = calving_timescale.
+       ! where tau_c = calving%timescale.
        !
        ! The thinning rate applied to the mean cell thickness (thck) is given by
        !
@@ -873,21 +840,21 @@ contains
        !
        ! Thus, any ice with H_e < Hc_min is removed on a time scale given by tau_c.
 
-       if (calving_timescale <= 0.0d0) then
-          write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
+       if (calving%timescale <= 0.0d0) then
+          write(message,*) 'Must set calving timescale to a positive nonzero value for this calving option'
           call write_log(message, GM_FATAL)
        endif
 
        do j = 2, ny-1
           do i = 2, nx-1
              if (calving_front_mask(i,j) == 1 .and. &
-                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving_minthck) then
+                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%minthck) then
                 
 !!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
 !!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)*thk0
 
-                ! Note: calving_minthck, thck_calving_front and calving_timescale have scaled model units
-                thinning_rate = (calving_minthck - thck_calving_front(i,j)) / calving_timescale
+                ! Note: calving%minthck, thck_calving_front and calving%timescale have scaled model units
+                thinning_rate = (calving%minthck - thck_calving_front(i,j)) / calving%timescale
                 areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
                 dthck = areafrac*thinning_rate*dt
 
@@ -897,7 +864,7 @@ contains
                    print*, 'Thinning: r, i, j =', rtest, itest, jtest
                    print*, 'thck:', thck(i,j)*thk0
                    print*, 'thck_calving_front (m) =', thck_calving_front(i,j)*thk0
-                   print*, 'calving_minthck (m) =', calving_minthck*thk0
+                   print*, 'calving_minthck (m) =', calving%minthck*thk0
                    print*, 'areafrac =', areafrac
                    print*, 'thinning rate (m/yr) =', thinning_rate * thk0*scyr/tim0
                    print*, 'dt (yr) ', dt * tim0/scyr
@@ -905,7 +872,7 @@ contains
                 endif
 
                 if (dthck > thck(i,j)) then
-                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
                    thck(i,j) = 0.0d0
 
                    ! Apply a little bit of thinning to the upstream cell with thck_init = thck_calving_front(i,j)
@@ -918,21 +885,21 @@ contains
                       do ii = i-1, i+1
                          if (thck_init(ii,jj) > 0.0d0 .and. thck_init(ii,jj) == thck_calving_front(i,j) &
                               .and. floating_mask(ii,jj) == 1) then
-                            thinning_rate = (calving_minthck - thck_calving_front(i,j)) / calving_timescale
+                            thinning_rate = (calving%minthck - thck_calving_front(i,j)) / calving%timescale
                             dthck = max(thinning_rate*dt, 0.0d0)
                             dthck = min(dthck, thck(ii,jj) - thinning_limit*thck_init(ii,jj))
                             thck(ii,jj) = thck(ii,jj) - dthck
-                            calving_thck(ii,jj) = calving_thck(ii,jj) + dthck
+                            calving%calving_thck(ii,jj) = calving%calving_thck(ii,jj) + dthck
                          endif
                       enddo   ! ii
                    enddo   ! jj
 
                 else
                    thck(i,j) = thck(i,j) - dthck
-                   calving_thck(i,j) = calving_thck(i,j) + dthck
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
                 endif
 
-             endif   ! thck_calving_front < calving_minthck in calving_front cell
+             endif   ! thck_calving_front < calving%minthck in calving_front cell
           enddo   ! i
        enddo   ! j
 
@@ -946,8 +913,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-!                write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
-                write(6,'(f10.3)',advance='no') (calving_thck(i,j) - calving_thck_init(i,j))*thk0
+                write(6,'(f10.3)',advance='no') (calving%calving_thck(i,j) - calving_thck_init(i,j))*thk0
              enddo
              write(6,*) ' '
           enddo
@@ -971,14 +937,14 @@ contains
        !   the thickness to thck_calving_front (just enough to make the cell active) 
        !   and add the excess ice to the calving_thck field.
 
-       calving_thck_init(:,:) = calving_thck(:,:)
+       calving_thck_init(:,:) = calving%calving_thck(:,:)
 
        do j = 2, ny-1
           do i = 2, nx-1
              if (calving_front_mask(i,j) == 1 .and. &
                   thck_calving_front(i,j) > 0.0d0 .and. thck(i,j) > thck_calving_front(i,j)) then
                 dthck = thck(i,j) - thck_calving_front(i,j)
-                calving_thck(i,j) = calving_thck(i,j) + dthck
+                calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
                 thck(i,j) = thck_calving_front(i,j)
              endif
           enddo   ! j
@@ -1015,7 +981,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') (calving_thck(i,j) - calving_thck_init(i,j))*thk0
+                write(6,'(f10.3)',advance='no') (calving%calving_thck(i,j) - calving_thck_init(i,j))*thk0
              enddo
              write(6,*) ' '
           enddo
@@ -1052,7 +1018,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_mask(i,j)
+                write(6,'(i10)',advance='no') calving%calving_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1061,8 +1027,8 @@ contains
        
        do j = 1, ny
           do i = 1, nx
-             if (thck(i,j) > 0.0d0 .and. calving_mask(i,j) == 1) then
-                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+             if (thck(i,j) > 0.0d0 .and. calving%calving_mask(i,j) == 1) then
+                calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
                 thck(i,j) = 0.0d0
                 !TODO - Reset temperature and other tracers?
              endif
@@ -1075,7 +1041,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
+                write(6,'(f10.3)',advance='no') calving%calving_thck(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
@@ -1132,7 +1098,7 @@ contains
           !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
 
-          where (relx <= marine_limit + eus)
+          where (relx <= calving%marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
              calving_law_mask = .false.
@@ -1140,7 +1106,7 @@ contains
 
        case(CALVING_TOPG_THRESHOLD)   ! set thickness to zero if present bedrock is below a given level
 
-          where (topg < marine_limit + eus)
+          where (topg < calving%marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
              calving_law_mask = .false.
@@ -1353,7 +1319,7 @@ contains
 !!                   print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)*thk0
                 endif
 
-                calving_thck(i,j) = calving_thck(i,j) + float_fraction_calve * thck(i,j)
+                calving%calving_thck(i,j) = calving%calving_thck(i,j) + float_fraction_calve * thck(i,j)
                 thck(i,j) = thck(i,j) - float_fraction_calve * thck(i,j)
             endif
           enddo
@@ -1432,7 +1398,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
+                factor = calving%taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
                 thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j)*thk0)**2)  ! m 
                 write(6,'(f10.3)',advance='no') thckmax_cliff
              enddo
@@ -1447,7 +1413,7 @@ contains
 
                 ! Compute the max stable ice thickness in the cliff cell.
                 ! This is eq. 2.10 in Bassis & Walker (2012)
-                factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
+                factor = calving%taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
                 thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j)*thk0)**2)  ! m 
                 thckmax_cliff = thckmax_cliff / thk0   ! convert to model units
 
@@ -1463,8 +1429,8 @@ contains
                 !       Might want to try other values when looking at marine ice cliff instability.
                 if (thck(i,j) > thckmax_cliff) then
 
-                   if (cliff_timescale > 0.0d0) then
-                      thinning_rate = (thck(i,j) - thckmax_cliff) / cliff_timescale
+                   if (calving%cliff_timescale > 0.0d0) then
+                      thinning_rate = (thck(i,j) - thckmax_cliff) / calving%cliff_timescale
                       dthck = min(thck(i,j) - thckmax_cliff, thinning_rate*dt)
                    else
                       dthck = thck(i,j) - thckmax_cliff
@@ -1481,7 +1447,7 @@ contains
                    endif
 
                    thck(i,j) = thck(i,j) - dthck
-                   calving_thck(i,j) = calving_thck(i,j) + dthck
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
 
                 endif  ! thck > thckmax_cliff
 
@@ -1514,9 +1480,9 @@ contains
             topg,          eus,      &
             thklim,                  &
             which_ho_calving_front,  &
-            calving_thck,            &
+            calving%calving_thck,    &
             cull_calving_front,      &
-            ncull_calving_front)
+            calving%ncull_calving_front)
 
     endif
 
@@ -1527,7 +1493,7 @@ contains
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') calving_thck(i,j)*thk0
+             write(6,'(f10.3)',advance='no') calving%calving_thck(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
@@ -1573,8 +1539,8 @@ contains
        thklim,                      &
        which_ho_calving_front,      &
        calving_thck,                &
-       cull_calving_front_in,       &
-       ncull_calving_front_in)
+       cull_calving_front,          &
+       ncull_calving_front)
 
     ! Remove any icebergs. 
         
@@ -1608,17 +1574,12 @@ contains
     integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
     real(dp), dimension(:,:), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
                                                               !> on output, includes ice in icebergs
-
-    logical, intent(in), optional :: &
-         cull_calving_front_in         !> if true, remove peninsulas by first removing a layer of calving_front cells
-
-    integer, intent(in), optional :: &
-         ncull_calving_front_in        !> number of times to cull calving_front cells at initialization
+    logical, intent(in) :: &
+         cull_calving_front            !> if true, remove peninsulas by first removing a layer of calving_front cells
+    integer, intent(in) :: &
+         ncull_calving_front           !> number of times to cull calving_front cells at initialization
 
     ! local variables
-
-    logical :: cull_calving_front    ! local version of cull_calving_front_in
-    integer :: ncull_calving_front   ! local version of ncull_calving_front_in
 
     integer :: nx, ny                ! horizontal grid dimensions
 
@@ -1639,18 +1600,6 @@ contains
 
     !WHL - debug
     real(dp) :: sum_fill_local, sum_fill_global
-
-    if (present(cull_calving_front_in)) then
-       cull_calving_front = cull_calving_front_in
-    else
-       cull_calving_front = .false.
-    endif
-
-    if (present(ncull_calving_front_in)) then
-       ncull_calving_front = ncull_calving_front_in
-    else
-       ncull_calving_front = 1
-    endif
 
     nx = size(thck,1)
     ny = size(thck,2)
@@ -1995,7 +1944,7 @@ contains
   ! Identify cells with basal lakes: i.e., cells that are floating but have
   ! no connection through other floating cells to the ocean.
 
-  !TODO - Move this subroutine elsewhere (e.g., glissade_basal_traction)
+  !TODO - Move this subroutine elsewhere? Connection to calving is only the use of glissade_fill.
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 

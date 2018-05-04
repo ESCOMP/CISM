@@ -525,61 +525,18 @@ contains
          model%options%is_restart == RESTART_FALSE) then
 
        ! ------------------------------------------------------------------------
-       ! Remove ice that should calve, depending on the value of whichcalving.
-       !TODO - Make sure we have done the necessary halo updates before calving
-       ! Note: This initial call includes the optional cull_calving_front argument,
-       !        which if true can remove floating peninsulas in the input data by
-       !        preceding the call to remove_icebergs with removal of one or more
-       !        layers of calving_front cells.
+       ! Note: The initial calving solve is treated differently from the runtime calving solve.
+       !       In particular, calving-front culling is done at initialization only.
        !       Culling may also be used to remove a row of thin cells (~1 m)
        !        at the calving front, as present in some input data sets.
-       !       The call to calving during glissade_tstep does not include this argument,
-       !        since we do not want to remove calving_front cells every timestep.
-       ! ------------------------------------------------------------------------        
+       !       But we do not want to remove calving_front cells every timestep.
+       ! ------------------------------------------------------------------------
 
-       call glissade_calve_ice(model%options%whichcalving,      &
-                               model%options%calving_domain,    &
-                               model%options%which_ho_calving_front, &
-                               model%options%remove_icebergs,     &
-                               model%options%limit_marine_cliffs, &
-                               itest, jtest, rtest,             &
-                               model%geometry%thck,             &
-                               model%isostasy%relx,             &
-                               model%geometry%topg,             &
-                               model%climate%eus,               &
-                               model%numerics%thklim,           &
-                               model%calving%marine_limit,      &
-                               model%calving%calving_fraction,  &
-                               model%calving%calving_timescale, &
-                               model%numerics%dt,               &
-                               model%numerics%dew*len0,         &        ! m
-                               model%numerics%dns*len0,         &        ! m
-                               model%calving%eigencalving_constant,  &   ! m/yr/Pa
-                               model%calving%eigen2_weight,     &
-                               model%calving%tau_eigen1,        &        ! Pa
-                               model%calving%tau_eigen2,        &        ! Pa
-                               model%calving%tau_eff_calving,   &        ! Pa
-                               model%calving%calving_minthck,   &
-                               model%calving%taumax_cliff,      &
-                               model%calving%cliff_timescale,   &
-                               model%calving%calving_mask,      &
-                               model%calving%damage,            &
-                               model%calving%damage_constant,   &
-                               model%calving%damage_threshold,  &
-                               model%numerics%sigma,            &
-                               model%calving%calving_lateral,   &
-                               model%calving%calving_thck,      &
-                               cull_calving_front_in = model%options%cull_calving_front, &
-                               ncull_calving_front_in = model%calving%ncull_calving_front)
-
-       !TODO: Think about what halo updates are needed after calving. Just thck and thkmask?
-
-       ! halo updates
-       call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calclsrf
+       call glissade_calving_solve(model, .true.)   ! init_calving = .true.
 
        ! The mask needs to be recalculated after calving.
        ! Note: glide_set_mask includes a halo update for thkmask.
-       !TODO - Delete this call? Replace with glissade masks?
+       !TODO - Delete this call? Glissade dycore does not use thkmask.
        call glide_set_mask(model%numerics,                                &
                            model%geometry%thck,  model%geometry%topg,     &
                            model%general%ewn,    model%general%nsn,       &
@@ -589,7 +546,7 @@ contains
     endif  ! initial calving
 
     ! Initialize the no-advance calving_mask, if desired
-    ! Note: This is done after initial calving, which may include iceberg removal or front culling.
+    ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
     !       The calving front that exists after initial culling is the one that is held fixed during the simulation.
     ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0.
 
@@ -778,7 +735,7 @@ contains
     ! Calculate iceberg calving
     ! ------------------------------------------------------------------------ 
 
-    call glissade_calving_solve(model)
+    call glissade_calving_solve(model, .false.)   ! init_calving = .false.
 
     ! ------------------------------------------------------------------------
     ! Clean up variables in ice-free columns.
@@ -1948,7 +1905,7 @@ contains
 
 !=======================================================================
 
-  subroutine glissade_calving_solve(model)
+  subroutine glissade_calving_solve(model, init_calving)
 
     ! ------------------------------------------------------------------------ 
     ! Calculate iceberg calving
@@ -1964,19 +1921,22 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
+    logical, intent(in) :: init_calving  ! true when this subroutine is called at initialization
+
     ! --- Local variables ---
+
+    logical :: cull_calving_front   ! true iff init_calving = T and options%cull_calving_front = T
 
     integer :: i, j
 
-    ! --- Calculate updated mask because calving calculation needs a mask.
-    !TODO - Remove this call when using glissade_calve_ice, which does not use the Glide mask?
+    !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
-
-    !TODO - Make sure no more halo updates are needed before glissade_calve_ice
+    ! Determine whether the calving front should be culled
+    if (init_calving .and. model%options%cull_calving_front) then
+       cull_calving_front = .true.
+    else
+       cull_calving_front = .false.
+    endif
 
     ! ------------------------------------------------------------------------ 
     ! Calve ice, based on the value of whichcalving 
@@ -1989,34 +1949,19 @@ contains
                             model%options%which_ho_calving_front, &
                             model%options%remove_icebergs,     &
                             model%options%limit_marine_cliffs, &
+                            cull_calving_front,              &
+                            model%calving,                   &
                             model%numerics%idiag_local, model%numerics%jdiag_local,   &
                             model%numerics%rdiag_local,                               &
-                            model%geometry%thck,             &
-                            model%isostasy%relx,             &
-                            model%geometry%topg,             &
-                            model%climate%eus,               &
-                            model%numerics%thklim,           &
-                            model%calving%marine_limit,      &
-                            model%calving%calving_fraction,  &
-                            model%calving%calving_timescale, &
                             model%numerics%dt,               &
                             model%numerics%dew*len0,         &        ! m
                             model%numerics%dns*len0,         &        ! m
-                            model%calving%eigencalving_constant,  &   ! m/yr/Pa
-                            model%calving%eigen2_weight,     &
-                            model%calving%tau_eigen1,        &        ! Pa
-                            model%calving%tau_eigen2,        &        ! Pa
-                            model%calving%tau_eff_calving,   &        ! Pa
-                            model%calving%calving_minthck,   &
-                            model%calving%taumax_cliff,      &
-                            model%calving%cliff_timescale,   &
-                            model%calving%calving_mask,      &
-                            model%calving%damage,            &
-                            model%calving%damage_constant,   &
-                            model%calving%damage_threshold,  &
                             model%numerics%sigma,            &
-                            model%calving%calving_lateral,   &
-                            model%calving%calving_thck)
+                            model%numerics%thklim,           &
+                            model%geometry%thck,             &
+                            model%isostasy%relx,             &
+                            model%geometry%topg,             &
+                            model%climate%eus)
     
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
