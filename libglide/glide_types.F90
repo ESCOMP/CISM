@@ -1073,6 +1073,7 @@ module glide_types
   ! Note on acab_tavg: This is the average value of acab over an output interval.
   !                    If 'average = 1' in the acab entry of glide_vars.def, then acab_tavg is automatically
   !                     accumulated and averaged during runtime, without any additional code needed.
+  !                    Other variables with a '_tavg' suffix are handled similarly.
   !
   ! Note on acab_corrected: Optionally, acab can be supplemented with a flux correction or an anomaly.
   !                         The background field, acab, does not include the corrections.
@@ -1080,13 +1081,14 @@ module glide_types
 
   type glide_climate
      !> Holds fields used to drive the model
-     real(dp),dimension(:,:),pointer :: acab            => null() !> Annual mass balance (m/y ice)
-     real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Annual mass balance (time average).
-     real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Annual mass balance anomaly (m/y ice)
-     real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Annual mass balance with flux or anomaly corrections (m/y ice)
-     real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Annual mass balance applied to ice (m/y ice)
-                                                                  !> = 0 for ice-free cells with acab < 0
-     real(dp),dimension(:,:),pointer :: smb             => null() !> Annual mass balance (mm/y water equivalent)
+     real(dp),dimension(:,:),pointer :: acab            => null() !> Surface mass balance (m/yr ice)
+     real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Surface mass balance (time average).
+     real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Surface mass balance anomaly (m/yr ice)
+     real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Surface mass balance with flux or anomaly corrections (m/yr ice)
+     real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Surface mass balance applied to ice (m/yr ice)
+                                                                  !>    = 0 for ice-free cells with acab < 0
+     real(dp),dimension(:,:),pointer :: acab_applied_tavg => null() !> Surface mass balance applied to ice (m/yr ice, time average)
+     real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
@@ -1110,7 +1112,8 @@ module glide_types
      !> holds fields and parameters related to calving
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !> scaled by thk0 like mass balance, thickness, etc.
-     real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss (m/yr ice) due to calving
+     real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
                                                                    !> (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
@@ -1309,8 +1312,9 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           bmlt => null(),                         & !> basal melt rate (> 0 for melt, < 0 for freeze-on)
                                                     !> bmlt = bmlt_ground + bmlt_float
-          bmlt_applied => null(),                 & !> basal melt rate applied to ice
-                                                    !> = 0 for ice-free cells with bmlt > 0
+          bmlt_applied => null(),                 & !> basal melt rate applied to ice (m/yr)
+                                                    !>    = 0 for ice-free cells with bmlt > 0
+          bmlt_applied_tavg => null(),            & !> basal melt rate applied to ice (m/yr, time average)
           bmlt_ground => null(),                  & !> basal melt rate for grounded ice
           bmlt_float => null(),                   & !> basal melt rate for floating ice
           bmlt_float_external => null(),          & !> external basal melt rate field
@@ -2230,6 +2234,7 @@ contains
     ! bmlt arrays
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_tavg)
 
     !WHL - debug
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_old)
@@ -2279,6 +2284,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
@@ -2287,6 +2293,7 @@ contains
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
@@ -2576,6 +2583,8 @@ contains
         deallocate(model%basal_melt%bmlt)
     if (associated(model%basal_melt%bmlt_applied)) &
         deallocate(model%basal_melt%bmlt_applied)
+    if (associated(model%basal_melt%bmlt_applied_tavg)) &
+        deallocate(model%basal_melt%bmlt_applied_tavg)
     if (associated(model%basal_melt%bmlt_ground)) &
         deallocate(model%basal_melt%bmlt_ground)
     if (associated(model%basal_melt%bmlt_float)) &
@@ -2763,6 +2772,8 @@ contains
         deallocate(model%climate%acab_corrected)
     if (associated(model%climate%acab_applied)) &
         deallocate(model%climate%acab_applied)
+    if (associated(model%climate%acab_applied_tavg)) &
+        deallocate(model%climate%acab_applied_tavg)
     if (associated(model%climate%smb)) &
         deallocate(model%climate%smb)
     if (associated(model%climate%artm)) &
@@ -2777,6 +2788,8 @@ contains
         deallocate(model%calving%calving_thck)
     if (associated(model%calving%calving_rate)) &
         deallocate(model%calving%calving_rate)
+    if (associated(model%calving%calving_rate_tavg)) &
+        deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
     if (associated(model%calving%lateral_rate)) &
