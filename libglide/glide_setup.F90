@@ -532,8 +532,11 @@ contains
        (floor(model%numerics%ntem) /= model%numerics%ntem) ) then
        call write_log('ntem is a multiplier on the basic time step.  It should be a positive integer.  Aborting.',GM_FATAL)
     endif
-    write(message,*) 'profile frequency   : ',model%numerics%profile_period
-    call write_log(message)
+
+    if (model%options%whichdycore == DYCORE_GLIDE) then  ! Glide option only
+       write(message,*) 'profile frequency   : ',model%numerics%profile_period
+       call write_log(message)
+    endif
 
     if (model%numerics%dt_diag > 0.d0) then
        write(message,*) 'diagnostic interval (years):',model%numerics%dt_diag
@@ -921,7 +924,7 @@ contains
          'ice age computation off', &
          'ice age computation on ' /)
 
-    call write_log('GLIDE options')
+    call write_log('Dycore options')
     call write_log('-------------')
 
     write(message,*) 'I/O parameter file      : ',trim(model%funits%ncfile)
@@ -946,7 +949,6 @@ contains
 
     ! Forbidden options associated with the Glide dycore
     if (model%options%whichdycore == DYCORE_GLIDE) then
-
        if (model%options%whichevol == EVOL_INC_REMAP     .or.  &
            model%options%whichevol == EVOL_UPWIND        .or.  &
            model%options%whichevol == EVOL_NO_THICKNESS) then
@@ -1115,23 +1117,23 @@ contains
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
        if (model%options%remove_icebergs) then
-          call write_log('Icebergs will be removed')
+          call write_log(' Icebergs will be removed')
        else
-          call write_log('Icebergs will not be removed')
+          call write_log(' Icebergs will not be removed')
        endif
        
        if (model%options%limit_marine_cliffs) then
-          call write_log('The thickness of marine ice cliffs will be limited')
+          call write_log(' The thickness of marine ice cliffs will be limited')
           call write_log(message)
        else
-          call write_log('The thickness of marine ice cliffs will not be limited')
+          call write_log(' The thickness of marine ice cliffs will not be limited')
        endif
 
        if (model%options%cull_calving_front) then
-          write(message,*) 'Calving-front cells will be culled', model%calving%ncull_calving_front, 'times at initialization'
+          write(message,*) ' Calving-front cells will be culled', model%calving%ncull_calving_front, 'times at initialization'
           call write_log(message)
        else
-          call write_log('Calving-front cells will not be culled at initialization')
+          call write_log(' Calving-front cells will not be culled at initialization')
        endif
 
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
@@ -1166,15 +1168,18 @@ contains
        call write_log('Error, slip_coeff out of range',GM_FATAL)
     end if
 
-    !WHL - Currently, not all basal traction options are supported for the Glissade SIA solver
-    if (model%options%whichdycore == DYCORE_GLISSADE .and. model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
-       if (model%options%whichbtrc > BTRC_CONSTANT_BPMP) then
-          call write_log('Error, slip_coeff out of range for Glissade dycore',GM_FATAL)
-       end if
-    endif
+    if (model%options%whichdycore == DYCORE_GLIDE .or.  &
+         (model%options%whichdycore == DYCORE_GLISSADE .and. model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) ) then
+       write(message,*) 'slip_coeff              : ', model%options%whichbtrc, slip_coeff(model%options%whichbtrc)
+       call write_log(message)
 
-    write(message,*) 'slip_coeff              : ', model%options%whichbtrc, slip_coeff(model%options%whichbtrc)
-    call write_log(message)
+       !Note: Not all basal traction options are supported for the Glissade SIA solver
+       if (model%options%whichdycore == DYCORE_GLISSADE .and. model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+          if (model%options%whichbtrc > BTRC_CONSTANT_BPMP) then
+             call write_log('Error, slip_coeff out of range for Glissade dycore',GM_FATAL)
+          end if
+       endif
+    endif
 
     if (model%options%whichevol < 0 .or. model%options%whichevol >= size(evolution)) then
        call write_log('Error, evolution out of range',GM_FATAL)
@@ -1839,8 +1844,10 @@ contains
     write(message,*) 'flow enhancement factor (SSA) : ', model%paramets%flow_enhancement_factor_ssa
     call write_log(message)
 
-    write(message,*) 'basal hydro time constant (yr): ', model%paramets%hydtim
-    call write_log(message)
+    if (model%options%whichdycore == DYCORE_GLIDE) then
+       write(message,*) 'basal hydro time constant (yr): ', model%paramets%hydtim
+       call write_log(message)
+    endif
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
        write(message,*) 'max surface slope             : ', model%paramets%max_slope

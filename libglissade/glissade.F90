@@ -1589,8 +1589,6 @@ contains
 
     end select
 
-    print*, 'Here 5'
-
     !------------------------------------------------------------------------
     ! Update the upper and lower ice surface
     ! Note that glide_calclsrf loops over all cells, including halos,
