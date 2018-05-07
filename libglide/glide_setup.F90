@@ -590,6 +590,7 @@ contains
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
+    call GetValue(section,'diag_minthck',model%options%diag_minthck)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -793,6 +794,10 @@ contains
     character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
          'write dmass/dt diagnostic in units of kg/s ',  &
          'write dmass/dt diagnostic in units of Gt/yr'/)
+
+    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
+         'include cells with H > 0 in global diagnostics     ', &
+         'include cells with H > thklim in global diagnostics'/)
 
     character(len=*), dimension(0:1), parameter :: vertical_integration = (/ &
          'standard     ', &
@@ -1197,6 +1202,14 @@ contains
     if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
        call write_log('Error, dm_dt_diag out of range',GM_FATAL)
     end if
+
+    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
+       call write_log('Error, diag_minthck out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
+         diag_minthck(model%options%diag_minthck)
+    call write_log(message)
 
     if (model%options%whichwvel < 0 .or. model%options%whichwvel >= size(vertical_integration)) then
        call write_log('Error, vertical_integration out of range',GM_FATAL)

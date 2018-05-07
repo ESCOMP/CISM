@@ -42,8 +42,7 @@ module glide_diagnostics
 contains
 
   subroutine glide_write_diagnostics (model,  time,    &
-                                      tstep_count,     &
-                                      minthick_in)
+                                      tstep_count)
 
     ! Short driver subroutine to decide whether it's time to write diagnostics.
     ! If so, it calls glide_write_diag.   
@@ -57,24 +56,9 @@ contains
 
     integer,  intent(in) :: tstep_count   ! current timestep
 
-    real(dp), intent(in), optional :: &
-       minthick_in       ! ice thickness threshold (m) for including in diagnostics
-
     ! local arguments
 
-    real(dp) :: minthick ! ice thickness threshold (m) for including in diagnostics
-                         ! defaults to eps (a small number) if not passed in
-
-    real(dp), parameter ::   &
-       eps = 1.0d-11
-
     logical, parameter :: verbose_diagnostics = .false.
-
-    if (present(minthick_in)) then
-       minthick = minthick_in
-    else
-       minthick = eps
-    endif
 
     ! debug
     if (main_task .and. verbose_diagnostics) then
@@ -89,10 +73,7 @@ contains
     if (model%numerics%ndiag > 0) then
 
        if (mod(tstep_count, model%numerics%ndiag) == 0)  then    ! time to write
-
-          call glide_write_diag(model,                 &
-                                time,                  &
-                                minthick)
+          call glide_write_diag(model, time)
        endif
 
     endif    ! ndiag > 0
@@ -168,8 +149,7 @@ contains
 
 !--------------------------------------------------------------------------
 
-  subroutine glide_write_diag (model,       time,         &
-                               minthick)
+  subroutine glide_write_diag (model,       time)
 
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
@@ -187,12 +167,11 @@ contains
     type(glide_global_type), intent(inout) :: model ! model instance
 
     real(dp),  intent(in) :: time                   ! current time in years
-    real(dp), intent(in)  :: &
-         minthick          ! ice thickness threshold (m) for including in diagnostics
 
     ! local variables
 
     real(dp) ::                         &
+         minthck,                       &    ! ice thickness threshold (m) for global diagnostics
          tot_area,                      &    ! total ice area (m^2)
          tot_area_ground,               &    ! total area of grounded ice (m^2)
          tot_area_float,                &    ! total area of floating ice (m^2)
@@ -233,7 +212,7 @@ contains
          factor                              ! unit conversion factor
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
-         ice_mask,     &! = 1 where ice is present with thck > minthick, else = 0
+         ice_mask,     &! = 1 where ice is present with thck > minthck, else = 0
          floating_mask  ! = 1 where ice is present and floating, else = 0
 
     real(dp), dimension(model%general%upn) ::  &
@@ -263,7 +242,8 @@ contains
                        ! optionally, divide by scale factor^2 to account for grid distortion
 
     real(dp), parameter ::   &
-       eps = 1.0d-11             ! small number
+       eps = 1.0d-11,         & ! small number
+       eps_thck = 1.0d-11       ! threshold thickness (m) for writing diagnostics
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -301,13 +281,20 @@ contains
        velo_ew_ubound = ewn-uhalo-1
     end if
 
+    ! Set the minimum ice thickness for including cells in diagnostics
+    if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
+       minthck = eps_thck  ! slightly > 0
+    elseif (model%options%diag_minthck == DIAG_MINTHCK_THKLIM) then
+       minthck = model%numerics%thklim*thk0
+    endif
+
     !-----------------------------------------------------------------
     ! Compute some masks that are useful for diagnostics
     !-----------------------------------------------------------------
 
     do j = 1, nsn
        do i = 1, ewn
-          if (model%geometry%thck(i,j)*thk0 > minthick) then
+          if (model%geometry%thck(i,j)*thk0 > minthck) then
              ice_mask(i,j) = 1
              if (model%geometry%topg(i,j) - model%climate%eus < (-rhoi/rhoo)*model%geometry%thck(i,j)) then
                 floating_mask(i,j) = 1
@@ -782,7 +769,7 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(1,i,j)**2   &
                    + model%velocity%vvel(1,i,j)**2)
-          if (model%geomderv%stagthck(i,j)*thk0 > minthick .and. spd > max_spd_sfc) then
+          if (model%geomderv%stagthck(i,j)*thk0 > minthck .and. spd > max_spd_sfc) then
              max_spd_sfc = spd
              imax = i
              jmax = j
@@ -808,7 +795,7 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
                    + model%velocity%vvel(upn,i,j)**2)
-          if (model%geomderv%stagthck(i,j)*thk0 > minthick  .and. spd > max_spd_bas) then
+          if (model%geomderv%stagthck(i,j)*thk0 > minthck  .and. spd > max_spd_bas) then
              max_spd_bas = spd
              imax = i
              jmax = j
