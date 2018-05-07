@@ -469,7 +469,7 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
-       ! total surface accumulation/ablation rate (m^3/yr)
+       ! total surface accumulation/ablation rate (m^3/yr ice)
  
        tot_acab = 0.d0
        do j = lhalo+1, nsn-uhalo
@@ -514,18 +514,15 @@ contains
           mean_bmlt = 0.d0
        endif
 
-       ! total calving rate
-       ! Recall that calving_thck is the scaled thickness of ice calving in one time step;
-       !  divide by dt to convert to a rate
+       ! total calving rate (m^3/yr ice)
+       ! Note: calving%calving_rate has units of m/yr ice
 
        tot_calving = 0.d0
        do j = lhalo+1, nsn-uhalo
           do i = lhalo+1, ewn-uhalo
-             tot_calving = tot_calving + model%calving%calving_thck(i,j)/model%numerics%dt  * cell_area(i,j)
+             tot_calving = tot_calving + model%calving%calving_rate(i,j) * (cell_area(i,j)*len0**2)  ! m^3/yr ice
           enddo
        enddo
-
-       tot_calving = tot_calving * scyr * thk0/tim0 * len0**2  ! convert to m^3/yr
        tot_calving = parallel_reduce_sum(tot_calving)
 
        ! total calving mass balance flux (kg/s, negative for ice loss by calving)

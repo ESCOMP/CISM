@@ -2787,6 +2787,9 @@ contains
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
+    ! calving rate (m/yr ice; positive for calving)
+    model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
+
     !WHL - inversion debug
 
     if ( (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
