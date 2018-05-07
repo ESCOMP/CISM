@@ -170,6 +170,9 @@ module glide_types
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
 
+  integer, parameter :: DM_DT_DIAG_KG_S = 0
+  integer, parameter :: DM_DT_DIAG_GT_Y = 1
+
   integer, parameter :: SIGMA_COMPUTE_GLIDE = 0
   integer, parameter :: SIGMA_EXTERNAL = 1
   integer, parameter :: SIGMA_CONFIG = 2
@@ -509,6 +512,12 @@ module glide_types
     logical  :: cull_calving_front = .false.
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
+
+    integer :: dm_dt_diag = 0
+    !> \begin{description}
+    !> \item[0] Write dmass/dt diagnostic in units of kg/s
+    !> \item[0] Write dmass/dt diagnostic in units of Gt/yr
+    !> \end{description}
 
     integer :: whichwvel = 0
 

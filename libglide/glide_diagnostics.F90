@@ -229,7 +229,8 @@ contains
          load_diag,                     &
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
-         bheatflx_diag, level
+         bheatflx_diag, level,          &
+         factor                              ! unit conversion factor
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
          ice_mask,     &! = 1 where ice is present with thck > minthick, else = 0
@@ -613,23 +614,49 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
-       write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
 
-       write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+
+          factor = scyr / 1.0d12
+
+          write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif
 
 !       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)

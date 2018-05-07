@@ -589,6 +589,7 @@ contains
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
@@ -788,6 +789,10 @@ contains
     character(len=*), dimension(0:1), parameter :: domain_calving = (/ &
          'calving only at the ocean edge             ',  &
          'calving in all cells where criterion is met'/)
+
+    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
+         'write dmass/dt diagnostic in units of kg/s ',  &
+         'write dmass/dt diagnostic in units of Gt/yr'/)
 
     character(len=*), dimension(0:1), parameter :: vertical_integration = (/ &
          'standard     ', &
@@ -1142,6 +1147,7 @@ contains
        endif
 
     else   ! not Glissade
+
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
        endif
@@ -1187,6 +1193,10 @@ contains
 
     write(message,*) 'evolution               : ', model%options%whichevol, evolution(model%options%whichevol)
     call write_log(message)
+
+    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
+       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
+    end if
 
     if (model%options%whichwvel < 0 .or. model%options%whichwvel >= size(vertical_integration)) then
        call write_log('Error, vertical_integration out of range',GM_FATAL)
