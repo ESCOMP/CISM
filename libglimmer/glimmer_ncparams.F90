@@ -82,7 +82,7 @@ contains
     !  The latest time slice will be read in.
     ! Thus when restarting the model, it is only necessary to set restart = RESTART_TRUE (i.e, restart = 1)
     !  in the config file; it is not necesssary to change filenames in 'CF input' or 'CF restart'.
-    ! At most one file should be listed in the 'CF restart' section, and it should contain the string '.restart.'
+    ! At most one file should be listed in the 'CF restart' section, and it should contain the string 'restart'
     ! If model%options%is_restart = RESTART_TRUE and there is no 'CF restart' section, then the model will restart
     !  from the file and time slice specified in the 'CF input' section. (This is the old Glimmer behavior.)
 
@@ -116,10 +116,10 @@ contains
           model%funits%out_first => output
        end if
 
-       ! Make sure the filename contains '.restart.'
-       pos = index(output%nc%filename,'.restart.')
+       ! Make sure the filename contains 'restart'
+       pos = index(output%nc%filename,'restart')
        if (pos == 0) then
-          call write_log ('Error, filename in CF restart section should include ".restart."', GM_FATAL)
+          call write_log ('Error, filename in CF restart section should include "restart"', GM_FATAL)
        endif
 
        ! Make sure there is only one 'CF restart' section
@@ -165,10 +165,10 @@ contains
              input => handle_input(section,input)
              model%funits%in_first => input
 
-             ! Make sure the filename contains '.restart.'
-             pos = index(input%nc%filename,'.restart.')
+             ! Make sure the filename contains 'restart'
+             pos = index(input%nc%filename,'restart')
              if (pos == 0) then
-                call write_log ('Error, filename in CF restart section should include ".restart."', GM_FATAL)
+                call write_log ('Error, filename in CF restart section should include "restart"', GM_FATAL)
              endif
 
              ! Make sure there is only one 'CF restart' section
