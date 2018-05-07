@@ -173,6 +173,9 @@ module glide_types
   integer, parameter :: DM_DT_DIAG_KG_S = 0
   integer, parameter :: DM_DT_DIAG_GT_Y = 1
 
+  integer, parameter :: DIAG_MINTHCK_ZERO = 0
+  integer, parameter :: DIAG_MINTHCK_THKLIM = 1
+
   integer, parameter :: SIGMA_COMPUTE_GLIDE = 0
   integer, parameter :: SIGMA_EXTERNAL = 1
   integer, parameter :: SIGMA_CONFIG = 2
@@ -516,7 +519,13 @@ module glide_types
     integer :: dm_dt_diag = 0
     !> \begin{description}
     !> \item[0] Write dmass/dt diagnostic in units of kg/s
-    !> \item[0] Write dmass/dt diagnostic in units of Gt/yr
+    !> \item[1] Write dmass/dt diagnostic in units of Gt/yr
+    !> \end{description}
+
+    integer :: diag_minthck = 1
+    !> \begin{description}
+    !> \item[0] Include cells with H > 0 in global diagnostics
+    !> \item[1] Include cells with H > thklim in global diagnostics
     !> \end{description}
 
     integer :: whichwvel = 0

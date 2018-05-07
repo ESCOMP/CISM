@@ -213,14 +213,10 @@ subroutine cism_init_dycore(model)
     ! Write initial diagnostic output to log file
     ! Note: tstep_count is set to 0 at model initialization and then is incremented in cism_run_dycore
     !  before each call to a dycore.
-    ! Note: If minthick_in = 0, then all cells with nonzero ice thickness (including very thin ice)
-    !  will contribute to global diagnostics.
 
     call t_startf('initial_write_diagnostics')
     call glide_write_diagnostics(model,        time,       &
-                                 tstep_count = model%numerics%tstep_count,  &
-                                 minthick_in = model%numerics%thklim*thk0)  ! m
-!!                                 minthick_in = 0.0d0)  ! m
+                                 tstep_count = model%numerics%tstep_count)
     call t_stopf('initial_write_diagnostics')
 
   end if ! whichdycore .ne. DYCORE_BISICLES
@@ -347,14 +343,9 @@ subroutine cism_run_dycore(model)
 
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 
-      ! Note: If minthick_in = 0, then all cells with nonzero ice thickness (including very thin ice)
-      !  will contribute to global diagnostics.
-
       call t_startf('write_diagnostics')
       call glide_write_diagnostics(model,        time,       &
-                                   tstep_count = model%numerics%tstep_count,  &
-                                   minthick_in = model%numerics%thklim*thk0)  ! m
-!!                                   minthick_in = 0.0d0)  ! m
+                                   tstep_count = model%numerics%tstep_count)
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance
