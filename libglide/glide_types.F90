@@ -887,14 +887,15 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
     real(dp),dimension(:,:),  pointer :: gl_flux_tavg =>null()         !> mass flux at grounding line, cell-based (kg m^-1 s^-1, time average)
 
-    !* (DFM ----------------- The following 4 fields were added for BISICLES interface --------------)
+    !* (DFM ----------------- The following fields were added for BISICLES interface --------------)
     !*SFP: These fields need to be passed to POP for ice ocean coupling
+    ! WHL: When Dan added the masks, he made them real-valued. They are now integers, which might break the POP coupling.
     real(dp),dimension(:,:),pointer :: lower_cell_loc => null()  !> z-location of the center of the lowest ice cell center
     real(dp),dimension(:,:),pointer :: lower_cell_temp => null() !> temperature in the cell located at lower_cell_loc
-    real(dp),dimension(:,:),pointer :: ice_mask => null()        !> = 1.0 where ice is present, else = 0.0
-    real(dp),dimension(:,:),pointer :: floating_mask => null()   !> = 1.0 where ice is present and floating, else = 0.0
-    real(dp),dimension(:,:),pointer :: grounded_mask => null()   !> = 1.0 where ice is present and grounded, else = 0.0
-    real(dp),dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1.0 where ice is present on staggered grid, else = 0.0
+    integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0.0
+    integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0.0
+    integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0.0
+    integer, dimension(:,:),pointer :: grounded_mask => null()   !> = 1 where ice is present and grounded, else = 0.0
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -2176,9 +2177,9 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_tavg)
 
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
+    call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
-    call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
 
@@ -2691,12 +2692,12 @@ contains
 
     if (associated(model%geometry%ice_mask)) &
        deallocate(model%geometry%ice_mask)
+    if (associated(model%geometry%ice_mask_stag)) &
+       deallocate(model%geometry%ice_mask_stag)
     if (associated(model%geometry%floating_mask)) &
        deallocate(model%geometry%floating_mask)
     if (associated(model%geometry%grounded_mask)) &
        deallocate(model%geometry%grounded_mask)
-    if (associated(model%geometry%ice_mask_stag)) &
-       deallocate(model%geometry%ice_mask_stag)
     if (associated(model%geometry%lower_cell_loc)) &
        deallocate(model%geometry%lower_cell_loc)
     if (associated(model%geometry%lower_cell_temp)) &
