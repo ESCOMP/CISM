@@ -537,6 +537,7 @@ units:         meter/year
 long_name:     rate of mass loss by calving
 data:          data%calving%calving_rate
 coordinates:   lon lat
+average:       1
 
 [calving_mask]
 dimensions:    time, y1, x1
@@ -744,6 +745,7 @@ data:          data%climate%acab_applied
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_applied
 coordinates:   lon lat
+average:       1
 
 [acab_anomaly]
 dimensions:    time, y1, x1
@@ -811,6 +813,7 @@ data:          data%basal_melt%bmlt_applied
 factor:        scale_acab
 standard_name: land_ice_basal_melt_rate_applied
 coordinates:   lon lat
+average:       1
 
 [bfricflx]
 dimensions:    time, y1, x1
