@@ -54,9 +54,10 @@ module isostasy
   ! (4) The flexural rigidity of the elastic lithosphere is controlled by the parameter 'flexural_rigidity',
   !     which can be set in the [isostasy] section. The default is 0.24e25 N m.
   ! (5) The period for recomputing the load in the elastic lithosphere calculation is controlled
-  !     by the parameter 'update', which can be set in the [isostasy] section.
-  !     The default is 500 yr.  As long as the update is not too frequent, the isostasy
-  !     calculation should have minimal cost compared to the whole simulation.
+  !     by the parameter 'lithosphere_period', which can be set in the [isostasy] section.
+  !     The default is 500 yr.  As long as the load is not recomputed too often, the isostasy
+  !     calculation should have minimal cost compared to the whole simulation
+  !     (at least on grids of moderate resolution, ~4 km).
   ! (6) The adjustment time scale in the relaxing asthenosphere calculation is controlled
   !     by the parameter relaxed_tau, which can be set in the [isostasy] section.
   !     The default is 4000 yr.
