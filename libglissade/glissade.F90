@@ -2860,51 +2860,37 @@ contains
 
     endif ! verbose_inversion
 
-    ! real-valued masks
+    ! set integer masks in the geometry derived type
 
     ! unstaggered grid
     do j = 1, model%general%nsn
        do i = 1, model%general%ewn
           if (ice_mask(i,j) == 1) then
-             model%geometry%ice_mask(i,j) = 1.0d0
+             model%geometry%ice_mask(i,j) = 1
              if (floating_mask(i,j) == 1) then
-                !WHL - debug - Identify cells where floating_mask flips between time steps.
-!!                if (model%geometry%floating_mask(i,j) == 0) then   ! grounded or ice-free at previous step
-!!                   call parallel_globalindex(i, j, iglobal, jglobal)
-!!                   print*, 'floating_mask flipped from 0 to 1:, rank, i, j, iglobal, jglobal, thck_old, thck =', &
-!!                           this_rank, i, j, iglobal, jglobal, &
-!!                           model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
-!!                endif
-                model%geometry%floating_mask(i,j) = 1.0d0
-                model%geometry%grounded_mask(i,j) = 0.0d0
+                model%geometry%grounded_mask(i,j) = 0
+                model%geometry%floating_mask(i,j) = 1
              else
-                !WHL - debug - Identify cells where grounded_mask flips between time steps.
-!!                if (model%geometry%grounded_mask(i,j) == 0) then   ! floating or ice-free at previous step
-!!                   call parallel_globalindex(i, j, iglobal, jglobal)
-!!                   print*, 'grounded_mask flipped from 0 to 1:, rank, i, j, iglobal, jglobal, thck_old, thck =', &
-!!                           this_rank, i, j, iglobal, jglobal, &
-!!                           model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
-!!                endif
-                model%geometry%grounded_mask(i,j) = 1.0d0
-                model%geometry%floating_mask(i,j) = 0.0d0
+                model%geometry%grounded_mask(i,j) = 1
+                model%geometry%floating_mask(i,j) = 0
              endif
           else  ! ice_mask = 0
-             model%geometry%ice_mask(i,j) = 0.0d0
-             model%geometry%grounded_mask(i,j) = 0.0d0
-             model%geometry%floating_mask(i,j) = 0.0d0
+             model%geometry%ice_mask(i,j) = 0
+             model%geometry%grounded_mask(i,j) = 0
+             model%geometry%floating_mask(i,j) = 0
           endif
        enddo
     enddo
 
     ! staggered grid
-    ! set ice_mask_stag = 1.0 at vertices with ice_mask = 1 in any neighbor cell
+    ! set ice_mask_stag = 1 at vertices with ice_mask = 1 in any neighbor cell
     do j = 1, model%general%nsn - 1
        do i = 1, model%general%ewn - 1
           if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or. &
               ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1) then
-             model%geometry%ice_mask_stag(i,j) = 1.0d0
+             model%geometry%ice_mask_stag(i,j) = 1
           else
-             model%geometry%ice_mask_stag(i,j) = 0.0d0
+             model%geometry%ice_mask_stag(i,j) = 0
           endif
        enddo
     enddo

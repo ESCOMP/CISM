@@ -672,38 +672,32 @@ coordinates:   lon lat
 #factor:        1.0
 #coordinates:   lon lat
 
-# D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 [ice_mask]
 dimensions:    time, y1, x1
 units:         1
-long_name:     real-valued mask for ice (1) or no ice (0)
+long_name:     mask for ice (1) or no ice (0)
 data:          data%geometry%ice_mask
-factor:        1.0
-coordinates:   lon lat
-
-## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
-[floating_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     real-valued mask for floating ice 
-data:          data%geometry%floating_mask
-factor:        1.0
-coordinates:   lon lat
-
-[grounded_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     real-valued mask for grounded ice
-data:          data%geometry%grounded_mask
-factor:        1.0
 coordinates:   lon lat
 
 [ice_mask_stag]
 dimensions:    time, y0, x0
 units:         1
-long_name:     real-valued mask on staggered grid for ice (1) or no ice (0)
+long_name:     mask on staggered grid for ice (1) or no ice (0)
 data:          data%geometry%ice_mask_stag
-factor:        1.0
+coordinates:   lon lat
+
+[floating_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for floating ice 
+data:          data%geometry%floating_mask
+coordinates:   lon lat
+
+[grounded_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for grounded ice
+data:          data%geometry%grounded_mask
 coordinates:   lon lat
 
 [smb]
