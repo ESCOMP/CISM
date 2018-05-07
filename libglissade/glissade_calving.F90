@@ -279,7 +279,6 @@ contains
                            ! Note: number of ice layers = nz-1
     integer :: i, j, k, n
     integer :: ii, jj
-    integer :: count, maxcount_fill  ! loop counters
 
     real(dp), dimension(:,:), allocatable ::  &
          thck_calving_front,     & ! effective ice thickness at the calving front
@@ -289,9 +288,6 @@ contains
 
     real(dp), dimension(:,:), allocatable ::  &
          calving_thck_init         ! debug diagnostic
-
-    integer,  dimension(:,:), allocatable ::  &
-         color                     ! integer 'color' for filling the calving domain (with CALVING_DOMAIN_OCEAN_CONNECT)
 
     ! basic masks
     integer, dimension(:,:), allocatable   ::  &
@@ -307,9 +303,7 @@ contains
     ! Note: Calving occurs in a cell if and only if (1) the calving law permits calving, 
     !       and (2) the cell is in the calving domain, as specified by the calving_domain option.
     !       The calving domain by default is limited to the ocean edge (CALVING_DOMAIN_OCEAN_EDGE), 
-    !       but can be extended to include all ice-covered cells (CALVING_DOMAIN_EVERYWHERE), or
-    !       cells connected to the ocean through other cells that meet the calving criterion
-    !       (CALVING_DOMAIN_OCEAN_CONNECT).
+    !       but can be extended to include all ice-covered cells (CALVING_DOMAIN_EVERYWHERE).
     ! TODO: Change the default to calving_domain_everywhere?
 
     !TODO - Make these integer masks like the ones above?
@@ -336,9 +330,6 @@ contains
 
     character(len=100) :: message
    
-    !WHL - debug
-    integer :: sum_fill_local, sum_fill_global  ! number of filled cells
-
     ! initialize
 
     calving%calving_thck(:,:) = 0.d0
@@ -1173,127 +1164,6 @@ contains
        elseif (calving_domain == CALVING_DOMAIN_EVERYWHERE) then  ! calving domain includes all cells
 
           calving_domain_mask(:,:) = .true.
-
-       elseif (calving_domain == CALVING_DOMAIN_OCEAN_CONNECT) then
-
-          calving_domain_mask(:,:) = .false.
-
-          ! initialize
-          ! Assign the initial color to cells that meet the calving-law criteria and thus could calve,
-          !  but only if they are connected to the ocean through other cells that meet the criteria.
-          ! Assign the boundary color to cells that do not meet the calving-law criteria.
-
-          allocate (color(nx,ny))
-          do j = 1, ny
-             do i = 1, nx
-                if (calving_law_mask(i,j)) then
-                   color(i,j) = initial_color
-                else
-                   color(i,j) = boundary_color
-                endif
-             enddo
-          enddo
-
-          ! Loop through cells, identifying cells that lie on the ocean margin.
-          ! Fill each such cell with calving_law_mask = T, and recursively fill neighbor cells with calving_law_mask = T.
-          ! We may have to do this several times to incorporate connections between neighboring processors.
-          ! Alternatively, we could use a smaller value of maxcount_fill and allow calving to occur over multiple time steps,
-          !  but this could make the calving evolution more dependent on ntasks than desired.
-
-!          maxcount_fill = 1  ! setting maxcount_fill = 1 will ignore connections between neighboring processors.
-          maxcount_fill = max(ewtasks,nstasks)
-
-          do count = 1, maxcount_fill
-
-             if (count == 1) then   ! identify margin cells that can seed the fill
-
-                do j = 1, ny
-                   do i = 1, nx
-                      if ( floating_mask(i,j) == 1 .and. calving_law_mask(i,j) .and.  &
-                           (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. &
-                           ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
-                         if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
-                            ! assign the fill color to this cell, and recursively fill neighbor cells
-                            call glissade_fill(nx,    ny,       &
-                                               i,     j,        &
-                                               color, ice_mask)
-                         endif
-                      endif
-                   enddo
-                enddo
-
-             else  ! count > 1; check for halo cells that were just filled on neighbor processors
-
-                call parallel_halo(color)
-
-                ! west halo layer
-                i = nhalo
-                do j = 1, ny
-                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
-                                                                    i+1,   j,     &
-                                                                    color, ice_mask)
-                enddo
-
-                ! east halo layer
-                i = nx - nhalo + 1
-                do j = 1, ny
-                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
-                                                                    i-1,   j,     &
-                                                                    color, ice_mask)
-                enddo
-
-                ! south halo layer
-                j = nhalo
-                do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
-                                                                    i,     j+1,   &
-                                                                    color, ice_mask)
-                enddo
-
-                ! north halo layer
-                j = ny-nhalo+1
-                do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-                   if (color(i,j) == fill_color) call glissade_fill(nx,    ny,    &
-                                                                    i,     j-1,   &
-                                                                    color, ice_mask)
-                enddo
-
-             endif  ! count = 1
-
-             sum_fill_local = 0
-             do j = nhalo+1, ny-nhalo
-                do i = nhalo+1, nx-nhalo
-                   if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
-                enddo
-             enddo
-
-             !WHL - If running a large problem, may want to reduce the frequency of this global sum
-             sum_fill_global = parallel_reduce_sum(sum_fill_local)
-
-             if (verbose_calving) then
-!!                print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global 
-             endif
-
-          enddo  ! count
-
-          ! At this point, all cells with calving_law_mask = T should have the fill color if they
-          !  are connected to the margin through other cells with calving_law_mask = T.
-          !  These cells are now assigned to the calving domain.
-
-          do j = 1, ny
-             do i = 1, nx
-                if (color(i,j) == fill_color) then
-                   calving_domain_mask(i,j) = .true.
-                else
-                   calving_domain_mask(i,j) = .false.
-                endif
-             enddo
-          enddo
-
-          deallocate(color)
-
-          ! Note: For this option, all cells in the calving domain have calving_law = T, so the logic below
-          !  (calving_law_mask = T .and. calving_domain_mask = T) is redundant, but it does no harm.
 
        endif   ! calving_domain
 

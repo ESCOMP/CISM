@@ -782,10 +782,9 @@ contains
          'no calving at initialization    ', &
          'ice calves at initialization    ' /)
 
-    character(len=*), dimension(0:2), parameter :: domain_calving = (/ &
+    character(len=*), dimension(0:1), parameter :: domain_calving = (/ &
          'calving only at the ocean edge             ',  &
-         'calving in all cells where criterion is met',  &
-         'calving in cells connected to ocean edge   '/)
+         'calving in all cells where criterion is met'/)
 
     character(len=*), dimension(0:1), parameter :: vertical_integration = (/ &
          'standard     ', &

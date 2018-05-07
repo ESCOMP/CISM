@@ -164,11 +164,8 @@ module glide_types
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
 
-  !WHL - added an option to determine whether calving can occur everywhere the calving
-  !      criterion is met, or only at the ocean edge
   integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
-  integer, parameter :: CALVING_DOMAIN_OCEAN_CONNECT = 2
 
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
@@ -499,8 +496,6 @@ module glide_types
     !> \begin{description}
     !> \item[0] Calve only at ocean edge
     !> \item[1] Calve wherever the calving criterion is met
-    !> \item[2] Calve where the calving criterion is met, and there is a connected path
-    !>          to the ocean through other cells where the criterion is met.
     !> \end{description}
 
     logical  :: remove_icebergs = .true. 
