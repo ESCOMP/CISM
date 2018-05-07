@@ -621,7 +621,7 @@ module glissade_therm
     ! Internal variables
     !------------------------------------------------------------------------------------
 
-    character(len=100) :: message
+    character(len=150) :: message
 
     real(dp), dimension(0:upn,ewn,nsn) ::  &
          enthalpy          ! specific enthalpy (J m-3)
@@ -1004,7 +1004,8 @@ module glissade_therm
           call broadcast(istop_global, proc=this_rank)
           print*, 'ERROR: Energy not conserved in glissade_therm, rank, i, j =', this_rank, istop, jstop
           print*, 'Global i, j:', istop_global, jstop_global
-          write(message,*) 'ERROR: Energy not conserved in glissade_therm, global i, j =', istop_global, jstop_global
+          write(message,*) 'ERROR: Energy not conserved in glissade_therm' //  &
+               ' (could be caused by a CFL violation), global i, j =', istop_global, jstop_global
           call write_log(message,GM_FATAL)
        endif
 
