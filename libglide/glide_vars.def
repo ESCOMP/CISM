@@ -531,6 +531,13 @@ data:          data%calving%calving_thck
 factor:        thk0
 coordinates:   lon lat
 
+[calving_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of mass loss by calving
+data:          data%calving%calving_rate
+coordinates:   lon lat
+
 [calving_mask]
 dimensions:    time, y1, x1
 units:         1

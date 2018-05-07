@@ -1110,6 +1110,7 @@ module glide_types
      !> holds fields and parameters related to calving
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
                                                                    !> scaled by thk0 like mass balance, thickness, etc.
+     real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss (m/yr ice) due to calving
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
                                                                    !> (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
@@ -2285,6 +2286,7 @@ contains
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
@@ -2773,6 +2775,8 @@ contains
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
         deallocate(model%calving%calving_thck)
+    if (associated(model%calving%calving_rate)) &
+        deallocate(model%calving%calving_rate)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
     if (associated(model%calving%lateral_rate)) &
