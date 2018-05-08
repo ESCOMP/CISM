@@ -1585,9 +1585,8 @@ contains
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    !       Change flow_factor to flow_enhancement_factor?  Would have to change many SIA config files
     call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
-    call GetValue(section,'flow_factor_ssa',    model%paramets%flow_enhancement_factor_ssa)
+    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
@@ -1863,10 +1862,10 @@ contains
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
     call write_log(message)
 
-    write(message,*) 'flow enhancement factor (SIA) : ', model%paramets%flow_enhancement_factor
+    write(message,*) 'flow factor (grounded ice)    : ', model%paramets%flow_enhancement_factor
     call write_log(message)
 
-    write(message,*) 'flow enhancement factor (SSA) : ', model%paramets%flow_enhancement_factor_ssa
+    write(message,*) 'flow factor (floating ice)    : ', model%paramets%flow_enhancement_factor_float
     call write_log(message)
 
     if (model%options%whichdycore == DYCORE_GLIDE) then
