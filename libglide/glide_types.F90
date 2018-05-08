@@ -311,7 +311,7 @@ module glide_types
 
     integer :: ewn = 0  !> The number of grid-points in the E-W direction.
     integer :: nsn = 0  !> The number of grid-points in the N-S direction.
-    integer :: upn = 1  !> The number of vertical levels in the model.
+    integer :: upn = 3  !> The number of vertical levels in the model.
 
     type(coordsystem_type) :: ice_grid  !> coordinate system of the ice grid
     type(coordsystem_type) :: velo_grid !> coordinate system of the velocity grid
