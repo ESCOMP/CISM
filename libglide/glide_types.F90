@@ -791,8 +791,7 @@ module glide_types
     !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
     !> \item[1] Do not apply bmlt_float in partly grounded cells
 
-    !TODO - Change default to linear function 2?
-    integer :: which_ho_flotation_function = 1
+    integer :: which_ho_flotation_function = 2
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
     !> Not valid for other dycores
     !> \begin{description}

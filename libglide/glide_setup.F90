@@ -1498,12 +1498,14 @@ contains
              call write_log('Error, ho_ground_bmlt option out of range for glissade dycore', GM_FATAL)
           end if
 
-          write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
-                            ho_whichflotation_function(model%options%which_ho_flotation_function)
-          call write_log(message)
-          if (model%options%which_ho_flotation_function < 0 .or. &
-               model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
-             call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
+          if (model%options%which_ho_ground == HO_GROUND_GLP) then
+             write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
+                               ho_whichflotation_function(model%options%which_ho_flotation_function)
+             call write_log(message)
+             if (model%options%which_ho_flotation_function < 0 .or. &
+                 model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
+                call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
+             endif
           end if
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
