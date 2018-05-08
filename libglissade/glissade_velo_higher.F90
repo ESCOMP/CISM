@@ -2088,10 +2088,10 @@
     call t_startf('glissade_load_vector_gravity')
 
     call load_vector_gravity(nx,               ny,              &
-                             nz,               sigma,           &
-                             nhalo,                             &
+                             nz,               nhalo,           &
+                             sigma,            stagwbndsigma,   &
                              dx,               dy,              &
-                             active_cell,                     &
+                             active_cell,                       &
                              active_vertex,                     &
                              xVertex,          yVertex,         &
                              stagusrf,         stagthck,        &
@@ -2237,9 +2237,23 @@
              write(6,*) ' '
           enddo
 
-       endif
+       else   ! 3D solve
+
+          do k = 1, nz
+             print*, ' '
+             print*, 'loadu_3d, itest, jtest, rank, k =', itest, jtest, rtest, k
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') loadu(k,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          enddo
+
+       endif   ! solve_2D
        
-    endif
+    endif   ! verbose
     
     !------------------------------------------------------------------------------
     ! Main outer loop: Iterate to solve the nonlinear problem
@@ -4393,8 +4407,8 @@
 !****************************************************************************
 
   subroutine load_vector_gravity(nx,               ny,              &
-                                 nz,               sigma,           &
-                                 nhalo,                             &
+                                 nz,               nhalo,           &
+                                 sigma,            stagwbndsigma,   & 
                                  dx,               dy,              &
                                  active_cell,                       &
                                  active_vertex,                     &
@@ -4412,6 +4426,9 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
+
+    real(dp), dimension(0:nz), intent(in) ::    &
+       stagwbndsigma                 ! stagsigma augmented by sigma = 0 and 1 at upper and lower surfaces
 
     real(dp), intent(in) ::     &
        dx, dy                        ! grid cell length and width 
@@ -4480,19 +4497,18 @@
                    print*, 'i, j, dsdx, dsdy:', i, j, dusrf_dx(i,j), dusrf_dy(i,j)
                 endif
 
-                do k = 1, nz-1    ! loop over elements in this column
+                do k = 1, nz      ! loop over vertices in this column
                                   ! assume k increases from upper surface to bed
 
-                   dz = stagthck(i,j) * (sigma(k+1) - sigma(k))
+                   dz = stagthck(i,j) * (stagwbndsigma(k) - stagwbndsigma(k-1))
 
                    ! Add the ds/dx and ds/dy terms to the load vector for this node
                    loadu(k,i,j) = loadu(k,i,j) - rhoi*grav * dx*dy*dz/vol0 * dusrf_dx(i,j)
                    loadv(k,i,j) = loadv(k,i,j) - rhoi*grav * dx*dy*dz/vol0 * dusrf_dy(i,j)
 
-                   !TODO - Add the correct depth term
                    if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                      print*, 'k, delta(loadu), delta(loadv):', k, -rhoi*grav*dx*dy*dz/vol0 * dusrf_dx(i,j), &
-                                                                   -rhoi*grav*dx*dy*dz/vol0 * dusrf_dy(i,j)
+                      print*, 'k, dz, delta(loadu), delta(loadv):', k, dz, -rhoi*grav*dx*dy*dz/vol0 * dusrf_dx(i,j), &
+                                                                           -rhoi*grav*dx*dy*dz/vol0 * dusrf_dy(i,j)
                    endif
 
                 enddo   ! k
