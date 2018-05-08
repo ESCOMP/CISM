@@ -752,21 +752,21 @@ module glide_types
     !> \item[0] first-order accurate in the vertical direction
     !> \item[1] second-order accurate in the vertical direction
 
-    integer :: which_ho_assemble_taud = 0
+    integer :: which_ho_assemble_taud = 1
 
     !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}
     !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
     !> \item[1] apply local value of driving stress at each vertex
 
-    integer :: which_ho_assemble_beta = 0
+    integer :: which_ho_assemble_beta = 1
 
     !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
     !> \begin{description}
     !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
     !> \item[1] apply local value of beta at each vertex
 
-    integer :: which_ho_assemble_bfric = 0
+    integer :: which_ho_assemble_bfric = 1
 
     !> Flag that describes how the basal friction heat flux is computed in the glissade finite-element calculation
     !> \begin{description}
