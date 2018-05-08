@@ -487,7 +487,7 @@ module glide_types
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Set thickness to zero if ice at marine margin is thinner than
     !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Set thickness to zero based on strain rate (eigencalving) criterion
+    !> \item[7] Set thickness to zero based on stress (eigencalving) criterion
     !> \item[8] Calve ice that is sufficiently damaged
     !> \item[9] Huybrechts grounding line scheme for Greenland initialization
     !> \end{description}
@@ -1136,7 +1136,7 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: tau_eff => null()        !> effective stress (Pa) for calving; derived from tau_eigen1, tau_eigen2
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
   
-     real(dp) :: marine_limit =  -200.d0         !> minimum value of topg/relx before floating ice calves
+     real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
                                                  !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
      real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
                                                  !> (whichcalving = CALVING_FLOAT_FRACTION)
@@ -1408,11 +1408,9 @@ module glide_types
      !< Holds variables related to basal physics associated with ice dynamics
      !< See glissade_basal_traction.F90 for usage details
 
-     !WHL - A reasonable value of beta_grounded_min might be 100 Pa yr/m.  
-     !      However, this choice is not BFB for the confined-shelf test case, so I am choosing a default value of 0 for now.
-     !      The default can be overridden in the config file.
-     !TODO: Set beta_grounded_min = 100 Pa yr/m
-     real(dp) :: beta_grounded_min = 0.d0   !> minimum value of beta for grounded ice, Pa yr/m (glissade only; scaled during init)
+     !Note: By default, beta_grounded_min is set to a small nonzero value.
+     !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.
+     real(dp) :: beta_grounded_min = 1.0d0  !> minimum value of beta for grounded ice, Pa yr/m (glissade only; scaled during init)
      
      real(dp) :: ho_beta_const = 1000.d0    !> spatially uniform beta for HO dycores, Pa yr/m (scaled during init)
      real(dp) :: ho_beta_small = 1000.d0    !> small beta for sliding over a thawed bed, Pa yr/m (scaled during init)
