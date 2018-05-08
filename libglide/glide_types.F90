@@ -348,6 +348,7 @@ module glide_types
 
     integer :: whichevol = 0
 
+    !TODO: Break into two options: one set (0, 1, 2) for Glide and one set (3, 4, 5) for Glissade
     !> Thickness evolution method:
     !> \begin{description}
     !> \item[0] Pseudo-diffusion 
@@ -393,7 +394,7 @@ module glide_types
 
     integer :: whichbtrc = 0
 
-    !> Basal slip coefficient:
+    !> Basal slip coefficient (used for glide and for glissade local SIA; not glissade HO):
     !> \begin{description}
     !> \item[0] Set equal to zero everywhere
     !> \item[1] Set to (non--zero) constant
@@ -427,8 +428,7 @@ module glide_types
     logical :: enable_bmlt_anomaly = .false.
     !> if true, then apply a prescribed anomaly to bmlt_float
 
-    !TODO - Change default basal_mbal to 1
-    integer :: basal_mbal = 0
+    integer :: basal_mbal = 1
 
     !> basal mass balance:
     !> \begin{description}
@@ -504,7 +504,7 @@ module glide_types
     !> \item[1] Calve wherever the calving criterion is met
     !> \end{description}
 
-    logical  :: remove_icebergs = .true. 
+    logical  :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
     !> These are connected regions with zero basal traction and no connection to grounded ice.
     !>       Safer to make it true, but not necessary for all applications
@@ -533,8 +533,7 @@ module glide_types
     !> Vertical velocities: 
     !> \begin{description}
     !> \item[0] Usual vertical integration 
-    !> \item[1] Vertical integration constrained so that 
-    !> upper kinematic B.C. obeyed 
+    !> \item[1] Vertical integration constrained to obey upper kinematic BC
     !> \end{description}
 
     integer :: which_sigma = 0
@@ -548,7 +547,6 @@ module glide_types
     !> \end{description}
 
     !TODO - Make is_restart a logical variable?
-
     integer :: is_restart = 0
     !> if the run is a restart of a previous run
     !> \begin{description}
@@ -574,8 +572,8 @@ module glide_types
     !> \end{description}
 
     !-----------------------------------------------------------------------
-    ! Higher-order options
-    ! Associated with Payne-Price dycore (glam) and newer glissade dycore
+    ! Higher-order options associated with the glissade dycore
+    ! Most options also work with Payne-Price dycore (glam)
     !-----------------------------------------------------------------------
 
     integer :: which_ho_efvs = 2
@@ -624,7 +622,7 @@ module glide_types
     !> \item[14] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
-    integer :: which_ho_inversion
+    integer :: which_ho_inversion = 0
     !> Flag for basal traction inversion options
     !> Note: Inversion is currently supported for which_ho_babc = 11 only
     !> \begin{description}
@@ -788,7 +786,7 @@ module glide_types
     !> \item[2] fground = 1 in all cells
 
     integer :: which_ho_ground_bmlt = 0
-    !> Flag that indicates how to compute bmlt_float in partly grouned  cells
+    !> Flag that indicates how to compute bmlt_float in partly grounded cells
     !> \begin{description}
     !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
     !> \item[1] Do not apply bmlt_float in partly grounded cells
@@ -802,7 +800,7 @@ module glide_types
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
 
-    integer :: which_ho_ice_age = 1    
+    integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \item[0] ice age computation off
     !> \item[1] ice age computation on
