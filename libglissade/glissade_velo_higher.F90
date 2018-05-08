@@ -1109,7 +1109,6 @@
     !--------------------------------------------------------
 
 !pw call t_startf('glissade_velo_higher_scale_input')
-     !TODO - Remove mintauf from argument list when BFB requirement is relaxed
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           thck,    usrf,          &
                                           topg,    eus,           &
@@ -1118,7 +1117,6 @@
                                           bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
-                                          model%basal_physics%mintauf, &
                                           uvel,    vvel,          &
                                           uvel_2d, vvel_2d)
 !pw call t_stopf('glissade_velo_higher_scale_input')
@@ -2755,7 +2753,7 @@
              do j = ny-1, 1, -1
                 write(6,'(i6)',advance='no') j
                 do i = 1, nx-1
-                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j)
+                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j) * tau0
                 enddo
                 write(6,*) ' '
              enddo
@@ -3269,7 +3267,6 @@
           vvel(:,:,:) = 0.d0
 
           call t_startf('glissade_velo_higher_scale_outp')
-          !TODO - Remove mintauf from argument list when BFB requirement is relaxed
           call glissade_velo_higher_scale_output(thck,    usrf,          &
                                                  topg,                   &
                                                  bwat,    bmlt,          &
@@ -3280,7 +3277,6 @@
                                                  uvel,    vvel,          &
                                                  uvel_2d, vvel_2d,       &
                                                  btractx, btracty,       &
-                                                 model%basal_physics%mintauf,    &
                                                  taudx,   taudy,         &
                                                  tau_xz,  tau_yz,        &
                                                  tau_xx,  tau_yy,        &
@@ -4051,7 +4047,6 @@
                                            uvel,    vvel,          &
                                            uvel_2d, vvel_2d,       &
                                            btractx, btracty,       &
-                                           model%basal_physics%mintauf,    &
                                            taudx,   taudy,         &
                                            tau_xz,  tau_yz,        &
                                            tau_xx,  tau_yy,        &
@@ -4071,7 +4066,6 @@
                                               bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
-                                              mintauf,                &
                                               uvel,    vvel,          &
                                               uvel_2d, vvel_2d)
 
@@ -4103,10 +4097,6 @@
        btractx, btracty,  &    ! components of basal traction (Pa)
        uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
 
-    !TODO - Remove mintauf from the argument list when BFB restriction is relaxed
-    real(dp), dimension(:,:), intent(inout) ::  &
-         mintauf
-
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! components of 3D velocity (m/yr)
 
@@ -4136,9 +4126,6 @@
     btractx = btractx * tau0
     btracty = btracty * tau0
 
-    ! yield stress: rescale from dimensionless to Pa
-    mintauf = mintauf * tau0
-
     ! ice velocity: rescale from dimensionless to m/yr
     uvel = uvel * (vel0*scyr)
     vvel = vvel * (vel0*scyr)
@@ -4159,7 +4146,6 @@
                                                uvel,    vvel,           &
                                                uvel_2d, vvel_2d,        &
                                                btractx, btracty,        &
-                                               mintauf,                 &
                                                taudx,   taudy,          &
                                                tau_xz,  tau_yz,         &
                                                tau_xx,  tau_yy,         &
@@ -4193,10 +4179,6 @@
        uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
        btractx, btracty,       &! components of basal traction (Pa)
        taudx,   taudy           ! components of driving stress (Pa)
-
-    !TODO - Remove mintauf from the argument list when BFB restriction is relaxed
-    real(dp), dimension(:,:), intent(inout) ::  &
-         mintauf
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
@@ -4244,9 +4226,6 @@
     tau_yy  = tau_yy/tau0
     tau_xy  = tau_xy/tau0
     tau_eff = tau_eff/tau0
-
-    ! yield stress: rescale from Pa to dimensionless units
-    mintauf = mintauf / tau0
 
   end subroutine glissade_velo_higher_scale_output
 
