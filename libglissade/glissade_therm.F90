@@ -1605,7 +1605,6 @@ module glissade_therm
     real(dp), parameter :: eps11 = 1.d-11     ! small number
 
     bmlt_ground(:,:) = 0.0d0
-    melt_fact = 1.0d0 / (lhci * rhoi)   !TODO - Inline melt_fact (might not be BFB)
 
     ! Compute the heat flux available to melt grounded ice
     ! The basal friction term is computed above in subroutine glissade_calcbfric,
@@ -1677,7 +1676,7 @@ module glissade_therm
           do ew = 1, ewn
 
              if (ice_mask(ew,ns) == 1 .and. floating_mask(ew,ns) == 0) then   ! ice is present and grounded
-                bmlt_ground(ew,ns) = bflx_mlt(ew,ns) * melt_fact   ! m/s
+                bmlt_ground(ew,ns) = bflx_mlt(ew,ns) / (lhci*rhoi)   ! m/s
              endif
 
              ! Add internal melting associated with T > Tpmp
@@ -2009,7 +2008,7 @@ module glissade_therm
                                   flwa,                                &
                                   default_flwa,                        &
                                   flow_enhancement_factor,             &
-                                  flow_enhancement_factor_ssa,         &
+                                  flow_enhancement_factor_float,       &
                                   floating_mask,                       &
                                   waterfrac)
 
@@ -2053,8 +2052,8 @@ module glissade_therm
     real(dp),dimension(:,:,:),  intent(in)    :: temp      !> 3D temperature field (deg C)
     real(dp),dimension(:,:,:),  intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
     real(dp), intent(in)                      :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
-    real(dp), intent(in), optional            :: flow_enhancement_factor     !> flow enhancement factor in Arrhenius relationship
-    real(dp), intent(in), optional            :: flow_enhancement_factor_ssa !> flow enhancement factor for floating ice
+    real(dp), intent(in), optional            :: flow_enhancement_factor       !> flow enhancement factor in Arrhenius relationship
+    real(dp), intent(in), optional            :: flow_enhancement_factor_float !> flow enhancement factor for floating ice
     integer, dimension(:,:),   intent(in), optional :: floating_mask !> = 1 where ice is present and floating, else = 0
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac     !> internal water content fraction, 0 to 1
 
@@ -2094,11 +2093,11 @@ module glissade_therm
     allocate(enhancement_factor(ewn,nsn))
 
     if (present(flow_enhancement_factor)) then
-       if (present(flow_enhancement_factor_ssa) .and. present(floating_mask)) then
+       if (present(flow_enhancement_factor_float) .and. present(floating_mask)) then
           do ns = 1, nsn
              do ew = 1, ewn
                 if (floating_mask(ew,ns) == 1) then
-                   enhancement_factor(ew,ns) = flow_enhancement_factor_ssa
+                   enhancement_factor(ew,ns) = flow_enhancement_factor_float
                 else
                    enhancement_factor(ew,ns) = flow_enhancement_factor
                 endif
