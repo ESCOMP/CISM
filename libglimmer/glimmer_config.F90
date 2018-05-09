@@ -791,7 +791,7 @@ contains
     use glimmer_log
     implicit none
     type(ConfigSection), pointer :: section !< the section from which the value is loaded
-    character(len=*),intent(in) :: name     !< the name of the key
+    character(len=*), intent(in) :: name    !< the name of the key
     character(len=*), intent(inout) :: val  !< the value
     
     type(ConfigValue), pointer :: value

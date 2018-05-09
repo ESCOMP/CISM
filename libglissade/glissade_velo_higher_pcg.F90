@@ -986,6 +986,10 @@
     !
     !     References are:
     !
+    !     Chronopoulos, A.T., A Class of Parallel Iterative Methods Implemented on Multiprocessors,
+    !        Ph.D. thesis, Technical Report UIUCDCS-R-86-1267, Department of Computer Science,
+    !        University of Illinois, Urbana, Illinois, pp. 1-116, 1986.
+    !
     !     Chronopoulos, A.T., and C.W. Gear. S-step iterative methods
     !        for symmetric linear systems. J. Comput. Appl. Math., 25(2),
     !        153-168, 1989.
@@ -1621,7 +1625,7 @@
 
     !---------------------------------------------------------------
     !  This subroutine uses a Chronopoulos-Gear preconditioned conjugate-gradient
-    !  algorithm to solve the equation $Ax=b$.
+    !  algorithm to solve the equation $Ax=b$. (See references in subroutine above.)
     !
     !  It is similar to subroutine pcg_solver_chrongear_3d, but modified
     !  to solve for x and y at a single horizontal level, as in the

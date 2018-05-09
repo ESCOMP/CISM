@@ -300,6 +300,24 @@ standard_name: floating_ice_basal_melt_rate_anomaly
 coordinates:   lon lat
 load:          1
 
+[bmlt_float_inversion]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal melt rate for floating ice from inversion
+data:          data%inversion%bmlt_float_inversion
+factor:        scyr
+load:          1
+coordinates:   lon lat
+
+[bmlt_float_prescribed]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     prescribed basal melt rate for floating ice
+data:          data%inversion%bmlt_float_prescribed
+factor:        scyr
+load:          1
+coordinates:   lon lat
+
 #WHL - A number of plume-related fields follow.
 
 [T_ambient]
@@ -478,6 +496,33 @@ standard_name: stag_land_ice_thickness
 load:          0
 coordinates:   lon lat
 
+[thck_obs]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     observed ice thickness
+data:          data%geometry%thck_obs
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
+[usrf_obs]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     observed surface elevation
+data:          data%geometry%usrf_obs
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
+[topg_obs]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     observed bed topography
+data:          data%geometry%topg_obs
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
 [calving_thck]
 dimensions:    time, y1, x1
 units:         meter
@@ -485,6 +530,14 @@ long_name:     thickness of calving ice
 data:          data%calving%calving_thck
 factor:        thk0
 coordinates:   lon lat
+
+[calving_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of mass loss by calving
+data:          data%calving%calving_rate
+coordinates:   lon lat
+average:       1
 
 [calving_mask]
 dimensions:    time, y1, x1
@@ -495,19 +548,20 @@ load:          1
 type:          int
 coordinates:   lon lat
 
+[calving_lateral]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     lateral calving rate
+data:          data%calving%lateral_rate
+factor:        scyr
+coordinates:   lon lat
+
 [damage]
 dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]
 long_name:     ice damage
 data:          data%calving%damage(up,:,:)
 load:          1
-coordinates:   lon lat
-
-[damage_column]
-dimensions:    time, y1, x1
-units:         unitless [0,1]
-long_name:     vertically integrated ice damage
-data:          data%calving%damage_column
 coordinates:   lon lat
 
 [area_factor]
@@ -608,16 +662,6 @@ load:          1
 standard_name: bedrock_altitude
 coordinates:   lon lat
 
-[thck_calving_front]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     effective ice thickness at calving front
-data:          data%calving%thck_calving_front
-factor:        thk0
-load:          1
-standard_name: ice_thickness_at_calving_front
-coordinates:   lon lat
-
 ## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 #[lower_cell_loc]
 #dimensions:    time, y1, x1
@@ -636,38 +680,32 @@ coordinates:   lon lat
 #factor:        1.0
 #coordinates:   lon lat
 
-# D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 [ice_mask]
 dimensions:    time, y1, x1
 units:         1
-long_name:     real-valued mask for ice (1) or no ice (0)
+long_name:     mask for ice (1) or no ice (0)
 data:          data%geometry%ice_mask
-factor:        1.0
-coordinates:   lon lat
-
-## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
-[floating_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     real-valued mask for floating ice 
-data:          data%geometry%floating_mask
-factor:        1.0
-coordinates:   lon lat
-
-[grounded_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     real-valued mask for grounded ice
-data:          data%geometry%grounded_mask
-factor:        1.0
 coordinates:   lon lat
 
 [ice_mask_stag]
 dimensions:    time, y0, x0
 units:         1
-long_name:     real-valued mask on staggered grid for ice (1) or no ice (0)
+long_name:     mask on staggered grid for ice (1) or no ice (0)
 data:          data%geometry%ice_mask_stag
-factor:        1.0
+coordinates:   lon lat
+
+[floating_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for floating ice 
+data:          data%geometry%floating_mask
+coordinates:   lon lat
+
+[grounded_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for grounded ice
+data:          data%geometry%grounded_mask
 coordinates:   lon lat
 
 [smb]
@@ -707,6 +745,7 @@ data:          data%climate%acab_applied
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_applied
 coordinates:   lon lat
+average:       1
 
 [acab_anomaly]
 dimensions:    time, y1, x1
@@ -774,6 +813,7 @@ data:          data%basal_melt%bmlt_applied
 factor:        scale_acab
 standard_name: land_ice_basal_melt_rate_applied
 coordinates:   lon lat
+average:       1
 
 [bfricflx]
 dimensions:    time, y1, x1
@@ -816,6 +856,39 @@ long_name:     spatial factor for basal shear stress
 data:          data%basal_physics%C_space_factor
 load:          1
 coordinates:   lon lat
+
+[powerlaw_c_inversion]
+dimensions:    time, y1, x1
+units:         Pa (m/yr)**(-1/3)
+long_name:     spatially varying C for powerlaw sliding
+data:          data%inversion%powerlaw_c_inversion
+load:          1
+coordinates:   lon lat
+
+[powerlaw_c_prescribed]
+dimensions:    time, y1, x1
+units:         Pa (m/yr)**(-1/3)
+long_name:     prescribed spatially varying C for powerlaw sliding
+data:          data%inversion%powerlaw_c_prescribed
+load:          1
+coordinates:   lon lat
+
+[usrf_inversion]
+dimensions:    time, y1,x1
+units:         meter
+long_name:     surface elevation used for inversion
+data:          data%inversion%usrf_inversion
+coordinates:   lon lat
+load:          1
+
+[dthck_dt_inversion]
+dimensions:    time, y1,x1
+units:         meter/year
+long_name:     dH/dt used for inversion
+data:          data%inversion%dthck_dt_inversion
+factor:        scyr
+coordinates:   lon lat
+load:          1
 
 [artm]
 dimensions:    time, y1, x1
@@ -1077,28 +1150,6 @@ long_name:  xy component of strain rate tensor
 data:       data%velocity%strain_rate%xy(up,:,:)
 factor:     scyr
 
-[strain_rate_eigenprod]
-dimensions: time, y1, x1
-units:      1/(year*year)
-long_name:  product of eigenvalues of horizontal strain rate tensor
-data:       data%calving%strain_rate_eigenprod
-factor:     scyr*scyr
-load:       1
-
-[strain_rate_eigen1]
-dimensions: time, y1, x1
-units:      1/year
-long_name:  first eigenvalue of horizontal strain rate tensor
-data:       data%calving%strain_rate_eigen1
-factor:     scyr
-
-[strain_rate_eigen2]
-dimensions: time, y1, x1
-units:      1/year
-long_name:  second eigenvalue of horizontal strain rate tensor
-data:       data%calving%strain_rate_eigen2
-factor:     scyr
-
 [tau_eff]
 dimensions: time, staglevel, y1, x1
 units:      Pa
@@ -1140,6 +1191,26 @@ units:      Pa
 long_name:  xy component of deviatoric stress tensor
 data:       data%stress%tau%xy(up,:,:)
 factor:     scale_tau
+
+[tau_eigen1]
+dimensions: time, y1, x1
+units:      Pa
+long_name:  first eigenvalue of horizontal stress tensor
+data:       data%calving%tau_eigen1
+load:       1
+
+[tau_eigen2]
+dimensions: time, y1, x1
+units:      Pa
+long_name:  second eigenvalue of horizontal stress tensor
+data:       data%calving%tau_eigen2
+load:       1
+
+[tau_eff_calving]
+dimensions: time, y1, x1
+units:      Pa
+long_name:  effective stress for calving
+data:       data%calving%tau_eff
 
 [wvel]
 dimensions:    time, level, y1, x1

@@ -42,8 +42,7 @@ module glide_diagnostics
 contains
 
   subroutine glide_write_diagnostics (model,  time,    &
-                                      tstep_count,     &
-                                      minthick_in)
+                                      tstep_count)
 
     ! Short driver subroutine to decide whether it's time to write diagnostics.
     ! If so, it calls glide_write_diag.   
@@ -57,24 +56,9 @@ contains
 
     integer,  intent(in) :: tstep_count   ! current timestep
 
-    real(dp), intent(in), optional :: &
-       minthick_in       ! ice thickness threshold (m) for including in diagnostics
-
     ! local arguments
 
-    real(dp) :: minthick ! ice thickness threshold (m) for including in diagnostics
-                         ! defaults to eps (a small number) if not passed in
-
-    real(dp), parameter ::   &
-       eps = 1.0d-11
-
     logical, parameter :: verbose_diagnostics = .false.
-
-    if (present(minthick_in)) then
-       minthick = minthick_in
-    else
-       minthick = eps
-    endif
 
     ! debug
     if (main_task .and. verbose_diagnostics) then
@@ -89,10 +73,7 @@ contains
     if (model%numerics%ndiag > 0) then
 
        if (mod(tstep_count, model%numerics%ndiag) == 0)  then    ! time to write
-
-          call glide_write_diag(model,                 &
-                                time,                  &
-                                minthick)
+          call glide_write_diag(model, time)
        endif
 
     endif    ! ndiag > 0
@@ -168,8 +149,7 @@ contains
 
 !--------------------------------------------------------------------------
 
-  subroutine glide_write_diag (model,       time,         &
-                               minthick)
+  subroutine glide_write_diag (model,       time)
 
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
@@ -187,12 +167,11 @@ contains
     type(glide_global_type), intent(inout) :: model ! model instance
 
     real(dp),  intent(in) :: time                   ! current time in years
-    real(dp), intent(in)  :: &
-         minthick          ! ice thickness threshold (m) for including in diagnostics
 
     ! local variables
 
     real(dp) ::                         &
+         minthck,                       &    ! ice thickness threshold (m) for global diagnostics
          tot_area,                      &    ! total ice area (m^2)
          tot_area_ground,               &    ! total area of grounded ice (m^2)
          tot_area_float,                &    ! total area of floating ice (m^2)
@@ -229,10 +208,11 @@ contains
          load_diag,                     &
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
-         bheatflx_diag, level
+         bheatflx_diag, level,          &
+         factor                              ! unit conversion factor
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
-         ice_mask,     &! = 1 where ice is present with thck > minthick, else = 0
+         ice_mask,     &! = 1 where ice is present with thck > minthck, else = 0
          floating_mask  ! = 1 where ice is present and floating, else = 0
 
     real(dp), dimension(model%general%upn) ::  &
@@ -262,7 +242,8 @@ contains
                        ! optionally, divide by scale factor^2 to account for grid distortion
 
     real(dp), parameter ::   &
-       eps = 1.0d-11             ! small number
+       eps = 1.0d-11,         & ! small number
+       eps_thck = 1.0d-11       ! threshold thickness (m) for writing diagnostics
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -300,13 +281,20 @@ contains
        velo_ew_ubound = ewn-uhalo-1
     end if
 
+    ! Set the minimum ice thickness for including cells in diagnostics
+    if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
+       minthck = eps_thck  ! slightly > 0
+    elseif (model%options%diag_minthck == DIAG_MINTHCK_THKLIM) then
+       minthck = model%numerics%thklim*thk0
+    endif
+
     !-----------------------------------------------------------------
     ! Compute some masks that are useful for diagnostics
     !-----------------------------------------------------------------
 
     do j = 1, nsn
        do i = 1, ewn
-          if (model%geometry%thck(i,j)*thk0 > minthick) then
+          if (model%geometry%thck(i,j)*thk0 > minthck) then
              ice_mask(i,j) = 1
              if (model%geometry%topg(i,j) - model%climate%eus < (-rhoi/rhoo)*model%geometry%thck(i,j)) then
                 floating_mask(i,j) = 1
@@ -469,7 +457,7 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
-       ! total surface accumulation/ablation rate (m^3/yr)
+       ! total surface accumulation/ablation rate (m^3/yr ice)
  
        tot_acab = 0.d0
        do j = lhalo+1, nsn-uhalo
@@ -514,18 +502,15 @@ contains
           mean_bmlt = 0.d0
        endif
 
-       ! total calving rate
-       ! Recall that calving_thck is the scaled thickness of ice calving in one time step;
-       !  divide by dt to convert to a rate
+       ! total calving rate (m^3/yr ice)
+       ! Note: calving%calving_rate has units of m/yr ice
 
        tot_calving = 0.d0
        do j = lhalo+1, nsn-uhalo
           do i = lhalo+1, ewn-uhalo
-             tot_calving = tot_calving + model%calving%calving_thck(i,j)/model%numerics%dt  * cell_area(i,j)
+             tot_calving = tot_calving + model%calving%calving_rate(i,j) * (cell_area(i,j)*len0**2)  ! m^3/yr ice
           enddo
        enddo
-
-       tot_calving = tot_calving * scyr * thk0/tim0 * len0**2  ! convert to m^3/yr
        tot_calving = parallel_reduce_sum(tot_calving)
 
        ! total calving mass balance flux (kg/s, negative for ice loss by calving)
@@ -616,23 +601,49 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
-       write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
 
-       write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+
+          factor = scyr / 1.0d12
+
+          write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif
 
 !       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -758,7 +769,7 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(1,i,j)**2   &
                    + model%velocity%vvel(1,i,j)**2)
-          if (model%geomderv%stagthck(i,j)*thk0 > minthick .and. spd > max_spd_sfc) then
+          if (model%geomderv%stagthck(i,j)*thk0 > minthck .and. spd > max_spd_sfc) then
              max_spd_sfc = spd
              imax = i
              jmax = j
@@ -784,7 +795,7 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
                    + model%velocity%vvel(upn,i,j)**2)
-          if (model%geomderv%stagthck(i,j)*thk0 > minthick  .and. spd > max_spd_bas) then
+          if (model%geomderv%stagthck(i,j)*thk0 > minthck  .and. spd > max_spd_bas) then
              max_spd_bas = spd
              imax = i
              jmax = j
