@@ -745,7 +745,7 @@ module glide_types
     !> \item[2] Compute edge gradient only when both cells have ice
 
     !TODO: Change the default to 2nd order vertical remapping
-    ! WHL: Keeping 1st order vertical remapping for now so that standard tests are BFB
+    ! WHL: Keeping 1st order vertical remapping for now, pending more testing
     integer :: which_ho_vertical_remap = 0
     !> Flag that indicates the order of accuracy for vertical remapping
     !> \begin{description}
@@ -1083,7 +1083,7 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 !TODO - Make eus a config file parameter.
-!TODO - Rename acab in glide_climate type to avoid confusion over units? (e.g., acab_ice?)
+!TODO - Rename acab in glide_climate type to avoid confusion over units?
 !       Here, acab has units of m/y ice, whereas in Glint, acab has units of m/y water equiv.
 
   ! Note on acab_tavg: This is the average value of acab over an output interval.
@@ -1410,10 +1410,10 @@ module glide_types
   end type glide_plume
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !TODO - Change '!<' to '!>'
+
   type glide_basal_physics
-     !< Holds variables related to basal physics associated with ice dynamics
-     !< See glissade_basal_traction.F90 for usage details
+     !> Holds variables related to basal physics associated with ice dynamics
+     !> See glissade_basal_traction.F90 for usage details
 
      !Note: By default, beta_grounded_min is set to a small nonzero value.
      !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.
@@ -1423,48 +1423,48 @@ module glide_types
      real(dp) :: ho_beta_small = 1000.d0    !> small beta for sliding over a thawed bed, Pa yr/m (scaled during init)
      real(dp) :: ho_beta_large = 1.0d10     !> large beta to enforce (virtually) no slip, Pa yr/m (scaled during init)
 
-     integer,  dimension(:,:), pointer :: bpmp_mask => null()   !< basal pressure melting point mask; = 1 where Tbed = bpmp, elsewhere = 0
-                                                                !< Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
+     integer,  dimension(:,:), pointer :: bpmp_mask => null()   !> basal pressure melting point mask; = 1 where Tbed = bpmp, elsewhere = 0
+                                                                !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
      ! Note: It may make sense to move effecpress to a hydrology model when one is available.
-     real(dp), dimension(:,:), pointer :: effecpress => null()          !< effective pressure (Pa)
-     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !< effective pressure on staggered grid (Pa)
-     real(dp), dimension(:,:), pointer :: C_space_factor => null()      !< spatial factor for basal shear stress (no dimension)
-     real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !< spatial factor for basal shear stress on staggered grid (no dimension)
-     real(dp), dimension(:,:), pointer :: tau_c => null()               !< yield stress for plastic sliding (Pa)
+     real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
+     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
+     real(dp), dimension(:,:), pointer :: C_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
+     real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid (no dimension)
+     real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
-     real(dp) :: effecpress_delta = 0.02d0          !< multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
-     real(dp) :: effecpress_bpmp_threshold = 0.1d0  !< temperature range over which N ramps from a small value to full overburden (deg C)
-     real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !< basal melting range over which N ramps from a small value to full overburden (m/yr)
-     real(dp) :: p_ocean_penetration = 0.0d0        !< p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
+     real(dp) :: effecpress_delta = 0.02d0          !> multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
+     real(dp) :: effecpress_bpmp_threshold = 0.1d0  !> temperature range over which N ramps from a small value to full overburden (deg C)
+     real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !> basal melting range over which N ramps from a small value to full overburden (m/yr)
+     real(dp) :: p_ocean_penetration = 0.0d0        !> p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
      ! parameters for pseudo-plastic sliding law (based on PISM)
      ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
      ! where the yield stress tau_c = tan(phi) * N
      ! N = effective pressure
 
-     real(dp) :: pseudo_plastic_q = 0.5d0        !< exponent for pseudo-plastic law (unitless), 0 <= q <= 1
-                                                 !< q = 1 => linear sliding law; q = 0 => plastic; intermediate values => power law
-     real(dp) :: pseudo_plastic_u0 = 100.d0      !< threshold velocity for pseudo-plastic law (m/yr)
+     real(dp) :: pseudo_plastic_q = 0.5d0        !> exponent for pseudo-plastic law (unitless), 0 <= q <= 1
+                                                 !> q = 1 => linear sliding law; q = 0 => plastic; intermediate values => power law
+     real(dp) :: pseudo_plastic_u0 = 100.d0      !> threshold velocity for pseudo-plastic law (m/yr)
 
      ! The following 4 parameters give a linear increase in phi between elevations bedmin and bedmax
-     real(dp) :: pseudo_plastic_phimin =    5.d0 !< min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
-     real(dp) :: pseudo_plastic_phimax =   40.d0 !< max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
-     real(dp) :: pseudo_plastic_bedmin = -700.d0 !< bed elevation (m) below which phi = phimin
-     real(dp) :: pseudo_plastic_bedmax =  700.d0 !< bed elevation (m) above which phi = phimax
+     real(dp) :: pseudo_plastic_phimin =    5.d0 !> min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
+     real(dp) :: pseudo_plastic_phimax =   40.d0 !> max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
+     real(dp) :: pseudo_plastic_bedmin = -700.d0 !> bed elevation (m) below which phi = phimin
+     real(dp) :: pseudo_plastic_bedmax =  700.d0 !> bed elevation (m) above which phi = phimax
 
      ! parameters for friction powerlaw
-     real(dp) :: friction_powerlaw_k = 8.4d-9    !< coefficient (m y^-1 Pa^-2) for the friction power law based on effective pressure
-                                                 !< The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
+     real(dp) :: friction_powerlaw_k = 8.4d-9    !> coefficient (m y^-1 Pa^-2) for the friction power law based on effective pressure
+                                                 !> The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
 
      ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
-     real(dp) :: coulomb_c = 0.42d0              !< basal stress constant (no dimension)
-                                                 !< Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
-     real(dp) :: coulomb_bump_wavelength = 2.0d0 !< bedrock wavelength at subgrid scale precision (m)
-     real(dp) :: coulomb_bump_max_slope = 0.5d0  !< maximum bed bump slope at subgrid scale precision (no dimension)
-     real(dp) :: flwa_basal = 1.0d-16            !< Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
-                                                 !< = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
+     real(dp) :: coulomb_c = 0.42d0              !> basal stress constant (no dimension)
+                                                 !> Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
+     real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
+     real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
+     real(dp) :: flwa_basal = 1.0d-16            !> Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
+                                                 !> = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
      ! The default values are from Asay-Davis et al. (2016).
@@ -1473,26 +1473,26 @@ module glide_types
      ! Note: The Tsai et al. Coulomb friction law uses coulomb_c above, with
      !       effective pressure N as in Leguy et al. (2014) with p_ocean_penetration = 1.
 
-     real(dp) :: powerlaw_c = 1.0d4              !< friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
-     real(dp) :: powerlaw_m = 3.d0               !< exponent in power law (unitless)
+     real(dp) :: powerlaw_c = 1.0d4              !> friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
+     real(dp) :: powerlaw_m = 3.d0               !> exponent in power law (unitless)
       
      ! parameter to limit the min value of beta for various power laws
-     real(dp) :: beta_powerlaw_umax = 0.0d0      !< upper limit of ice speed (m/yr) when evaluating powerlaw beta
-                                                 !< Where u > umax, let u = umax when evaluating beta(u)
+     real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
+                                                 !> Where u > umax, let u = umax when evaluating beta(u)
 
      ! parameter for constant basal water
      ! Note: This parameter applies to HO_BWAT_CONSTANT only.
      !       For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
-     real(dp) :: const_bwat = 10.d0              !< constant basal water depth (m)
+     real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
 
      ! parameters for local till model
      ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
-     real(dp) :: bwat_till_max = 2.0d0           !< maximum water depth in till (m)
-     real(dp) :: c_drainage = 1.0d-3             !< uniform drainage rate (m/yr)
-     real(dp) :: N_0 = 1000.d0                   !< reference effective pressure (Pa)
-     real(dp) :: e_0 = 0.69d0                    !< reference void ratio (dimensionless)
-     real(dp) :: C_c = 0.12d0                    !< till compressibility (dimensionless)
-                                                 !< Note: The ratio (e_0/C_c) is the key parameter
+     real(dp) :: bwat_till_max = 2.0d0           !> maximum water depth in till (m)
+     real(dp) :: c_drainage = 1.0d-3             !> uniform drainage rate (m/yr)
+     real(dp) :: N_0 = 1000.d0                   !> reference effective pressure (Pa)
+     real(dp) :: e_0 = 0.69d0                    !> reference void ratio (dimensionless)
+     real(dp) :: C_c = 0.12d0                    !> till compressibility (dimensionless)
+                                                 !> Note: The ratio (e_0/C_c) is the key parameter
 
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed..

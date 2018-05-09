@@ -186,7 +186,7 @@ contains
   logical, parameter :: verbose_beta = .false.
 !!  integer :: istop, jstop
 
-  !TODO - Can remove the extra variable when which_ho_inversion is a non-optional argument
+  !TODO - Make which_ho_inversion a non-optional argument?
   if (present(which_ho_inversion)) then
      which_inversion = which_ho_inversion
   else
@@ -602,7 +602,7 @@ contains
 !           basal_physics%powerlaw_c, basal_physics%powerlaw_m, basal_physics%coulomb_c
 !       write(6,*) 'Apply Tsai parameterization: i, j, speed, beta, taub, taub_powerlaw, taub_coulomb, effecpress:'
 
-       !TODO - Add basal inversion option for Tsai, if it works for Schoof
+       !TODO - Add basal inversion option for Tsai, in addition to Schoof
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1

@@ -183,10 +183,6 @@ contains
     model%numerics%dew = model%numerics%dew / len0
     model%numerics%dns = model%numerics%dns / len0
 
-    !TODO - Scale eus for calving?
-    !       Currently the scaling for eus (like relx and topg) is handled automatically in glide_io.F90.
-    !       Would need to handle eus scaling separately if reading from config file.
-
     ! scale calving parameters
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
@@ -715,7 +711,7 @@ contains
          'Paterson and Budd           ', &
          'read flwa/flwastag from file' /)
 
-    !TODO - Rename slip_coeff to something like which_btrc?
+    !TODO - Rename slip_coeff to which_btrc?
     character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &
          'no basal sliding       ', &
          'constant basal traction', &
@@ -772,7 +768,7 @@ contains
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
-    !TODO - Change 'marine_margin' to 'calving'?  Would have to modify standard config files
+    !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
          'do nothing at marine margin     ', &
          'remove all floating ice         ', &
@@ -1358,7 +1354,6 @@ contains
        endif
 
        ! unsupported ho-babc options
-       !TODO - Decide if some of these are now supported?
        if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
          call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
               &USE AT YOUR OWN RISK.', GM_WARNING)
@@ -1703,7 +1698,7 @@ contains
     call GetValue(section,'bmlt_float_cavity_hmeltmax', model%basal_melt%bmlt_float_cavity_hmeltmax)
 
     ! MISOMIP plume parameters
-    !TODO - Put MISMIP+ and MISOMIP parameters in their own section?
+    !TODO - Put MISMIP+ and MISOMIP parameters in their own section
     call GetValue(section,'T0',   model%plume%T0)
     call GetValue(section,'Tbot', model%plume%Tbot)
     call GetValue(section,'S0',   model%plume%S0)
@@ -2642,11 +2637,10 @@ contains
          call glide_add_to_restart_variable_list('bmlt_float_prescribed')
     end select
 
-    ! If inverting for basal parameters and/or subshelf melting based on thck_obs,
-    !  then thck_obs needs to be in the restart file;
-    !TODO - Remove thck_obs, keep usrf_obs?
+    ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,
+    !  then usrf_obs needs to be in the restart file.
+    ! TODO: Inversion for topg_obs still needs to be tested.
     if (options%which_ho_inversion == HO_INVERSION_COMPUTE) then
-!!       call glide_add_to_restart_variable_list('thck_obs')
        call glide_add_to_restart_variable_list('usrf_obs')
        call glide_add_to_restart_variable_list('topg_obs')
     endif

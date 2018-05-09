@@ -5335,7 +5335,7 @@
        stagusrf,       &  ! upper surface elevation on staggered grid (m)
        stagthck           ! ice thickness on staggered grid (m)
 
-    !TODO - Pass in flwa and compute flwafact here?
+    !TODO - Pass in flwa only, and compute flwafact here?
     real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
        flwa,             &! temperature-based flow factor A, Pa^{-n} yr^{-1}
        flwafact           ! temperature-based flow factor, 0.5 * A^(-1/n), Pa yr^(1/n)

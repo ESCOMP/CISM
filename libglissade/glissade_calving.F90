@@ -1898,7 +1898,6 @@ contains
           ! Check for halo cells that were just filled on neighbor processors
           ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
           !       but also must be an active cell.
-          !TODO - Only need to check whether color = fill_color?
 
           call parallel_halo(color)
 
