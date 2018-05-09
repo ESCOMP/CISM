@@ -1253,9 +1253,7 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
      real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
 
-    !TODO - Change default value to 5.0?  This is the value used for long Greenland initMIP spin-ups. 
-    real(dp) :: pmp_offset = 2.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
-
+    real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     !TODO - Remove some of the following from the derived type
