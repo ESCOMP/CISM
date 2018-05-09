@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Fri, 04 May 2018 11:43:10 +0000
+! Wed, 09 May 2018 22:50:53 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -16,7 +16,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2018
+!   Copyright (C) 2005-2017
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
