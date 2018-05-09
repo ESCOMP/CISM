@@ -205,9 +205,10 @@ contains
     model%velowk%btrac_max   = model%paramets%btrac_max / model%velowk%trc0/scyr    
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
 
-    ! scale basal melting parameters (yr^{-1} -> s^{-1})
+    ! scale basal melting parameters (1/yr -> 1/s, or m/yr -> m/s)
     model%basal_melt%bmlt_float_omega = model%basal_melt%bmlt_float_omega / scyr
     model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
+    model%basal_melt%bmlt_float_cavity_meltmax = model%basal_melt%bmlt_float_cavity_meltmax / scyr
 
     ! scale basal inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr
@@ -741,12 +742,13 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:4), parameter :: which_bmlt_float = (/ &
-         'none                              ', &
-         'MISMIP+ melt rate profile         ', &
-         'constant melt rate                ', &
-         'Melt rate from MISOMIP T/S profile', &
-         'Melt rate from external file      ' /)
+    character(len=*), dimension(0:5), parameter :: which_bmlt_float = (/ &
+         'none                                 ', &
+         'MISMIP+ melt rate profile            ', &
+         'constant melt rate                   ', &
+         'melt rate from ocean cavity thickness', &
+         'melt rate from external file         ', &
+         'melt rate from MISOMIP T/S profile   ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -1696,6 +1698,9 @@ contains
     call GetValue(section,'bmlt_float_z0', model%basal_melt%bmlt_float_z0)
     call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
     call GetValue(section,'bmlt_float_xlim', model%basal_melt%bmlt_float_xlim)
+    call GetValue(section,'bmlt_float_cavity_meltmax', model%basal_melt%bmlt_float_cavity_meltmax)
+    call GetValue(section,'bmlt_float_cavity_hmelt0', model%basal_melt%bmlt_float_cavity_hmelt0)
+    call GetValue(section,'bmlt_float_cavity_hmeltmax', model%basal_melt%bmlt_float_cavity_hmeltmax)
 
     ! MISOMIP plume parameters
     !TODO - Put MISMIP+ and MISOMIP parameters in their own section?
