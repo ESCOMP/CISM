@@ -235,6 +235,12 @@ contains
     if (params%gcm_smb) then
        call write_log ('Will pass surface mass balance (not PDD info) to Glint')
     endif
+
+    write(message,*)'Total years       :', params%total_years
+    call write_log(message)
+    call write_log('   NOTE: GLINT total years will override the end time in the ice sheet dycore')
+    write(message,*)'Climate tstep (hr):', params%climate_tstep
+    call write_log(message)
        
     call write_log('')
 
