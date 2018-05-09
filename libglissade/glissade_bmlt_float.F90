@@ -216,8 +216,7 @@ contains
     real(dp) :: h_cavity        ! depth of ice cavity beneath floating ice (m)
     real(dp) :: z_draft         ! draft of floating ice (m below sea level)
 
-!!    logical, parameter :: verbose_bmlt = .false.
-    logical, parameter :: verbose_bmlt = .true.
+    logical, parameter :: verbose_bmlt = .false.
 
 !TODO - Make first_call depend on whether we are restarting
 !!    logical :: first_call = .false.

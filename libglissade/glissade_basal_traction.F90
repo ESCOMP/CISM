@@ -182,9 +182,7 @@ contains
 
   integer :: iglobal, jglobal
 
-  !WHL - debug
   logical, parameter :: verbose_beta = .false.
-!!  integer :: istop, jstop
 
   !TODO - Make which_ho_inversion a non-optional argument?
   if (present(which_ho_inversion)) then
