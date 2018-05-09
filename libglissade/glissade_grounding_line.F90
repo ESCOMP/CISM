@@ -151,6 +151,7 @@
     real(dp) :: f1, f2, f3, f4   ! f_flotation at different cell centers
 
     real(dp) ::  &
+       topg_eus_diff,       &! topg - eus, limited to be >= f_flotation_land_topg_min
        var,                 &! combination of f_flotation terms that determines regions to be integrated
        f_flotation_vertex    ! f_flotation interpolated to vertex
 
@@ -172,6 +173,9 @@
     logical :: adjacent   ! true if two grounded vertices are adjacent (rather than opposite)
 
     real(dp), parameter :: &
+       f_flotation_land_topg_min = 1.0d0   ! min value of (topg - eus) in f_flotation expression for land cells (m)
+
+    real(dp), parameter :: &
        eps06 = 1.d-06     ! small number
 
     logical :: filled     ! true if f_flotation has been filled by extrapolation
@@ -179,16 +183,17 @@
     !TODO - Test sensitivity to these values
     ! These are set to large negative values, so vertices with land-based neighbors are strongly grounded.
     real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
-    real(dp), parameter :: f_flotation_land_linear = -10000.d0       ! meters
 
     !----------------------------------------------------------------
-    ! Compute ice mask at vertices (= 1 if any surrounding cells have ice)
+    ! Compute ice mask at vertices (= 1 if any surrounding cells have ice or are land)
     !----------------------------------------------------------------
 
     do j = 1, ny-1
        do i = 1, nx-1
-          if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or.   &
-              ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1 ) then
+          if (ice_mask(i,j+1)==1  .or. ice_mask(i+1,j+1)==1  .or.   &
+              ice_mask(i,j)  ==1  .or. ice_mask(i+1,j)  ==1  .or.   &
+              land_mask(i,j+1)==1 .or. land_mask(i+1,j+1)==1 .or.   &
+              land_mask(i,j)  ==1 .or. land_mask(i+1,j+1)==1) then
              vmask(i,j) = 1
           else
              vmask(i,j) = 0
@@ -245,7 +250,9 @@
        do j = 1, ny
           do i = 1, nx
              if (land_mask(i,j) == 1) then
-                f_flotation(i,j) = f_flotation_land_linear
+                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
+                topg_eus_diff = max((topg(i,j) - eus), f_flotation_land_topg_min)
+                f_flotation(i,j) = -topg_eus_diff
              elseif (ice_mask(i,j) == 1) then
                 f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
              else  ! ice-free ocean
@@ -293,7 +300,7 @@
 
     case(HO_GROUND_ALL)
 
-       ! all vertices with ice-covered neighbors are assumed grounded, regardless of thck and topg
+       ! all vertices with ice-covered or land-based neighbors are assumed grounded, regardless of thck and topg
 
        do j = 1, ny-1
           do i = 1, nx-1
@@ -305,25 +312,26 @@
 
     case(HO_GROUND_GLP)      ! grounding-line parameterization
 
-       ! In ice-free cells, fill in f_flotation by extrapolation.
+       ! In ice-free ocean cells, fill in f_flotation by extrapolation.
        ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
        !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
        ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
-       !  (i.e., with at least one ice-filled neighbor cell) has physically sensible values
+       !  (i.e., with at least one ice-filled or land-based neighbor cell) has physically sensible values
        !  of f_flotation in all four neighbor cells, for purposes of interpolation.
 
        f_flotation_extrap(:,:) = f_flotation(:,:)
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (ice_mask(i,j) == 0) then
+             if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
 
                 filled = .false.
 
                 ! loop over edge neighbors
                 do jj = j-1, j+1
                    do ii = i-1, i+1
-                      if ((ii==i .or. jj==j) .and. ice_mask(ii,jj) == 1) then  ! edge neighbor with ice
+                      if ((ii == i .or. jj == j) .and. &
+                           (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then  ! edge neighbor with ice or land
                          if (.not.filled) then
                             filled = .true.
                             f_flotation_extrap(i,j) = f_flotation(ii,jj)
@@ -338,7 +346,8 @@
                 if (.not.filled) then
                    do jj = j-1, j+1
                       do ii = i-1, i+1
-                         if ((abs(ii-i)==1 .and. abs(jj-j)==1) .and. ice_mask(ii,jj)==1) then ! corner neighbor with ice
+                         if ((abs(ii-i) == 1 .and. abs(jj-j) == 1) .and. &
+                             (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then ! corner neighbor with ice or land
                             if (.not.filled) then
                                filled = .true.
                                f_flotation_extrap(i,j) = f_flotation(ii,jj)
@@ -393,7 +402,7 @@
        do j = 1, ny-1
           do i = 1, nx-1
 
-             if (vmask(i,j) == 1) then  ! ice is present in at least one neighboring cell
+             if (vmask(i,j) == 1) then  ! at least one neighboring cell is ice-covered or land-based
 
                    ! First count the number of floating cells surrounding this vertex
 
@@ -507,9 +516,10 @@
                       !     = a^2 / (2bc)
                       !
                       ! Note: We cannot have bc = 0, because f_flotation varies in both x and y
-                      !       The above rotations ensure that we always take the log of a positive number
- 
-                      if (abs(a*d/(b*c)) > eps06) then
+                      !       The above rotations ensure that we always take the log of a positive number.
+                      ! Note: This expression will give a NaN if f_flotation = 0 for land cells.
+                      !       Thus, f_flotation must be < 0 for land, even if topg - eus = 0.
+                      if (abs((a*d)/(b*c)) > eps06) then
                          f_corner = ((b*c - a*d) * log(abs(1.d0 - (a*d)/(b*c))) + a*d) / (d*d)
                       else
                          f_corner = (a*a) / (2.d0*b*c)
@@ -683,7 +693,7 @@
                             print*, 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
                          endif
 
-                         if (abs(-a*d/(b*c)) > eps06) then  ! the usual case
+                         if (abs(b*c - a*d) > eps06) then  ! the usual case
                             f_corner1 = ((b*c - a*d) * log(1.d0 - (a*d)/(b*c)) + a*d) / (d*d)
                             f_corner2 = ((b*c - a*d) * log((b*c - a*d)/((b+d)*(c+d)))  &
                                       + d*(a + b + c + d)) / (d*d)

@@ -216,8 +216,7 @@ subroutine cism_init_dycore(model)
 
     call t_startf('initial_write_diagnostics')
     call glide_write_diagnostics(model,        time,       &
-                                 tstep_count = model%numerics%tstep_count,  &
-                                 minthick_in = model%numerics%thklim*thk0)  ! m
+                                 tstep_count = model%numerics%tstep_count)
     call t_stopf('initial_write_diagnostics')
 
   end if ! whichdycore .ne. DYCORE_BISICLES
@@ -346,8 +345,7 @@ subroutine cism_run_dycore(model)
 
       call t_startf('write_diagnostics')
       call glide_write_diagnostics(model,        time,       &
-                                   tstep_count = model%numerics%tstep_count,  &
-                                   minthick_in = model%numerics%thklim*thk0)  ! m
+                                   tstep_count = model%numerics%tstep_count)
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance

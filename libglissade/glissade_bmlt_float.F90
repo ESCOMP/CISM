@@ -124,9 +124,6 @@ contains
          x1                      ! x1 grid coordinates (m), ice grid
                                  ! used with bmlt_float_xlim for MISMIP+ Ice2r
 
-    !WHL - Change to inout to permit calving
-    !TODO - Let the ice sheet model handle calving
-!!    real(dp), dimension(:,:), intent(inout) :: &
     real(dp), dimension(:,:), intent(in) :: &
          lsrf,                 & ! elevation of lower ice surface (m)
          thck                    ! ice thickness (m)
@@ -220,7 +217,6 @@ contains
     real(dp) :: z_draft         ! draft of floating ice (m below sea level)
 
     logical, parameter :: verbose_bmlt = .false.
-!!    logical, parameter :: verbose_bmlt = .true.
 
 !TODO - Make first_call depend on whether we are restarting
 !!    logical :: first_call = .false.
@@ -293,7 +289,7 @@ contains
        do j = 1, nsn
           do i = 1, ewn
 
-             ! allow basal melt in ice-free ocean cells, in case ice is advected to those cells by the transport scheme
+             ! compute basal melt in ice-free ocean cells, in case ice is advected to those cells by the transport scheme
 
              if (floating_mask(i,j) == 1 .or. ocean_mask(i,j) == 1) then   ! ice is present and floating, or ice-free ocean
 
@@ -321,6 +317,73 @@ contains
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(f12.5)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'bmlt_float (m/yr), rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') bmlt_float(i,j)*scyr
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    elseif (whichbmlt_float == BMLT_FLOAT_CAVITY_THCK) then
+
+       ! Compute melt rates based on the cavity thickness, with larger melt rates for thinner cavities.
+       ! Cavity thickness is taken as a rough proxy for distance from the grounding line;
+       !  the goal is to focus the melting near the GL.
+       ! The melt rate is set to a maximum value where h_cavity < cavity_hmeltmax,
+       !  then decreases linearly to 0 as h_cavity increases from cavity_hmeltmax to cavity_hmelt0.
+       ! In addition, if bmlt_float_h0 > 0 (see the MISMIP scheme above), the melt rate can be tapered
+       !  for very thin cavities.  Typically, cavity_hmeltmax > bmlt_float_h0.
+       ! This scheme is available for testing and tuning, but has not been scientifically validated.
+
+       do j = 1, nsn
+          do i = 1, ewn
+
+             ! compute basal melt in ice-free ocean cells, in case ice is advected to those cells by the transport scheme
+             if (floating_mask(i,j) == 1 .or. ocean_mask(i,j) == 1) then   ! ice is present and floating, or ice-free ocean
+
+                h_cavity = max(lsrf(i,j) - topg(i,j), 0.0d0)
+
+                if (h_cavity > basal_melt%bmlt_float_cavity_hmelt0) then
+                   ! do nothing; bmlt_float = 0
+                elseif (h_cavity < basal_melt%bmlt_float_cavity_hmeltmax) then
+                   bmlt_float(i,j) = basal_melt%bmlt_float_cavity_meltmax
+                else
+                   bmlt_float(i,j) = basal_melt%bmlt_float_cavity_meltmax * &
+                        (basal_melt%bmlt_float_cavity_hmelt0 - h_cavity) / &
+                        (basal_melt%bmlt_float_cavity_hmelt0 - basal_melt%bmlt_float_cavity_hmeltmax)
+                endif
+
+                ! Following the MISMIP+ scheme, reduce the melting as the cavity thickness approaches zero.
+                ! A small value of bmlt_float_h0 allows more melting in very thin cavities.
+                bmlt_float(i,j) = bmlt_float(i,j) * tanh(h_cavity/basal_melt%bmlt_float_h0)
+
+             endif   ! ice is present and floating
+
+          enddo
+       enddo
+
+       !debug
+       if (verbose_bmlt .and. this_rank == rtest) then
+          print*, 'itest, jtest, rtest =', itest, jtest, rtest
+          print*, ' '
+          print*, 'topg (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') topg(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'h_cavity (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') max(lsrf(i,j) - topg(i,j), 0.0d0)
              enddo
              write(6,*) ' '
           enddo
@@ -795,7 +858,7 @@ contains
     velo_mask_work(:,:) = 1
 
     !WHL - debug
-    ! Calve thin floating ice.  Later, this should be done by CISM's calving solver.
+    ! Calve thin floating ice if necessary.  Generally, this should be done by CISM's calving solver.
     !TODO - If uncommenting these lines, then thck and lsrf must be intent(inout)
 !!    do j = 1, ny
 !!       do i = 1, nx

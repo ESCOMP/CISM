@@ -18,7 +18,7 @@ false_northing = 3400000.0
 standard_parallel = 71.0
 
 [options]
-dycore = 0               # 0 = glide, 1 = glam
+dycore = 0               # 0 = glide, 2 = glissade
 evolution = 0            # 0 = pseudo diffusion, 2 = iterated diffusion, 3 = remap
 temperature = 1          # 0 = sfc air, 1 = prognostic
 temp_init = 2            # 1 = sfc air, 2 = linear profile
@@ -56,6 +56,9 @@ title: GLINT example test run
 #institution: My Institution
 comment: results from a Greenland 5-km test run with PDD forcing
 
+[CF input]
+name: Greenland_5km_v1.1.nc
+
 [CF output]
 name:      greenland_5km.pdd.nc
 frequency: 10
@@ -66,11 +69,9 @@ name: greenland_5km.pdd.glint.nc
 frequency: 10
 variables: instant_prcp instant_acab instant_ablt instant_artm
 
-[CF output]
-name:      greenland_5km.pdd.hot.nc
-frequency: 1000
-variables: hot
-
-[CF input]
-name: Greenland_5km_v1.1.nc
-
+[CF restart]
+name:       greenland_5km.pdd.restart.nc
+frequency:  1000
+variables:  restart
+xtype:      double
+write_init: F
