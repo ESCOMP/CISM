@@ -306,7 +306,6 @@
       !
       ! input/output arguments
 
-      !TODO - Is dt needed?
       real(dp), intent(in) ::  &
          dt,                   &! time step (s)
          dx, dy                 ! gridcell dimensions (m)
@@ -533,10 +532,6 @@
                endif
 
             endif   ! main_task
-
-            ! Update msum_init and mtsum_init for the next conservation check
-            msum_init = msum_final   ! msum_final computed above after glissade_add_smb
-            mtsum_init(:) = mtsum_final(:)   ! mtsum_final computed above after glissade_add_smb
 
          endif      ! conservation_check
 
@@ -1311,6 +1306,8 @@
             call write_log(message)
             write (message,*) 'Final global mass (adjusted for melt potential) =', msum_final - melt_potential
             call write_log(message)
+            write (message,*) 'Absolute error =', diff
+            call write_log(message)
             write (message,*) 'Fractional error =', abs(diff)/msum_init
             call write_log(message)
          endif
@@ -1417,7 +1414,12 @@
 
       character(len=100) :: message
 
-      ! Initialize the applied mass balance and the melt potential.
+      ! Temporarily, convert the applied mass balance (intent inout) from m/s to m.
+      ! It is converted back to m/s for output.
+      acab_applied(:,:) = acab_applied(:,:) * dt
+      bmlt_applied(:,:) = bmlt_applied(:,:) * dt
+
+      ! Initialize the melt potential.
       ! These terms are adjusted below if energy is available for melting
       !  when no ice is present.
 
@@ -1455,8 +1457,7 @@
 
                if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-                  ! TODO - Is this the correct treatment of the melt potential for accumulation over the ocean?
-                  melt_potential(i,j) = melt_potential(i,j) - sfc_accum
+                  ! do nothing
 
                else  ! not ocean; accumulate ice
 
@@ -1515,29 +1516,44 @@
             ! Note: It is possible that we could have residual energy remaining for surface ablation
             !       while ice is freezing on at the bed, in which case the surface ablation should
             !       be subtracted from the bed accumulation.  We ignore this possibility for now.
-            ! Note: If bmlt < 0 (i.e., freeze-on), we allow ice growth even in ice-free ocean cells.
-            !       That is, freeze-on in ocean cells is interpreted as frazil ice growth.
+
+            ! Note: Freeze-on (bmlt < 0) is allowed only in ice-covered cells, not ice-free ocean.
+            !       Allowing freeze-on in ice-free ocean would introduce mass conservation errors,
+            !        given the current logic with effective_areafrac.
+            !       If it is desired to implement a field of frazil ice formation that could grow ice
+            !        in open ocean as well as sub-shelf cavities and open ocean, this field could be passed
+            !        into glissade_mass_balance_driver in a separate call (i.e., independent of the standard
+            !        acab and bmlt fields) with ocean_mask = 0 and effective_areafrac = 1 everywhere.
+            !        Then the following code would allow frazil growth, as desired.
 
             if (bmlt(i,j) < 0.d0) then       ! freeze-on, added to lowest layer
 
                bed_accum = -bmlt(i,j)*dt
 
-               bmlt_applied(i,j) = bmlt_applied(i,j) - bed_accum*effective_areafrac(i,j)  ! bmlt_applied < 0 for freeze-on
+               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-               ! adjust mass-tracer product for the bottom layer
+                  ! do nothing
 
-               do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
+               else  ! not ocean; accumulate ice
 
-                  thck_tracer(i,j,nt,nlyr) = thck_layer(i,j,nlyr) * tracer(i,j,nt,nlyr)  &
-                                           + bed_accum * tracer_lsrf(i,j,nt)
+                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_accum*effective_areafrac(i,j)  ! bmlt_applied < 0 for freeze-on
 
-               enddo  ! ntracer
+                  ! adjust mass-tracer product for the bottom layer
 
-               ! new bottom layer thickess
-               thck_layer(i,j,nlyr) = thck_layer(i,j,nlyr) + bed_accum
+                  do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
 
-               ! new tracer values in bottom layer
-               tracer(i,j,:,nlyr) = thck_tracer(i,j,:,nlyr) / thck_layer(i,j,nlyr)
+                     thck_tracer(i,j,nt,nlyr) = thck_layer(i,j,nlyr) * tracer(i,j,nt,nlyr)  &
+                                              + bed_accum * tracer_lsrf(i,j,nt)
+
+                  enddo  ! ntracer
+
+                  ! new bottom layer thickess
+                  thck_layer(i,j,nlyr) = thck_layer(i,j,nlyr) + bed_accum
+
+                  ! new tracer values in bottom layer
+                  tracer(i,j,:,nlyr) = thck_tracer(i,j,:,nlyr) / thck_layer(i,j,nlyr)
+
+               endif   ! ocean_mask = 1
 
             elseif (bmlt(i,j) > 0.d0) then   ! basal melting in one or more layers            
 
@@ -1563,7 +1579,8 @@
                ! Also accumulate the remaining melt energy 
 
                if (bed_ablat > 0.d0) then
-                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat*effective_areafrac(i,j)  ! bmlt_applied is less than input bmlt
+                  ! bmlt_applied is less than input bmlt
+                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat*effective_areafrac(i,j)
                   melt_potential(i,j) = melt_potential(i,j) + bed_ablat
                endif
 
@@ -1602,7 +1619,7 @@
          enddo
       endif
 
-      ! convert diagnostic output from m to m/s
+      ! convert applied mass balance from m to m/s
       acab_applied(:,:) = acab_applied(:,:) / dt
       bmlt_applied(:,:) = bmlt_applied(:,:) / dt
 

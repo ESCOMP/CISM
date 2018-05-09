@@ -3386,7 +3386,7 @@ subroutine bodyset(ew,  ns,  up,           &
            elseif( whichbabc == HO_BABC_BETA_CONSTANT .or. whichbabc == HO_BABC_YIELD_PICARD     .or. &
                    whichbabc == HO_BABC_BETA_LARGE    .or. whichbabc == HO_BABC_BETA_EXTERNAL    .or. &
                    whichbabc == HO_BABC_POWERLAW      .or. whichbabc == HO_BABC_COULOMB_FRICTION .or. &
-                   whichbabc == HO_BABC_COULOMB_CONST_BASAL_FLWA .or. whichbabc == HO_BABC_SIMPLE) then
+                   whichbabc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or. whichbabc == HO_BABC_SIMPLE) then
 
                 bcflag = (/1,1/)              ! flag for specififed stress at bed: Tau_zx = beta * u_bed,
                                               ! where beta is MacAyeal-type traction parameter
@@ -3601,7 +3601,7 @@ subroutine bodyset(ew,  ns,  up,           &
            elseif( whichbabc == HO_BABC_BETA_CONSTANT .or. whichbabc == HO_BABC_YIELD_PICARD     .or. &
                    whichbabc == HO_BABC_BETA_LARGE    .or. whichbabc == HO_BABC_BETA_EXTERNAL    .or. &
                    whichbabc == HO_BABC_POWERLAW      .or. whichbabc == HO_BABC_COULOMB_FRICTION .or. &
-                   whichbabc == HO_BABC_COULOMB_CONST_BASAL_FLWA .or. whichbabc == HO_BABC_SIMPLE) then
+                   whichbabc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or. whichbabc == HO_BABC_SIMPLE) then
 
                 bcflag = (/1,1/)              ! flag for specififed stress at bed: Tau_zx = beta * u_bed,
                                               ! where beta is MacAyeal-type traction parameter
