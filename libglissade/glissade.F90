@@ -1169,11 +1169,9 @@ contains
        ! First transport ice thickness and temperature, given the horizontal velocity (u,v).
        ! Then apply the surface and basal mass balance in each grid cell.
        ! Note: The main reason to do both transport and mass balance in one subroutine is
-       !  that both operations require tracer array setup and cleanup  (e.g., copying the 
+       !  that both operations require tracer array setup and cleanup (e.g., copying the 
        !  various tracer fields into generic tracer arrays). With this arrangement,
        !  the tracer operations need to be done only once.
-       ! TODO: It might be cleaner to do horizontal transport and mass balance in
-       !       separate subroutines, at the cost of added tracer operations.
        !-------------------------------------------------------------------------
        ! MJH: I put the no thickness evolution option here so that it is still possible 
        !      (but not required) to use IR to advect temperature when thickness evolution is turned off.

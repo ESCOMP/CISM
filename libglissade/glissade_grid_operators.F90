@@ -62,7 +62,7 @@ contains
                               ice_mask,     stagger_margin_in)
 
     !TODO - Make the mask optional, and drop the stagger_margin_in argument?
-    !       Then the mask says where to ignore values when interpolating.
+    !       Then the mask determines where to ignore values when interpolating.
 
     !----------------------------------------------------------------
     ! Given a variable on the unstaggered grid (dimension nx, ny), interpolate
@@ -643,7 +643,6 @@ contains
     !----------------------------------------------------------------
     ! Compute edge masks required for option gradient_margin = HO_GRADIENT_MARGIN_HYBRID
     ! Called from subroutine glissade_gradient_at_edges.
-    ! TODO: Make consistent with glissade_surface_elevation_gradient?
     !
     ! The mask is set to true at all edges where either
     ! (1) Both adjacent cells are ice-covered.

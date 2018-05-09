@@ -306,7 +306,6 @@
       !
       ! input/output arguments
 
-      !TODO - Is dt needed?
       real(dp), intent(in) ::  &
          dt,                   &! time step (s)
          dx, dy                 ! gridcell dimensions (m)
