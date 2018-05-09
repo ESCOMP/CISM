@@ -202,6 +202,8 @@
 !    logical :: verbose = .true.  
     logical :: verbose_init = .false.   
 !    logical :: verbose_init = .true.   
+    logical :: verbose_solver = .false.
+!    logical :: verbose_solver = .true.
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
     logical :: verbose_residual = .false.
@@ -224,8 +226,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-!    logical :: verbose_beta = .false.
-    logical :: verbose_beta = .true.
+    logical :: verbose_beta = .false.
+!    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -1128,24 +1130,15 @@
     vol0  = 1.0d9    ! volume scale (m^3)
 
     if (whichapprox == HO_APPROX_SIA) then   ! SIA
-!!       if (verbose .and. main_task) print*, 'Solving shallow-ice approximation'
-       if (main_task) print*, 'Solving shallow-ice approximation'
-
+       if (verbose_solver .and. main_task) print*, 'Solving shallow-ice approximation'
     elseif (whichapprox == HO_APPROX_SSA) then  ! SSA
-!!       if (verbose .and. main_task) print*, 'Solving shallow-shelf approximation'
-       if (main_task) print*, 'Solving shallow-shelf approximation'
-
+       if (verbose_solver .and. main_task) print*, 'Solving shallow-shelf approximation'
     elseif (whichapprox == HO_APPROX_L1L2) then  ! L1L2
-!!       if (verbose .and. main_task) print*, 'Solving depth-integrated L1L2 approximation'
-       if (main_task) print*, 'Solving depth-integrated L1L2 approximation'
-
+       if (verbose_solver .and. main_task) print*, 'Solving depth-integrated L1L2 approximation'
     elseif (whichapprox == HO_APPROX_DIVA) then  ! DIVA, based on Goldberg (2011)
-!!       if (verbose .and. main_task) print*, 'Solving depth-integrated viscosity approximation'
-       if (main_task) print*, 'Solving depth-integrated viscosity approximation'
-
+       if (verbose_solver .and. main_task) print*, 'Solving depth-integrated viscosity approximation'
     else   ! Blatter-Pattyn higher-order 
-!!       if (verbose .and. main_task) print*, 'Solving Blatter-Pattyn higher-order approximation'
-       if (main_task) print*, 'Solving Blatter-Pattyn higher-order approximation'
+       if (verbose_solver .and. main_task) print*, 'Solving Blatter-Pattyn higher-order approximation'
     endif
 
     if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_DIVA) then
@@ -2037,9 +2030,7 @@
     ! Print some diagnostic info
     !---------------------------------------------------------------
 
-    if (main_task) then
-       print *, ' '
-       print *, 'Running Glissade higher-order dynamics solver'
+    if (main_task .and. verbose_solver) then
        print *, ' '
        if (whichresid == HO_RESID_L2NORM) then  ! use L2 norm of residual
           print *, 'iter #     resid (L2 norm)       target resid'
@@ -2048,7 +2039,6 @@
        else                                     ! residual based on velocity
           print *, 'iter #     velo resid            target resid'
        end if
-       print *, ' '
     endif
 
     !------------------------------------------------------------------------------
@@ -3652,7 +3642,7 @@
 
        if (whichsparse /= HO_SPARSE_TRILINOS) then
           ! niters isn't set when using the trilinos solver
-          if (main_task) then
+          if (main_task .and. verbose_solver) then
              print*, 'Solved the linear system, niters, err =', niters, err
           endif
        end if
@@ -3768,7 +3758,7 @@
        ! Write diagnostics (iteration number, max residual, and residual target
        !---------------------------------------------------------------------------
 
-       if (main_task) then
+       if (main_task .and. verbose_solver) then
           if (whichresid == HO_RESID_L2NORM) then
              print '(i4,2g20.6)', counter, L2_norm, L2_target
           elseif (whichresid == HO_RESID_L2NORM_RELATIVE) then
@@ -3801,15 +3791,13 @@
        converged_soln = .true.
 !!       if (verbose .and. main_task) then
        if (main_task) then
-          print*, ' '
-          print*, 'GLISSADE SOLUTION HAS CONVERGED, outer counter =', counter
+          print*, 'Glissade solution has converged, outer counter, err =', counter, L2_norm
        endif
     else
        converged_soln = .false.
 !!       if (verbose .and. main_task) then
        if (main_task) then
-          print*, ' '
-          print*, 'GLISSADE SOLUTION HAS NOT CONVERGED: counter, err =', counter, L2_norm
+          print*, 'Glissade solution has NOT converged: counter, err =', counter, L2_norm
           !WHL - debug
 !!          stop
        endif
