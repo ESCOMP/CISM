@@ -107,10 +107,10 @@ contains
 
     ! set up restart output
     ! If there is a 'CF restart' section, the file listed there is added to the output list.
+    ! Note: There should be only one 'CF restart' section. Duplicate sections will be ignored.
+    !TODO: Check that there is only one 'CF restart' section, and abort if there are more than one.
     call GetSection(config,section,'CF restart')
-
     if (associated(section)) then
-
        output => handle_output(section,output,configstring)
        if (.not.associated(model%funits%out_first)) then
           model%funits%out_first => output
@@ -121,13 +121,7 @@ contains
        if (pos == 0) then
           call write_log ('Error, filename in CF restart section should include "restart"', GM_FATAL)
        endif
-
-       ! Make sure there is only one 'CF restart' section
-       if (associated(section%next)) then
-          call write_log ('Error, there should not be more than one CF restart section', GM_FATAL)
-       endif
-
-    end if
+    endif
 
     ! set up inputs
     call GetSection(config,section,'CF input')
