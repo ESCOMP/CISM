@@ -4,7 +4,7 @@
 //                                                              
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
-//   Copyright (C) 2005-2017
+//   Copyright (C) 2005-2018
 //   CISM contributors - see AUTHORS file for list of contributors
 //
 //   This file is part of CISM.
