@@ -893,7 +893,7 @@ contains
           model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
        endif
 
-    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP AND BMLT_FLOAT_MISOMIP
+    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_CAVITY_THCK AND BMLT_FLOAT_MISOMIP
           !TODO - Call separate subroutines for each of these three options?
 
        !WHL - May want to comment out temporarily, if doing basal melting in the diagnostic solve for testing
@@ -1183,9 +1183,7 @@ contains
 
        call t_startf('inc_remap_driver')
 
-       if (main_task) then
-          print *, 'Compute dH/dt'
-       endif
+       if (verbose_glissade .and. main_task) print *, 'Compute dH/dt'
 
        call t_startf('glissade_transport_driver')
 

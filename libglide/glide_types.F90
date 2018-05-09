@@ -119,8 +119,9 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
-  integer, parameter :: BMLT_FLOAT_MISOMIP = 3
+  integer, parameter :: BMLT_FLOAT_CAVITY_THCK = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
+  integer, parameter :: BMLT_FLOAT_MISOMIP = 5
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -419,10 +420,11 @@ module glide_types
     !> basal melt rate for floating ice:
     !> \begin{description}
     !> \item[0] Basal melt rate = 0 for floating ice
-    !> \item[1] Basal melt rate for floating ice as prescribed for MISMIP+
+    !> \item[1] Depth-dependent basal melt rate for floating ice as specified for MISMIP+
     !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
-    !> \item[3] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
+    !> \item[3] Basal melt rate based on thickness of sub-shelf cavity
     !> \item[4] External basal melt rate field (from input file or coupler)
+    !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
@@ -1336,7 +1338,7 @@ module glide_types
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
-     ! MISMIP+ parameters for Ice1 experiments
+     ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_MISMIP)
      ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
      real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
                                                     !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
@@ -1345,11 +1347,16 @@ module glide_types
      real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
                                                     !> default value = -100 m for MISMIP+ Ice1r
 
-     ! MISMIP+ parameters for Ice2 experiments
+     ! MISMIP+ parameters for Ice2 experiments (BMLT_FLOAT_CONSTANT)
      real(dp) :: bmlt_float_const = 0.d0            !> constant melt rate (m/yr)
                                                     !> set to 100 m/yr for MISMIP+ Ice2r
      real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
                                                     !> set to 480 km for MISMIP+ Ice2r
+
+     ! parameters for BMLT_FLOAT_CAVITY_THCK
+     real(dp) :: bmlt_float_cavity_meltmax = 20.d0   !> max melt rate in cavity (m/yr)
+     real(dp) :: bmlt_float_cavity_hmeltmax = 100.d0 !> cavity thickness (m) below which bmlt_float = meltmax
+     real(dp) :: bmlt_float_cavity_hmelt0 = 300.d0   !> cavity thickness (m) above which bmlt_float = 0
 
      ! initMIP-Antarctica parameters
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
