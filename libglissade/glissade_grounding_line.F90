@@ -48,19 +48,14 @@
 
     ! All subroutines in this module are public
 
-    logical, parameter :: verbose_gl = .false.
-
   contains
 
 !****************************************************************************
 
   subroutine glissade_grounded_fraction(nx,            ny,                      &
-                                        itest, jtest,  rtest,                   &
-                                        thck,          topg,                    &
-                                        eus,           ice_mask,                &
+                                        ice_mask,                               &
                                         floating_mask, land_mask,               &
-                                        whichground,   whichflotation_function, &
-                                        f_ground,      f_flotation)
+                                        whichground,   f_ground)
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded.
@@ -75,29 +70,7 @@
     !        and analytically integrated to compute the grounded and floating fractions.
     ! (2) HO_GROUND_ALL: f_ground = 1 for all vertices with ice-covered neighbor cells
     !
-    ! There are three options for the flotation function:
-    ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
-    !     Here, f_pattyn = (-rhoo*b)/(rhoi*H) as in Pattyn et al. (2006).
-    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn
-    ! (2) HO_FLOTATION_FUNCTION_LINEAR: f_flotation = -b - (rhoi/rhoo)*H = ocean cavity thickness
-    !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
-    ! All three functions are defined such that f <=0 for grounded ice and f > 0 for floating ice.
-    ! For each option, land-based cells are assigned a large negative value, so that any vertices
-    !  with land-based neighbors are strongly grounded.
-    !
     ! NOTE: Option 1 = HO_GROUND_GLP is not suppported for this release.
-    !       The flotation function does not enter f_ground calculations for options 0 and 2,
-    !        but still is computed for diagnostic purposes.
-    !
-    ! We first compute f_flotation in all active ice-covered cells.
-    ! Then f_flotation is extrapolated to ice-free neighbors.  Thus, f_flotation has a physically
-    !   meaningful value (either computed directly, or extrapolated from a neighbor) in all four
-    !   cells surrounding each active vertex. (By definition, an active vertex is a vertex with
-    !   at least one active ice-covered neighbor.) Thus, we can interpolate f_flotation
-    !   within the bounding box around each active vertex to compute f_ground at the vertex.
-    !
-    ! Until recently, the inverse Pattyn function (1) was the default.
-    ! As of Nov. 2017, the linear function (2) is the default.
     !
     !----------------------------------------------------------------
     
@@ -108,19 +81,6 @@
     integer, intent(in) ::   &
        nx,  ny                ! number of grid cells in each direction
 
-    integer, intent(in) ::   &
-       itest, jtest, rtest    ! coordinates of diagnostic point
-
-    ! Default dimensions are meters.
-    ! The subroutine should work for other units as long as thck, topg and eus have the same units.
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-       thck,                 &! ice thickness (m)
-       topg                   ! elevation of topography (m)
-
-    real(dp), intent(in) :: &
-       eus                    ! eustatic sea level (= 0 by default)
-
     integer, dimension(nx,ny), intent(in) ::   &
        ice_mask,            & ! = 1 if ice is present (thck > thklim), else = 0
        floating_mask,       & ! = 1 if ice is present (thck > thklim) and floating, else = 0
@@ -128,34 +88,22 @@
 
     ! see comments above for more information about these options
     integer, intent(in) ::     &
-       whichground,            &! option for computing f_ground
-       whichflotation_function  ! option for computing f_flotation
+       whichground            ! option for computing f_ground
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
        f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
-
-    real(dp), dimension(nx,ny), intent(out) :: &
-       f_flotation            ! flotation function; see comments above
 
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
            
-    integer :: i, j, ii, jj
+    integer :: i, j
 
     integer, dimension(nx-1,ny-1) ::   &
        vmask                     ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
-    real(dp) ::  &
-       topg_eus_diff       ! topg - eus, limited to be >= f_flotation_land_topg_min
-
     logical, dimension(nx,ny) :: &
        cground             ! true if a cell is land and/or has grounded ice, else = false
-
-    real(dp), parameter :: &
-       f_flotation_land_topg_min = 1.0d0   ! min value of (topg - eus) in f_flotation expression for land cells (m)
-
-    real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
 
     !----------------------------------------------------------------
     ! Compute ice mask at vertices (= 1 if any surrounding cells have ice or are land)
@@ -173,68 +121,6 @@
           endif
        enddo
     enddo
-
-    ! Compute flotation function at cell centers.
-    ! For diagnostic purposes, f_flotation is always computed, although it affects f_ground
-    !  (and thus the velocities) only when running with a GLP.
-    ! Note: f_flotation is set to an arbitrary large negative value for land-based cells.
-    !       Ice-free ocean cells have f_flotation = 0.
-    ! Note: Values from ice-free cells are not used in the calculation of f_ground.
-    !       All values used in the f_ground calculation come from cells with ice,
-    !        or are extrapolated from cells with ice.
-
-    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-       ! subtract 1 from (-rhoo*b)/(rhoi*H) so that f > 0 for floating ice, f <= 0 for grounded ice
-       do j = 1, ny
-          do i = 1, nx
-             if (land_mask(i,j) == 1) then  ! topg - eus >= 0
-                f_flotation(i,j) = f_flotation_land_pattyn
-             elseif (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j)) - 1.0d0
-             else  ! ice-free ocean
-                f_flotation(i,j) = 0.0d0
-             endif
-          enddo
-       enddo
-
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then ! grounded if f_flotation >= 1, else floating
-
-       ! subtract (rhoi*H)/(-rhoo*b) from 1 so that f > 0 for floating ice, f <= 0 for grounded ice
-       do j = 1, ny
-          do i = 1, nx
-             if (land_mask(i,j) == 1) then  ! topg - eus >= 0
-                f_flotation(i,j) = f_flotation_land_pattyn
-             elseif (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = 1.0d0 - rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
-                ! Cap at a large minimum value
-                f_flotation(i,j) = max(f_flotation(i,j), f_flotation_land_pattyn)
-             else  ! ice-free ocean
-                f_flotation(i,j) = 0.0d0
-             endif
-          enddo
-       enddo
-
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-
-       ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
-       ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
-
-       do j = 1, ny
-          do i = 1, nx
-             if (land_mask(i,j) == 1) then
-                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
-                topg_eus_diff = max((topg(i,j) - eus), f_flotation_land_topg_min)
-                f_flotation(i,j) = -topg_eus_diff
-             elseif (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
-             else  ! ice-free ocean
-                f_flotation(i,j) = 0.0d0
-             endif
-          enddo
-       enddo
-
-    endif  ! whichflotation_function
 
     ! initialize f_ground
     f_ground(:,:) = 0.0d0
