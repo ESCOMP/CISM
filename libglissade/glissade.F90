@@ -1845,17 +1845,11 @@ contains
 
     call glissade_grounded_fraction(model%general%ewn,             &
                                     model%general%nsn,             &
-                                    itest, jtest, rtest,           &  ! diagnostic only
-                                    model%geometry%thck*thk0,      &
-                                    model%geometry%topg*thk0,      &
-                                    model%climate%eus*thk0,        &
                                     ice_mask,                      &
                                     floating_mask,                 &
                                     land_mask,                     &
                                     model%options%which_ho_ground, &
-                                    model%options%which_ho_flotation_function, &
-                                    model%geometry%f_ground,       &
-                                    model%geometry%f_flotation)
+                                    model%geometry%f_ground)
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
