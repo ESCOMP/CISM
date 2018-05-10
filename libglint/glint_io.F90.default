@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Wed, 09 May 2018 22:50:53 +0000
+! Thu, 10 May 2018 01:37:33 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -16,7 +16,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2017
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -1044,6 +1044,13 @@ contains
   !*****************************************************************************  
 #ifdef HAVE_AVG
   subroutine glint_avg_accumulate(outfile,data,model)
+
+    ! Accumulate time averages for 'tavg' variables
+    ! NOTE: This subroutine works for tavg variables that are written to exactly one output file.
+    !       If we try to write tavg variables to multiple output files, the accumulated values
+    !        will be too large, because this subroutine will be called more than once per time step.
+    ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
+
     use parallel
     use glide_types
     use glint_type
