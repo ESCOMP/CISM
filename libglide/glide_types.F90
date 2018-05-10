@@ -2293,6 +2293,10 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_prescribed)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%usrf_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%dthck_dt_inversion)
+    else
+       ! Allocate powerlaw_c_inversion with size 1, since it is passed into subroutine calcbeta
+       !  by the velocity solver.
+       allocate(model%inversion%powerlaw_c_inversion(1,1))
     endif
 
     ! climate arrays
