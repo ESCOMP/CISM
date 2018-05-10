@@ -860,7 +860,6 @@ contains
     ! ------------------------------------------------------------------------
 
     !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float subroutine?
-    !      Break plume and mismip+ into separate subroutines?
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
 
@@ -907,8 +906,7 @@ contains
                                          model%geometry%lsrf*thk0,                                     & ! m
                                          model%geometry%topg*thk0,                                     & ! m
                                          model%climate%eus*thk0,                                       & ! m
-                                         model%basal_melt,                                             & ! bmlt_float in m/s
-                                         model%plume)
+                                         model%basal_melt)                                               ! bmlt_float in m/s
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
