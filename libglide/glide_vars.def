@@ -300,24 +300,6 @@ standard_name: floating_ice_basal_melt_rate_anomaly
 coordinates:   lon lat
 load:          1
 
-[bmlt_float_inversion]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate for floating ice from inversion
-data:          data%inversion%bmlt_float_inversion
-factor:        scyr
-load:          1
-coordinates:   lon lat
-
-[bmlt_float_prescribed]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     prescribed basal melt rate for floating ice
-data:          data%inversion%bmlt_float_prescribed
-factor:        scyr
-load:          1
-coordinates:   lon lat
-
 [taudx]
 dimensions:    time, y0, x0
 units:         Pa
@@ -373,33 +355,6 @@ data:          data%geomderv%stagthck
 factor:        thk0
 standard_name: stag_land_ice_thickness
 load:          0
-coordinates:   lon lat
-
-[thck_obs]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     observed ice thickness
-data:          data%geometry%thck_obs
-factor:        thk0
-load:          1
-coordinates:   lon lat
-
-[usrf_obs]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     observed surface elevation
-data:          data%geometry%usrf_obs
-factor:        thk0
-load:          1
-coordinates:   lon lat
-
-[topg_obs]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     observed bed topography
-data:          data%geometry%topg_obs
-factor:        thk0
-load:          1
 coordinates:   lon lat
 
 [calving_thck]
@@ -735,39 +690,6 @@ long_name:     spatial factor for basal shear stress
 data:          data%basal_physics%C_space_factor
 load:          1
 coordinates:   lon lat
-
-[powerlaw_c_inversion]
-dimensions:    time, y1, x1
-units:         Pa (m/yr)**(-1/3)
-long_name:     spatially varying C for powerlaw sliding
-data:          data%inversion%powerlaw_c_inversion
-load:          1
-coordinates:   lon lat
-
-[powerlaw_c_prescribed]
-dimensions:    time, y1, x1
-units:         Pa (m/yr)**(-1/3)
-long_name:     prescribed spatially varying C for powerlaw sliding
-data:          data%inversion%powerlaw_c_prescribed
-load:          1
-coordinates:   lon lat
-
-[usrf_inversion]
-dimensions:    time, y1,x1
-units:         meter
-long_name:     surface elevation used for inversion
-data:          data%inversion%usrf_inversion
-coordinates:   lon lat
-load:          1
-
-[dthck_dt_inversion]
-dimensions:    time, y1,x1
-units:         meter/year
-long_name:     dH/dt used for inversion
-data:          data%inversion%dthck_dt_inversion
-factor:        scyr
-coordinates:   lon lat
-load:          1
 
 [artm]
 dimensions:    time, y1, x1

@@ -77,8 +77,6 @@ contains
                        floating_mask,                &
                        land_mask,                    &
                        f_ground,                     &
-                       which_ho_inversion,           &
-                       powerlaw_c_inversion,         &
                        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
@@ -126,8 +124,6 @@ contains
        land_mask          ! = 1 where topg > eus
 
   real(dp), intent(in), dimension(:,:), optional :: f_ground     ! grounded ice fraction, 0 <= f_ground <= 1
-  integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
-  real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
@@ -156,8 +152,7 @@ contains
 
   real(dp), dimension(size(beta,1), size(beta,2)) ::  &
        big_lambda,                 &  ! bedrock characteristics
-       flwa_basal_stag,            &  ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
-       stag_powerlaw_c_inversion      ! powerlaw_c_inversion interpolated to the staggered grid
+       flwa_basal_stag                ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
 
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
@@ -175,21 +170,11 @@ contains
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
   real(dp) :: numerator, denominator
 
-  ! option to invert for basal parameters
-  integer :: which_inversion ! basal inversion option
-
   character(len=300) :: message
 
   integer :: iglobal, jglobal
 
   logical, parameter :: verbose_beta = .false.
-
-  !TODO - Make which_ho_inversion a non-optional argument?
-  if (present(which_ho_inversion)) then
-     which_inversion = which_ho_inversion
-  else
-     which_inversion = HO_INVERSION_NONE
-  endif
 
   ! Compute the ice speed: used in power laws where beta = beta(u).
   ! Enforce a minimum speed to prevent beta from become very large when velocity is small.
@@ -374,47 +359,8 @@ contains
        ! implying beta = C * ub^(1/m - 1) 
        ! m should be a positive exponent
 
-       if (which_ho_inversion == HO_INVERSION_NONE) then
-
-          ! Set beta assuming a spatially uniform value of powerlaw_c
-          beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
-
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c from inversion
-
-          m = basal_physics%powerlaw_m
-
-          ! Interpolate powerlaw_c to the velocity grid.
-
-          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered cells.
-
-          call glissade_stagger(ewn,                         nsn,      &
-                                powerlaw_c_inversion,                  &
-                                stag_powerlaw_c_inversion,             &
-                                ice_mask,                              &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid divzero issues
-          where (stag_powerlaw_c_inversion == 0.0d0)
-             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
-                beta(ew,ns) = stag_powerlaw_c_inversion(ew,ns) &
-                            * speed(ew,ns)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
-
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                      write(6,*) 'r, i, j, Cp, speed, beta:', &
-                           rtest, itest, jtest, stag_powerlaw_c_inversion(ew,ns), speed(ew,ns), beta(ew,ns)
-                   endif
-                endif
-             enddo
-          enddo
-
-       endif   ! which_ho_inversion
+       ! Set beta assuming a spatially uniform value of powerlaw_c
+       beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
@@ -493,80 +439,21 @@ contains
        !
        ! This is the second modified basal traction law in MISMIP+. See Eq. 11 of Asay-Davis et al. (2016).
        ! Note: powerlaw_c corresponds to beta^2 in their notation, and coulomb_c corresponds to alpha^2.
-       !
-       ! Depending on the value of which_ho_inversion, there are different ways to apply this sliding law:
-       ! (0) Set powerlaw_c and coulomb_c to a constant everywhere.
-       ! (1) Obtain spatially varying powerlaw_c and coulomb_c fields by inversion.
-       ! (2) Use spatially varying powerlaw_c and coulomb_c fields prescribed from a previous inversion.
-       ! For either (1) or (2), use the 2D fields.
 
-       if (which_inversion == HO_INVERSION_NONE) then
+       ! use constant powerlaw_c and coulomb_c
+       powerlaw_c = basal_physics%powerlaw_c
+       coulomb_c = basal_physics%coulomb_c
+       m = basal_physics%powerlaw_m
 
-          ! use constant powerlaw_c and coulomb_c
-          powerlaw_c = basal_physics%powerlaw_c
-          coulomb_c = basal_physics%coulomb_c
-          m = basal_physics%powerlaw_m
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
 
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
-
-                numerator = powerlaw_c * coulomb_c * basal_physics%effecpress_stag(ew,ns)
-                denominator = ( powerlaw_c**m * speed(ew,ns) +  &
-                               (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
-                beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
-             enddo
+             numerator = powerlaw_c * coulomb_c * basal_physics%effecpress_stag(ew,ns)
+             denominator = ( powerlaw_c**m * speed(ew,ns) +  &
+                            (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+             beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
           enddo
-
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c and coulomb_c from inversion
-
-          m = basal_physics%powerlaw_m
-
-          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered and land-based cells.
-
-          where (ice_mask == 1 .or. land_mask == 1)
-             ice_or_land_mask = 1
-          elsewhere
-             ice_or_land_mask = 0
-          endwhere
-
-          call glissade_stagger(ewn,                         nsn,      &
-                                powerlaw_c_inversion,                  &
-                                stag_powerlaw_c_inversion,             &
-                                ice_or_land_mask,                      &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid possible divzero
-          where (stag_powerlaw_c_inversion == 0.0d0)
-             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
-
-                numerator = stag_powerlaw_c_inversion(ew,ns) * basal_physics%coulomb_c  &
-                          * basal_physics%effecpress_stag(ew,ns)
-                denominator = ( stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns) +  &
-                     (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
-                beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
-
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-!!                   if (this_rank == rtest .and. ew == itest-1 .and. ns == jtest) then
-                      print*, ' '
-                      write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
-                           rtest, ew, ns, stag_powerlaw_c_inversion(ew,ns), &
-                           (stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
-                           (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)), &
-                           speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
-                   endif
-                endif
-
-             enddo
-          enddo
-
-       endif   ! which_inversion
+       enddo
 
        ! Limit for numerical stability
        !TODO - Is limiting needed?
@@ -599,8 +486,6 @@ contains
 !       write(6,*) 'powerlaw_c, powerlaw_m, Coulomb_c =', &
 !           basal_physics%powerlaw_c, basal_physics%powerlaw_m, basal_physics%coulomb_c
 !       write(6,*) 'Apply Tsai parameterization: i, j, speed, beta, taub, taub_powerlaw, taub_coulomb, effecpress:'
-
-       !TODO - Add basal inversion option for Tsai, in addition to Schoof
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1

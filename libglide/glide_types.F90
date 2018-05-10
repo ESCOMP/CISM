@@ -224,10 +224,6 @@ module glide_types
   integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
   integer, parameter :: HO_BABC_SIMPLE = 14
 
-  integer, parameter :: HO_INVERSION_NONE = 0
-  integer, parameter :: HO_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_INVERSION_PRESCRIBE = 2
-
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
@@ -620,15 +616,6 @@ module glide_types
     !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
     !> \item[13] power law using effective pressure
     !> \item[14] simple hard-coded pattern (useful for debugging)
-    !> \end{description}
-
-    integer :: which_ho_inversion = 0
-    !> Flag for basal traction inversion options
-    !> Note: Inversion is currently supported for which_ho_babc = 11 only
-    !> \begin{description}
-    !> \item[0] no inversion
-    !> \item[1] invert for basal traction parameters and subshelf melting
-    !> \item[2] apply parameters and subshelf melting from previous inversion
     !> \end{description}
 
     integer :: which_ho_bwat = 0
@@ -1264,47 +1251,6 @@ module glide_types
 
   end type glide_temper
 
-  type glide_inversion
-
-     ! Notes on inversion fields:
-     ! With which_ho_inversion = HO_INVERSION_COMPUTE, bmlt_float_inversion is computed and applied during each step.
-     ! For which_ho_inversion = HO_INVERSION_PRESCRIBE, bmlt_float_prescribed (as computed in a
-     !  previous inversion run) is read from the input file. 
-
-     real(dp), dimension(:,:), pointer :: &
-          bmlt_float_inversion => null(),      & !> basal melt rate computed by inversion;
-                                                 !> used to relax thickness of floating ice toward observed target
-          bmlt_float_prescribed => null()        !> basal melt rate prescribed from a previous inversion
-
-     real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field, Pa (m/yr)^(-1/3)
-          powerlaw_c_prescribed => null(),     & !> powerlaw_c field, prescribed from a previous inversion
-          usrf_inversion => null(),            & !> upper surface elevation, used for Cp inversion (m)
-          dthck_dt_inversion => null()           !> rate of thickness change, used for Cp inversion (m/s) 
-
-     ! parameters for inversion of basal friction coefficients
-     ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
-     ! Note: inversion_babc_timescale and inversion_babc_dthck_dt_scale are later rescaled to SI units (s and m/s).
-
-     real(dp) ::  &
-          powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
-          powerlaw_c_min = 1.0d2,             &  !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
-          powerlaw_c_land = 2.0d-4,           &  !> default value of powerlaw_c on land (topg >= eus)
-          powerlaw_c_marine = 1.0d-3             !> default value of powerlaw_c below sea level
-
-     real(dp) ::  &
-          babc_timescale = 500.d0,        & !> inversion timescale (yr); must be > 0
-          babc_thck_scale = 100.d0,       & !> thickness inversion scale (m); must be > 0
-          babc_dthck_dt_scale = 0.10d0,   & !> dthck_dt inversion scale (m/yr); must be > 0
-          babc_space_smoothing = 1.0d-2,  & !> factor for spatial smoothing of powerlaw_c; larger => more smoothing
-          babc_time_smoothing = 0.0d0       !> factor for exponential moving average of usrf/dthck_dt_inversion
-                                            !> range [0,1]; larger => slower discounting of old values, more smoothing
-
-     real(dp) ::  &
-          bmlt_thck_buffer = 1.0d0          !> cells with a grounded target are restored to thck_flotation + bmlt_thck_buffer (m)
-
-  end type glide_inversion
-
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_basal_melt
@@ -1802,7 +1748,6 @@ module glide_types
     type(glide_temper)   :: temper
     type(glide_basal_physics):: basal_physics
     type(glide_basal_melt)   :: basal_melt
-    type(glide_inversion):: inversion
     type(glide_lithot_type)  :: lithot
     type(glide_funits)   :: funits
     type(glide_numerics) :: numerics
@@ -1853,14 +1798,6 @@ contains
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
     !> \end{itemize}
-
-    !> In \texttt{model\%inversion}:
-    !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
-    !> \item \texttt{bmlt_float_prescribed(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_prescribed(ewn,nsn)}
-    !> \item \texttt{usrf_inversion(ewn,nsn)}
-    !> \item \texttt{dthck_dt_inversion(ewn,nsn)}
 
     !> In \texttt{model\%velocity}:
     !> \begin{itemize}
@@ -2198,21 +2135,6 @@ contains
        endif
     endif  ! Glissade
 
-    ! inversion arrays (Glissade only)
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_prescribed)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_prescribed)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%usrf_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%dthck_dt_inversion)
-    else
-       ! Allocate powerlaw_c_inversion with size 1, since it is passed into subroutine calcbeta
-       !  by the velocity solver.
-       allocate(model%inversion%powerlaw_c_inversion(1,1))
-    endif
-
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
@@ -2532,20 +2454,6 @@ contains
         deallocate(model%basal_melt%bmlt_applied_old)
     if (associated(model%basal_melt%bmlt_applied_diff)) &
         deallocate(model%basal_melt%bmlt_applied_diff)
-
-    ! inversion arrays
-    if (associated(model%inversion%bmlt_float_inversion)) &
-        deallocate(model%inversion%bmlt_float_inversion)
-    if (associated(model%inversion%bmlt_float_prescribed)) &
-        deallocate(model%inversion%bmlt_float_prescribed)
-    if (associated(model%inversion%powerlaw_c_inversion)) &
-        deallocate(model%inversion%powerlaw_c_inversion)
-    if (associated(model%inversion%powerlaw_c_prescribed)) &
-        deallocate(model%inversion%powerlaw_c_prescribed)
-    if (associated(model%inversion%usrf_inversion)) &
-        deallocate(model%inversion%usrf_inversion)
-    if (associated(model%inversion%dthck_dt_inversion)) &
-        deallocate(model%inversion%dthck_dt_inversion)
 
     ! geometry arrays
 
