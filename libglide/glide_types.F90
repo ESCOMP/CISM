@@ -1361,6 +1361,13 @@ module glide_types
      real(dp) :: bmlt_float_depth_zmelt0 = -200.d0    !> depth (m) where bmlt_float = 0
      real(dp) :: bmlt_float_depth_zfrzmax = -100.d0   !> depth (m) above which bmlt_float = -frzmax
 
+     ! parameters and fields for warm ocean
+     ! Where warm_ocean_mask = 1, the sub-shelf melt rate is meltmin above zmeltmin, then increases linearly
+     !  to meltmax at zmeltmax. 
+     integer, dimension(:,:), pointer :: warm_ocean_mask => null()  !> mask for applying warm ocean melt rate
+     real(dp) :: bmlt_float_depth_meltmin = 0.d0      !> min melt rate in warm ocean (m/yr)
+     real(dp) :: bmlt_float_depth_zmeltmin = 0.d0     !> depth (m) above which bmlt_float = meltmin
+
      ! initMIP-Antarctica parameters
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
@@ -2266,6 +2273,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
        if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        endif
@@ -2619,6 +2627,8 @@ contains
         deallocate(model%basal_melt%bmlt_float_external)
     if (associated(model%basal_melt%bmlt_float_anomaly)) &
         deallocate(model%basal_melt%bmlt_float_anomaly)
+    if (associated(model%basal_melt%warm_ocean_mask)) &
+        deallocate(model%basal_melt%warm_ocean_mask)
     if (associated(model%basal_melt%bmlt_applied_old)) &
         deallocate(model%basal_melt%bmlt_applied_old)
     if (associated(model%basal_melt%bmlt_applied_diff)) &

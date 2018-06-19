@@ -369,21 +369,41 @@ contains
 
                 z_draft = lsrf(i,j) - eus
 
-                if (z_draft > basal_melt%bmlt_float_depth_zfrzmax) then
-                   ! max freezing
-                   bmlt_float(i,j) = -basal_melt%bmlt_float_depth_frzmax   ! frzmax >=0 by definition
-                elseif (z_draft > basal_melt%bmlt_float_depth_zmelt0) then
-                   ! freezing with a linear taper from frzmax to zero
-                   bmlt_float(i,j) = -basal_melt%bmlt_float_depth_frzmax * &
-                        frz_ramp_factor * (z_draft - basal_melt%bmlt_float_depth_zmelt0)
-                elseif (z_draft > basal_melt%bmlt_float_depth_zmeltmax) then
-                   ! melting with a linear taper from meltmax to zero
-                   bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax * &
-                        melt_ramp_factor * (basal_melt%bmlt_float_depth_zmelt0 - z_draft)
-                elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
-                   ! max melting
-                   bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
-                endif
+                if (basal_melt%warm_ocean_mask(i,j) == 1) then  ! warm ocean profile; enforce minimum melt rate
+
+                   if (z_draft > basal_melt%bmlt_float_depth_zmeltmin) then
+                      bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmin
+                   elseif (z_draft > basal_melt%bmlt_float_depth_zmeltmax) then
+                      ! melting with a linear ramp from meltmin to meltmax
+                      bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmin  &
+                           + (basal_melt%bmlt_float_depth_meltmax - basal_melt%bmlt_float_depth_meltmin) *  &
+                           (z_draft - basal_melt%bmlt_float_depth_zmeltmin) &
+                           / (basal_melt%bmlt_float_depth_zmeltmax - basal_melt%bmlt_float_depth_zmeltmin)
+                   elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
+                      ! max melting
+                      bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
+                   endif
+
+                else   ! standard depth-dependent profile
+
+                   if (z_draft > basal_melt%bmlt_float_depth_zfrzmax) then
+                      ! max freezing
+                      bmlt_float(i,j) = -basal_melt%bmlt_float_depth_frzmax   ! frzmax >=0 by definition
+                   elseif (z_draft > basal_melt%bmlt_float_depth_zmelt0) then
+                      ! freezing with a linear taper from frzmax to zero
+                      bmlt_float(i,j) = -basal_melt%bmlt_float_depth_frzmax * &
+                           frz_ramp_factor * (z_draft - basal_melt%bmlt_float_depth_zmelt0)
+                   elseif (z_draft > basal_melt%bmlt_float_depth_zmeltmax) then
+                      ! melting with a linear taper from meltmax to zero
+                      bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax * &
+                           melt_ramp_factor * (basal_melt%bmlt_float_depth_zmelt0 - z_draft)
+                   elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
+                      ! max melting
+                      bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
+                   endif
+
+                endif   ! warm_ocean_mask
+
 
                 ! As with the MISMIP scheme, reduce the melting as the cavity thickness approaches zero.
                 ! A small value of bmlt_float_h0 allows more melting in very thin cavities.
