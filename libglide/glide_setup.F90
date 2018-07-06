@@ -207,6 +207,10 @@ contains
     model%basal_melt%bmlt_float_depth_meltmax = model%basal_melt%bmlt_float_depth_meltmax / scyr
     model%basal_melt%bmlt_float_depth_frzmax = model%basal_melt%bmlt_float_depth_frzmax / scyr
 
+    ! scale basal inversion parameters
+    model%inversion%babc_timescale = model%inversion%babc_timescale * scyr
+    model%inversion%babc_dthck_dt_scale = model%inversion%babc_dthck_dt_scale / scyr
+
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
     model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
@@ -615,6 +619,7 @@ contains
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
+    call GetValue(section, 'which_ho_inversion',          model%options%which_ho_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
@@ -829,6 +834,11 @@ contains
          'min of Coulomb stress and power-law stress (Tsai)', &
          'power law using effective pressure               ', &
          'simple pattern of beta                           ' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_whichinversion = (/ &
+         'no inversion for basal parameters or melting     ', &
+         'invert for basal parameters and subshelf melting ', &
+         'prescribe parameters from previous inversion     ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -1319,6 +1329,30 @@ contains
           call write_log('Error, HO basal BC input out of range', GM_FATAL)
        end if
 
+       write(message,*) 'ho_whichinversion       : ',model%options%which_ho_inversion,  &
+                         ho_whichinversion(model%options%which_ho_inversion)
+       call write_log(message)
+       if (model%options%which_ho_inversion < 0 .or. &
+           model%options%which_ho_inversion >= size(ho_whichinversion)) then
+          call write_log('Error, HO basal inversion input out of range', GM_FATAL)
+       end if
+
+       ! Note: Inversion is currently supported only for Schoof sliding law
+       ! TODO - Support for Tsai law also
+       if (model%options%which_ho_inversion /= 0) then
+!          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
+!              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
+             ! inversion is supported
+          else
+             call write_log('Error, basal inversion is not supported for this basal BC option')
+             write(message,*) 'Inversion is supported for which_ho_babc =', &
+!                  HO_BABC_COULOMB_POWERLAW_SCHOOF, ' or ', HO_BABC_COULOMB_POWERLAW_TSAI
+                  HO_BABC_COULOMB_POWERLAW_SCHOOF
+             call write_log(message, GM_FATAL)
+          endif
+       endif
+
        ! unsupported ho-babc options
        if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
          call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
@@ -1629,6 +1663,20 @@ contains
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
     call GetValue(section, 'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
 
+    ! basal inversion parameters
+    !TODO - Put inversion parameters in a separate section
+    call GetValue(section, 'powerlaw_c_max', model%inversion%powerlaw_c_max)
+    call GetValue(section, 'powerlaw_c_min', model%inversion%powerlaw_c_min)
+    call GetValue(section, 'powerlaw_c_land', model%inversion%powerlaw_c_land)
+    call GetValue(section, 'powerlaw_c_marine', model%inversion%powerlaw_c_marine)
+    call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
+    call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
+    call GetValue(section, 'inversion_babc_dthck_dt_scale', model%inversion%babc_dthck_dt_scale)
+    call GetValue(section, 'inversion_babc_space_smoothing', model%inversion%babc_space_smoothing)
+    call GetValue(section, 'inversion_babc_time_smoothing', model%inversion%babc_time_smoothing)
+    call GetValue(section, 'inversion_bmlt_thck_buffer', model%inversion%bmlt_thck_buffer)
+
+
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
@@ -1931,6 +1979,46 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       call write_log(message)
+    endif
+
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+       write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', &
+            model%inversion%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', &
+            model%inversion%powerlaw_c_min
+       call write_log(message)
+       write(message,*) 'powerlaw_c land, Pa (m/yr)^(-1/3)            : ', &
+            model%inversion%powerlaw_c_land
+       call write_log(message)
+       write(message,*) 'powerlaw_c marine, Pa (m/yr)^(-1/3)          : ', &
+            model%inversion%powerlaw_c_marine
+       call write_log(message)
+       write(message,*) 'inversion basal traction timescale (yr)      : ', &
+            model%inversion%babc_timescale
+       call write_log(message)
+       write(message,*) 'inversion thickness scale (m)                : ', &
+            model%inversion%babc_thck_scale
+       call write_log(message)
+       write(message,*) 'inversion dthck/dt scale (m/yr)              : ', &
+            model%inversion%babc_dthck_dt_scale
+       call write_log(message)
+       write(message,*) 'inversion basal traction space smoothing     : ', &
+            model%inversion%babc_space_smoothing
+       call write_log(message)
+       write(message,*) 'inversion basal traction time smoothing      : ', &
+            model%inversion%babc_time_smoothing
+       call write_log(message)
+       write(message,*) 'inversion bmlt_float thickness buffer        : ', &
+            model%inversion%bmlt_thck_buffer
+       call write_log(message)
+    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+       write(message,*) 'powerlaw_c land, Pa (m/yr)^(-1/3)            : ', &
+            model%inversion%powerlaw_c_land
+       call write_log(message)
+       write(message,*) 'powerlaw_c marine, Pa (m/yr)^(-1/3)          : ', &
+            model%inversion%powerlaw_c_marine
        call write_log(message)
     endif
 
@@ -2514,6 +2602,39 @@ contains
         !      and not the internal beta field that may have been weighted by the grounded fraction or otherwise adjusted.
         call glide_add_to_restart_variable_list('beta')
     end select
+
+    ! basal inversion option
+    select case(options%which_ho_inversion)
+      case (HO_INVERSION_COMPUTE)
+         ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
+         ! usrf_inversion and dthck_dt_inversion are computed as moving averages while adjusting powerlaw_c
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         call glide_add_to_restart_variable_list('dthck_dt_inversion')
+         call glide_add_to_restart_variable_list('usrf_inversion')
+      case (HO_INVERSION_PRESCRIBE)
+         ! Write powerlaw_c_inversion to the restart file, because it is
+         !  continually adjusted at runtime as the grounding line moves.
+         ! Also write bmlt_float_inversion, in case it is also adjusted at runtime.
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         ! If powerlaw_c is prescribed from a previous inversion, then the
+         !  prescribed field is needed at runtime to set powerlaw_c_inversion
+         !  when floating ice regrounds.
+         ! Currently, the prescribed bmlt_float field is used only at initialization
+         !  to set bmlt_float_inversion, so it might not be needed for restart.
+         !  Remove it later?
+         call glide_add_to_restart_variable_list('powerlaw_c_prescribed')
+         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
+    end select
+
+    ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,
+    !  then usrf_obs needs to be in the restart file.
+    ! TODO: Inversion for topg_obs still needs to be tested.
+    if (options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('topg_obs')
+    endif
 
     ! geothermal heat flux option
     select case (options%gthf)
