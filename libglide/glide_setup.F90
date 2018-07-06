@@ -631,6 +631,7 @@ contains
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
+    call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
 
@@ -911,6 +912,11 @@ contains
     character(len=*), dimension(0:1), parameter :: ho_whichground_bmlt = (/ &
          'bmlt_float applied to partly grounded cells        ', &
          'bmlt_float not applied to partly grounded cells    ' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
+         'f_pattyn = (-rhow*b)/(rhoi*H)  ', &
+         '1/fpattyn = (rhoi*H)/(-rhow*b) ', &
+         'linear = -rhow*b - rhoi*H      ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -1451,6 +1457,10 @@ contains
           if (model%options%which_ho_ground == HO_GROUND_GLP) then
              call write_log('The GLP option for which_ho_ground is not supported for this release', GM_FATAL)
           endif
+
+          write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
+               ho_whichflotation_function(model%options%which_ho_flotation_function)
+          call write_log(message)
 
           write(message,*) 'ho_whichground_bmlt     : ',model%options%which_ho_ground_bmlt,  &
                             ho_whichground_bmlt(model%options%which_ho_ground_bmlt)

@@ -728,6 +728,8 @@
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
+       f_flotation,          &  ! flotation function = (rhoi*thck) / (-rhoo*(topg-eus)) by default
+                                ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
        f_ground                 ! grounded ice fraction, 0 <= f_ground <= 1
 
     !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
@@ -785,6 +787,7 @@
                                 ! 1 = apply local value of basal friction at each vertex
        whichcalving_front,  &   ! option for subgrid calving front scheme (either on or off)
        whichground,  &          ! option for computing grounded fraction of each cell
+       whichflotation_function,&! option for computing flotation function at and near each vertex
        maxiter_nonlinear        ! maximum number of nonlinear iterations
 
     !--------------------------------------------------------
@@ -1026,6 +1029,7 @@
      topg     => model%geometry%topg(:,:)
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
+     f_flotation => model%geometry%f_flotation(:,:)
 
      temp     => model%temper%temp
      flwa     => model%temper%flwa(:,:,:)
@@ -1084,6 +1088,7 @@
      whichassemble_bfric  = model%options%which_ho_assemble_bfric
      whichcalving_front   = model%options%which_ho_calving_front
      whichground          = model%options%which_ho_ground
+     whichflotation_function = model%options%which_ho_flotation_function
 
     !--------------------------------------------------------
     ! Convert input variables to appropriate units for this solver.
@@ -1608,6 +1613,14 @@
        do j = jtest+1, jtest-1, -1
           do i = itest-3, itest+3
              write(6,'(f10.2)',advance='no') thck(i,j)
+          enddo
+          print*, ' '
+       enddo       
+       print*, ' '
+       print*, 'f_flotation, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') f_flotation(i,j)
           enddo
           print*, ' '
        enddo       
@@ -2340,6 +2353,18 @@
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') ocean_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo          
+
+          print*, ' '
+          print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') f_flotation(i,j)
              enddo
              write(6,*) ' '
           enddo          
