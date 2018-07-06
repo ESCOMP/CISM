@@ -669,6 +669,7 @@
     !----------------------------------------------------------------
 
     use glissade_basal_traction, only: calcbeta, calc_effective_pressure
+    use glissade_inversion, only: invert_basal_traction, prescribe_basal_traction
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -722,6 +723,8 @@
        thck,                 &  ! ice thickness (m)
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
+       thck_obs,             &  ! observed ice thickness (m), for inversion
+       dthck_dt,             &  ! rate of change of ice thickness (m/s), for inversion
        bpmp,                 &  ! pressure melting point temperature (C)
        bwat,                 &  ! basal water thickness (m)
        bmlt,                 &  ! basal melt rate (m/yr)
@@ -754,6 +757,9 @@
        tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
        tau_eff                  ! effective stress (Pa)
 
+    real(dp), dimension(:,:), pointer ::  &
+       powerlaw_c_inversion     ! Cp (for basal traction) computed from inversion
+
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
        umask_no_penetration,   &! = 1 at vertices along east/west global boundary where uvel = 0, = 0 elsewhere
@@ -761,6 +767,7 @@
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
+       whichinversion, &        ! option for basal traction inversion
        whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
@@ -1027,6 +1034,8 @@
      thck     => model%geometry%thck(:,:)
      usrf     => model%geometry%usrf(:,:)
      topg     => model%geometry%topg(:,:)
+     thck_obs => model%geometry%thck_obs(:,:)
+     dthck_dt => model%geometry%dthck_dt(:,:)   ! Note: dthck_dt has units of m/s; no rescaling needed
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
@@ -1061,6 +1070,8 @@
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
+     powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
+
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
@@ -1074,6 +1085,7 @@
      pmp_threshold = model%temper%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
+     whichinversion       = model%options%which_ho_inversion
      whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
@@ -2539,6 +2551,8 @@
                       floating_mask,                    &
                       land_mask,                        &
                       f_ground,                         &
+                      whichinversion,                   &
+                      powerlaw_c_inversion,             &
                       itest, jtest, rtest)
 
        if (verbose_beta) then
