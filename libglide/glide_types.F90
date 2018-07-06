@@ -779,6 +779,14 @@ module glide_types
     !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
     !> \item[1] Do not apply bmlt_float in partly grounded cells
 
+    integer :: which_ho_flotation_function = 2
+    !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
+    !> Not valid for other dycores
+    !> \begin{description}
+    !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \item[0] ice age computation off
@@ -827,6 +835,11 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: topg_obs => null()
     !> Observed basal topography, divided by \texttt{thk0}.
+
+    real(dp),dimension(:,:),pointer :: f_flotation => null() 
+    !> flotation function, (rhoi*thck) / (-rhoo*(topg-eus))
+    !> previously was f_pattyn = -rhoo*(topg-eus)/(rhoi*thck)
+    !    (computed by glissade dycore only)
 
     real(dp),dimension(:,:),pointer :: f_ground => null() 
     !> The fractional area at each vertex which is grounded 
@@ -1835,6 +1848,7 @@ contains
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
+    !> \item \texttt{f_flotation(ewn,nsn)}
     !> \item \texttt{f_ground(ewn-1,nsn-1)}
     !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
     !> \item \texttt{ice_mask(ewn,nsn))}
@@ -2079,6 +2093,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt_tavg)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
@@ -2537,6 +2552,8 @@ contains
         deallocate(model%geometry%dthck_dt_tavg)
     if (associated(model%geometry%tracers)) &
         deallocate(model%geometry%tracers)
+    if (associated(model%geometry%f_flotation)) &
+        deallocate(model%geometry%f_flotation)
     if (associated(model%geometry%f_ground)) &
         deallocate(model%geometry%f_ground)
     if (associated(model%geomderv%dlsrfdew)) &
