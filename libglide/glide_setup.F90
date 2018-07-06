@@ -739,12 +739,13 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:4), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:5), parameter :: which_bmlt_float = (/ &
          'none                                 ', &
          'MISMIP+ melt rate profile            ', &
          'constant melt rate                   ', &
          'depth-dependent melt rate            ', &
-         'melt rate from external file         ' /)
+         'melt rate from external file         ', &
+         'melt rate from MISOMIP T/S profile   ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -1699,6 +1700,15 @@ contains
     call GetValue(section,'bmlt_float_depth_zmelt0', model%basal_melt%bmlt_float_depth_zmelt0)
     call GetValue(section,'bmlt_float_depth_zfrzmax', model%basal_melt%bmlt_float_depth_zfrzmax)
 
+    ! MISOMIP plume parameters
+    !TODO - Put MISMIP+ and MISOMIP parameters in their own section
+    call GetValue(section,'T0',   model%plume%T0)
+    call GetValue(section,'Tbot', model%plume%Tbot)
+    call GetValue(section,'S0',   model%plume%S0)
+    call GetValue(section,'Sbot', model%plume%Sbot)
+    call GetValue(section,'gammaT',    model%plume%gammaT)
+    call GetValue(section,'gammaS',    model%plume%gammaS)
+
   end subroutine handle_parameters
 
 !--------------------------------------------------------------------------------
@@ -2097,7 +2107,7 @@ contains
        call write_log(message)
     endif
 
-    ! parameters for basal melting of floating ice (including MISMIP+)
+    ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
     if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
        if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
           write(message,*) 'Input bmlt_float multiplied by: ', model%basal_melt%bmlt_float_factor
@@ -2125,6 +2135,19 @@ contains
        write(message,*) 'bmlt_float_depth_zmelt0 (m)    :  ', model%basal_melt%bmlt_float_depth_zmelt0
        call write_log(message)
        write(message,*) 'bmlt_float_depth_zfrzmax (m)  :  ', model%basal_melt%bmlt_float_depth_zfrzmax
+       call write_log(message)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
+       call write_log(message)
+       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
+       call write_log(message)
+       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
+       call write_log(message)
+       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
+       call write_log(message)
+       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
+       call write_log(message)
+       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
     endif
 
