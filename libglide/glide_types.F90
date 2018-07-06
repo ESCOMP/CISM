@@ -765,12 +765,11 @@ module glide_types
     !> \item[1] subgrid calving front parameterization
 
     integer :: which_ho_ground = 0
-    !> NOTE: Option 1 is not supported for this code release
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
-    !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization; NOT SUPPORTED
+    !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
 
     integer :: which_ho_ground_bmlt = 0

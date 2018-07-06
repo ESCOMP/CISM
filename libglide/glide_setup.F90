@@ -906,7 +906,7 @@ contains
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
-         'grounding line parameterization; not supported     ', &
+         '0 <= f_ground <= 1, based on GLP (glissade dycore) ', &
          'f_ground = 1 for all active cells (glissade dycore)' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichground_bmlt = (/ &
@@ -1453,21 +1453,22 @@ contains
              call write_log('Error, ho_ground option out of range for glissade dycore', GM_FATAL)
           end if
 
-          !NOTE: Option which_ho_ground = HO_GROUND_GLP is not supported for this release.
-          if (model%options%which_ho_ground == HO_GROUND_GLP) then
-             call write_log('The GLP option for which_ho_ground is not supported for this release', GM_FATAL)
-          endif
-
-          write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
-               ho_whichflotation_function(model%options%which_ho_flotation_function)
-          call write_log(message)
-
           write(message,*) 'ho_whichground_bmlt     : ',model%options%which_ho_ground_bmlt,  &
                             ho_whichground_bmlt(model%options%which_ho_ground_bmlt)
           call write_log(message)
           if (model%options%which_ho_ground_bmlt < 0 .or. &
               model%options%which_ho_ground_bmlt >= size(ho_whichground_bmlt)) then
              call write_log('Error, ho_ground_bmlt option out of range for glissade dycore', GM_FATAL)
+          end if
+
+          if (model%options%which_ho_ground == HO_GROUND_GLP) then
+             write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
+                               ho_whichflotation_function(model%options%which_ho_flotation_function)
+             call write_log(message)
+             if (model%options%which_ho_flotation_function < 0 .or. &
+                 model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
+                call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
+             endif
           end if
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
@@ -1481,6 +1482,13 @@ contains
           call write_log(message)
 
        end if   ! DYCORE_GLISSADE
+
+       if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
+           model%options%which_ho_ground == HO_GROUND_NO_GLP .and. &
+           model%options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+          write(message,*) 'WARNING: Pattyn flotation function with no GLP tends to be unstable'
+          call write_log(message, GM_WARNING)
+       endif
 
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
            (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
