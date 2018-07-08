@@ -206,6 +206,7 @@ contains
     model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
     model%basal_melt%bmlt_float_depth_meltmax = model%basal_melt%bmlt_float_depth_meltmax / scyr
     model%basal_melt%bmlt_float_depth_frzmax = model%basal_melt%bmlt_float_depth_frzmax / scyr
+    model%basal_melt%bmlt_float_depth_meltmin = model%basal_melt%bmlt_float_depth_meltmin / scyr
 
     ! scale basal inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr
@@ -1694,11 +1695,15 @@ contains
     call GetValue(section,'bmlt_float_z0', model%basal_melt%bmlt_float_z0)
     call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
     call GetValue(section,'bmlt_float_xlim', model%basal_melt%bmlt_float_xlim)
+
+    ! depth-dependent melting parameters
     call GetValue(section,'bmlt_float_depth_meltmax', model%basal_melt%bmlt_float_depth_meltmax)
     call GetValue(section,'bmlt_float_depth_frzmax', model%basal_melt%bmlt_float_depth_frzmax)
     call GetValue(section,'bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax)
     call GetValue(section,'bmlt_float_depth_zmelt0', model%basal_melt%bmlt_float_depth_zmelt0)
     call GetValue(section,'bmlt_float_depth_zfrzmax', model%basal_melt%bmlt_float_depth_zfrzmax)
+    call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
+    call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
     ! MISOMIP plume parameters
     !TODO - Put MISMIP+ and MISOMIP parameters in their own section
@@ -2134,7 +2139,13 @@ contains
        call write_log(message)
        write(message,*) 'bmlt_float_depth_zmelt0 (m)    :  ', model%basal_melt%bmlt_float_depth_zmelt0
        call write_log(message)
-       write(message,*) 'bmlt_float_depth_zfrzmax (m)  :  ', model%basal_melt%bmlt_float_depth_zfrzmax
+       write(message,*) 'bmlt_float_depth_zfrzmax (m)   :  ', model%basal_melt%bmlt_float_depth_zfrzmax
+       call write_log(message)
+       write(message,*) 'warm ocean meltmin (m/yr)      :  ', model%basal_melt%bmlt_float_depth_meltmin
+       call write_log(message)
+       write(message,*) 'warm ocean zmeltmin (m)        :  ', model%basal_melt%bmlt_float_depth_zmeltmin
+       call write_log(message)
+       write(message,*) 'bmlt_float_h0 (m)              :  ', model%basal_melt%bmlt_float_h0
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
        write(message,*) 'T0 (deg C)               :  ', model%plume%T0
@@ -2456,6 +2467,10 @@ contains
        ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
        case (BMLT_FLOAT_EXTERNAL)
           call glide_add_to_restart_variable_list('bmlt_float_external')
+
+       ! If prescribing a warm ocean mask for depth-dependent melting, this needs to be read on restart
+       case (BMLT_FLOAT_DEPTH)
+          call glide_add_to_restart_variable_list('warm_ocean_mask')
 
     end select  ! whichbmlt_float
 

@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Thu, 10 May 2018 01:37:32 +0000
+! Sun, 08 Jul 2018 17:49:26 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -5048,6 +5048,32 @@ contains
      end if
      end if
 
+    !     warm_ocean_mask -- warm ocean mask
+    pos = index(NCO%vars,' warm_ocean_mask ')
+    status = parallel_inq_varid(NCO%id,'warm_ocean_mask',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+15) = '               '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%basal_melt%warm_ocean_mask)) then
+       call write_log('Creating variable warm_ocean_mask')
+       status = parallel_def_var(NCO%id,'warm_ocean_mask',get_xtype(outfile,NF90_INT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'warm ocean mask')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable warm_ocean_mask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     waterfrac -- internal water fraction
     pos = index(NCO%vars,' waterfrac ')
     status = parallel_inq_varid(NCO%id,'waterfrac',varid)
@@ -6466,6 +6492,13 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%velocity%vvel_mean, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'warm_ocean_mask',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%basal_melt%warm_ocean_mask, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -8427,6 +8460,29 @@ contains
        end do
     else
     call write_log('Variable vvel_extend was specified for input but it is &
+         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'warm_ocean_mask',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%basal_melt%warm_ocean_mask)) then
+       call write_log('  Loading warm_ocean_mask')
+       status = distributed_get_var(NCI%id, varid, &
+            data%basal_melt%warm_ocean_mask, (/1,1,infile%current_time/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+       if (status.ne.NF90_NOERR) then
+          scaling_factor = 1.0d0
+       end if
+       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+          call write_log("scaling warm_ocean_mask",GM_DIAGNOSTIC)
+          data%basal_melt%warm_ocean_mask = &
+               data%basal_melt%warm_ocean_mask*scaling_factor
+       end if
+    else
+    call write_log('Variable warm_ocean_mask was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -11409,6 +11465,28 @@ contains
 
     data%velocity%vvel_mean = inarray/(scale_uvel)
   end subroutine glide_set_vvel_mean
+
+  subroutine glide_get_warm_ocean_mask(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    integer, dimension(:,:), intent(out) :: outarray
+
+    outarray = data%basal_melt%warm_ocean_mask
+  end subroutine glide_get_warm_ocean_mask
+
+  subroutine glide_set_warm_ocean_mask(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    integer, dimension(:,:), intent(in) :: inarray
+
+    data%basal_melt%warm_ocean_mask = inarray
+  end subroutine glide_set_warm_ocean_mask
 
   subroutine glide_get_wbas(data,outarray)
     use glimmer_scales
