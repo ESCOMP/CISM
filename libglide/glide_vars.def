@@ -318,6 +318,15 @@ factor:        scyr
 load:          1
 coordinates:   lon lat
 
+[warm_ocean_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     warm ocean mask
+data:          data%basal_melt%warm_ocean_mask
+load:          1
+type:          int
+coordinates:   lon lat
+
 #WHL - A number of plume-related fields follow.
 
 [T_ambient]
