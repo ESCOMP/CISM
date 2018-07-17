@@ -179,14 +179,6 @@ contains
              MASK(ew,ns) = ior(MASK(ew,ns),GLIDE_MASK_MARGIN)
           end if
 
-!       The GLIDE_MASK_COMP_DOMAIN_BND condition is currently used in glam_strs2.F90.
-
-         !Mark domain boundaries
-         !if (ns == 1 .or. ns == nsn .or. ew == 1 .or. ew == ewn) then
-         if (parallel_boundary(ew,ewn,ns,nsn)) then
-! SFP: commenting out for now, while trying to get periodic bcs working
-!            mask(ew, ns) = ior(mask(ew, ns), GLIDE_MASK_COMP_DOMAIN_BND)
-         end if
        end do
     end do
 

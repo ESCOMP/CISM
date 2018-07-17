@@ -100,7 +100,6 @@ contains
     use glide_mask
     use isostasy
     use glimmer_map_init
-    use glam_strs2, only : glam_velo_init
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger
     use glissade_velo_higher, only: glissade_velo_higher_init
@@ -153,7 +152,6 @@ contains
     elseif (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
        ! Note: In this case, halo updates are treated the same as for periodic BC
        !       In addition, we set masks that are used to zero out the outflow velocities in the Glissade velocity solvers
-       !       The no-penetration BC is not supported for the Glam solver
        call distributed_grid(model%general%ewn, model%general%nsn)
     else
        call distributed_grid(model%general%ewn, model%general%nsn)
@@ -386,12 +384,6 @@ contains
 
     ! Dycore-specific velocity solver initialization
     select case (model%options%whichdycore)
-    case ( DYCORE_GLAM )   ! glam finite-difference
-
-       call glam_velo_init(model%general%ewn,    model%general%nsn,  &
-                           model%general%upn,                        &
-                           model%numerics%dew,   model%numerics%dns, &
-                           model%numerics%sigma)
 
     case ( DYCORE_GLISSADE )   ! glissade finite-element
 
@@ -2147,17 +2139,16 @@ contains
     use glimmer_physcon, only: scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
-    use glam_velo, only: glam_velo_driver, glam_basal_friction
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks
+    use glissade_grid_operators, only: glissade_stagger, glissade_gradient
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
-    use glam_grid_operators, only: glam_geometry_derivs
     use felix_dycore_interface, only: felix_velo_driver
 
     !WHL - debug
@@ -2238,17 +2229,18 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
     ! ------------------------------------------------------------------------
-    ! Update some geometry derivatives
+    ! Compute some quantities on the staggered grid.
+    ! These are not used by the Glissade velocity solver, but are used for diagnostics
+    !  (and optionally for SIA-based dissipation).
     ! ------------------------------------------------------------------------
-    !Note - The fields computed by glam_geometry_derivs are not required by
-    !       the Glissade velocity solver (which computes them internally).  
-    !       However, some of the fields (stagthck, dusrfdew and dusrfdns) 
-    !       are needed during the next timestep by glissade_therm
-    !       if we're doing shallow-ice dissipation.
-    !TODO - Replace this glam_geometry_derivs call with calls to Glissade subroutines?
-    !       (The glam_velo driver includes its own call to glam_geometry_derivs.) 
 
-    call glam_geometry_derivs(model)
+    call glissade_stagger(model%general%ewn,   model%general%nsn,  &
+                          model%geometry%thck, model%geomderv%stagthck)
+
+    call glissade_gradient(model%general%ewn,       model%general%nsn,       &
+                           model%numerics%dew,      model%numerics%dns,      &
+                           model%geometry%usrf,                              &
+                           model%geomderv%dusrfdew, model%geomderv%dusrfdns)
 
     ! ------------------------------------------------------------------------
     ! Update some masks that are used for subsequent calculations
@@ -2477,11 +2469,6 @@ contains
        ! Call the appropriate velocity solver
 
        select case (model%options%whichdycore)
-       case ( DYCORE_GLAM )   ! glam finite-difference
-
-          call t_startf('glam_velo_driver')
-          call glam_velo_driver(model)
-          call t_stopf('glam_velo_driver')
 
        case ( DYCORE_GLISSADE )   ! glissade finite-element
 
@@ -2505,6 +2492,8 @@ contains
 
        if (model%options%which_ho_disp == HO_DISP_SIA) then
 
+          ! Compute dissipation based on the shallow-ice approximation
+
           call glissade_interior_dissipation_sia(model%general%ewn,              &
                                                  model%general%nsn,              &
                                                  model%general%upn,              &
@@ -2527,20 +2516,6 @@ contains
           
        endif    ! which_ho_disp
           
-       ! If running Glam, compute the basal friction heat flux
-       ! (Glissade computes this flux as part of the velocity solution.)
-       
-       if (model%options%whichdycore == DYCORE_GLAM) then
-          call glam_basal_friction(model%general%ewn,                             &
-                                   model%general%nsn,                             &
-                                   ice_mask,                                      &
-                                   floating_mask,                                 &
-                                   model%velocity%uvel(model%general%upn,:,:),    &
-                                   model%velocity%vvel(model%general%upn,:,:),    &
-                                   model%velocity%btraction(:,:,:),               &
-                                   model%temper%bfricflx(:,:) )
-       endif
-       
     endif     ! is_restart
 
     if (this_rank==rtest .and. verbose_glissade) then

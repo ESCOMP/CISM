@@ -990,7 +990,7 @@
     !        Ph.D. thesis, Technical Report UIUCDCS-R-86-1267, Department of Computer Science,
     !        University of Illinois, Urbana, Illinois, pp. 1-116, 1986.
     !
-    !     Chronopoulos, A.T., and C.W. Gear. S-step iterative methods
+    !     Chronopoulos, A.T., and C.W. Gear. s-step iterative methods
     !        for symmetric linear systems. J. Comput. Appl. Math., 25(2),
     !        153-168, 1989.
     !
