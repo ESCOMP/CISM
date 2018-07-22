@@ -295,7 +295,8 @@ module glide_types
   integer, parameter :: HO_GROUND_ALL = 2
 
   integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
-  integer, parameter :: HO_GROUND_BMLT_GLP = 1
+  integer, parameter :: HO_GROUND_BMLT_FLOATING_FRAC = 1
+  integer, parameter :: HO_GROUND_BMLT_ZERO_GROUNDED = 2
 
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
@@ -790,8 +791,9 @@ module glide_types
     integer :: which_ho_ground_bmlt = 0
     !> Flag that indicates how to compute bmlt_float in partly grounded cells
     !> \begin{description}
-    !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
-    !> \item[1] Do not apply bmlt_float in partly grounded cells
+    !> \item[0] Apply bmlt_float in all floating cells, based on floating_mask
+    !> \item[1] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
+    !> \item[2] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
 
     integer :: which_ho_flotation_function = 2
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore

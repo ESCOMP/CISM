@@ -921,9 +921,10 @@ contains
          '0 <= f_ground <= 1, based on GLP (glissade dycore) ', &
          'f_ground = 1 for all active cells (glissade dycore)' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichground_bmlt = (/ &
-         'bmlt_float applied to partly grounded cells        ', &
-         'bmlt_float not applied to partly grounded cells    ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichground_bmlt = (/ &
+         'no GLP for bmlt_float                        ', &
+         'weigh bmlt_float by floating fraction of cell', &
+         'set bmlt_float = 0 in partly grounded cells  ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
          'f_pattyn = (-rhow*b)/(rhoi*H)  ', &
