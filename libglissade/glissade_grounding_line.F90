@@ -152,8 +152,7 @@
 
     real(dp) ::  &
        topg_eus_diff,       &! topg - eus, limited to be >= f_flotation_land_topg_min
-       var,                 &! combination of f_flotation terms that determines regions to be integrated
-       f_flotation_vertex    ! f_flotation interpolated to vertex
+       var                   ! combination of f_flotation terms that determines regions to be integrated
 
     integer :: nfloat     ! number of grounded vertices of a cell (0 to 4)
 
@@ -171,6 +170,8 @@
        f_trapezoid         ! fractional area in a trapezoidal region of the cell
 
     logical :: adjacent   ! true if two grounded vertices are adjacent (rather than opposite)
+
+    logical :: rotated    ! true if a pattern is rotated (used when 2 non-adjacent cells are G, and the other 2 are F)
 
     real(dp), parameter :: &
        f_flotation_land_topg_min = 1.0d0   ! min value of (topg - eus) in f_flotation expression for land cells (m)
@@ -577,20 +578,20 @@
                          ! We will integrate assuming the two corner regions lie in the lower left
                          ! and upper right, i.e. one of these patterns:
                          !
-                         !   F-----G       G-----F
-                         !   |     |       |     |
-                         !   |  F  |       |  G  |
-                         !   |     |       |     |
-                         !   G-----F       F-----G
+                         !   F---\-G       G---\-F
+                         !   |    \|       |    \|
+                         !   |\    \       \     \
+                         !   | \   |       |\    |
+                         !   G--\--F       F-\---G
                          !
                          ! Two other patterns are possible, with corner regions in the lower right
                          ! and upper left; these require a rotation before integrating: 
                          
-                         !   G-----F       F-----G
-                         !   |     |       |     |
-                         !   |  F  |       |  G  |
-                         !   |     |       |     |
-                         !   F-----G       G-----F
+                         !   G-/---F       F-/---G
+                         !   |/    |       |/    |
+                         !   /    /|       /    /|
+                         !   |   / |       |   / |
+                         !   F--/--G       G--/--F
                          !   
 
                          var = f_flotation(i+1,j)*f_flotation(i,j+1) - f_flotation(i,j)*f_flotation(i+1,j+1)
@@ -600,11 +601,13 @@
                             f2 = f_flotation(i+1,j)
                             f3 = f_flotation(i+1,j+1)
                             f4 = f_flotation(i,j+1)
+                            rotated = .false.
                          else   ! we have one of the bottom two patterns; rotate coordinates by 90 degrees
                             f4 = f_flotation(i,j)
                             f1 = f_flotation(i+1,j)
                             f2 = f_flotation(i+1,j+1)
                             f3 = f_flotation(i,j+1)
+                            rotated = .true.
                          endif
 
                       endif  ! grounded cells are adjacent
@@ -702,21 +705,38 @@
                             f_corner2 = (a + b)*(a + c) / (b*c)
                          endif
                          
-                         ! Determine whether the central point (0.5, 0.5) is grounded or floating.
-                         ! Then compute the grounded area.
-                         ! If the central point is floating, the corner regions are grounded;
-                         ! if the central point is grounded, the corner regions are floating.
+                         !WHL - Commented out logic from an earlier code version (fixed July 2018).
+                         ! This logic is flawed, because the central point is not always in the opposite
+                         !   state (G v. F) of the two corner regions; corner regions can extend beyond the center.
 
-                         f_flotation_vertex = a + 0.5d0*b + 0.5d0*c + 0.25d0*d
-                         if (f_flotation_vertex > 0.d0) then  ! the central point is floating; corners are grounded
-                            f_ground(i,j) = f_corner1 + f_corner2
-                         else                                 ! the central point is grounded; corners are floating
-                            f_ground(i,j) = 1.d0 - (f_corner1 + f_corner2)
+!!                         ! Determine whether the central point (0.5, 0.5) is grounded or floating.
+!!                         ! Then compute the grounded area.
+!!                         ! If the central point is floating, the corner regions are grounded;
+!!                         ! if the central point is grounded, the corner regions are floating.
+
+!!                         f_flotation_vertex = a + 0.5d0*b + 0.5d0*c + 0.25d0*d
+!!                         if (f_flotation_vertex > 0.d0) then  ! the central point is floating; corners are grounded
+!!                            f_ground(i,j) = f_corner1 + f_corner2
+!!                         else                                 ! the central point is grounded; corners are floating
+!!                            f_ground(i,j) = 1.d0 - (f_corner1 + f_corner2)
+!!                         endif
+
+                         if (f_flotation(i,j) > 0.0d0) then  ! cell (i,j) in lower left is floating
+                            if (rotated) then   ! corner regions (with areas f_corner1 and f_corner2) are grounded
+                               f_ground(i,j) = f_corner1 + f_corner2
+                            else   ! corner regions are floating
+                               f_ground(i,j) = 1.d0 - (f_corner1 + f_corner2)
+                            endif
+                         else  ! cell (i,j) in lower left is grounded
+                            if (rotated) then   ! corner regions are floating
+                               f_ground(i,j) = 1.d0 - (f_corner1 + f_corner2)
+                            else   ! corner regions are grounded
+                               f_ground(i,j) = f_corner1 + f_corner2
+                            endif
                          endif
 
                          !WHL - debug
                          if (verbose_gl .and. i==itest .and. j==jtest .and. this_rank == rtest) then
-                            print*, 'f_flotation_v =', f_flotation_vertex
                             print*, 'f_corner1 =', f_corner1
                             print*, 'f_corner2 =', f_corner2
                             print*, 'f_ground =', f_ground(i,j)
