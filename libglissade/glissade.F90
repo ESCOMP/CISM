@@ -845,17 +845,6 @@ contains
          ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
          floating_mask            ! = 1 if ice is present (thck > 0) and floating
 
-    integer, dimension(model%general%ewn-1, model%general%nsn-1) ::   &
-         stagice_mask,          & ! = 1 if ice is present (stagthck > 0, else = 0
-         stagfloating_mask,     & ! = 1 if ice is present (stagthck > 0) and floating
-         stagland_mask            ! = 1 if stagtopg is at or above sea level, else = 0
-
-    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::   &
-         stagf_flotation          ! flotation function on staggered grid
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
-         unstagf_ground           ! grounded ice fraction on unstaggered (scalar) grid
-
     real(dp) :: previous_time
 
 !!    logical, parameter :: verbose_bmlt_float = .true.
@@ -946,10 +935,7 @@ contains
     if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_NO_GLP) then
 
        ! Compute masks:
-       ! - ice_mask = 1 where thck > 0
-       ! - floating_mask = 1 where thck > 0 and ice is floating
-       ! 
-       !Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
+       ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
 
        call glissade_get_masks(ewn,                 nsn,                   &
                                model%geometry%thck, model%geometry%topg,   &
@@ -957,66 +943,13 @@ contains
                                ice_mask,                                   &
                                floating_mask = floating_mask)
 
-       ! Limit the melting to cells where ice is present and floating (floating_mask = 1).
-       ! Note: For this to work correctly, basal melting must be applied before the floating mask changes
-       !        (i.e., before horizontal transport).
+       ! Limit basal melting to cells where ice is present and floating (floating_mask = 1).
 
        where (floating_mask == 0)
           model%basal_melt%bmlt_float = 0.0d0
        endwhere
 
-    else
-
-       ! Compute thickness and topography on the staggered grid.
-       ! These are needed because the bmlt_float GLP uses f_ground at cell centers, which
-       !  requires computing f_flotation at vertices (instead of the usual case
-       !  where we compute f_flotation at cell centers and derive f_ground at vertices).
-       ! Note: Cells with thck = 0 are included in the staggering.
-
-       call glissade_stagger(ewn,                 nsn,                  &
-                             model%geometry%thck, model%geomderv%stagthck)
-
-       call glissade_stagger(ewn,                 nsn,                  &
-                             model%geometry%topg, model%geomderv%stagtopg)
-
-       ! Compute staggered masks:
-       ! - stagice_mask = 1 where stagthck > 0
-       ! - stagfloating_mask = 1 where stagthck > 0 and satisfies flotation criterion
-       ! - stagland_mask = 1 where stagtopg is at or above sea level
-       ! 
-       !Note: The '0.0d0' argument is thklim. Any ice with stagthck > 0 gets ice_mask = 1.
-
-       call glissade_get_masks(ewn-1,                   nsn-1,                   &
-                               model%geomderv%stagthck, model%geomderv%stagtopg, &
-                               model%climate%eus,       0.0d0,                   &  ! thklim = 0
-                               stagice_mask,                                     &
-                               floating_mask = stagfloating_mask,                &
-                               land_mask = stagland_mask)
-
-       ! ------------------------------------------------------------------------
-       ! Compute the fraction of grounded ice in each cell
-       ! (requires that thck and topg are up to date in halo cells).
-       !
-       ! See comments in subroutine glissade_grounded_fraction for details
-       ! on the whichground and whichflotation_function options.
-       ! ------------------------------------------------------------------------
-
-       unstagf_ground(:,:) = 0.0d0
-
-       call glissade_grounded_fraction(ewn-1,        nsn-1,             &
-                                       itest, jtest, rtest,             &  ! diagnostic only
-                                       model%geomderv%stagthck*thk0,    &
-                                       model%geomderv%stagtopg*thk0,    &
-                                       model%climate%eus*thk0,          &
-                                       stagice_mask,                    &
-                                       stagfloating_mask,               &
-                                       stagland_mask,                   &
-                                       model%options%which_ho_ground,   &
-                                       model%options%which_ho_flotation_function, &
-                                       unstagf_ground(2:ewn-1,2:nsn-1), &  ! omit outer rows
-                                       stagf_flotation)
-
-       call parallel_halo(unstagf_ground)  ! fill the full array, (1:ewn,1:nsn)
+    else  ! basal melting GLP
 
        if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
 
@@ -1024,8 +957,9 @@ contains
           ! This option ensures smooth changes in bmlt_float as the GL migrates.
           ! However, it may allow spurious melting of grounded ice near the GL.
 
-          where (unstagf_ground > 0.0d0)
-             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * (1.0d0 - unstagf_ground)
+          where (model%geometry%f_ground_cell > 0.0d0)
+             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float   &
+                                         * (1.0d0 - model%geometry%f_ground_cell)
           endwhere
 
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
@@ -1034,7 +968,7 @@ contains
           ! This option ensures no spurious melting of grounded ice near the GL.
           ! However, it may underestimate melting of floating ice near the GL, especially on coarser grids.
 
-          where (unstagf_ground > 0.0d0)
+          where (model%geometry%f_ground_cell > 0.0d0)
              model%basal_melt%bmlt_float = 0.0d0
           endwhere
 
@@ -1053,44 +987,29 @@ contains
           print*, 'floating_mask:'
           write(6,'(a6)',advance='no') '      '
           do i = itest-3, itest+3
-             write(6,'(i14)',advance='no') i
+             write(6,'(i10)',advance='no') i
           enddo
           write(6,*) ' '
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i14)',advance='no') floating_mask(i,j)
+                write(6,'(i10)',advance='no') floating_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
 
        else  ! GLP for bmlt_float
 
-          print*, 'stagf_flotation:'
+          print*, 'f_ground_cell:'
           write(6,'(a6)',advance='no') '      '
           do i = itest-3, itest+3
-             write(6,'(i14)',advance='no') i
+             write(6,'(i10)',advance='no') i
           enddo
           write(6,*) ' '
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f14.7)',advance='no') stagf_flotation(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          write(6,*) ' '
-
-          print*, 'unstagf_ground:'
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-3, itest+3
-             write(6,'(i14)',advance='no') i
-          enddo
-          write(6,*) ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f14.7)',advance='no') unstagf_ground(i,j)
+                write(6,'(f10.7)',advance='no') model%geometry%f_ground_cell(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1102,13 +1021,13 @@ contains
        print*, 'bmlt_float (m/yr):'
        write(6,'(a6)',advance='no') '      '
        do i = itest-3, itest+3
-          write(6,'(i14)',advance='no') i
+          write(6,'(i10)',advance='no') i
        enddo
        write(6,*) ' '
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f14.7)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+             write(6,'(f10.7)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
           enddo
           write(6,*) ' '
        enddo
@@ -1545,6 +1464,7 @@ contains
 
        !-------------------------------------------------------------------------
        ! Optionally, invert for basal fields: topography, basal traction and basal melting.
+       ! Note: The masks passed to glissade_inversion_solve are based on the ice state before transport.
        !-------------------------------------------------------------------------
 
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
@@ -2234,6 +2154,7 @@ contains
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux
+    use glissade_grounding_line, only: glissade_grounded_fraction_old
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
@@ -2279,6 +2200,9 @@ contains
     real(dp) :: my_max_diff, global_max_diff
     real(dp) :: my_min_diff, global_min_diff
     integer :: iglobal, jglobal, ii, jj
+
+    logical, parameter :: old_glp = .false.
+    logical, parameter :: verbose_gl = .false.
 
     rtest = -999
     itest = 1
@@ -2358,7 +2282,13 @@ contains
     ! (e.g., on the first time step of a restart).
     ! ------------------------------------------------------------------------
 
-    call glissade_grounded_fraction(model%general%ewn,             &
+    !WHL - Testing a new GLP subroutine
+    ! TODO: Remove the old one after verifying the new one is BFB for which_ho_ground = 1
+    !       Also remove the deprecated calculation for bmlt_float GLP
+
+ if (old_glp) then  ! old glp subroutine; to be removed
+
+    call glissade_grounded_fraction_old(model%general%ewn,         &
                                     model%general%nsn,             &
                                     itest, jtest, rtest,           &  ! diagnostic only
                                     model%geometry%thck*thk0,      &
@@ -2371,6 +2301,82 @@ contains
                                     model%options%which_ho_flotation_function, &
                                     model%geometry%f_ground,       &
                                     model%geometry%f_flotation)
+    
+    !WHL - debug
+    if (this_rank == rtest .and. verbose_gl) then
+       print*, ' '
+       print*, 'Old GLP subroutine'
+       print*, 'f_flotation:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%geometry%f_flotation(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground at vertex:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%geometry%f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
+
+ else
+
+    call glissade_grounded_fraction(model%general%ewn,             &
+                                    model%general%nsn,             &
+                                    itest, jtest, rtest,           &  ! diagnostic only
+                                    model%geometry%thck*thk0,      &
+                                    model%geometry%topg*thk0,      &
+                                    model%climate%eus*thk0,        &
+                                    ice_mask,                      &
+                                    floating_mask,                 &
+                                    land_mask,                     &
+                                    model%options%which_ho_ground, &
+                                    model%options%which_ho_flotation_function, &
+                                    model%geometry%f_flotation,    &
+                                    model%geometry%f_ground,       &
+                                    model%geometry%f_ground_cell)
+
+    !WHL - debug
+    if (this_rank == rtest .and. verbose_gl) then
+       print*, ' '
+       print*, 'New GLP subroutine, which_ho_ground =', model%options%which_ho_ground
+       print*, ' '
+       print*, 'f_flotation:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%geometry%f_flotation(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground at vertex:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%geometry%f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground_cell:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%geometry%f_ground_cell(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif  ! this_rank = rtest
+
+ endif  ! old_glp
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
