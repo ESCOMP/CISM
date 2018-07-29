@@ -917,9 +917,9 @@ contains
          'subgrid calving front parameterization    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
-         'f_ground = 0 or 1; no GLP  (glissade dycore)       ', &
-         '0 <= f_ground <= 1, based on GLP (glissade dycore) ', &
-         'f_ground = 1 for all active cells (glissade dycore)' /)
+         'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
+         '0 <= f_ground <= 1 based on GLP; compute in staggered cells', &
+         '0 <= f_ground <= 1 based on GLP; compute in cell quadrants ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground_bmlt = (/ &
          'no GLP for bmlt_float                        ', &

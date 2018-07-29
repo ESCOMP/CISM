@@ -1356,6 +1356,15 @@ standard_name: grounded_fraction
 load:          0
 coordinates:   lon lat
 
+[f_ground_cell]
+dimensions:    time, y1, x1
+units:         unitless [0,1]
+long_name:     grounded ice fraction in cells
+data:          data%geometry%f_ground_cell
+standard_name: grounded_fraction_cell
+load:          0
+coordinates:   lon lat
+
 [sfc_mbal_flux]
 dimensions:    time, y1, x1
 units:         kg/m2/s
