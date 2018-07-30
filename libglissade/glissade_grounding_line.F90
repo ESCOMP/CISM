@@ -1221,6 +1221,11 @@
           enddo
        enddo
 
+       ! Set f_ground_cell = 1 on land
+       where (land_mask == 1)
+          f_ground_cell = 1.0d0
+       endwhere
+
        call parallel_halo(f_ground_cell)
 
     endif   ! which_ho_ground
