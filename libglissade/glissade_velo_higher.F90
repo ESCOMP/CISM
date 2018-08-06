@@ -2543,14 +2543,13 @@
                       model%basal_physics,              &
                       flwa(nz-1,:,:),                   &  ! basal flwa layer
                       thck,                             &
-                      stagmask,                         &
-                      beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
-                      beta_internal,                    &  ! beta weighted by f_ground (intent out)
                       topg,          eus,               &
                       ice_mask,                         &
                       floating_mask,                    &
                       land_mask,                        &
                       f_ground,                         &
+                      beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
+                      beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                       whichinversion,                   &
                       powerlaw_c_inversion,             &
                       itest, jtest, rtest)

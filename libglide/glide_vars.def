@@ -116,14 +116,14 @@ standard_name: global_average_sea_level_change
 [uflx]
 dimensions:    time, y0, x0
 units:         meter2/year
-long_name:     flux in x direction (NOTE: Glide and Glam only)
+long_name:     flux in x direction (NOTE: Glide only)
 data:          data%velocity%uflx
 factor:        scale_uflx
 
 [vflx]
 dimensions:    time, y0, x0
 units:         meter2/year
-long_name:     flux in x direction (NOTE: Glide and Glam only)
+long_name:     flux in x direction (NOTE: Glide only)
 data:          data%velocity%vflx
 factor:        scale_uflx
 
@@ -1033,14 +1033,14 @@ standard_name: land_ice_vertical_mean_y_velocity
 [resid_u]
 dimensions:     time, level, y0, x0
 units:          Pa/m          
-long_name:      u component of residual Ax - b (NOTE: Glam only)
+long_name:      u component of residual Ax - b (NOTE: Glissade only)
 data:           data%velocity%resid_u(up,:,:)
 factor:         scale_resid
 
 [resid_v]
 dimensions:     time, level, y0, x0
 units:          Pa/m          
-long_name:      v component of residual Ax - b (NOTE: Glam only)
+long_name:      v component of residual Ax - b (NOTE: Glissade only)
 data:           data%velocity%resid_v(up,:,:)
 factor:         scale_resid
 
@@ -1092,14 +1092,6 @@ long_name:    Mask of locations where uvel, vvel value should be held constant
 data:         data%velocity%kinbcmask(:,:)
 type:         int
 load:         1
-
-[dynbcmask]
-dimensions:   time, y0, x0
-units:        1
-long_name:    2d array of higher-order model boundary condition mask values (NOTE: Glam ONLY)
-data:         data%velocity%dynbcmask
-type:         int
-load:         0
 
 [velnorm]
 dimensions:    time, level, y0, x0
