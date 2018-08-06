@@ -856,10 +856,10 @@ module glide_types
     !> flotation function, > 0 for floating ice and <= 0 for grounded ice
 
     real(dp),dimension(:,:),pointer :: f_ground => null() 
-    !> The fractional area at each vertex which is grounded (which_ho_ground = HO_GROUND_GLP)
+    !> The fractional area at each vertex which is grounded
 
     real(dp),dimension(:,:),pointer :: f_ground_cell => null() 
-    !> The fractional area in each cell which is grounded (which_ho_ground = HO_GROUND_GLP_QUADRANTS)
+    !> The fractional area in each cell which is grounded
 
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
