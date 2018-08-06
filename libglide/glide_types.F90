@@ -292,10 +292,11 @@ module glide_types
 
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP = 1
-  integer, parameter :: HO_GROUND_ALL = 2
+  integer, parameter :: HO_GROUND_GLP_QUADRANTS = 2
 
   integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
-  integer, parameter :: HO_GROUND_BMLT_GLP = 1
+  integer, parameter :: HO_GROUND_BMLT_FLOATING_FRAC = 1
+  integer, parameter :: HO_GROUND_BMLT_ZERO_GROUNDED = 2
 
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
@@ -785,13 +786,14 @@ module glide_types
     !> \begin{description}
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
-    !> \item[2] fground = 1 in all cells
+    !> \item[2] similar to [1], but f_ground is summed over quadrants rather than staggered cells
 
     integer :: which_ho_ground_bmlt = 0
     !> Flag that indicates how to compute bmlt_float in partly grounded cells
     !> \begin{description}
-    !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
-    !> \item[1] Do not apply bmlt_float in partly grounded cells
+    !> \item[0] Apply bmlt_float in all floating cells, based on floating_mask
+    !> \item[1] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
+    !> \item[2] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
 
     integer :: which_ho_flotation_function = 2
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
@@ -851,13 +853,13 @@ module glide_types
     !> Observed basal topography, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
-    !> flotation function, (rhoi*thck) / (-rhoo*(topg-eus))
-    !> previously was f_pattyn = -rhoo*(topg-eus)/(rhoi*thck)
-    !    (computed by glissade dycore only)
+    !> flotation function, > 0 for floating ice and <= 0 for grounded ice
 
     real(dp),dimension(:,:),pointer :: f_ground => null() 
-    !> The fractional area at each vertex which is grounded 
-    !    (computed by glissade dycore only)
+    !> The fractional area at each vertex which is grounded
+
+    real(dp),dimension(:,:),pointer :: f_ground_cell => null() 
+    !> The fractional area in each cell which is grounded
 
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
@@ -1987,6 +1989,7 @@ contains
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
     !> \item \texttt{f_flotation(ewn,nsn)}
     !> \item \texttt{f_ground(ewn-1,nsn-1)}
+    !> \item \texttt{f_ground_cell(ewn-1,nsn-1)}
     !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
     !> \item \texttt{ice_mask(ewn,nsn))}
     !> \item \texttt{floating_mask(ewn,nsn))}
@@ -2232,6 +2235,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt_tavg)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
@@ -2777,6 +2781,8 @@ contains
         deallocate(model%geometry%f_flotation)
     if (associated(model%geometry%f_ground)) &
         deallocate(model%geometry%f_ground)
+    if (associated(model%geometry%f_ground_cell)) &
+        deallocate(model%geometry%f_ground_cell)
     if (associated(model%geomderv%dlsrfdew)) &
         deallocate(model%geomderv%dlsrfdew)
     if (associated(model%geomderv%dlsrfdns)) &
