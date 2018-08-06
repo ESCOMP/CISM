@@ -370,7 +370,7 @@ contains
   !> or Manning flow, both of which take the form of a constant times water
   !> depth to a power, times pressure wphi to a power.
 
-    use glam_grid_operators, only: df_field_2d      ! Find grad_wphi
+    use glide_grid_operators, only: df_field_2d     ! Find grad_wphi
     use glimmer_physcon, only : scyr                ! Seconds per year
 
     real(dp),dimension(:,:),intent(in) :: flux      ! Basal water flux

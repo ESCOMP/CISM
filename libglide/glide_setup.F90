@@ -341,21 +341,6 @@ contains
 
     end select
 
-
-    !NOTE: Glam will always use evenly spaced levels,
-    !      overriding other values of which_sigma 
-    !      (including sigma levels in config file)
-
-    if (model%options%whichdycore == DYCORE_GLAM) then   ! evenly spaced levels are required
-
-       do up = 1,upn
-          model%numerics%sigma(up) = real(up-1,kind=dp) / real(upn-1,kind=dp)
-       enddo
-
-       call write_log('Using evenly spaced sigma levels for Glam as required')
-
-    endif
-
     ! Compute stagsigma (= sigma values at layers midpoints)
 
     model%numerics%stagsigma(1:upn-1) =   &
@@ -681,7 +666,7 @@ contains
 
     character(len=*), dimension(0:4), parameter :: dycore = (/ &
          'glide              ', &  ! Glimmer SIA
-         'glam               ', &  ! Payne-Price finite difference
+         'glam               ', &  ! Payne-Price finite difference; no longer supported
          'glissade           ', &  ! prototype finite element
          'albany-felix       ', &  ! External Albany-FELIX finite element
          'bisicles           ' /)  ! External BISICLES-Chombo FVM 
@@ -949,7 +934,7 @@ contains
 
     ! unsupported dycore options
     if (model%options%whichdycore == DYCORE_GLAM) then
-      call write_log('WARNING: Glam dycore is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
+      call write_log('ERROR: The Glam dycore is no longer supported', GM_FATAL)
     endif
     if (model%options%whichdycore == DYCORE_ALBANYFELIX) then
       call write_log('WARNING: Albany-FELIX dycore is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
@@ -963,7 +948,7 @@ contains
        if (model%options%whichevol == EVOL_INC_REMAP     .or.  &
            model%options%whichevol == EVOL_UPWIND        .or.  &
            model%options%whichevol == EVOL_NO_THICKNESS) then
-          call write_log('Error, Glam/glissade thickness evolution options cannot be used with Glide dycore', GM_FATAL)
+          call write_log('Error, Glissade thickness evolution options cannot be used with Glide dycore', GM_FATAL)
        endif
 
        if (model%options%whichtemp == TEMP_ENTHALPY) then
@@ -987,7 +972,7 @@ contains
        if (model%options%whichevol == EVOL_PSEUDO_DIFF .or.  &
            model%options%whichevol == EVOL_ADI         .or.  &
            model%options%whichevol == EVOL_DIFFUSION) then
-          call write_log('Error, Glide thickness evolution options cannot be used with glam/glissade dycore', GM_FATAL)
+          call write_log('Error, Glide thickness evolution options cannot be used with Glissade dycore', GM_FATAL)
        endif
 
     endif
@@ -1003,7 +988,7 @@ contains
        call write_log('Error, flux-based basal water option not supported for more than one processor', GM_FATAL)
     endif
 
-    ! Forbidden options associated with Glam and Glissade dycores
+    ! Forbidden options associated with Glissade dycore
    
     if (model%options%whichdycore == DYCORE_GLISSADE) then 
 
@@ -1047,12 +1032,6 @@ contains
           call write_log('Error, no-penetration BC requires glissade dycore', GM_FATAL)
        endif
 
-    endif
-
-    if (model%options%whichdycore == DYCORE_GLAM) then
-       if (model%options%which_ho_approx /= HO_APPROX_BP) then
-          call write_log('Error, Glam dycore must use Blatter-Pattyn approximation', GM_FATAL)
-       endif
     endif
 
     ! Config specific to Albany-Felix dycore   
@@ -1297,7 +1276,7 @@ contains
 
     !HO options
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade higher-order
+    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade higher-order
 
        call write_log(' ')
        call write_log('Higher-order options:')
@@ -2528,7 +2507,7 @@ contains
         end select
 
 
-      case (DYCORE_GLAM, DYCORE_GLISSADE)
+      case (DYCORE_GLISSADE)
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
         ! TODO not sure if thkmask is needed for HO

@@ -70,13 +70,13 @@ contains
                        thisvel,       othervel,      &
                        basal_physics,                &
                        flwa_basal,    thck,          &
-                       mask,          beta_external, &
-                       beta,                         &
                        topg,          eus,           &
                        ice_mask,                     &
                        floating_mask,                &
                        land_mask,                    &
                        f_ground,                     &
+                       beta_external,                &
+                       beta,                         &
                        which_ho_inversion,           &
                        powerlaw_c_inversion,         &
                        itest, jtest,  rtest)
@@ -106,31 +106,27 @@ contains
   type(glide_basal_physics), intent(in)   :: basal_physics      ! basal physics object
   real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1})
   real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness (m)
-  integer,  intent(in), dimension(:,:)    :: mask               ! staggered grid mask
-  real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
-  real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
-                                                                ! Note: This is beta_internal in glissade
+  real(dp), intent(in), dimension(:,:)    :: topg               ! bed topography (m)
+  real(dp), intent(in)                    :: eus                ! eustatic sea level (m) relative to z = 0
 
-  ! Note: Adding fields for parallel ISHOM-C test case
-  real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
-  real(dp), dimension(:,:), allocatable :: beta_extend          ! beta extended to the ice grid (dimensions ewn, nsn)
-
-  ! Note: optional arguments topg and eus are used for pseudo-plastic sliding law
-  !TODO - Make these argument non-optional? Can do this after removing the call to calcbeta from Glam.
-  real(dp), intent(in), dimension(:,:), optional :: topg         ! bed topography (m)
-  real(dp), intent(in), optional :: eus                          ! eustatic sea level (m) relative to z = 0
-
-  integer, intent(in), dimension(:,:), optional :: &
+  integer, intent(in), dimension(:,:) :: &
        ice_mask,        & ! = 1 where ice is present (thck > thklim), else = 0
        floating_mask,   & ! = 1 where ice is present and floating, else = 0
        land_mask          ! = 1 where topg > eus
 
-  real(dp), intent(in), dimension(:,:), optional :: f_ground     ! grounded ice fraction, 0 <= f_ground <= 1
+  real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction, 0 <= f_ground <= 1
+  real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
+  real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
+
   integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
   real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
+
+  ! Note: Adding fields for parallel ISHOM-C test case
+  real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
+  real(dp), dimension(:,:), allocatable :: beta_extend          ! beta extended to the ice grid (dimensions ewn, nsn)
 
   real(dp) :: smallnum = 1.0d-2  ! m/yr
 
@@ -241,42 +237,34 @@ contains
        q = basal_physics%pseudo_plastic_q
        u0 = basal_physics%pseudo_plastic_u0
 
-       if (present(topg) .and. present(eus)) then
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
 
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
+             ! compute tan(phi) based on bed elevation
+             bed = topg(ew,ns) - eus
+             if (bed <= bedmin) then
+                phi = phimin
+             elseif (bed >= bedmax) then
+                phi = phimax
+             else   ! bed elevation is between bedmin and bedmax
+                phi = phimin + ((bed - bedmin)/(bedmax - bedmin)) * (phimax - phimin)
+             endif
+             tanphi = tan(phi * pi/180.d0)
 
-                ! compute tan(phi) based on bed elevation
-                bed = topg(ew,ns) - eus
-                if (bed <= bedmin) then
-                   phi = phimin
-                elseif (bed >= bedmax) then
-                   phi = phimax
-                else   ! bed elevation is between bedmin and bedmax
-                   phi = phimin + ((bed - bedmin)/(bedmax - bedmin)) * (phimax - phimin)
+             ! compute beta based on tan(phi), N and u
+             tau_c = tanphi * basal_physics%effecpress_stag(ew,ns) 
+             beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
+
+             !WHL - debug
+             if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(6,*) 'i, j, bed, phi, tanphi, tau_c, speed, beta:', &
+                        ew, ns, bed, phi, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
                 endif
-                tanphi = tan(phi * pi/180.d0)
+             endif
 
-                ! compute beta based on tan(phi), N and u
-                tau_c = tanphi * basal_physics%effecpress_stag(ew,ns) 
-                beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
-
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                      write(6,*) 'i, j, bed, phi, tanphi, tau_c, speed, beta:', &
-                           ew, ns, bed, phi, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
-                   endif
-                endif
-
-             enddo
           enddo
-
-       else
-
-          call write_log('Pseudo-plastic sliding law requires topg and eus as input arguments', GM_FATAL)
-
-       endif
+       enddo
 
     case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
                                 ! that plastic-till sliding behavior is enforced (see additional notes in documentation).
@@ -645,42 +633,23 @@ contains
    ! Note: With a GLP, f_ground will have values between 0 and 1 at vertices adjacent to the GL.
    !       Without a GLP, f_ground = 0 or 1 everywhere based on a flotation criterion.
    !       By convention, f_ground = 0 where no ice is present.
-   !
-   ! If f_ground in not passed in (as for Glam), then check for areas where the ice is floating
-   !  and make sure beta in these regions is 0. 
-   !TODO - Replace GLIDE_IS_FLOAT with floating_mask
 
-   if (present(f_ground)) then   ! Multiply beta by grounded ice fraction
+   do ns = 1, nsn-1
+      do ew = 1, ewn-1
 
-      beta(:,:) = beta(:,:) * f_ground(:,:)
+         beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
 
-   else    ! set beta = 0 where Glide mask says the ice is floating
+         ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
+         ! To prevent this, set beta to a minimum value beneath grounded ice.
+         ! The default value of beta_grounded_min = 0.0, but can be set to a nonzero value in the config file.
+         !TODO - Do the limiting before multiplying by f_ground? Or base the limiting on the driving stress?
 
-      do ns = 1, nsn-1
-         do ew = 1, ewn-1 
-            if (GLIDE_IS_FLOAT(mask(ew,ns))) then
-               beta(ew,ns) = 0.d0
-            endif
-         end do
-      end do
+         if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
+            beta(ew,ns) = basal_physics%beta_grounded_min
+         endif
 
-   endif   ! present(f_ground)
-
-   ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
-   ! This could happen, for example, when reading beta from an external file.
-   ! To prevent this, set beta to a minimum value beneath grounded ice.
-   ! The default value of beta_grounded_min = 0.0, in which case this loop has no effect.
-   ! However, beta_grounded_min can be set to a nonzero value in the config file.
-  
-   if (present(f_ground)) then
-      do ns = 1, nsn-1
-         do ew = 1, ewn-1
-            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
-               beta(ew,ns) = basal_physics%beta_grounded_min
-            endif
-         enddo
       enddo
-   endif   ! present(f_ground)
+   enddo
 
    ! Bug check: Make sure beta >= 0
    ! This check will find negative values as well as NaNs

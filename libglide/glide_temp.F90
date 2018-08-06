@@ -1207,8 +1207,7 @@ contains
        !       We are not updating flwa in the glide temperature halo.
 
        ! The flwa, temp, and sigma arrays should have the same vertical dimension, 1:upn.
-       ! These quantities are defined at layer interfaces (not layer midpoints as in the
-       !  glam/glissade dycore).
+       ! These quantities are defined at layer interfaces (not layer midpoints as in the glissade dycore).
 
     real(dp),dimension(:),      intent(in)    :: sigma     !> Vertical coordinate
     real(dp),                   intent(in)    :: thklim    !> thickness threshold
@@ -1240,13 +1239,12 @@ contains
     !------------------------------------------------------------------------------------ 
    
 !      Some notes:
-!      vis0 = 1.39e-032 Pa-3 s-1 for glam dycore (and here for glide)
+!      vis0 = 1.39e-032 Pa-3 s-1
 !           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
 !      vis0*scyr = 4.39e-025 Pa-2 yr-1
-!      For glam: default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
+!      default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
 !      Result is default_flwa =   227657117 (unitless) if flow factor = 1
 !        This is the value given to thin ice.
-!
 !      In old glide, default_flwa is just set to the flow factor (called 'fiddle')
 !         vis0 = 3.17E-024 Pa-3 s-1 for old glide dycore = 1d-16 Pa-3 yr-1 / scyr
 !
