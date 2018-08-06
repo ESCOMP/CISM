@@ -830,8 +830,6 @@ contains
     use glissade_bmlt_float, only: glissade_basal_melting_float
     use glissade_transport, only: glissade_add_mbal_anomaly
     use glissade_masks, only: glissade_get_masks
-    use glissade_grid_operators, only: glissade_stagger
-    use glissade_grounding_line, only: glissade_grounded_fraction
 
     use parallel
 
@@ -2154,7 +2152,6 @@ contains
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux
-    use glissade_grounding_line, only: glissade_grounded_fraction_old
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
@@ -2201,7 +2198,6 @@ contains
     real(dp) :: my_min_diff, global_min_diff
     integer :: iglobal, jglobal, ii, jj
 
-    logical, parameter :: old_glp = .false.
     logical, parameter :: verbose_gl = .false.
 
     rtest = -999
@@ -2282,51 +2278,6 @@ contains
     ! (e.g., on the first time step of a restart).
     ! ------------------------------------------------------------------------
 
-    !WHL - Testing a new GLP subroutine
-    ! TODO: Remove the old one after verifying the new one is BFB for which_ho_ground = 1
-    !       Also remove the deprecated calculation for bmlt_float GLP
-
- if (old_glp) then  ! old glp subroutine; to be removed
-
-    call glissade_grounded_fraction_old(model%general%ewn,         &
-                                    model%general%nsn,             &
-                                    itest, jtest, rtest,           &  ! diagnostic only
-                                    model%geometry%thck*thk0,      &
-                                    model%geometry%topg*thk0,      &
-                                    model%climate%eus*thk0,        &
-                                    ice_mask,                      &
-                                    floating_mask,                 &
-                                    land_mask,                     &
-                                    model%options%which_ho_ground, &
-                                    model%options%which_ho_flotation_function, &
-                                    model%geometry%f_ground,       &
-                                    model%geometry%f_flotation)
-    
-    !WHL - debug
-    if (this_rank == rtest .and. verbose_gl) then
-       print*, ' '
-       print*, 'Old GLP subroutine'
-       print*, 'f_flotation:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%geometry%f_flotation(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground at vertex:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%geometry%f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif
-
- else
-
     call glissade_grounded_fraction(model%general%ewn,             &
                                     model%general%nsn,             &
                                     itest, jtest, rtest,           &  ! diagnostic only
@@ -2375,8 +2326,6 @@ contains
        enddo
        print*, ' '
     endif  ! this_rank = rtest
-
- endif  ! old_glp
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
