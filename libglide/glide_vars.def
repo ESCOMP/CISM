@@ -81,6 +81,12 @@ data:          data%ocean_data%zocn
 positive:      up
 dimlen:        data%ocean_data%nzocn
 
+[nlev_smb]
+dimensions:    nlev_smb
+units:         1
+long_name:     vertical level for SMB forcing
+dimlen:        model%climate%nlev_smb
+
 [lithoz]
 dimensions:    lithoz
 units:         meter
@@ -900,6 +906,113 @@ long_name:     accumulation, ablation rate
 data:          data%climate%acab
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance
+coordinates:   lon lat
+load:          1
+
+[smb_ref]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance at reference elevation
+data:          data%climate%smb_ref
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance_reference
+coordinates:   lon lat
+load:          1
+
+[smb_gradz]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent per m
+long_name:     surface mass balance vertical gradient
+data:          data%climate%smb_gradz
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
+coordinates:   lon lat
+load:          1
+
+[acab_ref]
+dimensions:    time, y1, x1
+units:         meter/year ice
+long_name:     accumulation, ablation rate
+data:          data%climate%acab_ref
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_reference
+coordinates:   lon lat
+load:          1
+
+[acab_gradz]
+dimensions:    time, y1, x1
+units:         m/year ice per m
+long_name:     surface mass balance vertical gradient
+data:          data%climate%acab_gradz
+factor:        scale_acab/thk0
+standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
+coordinates:   lon lat
+load:          1
+
+[artm_ref]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     surface temperature at reference elevation
+data:          data%climate%artm_ref
+standard_name: land_ice_surface_temperature_reference
+coordinates:   lon lat
+load:          1
+
+[artm_gradz]
+dimensions:    time, y1, x1
+units:         deg Celsius per m
+long_name:     surface temperature vertical gradient
+data:          data%climate%artm_gradz
+standard_name: land_ice_surface_temperature_vertical_gradient
+coordinates:   lon lat
+load:          1
+
+[smb_reference_usrf]
+dimensions:    time, y1, x1
+units:         m
+long_name:     reference upper surface elevation for SMB forcing
+data:          data%climate%smb_reference_usrf
+factor:        thk0
+standard_name: land_ice_specific_surface_mass_balance_reference_elevation
+coordinates:   lon lat
+load:          1
+
+[smb_3d]
+dimensions:    time, nlev_smb, y1, x1
+units:         mm/year water equivalent
+long_name:     3D surface mass balance
+data:          data%climate%smb_3d(up,:,:)
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance_3d
+coordinates:   lon lat
+load:          1
+
+[acab_3d]
+dimensions:    time, nlev_smb, y1, x1
+units:         m/year ice
+long_name:     3D surface mass balance
+data:          data%climate%acab_3d(up,:,:)
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_3d
+coordinates:   lon lat
+load:          1
+
+[artm_3d]
+dimensions:    time, nlev_smb, y1, x1
+units:         deg Celsius
+long_name:     3D surface temperature
+data:          data%climate%artm_3d(up,:,:)
+standard_name: land_ice_surface_temperature_3d
+coordinates:   lon lat
+load:          1
+
+[smb_levels]
+dimensions:    time, nlev_smb
+units:         m
+long_name:     surface mass balance reference levels
+data:          data%climate%smb_levels
+factor:        thk0
+standard_name: land_ice_surface_specific_mass_balance_reference_levels
 coordinates:   lon lat
 load:          1
 

@@ -145,6 +145,14 @@ module glide_types
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
+  integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
+  integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
+  integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
+
+  integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
+  integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
+  integer, parameter :: ARTM_INPUT_FUNCTION_XYZ = 2
+ 
   integer, parameter :: OVERWRITE_ACAB_NONE = 0
   integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
   integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
@@ -491,6 +499,7 @@ module glide_types
     !> \item[1] Basal mass balance included in continuity equation
     !> \end{description}
 
+    !TODO - Change name to smb_input_units?
     integer :: smb_input = 0
 
     !> units for SMB input:
@@ -499,6 +508,24 @@ module glide_types
     !> \item[1] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
+    integer :: smb_input_function = 0
+
+    !> functional form of SMB input:
+    !> \begin{description}
+    !> \item[0] SMB(x,y); input as a function of horizontal location only
+    !> \item[1] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
+    !> \item[2] SMB(x,y,z); input SMB at multiple elevations
+    !> \end{description}
+
+    integer :: artm_input_function = 0
+
+    !> functional form of surface temperature (artm) input:
+    !> \begin{description}
+    !> \item[0] artm(x,y); input as a function of horizontal location only
+    !> \item[1] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
+    !> \item[2] artm(x,y,z); input artm at multiple elevations
+    !> \end{description}
+
     logical :: enable_acab_anomaly = .false.
     !> if true, then apply a prescribed anomaly to acab
 
@@ -1214,6 +1241,25 @@ module glide_types
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask for cells where advance is not allowed 
                                                                   !> (any ice reaching these locations is eliminated)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
+
+     ! Next several fields used for SMB_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_GRADZ
+     ! Note: If both smb and artm are input in this format, they share the array smb_reference_ursf.
+     !       Sign convention is positive up, so artm_gradz is usually negative.
+     real(dp),dimension(:,:),pointer :: acab_ref => null()            !> SMB at reference elevation (m/yr ice)
+     real(dp),dimension(:,:),pointer :: acab_gradz => null()          !> vertical gradient of acab (m/yr ice per m), positive up
+     real(dp),dimension(:,:),pointer :: smb_ref  => null()            !> SMB at reference elevation (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: smb_gradz  => null()          !> vertical gradient of SMB (mm/yr w.e. per m), positive up
+     real(dp),dimension(:,:),pointer :: smb_reference_usrf => null()  !> reference upper surface elevation for SMB before lapse rate correction (m)
+     real(dp),dimension(:,:),pointer :: artm_ref => null()            !> artm at reference elevation (deg C)
+     real(dp),dimension(:,:),pointer :: artm_gradz => null()          !> vertical gradient of artm (deg C per m), positive up
+
+     ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
+     ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
+     real(dp),dimension(:,:,:),pointer :: acab_3d       => null() !> SMB at multiple vertical levels (m/yr ice)
+     real(dp),dimension(:,:,:),pointer :: smb_3d        => null() !> SMB at multiple vertical levels (mm/yr w.e.)
+     real(dp),dimension(:)    ,pointer :: smb_levels    => null() !> Reference vertical levels for SMB (m)
+     integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided
+     real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
@@ -2558,6 +2604,34 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_gradz)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_gradz)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%acab_3d)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%smb_3d)
+       allocate(model%climate%smb_levels(model%climate%nlev_smb))
+    endif
+
+    ! Note: Typically, smb_input_function and acab_input_function will have the same value.
+    !       If both use a lapse rate, they will share the array smb_reference_usrf.
+    !       If both are 3d, they will shard the array smb_levels.
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_gradz)
+       if (.not.associated(model%climate%smb_reference_usrf)) then
+          call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
+       endif
+    elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%artm_3d)
+       if (.not.associated(model%climate%smb_levels)) then
+          allocate(model%climate%smb_levels(model%climate%nlev_smb))
+       endif
+    endif
+
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
@@ -3074,6 +3148,26 @@ contains
         deallocate(model%climate%no_advance_mask)
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
+    if (associated(model%climate%acab_ref)) &
+        deallocate(model%climate%acab_ref)
+    if (associated(model%climate%acab_gradz)) &
+        deallocate(model%climate%acab_gradz)
+    if (associated(model%climate%smb_ref)) &
+        deallocate(model%climate%smb_ref)
+    if (associated(model%climate%smb_gradz)) &
+        deallocate(model%climate%smb_gradz)
+    if (associated(model%climate%smb_reference_usrf)) &
+        deallocate(model%climate%smb_reference_usrf)
+    if (associated(model%climate%artm_ref)) &
+        deallocate(model%climate%artm_ref)
+    if (associated(model%climate%artm_gradz)) &
+        deallocate(model%climate%artm_gradz)
+    if (associated(model%climate%acab_3d)) &
+        deallocate(model%climate%acab_3d)
+    if (associated(model%climate%smb_3d)) &
+        deallocate(model%climate%smb_3d)
+    if (associated(model%climate%artm_3d)) &
+        deallocate(model%climate%artm_3d)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
