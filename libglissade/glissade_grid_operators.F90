@@ -49,7 +49,8 @@ module glissade_grid_operators
     public :: glissade_stagger, glissade_unstagger,    &
               glissade_gradient, glissade_gradient_at_edges, &
               glissade_surface_elevation_gradient,  &
-              glissade_vertical_average
+              glissade_vertical_average,  &
+              glissade_vertical_interpolate
 
     logical, parameter :: verbose_gradient = .false.
 
@@ -1238,6 +1239,87 @@ contains
     endif   ! present(mask)
 
   end subroutine glissade_vertical_average
+
+!****************************************************************************
+
+  subroutine glissade_vertical_interpolate(nx,       ny,           &
+                                           nz,       vert_levels,  &
+                                           usrf,                   &
+                                           field_3d, field,        &
+                                           linear_extrapolate_in)
+
+
+    ! Given an input field (e.g., surface mass balance), supplied at various vertical levels,
+    ! downscale the field to elevation usrf by linear interpolation.
+
+    ! input-output arguments
+
+    integer, intent(in) ::   &
+       nx, ny,            &     ! horizontal grid dimensions
+       nz                       ! number of vertical levels
+
+    real(dp), dimension(nz), intent(in) :: vert_levels       ! vertical levels at which input data is supplied
+    real(dp), dimension(nx,ny), intent(in) :: usrf           ! upper surface elevation
+    real(dp), dimension(nz,nx,ny), intent(in) :: field_3d    ! input field supplied at vertical levels
+    real(dp), dimension(nx,ny), intent(out) :: field         ! output field downscaled to elevation usrf
+
+    logical, intent(in), optional ::  &
+         linear_extrapolate_in    ! if true, then use linear extrapolation outside the given range of vertical levels
+                                  ! if false, then simply extrapolate the top and bottom values
+
+    ! local variables
+
+    integer :: i, j, k
+    real(dp) :: field_grad        ! vertical gradient of field
+    logical :: linear_extrapolate
+
+    if (present(linear_extrapolate_in)) then
+       linear_extrapolate = linear_extrapolate_in
+    else
+       linear_extrapolate = .false.
+    endif
+
+    do j = 1, ny
+       do i = 1, nx
+
+          if (usrf(i,j) >= vert_levels(nz)) then
+
+             if (linear_extrapolate) then  ! linear extrapolation from top two levels
+                field_grad = (field_3d(nz,i,j) - field_3d(nz-1,i,j)) / (vert_levels(nz) - vert_levels(nz-1))
+                field(i,j) = field_3d(nz,i,j) + field_grad * (usrf(i,j) - vert_levels(nz))
+             else  ! simply extend the top value
+                field(i,j) = field_3d(nz,i,j)
+             endif
+
+          elseif (usrf(i,j) < vert_levels(1)) then
+
+             if (linear_extrapolate) then  ! linear extrapolation from bottom two levels
+                field_grad = (field_3d(2,i,j) - field_3d(1,i,j)) / (vert_levels(2) - vert_levels(1))
+                field(i,j) = field_3d(1,i,j) + field_grad * (usrf(i,j) - vert_levels(1))  ! note usrf - vert_levels(1) < 0
+             else  ! simply extend the bottom value
+                field(i,j) = field_3d(1,i,j)
+             endif
+
+          else  ! vert_levels(1) <= usrf <= vert_levels(nz)
+                ! linear interpolation between adjacent levels
+
+             do k = 2, nz
+
+                if (usrf(i,j) < vert_levels(k)) then
+                   field_grad = (field_3d(k,i,j) - field_3d(k-1,i,j)) / (vert_levels(k) - vert_levels(k-1))
+                   field(i,j) = field_3d(k-1,i,j) + field_grad * (usrf(i,j) - vert_levels(k-1))
+                endif
+
+             enddo  ! k
+
+          endif  ! usrf v. smb_levels
+
+       enddo   ! i
+    enddo   ! j
+
+    call parallel_halo(field)
+
+  end subroutine glissade_vertical_interpolate
 
 !****************************************************************************
 

@@ -218,28 +218,6 @@ contains
     ! Write projection info to log
     call glimmap_printproj(model%projection)
 
-    ! If SMB input units are mm/yr w.e., then convert to units of acab.
-    ! Note: In this case the input field should be called 'smb', not 'acab'.
-
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-
-       ! make sure a nonzero SMB was read in
-       var_maxval = maxval(abs(model%climate%smb))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval < 1.0d-11) then
-          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       ! Convert units from mm/yr w.e. to m/yr ice
-       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
-
-       ! Convert acab from m/yr ice to model units
-       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
-
-    else
-       ! assume acab was read in with units of m/yr ice; do nothing
-    endif
 
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first
@@ -300,6 +278,128 @@ contains
 
     ! initialize model diagnostics
     call glide_init_diag(model)
+
+    ! Set debug diagnostics
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+
+    ! Check that an SMB field was read in, if needed.
+    ! For the default settings (smb_input_function = SMB_INPUT_FUNCTION_XY and
+    !  smb_input = SMB_INPUT_MYR_ICE), it is not expected that acab is nonzero,
+    !  since idealized tests often have SMB = 0.
+    ! For non-default settings, check that the required fields have nonzero values,
+    !  meaning they were present in the input file and were read in.
+    !
+    ! If SMB input units are mm/yr w.e., then convert to acab units of m/yr ice,
+    !  and then convert to model units.
+    ! Note: In this case the input fields should have 'smb' in their names, not 'acab'.
+    !       By convention in glide_vars.def, input SMB fields are not scaled,
+    !       so smb, smb_ref, and smb_3d have units of mm/yr w.e., and
+    !       smb_gradz has units of mm/yr w.e. per m
+
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
+
+       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+
+          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+          model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+          model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+
+          ! Check that a nonzero SMB was read in; if not, then print a warning
+          var_maxval = maxval(abs(model%climate%acab))
+          var_maxval = parallel_reduce_max(var_maxval)
+          if (var_maxval < 1.0d-11) then
+             write(message,*) 'Warning: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
+             call write_log(trim(message), GM_WARNING)
+          endif
+
+       else  ! smb_input = SMB_INPUT_MYR_ICE; nothing to do here
+
+       endif
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+
+       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+
+          ! Convert units of acab_ref from mm/yr w.e. to m/yr ice
+          ! Convert units of acab_gradz from (mm/yr per m) to (m/yr ice per m)
+          model%climate%acab_ref(:,:) = model%climate%smb_ref(:,:) * (rhow/rhoi) / 1000.d0
+          model%climate%acab_gradz(:,:) = model%climate%smb_gradz(:,:) * (rhow/rhoi) / 1000.d0
+
+          ! convert to model units
+          model%climate%acab_ref(:,:) = model%climate%acab_ref(:,:) / scale_acab
+          model%climate%acab_gradz(:,:) = model%climate%acab_gradz(:,:) * thk0/scale_acab
+
+       endif
+
+       ! Check that a nonzero SMB was read in (this is the SMB at the reference elevation)
+       ! Note: In general the lapse rate will be nonzero for this option, but a zero lapse rate is not fatal.
+       var_maxval = maxval(abs(model%climate%acab_ref))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input_funcion =', &
+               SMB_INPUT_FUNCTION_XY_GRADZ
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+
+       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+          model%climate%acab_3d(:,:,:) = model%climate%smb_3d(:,:,:) * (rhow/rhoi) / 1000.d0
+          model%climate%acab_3d(:,:,:) = model%climate%acab_3d(:,:,:) / scale_acab
+       endif
+
+       ! Check that a nonzero SMB was read in (this is the 3D SMB at various vertical levels)
+       var_maxval = maxval(abs(model%climate%acab_3d))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input_function =', &
+               SMB_INPUT_FUNCTION_XYZ
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    endif   ! smb_input_function
+
+    ! Check that a surface temperature field was read in, if needed.
+    ! For the default setting (acab_input_function = ACAB_INPUT_FUNCTION_XY),
+    !  it is not expected that artm is nonzero, since idealized tests may have artm = 0.
+    ! For non-default settings, check that the required fields have nonzero values,
+    !  meaning they were present in the input file and were read in.
+
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+
+       ! convert lapse rate to model units
+       model%climate%artm_gradz(:,:) = model%climate%artm_gradz(:,:) * thk0
+
+       call parallel_halo(model%climate%artm_gradz)
+
+       ! Check that a nonzero artm was read in (this is artm at the reference elevation)
+       ! Note: In general the lapse rate will be nonzero for this option, but a zero lapse rate is not fatal.
+       var_maxval = maxval(abs(model%climate%artm_ref))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero artm field with artm_input_funcion =', &
+               ARTM_INPUT_FUNCTION_XY_GRADZ
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       call parallel_halo(model%climate%artm_3d)
+
+       ! Check that a nonzero artm was read in (this is the 3D artm at various vertical levels)
+       var_maxval = maxval(abs(model%climate%artm_3d))
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval < 1.0d-11) then
+          write(message,*) 'Error: Failed to read in a nonzero artm field with artm_input_function =', &
+               ARTM_INPUT_FUNCTION_XYZ
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    endif   ! artm_input_function
+
 
 !!    if (this_rank == model%numerics%rdiag_local) then
 !!       i = model%numerics%idiag_local
@@ -504,11 +604,6 @@ contains
           model%geometry%thck = 0.d0
        endwhere
     endif
-
-    ! Set debug diagnostics
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
 
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
@@ -1050,6 +1145,7 @@ contains
     use glimmer_paramets, only: tim0, thk0, len0
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat
+    use glissade_grid_operators, only: glissade_vertical_interpolate
 
     implicit none
 
@@ -1067,6 +1163,38 @@ contains
     call t_startf('glissade_thermal_solve')
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
+
+    ! Downscale artm to the current surface elevation if needed.
+    ! Depending on the value of artm_input_function, artm might be dependent on the upper surface elevation.
+    ! The options are:
+    ! (0) artm(x,y); no dependence on surface elevation
+    ! (1) artm(x,y) + d(artm)/dz(x,y) * dz; artm depends on input field at reference elevation, plus vertical correction
+    ! (2) artm(x,y,z); artm obtained by linear interpolation between values prescribed at adjacent vertical levels
+    ! For options (1) and (2), the elevation-dependent artm is computed here.
+
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+
+       ! compute artm by a lapse-rate correction to the reference value
+
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
+            (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%artm_gradz(:,:)
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       ! Note: With linear_extrapolate_in = T, the values outside the range are obtained by linear extrapolation
+       !        from the top two or bottom two values.
+       !       For temperature, which varies roughly linearly with elevation, this is more accurate
+       !        than simply extending the top and bottom values.
+       !       This call includes a halo update.
+
+       call glissade_vertical_interpolate(model%general%ewn,      model%general%nsn,         &
+                                          model%climate%nlev_smb, model%climate%smb_levels,  &
+                                          model%geometry%usrf,                               &
+                                          model%climate%artm_3d,                             &
+                                          model%climate%artm,                                &
+                                          linear_extrapolate_in = .true.)
+
+    endif   ! artm_input_function
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
@@ -1165,6 +1293,7 @@ contains
                                   glissade_add_mbal_anomaly
     use glissade_masks, only: glissade_get_masks
     use glissade_inversion, only: verbose_inversion
+    use glissade_grid_operators, only: glissade_vertical_interpolate
 
     implicit none
 
@@ -1211,8 +1340,10 @@ contains
     integer :: ntracers             ! number of tracers to be transported
 
     integer :: i, j, k
-    integer :: ewn, nsn, upn
+    integer :: ewn, nsn, upn, nlev_smb
     integer :: itest, jtest, rtest
+
+    logical, parameter :: verbose_smb = .false.
 
     rtest = -999
     itest = 1
@@ -1226,6 +1357,7 @@ contains
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
+    nlev_smb = model%climate%nlev_smb
 
     select case(model%options%whichevol)
 
@@ -1403,6 +1535,175 @@ contains
        ! Prepare the surface and basal mass balance terms.
        ! Note: The basal mass balance has been computed in subroutine glissade_bmlt_float_solve.
        !-------------------------------------------------------------------------
+
+       ! Downscale acab to the current surface elevation if needed.
+       ! Depending on the value of smb_input_function, the SMB (i.e., acab) might be dependent on the upper surface elevation.
+       ! The options are:
+       ! (0) SMB(x,y); no dependence on surface elevation
+       ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
+       ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
+       ! For options (1) and (2), the elevation-dependent SMB is computed here.
+
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+
+          ! compute SMB by a lapse-rate correction to the reference value
+
+          model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
+               (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%acab_gradz(:,:)
+
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+
+          ! downscale SMB to the local surface elevation (includes a halo update)
+          ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
+          !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward)
+
+          call glissade_vertical_interpolate(ewn,       nsn,                       &
+                                             nlev_smb,  model%climate%smb_levels,  &
+                                             model%geometry%usrf,                  &
+                                             model%climate%acab_3d,                &
+                                             model%climate%acab,                   &
+                                             linear_extrapolate_in = .false.)
+
+       endif   ! smb_input_function
+
+       if (verbose_smb .and. this_rank == rtest) then
+
+          i = itest
+          j = jtest
+          write(6,*) 'Computing runtime acab with smb_input_function =', model%options%smb_input_function
+          write(6,*) 'r, i, j =', this_rank, i, j
+          write(6,*) ' '
+          print*, 'usrf (m)'
+          write(6,'(a6)',advance='no') '      '
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') i
+          enddo
+          write(6,*) ' '
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j) * thk0
+             enddo
+             write(6,*) ' '
+          enddo
+
+          if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+             write(6,*) ' '
+             write(6,*) 'usrf - smb_ref_elevation'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%climate%smb_reference_usrf(i,j)) * thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'reference acab (m/yr ice)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%acab_ref(i,j) * scale_acab
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'acab_gradz (m/yr per km)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%acab_gradz(i,j) * scale_acab/thk0 * 1000.d0
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'adjusted acab (m/yr ice)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%acab(i,j) * scale_acab
+                enddo
+                write(6,*) ' '
+             enddo
+
+          elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+
+             k = model%climate%nlev_smb/2 + 1  ! arbitrary k
+             write(6,*) 'Diagnostic level k, usrf =', k, model%climate%smb_levels(k)*thk0
+             write(6,*) ' '
+             write(6,*) '3d acab(k) (m/yr ice)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%acab_3d(k,i,j) * scale_acab
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'adjusted acab (m/yr ice)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%acab(i,j) * scale_acab
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif  ! smb_input_function
+
+          if (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+
+             write(6,*) ' '
+             write(6,*) 'reference artm (deg C)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%artm_ref(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'artm_gradz (deg C per m)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%artm_gradz(i,j)/thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'adjusted artm (deg C)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%artm(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+             write(6,*) ' '
+             write(6,*) '3d artm(k) (deg C)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%artm_3d(k,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'adjusted artm (deg C)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%artm(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif   ! artm_input_function
+
+       endif  ! verbose_smb and this_rank
 
        ! Compute a corrected acab field that includes any prescribed anomalies.
        ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.

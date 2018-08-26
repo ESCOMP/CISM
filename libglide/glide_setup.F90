@@ -563,6 +563,9 @@ contains
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
+    call GetValue(section,'smb_input_function',model%options%smb_input_function)
+    call GetValue(section,'artm_input_function',model%options%artm_input_function)
+    call GetValue(section,'nlev_smb',model%climate%nlev_smb)
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'gthf',model%options%gthf)
@@ -736,6 +739,16 @@ contains
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
+
+    character(len=*), dimension(0:2), parameter :: smb_input_function = (/ &
+         'SMB input as function of (x,y)              ', &
+         'SMB and d(SMB)/dz input as function of (x,y)', &
+         'SMB input as function of (x,y,z)            ' /)
+
+    character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
+         'artm input as function of (x,y)               ', &
+         'artm and d(artm)/dz input as function of (x,y)', &
+         'artm input as function of (x,y,z)             ' /)
 
     character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
@@ -1224,8 +1237,38 @@ contains
        call write_log('Error, smb_input option out of range',GM_FATAL)
     end if
 
-    write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
+    write(message,*) 'smb input units         : ',model%options%smb_input,smb_input(model%options%smb_input)
     call write_log(message)
+
+    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
+       call write_log('Error, smb_input_function option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'smb input function      : ', &
+         model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
+    call write_log(message)
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+       write(message,*) 'number of SMB levels    : ', model%climate%nlev_smb
+       call write_log(message)
+       if (model%climate%nlev_smb < 2) then
+          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
+       endif
+    endif
+
+    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
+       call write_log('Error, artm_input_function option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'artm input function     : ', &
+         model%options%artm_input_function, artm_input_function(model%options%artm_input_function)
+    call write_log(message)
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+       write(message,*) 'number of artm levels   : ', model%climate%nlev_smb
+       call write_log(message)
+       if (model%climate%nlev_smb < 2) then
+          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
+       endif
+    endif
 
     if (model%options%enable_acab_anomaly) then
        call write_log('acab anomaly forcing is enabled')
@@ -2428,19 +2471,75 @@ contains
     !        Note that bheatflx may not be an input variable but can also be assigned as a parameter in the config file!
     call glide_add_to_restart_variable_list('topg thk temp bheatflx artm')
 
-    ! add the SMB variable, based on model%options%smb_input
+    ! add the SMB variable, based on options%smb_input
+    ! Note: SMB can be input in one of several functional forms:
+    !       - SMB(x,y)
+    !       - SMB(x,y) at reference elevation, plus vertical gradient dSMB/dz(x,y)
+    !       - SMB(x,y,z), where z is defined by reference levels
     ! Note: If the SMB field is 'acab', it is assumed to have units of m/y ice
     !       If the SMB field is 'smb', it is assumed to have units of mm/y w.e.
 
-    select case (options%smb_input)
+    select case(options%smb_input_function)
 
-      case (SMB_INPUT_MYR_ICE)
-        call glide_add_to_restart_variable_list('acab')
+       case(SMB_INPUT_FUNCTION_XY)
 
-      case (SMB_INPUT_MMYR_WE)
-        call glide_add_to_restart_variable_list('smb')
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb')
+          end select  ! smb_input
 
-    end select  ! smb_input
+       case(SMB_INPUT_FUNCTION_XY_GRADZ)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab_ref')
+             call glide_add_to_restart_variable_list('acab_gradz')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb_ref')
+             call glide_add_to_restart_variable_list('smb_gradz')
+          end select
+
+          call glide_add_to_restart_variable_list('smb_reference_usrf')
+
+       case(SMB_INPUT_FUNCTION_XYZ)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab_3d')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb_3d')
+          end select
+
+          call glide_add_to_restart_variable_list('smb_levels')
+
+    end select  ! smb_input_function
+
+    ! Similarly for surface temperature (artm), based on options%artm_input
+    ! Note: These options share smb_reference_usrf and smb_levels with the SMB options above.
+
+    select case(options%artm_input_function)
+
+       case(ARTM_INPUT_FUNCTION_XY_GRADZ)
+          call glide_add_to_restart_variable_list('artm_ref')
+          call glide_add_to_restart_variable_list('artm_gradz')
+          if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+             ! smb_reference_usrf was added to restart above; nothing to do here
+          else
+             call glide_add_to_restart_variable_list('smb_reference_usrf')
+          endif
+
+       case(ARTM_INPUT_FUNCTION_XYZ)
+          call glide_add_to_restart_variable_list('artm_3d')
+          if (options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+             ! smb_levels was added to restart above; nothing to do here
+          else
+             call glide_add_to_restart_variable_list('smb_levels')
+          endif
+
+    end select  ! artm_input_function
+
 
     select case (options%whichbmlt_float)
 
