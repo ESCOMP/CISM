@@ -833,7 +833,8 @@ contains
 
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
          ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
-         floating_mask            ! = 1 if ice is present (thck > 0) and floating
+         floating_mask,         & ! = 1 if ice is present (thck > 0) and floating
+         ocean_mask               ! = 0 if ice is absent (thck = 0) and topg < 0
 
     real(dp) :: previous_time
 
@@ -920,21 +921,27 @@ contains
 
     endif
 
+    ! Compute masks:
+    ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
+
+    call glissade_get_masks(ewn,                 nsn,                   &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask)
+
+    ! Zero out bmlt_float in cells that are currently ice-free ocean
+
+    where (ocean_mask == 1)
+       model%basal_melt%bmlt_float = 0.0d0
+    endwhere
+
     ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
 
     if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_NO_GLP) then
 
-       ! Compute masks:
-       ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
-
-       call glissade_get_masks(ewn,                 nsn,                   &
-                               model%geometry%thck, model%geometry%topg,   &
-                               model%climate%eus,   0.0d0,                 &  ! thklim = 0
-                               ice_mask,                                   &
-                               floating_mask = floating_mask)
-
        ! Limit basal melting to cells where ice is present and floating (floating_mask = 1).
-
        where (floating_mask == 0)
           model%basal_melt%bmlt_float = 0.0d0
        endwhere
@@ -944,6 +951,7 @@ contains
        if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
 
           ! Where unstagf_ground > 0, multiply bmlt_float by the fraction of the cell that is floating.
+          ! Cells that are fully grounded will have bmlt_float = 0.
           ! This option ensures smooth changes in bmlt_float as the GL migrates.
           ! However, it may allow spurious melting of grounded ice near the GL.
 
@@ -955,6 +963,7 @@ contains
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
 
           ! Where unstagf_ground > 0, set bmlt_float = 0.
+          ! Cells that are even partly grounded will have bmlt_float = 0.
           ! This option ensures no spurious melting of grounded ice near the GL.
           ! However, it may underestimate melting of floating ice near the GL, especially on coarser grids.
 
@@ -1530,6 +1539,9 @@ contains
           endwhere
 
        endif  ! which_ho_inversion
+
+       ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
+       !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
 
        ! Initialize the applied acab and bmlt.
        ! Note: These are smaller in magnitude than the input acab and bmlt for cells where either
