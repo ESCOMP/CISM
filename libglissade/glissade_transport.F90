@@ -1367,6 +1367,7 @@
       real(dp), intent(in) ::   &
          dt                     ! time step (s)
 
+      !TODO - Could remove ocean_mask argument, if acab and bmlt have already been set to 0 for ice-free ocean cells.
       integer, dimension(nx,ny), intent(in) :: &
          ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
