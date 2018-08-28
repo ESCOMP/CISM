@@ -34,26 +34,38 @@ module glimmer_physcon
 
   use glimmer_global, only : dp
 
-#ifdef CCSMCOUPLED 
+#ifdef CCSMCOUPLED
 
   !Note: These CESM values are current as of September 2015.
-  use shr_const_mod, only: pi=>     SHR_CONST_PI,&       ! 3.14159265358979323846
-                           rhoi=>   SHR_CONST_RHOICE,&   ! 0.917e3
-                           rhoo=>   SHR_CONST_RHOSW,&    ! 1.026e3
-                           rhow=>   SHR_CONST_RHOFW,&    ! 1.000e3
-                           rearth=> SHR_CONST_REARTH,&   ! 6.37122e6
-                           grav=>   SHR_CONST_G,&        ! 9.80616
-                           shci=>   SHR_CONST_CPICE,&    ! 2.11727e3
-                           lhci=>   SHR_CONST_LATICE,&   ! 3.337e5
-                           trpt=>   SHR_CONST_TKTRIP     ! 273.16
+  use shr_const_mod, only: SHR_CONST_PI,&       ! 3.14159265358979323846
+                           SHR_CONST_RHOICE,&   ! 0.917e3
+                           SHR_CONST_RHOSW,&    ! 1.026e3
+                           SHR_CONST_RHOFW,&    ! 1.000e3
+                           SHR_CONST_REARTH,&   ! 6.37122e6
+                           SHR_CONST_G,&        ! 9.80616
+                           SHR_CONST_CPICE,&    ! 2.11727e3
+                           SHR_CONST_LATICE,&   ! 3.337e5
+                           SHR_CONST_TKTRIP     ! 273.16
+
   implicit none  
   save
  
-#else   
+  real(dp), parameter :: pi = SHR_CONST_PI
+  real(dp), parameter :: rhow = SHR_CONST_RHOFW
+  real(dp), parameter :: rearth = SHR_CONST_REARTH
 
-  implicit none  
+  real(dp) :: rhoi = SHR_CONST_RHOICE
+  real(dp) :: rhoo = SHR_CONST_RHOSW
+  real(dp) :: grav = SHR_CONST_G
+  real(dp) :: shci = SHR_CONST_CPICE
+  real(dp) :: lhci = SHR_CONST_LATICE
+  real(dp) :: trpt = SHR_CONST_TKTRIP
+
+#else
+
+  implicit none
   save
-                                         
+
   real(dp),parameter :: pi = 3.14159265358979d0  !< Value of \f$\pi\f$.
   real(dp),parameter :: rhow = 1000.0d0          !< The density of fresh water (kg m<SUP>-3</SUP>)  
   real(dp),parameter :: rearth  = 6.37122d6      ! radius of earth (m)  
