@@ -44,7 +44,6 @@ IF (CISM_COUPLED)
   SET(CISM_BUILD_SIMPLE_GLIDE "OFF")
   SET(CISM_ENABLE_BISICLES "OFF")
   SET(CISM_USE_CISM_FRONT_END "OFF")
-  SET(CISM_USE_DEFAULT_IO "ON")
   ADD_DEFINITIONS(-DCCSMCOUPLED)
 ENDIF()
 
@@ -189,26 +188,15 @@ IF (NOT CISM_USE_DEFAULT_IO)
  
   MESSAGE(">> see ${CISM_BINARY_DIR}/autogenerate.log")
 
-  IF (CISM_USE_CISM_FRONT_END)
-    # Auto-generate the *_io.F90 files in the build directory:
-    MESSAGE(">> Calling utils/build/autogenerate-in-build-dir")
-    EXECUTE_PROCESS(COMMAND  ${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-and-glad-in-build-dir
-                    ${CISM_SOURCE_DIR} 
-                    WORKING_DIRECTORY ${CISM_BINARY_DIR}
-                    OUTPUT_FILE ${CISM_BINARY_DIR}/autogen-for-glint-and-glad.log)
- 
-    MESSAGE(">> see ${CISM_BINARY_DIR}/autogen-for-glint-and-glad.log")
-  ENDIF()
-
-ELSE()
-  # Simply copy the default io files into the build directory
-  MESSAGE(">> Calling utils/build/autocopy-io-to-build-dir")
-  EXECUTE_PROCESS(COMMAND  ${CISM_SOURCE_DIR}/utils/build/autocopy-io-to-build-dir
-                  ${CISM_SOURCE_DIR}
+  # Auto-generate the *_io.F90 files in the build directory:
+  MESSAGE(">> Calling utils/build/autogenerate-in-build-dir")
+  EXECUTE_PROCESS(COMMAND  ${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-and-glad-in-build-dir
+                  ${CISM_SOURCE_DIR} 
                   WORKING_DIRECTORY ${CISM_BINARY_DIR}
-                  OUTPUT_FILE ${CISM_BINARY_DIR}/autocopy-io.log)
-		
-  MESSAGE(">> see ${CISM_BINARY_DIR}/autocopy-io.log")
+                  OUTPUT_FILE ${CISM_BINARY_DIR}/autogen-for-glint-and-glad.log)
+ 
+  MESSAGE(">> see ${CISM_BINARY_DIR}/autogen-for-glint-and-glad.log")
+
 ENDIF()
 
 # Copy a few needed files to the build directory:
