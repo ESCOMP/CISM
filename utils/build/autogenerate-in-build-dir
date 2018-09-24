@@ -12,7 +12,7 @@ echo
 mkdir -p fortran_autogen_srcs
 pushd fortran_autogen_srcs
 
-rm *.F90
+#rm *.F90
 
 if [ $# -eq 1 ];
   then
@@ -39,9 +39,9 @@ python2 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glide_vars.def ncdf_temp
 #cp $CISM_SOURCE_DIR/example-drivers/eis/src/eis_vars.def .
 #python2 ../../../utils/build/generate_ncvars.py eis_vars.def ncdf_template.F90.in
 
-echo "  --deleting temporary .def files and template file"
-rm *.def
-rm ncdf_template.F90.in
+#echo "  --deleting temporary .def files and template file"
+#rm *.def
+#rm ncdf_template.F90.in
 
 popd
 
