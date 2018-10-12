@@ -121,13 +121,16 @@ module glad_main
   ! Some notes on coupling to the Community Earth System Model (CESM).  These may be applicable
   ! for coupling to other GCMs:
   !
-  ! When coupled to CESM, Glad receives two fields from the coupler on the ice sheet grid:
+  ! When coupled to CESM, Glad can receives three fields from the coupler on the ice sheet grid:
   !   qsmb = surface mass balance (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
+  !   melt_rate = basal melt rate under floating ice (kg/m^2/s)
   ! Both qsmb and tsfc are computed in the CESM land model.
+  ! melt_rate is computed in the CESM icean model.
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
+  !   thck = ice sheet thickness (m)
   !   hflx = heat flux from the ice interior to the surface (W/m^2)
   !   rofi = ice runoff (i.e., calving) (kg/m^2/s)
   !   rofl = liquid runoff (i.e., basal melting; the land model handles sfc runoff) (kg/m^2/s)
@@ -331,7 +334,7 @@ contains
   !===================================================================
   
   subroutine glad_get_initial_outputs(params,         instance_index,        &
-                                      ice_covered,    topo,                  &
+                                      ice_covered,    topo,           thck,  &
                                       rofi,           rofl,           hflx,  &
                                       ice_sheet_grid_mask,                   &
                                       output_flag)
@@ -348,6 +351,7 @@ contains
 
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
+    real(dp),dimension(:,:),intent(out) :: thck         ! ice sheet thickness(m)
     real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
@@ -358,7 +362,7 @@ contains
     ! Begin subroutine code --------------------------------------------------------------------
 
     call glad_set_output_fields(params%instances(instance_index), &
-         ice_covered, topo, rofi, rofl, hflx, &
+         ice_covered, topo, thck, rofi, rofl, hflx, &
          ice_sheet_grid_mask)
     
     if (present(output_flag)) output_flag = .true.
@@ -542,11 +546,12 @@ contains
   
   !===================================================================
 
-  subroutine glad_gcm(params,         instance_index, time,  &
-                      qsmb,           tsfc,                  &
-                      ice_covered,    topo,                  &
-                      rofi,           rofl,           hflx,  &
-                      ice_sheet_grid_mask, valid_inputs,     &
+  subroutine glad_gcm(params,         instance_index, time,     &
+                      qsmb,           tsfc,                     &
+                      melt_rate,                                &
+                      ice_covered,    topo,           thck,     &
+                      rofi,           rofl,           hflx,     &
+                      ice_sheet_grid_mask, valid_inputs,        &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
@@ -577,9 +582,11 @@ contains
 
     real(dp),dimension(:,:),intent(in)    :: qsmb          ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc          ! input surface ground temperature (deg C)
+    real(dp),dimension(:,:),intent(in)    :: melt_rate     ! inpute basal melt rate under floating ice (kg/m^2/s)
 
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
+    real(dp),dimension(:,:),intent(inout) :: thck         ! output ice sheet thickness (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(inout) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
@@ -597,6 +604,7 @@ contains
     ! version of input fields with halo cells
     real(dp),dimension(:,:),allocatable :: qsmb_haloed
     real(dp),dimension(:,:),allocatable :: tsfc_haloed
+    real(dp),dimension(:,:),allocatable :: melt_rate_haloed
 
     logical :: icets
     character(250) :: message
@@ -617,8 +625,10 @@ contains
        nsn = get_nsn(params%instances(instance_index)%model)
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
+       allocate(melt_rate_haloed(ewn,nsn))
        call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
+       call parallel_convert_nonhaloed_to_haloed(melt_rate, melt_rate_haloed)
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
             qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
@@ -674,12 +684,15 @@ contains
                params%instances(instance_index)%next_time + &
                params%instances(instance_index)%mbal_tstep
 
+          ! Assign cism output field to field passed from cpl
+          params%instances(instance_index)%bmlt_float_external = melt_rate
+
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
           call calculate_averages(&
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
-               tsfc = params%instances(instance_index)%artm)
+               tsfc = params%instances(instance_index)%artm )
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -702,7 +715,7 @@ contains
                hflx_tavg = params%instances(instance_index)%hflx_tavg)
 
           call glad_set_output_fields(params%instances(instance_index), &
-               ice_covered, topo, rofi, rofl, hflx, &
+               ice_covered, topo, thck, rofi, rofl, hflx, &
                ice_sheet_grid_mask)
           
           ! Set flag
@@ -796,7 +809,7 @@ contains
   !----------------------------------------------------------------------
 
   subroutine glad_set_output_fields(instance,        &
-                                    ice_covered,    topo,                  &
+                                    ice_covered,    topo,           thck,  &
                                     rofi,           rofl,           hflx,  &
                                     ice_sheet_grid_mask)
 
@@ -815,6 +828,7 @@ contains
 
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
+    real(dp),dimension(:,:),intent(out) :: thck     ! output ice sheet thickness (m)
     real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
@@ -827,6 +841,7 @@ contains
     ! temporary versions of output fields with halo cells
     real(dp),dimension(:,:),allocatable :: ice_covered_haloed
     real(dp),dimension(:,:),allocatable :: topo_haloed
+    real(dp),dimension(:,:),allocatable :: thck_haloed
     real(dp),dimension(:,:),allocatable :: ice_sheet_grid_mask_haloed
 
     ! Begin subroutine code --------------------------------------------------------------------
@@ -836,13 +851,15 @@ contains
 
     allocate(ice_covered_haloed(ewn,nsn))
     allocate(topo_haloed(ewn,nsn))
+    allocate(thck(ewn,nsn))
     allocate(ice_sheet_grid_mask_haloed(ewn,nsn))
     
     call set_output_states(instance, &
-         ice_covered_haloed, topo_haloed, ice_sheet_grid_mask_haloed)
+         ice_covered_haloed, topo_haloed, thck_haloed, ice_sheet_grid_mask_haloed)
 
     call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered)
     call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo)
+    call parallel_convert_haloed_to_nonhaloed(thck_haloed, thck)
     call parallel_convert_haloed_to_nonhaloed(instance%hflx_tavg, hflx)
     call parallel_convert_haloed_to_nonhaloed(instance%rofi_tavg, rofi)
     call parallel_convert_haloed_to_nonhaloed(instance%rofl_tavg, rofl)

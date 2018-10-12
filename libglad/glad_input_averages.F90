@@ -62,9 +62,9 @@ module glad_input_averages
      integer :: av_start_time = 0  ! Value of time from the last occasion averaging was restarted (hours)
      integer :: av_steps      = 0  ! Number of times glimmer has been called in current round of averaging
      
-     real(dp),pointer,dimension(:,:) :: tot_qsmb => null()  ! running total surface mass balance (kg m-2 s-1)
-     real(dp),pointer,dimension(:,:) :: tot_tsfc => null()  ! running total surface temperature (deg C)
-  
+     real(dp),pointer,dimension(:,:) :: tot_qsmb => null()       ! running total surface mass balance (kg m-2 s-1)
+     real(dp),pointer,dimension(:,:) :: tot_tsfc => null()       ! running total surface temperature (deg C)
+ 
   end type glad_input_averages_type
 
   public :: initialize_glad_input_averages
@@ -87,9 +87,8 @@ contains
     ! Starting time of next averaging period (hours)
     integer, intent(in) :: next_av_start
 
-    allocate(glad_inputs%tot_qsmb(ewn,nsn));  glad_inputs%tot_qsmb = 0.d0
-    allocate(glad_inputs%tot_tsfc(ewn,nsn));  glad_inputs%tot_tsfc = 0.d0
-
+    allocate(glad_inputs%tot_qsmb(ewn,nsn));      glad_inputs%tot_qsmb = 0.d0
+    allocate(glad_inputs%tot_tsfc(ewn,nsn));      glad_inputs%tot_tsfc = 0.d0
     glad_inputs%av_start_time = next_av_start
   end subroutine initialize_glad_input_averages
 
@@ -104,8 +103,8 @@ contains
     ! Accumulate averages based on one set of inputs.
     ! Should be called every time we have new inputs from the climate model.
     type(glad_input_averages_type), intent(inout) :: glad_inputs
-    real(dp),dimension(:,:),intent(in)  :: qsmb     ! flux of glacier ice (kg/m^2/s)
-    real(dp),dimension(:,:),intent(in)  :: tsfc     ! surface ground temperature (C)
+    real(dp),dimension(:,:),intent(in)  :: qsmb      ! flux of glacier ice (kg/m^2/s)
+    real(dp),dimension(:,:),intent(in)  :: tsfc      ! surface ground temperature (C)
     integer, intent(in) :: time  ! Current model time
     
     glad_inputs%tot_qsmb(:,:) = glad_inputs%tot_qsmb(:,:) + qsmb(:,:)
@@ -118,7 +117,7 @@ contains
     type(glad_input_averages_type), intent(in) :: glad_inputs
     real(dp), dimension(:,:), intent(out) :: qsmb  ! average surface mass balance (kg m-2 s-1)
     real(dp), dimension(:,:), intent(out) :: tsfc  ! average surface temperature (deg C)
-    
+ 
     qsmb(:,:) = glad_inputs%tot_qsmb(:,:) / real(glad_inputs%av_steps,dp)
     tsfc(:,:) = glad_inputs%tot_tsfc(:,:) / real(glad_inputs%av_steps,dp)
   end subroutine calculate_averages
