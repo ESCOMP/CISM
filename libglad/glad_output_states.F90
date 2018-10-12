@@ -47,7 +47,7 @@ contains
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   subroutine set_output_states(instance, &
-       ice_covered, topo, ice_sheet_grid_mask)
+       ice_covered, topo, thck, ice_sheet_grid_mask)
 
     use glad_type, only : glad_instance
     
@@ -56,6 +56,7 @@ contains
     type(glad_instance), intent(in) :: instance
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
+    real(dp),dimension(:,:),intent(out) :: thck         ! output basal melt rate under floating ice (m)
     real(dp),dimension(:,:),intent(out) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
 
     ! Internal variables ----------------------------------------------------------------------
@@ -70,6 +71,7 @@ contains
     ! in case any bugs creep into the below code.
     ice_covered(:,:) = 0.d0
     topo(:,:) = 0.d0
+    thck(:,:) = 0.d0
     ice_sheet_grid_mask(:,:) = 0.d0
     
     nxl = instance%lgrid%size%pt(1)
@@ -90,7 +92,7 @@ contains
              ! ice-covered or ice-free. This is in contrast to the method for computing
              ! ice-free topo in glint_upscaling_gcm.
              topo(i,j) = thk0 * instance%model%geometry%usrf(i,j)
-             
+             thck(i,j) = thk0 * instance%geometry%thck(i,j)             
           else
              ! Note that this logic implies that if (in theory) we had an ice-covered
              ! point outside the "active grid", it will get classified as ice-free for
@@ -98,6 +100,7 @@ contains
              ice_sheet_grid_mask(i,j) = 0.d0
              ice_covered(i,j) = 0.d0
              topo(i,j) = 0.d0
+             thck(i,j) = 0.d0
           end if
 
        end do
