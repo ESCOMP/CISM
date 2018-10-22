@@ -124,9 +124,9 @@ module glad_main
   ! When coupled to CESM, Glad can receives three fields from the coupler on the ice sheet grid:
   !   qsmb = surface mass balance (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
-  !   melt_rate = basal melt rate under floating ice (kg/m^2/s)
+  !   qbmb = basal melt rate under floating ice (kg/m^2/s)
   ! Both qsmb and tsfc are computed in the CESM land model.
-  ! melt_rate is computed in the CESM icean model.
+  ! melt_rate is computed in the CESM ocean model.
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
@@ -547,8 +547,7 @@ contains
   !===================================================================
 
   subroutine glad_gcm(params,         instance_index, time,     &
-                      qsmb,           tsfc,                     &
-                      melt_rate,                                &
+                      qsmb,           tsfc,           qbmb,     &
                       ice_covered,    topo,           thck,     &
                       rofi,           rofl,           hflx,     &
                       ice_sheet_grid_mask, valid_inputs,        &
@@ -582,7 +581,7 @@ contains
 
     real(dp),dimension(:,:),intent(in)    :: qsmb          ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc          ! input surface ground temperature (deg C)
-    real(dp),dimension(:,:),intent(in)    :: melt_rate     ! inpute basal melt rate under floating ice (kg/m^2/s)
+    real(dp),dimension(:,:),intent(in)    :: qbmb          ! inpute basal melt rate under floating ice (kg/m^2/s)
 
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
@@ -604,7 +603,7 @@ contains
     ! version of input fields with halo cells
     real(dp),dimension(:,:),allocatable :: qsmb_haloed
     real(dp),dimension(:,:),allocatable :: tsfc_haloed
-    real(dp),dimension(:,:),allocatable :: melt_rate_haloed
+    real(dp),dimension(:,:),allocatable :: qbmb_haloed
 
     logical :: icets
     character(250) :: message
@@ -625,13 +624,13 @@ contains
        nsn = get_nsn(params%instances(instance_index)%model)
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
-       allocate(melt_rate_haloed(ewn,nsn))
+       allocate(qbmb_haloed(ewn,nsn))
        call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
-       call parallel_convert_nonhaloed_to_haloed(melt_rate, melt_rate_haloed)
+       call parallel_convert_nonhaloed_to_haloed(qbmb, qbmb_haloed)
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-            qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
+            qsmb = qsmb_haloed, tsfc = tsfc_haloed, qbmb = qbmb_haloed, time = time)
     end if
 
     ! ---------------------------------------------------------
@@ -684,18 +683,16 @@ contains
                params%instances(instance_index)%next_time + &
                params%instances(instance_index)%mbal_tstep
 
-          ! Assign cism output field to field passed from cpl
-          params%instances(instance_index)%bmlt_float_external = melt_rate
-
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
           call calculate_averages(&
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
-               tsfc = params%instances(instance_index)%artm )
+               tsfc = params%instances(instance_index)%artm, &
+               qbmb = params%instances(instance_index)%bmlt_float)
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
-          ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
+          ! Note on units: We want acab and bmlt_float to have units of meters w.e. (accumulated over mass balance time step)
           ! Initial units are kg m-2 s-1 = mm s-1
           ! Divide by 1000 to convert from mm to m
           ! Multiply by hours2seconds = 3600 to convert from 1/s to 1/hr.  (tstep_mbal has units of hours)
@@ -703,6 +700,10 @@ contains
           !TODO - Modify code so that qsmb and acab are always in kg m-2 s-1 water equivalent?
           params%instances(instance_index)%acab(:,:) = &
                params%instances(instance_index)%acab(:,:) * &
+               params%tstep_mbal * hours2seconds / 1000.d0
+
+          params%instances(instance_index)%bmlt_float(:,:) = &
+               params%instances(instance_index)%bmlt_float(:,:) * &
                params%tstep_mbal * hours2seconds / 1000.d0
 
           if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glad time step, instance', instance_index
@@ -851,7 +852,7 @@ contains
 
     allocate(ice_covered_haloed(ewn,nsn))
     allocate(topo_haloed(ewn,nsn))
-    allocate(thck(ewn,nsn))
+    allocate(thck_haloed(ewn,nsn))
     allocate(ice_sheet_grid_mask_haloed(ewn,nsn))
     
     call set_output_states(instance, &

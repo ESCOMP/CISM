@@ -43,8 +43,11 @@ module glad_mbal_coupling
   type glad_mbc
      real(dp),dimension(:,:),pointer :: acab_save  => null() ! used to accumulate mass-balance
      real(dp),dimension(:,:),pointer :: artm_save  => null() ! used to average air-temperature
+     real(dp),dimension(:,:),pointer :: bmlt_float_save  => null() ! used to accumulate basal mass-balance
      real(dp),dimension(:,:),pointer :: acab       => null() ! Instantaneous mass-balance
      real(dp),dimension(:,:),pointer :: artm       => null() ! Instantaneous air temperature
+     real(dp),dimension(:,:),pointer :: bmlt_float => null() ! Instantaneous basal mass-balance
+
      integer :: av_count  = 0 ! Counter for averaging inputs
      logical :: new_accum = .true.
      integer :: start_time    ! the time we started averaging (hours)
@@ -70,17 +73,21 @@ contains
 
     ! Deallocate if necessary
 
-    if (associated(params%acab_save))  deallocate(params%acab_save)
-    if (associated(params%artm_save))  deallocate(params%artm_save)
-    if (associated(params%acab))       deallocate(params%acab)
-    if (associated(params%artm))       deallocate(params%artm)
+    if (associated(params%acab_save))   deallocate(params%acab_save)
+    if (associated(params%artm_save))   deallocate(params%artm_save)
+    if (associated(params%bmlt_float_save))  deallocate(params%bmlt_float_save)
+    if (associated(params%acab))        deallocate(params%acab)
+    if (associated(params%artm))        deallocate(params%artm)
+    if (associated(params%bmlt_float))  deallocate(params%bmlt_float)
 
     ! Allocate arrays and zero
 
-    call coordsystem_allocate(lgrid,params%acab_save);  params%acab_save = 0.d0
-    call coordsystem_allocate(lgrid,params%artm_save);  params%artm_save = 0.d0
-    call coordsystem_allocate(lgrid,params%acab);       params%acab = 0.d0
-    call coordsystem_allocate(lgrid,params%artm);       params%artm = 0.d0
+    call coordsystem_allocate(lgrid,params%acab_save);        params%acab_save = 0.d0
+    call coordsystem_allocate(lgrid,params%artm_save);        params%artm_save = 0.d0
+    call coordsystem_allocate(lgrid,params%bmlt_float_save);  params%bmlt_float_save = 0.d0
+    call coordsystem_allocate(lgrid,params%acab);        params%acab = 0.d0
+    call coordsystem_allocate(lgrid,params%acab);        params%acab = 0.d0
+    call coordsystem_allocate(lgrid,params%bmlt_float);  params%bmlt_float = 0.d0
 
     ! Set default mass balance time step
     !
@@ -92,7 +99,7 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_accumulate_input_gcm(params, time, acab, artm)
+  subroutine glad_accumulate_input_gcm(params, time, acab, artm, bmlt_float)
 
     ! In glint, this was done in glint_downscale.F90
     
@@ -101,6 +108,7 @@ contains
 
     real(dp),dimension(:,:),intent(in) :: acab   ! Surface mass balance (m)
     real(dp),dimension(:,:),intent(in) :: artm   ! Mean air temperature (degC)
+    real(dp),dimension(:,:),intent(in) :: bmlt_float ! basal mass balance under floating ice (m)
 
     ! Things to do the first time
 
@@ -113,6 +121,7 @@ contains
 
        params%acab_save = 0.d0
        params%artm_save = 0.d0
+       params%bmlt_float_save = 0.d0       
        params%start_time = time
 
     end if
@@ -123,17 +132,19 @@ contains
 
     params%acab_save = params%acab_save + acab
     params%artm_save = params%artm_save + artm
+    params%bmlt_float_save = params%bmlt_float_save + bmlt_float
 
     ! Copy instantaneous fields
 
     params%acab = acab
     params%artm = artm
+    params%bmlt_float = bmlt_float
 
   end subroutine glad_accumulate_input_gcm
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_average_input_gcm(params, dt, acab, artm)
+  subroutine glad_average_input_gcm(params, dt, acab, artm, bmlt_float)
 
     ! In glint, this was done in glint_downscale.F90
 
@@ -143,14 +154,16 @@ contains
     integer,                intent(in)    :: dt     !> mbal accumulation time (hours)
     real(dp),dimension(:,:),intent(out)   :: artm   !> Mean air temperature (degC)
     real(dp),dimension(:,:),intent(out)   :: acab   !> Mass-balance (m/yr)
+    real(dp),dimension(:,:),intent(out)   :: bmlt_float   !> Basal mass-balance under floating ice (m/yr)
 
     if (.not. params%new_accum) then
        params%artm_save = params%artm_save / real(params%av_count,dp)
     end if
     artm  = params%artm_save
 
-    ! Note: acab_save has units of m, but acab has units of m/yr
+    ! Note: acab_save and bmlt_float_save  have units of m, but acab has units of m/yr
     acab  = params%acab_save / real(dt*hours2years,dp)
+    bmlt_float  = params%bmlt_float_save / real(dt*hours2years,dp)
 
     params%new_accum = .true.
 
