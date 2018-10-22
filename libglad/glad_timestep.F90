@@ -115,8 +115,9 @@ contains
     ! Note: At this point, instance%acab has units of m
     !       Upon averaging (in glad_average_input_gcm), units are converted to m/yr
 
-    call glad_accumulate_input_gcm(instance%mbal_accum,   time,        &
-                                    instance%acab,         instance%artm)
+    call glad_accumulate_input_gcm(instance%mbal_accum,   time,          &
+                                   instance%acab,         instance%artm, &
+                                   instance%bmlt_float                    )
 
 
     if (GLC_DEBUG .and. main_task) then
@@ -161,7 +162,8 @@ contains
           ! instance%acab has units of m/yr w.e. after averaging
 
           call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
-                                      instance%acab,       instance%artm)
+                                      instance%acab,       instance%artm,             &
+                                      instance%bmlt_float                             )
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
           call glide_get_thk(instance%model,thck_temp)
@@ -196,6 +198,7 @@ contains
 
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
+          call glide_set_bmlt_float_external(instance%model, instance%bmlt_float * rhow/rhoi)
 
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then

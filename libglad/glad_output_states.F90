@@ -92,7 +92,7 @@ contains
              ! ice-covered or ice-free. This is in contrast to the method for computing
              ! ice-free topo in glint_upscaling_gcm.
              topo(i,j) = thk0 * instance%model%geometry%usrf(i,j)
-             thck(i,j) = thk0 * instance%geometry%thk(i,j)             
+             thck(i,j) = thk0 * instance%model%geometry%thck(i,j)             
           else
              ! Note that this logic implies that if (in theory) we had an ice-covered
              ! point outside the "active grid", it will get classified as ice-free for
