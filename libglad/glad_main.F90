@@ -131,7 +131,7 @@ module glad_main
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
-  !   thck = ice sheet thickness (m)
+  !   thck = ice thickness (m)
   !   hflx = heat flux from the ice interior to the surface (W/m^2)
   !   rofi = ice runoff (i.e., calving) (kg/m^2/s)
   !   rofl = liquid runoff (i.e., basal melting; the land model handles sfc runoff) (kg/m^2/s)
@@ -352,7 +352,7 @@ contains
 
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
-    real(dp),dimension(:,:),intent(out) :: thck         ! ice sheet thickness(m)
+    real(dp),dimension(:,:),intent(out) :: thck         ! output ice thickness (m)
     real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
@@ -549,7 +549,7 @@ contains
 
   subroutine glad_gcm(params,         instance_index, time,  &
                       qsmb,           qbmb,           tsfc,  &
-                      ice_covered,    topo,                  &
+                      ice_covered,    topo,           thck   &
                       rofi,           rofl,           hflx,  &
                       ice_sheet_grid_mask, valid_inputs,     &
                       output_flag,    ice_tstep)
@@ -587,7 +587,7 @@ contains
 
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
-    real(dp),dimension(:,:),intent(inout) :: thck         ! output ice sheet thickness (m)
+    real(dp),dimension(:,:),intent(inout) :: thck         ! output ice thickness (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(inout) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
@@ -837,7 +837,7 @@ contains
 
     real(dp),dimension(:,:),intent(out) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(out) :: topo         ! output surface elevation (m)
-    real(dp),dimension(:,:),intent(out) :: thck     ! output ice sheet thickness (m)
+    real(dp),dimension(:,:),intent(out) :: thck         ! output ice thickness (m)
     real(dp),dimension(:,:),intent(out) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(out) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(out) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
