@@ -80,7 +80,7 @@ module glad_type
 
      real(dp),dimension(:,:),pointer :: artm => null() !> Annual mean air temperature
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
-
+     real(dp),dimension(:,:),pointer :: bmlt_float => null() !> Annual basal mass balance (m/y water equiv)
      ! Arrays to accumulate mass-balance quantities --------------
 
      type(glad_mbc) :: mbal_accum
@@ -133,6 +133,7 @@ contains
 
     if (associated(instance%artm))          deallocate(instance%artm)
     if (associated(instance%acab))          deallocate(instance%acab)
+    if (associated(instance%bmlt_float))    deallocate(instance%bmlt_float)
 
     if (associated(instance%lat))           deallocate(instance%lat)
     if (associated(instance%lon))           deallocate(instance%lon)
@@ -146,6 +147,7 @@ contains
 
     allocate(instance%artm(ewn,nsn));          instance%artm = 0.d0
     allocate(instance%acab(ewn,nsn));          instance%acab = 0.d0
+    allocate(instance%bmlt_float(ewn,nsn));    instance%bmlt_float = 0.d0
 
     allocate(instance%lat(ewn,nsn));           instance%lat  = 0.d0
     allocate(instance%lon(ewn,nsn));           instance%lon  = 0.d0
