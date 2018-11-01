@@ -549,7 +549,7 @@ contains
 
   subroutine glad_gcm(params,         instance_index, time,  &
                       qsmb,           qbmb,           tsfc,  &
-                      ice_covered,    topo,           thck   &
+                      ice_covered,    topo,           thck,  &
                       rofi,           rofl,           hflx,  &
                       ice_sheet_grid_mask, valid_inputs,     &
                       output_flag,    ice_tstep)
