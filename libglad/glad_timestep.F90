@@ -197,7 +197,7 @@ contains
           !       Change to use the same units consistently?  E.g., switch to w.e. in Glide
 
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
-          call glide_set_acab(instance%model, instance%bmlt_float * rhow/rhoi)
+          call glide_set_bmlt_float_external(instance%model, instance%bmlt_float * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
           call glide_set_bmlt_float_external(instance%model, instance%bmlt_float * rhow/rhoi)
 
