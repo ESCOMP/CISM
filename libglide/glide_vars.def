@@ -934,6 +934,22 @@ data:          data%temper%btemp
 standard_name: land_ice_temperature
 coordinates:   lon lat
 
+[btemp_ground]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     basal ice temperature for grounded ice
+data:          data%temper%btemp_ground
+standard_name: land_ice_temperature_ground
+coordinates:   lon lat
+
+[btemp_float]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     basal ice temperature for floating ice
+data:          data%temper%btemp_float
+standard_name: land_ice_temperature_float
+coordinates:   lon lat
+
 [dusrfdtm]
 dimensions:    time, y1, x1
 units:         meter/year
