@@ -1116,6 +1116,8 @@ contains
                                 model%geometry%lsrf*thk0,                                     & ! m
                                 model%climate%eus*thk0,                                       & ! m
                                 model%climate%artm,                                           & ! deg C    
+                                model%options%which_ho_ground,                                &
+                                model%geometry%f_ground_cell,                                 & ! [0,1]
                                 model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                 model%temper%dissip,                                          & ! deg/s
                                 model%temper%pmp_threshold,                                   & ! deg C
@@ -1123,6 +1125,8 @@ contains
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
                                 model%temper%bpmp,                                            & ! deg C
+                                model%temper%btemp_ground,                                    & ! deg C
+                                model%temper%btemp_float,                                     & ! deg C
                                 bmlt_ground_unscaled)                                           ! m/s
                                      
     ! Update basal hydrology, if needed

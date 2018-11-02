@@ -71,7 +71,6 @@ contains
                        flwa_basal,    thck,          &
                        topg,          eus,           &
                        ice_mask,                     &
-                       floating_mask,                &
                        land_mask,                    &
                        f_ground,                     &
                        beta_external,                &
@@ -112,7 +111,6 @@ contains
 
   integer, intent(in), dimension(:,:) :: &
        ice_mask,        & ! = 1 where ice is present (thck > thklim), else = 0
-       floating_mask,   & ! = 1 where ice is present and floating, else = 0
        land_mask          ! = 1 where topg > eus
 
   real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction at vertices, 0 <= f_ground <= 1

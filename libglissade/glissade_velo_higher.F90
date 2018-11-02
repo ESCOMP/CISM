@@ -1917,6 +1917,7 @@
     !       current thickness field.
     !------------------------------------------------------------------------------
 
+    !TODO - Use btemp_ground instead of temp(nz)?
     call calc_effective_pressure(whicheffecpress,              &
                                  nx,            ny,            &
                                  model%basal_physics,          &
@@ -2614,7 +2615,6 @@
                       thck,                             &
                       topg,          eus,               &
                       ice_mask,                         &
-                      floating_mask,                    &
                       land_mask,                        &
                       f_ground,                         &
 !!                      f_ground_cell,                    &

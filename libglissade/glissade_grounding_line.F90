@@ -77,9 +77,10 @@
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
     !        A flotation function is interpolated over the staggered cell around each vertex
     !        and analytically integrated to compute the grounded and floating fractions.
-    !        The f_ground_cell is compute by averaging the values computed at vertices.
+    !        Then f_ground_cell is computed by averaging the values computed at vertices.
+    !        TODO: Is f_ground_cell ever used with this option?  If not, then might not need to compute here.
     ! (2) HO_GROUND_GLP_QUADRANTS: similar to (2), but f_flotation is interpolated over cell quadrants,
-    !        and then f_ground is computed in unstaggered and staggered cells by summing over quadrants.
+    !        and then both f_ground (at vertices) and f_ground_cell are computed by summing over quadrants.
     !
     ! For options (1) and (2), there are three options for the flotation function:
     ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
