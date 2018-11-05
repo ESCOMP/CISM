@@ -155,6 +155,7 @@ contains
     use glad_constants, only: hours2years
 
     type(glad_mbc)  :: params
+
     integer,                intent(in)    :: dt           !> mbal accumulation time (hours)
     real(dp),dimension(:,:),intent(out)   :: artm         !> Mean air temperature (degC)
     real(dp),dimension(:,:),intent(out)   :: acab         !> Mass-balance (m/yr)
