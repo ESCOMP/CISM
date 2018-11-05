@@ -111,13 +111,13 @@ contains
 
     call glide_get_thk(instance%model,thck_temp)
 
-    ! Accumulate Glide input fields, acab and artm
-    ! Note: At this point, instance%acab has units of m
+    ! Accumulate Glide input fields, acab, bmlt_float and artm
+    ! Note: At this point, instance%acab and instance%bmlt_float have units of m
     !       Upon averaging (in glad_average_input_gcm), units are converted to m/yr
 
-    call glad_accumulate_input_gcm(instance%mbal_accum,   time,          &
-                                   instance%acab,         instance%artm, &
-                                   instance%bmlt_float                    )
+    call glad_accumulate_input_gcm(instance%mbal_accum,   time,        &
+                                   instance%acab,        instance%bmlt_float,&
+                                   instance%artm)
 
 
     if (GLC_DEBUG .and. main_task) then
@@ -158,12 +158,11 @@ contains
              write (stdout,*) 'Ice sheet timestep, iteration =', i
           end if
 
-          ! Get average values of acab and artm during mbal_accum_time
+          ! Get average values of acab, bmlt_float and artm during mbal_accum_time
           ! instance%acab has units of m/yr w.e. after averaging
 
           call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
-                                      instance%acab,       instance%artm,             &
-                                      instance%bmlt_float                             )
+                                      instance%acab,       instance%bmlt_float, instance%artm)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
           call glide_get_thk(instance%model,thck_temp)
@@ -184,6 +183,7 @@ contains
 
           where (GLIDE_IS_OCEAN(instance%model%geometry%thkmask))
              instance%acab = 0.d0
+             instance%bmlt_float = 0.d0
           endwhere
 
           ! Put climate inputs in the appropriate places, with conversion ----------
@@ -197,6 +197,7 @@ contains
           !       Change to use the same units consistently?  E.g., switch to w.e. in Glide
 
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
+          call glide_set_bmlt_float_external(instance%model, instance%bmlt_float * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
           call glide_set_bmlt_float_external(instance%model, instance%bmlt_float * rhow/rhoi)
 
@@ -205,8 +206,8 @@ contains
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
              write (stdout,*) ' '
-             write (stdout,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
+             write (stdout,*) 'After glide_set_acab, glide_set_bmlt_float, glide_set_artm: i, j =', il, jl
+             write (stdout,*) 'acab (m/y), bmlt_float, artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%bmlt_float(il,jl)*rhow/rhoi, instance%artm(il,jl)
           end if
 
           ! Adjust glad acab for output

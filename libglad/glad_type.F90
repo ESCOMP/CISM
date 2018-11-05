@@ -80,7 +80,8 @@ module glad_type
 
      real(dp),dimension(:,:),pointer :: artm => null() !> Annual mean air temperature
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
-     real(dp),dimension(:,:),pointer :: bmlt_float => null() !> Annual basal mass balance under floating ice (m/y water equiv)
+     real(dp),dimension(:,:),pointer :: bmlt_float => null() !> Annual basal mass balance (m/y water equiv)
+
      ! Arrays to accumulate mass-balance quantities --------------
 
      type(glad_mbc) :: mbal_accum
