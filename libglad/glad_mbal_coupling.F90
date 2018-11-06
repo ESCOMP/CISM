@@ -44,11 +44,9 @@ module glad_mbal_coupling
      real(dp),dimension(:,:),pointer :: acab_save  => null() ! used to accumulate mass-balance
      real(dp),dimension(:,:),pointer :: bmlt_float_save  => null() ! used to accumulate basal mass-balance
      real(dp),dimension(:,:),pointer :: artm_save  => null() ! used to average air-temperature
-     real(dp),dimension(:,:),pointer :: bmlt_float_save  => null() ! used to accumulate basal mass-balance
      real(dp),dimension(:,:),pointer :: acab       => null() ! Instantaneous mass-balance
      real(dp),dimension(:,:),pointer :: bmlt_float => null() ! Instantaneous basal mass-balance
      real(dp),dimension(:,:),pointer :: artm       => null() ! Instantaneous air temperature
-     real(dp),dimension(:,:),pointer :: bmlt_float => null() ! Instantaneous basal mass-balance
 
      integer :: av_count  = 0 ! Counter for averaging inputs
      logical :: new_accum = .true.
@@ -124,7 +122,6 @@ contains
        params%acab_save = 0.d0
        params%bmlt_float_save = 0.d0
        params%artm_save = 0.d0
-       params%bmlt_float_save = 0.d0       
        params%start_time = time
 
     end if
@@ -142,7 +139,6 @@ contains
     params%acab = acab
     params%bmlt_float = bmlt_float
     params%artm = artm
-    params%bmlt_float = bmlt_float
 
   end subroutine glad_accumulate_input_gcm
 
