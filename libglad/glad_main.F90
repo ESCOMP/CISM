@@ -125,7 +125,6 @@ module glad_main
   !   qsmb = surface mass balance (kg/m^2/s)
   !   qbmb = basal mass balance for floating ice (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
-  !   qbmb = basal melt rate under floating ice (kg/m^2/s)
   ! Both qsmb and tsfc are computed in the CESM land model.
   ! qbmb is computed in the ocean model.
   ! Seven fields are returned to CESM on the ice sheet grid:
@@ -583,8 +582,6 @@ contains
     real(dp),dimension(:,:),intent(in)    :: qsmb          ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: qbmb          ! input basal mass balance of floating ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc          ! input surface ground temperature (deg C)
-    real(dp),dimension(:,:),intent(in)    :: qbmb          ! inpute basal melt rate under floating ice (kg/m^2/s)
-
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(inout) :: thck         ! output ice thickness (m)
@@ -606,7 +603,6 @@ contains
     real(dp),dimension(:,:),allocatable :: qsmb_haloed
     real(dp),dimension(:,:),allocatable :: qbmb_haloed
     real(dp),dimension(:,:),allocatable :: tsfc_haloed
-    real(dp),dimension(:,:),allocatable :: qbmb_haloed
 
     logical :: icets
     character(250) :: message
@@ -628,11 +624,9 @@ contains
        allocate(qsmb_haloed(ewn,nsn))
        allocate(qbmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
-       allocate(qbmb_haloed(ewn,nsn))
        call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(qbmb, qbmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
-       call parallel_convert_nonhaloed_to_haloed(qbmb, qbmb_haloed)
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
             qsmb = qsmb_haloed, qbmb = qbmb_haloed, tsfc = tsfc_haloed, time = time)

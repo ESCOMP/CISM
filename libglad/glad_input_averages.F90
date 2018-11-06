@@ -65,7 +65,6 @@ module glad_input_averages
      real(dp),pointer,dimension(:,:) :: tot_qsmb => null()  ! running total surface mass balance (kg m-2 s-1)
      real(dp),pointer,dimension(:,:) :: tot_qbmb => null()  ! running total basal mass balance for floating ice (kg m-2 s-1)
      real(dp),pointer,dimension(:,:) :: tot_tsfc => null()  ! running total surface temperature (deg C)
-     real(dp),pointer,dimension(:,:) :: tot_qbmb => null()  ! running total basal mass balance (melt rate) (m yr-1)
  
   end type glad_input_averages_type
 
@@ -115,7 +114,6 @@ contains
     glad_inputs%tot_qsmb(:,:) = glad_inputs%tot_qsmb(:,:) + qsmb(:,:)
     glad_inputs%tot_qbmb(:,:) = glad_inputs%tot_qbmb(:,:) + qbmb(:,:)
     glad_inputs%tot_tsfc(:,:) = glad_inputs%tot_tsfc(:,:) + tsfc(:,:)
-    glad_inputs%tot_qbmb(:,:) = glad_inputs%tot_qbmb(:,:) + qbmb(:,:)
     glad_inputs%av_steps = glad_inputs%av_steps + 1
   end subroutine accumulate_averages
 
@@ -125,12 +123,10 @@ contains
     real(dp), dimension(:,:), intent(out) :: qsmb  ! average surface mass balance (kg m-2 s-1)
     real(dp), dimension(:,:), intent(out) :: qbmb  ! average basal mass balance (kg m-2 s-1)
     real(dp), dimension(:,:), intent(out) :: tsfc  ! average surface temperature (deg C)
-    real(dp), dimension(:,:), intent(out) :: qbmb  ! average basal mass balance (m yr-1)
  
     qsmb(:,:) = glad_inputs%tot_qsmb(:,:) / real(glad_inputs%av_steps,dp)
     qbmb(:,:) = glad_inputs%tot_qbmb(:,:) / real(glad_inputs%av_steps,dp)
     tsfc(:,:) = glad_inputs%tot_tsfc(:,:) / real(glad_inputs%av_steps,dp)
-    qsmb(:,:) = glad_inputs%tot_qbmb(:,:) / real(glad_inputs%av_steps,dp)
   end subroutine calculate_averages
 
   subroutine reset_glad_input_averages(glad_inputs, next_av_start)
@@ -143,7 +139,6 @@ contains
     glad_inputs%tot_qsmb(:,:) = 0.d0
     glad_inputs%tot_qbmb(:,:) = 0.d0
     glad_inputs%tot_tsfc(:,:) = 0.d0
-    glad_inputs%tot_qbmb(:,:) = 0.d0
     glad_inputs%av_steps      = 0
     glad_inputs%av_start_time = next_av_start
   end subroutine reset_glad_input_averages
