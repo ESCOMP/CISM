@@ -51,7 +51,6 @@
   use glimmer_log
   use glide_types
   use parallel,         only : staggered_parallel_halo  
-  use glissade_grid_operators
 
   implicit none
 
@@ -79,7 +78,7 @@ contains
                        beta,                         &
                        which_ho_beta_limit,          &
                        which_ho_inversion,           &
-                       powerlaw_c_inversion,         &
+                       stag_powerlaw_c_inversion,    &
                        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
@@ -94,6 +93,7 @@ contains
   use parallel, only: nhalo, this_rank
   use parallel, only: parallel_globalindex, global_ewn, global_nsn
   use parallel, only: distributed_scatter_var, parallel_halo, main_task
+  use glissade_grid_operators, only: glissade_stagger
 
   implicit none
 
@@ -115,14 +115,14 @@ contains
        floating_mask,   & ! = 1 where ice is present and floating, else = 0
        land_mask          ! = 1 where topg > eus
 
-  real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction, 0 <= f_ground <= 1
+  real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction at vertices, 0 <= f_ground <= 1
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
 
   integer, intent(in)           :: which_ho_beta_limit           ! option to limit beta for grounded ice
                                                                  ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
   integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
-  real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion
+  real(dp), intent(in), dimension(:,:), optional :: stag_powerlaw_c_inversion  ! Cp from inversion, on staggered grid
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
@@ -136,7 +136,7 @@ contains
   real(dp) :: Ldomain   ! size of full domain
   real(dp) :: omega     ! frequency of beta field
   real(dp) :: dx, dy
-  integer :: ew, ns
+  integer :: ew, ns, i, j
 
   real(dp), dimension(size(beta,1), size(beta,2)) :: speed      ! ice speed, sqrt(uvel^2 + vvel^2), m/yr
 
@@ -155,8 +155,7 @@ contains
 
   real(dp), dimension(size(beta,1), size(beta,2)) ::  &
        big_lambda,                 &  ! bedrock characteristics
-       flwa_basal_stag,            &  ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
-       stag_powerlaw_c_inversion      ! powerlaw_c_inversion interpolated to the staggered grid
+       flwa_basal_stag                ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
 
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
@@ -375,21 +374,6 @@ contains
 
           m = basal_physics%powerlaw_m
 
-          ! Interpolate powerlaw_c to the velocity grid.
-
-          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered cells.
-
-          call glissade_stagger(ewn,                         nsn,      &
-                                powerlaw_c_inversion,                  &
-                                stag_powerlaw_c_inversion,             &
-                                ice_mask,                              &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid divzero issues
-          where (stag_powerlaw_c_inversion == 0.0d0)
-             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
           do ns = 1, nsn-1
              do ew = 1, ewn-1
                 beta(ew,ns) = stag_powerlaw_c_inversion(ew,ns) &
@@ -513,25 +497,6 @@ contains
 
           m = basal_physics%powerlaw_m
 
-          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered and land-based cells.
-
-          where (ice_mask == 1 .or. land_mask == 1)
-             ice_or_land_mask = 1
-          elsewhere
-             ice_or_land_mask = 0
-          endwhere
-
-          call glissade_stagger(ewn,                         nsn,      &
-                                powerlaw_c_inversion,                  &
-                                stag_powerlaw_c_inversion,             &
-                                ice_or_land_mask,                      &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid possible divzero
-          where (stag_powerlaw_c_inversion == 0.0d0)
-             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
           do ns = 1, nsn-1
              do ew = 1, ewn-1
 
@@ -631,6 +596,7 @@ contains
 
    end select
 
+
    ! Multiply beta by f_ground to reduce friction at partly grounded vertices.
    ! Note: With a GLP, f_ground will have values between 0 and 1 at vertices adjacent to the GL.
    !       Without a GLP, f_ground = 0 or 1 everywhere based on a flotation criterion.
@@ -712,13 +678,14 @@ contains
                                       thck,          topg,          &
                                       eus,                          &
                                       delta_bpmp,                   &
-                                      bmlt,          bwat)
+                                      bmlt,          bwat,          &
+                                      itest, jtest,  rtest)
 
     ! Calculate the effective pressure at the bed
 
     use glimmer_physcon, only: rhoi, grav, rhoo
-
     use parallel
+    use glissade_grid_operators, only: glissade_stagger
 
     implicit none
 
@@ -759,6 +726,8 @@ contains
          bwat                ! basal water thickness at the bed (m)
                              ! used for HO_EFFECPRESS_BWAT option
 
+    integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
+
     ! Local variables
 
     real(dp) :: &
@@ -767,14 +736,18 @@ contains
          relative_bwat       ! ratio bwat/bwat_till_max, limited to range [0,1]
 
     real(dp), dimension(ewn,nsn) ::  &
-         overburden          ! overburden pressure, rhoi*g*H
+         overburden,      &  ! overburden pressure, rhoi*g*H
+         f_pattyn_2d         ! rhoo*(eus-topg)/(rhoi*thck)
+                             ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
+
     real(dp) :: f_pattyn          ! rhoo*(eus-topg)/(rhoi*thck)
-                                  ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
     real(dp) :: f_pattyn_capped   ! f_pattyn capped to lie in range [0,1]
 
     integer :: i, j
+
+    logical, parameter :: verbose_effecpress = .false.
 
     ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
 
@@ -903,11 +876,16 @@ contains
 
        if (ocean_p > 0.0d0) then
 
+          ! Compute N as a function of f_pattyn = -rhoo*(tops-eus) / (rhoi*thck) 
+          !   f_pattyn < 0 for land-based ice, < 1 for grounded ice, = 1 at grounding line, > 1 for floating ice
+          !TODO - Try averaging thck and topg to vertices, and computing f_pattyn based on these averages?
+          !       Might not be as dependent on whether neighbor cells are G or F.
+
           do j = 1, nsn
              do i = 1, ewn
                 if (thck(i,j) > 0.0d0) then
-                   f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
-                   f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
+                   f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))     ! > 1 for floating, < 1 for grounded
+                   f_pattyn_capped = max( min(f_pattyn, 1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
                    basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
                 else
                    basal_physics%effecpress(i,j) = 0.0d0
@@ -915,7 +893,59 @@ contains
              enddo
           enddo
 
-       else
+          !WHL - debug
+          if (present(itest) .and. present(jtest) .and. present(rtest)) then
+             if (this_rank == rtest .and. verbose_effecpress) then
+
+                ! Compute f_pattyn as a 2D field for diagnostics.
+                do j = 1, nsn
+                   do i = 1, ewn
+                      if (thck(i,j) > 0.0d0) then
+                         f_pattyn_2d(i,j) = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
+                      else  ! no ice
+                         if (topg(i,j) - eus >= 0.0d0) then  ! ice-free land
+                            f_pattyn_2d(i,j) = 0.0d0
+                         else  ! ice-free ocean
+                            f_pattyn_2d(i,j) = 1.0d0
+                         endif
+                      endif
+                   enddo
+                enddo
+
+                call parallel_halo(f_pattyn_2d)
+
+                print*, ' '
+                print*, 'f_pattyn, itest, jtest, rank =', itest, jtest, rtest
+                do j = jtest+3, jtest-3, -1
+                   write(6,'(i6)',advance='no') j
+                   do i = itest-3, itest+3
+                      write(6,'(f10.4)',advance='no') f_pattyn_2d(i,j)
+                   enddo
+                   write(6,*) ' '
+                enddo
+                print*, ' '
+                print*, 'multiplier for N, itest, jtest, rank =', itest, jtest, rtest
+                do j = jtest+3, jtest-3, -1
+                   write(6,'(i6)',advance='no') j
+                   do i = itest-3, itest+3
+                      f_pattyn_capped = max( min(f_pattyn_2d(i,j), 1.0d0), 0.0d0)
+                      write(6,'(f10.4)',advance='no') (1.0d0 - f_pattyn_capped)**ocean_p
+                   enddo
+                   write(6,*) ' '
+                enddo
+                print*, ' '
+                print*, 'N, itest, jtest, rank =', itest, jtest, rtest
+                do j = jtest+3, jtest-3, -1
+                   write(6,'(i6)',advance='no') j
+                   do i = itest-3, itest+3
+                      write(6,'(f10.0)',advance='no') basal_physics%effecpress(i,j)
+                   enddo
+                   write(6,*) ' '
+                enddo
+             endif   ! verbose_effecpress
+          endif   ! present(itest,jtest,rtest)
+
+       else   ! ocean_p = 0
 
           basal_physics%effecpress(:,:) = overburden(:,:)
 
