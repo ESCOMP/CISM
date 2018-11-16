@@ -306,6 +306,15 @@ units:         meter/year
 long_name:     basal melt rate for floating ice from inversion
 data:          data%inversion%bmlt_float_inversion
 factor:        scyr
+load:          0
+coordinates:   lon lat
+
+[bmlt_float_inversion_save]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     cumulative basal melt rate for floating ice from inversion
+data:          data%inversion%bmlt_float_save
+factor:        scyr
 load:          1
 coordinates:   lon lat
 
@@ -888,6 +897,14 @@ dimensions:    time, y1, x1
 units:         Pa (m/yr)**(-1/3)
 long_name:     spatially varying C for powerlaw sliding
 data:          data%inversion%powerlaw_c_inversion
+load:          0
+coordinates:   lon lat
+
+[powerlaw_c_inversion_save]
+dimensions:    time, y1, x1
+units:         Pa (m/yr)**(-1/3)
+long_name:     cumulative spatially varying C for powerlaw sliding
+data:          data%inversion%powerlaw_c_save
 load:          1
 coordinates:   lon lat
 
