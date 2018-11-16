@@ -2413,7 +2413,9 @@ contains
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
                               model%paramets%flow_enhancement_factor,       &
                               model%paramets%flow_enhancement_factor_float, &
+                              model%options%which_ho_ground,      &
                               floating_mask,                      &
+                              model%geometry%f_ground_cell,       &
                               model%temper%waterfrac(:,:,:))
 
     !TODO - flwa halo update not needed?

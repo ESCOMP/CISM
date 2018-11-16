@@ -740,6 +740,7 @@ module glissade_therm
 
              temp(0,ew,ns) = min(0.d0, artm(ew,ns))
 
+             !TODO - Allow for 0 < f_ground_cell < 1
              ! For floating ice, set the basal temperature to the freezing temperature of seawater
              ! Values based on Ocean Water Freezing Point Calculator with S = 35 PSU
              if (floating_mask(ew,ns) == 1) then
@@ -1073,6 +1074,9 @@ module glissade_therm
 !                print*, k, temp(k,ew,ns)
 !             enddo
              write(message,*) 'mintemp < mintemp_threshold: i, j, mintemp =', ew, ns, mintemp
+             call write_log(message)
+             call parallel_globalindex(ew, ns, istop_global, jstop_global)
+             write(message,*) 'global i, j =', istop_global, jstop_global
              call write_log(message,GM_FATAL)
           endif
           
@@ -2009,7 +2013,9 @@ module glissade_therm
                                   default_flwa,                        &
                                   flow_enhancement_factor,             &
                                   flow_enhancement_factor_float,       &
+                                  which_ho_ground,                     &
                                   floating_mask,                       &
+                                  f_ground_cell,                       &
                                   waterfrac)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
@@ -2044,17 +2050,19 @@ module glissade_therm
 !         Provided zero-thickness cells have a sensible default temperature (e.g., artm),
 !          the resulting flwa should be physically reasonable if used in any calculations.
 
-    integer,                    intent(in)    :: whichflwa !> which method of calculating A
-    integer,                    intent(in)    :: whichtemp !> which method of calculating temperature;
+    integer,                   intent(in)    :: whichflwa !> which method of calculating A
+    integer,                   intent(in)    :: whichtemp !> which method of calculating temperature;
                                                            !> include waterfrac in calculation if using enthalpy method
-    real(dp),dimension(:),      intent(in)    :: stagsigma !> vertical coordinate at layer midpoints
-    real(dp),dimension(:,:),    intent(in)    :: thck      !> ice thickness (m)
-    real(dp),dimension(:,:,:),  intent(in)    :: temp      !> 3D temperature field (deg C)
-    real(dp),dimension(:,:,:),  intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
-    real(dp), intent(in)                      :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
-    real(dp), intent(in), optional            :: flow_enhancement_factor       !> flow enhancement factor in Arrhenius relationship
-    real(dp), intent(in), optional            :: flow_enhancement_factor_float !> flow enhancement factor for floating ice
-    integer, dimension(:,:),   intent(in), optional :: floating_mask !> = 1 where ice is present and floating, else = 0
+    real(dp),dimension(:),     intent(in)    :: stagsigma !> vertical coordinate at layer midpoints
+    real(dp),dimension(:,:),   intent(in)    :: thck      !> ice thickness (m)
+    real(dp),dimension(:,:,:), intent(in)    :: temp      !> 3D temperature field (deg C)
+    real(dp),dimension(:,:,:), intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
+    real(dp),                  intent(in)    :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
+    real(dp),                  intent(in)    :: flow_enhancement_factor       !> flow enhancement factor in Arrhenius relationship
+    real(dp),                  intent(in)    :: flow_enhancement_factor_float !> flow enhancement factor for floating ice
+    integer,                   intent(in)    :: which_ho_ground     !> option for applying a GLP
+    integer, dimension(:,:),   intent(in)    :: floating_mask !> = 1 for floating ice
+    real(dp),dimension(:,:),   intent(in)    :: f_ground_cell !> grounded ice fraction in cell, 0 to 1
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac     !> internal water content fraction, 0 to 1
 
     !> \begin{description}
@@ -2092,22 +2100,23 @@ module glissade_therm
 
     allocate(enhancement_factor(ewn,nsn))
 
-    if (present(flow_enhancement_factor)) then
-       if (present(flow_enhancement_factor_float) .and. present(floating_mask)) then
-          do ns = 1, nsn
-             do ew = 1, ewn
-                if (floating_mask(ew,ns) == 1) then
-                   enhancement_factor(ew,ns) = flow_enhancement_factor_float
-                else
-                   enhancement_factor(ew,ns) = flow_enhancement_factor
-                endif
-             enddo
-          enddo
-       else  ! no separate factor for floating ice
-          enhancement_factor(:,:) = flow_enhancement_factor
-       endif
+    if (which_ho_ground == HO_GROUND_GLP_QUADRANTS) then  ! using a GLP for f_ground_cell
+
+       ! set enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
+
+       enhancement_factor(:,:) = flow_enhancement_factor * f_ground_cell(:,:) &
+                               + flow_enhancement_factor_float * (1.0d0 - f_ground_cell(:,:))
+
     else
-       enhancement_factor(:,:) = 1.d0
+
+       ! set enhancement factor in floating cells based on floating_mask
+
+       where (floating_mask == 1)
+          enhancement_factor = flow_enhancement_factor_float
+       elsewhere
+          enhancement_factor = flow_enhancement_factor
+       endwhere
+
     endif
 
     ! Check that the temperature array has the desired vertical dimension
