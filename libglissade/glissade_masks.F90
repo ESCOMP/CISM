@@ -392,17 +392,23 @@
                       if (calving_front_mask(i,j) == 0) then
                          active_ice_mask(i,j) = 1
                       elseif (calving_front_mask(i,j) == 1) then
-                         !WHL - There is a possible rounding issue here, if two adjacent cells are both being restored
-                         !      (via inversion for bmlt_float) to the same thickness. For this reason, let the
-                         !      cell be active if thck is very close to thck_calving front, but slightly less.
-
+                         !WHL - If two adjacent cells are being restored to the same thickness, there is a
+                         !       chance of flickering here, with the CF cell alternately being restored to
+                         !       slightly greater or slightly less than the thickness of its interior neighbor.
+                         !      For this reason, let the cell be active if thck is very close to thck_calving front,
+                         !       but slightly less.
                          if (thck_calving_front(i,j) > 0.0d0 .and. &
-                             thck(i,j)*(1.0d0 + eps10) >= thck_calving_front(i,j)) then
+                               ! commented-out code reverts to the previous criterion
+!                              thck(i,j)*(1.0d0 + eps10) >= thck_calving_front(i,j)) then
+                              thck(i,j) >= 0.999d0*thck_calving_front(i,j)) then
                             active_ice_mask(i,j) = 1
+                          ! commented-out code reverts to the previous criterion
+!                         elseif (grounded_mask(i-1,j) == 1 .or. grounded_mask(i+1,j) == 1 .or. &
+!                                 grounded_mask(i,j-1) == 1 .or. grounded_mask(i,j+1) == 1 .or. &
+!                                 grounded_mask(i-1,j+1) == 1 .or. grounded_mask(i+1,j+1) == 1 .or. &
+!                                 grounded_mask(i-1,j-1) == 1 .or. grounded_mask(i+1,j-1) == 1) then
                          elseif (grounded_mask(i-1,j) == 1 .or. grounded_mask(i+1,j) == 1 .or. &
-                                 grounded_mask(i,j-1) == 1 .or. grounded_mask(i,j+1) == 1 .or. &
-                                 grounded_mask(i-1,j+1) == 1 .or. grounded_mask(i+1,j+1) == 1 .or. &
-                                 grounded_mask(i-1,j-1) == 1 .or. grounded_mask(i+1,j-1) == 1) then
+                                 grounded_mask(i,j-1) == 1 .or. grounded_mask(i,j+1) == 1) then
                             active_ice_mask(i,j) = 1
                          endif
                       endif
