@@ -767,6 +767,7 @@
 
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
+       whichbeta_limit, &       ! option to limit beta for grounded ice
        whichinversion, &        ! option for basal traction inversion
        whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
@@ -1085,6 +1086,7 @@
      pmp_threshold = model%temper%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
+     whichbeta_limit      = model%options%which_ho_beta_limit
      whichinversion       = model%options%which_ho_inversion
      whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
@@ -2550,6 +2552,7 @@
                       f_ground,                         &
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent inout)
+                      whichbeta_limit,                  &
                       whichinversion,                   &
                       powerlaw_c_inversion,             &
                       itest, jtest, rtest)
