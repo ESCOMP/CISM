@@ -823,11 +823,12 @@
        land_mask,           & ! = 1 for cells where topography is above sea level
        calving_front_mask,  & ! = 1 for floating cells that border at least one ocean cell
        active_ice_mask,     & ! = 1 for active cells (ice_mask = 1, excluding inactive calving_front cells)
-       active_marine_mask,  & ! = 1 for active marine-based cells
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
 
     real(dp), dimension(nx,ny) ::     &
-       thck_calving_front     ! effective thickness of ice at the calving front
+       thck_calving_front,  & ! effective thickness of ice at the calving front
+       thck_adjusted,       & ! adjusted thck field; set to thck_calving_front in inactive CF cells
+       usrf_adjusted          ! adjusted usrf field; based on thck_calving_front in inactive CF cells
 
     real(dp), dimension(nx-1,ny-1) :: &
        stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
@@ -1502,11 +1503,26 @@
     !        prevents abrupt changes in stagthck when these cells activate.
     !------------------------------------------------------------------------------
 
-    ! Compute a mask which is the union of active ice cells and land-based cells (including ice-free land).
-    ! This mask identifies all cells where thck and usrf should be included in staggered averages.
+
+    ! Make a temporary array in which thck is replaced by thck_calving_front in CF cells.
+    ! This will give a more accurate ice thickness and flotation function in CF cells.
+
+    thck_adjusted = thck
+    usrf_adjusted = usrf
+
+    if (whichcalving_front == HO_CALVING_FRONT_SUBGRID) then
+       where (calving_front_mask == 1 .and. active_ice_mask == 0)
+          thck_adjusted = thck_calving_front
+          usrf_adjusted = (1.0d0 - rhoi/rhoo) * thck_adjusted  ! CF cells are always floating 
+       endwhere
+    endif
+
+    ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
+    ! This mask identifies all cells where thck and usrf should be included in staggered averages. 
+    ! Note: Inactive CF cells are included in the mask, with thck and usrf derived from upstream cells.
     do j = 1, ny
        do i = 1, nx
-          if (active_ice_mask(i,j) == 1 .or. land_mask(i,j) == 1) then
+          if (ice_mask(i,j) == 1 .or. land_mask(i,j) == 1) then
              ice_plus_land_mask(i,j) = 1
           else
              ice_plus_land_mask(i,j) = 0
@@ -1515,21 +1531,16 @@
     enddo
 
     call glissade_stagger(nx,       ny,         &
-                          thck,     stagthck,   &
+!!                          thck,         stagthck,   &
+                          thck_adjusted, stagthck,   &
                           ice_plus_land_mask,   &
                           stagger_margin_in = 1)
 
     call glissade_stagger(nx,       ny,         &
-                          usrf,     stagusrf,   &
+!!                          usrf,         stagusrf,   &
+                          usrf_adjusted, stagusrf,   &
                           ice_plus_land_mask,   &
                           stagger_margin_in = 1)
-
-    ! Compute a subset of active_ice_mask, consisting of marine-based cells only
-    where (land_mask == 0 .and. active_ice_mask == 1)
-       active_marine_mask = 1
-    elsewhere
-       active_marine_mask = 0
-    endwhere
 
     if (verbose_gridop .and. this_rank == rtest) then
        print*, ' '
