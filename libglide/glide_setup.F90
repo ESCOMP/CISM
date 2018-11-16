@@ -605,6 +605,7 @@ contains
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
+    call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_inversion',          model%options%which_ho_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
@@ -821,6 +822,10 @@ contains
          'min of Coulomb stress and power-law stress (Tsai)', &
          'power law using effective pressure               ', &
          'simple pattern of beta                           ' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichbeta_limit = (/ &
+         'absolute beta limit based on beta_grounded_min   ', &
+         'beta is limited, then scaled by f_ground_cell    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichinversion = (/ &
          'no inversion for basal parameters or melting     ', &
@@ -1309,6 +1314,13 @@ contains
        call write_log(message)
        if (model%options%which_ho_babc < 0 .or. model%options%which_ho_babc >= size(ho_whichbabc)) then
           call write_log('Error, HO basal BC input out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'ho_whichbeta_limit      : ',model%options%which_ho_beta_limit,  &
+                         ho_whichbeta_limit(model%options%which_ho_beta_limit)
+       call write_log(message)
+       if (model%options%which_ho_beta_limit < 0 .or. model%options%which_ho_beta_limit >= size(ho_whichbeta_limit)) then
+          call write_log('Error, HO beta limit input out of range', GM_FATAL)
        end if
 
        write(message,*) 'ho_whichinversion       : ',model%options%which_ho_inversion,  &

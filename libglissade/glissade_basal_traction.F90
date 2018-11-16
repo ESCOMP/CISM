@@ -77,6 +77,7 @@ contains
                        f_ground,                     &
                        beta_external,                &
                        beta,                         &
+                       which_ho_beta_limit,          &
                        which_ho_inversion,           &
                        powerlaw_c_inversion,         &
                        itest, jtest,  rtest)
@@ -118,6 +119,8 @@ contains
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
 
+  integer, intent(in)           :: which_ho_beta_limit           ! option to limit beta for grounded ice
+                                                                 ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
   integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
   real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
@@ -628,25 +631,44 @@ contains
 
    end select
 
-   ! If f_ground is passed in (as for Glissade), then multiply beta by f_ground (0 <= f_ground <= 1) 
-   !  to reduce the basal traction in regions that are partially or totally floating.
+   ! Multiply beta by f_ground to reduce friction at partly grounded vertices.
    ! Note: With a GLP, f_ground will have values between 0 and 1 at vertices adjacent to the GL.
    !       Without a GLP, f_ground = 0 or 1 everywhere based on a flotation criterion.
-   !       By convention, f_ground = 0 where no ice is present.
+   !       By convention, f_ground = 1 for land, and f_ground = 0 for ice-free ocean.
+
+   ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
+   ! To prevent this, set beta to a minimum value beneath grounded ice.
+   ! The default value of beta_grounded_min = 0.0, but can be set to a nonzero value in the config file.
+
+   ! The limiting can be done either before or after multiplying by f_ground.
+   ! If done after, then beta >= beta_grounded_min at all vertices, including lightly grounded vertices.
+   !  This is the more stable option for settings where there can be large driving stresses near the GL.
+   ! If done before, then beta -> 0 as f_ground -> 0, even if beta_grounded_min > 0.
 
    do ns = 1, nsn-1
       do ew = 1, ewn-1
 
-         beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+         if (which_ho_beta_limit == HO_BETA_LIMIT_ABSOLUTE) then  ! absolute limit based on beta_grounded_min
 
-         ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
-         ! To prevent this, set beta to a minimum value beneath grounded ice.
-         ! The default value of beta_grounded_min = 0.0, but can be set to a nonzero value in the config file.
-         !TODO - Do the limiting before multiplying by f_ground? Or base the limiting on the driving stress?
+            ! multiplication by f_ground before limiting
 
-         if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
-            beta(ew,ns) = basal_physics%beta_grounded_min
-         endif
+            beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
+               beta(ew,ns) = basal_physics%beta_grounded_min
+            endif
+
+         elseif (which_ho_beta_limit == HO_BETA_LIMIT_FLOATING_FRAC) then  ! weighted by f_ground after limiting
+
+            ! multiplication by f_ground after limiting
+
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
+               beta(ew,ns) = basal_physics%beta_grounded_min
+            endif
+
+            beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+
+         endif   ! which_ho_beta_limit
 
       enddo
    enddo
