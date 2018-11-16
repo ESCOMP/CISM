@@ -227,6 +227,9 @@ module glide_types
   integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
   integer, parameter :: HO_BABC_SIMPLE = 14
 
+  integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
+  integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
+
   integer, parameter :: HO_INVERSION_NONE = 0
   integer, parameter :: HO_INVERSION_COMPUTE = 1
   integer, parameter :: HO_INVERSION_PRESCRIBE = 2
@@ -625,6 +628,11 @@ module glide_types
     !> \item[13] power law using effective pressure
     !> \item[14] simple hard-coded pattern (useful for debugging)
     !> \end{description}
+
+    integer :: which_ho_beta_limit = 0
+    !> Flag for setting minimum beta beneath grounded ice
+    !> \item[0] absolute limit given by beta_grounded_min
+    !> \item[1] limited using beta_grounded_min, then multiplied by f_ground
 
     integer :: which_ho_inversion = 0
     !> Flag for basal traction inversion options
