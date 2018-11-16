@@ -46,7 +46,7 @@
     implicit none
 
     private
-    public :: glissade_grounded_fraction, glissade_grounding_line_flux
+    public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_gl
 
     logical, parameter :: verbose_gl = .false.
 
@@ -140,7 +140,7 @@
        f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
 
     real(dp), dimension(nx,ny), intent(out) ::  &
-       f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground <= 1
+       f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground_cell <= 1
 
     !----------------------------------------------------------------
     ! Local variables
@@ -427,10 +427,10 @@
 
                 ! quadrant 1, southwest of the vertex
                 f_flotation_vector(1) =          f_flotation(i,j)
-                f_flotation_vector(2) = 0.5d0 * (f_flotation(i,j) + f_flotation(i+1,j))
+                f_flotation_vector(2) = 0.50d0 * (f_flotation(i,j) + f_flotation(i+1,j))
                 f_flotation_vector(3) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(4) = 0.5d0 * (f_flotation(i,j) + f_flotation(i,j+1))
+                f_flotation_vector(4) = 0.50d0 * (f_flotation(i,j) + f_flotation(i,j+1))
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
@@ -438,9 +438,9 @@
                                                f_ground_quadrant(1,i,j))
 
                 ! quadrant 2, southeast of the vertex
-                f_flotation_vector(1) = 0.5d0 * (f_flotation(i+1,j) + f_flotation(i,j))
+                f_flotation_vector(1) = 0.50d0 * (f_flotation(i+1,j) + f_flotation(i,j))
                 f_flotation_vector(2) =          f_flotation(i+1,j)
-                f_flotation_vector(3) = 0.5d0 * (f_flotation(i+1,j) + f_flotation(i+1,j+1))
+                f_flotation_vector(3) = 0.50d0 * (f_flotation(i+1,j) + f_flotation(i+1,j+1))
                 f_flotation_vector(4) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
 
@@ -452,9 +452,9 @@
                 ! quadrant 3, northeast of the vertex
                 f_flotation_vector(1) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(2) = 0.5d0 * (f_flotation(i+1,j+1) + f_flotation(i,j+1))
+                f_flotation_vector(2) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i,j+1))
                 f_flotation_vector(3) =          f_flotation(i+1,j+1)
-                f_flotation_vector(4) = 0.5d0 * (f_flotation(i+1,j+1) + f_flotation(i+1,j))
+                f_flotation_vector(4) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i+1,j))
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
@@ -462,10 +462,10 @@
                                                f_ground_quadrant(3,i,j))
 
                 ! quadrant 4, northwest of the vertex
-                f_flotation_vector(1) = 0.5d0 * (f_flotation(i,j+1) + f_flotation(i,j))
+                f_flotation_vector(1) = 0.50d0 * (f_flotation(i,j+1) + f_flotation(i,j))
                 f_flotation_vector(2) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(3) = 0.5d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1))
+                f_flotation_vector(3) = 0.50d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1))
                 f_flotation_vector(4) =          f_flotation(i,j+1)
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index

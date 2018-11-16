@@ -669,7 +669,6 @@
     !----------------------------------------------------------------
 
     use glissade_basal_traction, only: calcbeta, calc_effective_pressure
-    use glissade_inversion, only: invert_basal_traction, prescribe_basal_traction
     use glissade_therm, only: glissade_pressure_melting_point
 
     !----------------------------------------------------------------
@@ -733,7 +732,8 @@
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
        f_flotation,          &  ! flotation function = (rhoi*thck) / (-rhoo*(topg-eus)) by default
                                 ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
-       f_ground                 ! grounded ice fraction, 0 <= f_ground <= 1
+       f_ground,             &  ! grounded ice fraction at vertices, 0 <= f_ground <= 1
+       f_ground_cell            ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
 
     !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
     integer, dimension(:,:), pointer ::   &
@@ -758,7 +758,7 @@
        tau_eff                  ! effective stress (Pa)
 
     real(dp), dimension(:,:), pointer ::  &
-       powerlaw_c_inversion     ! Cp (for basal traction) computed from inversion
+       stag_powerlaw_c_inversion  ! Cp (for basal traction) computed from inversion, on staggered grid
 
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
@@ -1040,6 +1040,7 @@
      dthck_dt => model%geometry%dthck_dt(:,:)   ! Note: dthck_dt has units of m/s; no rescaling needed
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
+     f_ground_cell => model%geometry%f_ground_cell(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
 
      temp     => model%temper%temp
@@ -1072,7 +1073,7 @@
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
-     powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
+     stag_powerlaw_c_inversion => model%inversion%stag_powerlaw_c_inversion(:,:)
 
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
@@ -1503,7 +1504,6 @@
     !        prevents abrupt changes in stagthck when these cells activate.
     !------------------------------------------------------------------------------
 
-
     ! Make a temporary array in which thck is replaced by thck_calving_front in CF cells.
     ! This will give a more accurate ice thickness and flotation function in CF cells.
 
@@ -1518,7 +1518,7 @@
     endif
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
-    ! This mask identifies all cells where thck and usrf should be included in staggered averages. 
+    ! This mask identifies all cells where thck and usrf should be included in staggered averages.
     ! Note: Inactive CF cells are included in the mask, with thck and usrf derived from upstream cells.
     do j = 1, ny
        do i = 1, nx
@@ -1530,13 +1530,13 @@
        enddo
     enddo
 
-    call glissade_stagger(nx,       ny,         &
+    call glissade_stagger(nx,            ny,         &
 !!                          thck,         stagthck,   &
                           thck_adjusted, stagthck,   &
                           ice_plus_land_mask,   &
                           stagger_margin_in = 1)
 
-    call glissade_stagger(nx,       ny,         &
+    call glissade_stagger(nx,            ny,         &
 !!                          usrf,         stagusrf,   &
                           usrf_adjusted, stagusrf,   &
                           ice_plus_land_mask,   &
@@ -1650,7 +1650,16 @@
           print*, ' '
        enddo       
        print*, ' '
-       print*, 'f_ground, rank =', rtest
+       print*, 'f_ground_cell, rank =', rtest
+       do j = jtest+1, jtest-1, -1
+          write(6,'(a5)',advance='no') '    '
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') f_ground_cell(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground at vertices, rank =', rtest
        do j = jtest+1, jtest-1, -1
           write(6,'(a5)',advance='no') '    '
           do i = itest-3, itest+3
@@ -1915,7 +1924,8 @@
                                  thck,          topg,          &
                                  eus,                          &
                                  bpmp(:,:) - temp(nz,:,:),     &
-                                 bmlt,          bwat)
+                                 bmlt,          bwat,          &
+                                 itest, jtest,  rtest)
 
     !------------------------------------------------------------------------------
     ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
@@ -2177,6 +2187,30 @@
     if (verbose_load .and. this_rank==rtest) then
 
        print*, ' '
+       print*, 'stagthck field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') stagthck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'stagusrf field, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') stagusrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
        print*, 'loadu_2d (taudx term only), itest, jtest, rank =', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
@@ -2293,7 +2327,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') usrf(i,j)
+                write(6,'(f10.4)',advance='no') usrf(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2305,7 +2339,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
+                write(6,'(f10.4)',advance='no') thck(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -2317,19 +2351,19 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') topg(i,j)
+                write(6,'(f10.4)',advance='no') topg(i,j)
              enddo
              write(6,*) ' '
           enddo          
 
           print*, ' '
-          print*, 'active_cell, itest, jtest, rank =', itest, jtest, rtest
+          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(L10)',advance='no') active_cell(i,j)
+                write(6,'(i10)',advance='no') active_ice_mask(i,j)
              enddo
              write(6,*) ' '
           enddo          
@@ -2389,13 +2423,25 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') f_flotation(i,j)
+                write(6,'(f10.4)',advance='no') f_flotation(i,j)
              enddo
              write(6,*) ' '
           enddo          
 
           print*, ' '
-          print*, 'f_ground field, itest, jtest, rank =', itest, jtest, rtest
+          print*, 'f_ground_cell, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') f_ground_cell(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'f_ground at vertices, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
@@ -2404,7 +2450,7 @@
                 write(6,'(f10.5)',advance='no') f_ground(i,j)
              enddo
              write(6,*) ' '
-          enddo          
+          enddo
 
           print*, ' '
           print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
@@ -2455,7 +2501,7 @@
           enddo
 
           !WHL - debug - Skip the next few fields for now
-          go to 500
+!!          go to 500
 
           print*, ' '
           print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
@@ -2505,6 +2551,8 @@
              write(6,*) ' '
           enddo
 
+!!500       continue
+
           print*, ' '
           print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2516,8 +2564,6 @@
              enddo
              write(6,*) ' '
           enddo
-
-500       continue
 
           print*, ' '
           print*, 'effecpress/overburden, itest, jtest, rank =', itest, jtest, rtest
@@ -2547,6 +2593,16 @@
              write(6,*) ' '
           enddo
 
+          print*, ' '
+          print*, 'stag_powerlaw_c_inversion, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.2)',advance='no') stag_powerlaw_c_inversion(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
        endif  ! verbose_beta
 
        call calcbeta (whichbabc,                        &
@@ -2561,11 +2617,12 @@
                       floating_mask,                    &
                       land_mask,                        &
                       f_ground,                         &
+!!                      f_ground_cell,                    &
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                       whichbeta_limit,                  &
                       whichinversion,                   &
-                      powerlaw_c_inversion,             &
+                      stag_powerlaw_c_inversion,        &
                       itest, jtest, rtest)
 
        if (verbose_beta) then
@@ -2580,7 +2637,8 @@
        endif
 
 !!       if (verbose_beta .and. this_rank==rtest) then
-       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,30)==0) then
+!!       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,30)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
           print*, ' '
           print*, 'log(beta), itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2589,9 +2647,36 @@
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
                 if (beta_internal(i,j) > 0.0d0) then
-                   write(6,'(f10.3)',advance='no') log10(beta_internal(i,j))
+                   write(6,'(f10.5)',advance='no') log10(beta_internal(i,j))
                 else
-                   write(6,'(f10.3)',advance='no') -999.0d0
+                   write(6,'(f10.5)',advance='no') -99.0d0
+                endif
+             enddo
+             write(6,*) ' '
+          enddo
+
+          !WHL - debug
+!          print*, ' '
+!          print*, 'beta, itest, jtest, rank =', itest, jtest, rtest
+!          do j = jtest+3, jtest-3, -1
+!             write(6,'(i6)',advance='no') j
+!             do i = itest-3, itest+3
+!                write(6,'(e10.3)',advance='no') beta_internal(i,j)
+!             enddo
+!             write(6,*) ' '
+!          enddo
+
+          print*, ' '
+          print*, 'beta/f_ground, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                if (f_ground(i,j) > 0.0d0) then 
+                   write(6,'(f10.3)',advance='no') beta_internal(i,j)/f_ground(i,j)
+                else
+                   write(6,'(f10.3)',advance='no') 0.0d0
                 endif
              enddo
              write(6,*) ' '
@@ -2606,7 +2691,7 @@
                 write(6,'(i6)',advance='no') j
                 !!             do i = 1, nx-1
                 do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') uvel_2d(i,j)
+                   write(6,'(f10.3)',advance='no') uvel_2d(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -2617,7 +2702,7 @@
                 write(6,'(i6)',advance='no') j
                 !!             do i = 1, nx-1
                 do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') vvel_2d(i,j)
+                   write(6,'(f10.3)',advance='no') vvel_2d(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -2876,7 +2961,7 @@
                 print*, 'beta_eff:'
                 do j = jtest+3, jtest-3, -1
                    do i = itest-3, itest+3
-                      write(6,'(f10.0)',advance='no') beta_eff(i,j)
+                      write(6,'(e10.3)',advance='no') beta_eff(i,j)
                    enddo
                    write(6,*) ' '
                 enddo
@@ -7021,7 +7106,6 @@
                                       nz,            sigma,         &
                                       nhalo,                        &
                                       active_cell,                  &
-
                                       xVertex,       yVertex,       &
                                       stagusrf,      stagthck,      &
                                       flwafact,      efvs,          &
