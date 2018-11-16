@@ -46,7 +46,7 @@ module glissade_grid_operators
     implicit none
 
     private
-    public :: glissade_stagger, glissade_unstagger,    &
+    public :: glissade_stagger, glissade_unstagger, glissade_stagger_real_mask, &
               glissade_gradient, glissade_gradient_at_edges, &
               glissade_surface_elevation_gradient,  &
               glissade_vertical_average
@@ -146,6 +146,71 @@ contains
     !        been updated in halo cells, or do a halo update of 'stagvar' upon return.
 
   end subroutine glissade_stagger
+
+!----------------------------------------------------------------------------
+
+  subroutine glissade_stagger_real_mask(nx,           ny,        &
+                                        var,          stagvar,   &
+                                        stagger_rmask)
+
+    !----------------------------------------------------------------
+    ! Given a variable on the unstaggered grid (dimension nx, ny), interpolate
+    !  to find values on the staggered grid (dimension nx-1, ny-1).
+    ! The value in each cell is weighted by a real mask, typically in range [0,1]
+    !----------------------------------------------------------------
+    !TODO - Combine the two stagger routines using optional arguments.
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::   &
+       nx, ny                   ! horizontal grid dimensions
+
+    real(dp), dimension(nx,ny), intent(in) ::    &
+       var                      ! unstaggered field, defined at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(out) ::    &
+       stagvar                  ! staggered field, defined at cell vertices
+
+    real(dp), dimension(nx,ny), intent(in), optional ::        &
+       stagger_rmask            ! real-valued mask that determines how to weight cells in the staggering
+                                ! 1 => full weight, 0 => no weight, 0 < mask > 1 => intermediate weight
+
+    !--------------------------------------------------------
+    ! Local variables
+    !--------------------------------------------------------
+
+    integer :: i, j
+    real(dp), dimension(nx,ny) :: rmask   ! real-valued mask for weighting
+    real(dp) :: sumvar, summask
+    integer :: stagger_margin
+
+    if (present(stagger_rmask)) then
+       rmask = stagger_rmask
+    else
+       rmask = 1.0d0   ! default is full weighting of all cells
+    endif
+
+    stagvar(:,:) = 0.d0
+
+    do j = 1, ny-1     ! all vertices
+       do i = 1, nx-1
+          sumvar = rmask(i,j+1)*var(i,j+1) + rmask(i+1,j+1)*var(i+1,j+1)  &
+                 + rmask(i,j)  *var(i,j)   + rmask(i+1,j)  *var(i+1,j)
+          summask = rmask(i,j+1) + rmask(i+1,j+1) + rmask(i,j) + rmask(i+1,j)
+          if (summask > 0.d0) stagvar(i,j) = sumvar / summask
+       enddo
+    enddo
+
+    ! Note: In most cases it would be safe here to do a staggered parallel halo update of stagvar.
+    !       However, if running a problem with nonzero periodic_offset_ew/ns (e.g., the ISMIP-HOM and stream cases),
+    !        a halo update would copy incorrect values to vertices on the west and south boundaries
+    !        of the global domain. So there is no halo update here.
+    !       To ensure correct halo values, the user should either pass in a 'var' field that has already
+    !        been updated in halo cells, or do a halo update of 'stagvar' upon return.
+
+  end subroutine glissade_stagger_real_mask
 
 !----------------------------------------------------------------------------
 
