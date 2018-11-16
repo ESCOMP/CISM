@@ -209,8 +209,12 @@ contains
     model%basal_melt%bmlt_float_depth_meltmin = model%basal_melt%bmlt_float_depth_meltmin / scyr
 
     ! scale basal inversion parameters
+    !TODO - Leave buffer units as meters?
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr
     model%inversion%babc_dthck_dt_scale = model%inversion%babc_dthck_dt_scale / scyr
+    model%inversion%bmlt_max_thck_above_flotation = model%inversion%bmlt_max_thck_above_flotation / thk0
+    model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
+    model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -1668,8 +1672,12 @@ contains
     call GetValue(section, 'inversion_babc_dthck_dt_scale', model%inversion%babc_dthck_dt_scale)
     call GetValue(section, 'inversion_babc_space_smoothing', model%inversion%babc_space_smoothing)
     call GetValue(section, 'inversion_babc_time_smoothing', model%inversion%babc_time_smoothing)
-    call GetValue(section, 'inversion_bmlt_thck_buffer', model%inversion%bmlt_thck_buffer)
-
+    call GetValue(section, 'inversion_bmlt_max_thck_above_flotation', &
+         model%inversion%bmlt_max_thck_above_flotation)
+    call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
+    call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
+    call GetValue(section, 'inversion_wean_tstart', model%inversion%wean_tstart)
+    call GetValue(section, 'inversion_wean_tend', model%inversion%wean_tend)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2017,9 +2025,25 @@ contains
        write(message,*) 'inversion basal traction time smoothing      : ', &
             model%inversion%babc_time_smoothing
        call write_log(message)
-       write(message,*) 'inversion bmlt_float thickness buffer        : ', &
-            model%inversion%bmlt_thck_buffer
+       write(message,*) 'inversion max thck above flotation (m)       : ', &
+            model%inversion%bmlt_max_thck_above_flotation
+       write(message,*) 'inversion flotation thickness buffer (m)     : ', &
+            model%inversion%thck_flotation_buffer
        call write_log(message)
+       write(message,*) 'inversion thickness threshold (m)            : ', &
+            model%inversion%thck_threshold
+       call write_log(message)
+       if (model%inversion%wean_tstart > 0.0d0 .and. model%inversion%wean_tend > 0.0d0) then 
+          write(message,*) 'start time (yr) for abated nudging        : ', &
+               model%inversion%wean_tstart
+          call write_log(message)
+          write(message,*) 'end time (yr) for abated nudging          : ', &
+               model%inversion%wean_tend
+          call write_log(message)
+          if (model%inversion%wean_tend <= model%inversion%wean_tstart) then
+             call write_log('Error, must have wean_tend > wean_tstart', GM_FATAL)
+          endif
+       endif
     elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
        write(message,*) 'powerlaw_c land, Pa (m/yr)^(-1/3)            : ', &
             model%inversion%powerlaw_c_land
@@ -2638,9 +2662,12 @@ contains
       case (HO_INVERSION_COMPUTE)
          ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
          ! usrf_inversion and dthck_dt_inversion are computed as moving averages while adjusting powerlaw_c
-         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
-         call glide_add_to_restart_variable_list('bmlt_float_inversion')
-         call glide_add_to_restart_variable_list('dthck_dt_inversion')
+         !TODO - Remove powerlaw_c_inversion and bmlt_float_inversion, and just write save fields?
+!!         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
+!!         call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
+         call glide_add_to_restart_variable_list('dthck_dt')
          call glide_add_to_restart_variable_list('usrf_inversion')
       case (HO_INVERSION_PRESCRIBE)
          ! Write powerlaw_c_inversion to the restart file, because it is

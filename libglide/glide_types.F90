@@ -1268,16 +1268,27 @@ module glide_types
      ! For which_ho_inversion = HO_INVERSION_PRESCRIBE, bmlt_float_prescribed (as computed in a
      !  previous inversion run) is read from the input file. 
 
+     !WHL - working on new fields here
      real(dp), dimension(:,:), pointer :: &
-          bmlt_float_inversion => null(),      & !> basal melt rate computed by inversion;
-                                                 !> used to relax thickness of floating ice toward observed target
+          bmlt_float_save => null(),           & !> saved value of bmlt_float; can be a time-weighted average
+          bmlt_float_inversion => null()         !> basal melt rate to be applied to floating ice;
+                                                 !> based on bmlt_float_save, but reduced or zeroed where ice is grounded
+
+     !WHL - bmlt_float_prescribed to be removed?
+     real(dp), dimension(:,:), pointer :: &
           bmlt_float_prescribed => null()        !> basal melt rate prescribed from a previous inversion
 
+     ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field, Pa (m/yr)^(-1/3)
-          powerlaw_c_prescribed => null(),     & !> powerlaw_c field, prescribed from a previous inversion
+          powerlaw_c_save => null(),           & !> saved powerlaw_c field; can be a time-weighted average
+          powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field to be applied to grounded ice
+          stag_powerlaw_c_inversion => null(), & !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
           usrf_inversion => null(),            & !> upper surface elevation, used for Cp inversion (m)
           dthck_dt_inversion => null()           !> rate of thickness change, used for Cp inversion (m/s) 
+
+     !WHL - powerlaw_c_prescribed to be removed?
+     real(dp), dimension(:,:), pointer :: &
+          powerlaw_c_prescribed => null()        !> powerlaw_c field, prescribed from a previous inversion
 
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
@@ -1287,8 +1298,9 @@ module glide_types
           powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
           powerlaw_c_min = 1.0d2,             &  !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
           powerlaw_c_land = 2.0d-4,           &  !> default value of powerlaw_c on land (topg >= eus)
-          powerlaw_c_marine = 1.0d-3             !> default value of powerlaw_c below sea level
+          powerlaw_c_marine = 1.0d2              !> default value of powerlaw_c below sea level
 
+     ! parameters for adjusting powerlaw_c_inversion
      real(dp) ::  &
           babc_timescale = 500.d0,        & !> inversion timescale (yr); must be > 0
           babc_thck_scale = 100.d0,       & !> thickness inversion scale (m); must be > 0
@@ -1297,8 +1309,27 @@ module glide_types
           babc_time_smoothing = 0.0d0       !> factor for exponential moving average of usrf/dthck_dt_inversion
                                             !> range [0,1]; larger => slower discounting of old values, more smoothing
 
+     ! parameters for adjusting bmlt_float_inversion
      real(dp) ::  &
-          bmlt_thck_buffer = 1.0d0          !> cells with a grounded target are restored to thck_flotation + bmlt_thck_buffer (m)
+          bmlt_max_thck_above_flotation = 1.0d0   !> cells with a grounded target are restored to no more than 
+                                                  !> thck_flotation + bmlt_max_thck_above_flotation
+
+     ! parameters for initializing inversion fields
+     real(dp) :: &
+          thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
+          thck_flotation_buffer = 1.0d0      !> if thck_obs near thck_flotation, set to thck_flotation +/- thck_flotation_buffer (m)
+
+     ! parameters for weighted exponentially abated nudging
+     ! The idea of this nudging is that the saved inversion fields (bmlt_float_save and powerlaw_c_save),
+     !  instead of being set to new values every timestep, are set to a weighted average of the saved value
+     !  and the new value, with the weight of the new value falling off exponentially over time.
+     ! Setting wean_tend = 0.0 (the default) is interpreted as turning off this nudging.
+     ! In this case, the saved values are set to the new values every time step.
+     real(dp) ::  &
+          nudging_factor = 1.0d0,         & !> = 1 to use the newly computed value; = 0 to use the saved value;
+                                            !> 0 < nudging_factor < 1 between wean_tstart and wean_tend
+          wean_tstart = 0.0d0,            & !> starting time (yr) for weighted abated nudging
+          wean_tend = 0.0d0                 !> end time (yr) for weighted abated nudging
 
   end type glide_inversion
 
@@ -1910,9 +1941,12 @@ contains
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
+    !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
     !> \item \texttt{bmlt_float_prescribed(ewn,nsn)}
+    !> \item \texttt{powerlaw_c_save(ewn,nsn)}
     !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
+    !> \item \texttt{stag_powerlaw_c_inversion(ewn,nsn)}
     !> \item \texttt{powerlaw_c_prescribed(ewn,nsn)}
     !> \item \texttt{usrf_inversion(ewn,nsn)}
     !> \item \texttt{dthck_dt_inversion(ewn,nsn)}
@@ -2288,9 +2322,12 @@ contains
     ! inversion arrays (Glissade only)
     if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
         model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_prescribed)
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
+       call coordsystem_allocate(model%general%velo_grid, model%inversion%stag_powerlaw_c_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_prescribed)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%usrf_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%dthck_dt_inversion)
@@ -2613,12 +2650,18 @@ contains
         deallocate(model%basal_melt%bmlt_applied_diff)
 
     ! inversion arrays
+    if (associated(model%inversion%bmlt_float_save)) &
+        deallocate(model%inversion%bmlt_float_save)
     if (associated(model%inversion%bmlt_float_inversion)) &
         deallocate(model%inversion%bmlt_float_inversion)
     if (associated(model%inversion%bmlt_float_prescribed)) &
         deallocate(model%inversion%bmlt_float_prescribed)
+    if (associated(model%inversion%powerlaw_c_save)) &
+        deallocate(model%inversion%powerlaw_c_save)
     if (associated(model%inversion%powerlaw_c_inversion)) &
         deallocate(model%inversion%powerlaw_c_inversion)
+    if (associated(model%inversion%stag_powerlaw_c_inversion)) &
+        deallocate(model%inversion%stag_powerlaw_c_inversion)
     if (associated(model%inversion%powerlaw_c_prescribed)) &
         deallocate(model%inversion%powerlaw_c_prescribed)
     if (associated(model%inversion%usrf_inversion)) &
