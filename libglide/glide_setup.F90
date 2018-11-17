@@ -832,10 +832,9 @@ contains
          'absolute beta limit based on beta_grounded_min   ', &
          'beta is limited, then scaled by f_ground_cell    ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichinversion = (/ &
+    character(len=*), dimension(0:1), parameter :: ho_whichinversion = (/ &
          'no inversion for basal parameters or melting     ', &
-         'invert for basal parameters and subshelf melting ', &
-         'prescribe parameters from previous inversion     ' /)
+         'invert for basal parameters and subshelf melting ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -2069,13 +2068,6 @@ contains
              call write_log('Error, must have wean_tend > wean_tstart', GM_FATAL)
           endif
        endif
-    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
-       write(message,*) 'powerlaw_c land, Pa (m/yr)^(-1/3)            : ', &
-            model%inversion%powerlaw_c_land
-       call write_log(message)
-       write(message,*) 'powerlaw_c marine, Pa (m/yr)^(-1/3)          : ', &
-            model%inversion%powerlaw_c_marine
-       call write_log(message)
     endif
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
@@ -2694,20 +2686,6 @@ contains
          call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
          call glide_add_to_restart_variable_list('dthck_dt')
          call glide_add_to_restart_variable_list('usrf_inversion')
-      case (HO_INVERSION_PRESCRIBE)
-         ! Write powerlaw_c_inversion to the restart file, because it is
-         !  continually adjusted at runtime as the grounding line moves.
-         ! Also write bmlt_float_inversion, in case it is also adjusted at runtime.
-         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
-         call glide_add_to_restart_variable_list('bmlt_float_inversion')
-         ! If powerlaw_c is prescribed from a previous inversion, then the
-         !  prescribed field is needed at runtime to set powerlaw_c_inversion
-         !  when floating ice regrounds.
-         ! Currently, the prescribed bmlt_float field is used only at initialization
-         !  to set bmlt_float_inversion, so it might not be needed for restart.
-         !  Remove it later?
-         call glide_add_to_restart_variable_list('powerlaw_c_prescribed')
-         call glide_add_to_restart_variable_list('bmlt_float_prescribed')
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,

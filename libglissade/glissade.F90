@@ -541,8 +541,7 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
        call glissade_init_inversion(model)
 
@@ -1503,8 +1502,7 @@ contains
        !        as part of the diagnostic solve, just before computing velocity.
        !-------------------------------------------------------------------------
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
           ! Optionally, set a nudging factor that is used to compute a weighted average
           !  of the newly computed inversion fields (powerlaw_c_new and bmlt_float_new)
@@ -1580,8 +1578,7 @@ contains
           enddo
        enddo
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-           model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
           ! Add bmlt_float_inversion to bmlt_unscaled, the melt rate passed to the mass balance driver.
           ! Both fields have units of m/s.
@@ -2165,10 +2162,8 @@ contains
     !TODO - Do not call this subroutine on restart; but make sure required fields are up to date.
 
 !    if ( (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-!          model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) &
 !          .and. model%options%is_restart /= RESTART_TRUE ) then
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
        call glissade_inversion_basal_traction(model,  &
                                               ice_mask, &
@@ -2732,9 +2727,8 @@ contains
 
     !WHL - inversion debug
 
-    if ( (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-          model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE)  &
-          .and. verbose_inversion .and. model%numerics%tstep_count > 0 ) then
+    if ( model%options%which_ho_inversion == HO_INVERSION_COMPUTE  &
+         .and. verbose_inversion .and. model%numerics%tstep_count > 0 ) then
 
        !WHL - temporary debug - compute max diff in bmlt_applied
        model%basal_melt%bmlt_applied_diff(:,:) = &

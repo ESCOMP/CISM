@@ -232,7 +232,6 @@ module glide_types
 
   integer, parameter :: HO_INVERSION_NONE = 0
   integer, parameter :: HO_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_INVERSION_PRESCRIBE = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -593,6 +592,7 @@ module glide_types
     !> \item[0] constant value
     !> \item[1] multiple of flow factor
     !> \item[2] compute from effective strain rate
+    !> \end{description}
 
     integer :: which_ho_disp = 1
 
@@ -601,7 +601,6 @@ module glide_types
     !> \item[-1] for no dissipation
     !> \item[0] for 0-order SIA approx
     !> \item[1] for first-order dissipation (Blatter-Pattyn)
-    !>      
     !> \end{description}
 
     integer :: which_ho_thermal_timestep = 0
@@ -634,8 +633,10 @@ module glide_types
 
     integer :: which_ho_beta_limit = 0
     !> Flag for setting minimum beta beneath grounded ice
+    !> \begin{description}
     !> \item[0] absolute limit given by beta_grounded_min
     !> \item[1] limited using beta_grounded_min, then multiplied by f_ground
+    !> \end{description}
 
     integer :: which_ho_inversion = 0
     !> Flag for basal traction inversion options
@@ -643,7 +644,6 @@ module glide_types
     !> \begin{description}
     !> \item[0] no inversion
     !> \item[1] invert for basal traction parameters and subshelf melting
-    !> \item[2] apply parameters and subshelf melting from previous inversion
     !> \end{description}
 
     integer :: which_ho_bwat = 0
@@ -740,6 +740,7 @@ module glide_types
     !> \item[0] Centered gradient
     !> \item[1] First-order accurate upstream gradient
     !> \item[2] Second-order accurate upstream gradient
+    !> \end{description}
 
     !WHL - Changed default from 1 to 3.
     !      Option 3 is appropriate for ice sheets with both land and marine boundaries,
@@ -756,6 +757,7 @@ module glide_types
     !> \item[0] Compute edge gradient when either cell is ice-covered
     !> \item[1] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
     !> \item[2] Compute edge gradient only when both cells have ice
+    !> \end{description}
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now, pending more testing
@@ -764,6 +766,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] first-order accurate in the vertical direction
     !> \item[1] second-order accurate in the vertical direction
+    !> \end{description}
 
     integer :: which_ho_assemble_taud = 1
 
@@ -771,6 +774,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
     !> \item[1] apply local value of driving stress at each vertex
+    !> \end{description}
 
     integer :: which_ho_assemble_beta = 1
 
@@ -778,6 +782,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
     !> \item[1] apply local value of beta at each vertex
+    !> \end{description}
 
     integer :: which_ho_assemble_bfric = 1
 
@@ -785,12 +790,14 @@ module glide_types
     !> \begin{description}
     !> \item[0] standard finite-element calculation summing over quadrature points
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
+    !> \end{description}
 
     integer :: which_ho_calving_front = 0
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
     !> \item[1] subgrid calving front parameterization
+    !> \end{description}
 
     integer :: which_ho_ground = 0
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
@@ -799,12 +806,14 @@ module glide_types
     !> \item[0] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
     !> \item[1] basal friction GLP with 0 <= f_ground <= 1 at vertices
     !> \item[2] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
+    !> \end{description}
 
     integer :: which_ho_fground_no_glp = 0
     !> Flag that indicates how to identify grounded and floating vertices when running without a GLP
     !> \begin{description}
     !> \item[0] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
     !> \item[1] f_ground = 0 or 1 based on staggered flotation function
+    !> \end{description}
 
     integer :: which_ho_ground_bmlt = 0
     !> Flag that indicates how to compute bmlt_float in partly grounded cells
@@ -812,6 +821,7 @@ module glide_types
     !> \item[0] Apply bmlt_float in all floating cells, based on floating_mask
     !> \item[1] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
     !> \item[2] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
+    !> \end{description}
 
     integer :: which_ho_flotation_function = 2
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
@@ -820,11 +830,14 @@ module glide_types
     !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !> \end{description}
 
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
+    !> \begin{description}
     !> \item[0] ice age computation off
     !> \item[1] ice age computation on
+    !> \end{description}
 
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
@@ -1286,10 +1299,6 @@ module glide_types
           bmlt_float_inversion => null()         !> basal melt rate to be applied to floating ice;
                                                  !> based on bmlt_float_save, but reduced or zeroed where ice is grounded
 
-     !WHL - bmlt_float_prescribed to be removed?
-     real(dp), dimension(:,:), pointer :: &
-          bmlt_float_prescribed => null()        !> basal melt rate prescribed from a previous inversion
-
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
      real(dp), dimension(:,:), pointer :: &
           powerlaw_c_save => null(),           & !> saved powerlaw_c field; can be a time-weighted average
@@ -1297,10 +1306,6 @@ module glide_types
           stag_powerlaw_c_inversion => null(), & !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
           usrf_inversion => null(),            & !> upper surface elevation, used for Cp inversion (m)
           dthck_dt_inversion => null()           !> rate of thickness change, used for Cp inversion (m/s) 
-
-     !WHL - powerlaw_c_prescribed to be removed?
-     real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_prescribed => null()        !> powerlaw_c field, prescribed from a previous inversion
 
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
@@ -1955,11 +1960,9 @@ contains
     !> In \texttt{model\%inversion}:
     !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
-    !> \item \texttt{bmlt_float_prescribed(ewn,nsn)}
     !> \item \texttt{powerlaw_c_save(ewn,nsn)}
     !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
     !> \item \texttt{stag_powerlaw_c_inversion(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_prescribed(ewn,nsn)}
     !> \item \texttt{usrf_inversion(ewn,nsn)}
     !> \item \texttt{dthck_dt_inversion(ewn,nsn)}
 
@@ -2334,15 +2337,12 @@ contains
     endif  ! Glissade
 
     ! inversion arrays (Glissade only)
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-        model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_prescribed)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
        call coordsystem_allocate(model%general%velo_grid, model%inversion%stag_powerlaw_c_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_prescribed)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%usrf_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%dthck_dt_inversion)
     else
@@ -2672,16 +2672,12 @@ contains
         deallocate(model%inversion%bmlt_float_save)
     if (associated(model%inversion%bmlt_float_inversion)) &
         deallocate(model%inversion%bmlt_float_inversion)
-    if (associated(model%inversion%bmlt_float_prescribed)) &
-        deallocate(model%inversion%bmlt_float_prescribed)
     if (associated(model%inversion%powerlaw_c_save)) &
         deallocate(model%inversion%powerlaw_c_save)
     if (associated(model%inversion%powerlaw_c_inversion)) &
         deallocate(model%inversion%powerlaw_c_inversion)
     if (associated(model%inversion%stag_powerlaw_c_inversion)) &
         deallocate(model%inversion%stag_powerlaw_c_inversion)
-    if (associated(model%inversion%powerlaw_c_prescribed)) &
-        deallocate(model%inversion%powerlaw_c_prescribed)
     if (associated(model%inversion%usrf_inversion)) &
         deallocate(model%inversion%usrf_inversion)
     if (associated(model%inversion%dthck_dt_inversion)) &
