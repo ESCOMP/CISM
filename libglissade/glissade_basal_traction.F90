@@ -367,8 +367,7 @@ contains
           ! Set beta assuming a spatially uniform value of powerlaw_c
           beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c from inversion
+       elseif (which_inversion == HO_INVERSION_COMPUTE) then  ! use powerlaw_c from inversion
 
           m = basal_physics%powerlaw_m
 
@@ -490,8 +489,7 @@ contains
              enddo
           enddo
 
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c and coulomb_c from inversion
+       elseif (which_inversion == HO_INVERSION_COMPUTE) then   ! use powerlaw_c and coulomb_c from inversion
 
           m = basal_physics%powerlaw_m
 

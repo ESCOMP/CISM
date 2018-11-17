@@ -318,15 +318,6 @@ factor:        scyr
 load:          1
 coordinates:   lon lat
 
-[bmlt_float_prescribed]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     prescribed basal melt rate for floating ice
-data:          data%inversion%bmlt_float_prescribed
-factor:        scyr
-load:          1
-coordinates:   lon lat
-
 [warm_ocean_mask]
 dimensions:    time, y1, x1
 units:         1
@@ -902,14 +893,6 @@ dimensions:    time, y1, x1
 units:         Pa (m/yr)**(-1/3)
 long_name:     cumulative spatially varying C for powerlaw sliding
 data:          data%inversion%powerlaw_c_save
-load:          1
-coordinates:   lon lat
-
-[powerlaw_c_prescribed]
-dimensions:    time, y1, x1
-units:         Pa (m/yr)**(-1/3)
-long_name:     prescribed spatially varying C for powerlaw sliding
-data:          data%inversion%powerlaw_c_prescribed
 load:          1
 coordinates:   lon lat
 
