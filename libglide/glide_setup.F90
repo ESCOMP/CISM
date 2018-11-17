@@ -913,8 +913,8 @@ contains
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
-         '0 <= f_ground <= 1 based on GLP; compute in staggered cells', &
-         '0 <= f_ground <= 1 based on GLP; compute in cell quadrants ' /)
+         'GLP for basal friction with 0 <= f_ground <= 1 for vertices', &
+         'deluxe GLP, 0 <= f_ground <= 1 for both vertices and cells ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichfground_no_glp = (/ &
          'f_ground = 1 at vertex if any neighbor cell is grounded   ', &
@@ -1508,15 +1508,25 @@ contains
              call write_log('Error, ho_ground_bmlt option out of range for glissade dycore', GM_FATAL)
           end if
 
-          if (model%options%which_ho_ground == HO_GROUND_GLP) then
-             write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
-                               ho_whichflotation_function(model%options%which_ho_flotation_function)
-             call write_log(message)
-             if (model%options%which_ho_flotation_function < 0 .or. &
-                 model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
-                call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
+          if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC  .or. &
+              model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
+             if (model%options%which_ho_ground /= HO_GROUND_GLP_DELUXE) then
+                write(message,*) 'This setting of which_ho_ground_bmlt requires which_ho_ground =', &
+                     HO_GROUND_GLP_DELUXE
+                call write_log(message)
+                write(message,*)  'Defaulting to which_ho_ground_bmlt =', HO_GROUND_BMLT_NO_GLP
+                call write_log(message)
+                model%options%which_ho_ground_bmlt = HO_GROUND_BMLT_NO_GLP
              endif
-          end if
+          endif
+
+          write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
+               ho_whichflotation_function(model%options%which_ho_flotation_function)
+          call write_log(message)
+          if (model%options%which_ho_flotation_function < 0 .or. &
+               model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
+             call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
+          endif
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
                             ho_whichice_age(model%options%which_ho_ice_age)

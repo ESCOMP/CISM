@@ -475,7 +475,7 @@ contains
 
        model%inversion%bmlt_float_inversion(:,:) = 0.0d0
 
-       if (model%options%which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+       if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
           ! reduce bmlt_float_inversion based on f_ground_cell
 
@@ -720,7 +720,7 @@ contains
 
        ! Interpolate powerlaw_c_inversion to the staggered grid.
 
-       if (model%options%which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+       if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
           ! For the staggered averaging, give each cell a weighting of f_ground_cell
 
@@ -954,7 +954,7 @@ contains
     !       before transport and fully floating afterward, powerlaw_c_inversion is computed here
     !       rather than being set to zero.
 
-    if (which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
        ! Determine cells for inversion using f_ground_cell
        where (land_mask == 1 .or. f_ground_cell > 0.0d0)
@@ -1396,7 +1396,7 @@ contains
 
     ! Identify cells that can have nonzero bmlt_float_inversion, based on which_ho_ground and which_ho_ground_bmlt
 
-    if (which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
        ! Determine cells with nonzero bmlt_float_inversion using f_ground_cell
 
