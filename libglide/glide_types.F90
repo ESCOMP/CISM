@@ -296,8 +296,8 @@ module glide_types
   integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
 
   integer, parameter :: HO_GROUND_NO_GLP = 0
-  integer, parameter :: HO_GROUND_GLP = 1
-  integer, parameter :: HO_GROUND_GLP_QUADRANTS = 2
+  integer, parameter :: HO_GROUND_GLP_BASAL_FRICTION = 1
+  integer, parameter :: HO_GROUND_GLP_DELUXE = 2
 
   integer, parameter :: HO_FGROUND_NO_GLP_GROUNDED_NEIGHBOR = 0
   integer, parameter :: HO_FGROUND_NO_GLP_FLOTATION_FUNCTION = 1
@@ -797,8 +797,8 @@ module glide_types
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
-    !> \item[1] 0 <= f_ground <= 1, based on a grounding line parameterization
-    !> \item[2] similar to [1], but f_ground is summed over quadrants rather than staggered cells
+    !> \item[1] basal friction GLP with 0 <= f_ground <= 1 at vertices
+    !> \item[2] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
 
     integer :: which_ho_fground_no_glp = 0
     !> Flag that indicates how to identify grounded and floating vertices when running without a GLP

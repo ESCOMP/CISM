@@ -68,7 +68,7 @@
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
 
     !----------------------------------------------------------------
-    ! Compute fraction of ice that is grounded.
+    ! Compute fraction of ice that is grounded, optionally using a grounding line parameterization (GLP).
     ! This fraction is computed at vertices based on the thickness and topography of the four neighboring cell centers.
     ! More generally, it can be computed at any point centered in a square or rectangle,
     !  given a flotation function (based on thickness and topography) at the corners of the square or rectangle.
@@ -78,13 +78,14 @@
     !                       f_ground = 0 for floating vertices
     !     Vertices are identified as grounded or floating based on (a) presence of grounded neighbors
     !      or (b) interpolation of the flotation function.
-    ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
+    ! (1) HO_GROUND_GLP_BASAL_FRICTION: GLP for basal friction with 0 <= f_ground <= 1.
     !        A flotation function is interpolated over the staggered cell around each vertex
     !        and analytically integrated to compute the grounded and floating fractions.
     !        Then f_ground_cell is computed by averaging the values computed at vertices.
     !        TODO: Is f_ground_cell ever used with this option?  If not, then might not need to compute here.
-    ! (2) HO_GROUND_GLP_QUADRANTS: similar to (2), but f_flotation is interpolated over cell quadrants,
+    ! (2) HO_GROUND_GLP_DELUXE: similar to (2), but f_flotation is interpolated over cell quadrants,
     !        and then both f_ground (at vertices) and f_ground_cell are computed by summing over quadrants.
+    !        A GLP is applied not only to basal friction but also to basal melting and other processes near the GL.
     !
     ! For options (1) and (2), there are three options for the flotation function:
     ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
@@ -408,7 +409,7 @@
 
        endif  ! which_ho_no_glp_stagger
 
-    elseif (which_ho_ground == HO_GROUND_GLP) then
+    elseif (which_ho_ground == HO_GROUND_GLP_BASAL_FRICTION) then
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
        ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
@@ -442,7 +443,7 @@
           f_ground_cell = 1.0d0
        endwhere
 
-    elseif (which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+    elseif (which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
        !----------------------------------------------------------------
        ! Compute f_ground_vertex by finding f_ground for 4 neighboring quadrants

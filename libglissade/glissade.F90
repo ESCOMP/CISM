@@ -972,7 +972,7 @@ contains
 
     ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
 
-    if (model%options%which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+    if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
        ! Reduce bmlt_float in partly or fully grounded cells based on f_ground_cell
 
@@ -1017,7 +1017,7 @@ contains
        print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
        write(6,*) ' '
 
-       if (model%options%which_ho_ground_bmlt == HO_GROUND_GLP_QUADRANTS) then
+       if (model%options%which_ho_ground_bmlt == HO_GROUND_GLP_DELUXE) then
           print*, 'f_ground_cell:'
           write(6,'(a6)',advance='no') '      '
           do i = itest-3, itest+3
