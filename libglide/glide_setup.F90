@@ -626,6 +626,7 @@ contains
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
+    call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'block_inception',             model%options%block_inception)
@@ -916,6 +917,10 @@ contains
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
          '0 <= f_ground <= 1 based on GLP; compute in staggered cells', &
          '0 <= f_ground <= 1 based on GLP; compute in cell quadrants ' /)
+
+    character(len=*), dimension(0:1), parameter :: ho_whichfground_no_glp = (/ &
+         'f_ground = 1 at vertex if any neighbor cell is grounded   ', &
+         'f_ground = 0 or 1 at vertex based on staggered f_flotation' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground_bmlt = (/ &
          'no GLP for bmlt_float                        ', &
@@ -1486,6 +1491,16 @@ contains
           if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then
              call write_log('Error, ho_ground option out of range for glissade dycore', GM_FATAL)
           end if
+
+          if (model%options%which_ho_ground == HO_GROUND_NO_GLP) then
+             write(message,*) 'ho_whichfground_no_glp  : ', model%options%which_ho_fground_no_glp,  &
+                               ho_whichfground_no_glp(model%options%which_ho_fground_no_glp)
+             call write_log(message)
+             if (model%options%which_ho_fground_no_glp < 0 .or. &
+                 model%options%which_ho_fground_no_glp >= size(ho_whichfground_no_glp)) then
+                call write_log('Error, ho_fground_no_glp option out of range for glissade dycore', GM_FATAL)
+             end if
+          endif
 
           write(message,*) 'ho_whichground_bmlt     : ',model%options%which_ho_ground_bmlt,  &
                             ho_whichground_bmlt(model%options%which_ho_ground_bmlt)

@@ -46,24 +46,26 @@
     implicit none
 
     private
-    public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_gl
+    public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
 
-    logical, parameter :: verbose_gl = .false.
+    logical, parameter :: verbose_glp = .false.
 
   contains
 
 !****************************************************************************
 
-  subroutine glissade_grounded_fraction(nx,              ny,                       &
-                                        itest, jtest,    rtest,                       &
-                                        thck,            topg,                        &
-                                        eus,             ice_mask,                    &
-                                        floating_mask,   land_mask,                   &
-                                        which_ho_ground, which_ho_flotation_function, &
-                                        f_flotation,                                  &
+  subroutine glissade_grounded_fraction(nx,              ny,               &
+                                        itest, jtest,    rtest,            &
+                                        thck,            topg,             &
+                                        eus,             ice_mask,         &
+                                        floating_mask,   land_mask,        &
+                                        which_ho_ground,                   &
+                                        which_ho_flotation_function,       &
+                                        which_ho_fground_no_glp,           &
+                                        f_flotation,                       &
                                         f_ground,        f_ground_cell)
 
-    use glissade_grid_operators, only : glissade_unstagger
+    use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded.
@@ -72,8 +74,10 @@
     !  given a flotation function (based on thickness and topography) at the corners of the square or rectangle.
     !
     ! There are three options for computing the grounded fraction, based on the value of which_ho_ground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for vertices with grounded and/or land-based neighbor cells
-    !                       f_ground = 0 for vertices with floating neighbors only
+    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for grounded vertices
+    !                       f_ground = 0 for floating vertices
+    !     Vertices are identified as grounded or floating based on (a) presence of grounded neighbors
+    !      or (b) interpolation of the flotation function.
     ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
     !        A flotation function is interpolated over the staggered cell around each vertex
     !        and analytically integrated to compute the grounded and floating fractions.
@@ -131,8 +135,9 @@
 
     ! see comments above for more information about these options
     integer, intent(in) ::  &
-       which_ho_ground,            &! option for computing f_ground
-       which_ho_flotation_function  ! option for computing f_flotation
+       which_ho_ground,             & ! option for computing f_ground
+       which_ho_flotation_function, & ! option for computing f_flotation
+       which_ho_fground_no_glp        ! option for computing f_ground with no GLP
 
     real(dp), dimension(nx,ny), intent(out) :: &
        f_flotation            ! flotation function; see comments above
@@ -157,6 +162,9 @@
 
     real(dp), dimension(nx,ny) :: &
          f_flotation_extrap        ! f_flotation, extrapolated to cells without active ice
+
+    real(dp), dimension(nx-1,ny-1) :: &
+         stagf_flotation           ! f_flotation interpolated to the staggered grid
 
     real(dp), dimension(4) :: &
          f_flotation_vector        ! 1D array containing f_flotation for 4 corners of a quadrant
@@ -255,72 +263,42 @@
 
     endif  ! which_ho_flotation_function
 
-    ! initialize f_ground arrays
-    f_ground(:,:) = 0.0d0
-    f_ground_cell(:,:) = 0.0d0
+    ! In ice-free ocean cells, fill in f_flotation by extrapolation.
+    ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
+    !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
+    ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
+    !  (i.e., with at least one ice-filled or land-based neighbor cell) has physically sensible values
+    !  of f_flotation in all four neighbor cells, for purposes of interpolation.
 
-    ! Compute f_ground according to the value of which_ho_ground
+    f_flotation_extrap(:,:) = f_flotation(:,:)
 
-    if (which_ho_ground == HO_GROUND_NO_GLP) then
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
 
-       ! default: no sub-grid grounding-line parameterization
-       ! f_ground = 1 at a vertex if any neighbor cell is land or has grounded ice
+             filled = .false.
 
-       ! compute a mask that is true for cells that are land and/or have grounded ice
-       do j = 1, ny
-          do i = 1, nx
-             if ((ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .or. land_mask(i,j) == 1) then
-                cground(i,j) = .true.
-             else
-                cground(i,j) = .false.
-             endif
-          enddo
-       enddo
+             ! loop over edge neighbors
+             do jj = j-1, j+1
+                do ii = i-1, i+1
+                   if ((ii == i .or. jj == j) .and. &
+                        (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then  ! edge neighbor with ice or land
+                      if (.not.filled) then
+                         filled = .true.
+                         f_flotation_extrap(i,j) = f_flotation(ii,jj)
+                      else
+                         f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
+                      endif
+                   endif
+                enddo   ! ii
+             enddo   ! jj
 
-       ! f_ground_cell follows directly from this mask
-
-       where (cground)
-          f_ground_cell = 1.0d0
-       elsewhere
-          f_ground_cell = 0.0d0
-       endwhere
-
-       ! vertices are grounded if any neighbor cell is land and/or has grounded ice, else are floating
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-             if (vmask(i,j) == 1) then
-                if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j) .or. cground(i+1,j)) then
-                   f_ground(i,j) = 1.d0
-                else
-                   f_ground(i,j) = 0.d0
-                endif
-             endif
-          enddo
-       enddo
-
-    else   ! grounding-line parameterization (HO_GROUND_GLP, HO_GROUND_GLP_QUADRANTS)
-
-       ! In ice-free ocean cells, fill in f_flotation by extrapolation.
-       ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
-       !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
-       ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
-       !  (i.e., with at least one ice-filled or land-based neighbor cell) has physically sensible values
-       !  of f_flotation in all four neighbor cells, for purposes of interpolation.
-
-       f_flotation_extrap(:,:) = f_flotation(:,:)
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
-
-                filled = .false.
-
-                ! loop over edge neighbors
+             ! loop over corner neighbors if necessary
+             if (.not.filled) then
                 do jj = j-1, j+1
                    do ii = i-1, i+1
-                      if ((ii == i .or. jj == j) .and. &
-                           (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then  ! edge neighbor with ice or land
+                      if ((abs(ii-i) == 1 .and. abs(jj-j) == 1) .and. &
+                           (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then ! corner neighbor with ice or land
                          if (.not.filled) then
                             filled = .true.
                             f_flotation_extrap(i,j) = f_flotation(ii,jj)
@@ -328,48 +306,38 @@
                             f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
                          endif
                       endif
-                   enddo   ! ii
-                enddo   ! jj
-
-                ! loop over corner neighbors if necessary
-                if (.not.filled) then
-                   do jj = j-1, j+1
-                      do ii = i-1, i+1
-                         if ((abs(ii-i) == 1 .and. abs(jj-j) == 1) .and. &
-                             (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then ! corner neighbor with ice or land
-                            if (.not.filled) then
-                               filled = .true.
-                               f_flotation_extrap(i,j) = f_flotation(ii,jj)
-                            else
-                               f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
-                            endif
-                         endif
-                      enddo
                    enddo
-                endif   ! not filled
+                enddo
+             endif   ! not filled
 
-             endif   ! ice_mask = 0
-          enddo   ! i
-       enddo  !j
+          endif   ! ice_mask = 0
+       enddo   ! i
+    enddo  !j
 
-       ! halo update
-       call parallel_halo(f_flotation_extrap)
+    ! halo update
+    call parallel_halo(f_flotation_extrap)
 
-       ! copy the extrapolated array to the main f_flotation array
-       f_flotation(:,:) = f_flotation_extrap(:,:)
+    ! copy the extrapolated array to the main f_flotation array
+    f_flotation(:,:) = f_flotation_extrap(:,:)
 
-       if (verbose_gl .and. this_rank == rtest) then
-          i = itest; j = jtest
-          print*, ' '
-          print*, 'rank, i, j =', this_rank, i, j
-          print*, 'f_flotation(i:i+1,j+1):', f_flotation(i:i+1,j+1)
-          print*, 'f_flotation(i:i+1,j)  :', f_flotation(i:i+1,j)
-       endif
+    if (verbose_glp .and. this_rank == rtest) then
+       i = itest; j = jtest
+       print*, ' '
+       print*, 'rank, i, j =', this_rank, i, j
+       print*, 'f_flotation(i:i+1,j+1):', f_flotation(i:i+1,j+1)
+       print*, 'f_flotation(i:i+1,j)  :', f_flotation(i:i+1,j)
+    endif
 
-    endif   ! which_ho_ground
+
+    ! initialize f_ground arrays
+    f_ground(:,:) = 0.0d0
+    f_ground_cell(:,:) = 0.0d0
 
     ! Given f_flotation in all cells, we have the information needed to compute f_ground
-    !  by either of two methods:
+    !  at vertices by one of several methods:
+    ! For which_ho_ground = 0, we either
+    ! (a) set f_ground = 1 if any neighbor cell is land or has grounded ice
+    ! (b) set f_ground = 1 if the interpolated value of f_flotation at the vertex < 0
     ! For which_ho_ground = 1, we interpolate f_flotation over the staggered cell around each vertex,
     !  then analytically evaluate the grounded fraction in the staggered cell.
     !  To obtain f_ground_cell, we average from vertices using glissade_unstagger.
@@ -377,7 +345,70 @@
     !  then analytically evaluate the grounded fraction in the quadrant, and finally
     !  sum over quadrants to obtain f_ground at vertices (staggered grid) and in cells (unstaggered grid).
 
-    if (which_ho_ground == HO_GROUND_GLP) then
+    ! Compute f_ground according to the value of which_ho_ground
+
+    if (which_ho_ground == HO_GROUND_NO_GLP) then
+
+       ! default: no sub-grid grounding-line parameterization
+
+       ! Compute a mask that is true for cells that are land and/or have grounded ice.
+       ! Also set f_ground_cell = 1 for grounded cells.
+       ! Note: f_ground_cell currently is not used when we have no GLP, but is computed for diagnostics.
+
+       do j = 1, ny
+          do i = 1, nx
+             if ((ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .or. land_mask(i,j) == 1) then
+                cground(i,j) = .true.
+                f_ground_cell(i,j) = 1.0d0
+             else
+                cground(i,j) = .false.
+                f_ground_cell(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       ! Determine whether each vertex is grounded (f_ground = 1.0) or floating (f_ground = 0.0)
+
+       if (which_ho_fground_no_glp == HO_FGROUND_NO_GLP_FLOTATION_FUNCTION) then
+
+          ! Set f_ground = 0 or 1 based on interpolation of f_flotation to vertices.
+          ! For stagger_margin_in = 0, each neighboring value of f_flotation is included in the interpolation,
+          !  so the vertex value is the mean of the four neighboring cell values.
+          ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
+
+          call glissade_stagger(nx,          ny,                &
+                                f_flotation, stagf_flotation,   &
+                                ice_mask,    stagger_margin_in = 0)
+
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (vmask(i,j) == 1) then
+                   if (stagf_flotation(i,j) <= 0.0d0) then  ! grounded
+                      f_ground(i,j) = 1.0d0
+                   else
+                      f_ground(i,j) = 0.0d0
+                   endif
+                endif
+             enddo
+          enddo
+
+       else   ! Set f_ground = 1 if any neighbor cell is land and/or has grounded ice
+
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (vmask(i,j) == 1) then
+                   if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j) .or. cground(i+1,j)) then
+                      f_ground(i,j) = 1.d0
+                   else
+                      f_ground(i,j) = 0.d0
+                   endif
+                endif
+             enddo
+          enddo
+
+       endif  ! which_ho_no_glp_stagger
+
+    elseif (which_ho_ground == HO_GROUND_GLP) then
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
        ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
@@ -479,7 +510,7 @@
                                         + f_ground_quadrant(3,i,j) + f_ground_quadrant(4,i,j))
 
                 !WHL - debug
-                if (verbose_gl .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                    print*, ' '
                    print*, 'f_ground at vertex, r, i, j =', this_rank, i, j
                    print*, 'Quadrant 1:', f_ground_quadrant(1,i,j)
@@ -531,7 +562,7 @@
              f_ground_cell(i,j) = 0.25d0 * f_ground_cell(i,j)
 
              !WHL - debug
-             if (verbose_gl .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'f_ground_vertex, r, i, j =', this_rank, i, j
                 print*, 'Quadrant 1:', f_ground_quadrant(3,i-1,j-1)
@@ -637,7 +668,7 @@
     enddo
 
     !WHL - debug
-    if (verbose_gl .and. i == itest .and. j==jtest .and. rank == rtest) then
+    if (verbose_glp .and. i == itest .and. j==jtest .and. rank == rtest) then
        print*, ' '
        print*, 'rank, i, j =', rank, i, j
        print*, 'f_flotation(4:3):', f_flotation(4), f_flotation(3)
@@ -721,7 +752,7 @@
        d = f1 + f3 - f2 - f4
 
        !WHL - debug
-       if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
+       if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
           print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
           print*, 'a, b, c, d =', a, b, c, d
        endif
@@ -758,7 +789,7 @@
        endif
 
        !WHL - debug
-       if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
+       if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
           print*, 'f_corner =', f_corner
           print*, 'f_ground =', f_ground
        endif
@@ -845,7 +876,7 @@
        ! Integrate the corner areas
 
        !WHL - debug
-       if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
+       if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
           print*, 'adjacent =', adjacent
           print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
           print*, 'a, b, c, d =', a, b, c, d
@@ -877,7 +908,7 @@
           f_ground = 1.d0 - f_trapezoid
 
           !WHL - debug
-          if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
+          if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
              print*, 'f_trapezoid =', f_trapezoid
              print*, 'f_ground =', f_ground
           endif
@@ -914,7 +945,7 @@
           ! Note that this pattern is not possible with d = 0.
 
           !WHL - debug
-          if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
+          if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
              print*, 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
           endif
 
@@ -945,7 +976,7 @@
           endif
 
           !WHL - debug
-          if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
+          if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
              print*, 'f_corner1 =', f_corner1
              print*, 'f_corner2 =', f_corner2
              print*, 'f_ground =', f_ground
