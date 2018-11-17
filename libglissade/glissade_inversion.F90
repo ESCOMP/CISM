@@ -239,76 +239,6 @@ contains
 
        call parallel_halo(model%inversion%bmlt_float_save)
 
-    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
-
-       ! prescribing basal friction coefficient and basal melting from previous inversion
-
-       ! Check that the required fields from the inversion are present: powerlaw_c_inversion and bmlt_float_inversion.
-
-       ! Note: A good way to supply powerlaw_c_prescribed is to compute powerlaw_c_inversion
-       !        over some period at the end of the inversion run, after the ice is spun up.
-       !       After the inversion run, rename powerlaw_c_inversion_tavg as powerlaw_c_presribed and
-       !        copy it to the input file for the prescribed run.
-       !       And similarly for bmlt_float_inversion and bmlt_float_prescribed
-
-       var_maxval = maxval(model%inversion%powerlaw_c_prescribed)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! powerlaw_c_prescribed has been read in as required
-          write(message,*) 'powerlaw_c_prescribed has been read from input file'
-          call write_log(trim(message))
-       else
-          write(message,*) 'ERROR: Must read powerlaw_c_prescribed from input file to use this inversion option'
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       call parallel_halo(model%inversion%powerlaw_c_prescribed)
-
-       var_maxval = maxval(abs(model%inversion%bmlt_float_prescribed))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! bmlt_float_prescribed has been read in as required
-          write(message,*) 'bmlt_float_prescribed has been read from input file'
-          call write_log(trim(message))
-       else
-          write(message,*) 'ERROR: Must read bmlt_float_prescribed from input file to use this inversion option'
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       call parallel_halo(model%inversion%bmlt_float_prescribed)
-
-       ! If not a restart, then initialize powerlaw_c_inversion and bmlt_float_inversion to presribed values.
-       ! If a restart run, both fields typically are read from the restart file.
-       !  An exception would be if we are starting an inversion run in restart mode, using a restart file
-       !  from the end of a spin-up with inversion. In this case the restart file would contain the fields
-       !  powerlaw_c_prescribed and bmlt_float_prescribed, and we still need to initialize powerlaw_c_inversion
-       !   and bmlt_float_inversion.
- 
-       ! Note: powerlaw_c_inversion is adjusted at runtime where either
-       !       (1) Ice is grounded in the forward run but powerlaw_c was not computed in the inversion run, or
-       !       (2) Ice is floating in the forward run
-
-       var_maxval = maxval(abs(model%inversion%powerlaw_c_inversion))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! powerlaw_c_inversion has been read from a restart file; nothing to do here
-       else
-          ! initialize powerlaw_c_inversion
-          model%inversion%powerlaw_c_inversion(:,:) = model%inversion%powerlaw_c_prescribed(:,:)
-       endif
-       call parallel_halo(model%inversion%powerlaw_c_inversion)
-
-       var_maxval = maxval(abs(model%inversion%bmlt_float_inversion))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! bmlt_float_inversion has been read from a restart file; nothing to do here
-       else
-          ! initialize bmlt_float_inversion
-          model%inversion%bmlt_float_inversion(:,:) = model%inversion%bmlt_float_prescribed(:,:)
-       endif
-
-       call parallel_halo(model%inversion%bmlt_float_inversion)
-
     endif  ! which_ho_inversion
 
     !WHL - debug
@@ -409,9 +339,8 @@ contains
        ! Note: Other kinds of sub-shelf basal melting are handled in subroutine glissade_bmlt_float_solve.
        !       Inversion is done here, after transport, when there is an updated ice thickness.
        !       Then bmlt_float_inversion is added to the previously computed bmlt.
-       ! Note: Usually, whichbmlt_float = 0 when doing inversion.
-       !       However, for the HO_INVERSION_PRESCRIBE option, we may want to add a basal melting anomaly
-       !        as for the initMIP anomaly experiments. In that case the anomaly is already part of bmlt_float.
+       ! Note: Typically, whichbmlt_float = 0 when doing a model spin-up with inversion.
+       !       However, we might want to add an anomaly to fields already computed by inversion.
        ! Note: If the basal melt GLP is turned on, it sets bmlt_float = 0 in partly floating cells.
        !       However, it does not limit bmlt_float_inversion, which is applied to all floating cells,
        !       including partly floating cells (in order to match observed thicknesses at the grounding line).
@@ -526,42 +455,7 @@ contains
           enddo
        endif   ! verbose_inversion
 
-    !TODO - Remove the prescribed option; prescribing bmlt_float_inversion is the same
-    !       as converging on a value of bmlt_float_save
-    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
-
-       ! Prescribe bmlt_float based on a previous inversion.
-       ! Although bmlt_float is prescribed, it may need to be reduced below,
-       !  for example to avoid melting beneath grounded ice.
-
-       call prescribe_bmlt_float(model%numerics%dt * tim0,     &    ! s
-                                 ewn,     nsn,                 &
-                                 itest,   jtest,  rtest,       &
-                                 model%inversion,              &
-                                 thck_new_unscaled,            &    ! m
-                                 topg_unscaled,                &    ! m
-                                 model%climate%eus*thk0,       &    ! m
-                                 ice_mask,                     &
-                                 floating_mask,                &
-                                 land_mask)
-
-       !TODO - How to limit prescribe_bmlt_float for partly grounded cells?
-       !       Maybe I need a new variable called bmlt_float_inversion_limited.
-       !       Or need to compute the limited version later, just before passing to mass balance driver.
-
-       !WHL - debug
-       if (verbose_inversion .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, ' '
-          print*, 'Prescribe bmlt_float: rank, i, j =', rtest, i, j
-          print*, 'thck (m), bmltd_float_prescribed, bmlt_float_inversion (m/yr):', thck_unscaled(i,j), &
-               model%inversion%bmlt_float_prescribed(i,j)*scyr, &
-               model%inversion%bmlt_float_inversion(i,j)*scyr
-          print*, ' '
-       endif
-
-    endif   ! which_ho_inversion (compute or prescribed)
+    endif   ! which_ho_inversion
 
   end subroutine glissade_inversion_bmlt_float
 
@@ -747,22 +641,7 @@ contains
           model%inversion%stag_powerlaw_c_inversion = model%inversion%powerlaw_c_min
        endwhere
 
-    !TODO - Remove this calculation?
-    elseif (model%options%which_ho_inversion == HO_INVERSION_PRESCRIBE) then
-
-       ! Prescribe the traction parameter powerlaw_c based on a previous inversion.
-       ! Although powerlaw_c is prescribed, it may need to be modified,
-       !  for example if a cell flips from grounded to floating or vice versa.
-
-       call prescribe_basal_traction(ewn,      nsn,              &
-                                     itest,    jtest,  rtest,    &
-                                     model%inversion,            &
-                                     ice_mask,                   &
-                                     floating_mask,              &
-                                     land_mask,                  &
-                                     model%geometry%f_ground_cell)
-
-    endif   ! which_ho_inversion (compute or prescribed)
+    endif   ! which_ho_inversion
 
   end subroutine glissade_inversion_basal_traction
 
@@ -1185,118 +1064,6 @@ contains
   end subroutine invert_basal_traction
 
 !***********************************************************************
-  !TODO - Remove this subroutine?
-  subroutine prescribe_basal_traction(nx,            ny,            &
-                                      itest, jtest,  rtest,         &
-                                      inversion,                    &
-                                      ice_mask,                     &
-                                      floating_mask,                &
-                                      land_mask,                    &
-                                      f_ground_cell)
-
-    ! Compute Cp = powerlaw_c when Cp is prescribed from a previous inversion run.
-    ! - For cells where the ice is grounded and a prescribed Cp exists,
-    !   we simply have Cp = Cp_prescribed.
-    ! - For cells where the ice is grounded and the prescribed Cp = 0 (since the cell
-    !   was floating or ice-free in the inversion run), we set Cp to a sensible default
-    !   based on whether the cell is land-based or marine-based.
-    ! - For cells where the ice is floating (whether or not a prescribed Cp exists),
-    !   we set Cp = 0.
-
-    integer, intent(in) :: &
-         nx, ny                  ! grid dimensions
-
-    integer, intent(in) :: &
-         itest, jtest, rtest     ! coordinates of diagnostic point
-
-    type(glide_inversion), intent(inout) :: &
-         inversion               ! inversion object
-
-    integer, dimension(nx,ny), intent(in) :: &
-         ice_mask,             & ! = 1 where ice is present (thck > 0), else = 0
-         floating_mask,        & ! = 1 where ice is present and floating, else = 0
-         land_mask               ! = 1 if topg > eus, else = 0
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         f_ground_cell           ! grounded fraction of grid cell, 0 to 1
-
-    ! local variables
-
-    integer, dimension(nx,ny) :: &
-         powerlaw_c_inversion_mask  ! = 1 where we invert for powerlaw_c, else = 0
-
-    integer :: i, j, ii, jj
-
-    ! Compute a mask of cells where powerlaw_c is nonzero.
-    ! The mask includes cells that are grounded and/or are adjacent to the grounding line.
-    ! Floating cells are GL-adjacent if they have at least one grounded neighbor.
-
-    where (land_mask == 1 .or. f_ground_cell > 0.0d0)
-       powerlaw_c_inversion_mask = 1
-    elsewhere
-       powerlaw_c_inversion_mask = 0
-    endwhere
-
-    call parallel_halo(powerlaw_c_inversion_mask)
-
-    ! Assign values of powerlaw_c
-
-    do j = 1, ny
-       do i = 1, nx
-          if (powerlaw_c_inversion_mask(i,j) == 1) then
-
-             if (inversion%powerlaw_c_prescribed(i,j) > 0.0d0) then ! use the prescribed value
-
-                inversion%powerlaw_c_inversion(i,j) = inversion%powerlaw_c_prescribed(i,j)
-
-             else  ! assign a sensible default
-
-                if (land_mask(i,j) == 1) then
-                   inversion%powerlaw_c_inversion(i,j) = inversion%powerlaw_c_land
-                else
-                   inversion%powerlaw_c_inversion(i,j) = inversion%powerlaw_c_marine
-                endif
-
-             endif  ! powerlaw_c_prescribed > 0
-
-          endif  ! powerlaw_c_inversion_mask
-       enddo  ! i
-    enddo  ! j
-
-    call parallel_halo(inversion%powerlaw_c_inversion)
-
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'floating_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') floating_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'powerlaw_c_prescribed:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') inversion%powerlaw_c_prescribed(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'powerlaw_c_inversion:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') inversion%powerlaw_c_inversion(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif  ! verbose
-
-  end subroutine prescribe_basal_traction
-
-  !***********************************************************************
 
   subroutine invert_bmlt_float(dt,                           &
                                nx,            ny,            &
@@ -1545,146 +1312,6 @@ contains
     endif
 
   end subroutine invert_bmlt_float
-
-!***********************************************************************
-
-  !TODO - Remove this subroutine?
-
-  subroutine prescribe_bmlt_float(dt,                           &
-                                  nx,            ny,            &
-                                  itest, jtest,  rtest,         &
-                                  inversion,                    &
-                                  thck,                         &
-                                  topg,                         &
-                                  eus,                          &
-                                  ice_mask,                     &
-                                  floating_mask,                &
-                                  land_mask)
-
-    ! Prescribe bmlt_float based on the value computed from inversion.
-    ! Note: bmlt_float_inversion is defined as positive for melting, negative for freezing.
-    !TODO - Remove some input arguments that are no longer needed.
-
-    real(dp), intent(in) ::  dt  ! time step (s)
-
-    integer, intent(in) :: &
-         nx, ny                  ! grid dimensions
-
-    integer, intent(in) :: &
-         itest, jtest, rtest     ! coordinates of diagnostic point
-
-    type(glide_inversion), intent(inout) :: &
-         inversion               ! inversion object
-
-    ! Note: thck should be the expected values after applying the mass balance
-    !       (although the mass balance may not yet have been applied) 
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         thck,                 & ! ice thickness (m)
-         topg                    ! bedrock elevation (m)
-
-    real(dp), intent(in) :: &
-         eus                     ! eustatic sea level (m)
-
-   ! Note: When this subroutine is called, ice_mask = 1 where thck > 0, not thck > thklim.
-    integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask,             & ! = 1 where ice is present, else = 0
-         floating_mask,        & ! = 1 where ice is present and floating, else = 0
-         land_mask               ! = 1 where topg >= eus, else = 0
-
-    ! local variables
-
-    real(dp), dimension(nx,ny):: &  ! diagnostic only
-         thck_flotation,       & ! flotation thickness (m)
-         thck_cavity             ! thickness (m) of ocean cavity (diagnostic only)
-
-    integer :: i, j
-
-    if (verbose_inversion .and. main_task) then
-       print*, ' '
-       print*, 'In prescribe_bmlt_float'
-    endif
-
-    ! Compute the flotation thickness
-    where (topg - eus < 0.0d0)
-       thck_flotation = -(rhoo/rhoi) * (topg - eus)
-    elsewhere
-       thck_flotation = 0.0d0
-    endwhere
-
-    ! Compute the ocean cavity thickness beneath floating ice (diagnostic only)
-    where (floating_mask == 1)
-       thck_cavity = -(topg - eus) - (rhoi/rhoo)*thck
-    elsewhere
-       thck_cavity = 0.0d0
-    endwhere
-
-    ! Set bmlt_float_inversion to the prescribed value.
-    ! Note: Later, bmlt_float_inversion is reduced or set to zero for cells that are partly or fully grounded.
-    !       Since land cells should be fully gronded, the land_mask logic below may not be needed.
-
-    inversion%bmlt_float_inversion(:,:) = 0.0d0
-
-    do j = 1, ny
-       do i = 1, nx
-          if (land_mask(i,j) == 1) then
-
-             ! do nothing; bmlt_float_inversion = 0
-
-          elseif (ice_mask(i,j) == 1) then
-
-             inversion%bmlt_float_inversion(i,j) = inversion%bmlt_float_prescribed(i,j)
-
-          endif   ! masks
-       enddo   ! i
-    enddo   ! j
-
-    !WHL - debug
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'floating_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') floating_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck_flotation (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck_flotation(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck_cavity (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck_cavity(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'prescribed bmlt_float (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') inversion%bmlt_float_inversion(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-  end subroutine prescribe_bmlt_float
 
 !=======================================================================
 
