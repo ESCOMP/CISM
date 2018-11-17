@@ -299,6 +299,9 @@ module glide_types
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_GLP_QUADRANTS = 2
 
+  integer, parameter :: HO_FGROUND_NO_GLP_GROUNDED_NEIGHBOR = 0
+  integer, parameter :: HO_FGROUND_NO_GLP_FLOTATION_FUNCTION = 1
+
   integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
   integer, parameter :: HO_GROUND_BMLT_FLOATING_FRAC = 1
   integer, parameter :: HO_GROUND_BMLT_ZERO_GROUNDED = 2
@@ -793,9 +796,15 @@ module glide_types
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
-    !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
+    !> \item[0] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
+    !> \item[1] 0 <= f_ground <= 1, based on a grounding line parameterization
     !> \item[2] similar to [1], but f_ground is summed over quadrants rather than staggered cells
+
+    integer :: which_ho_fground_no_glp = 0
+    !> Flag that indicates how to identify grounded and floating vertices when running without a GLP
+    !> \begin{description}
+    !> \item[0] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
+    !> \item[1] f_ground = 0 or 1 based on staggered flotation function
 
     integer :: which_ho_ground_bmlt = 0
     !> Flag that indicates how to compute bmlt_float in partly grounded cells

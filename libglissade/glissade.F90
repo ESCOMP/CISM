@@ -2001,7 +2001,7 @@ contains
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient
-    use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_gl
+    use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
@@ -2177,14 +2177,15 @@ contains
                                     land_mask,                     &
                                     model%options%which_ho_ground, &
                                     model%options%which_ho_flotation_function, &
+                                    model%options%which_ho_fground_no_glp,     &
                                     model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
                                     model%geometry%f_ground_cell)
 
     !WHL - debug
-    if (this_rank == rtest .and. verbose_gl) then
+    if (this_rank == rtest .and. verbose_glp) then
        print*, ' '
-       print*, 'New GLP subroutine, which_ho_ground =', model%options%which_ho_ground
+       print*, 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
        print*, ' '
        print*, 'f_flotation:'
        do j = jtest+3, jtest-3, -1
