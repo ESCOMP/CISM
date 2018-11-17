@@ -609,6 +609,7 @@ contains
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
+    call GetValue(section, 'use_c_space_factor',          model%options%use_c_space_factor)
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_inversion',          model%options%which_ho_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
@@ -1326,6 +1327,17 @@ contains
           call write_log('Error, HO basal BC input out of range', GM_FATAL)
        end if
 
+       if (model%options%use_c_space_factor) then
+          if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION .or.  &
+              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or. &
+              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+             write(message,*) 'Multiplying beta by C_space_factor'
+             call write_log(message)
+          else
+             call write_log('Error, C_space_factor not supported for this choice of which_ho_babc', GM_FATAL)
+          endif
+       endif
+
        write(message,*) 'ho_whichbeta_limit      : ',model%options%which_ho_beta_limit,  &
                          ho_whichbeta_limit(model%options%which_ho_beta_limit)
        call write_log(message)
@@ -2011,7 +2023,7 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
        write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
        call write_log(message)
-       write(message,*) 'bed bump max slope for Coulomb friction law : ', model%basal_physics%coulomb_bump_max_slope
+       write(message,*) 'bed bump max slope for Coulomb friction law  : ', model%basal_physics%coulomb_bump_max_slope
        call write_log(message)
        write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%coulomb_bump_wavelength
        call write_log(message)
@@ -2677,14 +2689,16 @@ contains
 !!        call glide_add_to_restart_variable_list('effecpress')
 !!      case(HO_BABC_COULOMB_POWERLAW_TSAI)
 !!        call glide_add_to_restart_variable_list('effecpress')
-      case (HO_BABC_COULOMB_FRICTION)
-        call glide_add_to_restart_variable_list('C_space_factor')
-        ! C_space_factor needs to be in restart file if not = 1 everywhere
-        !TODO - Add C_space_factor to the restart file only if not = 1 everywhere?
+      case (HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_COULOMB_POWERLAW_TSAI)
+         ! Note: These options compute beta internally, so it does not need to be in the restart file.
+         if (options%use_c_space_factor) then
+            ! c_space_factor needs to be in the restart file
+            call glide_add_to_restart_variable_list('c_space_factor')
+         endif
       case default
-        ! Other HO basal boundary conditions may need the external beta field  (although there are a few that don't)
-        !Note: If using beta from an external file, then 'beta' here needs to be the fixed, external field,
-        !      and not the internal beta field that may have been weighted by the grounded fraction or otherwise adjusted.
+        ! Other HO basal boundary conditions may need the external beta field (although there are a few that don't)
+        ! Note: If using beta from an external file, then 'beta' here needs to be the fixed, external field,
+        !       and not the internal beta field that may have been weighted by the grounded fraction or otherwise adjusted.
         call glide_add_to_restart_variable_list('beta')
     end select
 

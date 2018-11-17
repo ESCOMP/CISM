@@ -875,11 +875,11 @@ data:          data%basal_physics%effecpress
 load:          1
 coordinates:   lon lat
 
-[C_space_factor]
+[c_space_factor]
 dimensions:    time, y1, x1
 units:         1
 long_name:     spatial factor for basal shear stress
-data:          data%basal_physics%C_space_factor
+data:          data%basal_physics%c_space_factor
 load:          1
 coordinates:   lon lat
 
