@@ -433,15 +433,19 @@ contains
        ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
        big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
 
-       ! Note: For MISMIP3D, coulomb_c is multiplied by a spatial factor (C_space_factor) which is
+       ! Note: For MISMIP3D, coulomb_c is multiplied by a spatial factor (c_space_factor) which is
        !       read in during initialization. This factor is typically between 0 and 1.
        !       If this factor is not present in the input file, it is set to 1 everywhere.
 
        ! Compute beta
        ! gn = Glen's n from physcon module
-       beta(:,:) = coulomb_c * basal_physics%C_space_factor_stag(:,:) * &
-            basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
+       beta(:,:) = coulomb_c * basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
             (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+
+       ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
+       if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
+          beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
+       endif
 
        ! Limit for numerical stability
        !TODO - Is limiting needed?
@@ -451,9 +455,10 @@ contains
 
     case(HO_BABC_COULOMB_POWERLAW_SCHOOF)
 
-       ! Use a constant value of basal flwa.
-       ! This allows several Coulomb parameters (lambda_max, m_max and flwa_basal)
-       !  to be combined into a single parameter powerlaw_c, as in the Tsai power law below.
+       ! Use the basal friction formulation of Schoof (2005), modified following Asay-Davis et al. (2016).
+       ! This formulation uses a constant value of basal flwa, which allows several Coulomb parameters
+       !  (lambda_max, m_max and flwa_basal) to be combined into a single parameter powerlaw_c, 
+       !  as in the Tsai power law below.
        !
        ! The equation for tau_b = beta * u_b is
        ! 
@@ -520,6 +525,11 @@ contains
 
        endif   ! which_inversion
 
+       ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
+       if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
+          beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
+       endif
+
        ! Limit for numerical stability
        !TODO - Is limiting needed?
        where (beta > 1.0d8)
@@ -574,6 +584,12 @@ contains
 
           enddo   ! ew
        enddo   ! ns
+
+       ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
+       if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
+          beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
+       endif
+
 
     case(HO_BABC_SIMPLE)    ! simple pattern; also useful for debugging and test cases
                             ! (here, a strip of weak bed surrounded by stronger bed to simulate an ice stream)

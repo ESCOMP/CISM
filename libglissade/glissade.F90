@@ -427,23 +427,34 @@ contains
     ! The MISMIP 3D test case requires reading in a spatial factor that multiplies Coulomb_C.
     ! This factor is read in on the unstaggered grid, then interpolated to the staggered grid.
     ! If this factor is not present in the input file, then set it to 1 everywhere.
+    if (model%options%use_c_space_factor) then
 
-    if (maxval(model%basal_physics%C_space_factor) > tiny(0.d0)) then  ! C_space_factor was read in
+       if (maxval(model%basal_physics%c_space_factor) > tiny(0.d0)) then  ! c_space_factor was read in
 
-       if (main_task) print*, 'stagger Coulomb spatial factor C'
-       ! do a halo update and interpolate to the staggered grid
-       ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
-       call parallel_halo(model%basal_physics%C_space_factor)
-       call glissade_stagger(model%general%ewn,                  model%general%nsn,                       &
-                             model%basal_physics%C_space_factor, model%basal_physics%C_space_factor_stag, &
-                             stagger_margin_in = 0)
+          ! do a halo update and interpolate to the staggered grid
+          ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
+          call parallel_halo(model%basal_physics%c_space_factor)
+          call glissade_stagger(model%general%ewn,                  model%general%nsn,                       &
+                                model%basal_physics%c_space_factor, model%basal_physics%c_space_factor_stag, &
+                                stagger_margin_in = 0)
 
-    else  ! C_space_factor was not read in; set to 1 everywhere
+       else  ! c_space_factor was not read in; set to 1 everywhere, so it will be ignored when computing beta
+             ! With this value, it will be ignored when computing beta
 
-       model%basal_physics%C_space_factor(:,:) = 1.d0
-       model%basal_physics%C_space_factor_stag(:,:) = 1.d0
+          ! Note: It would be possible here to set c_space_factor to values different from 1,
+          !       if not reading it from the input file.
+          model%basal_physics%c_space_factor(:,:) = 1.0d0
+          model%basal_physics%c_space_factor_stag(:,:) = 1.0d0
 
-    endif
+       endif  ! maxval(c_space_factor) > 0
+
+    else   ! use_c_space_factor = F
+
+       ! set equal to 1 everywhere, so it will be ignored when computing beta
+       model%basal_physics%c_space_factor(:,:) = 1.0d0
+       model%basal_physics%c_space_factor_stag(:,:) = 1.0d0
+
+    endif  ! use_c_space_factor
 
     ! Note: The basal process option is currently disabled.
     ! initialize basal process module

@@ -631,6 +631,9 @@ module glide_types
     !> \item[14] simple hard-coded pattern (useful for debugging)
     !> \end{description}
 
+    logical :: use_c_space_factor = .false.
+    !> Flag that indicates whether to multiply beta by a 2D scalar field
+
     integer :: which_ho_beta_limit = 0
     !> Flag for setting minimum beta beneath grounded ice
     !> \begin{description}
@@ -1482,8 +1485,11 @@ module glide_types
      ! Note: It may make sense to move effecpress to a hydrology model when one is available.
      real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
-     real(dp), dimension(:,:), pointer :: C_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
-     real(dp), dimension(:,:), pointer :: C_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid (no dimension)
+
+     ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *COULOMB_POWERLAW_SCHOOF AND *COULOMB_POWERLAW_TSAI
+     real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
+     real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
+
      real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
@@ -2293,8 +2299,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%C_space_factor)
-       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
+       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
 !!       endif
     endif  ! glissade
@@ -2637,10 +2643,10 @@ contains
         deallocate(model%basal_physics%effecpress_stag)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
-    if (associated(model%basal_physics%C_space_factor)) &
-        deallocate(model%basal_physics%C_space_factor)
-    if (associated(model%basal_physics%C_space_factor_stag)) &
-        deallocate(model%basal_physics%C_space_factor_stag)
+    if (associated(model%basal_physics%c_space_factor)) &
+        deallocate(model%basal_physics%c_space_factor)
+    if (associated(model%basal_physics%c_space_factor_stag)) &
+        deallocate(model%basal_physics%c_space_factor_stag)
     if (associated(model%basal_physics%mintauf)) &
        deallocate(model%basal_physics%mintauf)
 
