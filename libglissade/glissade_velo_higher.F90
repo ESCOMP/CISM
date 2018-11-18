@@ -226,8 +226,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-    logical :: verbose_beta = .false.
-!    logical :: verbose_beta = .true.
+!    logical :: verbose_beta = .false.
+    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -2594,15 +2594,16 @@
              write(6,*) ' '
           enddo
 
-          print*, ' '
-          print*, 'stag_powerlaw_c_inversion, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') stag_powerlaw_c_inversion(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+          ! Uncomment for inversion runs
+!          print*, ' '
+!          print*, 'stag_powerlaw_c_inversion, itest, jtest, rank =', itest, jtest, rtest
+!          do j = jtest+3, jtest-3, -1
+!             write(6,'(i6)',advance='no') j
+!             do i = itest-3, itest+3
+!                write(6,'(f10.2)',advance='no') stag_powerlaw_c_inversion(i,j)
+!             enddo
+!             write(6,*) ' '
+!          enddo
 
        endif  ! verbose_beta
 
@@ -2674,9 +2675,9 @@
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
                 if (f_ground(i,j) > 0.0d0) then 
-                   write(6,'(f10.3)',advance='no') beta_internal(i,j)/f_ground(i,j)
+                   write(6,'(e10.3)',advance='no') beta_internal(i,j)/f_ground(i,j)
                 else
-                   write(6,'(f10.3)',advance='no') 0.0d0
+                   write(6,'(e10.3)',advance='no') 0.0d0
                 endif
              enddo
              write(6,*) ' '

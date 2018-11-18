@@ -890,15 +890,6 @@ data:          data%inversion%usrf_inversion
 coordinates:   lon lat
 load:          1
 
-[dthck_dt_inversion]
-dimensions:    time, y1,x1
-units:         meter/year
-long_name:     dH/dt used for inversion
-data:          data%inversion%dthck_dt_inversion
-factor:        scyr
-coordinates:   lon lat
-load:          1
-
 [artm]
 dimensions:    time, y1, x1
 units:         degree_Celsius
@@ -956,7 +947,7 @@ long_name:     tendency of ice thickness (NOTE: Glissade only)
 data:          data%geometry%dthck_dt
 factor:        scyr
 coordinates:   lon lat
-average:       1
+load:          1
 
 [uvel]
 dimensions:    time, level, y0, x0

@@ -901,7 +901,6 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: thck_old => null()        !> old ice thickness, divided by \texttt{thk0}
     real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency (m/s)
-    real(dp),dimension(:,:),pointer :: dthck_dt_tavg => null()   !> ice thickness tendency (m/s, time average)
 
     real(dp),dimension(:,:),pointer :: cell_area => null()
     !> The cell area of the grid, divided by \texttt{len0*len0}.
@@ -1307,8 +1306,7 @@ module glide_types
           powerlaw_c_save => null(),           & !> saved powerlaw_c field; can be a time-weighted average
           powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field to be applied to grounded ice
           stag_powerlaw_c_inversion => null(), & !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
-          usrf_inversion => null(),            & !> upper surface elevation, used for Cp inversion (m)
-          dthck_dt_inversion => null()           !> rate of thickness change, used for Cp inversion (m/s) 
+          usrf_inversion => null()               !> upper surface elevation, used for Cp inversion (m)
 
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
@@ -1326,7 +1324,7 @@ module glide_types
           babc_thck_scale = 100.d0,       & !> thickness inversion scale (m); must be > 0
           babc_dthck_dt_scale = 0.10d0,   & !> dthck_dt inversion scale (m/yr); must be > 0
           babc_space_smoothing = 1.0d-2,  & !> factor for spatial smoothing of powerlaw_c; larger => more smoothing
-          babc_time_smoothing = 0.0d0       !> factor for exponential moving average of usrf/dthck_dt_inversion
+          babc_time_smoothing = 0.0d0       !> factor for exponential moving average of usrf/dthck_dt
                                             !> range [0,1]; larger => slower discounting of old values, more smoothing
 
      ! parameters for adjusting bmlt_float_inversion
@@ -1970,7 +1968,6 @@ contains
     !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
     !> \item \texttt{stag_powerlaw_c_inversion(ewn,nsn)}
     !> \item \texttt{usrf_inversion(ewn,nsn)}
-    !> \item \texttt{dthck_dt_inversion(ewn,nsn)}
 
     !> In \texttt{model\%plume}:
     !> \begin{itemize}
@@ -2277,7 +2274,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt_tavg)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
@@ -2350,7 +2346,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
        call coordsystem_allocate(model%general%velo_grid, model%inversion%stag_powerlaw_c_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%usrf_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%dthck_dt_inversion)
     else
        ! Allocate powerlaw_c_inversion with size 1, since it is passed into subroutine calcbeta
        !  by the velocity solver.
@@ -2686,8 +2681,6 @@ contains
         deallocate(model%inversion%stag_powerlaw_c_inversion)
     if (associated(model%inversion%usrf_inversion)) &
         deallocate(model%inversion%usrf_inversion)
-    if (associated(model%inversion%dthck_dt_inversion)) &
-        deallocate(model%inversion%dthck_dt_inversion)
 
     ! plume arrays
     if (associated(model%plume%T_basal)) &
@@ -2810,8 +2803,6 @@ contains
         deallocate(model%geometry%thck_old)
     if (associated(model%geometry%dthck_dt)) &
         deallocate(model%geometry%dthck_dt)
-    if (associated(model%geometry%dthck_dt_tavg)) &
-        deallocate(model%geometry%dthck_dt_tavg)
     if (associated(model%geometry%tracers)) &
         deallocate(model%geometry%tracers)
     if (associated(model%geometry%f_flotation)) &
