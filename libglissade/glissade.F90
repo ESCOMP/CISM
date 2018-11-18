@@ -2227,17 +2227,23 @@ contains
     ! If inverting for basal traction, update powerlaw_c_inversion here
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
-    !TODO - Do not call this subroutine on restart; but make sure required fields are up to date.
 
-!    if ( (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-!          .and. model%options%is_restart /= RESTART_TRUE ) then
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if ( model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
-       call glissade_inversion_basal_traction(model,  &
-                                              ice_mask, &
-                                              floating_mask, &
-                                              land_mask)
-    endif
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+
+          ! first call after a restart; do not call glissade_inversion_basal traction
+
+       else
+
+          call glissade_inversion_basal_traction(model,  &
+                                                 ice_mask, &
+                                                 floating_mask, &
+                                                 land_mask)
+       endif   ! first call after a restart
+
+    endif   ! which_ho_inversion
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -2357,6 +2363,7 @@ contains
     ! ------------------------------------------------------------------------ 
 
     ! Do not solve velocity for initial time on a restart because that breaks an exact restart.
+    ! Note: model%numerics%tstart is the time of restart, not necessarily the value of tstart in the config file.
 
     if ( (model%options%is_restart == RESTART_TRUE) .and. &
          (model%numerics%time == model%numerics%tstart) ) then
@@ -2769,13 +2776,21 @@ contains
 
     ! thickness tendency dH/dt from one step to the next (m/s)
     ! Note: This diagnostic will not be correct on the first step of a restart
+    !       For inversion, dthck_dt is in the restart file as needed for exact restart.
 
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
-          model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j))*thk0 &
-                                       / (model%numerics%dt * tim0)
+    if ( (model%options%is_restart == RESTART_TRUE) .and. &
+         (model%numerics%time == model%numerics%tstart) ) then
+
+       ! first call after a restart; do not compute dthck_dt
+
+    else
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j))*thk0 &
+                                          / (model%numerics%dt * tim0)
+          enddo
        enddo
-    enddo
+    endif
 
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab * scale_acab) has units of m/yr of ice
@@ -2794,11 +2809,11 @@ contains
     model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
 
     !WHL - inversion debug
+    if (verbose_inversion .and.  &
+        model%options%which_ho_inversion == HO_INVERSION_COMPUTE .and.  &
+        model%numerics%time > model%numerics%tstart) then
 
-    if ( model%options%which_ho_inversion == HO_INVERSION_COMPUTE  &
-         .and. verbose_inversion .and. model%numerics%tstep_count > 0 ) then
-
-       !WHL - temporary debug - compute max diff in bmlt_applied
+       ! compute max diff in bmlt_applied
        model%basal_melt%bmlt_applied_diff(:,:) = &
             abs(model%basal_melt%bmlt_applied(:,:) - model%basal_melt%bmlt_applied_old(:,:))
 
@@ -2863,10 +2878,11 @@ contains
           enddo
        endif
 
-       !WHL - debug - save old floating mask for diagnostics
-       floating_mask_old = model%geometry%floating_mask
-
     endif ! verbose_inversion
+
+    ! save old floating mask for diagnostics
+    floating_mask_old = model%geometry%floating_mask
+
 
     ! set integer masks in the geometry derived type
 
@@ -2890,19 +2906,6 @@ contains
        enddo
     enddo
 
-    !WHL - debug
-    if (verbose_inversion) then
-       do j = nhalo+1, model%general%nsn-nhalo
-          do i = nhalo+1, model%general%ewn-nhalo
-             if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
-                write(6,*) 'Floating_mask flip: task, i,  j =', this_rank, i, j
-                call parallel_globalindex(i, j, iglobal, jglobal)
-                write(6,*) 'global i, j =', iglobal, jglobal
-             endif
-          enddo
-       enddo
-    endif
-
     ! staggered grid
     ! set ice_mask_stag = 1 at vertices with ice_mask = 1 in any neighbor cell
     do j = 1, model%general%nsn - 1
@@ -2915,6 +2918,22 @@ contains
           endif
        enddo
     enddo
+
+    !WHL - inversion debug
+    ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
+    if (verbose_inversion .and.  &
+        model%options%which_ho_inversion == HO_INVERSION_COMPUTE .and.  &
+        model%numerics%time > model%numerics%tstart) then
+       do j = nhalo+1, model%general%nsn-nhalo
+          do i = nhalo+1, model%general%ewn-nhalo
+             if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
+                write(6,*) 'Floating_mask flip: task, i,  j =', this_rank, i, j
+                call parallel_globalindex(i, j, iglobal, jglobal)
+                write(6,*) 'global i, j =', iglobal, jglobal
+             endif
+          enddo
+       enddo
+    endif
 
     ! Compute grounding line fluxes
     ! Note: gl_flux_east and gl_flux_north are signed fluxes computed at cell edges;
