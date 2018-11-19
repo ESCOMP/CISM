@@ -880,8 +880,6 @@ contains
 
     real(dp) :: previous_time
 
-    real(dp), parameter :: eps08 = 1.0d-8  ! small number
-
     logical, parameter :: verbose_bmlt_float = .false.
 
     integer :: i, j
@@ -1005,7 +1003,16 @@ contains
           ! This option ensures no spurious melting of grounded ice near the GL.
           ! However, it may underestimate melting of floating ice near the GL, especially on coarser grids.
 
-          where (model%geometry%f_ground_cell >= eps08)
+          where (model%geometry%f_ground_cell > tiny(0.0d0))
+             model%basal_melt%bmlt_float = 0.0d0
+          endwhere
+
+       elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_NO_GLP) then
+
+          ! Zero out bmlt_float in grounded cells based on floating_mask.
+          ! Note: CISM typically would not be run with this combination, but it is included for generality.
+
+          where (floating_mask == 0)
              model%basal_melt%bmlt_float = 0.0d0
           endwhere
 
