@@ -226,8 +226,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-!    logical :: verbose_beta = .false.
-    logical :: verbose_beta = .true.
+    logical :: verbose_beta = .false.
+!    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
