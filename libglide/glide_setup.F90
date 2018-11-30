@@ -1508,14 +1508,14 @@ contains
     !      constants in CESM's shr_const_mod cannot be overridden when CISM is coupled to CESM).
     !      These constants are not part of the model derived type.
 
-#ifndef CCSMCOUPLED
+!#ifndef CCSMCOUPLED
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)
     call GetValue(section,'grav', grav)
     call GetValue(section,'shci', shci)
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
-#endif
+!#endif
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
