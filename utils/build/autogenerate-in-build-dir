@@ -32,7 +32,8 @@ export GLIDE_VARS_PATH=$CISM_SOURCE_DIR/libglide/glide_vars.def
 export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in
 
 # Call python script with source file arguments
-python2 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLIDE_VARS_PATH $NCDF_TEMPL_PATH
+python -V
+python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLIDE_VARS_PATH $NCDF_TEMPL_PATH
 
 popd
 
