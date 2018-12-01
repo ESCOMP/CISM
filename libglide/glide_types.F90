@@ -801,6 +801,12 @@ module glide_types
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
 
+    logical :: block_inception = .false.
+    !> Flag that indicates whether ice inception away from the main ice sheet is blocked
+
+    logical :: remove_ice_caps = .false.
+    !> Flag that indicates whether ice caps are removed and added to the calving flux
+
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \item[0] ice age computation off
@@ -908,10 +914,12 @@ module glide_types
     ! WHL: When Dan added the masks, he made them real-valued. They are now integers, which might break the POP coupling.
     real(dp),dimension(:,:),pointer :: lower_cell_loc => null()  !> z-location of the center of the lowest ice cell center
     real(dp),dimension(:,:),pointer :: lower_cell_temp => null() !> temperature in the cell located at lower_cell_loc
-    integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0.0
-    integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0.0
-    integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0.0
-    integer, dimension(:,:),pointer :: grounded_mask => null()   !> = 1 where ice is present and grounded, else = 0.0
+    integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0
+    integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0
+    integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0
+    integer, dimension(:,:),pointer :: grounded_mask => null()   !> = 1 where ice is present and grounded, else = 0
+    integer, dimension(:,:),pointer :: ice_sheet_mask => null()  !> = 1 for ice sheet cells, = 0 for ice cap cells
+    integer, dimension(:,:),pointer :: ice_cap_mask => null()    !> = 1 for ice cap cells disconnected from the main ice sheet
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -1991,6 +1999,8 @@ contains
     !> \item \texttt{ice_mask(ewn,nsn))}
     !> \item \texttt{floating_mask(ewn,nsn))}
     !> \item \texttt{grounded_mask(ewn,nsn))}
+    !> \item \texttt{ice_sheet_mask(ewn,nsn))}
+    !> \item \texttt{ice_cap_mask(ewn,nsn))}
     !> \item \texttt{lower_cell_loc(ewn,nsn))}
     !> \item \texttt{lower_cell_temp(ewn,nsn))}
     !> \end{itemize}
@@ -2214,6 +2224,8 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_sheet_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_cap_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
 
@@ -2745,6 +2757,10 @@ contains
        deallocate(model%geometry%floating_mask)
     if (associated(model%geometry%grounded_mask)) &
        deallocate(model%geometry%grounded_mask)
+    if (associated(model%geometry%ice_sheet_mask)) &
+       deallocate(model%geometry%ice_sheet_mask)
+    if (associated(model%geometry%ice_cap_mask)) &
+       deallocate(model%geometry%ice_cap_mask)
     if (associated(model%geometry%lower_cell_loc)) &
        deallocate(model%geometry%lower_cell_loc)
     if (associated(model%geometry%lower_cell_temp)) &

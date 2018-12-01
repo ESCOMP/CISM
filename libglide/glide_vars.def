@@ -717,6 +717,20 @@ long_name:     mask for grounded ice
 data:          data%geometry%grounded_mask
 coordinates:   lon lat
 
+[ice_sheet_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for ice sheet
+data:          data%geometry%ice_sheet_mask
+coordinates:   lon lat
+
+[ice_cap_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for ice caps
+data:          data%geometry%ice_cap_mask
+coordinates:   lon lat
+
 [smb]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
