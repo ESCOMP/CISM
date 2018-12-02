@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Sun, 08 Jul 2018 17:49:26 +0000
+! Sun, 02 Dec 2018 13:55:27 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -2870,6 +2870,32 @@ contains
      end if
      end if
 
+    !     ice_cap_mask -- mask for ice caps
+    pos = index(NCO%vars,' ice_cap_mask ')
+    status = parallel_inq_varid(NCO%id,'ice_cap_mask',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+12) = '            '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%geometry%ice_cap_mask)) then
+       call write_log('Creating variable ice_cap_mask')
+       status = parallel_def_var(NCO%id,'ice_cap_mask',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'mask for ice caps')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable ice_cap_mask was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
     !     ice_mask -- mask for ice (1) or no ice (0)
     pos = index(NCO%vars,' ice_mask ')
     status = parallel_inq_varid(NCO%id,'ice_mask',varid)
@@ -2918,6 +2944,32 @@ contains
        end if
      else
      call write_log('Variable ice_mask_stag was specified for output but it is &
+          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     ice_sheet_mask -- mask for ice sheet
+    pos = index(NCO%vars,' ice_sheet_mask ')
+    status = parallel_inq_varid(NCO%id,'ice_sheet_mask',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+14) = '              '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%geometry%ice_sheet_mask)) then
+       call write_log('Creating variable ice_sheet_mask')
+       status = parallel_def_var(NCO%id,'ice_sheet_mask',get_xtype(outfile,NF90_FLOAT), &
+            (/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', &
+            'mask for ice sheet')
+       status = parallel_put_att(NCO%id, varid, 'units', &
+            '1')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable ice_sheet_mask was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -5892,6 +5944,13 @@ contains
        end do
     end if
 
+    status = parallel_inq_varid(NCO%id,'ice_cap_mask',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%geometry%ice_cap_mask, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     status = parallel_inq_varid(NCO%id,'ice_mask',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -5903,6 +5962,13 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%geometry%ice_mask_stag, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'ice_sheet_mask',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%geometry%ice_sheet_mask, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -10223,6 +10289,28 @@ contains
     data%geometry%iareag = inarray
   end subroutine glide_set_iareag
 
+  subroutine glide_get_ice_cap_mask(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = data%geometry%ice_cap_mask
+  end subroutine glide_get_ice_cap_mask
+
+  subroutine glide_set_ice_cap_mask(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%geometry%ice_cap_mask = inarray
+  end subroutine glide_set_ice_cap_mask
+
   subroutine glide_get_ice_mask(data,outarray)
     use glimmer_scales
     use glimmer_paramets
@@ -10266,6 +10354,28 @@ contains
 
     data%geometry%ice_mask_stag = inarray
   end subroutine glide_set_ice_mask_stag
+
+  subroutine glide_get_ice_sheet_mask(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = data%geometry%ice_sheet_mask
+  end subroutine glide_get_ice_sheet_mask
+
+  subroutine glide_set_ice_sheet_mask(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%geometry%ice_sheet_mask = inarray
+  end subroutine glide_set_ice_sheet_mask
 
   subroutine glide_get_ice_specific_heat(data,outarray)
     use glimmer_scales
