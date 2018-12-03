@@ -72,7 +72,7 @@ class Variables(dict):
 
         # reading variable configuration file
         vars = configparser.ConfigParser()
-        vars.read_file(open(filename))
+        vars.read(filename)
 
         self.__have_avg = False
 
