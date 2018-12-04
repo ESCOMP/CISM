@@ -24,8 +24,11 @@
 # python script used to generate source code files given a variable definition file
 
 import sys, time, string,re, os.path
-from six.moves import configparser
 import argparse
+if sys.version_info[0] == 2:
+    from ConfigParser import SafeConfigParser as config_parser
+else:
+    from configparser import ConfigParser as config_parser
 
 NOATTRIB = ['name','dimensions','dimlen','data','factor','load','hot','type','average','coordinates']
 dimensions = {}
@@ -71,7 +74,7 @@ class Variables(dict):
         dict.__init__(self)
 
         # reading variable configuration file
-        vars = configparser.ConfigParser()
+        vars = config_parser()
         vars.read(filename)
 
         self.__have_avg = False
