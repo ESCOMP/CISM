@@ -10,10 +10,8 @@ echo "Auto-generating glint_io.F90, glint_mbal_io.F90,"
 echo "glad_io.F90, glad_mbal_io.F90 in build directory."
 echo
 
-# mkdir -p fortran_autogen_srcs
+mkdir -p fortran_autogen_srcs
 pushd fortran_autogen_srcs
-
-# rm *.F90
 
 if [ $# -eq 1 ];
   then
@@ -25,29 +23,24 @@ fi
 echo "Auto-generate script is using CISM source directory: "
 echo $CISM_SOURCE_DIR
 
-# copy template file to shorten python calls below
-cp $CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in .
-
 ##########################
 # The following lines generate *_io.F90 files, based on variable definition files:
 
 echo "  --creating glint_io.F90, glint_mbal_io.F90, glad_io.F90 and glad_mbal_io.F90 "
-cp $CISM_SOURCE_DIR/libglint/glint_vars.def .
-cp $CISM_SOURCE_DIR/libglint/glint_mbal_vars.def .
-cp $CISM_SOURCE_DIR/libglad/glad_vars.def .
-cp $CISM_SOURCE_DIR/libglad/glad_mbal_vars.def .
-python2 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glint_vars.def ncdf_template.F90.in
-python2 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glint_mbal_vars.def ncdf_template.F90.in
-python2 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glad_vars.def ncdf_template.F90.in
-python2 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py glad_mbal_vars.def ncdf_template.F90.in
 
-#echo "  --creating eis_io.F90"
-#cp $CISM_SOURCE_DIR/example-drivers/eis/src/eis_vars.def .
-#python2 ../../../utils/build/generate_ncvars.py eis_vars.def ncdf_template.F90.in
+# Save path to source files used in autogeneration
+export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in
+export GLINT_VARS_PATH=$CISM_SOURCE_DIR/libglint/glint_vars.def
+export GLINT_MBAL_PATH=$CISM_SOURCE_DIR/libglint/glint_mbal_vars.def
+export GLAD_VARS_PATH=$CISM_SOURCE_DIR/libglad/glad_vars.def
+export GLAD_MBAL_PATH=$CISM_SOURCE_DIR/libglad/glad_mbal_vars.def
 
-echo "  --deleting temporary .def files and template file"
-rm *.def
-rm ncdf_template.F90.in
+# Call python script with source file arguments
+python -V
+python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLINT_VARS_PATH $NCDF_TEMPL_PATH
+python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLINT_MBAL_PATH $NCDF_TEMPL_PATH
+python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLAD_VARS_PATH $NCDF_TEMPL_PATH
+python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLAD_MBAL_PATH $NCDF_TEMPL_PATH
 
 popd
 
