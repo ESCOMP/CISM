@@ -404,11 +404,8 @@
                          !      For this reason, let the cell be active if thck is very close to thck_calving front,
                          !       but slightly less.
                          if (thck_calving_front(i,j) > 0.0d0 .and. &
-                               ! commented-out code reverts to the previous criterion
-!                              thck(i,j)*(1.0d0 + eps10) >= thck_calving_front(i,j)) then
                               thck(i,j) >= 0.999d0*thck_calving_front(i,j)) then
                             active_ice_mask(i,j) = 1
-                          ! commented-out code reverts to the previous criterion
 !                         elseif (grounded_mask(i-1,j) == 1 .or. grounded_mask(i+1,j) == 1 .or. &
 !                                 grounded_mask(i,j-1) == 1 .or. grounded_mask(i,j+1) == 1 .or. &
 !                                 grounded_mask(i-1,j+1) == 1 .or. grounded_mask(i+1,j+1) == 1 .or. &
