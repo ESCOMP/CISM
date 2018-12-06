@@ -953,6 +953,8 @@ module glissade_therm
                    do k = 0, upn
                       print*, k, temp(k,ew,ns)
                    enddo
+                   print*, ' '
+                   print*, 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns)
                    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
                       print*, ' '
                       print*, 'f_ground_cell, btemp_ground, btemp_float =', &
@@ -1069,6 +1071,8 @@ module glissade_therm
                       print*, k, temp(k,ew,ns)
                    enddo
                    print*, ' '
+                   print*, 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns)
+                   print*, ' '
                    print*, 'dTbot(ground) =', btemp_ground(ew,ns) - temp(upn-1,ew,ns)
                    print*, 'dTbot(float) =', btemp_float(ew,ns) - temp(upn-1,ew,ns)
                    print*, 'lcondflx_ground, lcondflx_float:', lcondflx_ground(ew,ns), lcondflx_float(ew,ns)
@@ -1172,10 +1176,11 @@ module glissade_therm
 
     call glissade_basal_melting_ground(whichtemp,                         &
                                        dttem,                             &
-                                       ewn,              nsn,             &
-                                       upn,                               &
+                                       ewn,      nsn,    upn,             &
+                                       itest,  jtest,    rtest,           &
                                        grounded_mask,                     &
                                        btemp_ground,     bpmp,            &
+                                       pmp_threshold,                     &
                                        temp,             enthalpy,        &
                                        bfricflx,         bheatflx,        &
                                        lcondflx_ground,  bwat,            &
@@ -1208,6 +1213,20 @@ module glissade_therm
        enddo
 
     endif 
+
+    ! WHL - debug
+    if (verbose_therm .and. this_rank == rtest) then
+       ew = itest
+       ns = jtest
+       print*, ' '
+       print*, 'After basal melting, i, j =', ew, ns
+       print*, 'Temp:'
+       do k = 0, upn
+          print*, k, temp(k,ew,ns)
+       enddo
+       print*, ' '
+       print*, 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns) 
+    endif
 
     ! Calculate internal melting for layers with T > Tpmp
     call glissade_basal_melting_internal(whichtemp,                         &
@@ -1754,10 +1773,11 @@ module glissade_therm
 
   subroutine glissade_basal_melting_ground(whichtemp,                         &
                                            dttem,                             &
-                                           ewn,              nsn,             &
-                                           upn,                               &
+                                           ewn,    nsn,      upn,             &
+                                           itest,  jtest,    rtest,           &
                                            grounded_mask,                     &
                                            btemp_ground,     bpmp,            &
+                                           pmp_threshold,                     &
                                            temp,             enthalpy,        &
                                            bfricflx,         bheatflx,        &
                                            lcondflx_ground,  bwat,            &
@@ -1783,6 +1803,7 @@ module glissade_therm
 
     integer, intent(in) :: ewn, nsn, upn              ! grid dimensions
 
+    integer, intent(in) :: itest, jtest, rtest        ! indices of diagnostic cell
     real(dp), dimension(0:,:,:), intent(in) :: temp            ! temperature (deg C)
     real(dp), dimension(0:,:,:), intent(in) :: enthalpy        ! enthalpy
 
@@ -1795,8 +1816,11 @@ module glissade_therm
          lcondflx_ground,      & ! heat conducted from ice interior to bed (W m-2), positive down
          bwat                    ! depth of basal water (m)
 
+    real(dp), intent(in) :: &
+         pmp_threshold           ! bed is assumed thawed where Tbed >= bpmp - pmp_threshold
+
     integer, dimension(:,:), intent(in) ::  &
-         grounded_mask        ! = 1 where grounded ice is present
+         grounded_mask           ! = 1 where grounded ice is present
 
     real(dp), dimension(:,:),    intent(inout) :: &
          btemp_ground            ! basal temperature for grounded ice (deg C)
@@ -1813,7 +1837,8 @@ module glissade_therm
 
     integer :: up, ew, ns
 
-    real(dp), parameter :: eps11 = 1.d-11     ! small number
+    real(dp), parameter :: eps08 = 1.d-08     ! small number used to set T slightly less than bpmp - pmp_threshold
+    real(dp), parameter :: eps11 = 1.d-11     ! smaller number used as a melt threshold
 
     bmlt_ground(:,:) = 0.0d0
 
@@ -1881,17 +1906,37 @@ module glissade_therm
 
              btemp_ground(ew,ns) = min (btemp_ground(ew,ns), bpmp(ew,ns))
 
-             ! If freeze-on was computed above (bmlt_ground < 0) and Tbed = pmptemp but no basal water is present,
-             !  then set the basal temperature to the temperature of the layer nearest the bed,
-             !  which usually is below bpmp.
-             ! In most cases, Tbed will then be computed instead of prescribed during the next time step. 
+             ! If freeze-on was computed above (bmlt_ground < 0) and btemp = bpmp but no basal water is present,
+             !  then set the basal temperature to a value less than bpmp.
+             ! btemp will then be computed instead of prescribed during the next time step.
+             ! Note: If using a nonzero pmp_threshold to diagnose whether the bed is thawed,
+             !       then we should set btemp to a temperature below this threshold.
+             !       But going too far below the threshold can lead to oscillations;
+             !        so go just slightly below the threshold.
              ! Note: Energy conservation is not violated here, because no energy is associated with
              !       the infinitesimally thin layer at the bed.
 
-             if (bmlt_ground(ew,ns) < 0.d0 .and. bwat(ew,ns) == 0.d0 .and. btemp_ground(ew,ns) >= bpmp(ew,ns)) then
-                btemp_ground(ew,ns) = temp(upn-1,ew,ns)
-                bmlt_ground(ew,ns) = 0.d0   ! Set freeze-on to zero since no water is present
+             if (verbose_therm .and. ew == itest .and. ns == jtest .and. this_rank == rtest) then
+                print*, ' '
+                print*, 'In glissade_basal_melting_ground, r, i, j, =', rtest, itest, jtest
+                print*, 'bmlt_ground (m/yr):', bmlt_ground(ew,ns)*scyr
+                print*, 'btemp_ground:', btemp_ground(ew,ns)
+                print*, 'bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
              endif
+
+             if (bmlt_ground(ew,ns) < 0.0d0 .and. bwat(ew,ns) == 0.0d0 .and. btemp_ground(ew,ns) >= bpmp(ew,ns)) then
+!!                btemp_ground(ew,ns) = temp(upn-1,ew,ns)
+                btemp_ground(ew,ns) = bpmp(ew,ns) - pmp_threshold - eps08
+                bmlt_ground(ew,ns) = 0.0d0   ! Set freeze-on to zero since no water is present
+
+                if (verbose_therm .and. ew == itest .and. ns == jtest .and. this_rank == rtest) then
+                   print*, 'bmlt_ground < 0; set bmlt_ground = 0 and reduce btemp_ground:'
+                   print*, 'New btemp_ground:', btemp_ground(ew,ns)
+                   print*, 'New bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
+                endif
+
+             endif
+
 
           endif   ! ice is present and grounded
 
