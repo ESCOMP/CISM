@@ -23,7 +23,11 @@
 
 # python script used to generate source code files given a variable definition file
 
-import ConfigParser, sys, time, string,re, os.path
+import sys, time, string,re, os.path
+if sys.version_info[0] == 2:
+    from ConfigParser import SafeConfigParser as config_parser
+else:
+    from configparser import ConfigParser as config_parser
 
 NOATTRIB = ['name','dimensions','dimlen','data','factor','load','hot','type','average','coordinates']
 dimensions = {}
@@ -40,7 +44,8 @@ def is_dimvar(var):
     this is assumed to be the case if no time dim is present
     """
 
-    if len(string.split(var['dimensions'],',')) == 1 and 'dimlen' in var:
+    dimstr = var['dimensions']
+    if len(dimstr.split(',')) == 1 and 'dimlen' in var:
         return True
     else:
         return False
@@ -68,19 +73,19 @@ class Variables(dict):
         dict.__init__(self)
 
         # reading variable configuration file
-        vars = ConfigParser.ConfigParser()
-        vars.readfp(open(filename))
+        vars = config_parser()
+        vars.read(filename)
 
         self.__have_avg = False
 
         for v in vars.sections():
             if v == 'VARSET':
-                for (name, value) in vars.items(v):
+                for name, value in vars.items(v, raw=True):
                     module[name]=value
                 continue
             vardef = {}
             vardef['name'] = v
-            for (name, value) in vars.items(v):
+            for name, value in vars.items(v, raw=True):
                 vardef[name] = value
             if 'type' not in vardef:
                 vardef['type'] = 'float'
@@ -147,7 +152,7 @@ class PrintVars:
 
         filename: name of file to be processed."""
         if os.path.basename(filename) != self.canhandle:
-            raise NotImplementedError, 'Can only handle %s'%self.canhandle
+            raise NotImplementedError('Can only handle {}'.format(self.canhandle))
 
         self.infile = open(filename,'r')
         if outname==None:
@@ -169,7 +174,7 @@ class PrintVars:
     def print_var(self, var):
         """Template for writing single variable"""
 
-        raise NotImplementedError, 'You should use one of the derived classes'
+        raise NotImplementedError('You should use one of the derived classes')
 
     def write(self,vars):
         """Merge file with definitions"""
@@ -177,9 +182,9 @@ class PrintVars:
         self.print_warning()
         for l in self.infile.readlines():
             for token in self.handletoken:
-                if string.find(l,token) is not -1:
+                if l.find(token) is not -1:
                     break
-            if string.find(l,token) is not -1:
+            if l.find(token) is not -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             else:
@@ -247,9 +252,9 @@ class PrintNC_template(PrintVars):
             for k in module.keys():
                 l = l.replace(k.upper(),module[k])
             for token in self.handletoken:
-                if string.find(l,token) is not -1:
+                if l.find(token) is not -1:
                     break
-            if string.find(l,token) is not -1:
+            if l.find(token) is not -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             elif '!GENVAR_DIMS!' in l:
@@ -275,7 +280,7 @@ class PrintNC_template(PrintVars):
     def print_vardef(self,var):
         """Write single variable block to stream for ncdf_file."""
 
-        dims = string.split(var['dimensions'],',')
+        dims = var['dimensions'].split(',')
         dims.reverse()
         dimstring = dimid(dims[0].strip())
         for d in dims[1:]:
@@ -340,7 +345,7 @@ class PrintNC_template(PrintVars):
     def print_dimensions(self):
         """Set up dimensions."""
 
-        dims = dimensions.keys()
+        dims = list(dimensions.keys())
         dims.sort()
         # generate list of dimension ids
         for d in dims:
@@ -361,7 +366,7 @@ class PrintNC_template(PrintVars):
     def print_checkdims(self):
         """Produce code for checking dimension sizes"""
 
-        dims = dimensions.keys()
+        dims = list(dimensions.keys())
         dims.sort()
         for d in dims:
             if dimensions[d]!='-1':
@@ -380,7 +385,7 @@ class PrintNC_template(PrintVars):
 
         # skip variables associated with dimension 
         if not is_dimvar(var):
-            dims = string.split(var['dimensions'],',')
+            dims = var['dimensions'].split(',')
             dims.reverse()
             for i in range(0,len(dims)):
                 dims[i] = dims[i].strip()
@@ -452,7 +457,7 @@ class PrintNC_template(PrintVars):
 
         if 'load' in var:
             if var['load'].lower() in ['1','true','t']:
-                dims = string.split(var['dimensions'],',')
+                dims = var['dimensions'].split(',')
                 dims.reverse()
                 for i in range(0,len(dims)):
                     dims[i] = dims[i].strip()
@@ -535,7 +540,7 @@ class PrintNC_template(PrintVars):
     def print_var_accessor(self,var):
         """Write accessor function to stream."""
 
-        dims = string.split(var['dimensions'],',')
+        dims = var['dimensions'].split(',')
         dimlen = len(dims)-1
         if dimlen>0:
             dimstring = ", dimension(:"+",:"*(dimlen-1)+")"
@@ -616,12 +621,12 @@ class PrintNC_template(PrintVars):
 def usage():
     """Short help message."""
 
-    print 'Usage generate_ncvars.py vardef [outfile0.in [,... [,outfileN.in]]]'
-    print 'generate source code files given a variable definition file'
-    print ''
-    print 'vardef: file containing variable definition'
-    print 'outfile.in: output template to be processed'
-    print 'print variables if no templates are given'
+    print('Usage generate_ncvars.py vardef [outfile0.in [,... [,outfileN.in]]]')
+    print('generate source code files given a variable definition file')
+    print('')
+    print('vardef: file containing variable definition')
+    print('outfile.in: output template to be processed')
+    print('print variables if no templates are given')
 
 HandleFile={}
 HandleFile['ncdf_template.F90.in'] = PrintNC_template
@@ -632,16 +637,16 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         usage()
         sys.exit(1)
-
+    
     vars = Variables(sys.argv[1])
 
     if len(sys.argv) == 2:
         for v in vars.keys():
-            print v
+            print(v)
             for o in vars[v]:
-                print '%s: %s'%(o, vars[v][o])
-            print ''
-            print module
+                print('{}: {}'.format(o, vars[v][o]))
+            print('')
+            print(module)
     else:
         for f in sys.argv[2:]:
             base_f = os.path.basename(f)
