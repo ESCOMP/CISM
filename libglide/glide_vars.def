@@ -309,6 +309,15 @@ factor:        scyr
 load:          0
 coordinates:   lon lat
 
+[bmlt_float_inversion_mask]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     mask for basal melt rate inversion
+data:          data%inversion%bmlt_float_inversion_mask
+load:          1
+coordinates:   lon lat
+
+#Remove bmlt_float_inversion_save
 [bmlt_float_inversion_save]
 dimensions:    time, y1, x1
 units:         meter/year
