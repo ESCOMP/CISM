@@ -1199,7 +1199,7 @@ contains
     !      This option has been replaced by a Glint/Glad option, evolve_ice.
     !      We now have EVOL_NO_THICKESS = 5 as a glissade option.  It is used to hold the ice surface elevation fixed
     !       while allowing temperature to evolve, which can be useful for model spinup.  This option might need more testing.
-    ! Note: This subroutine calls the inversion solver, glissade_inversion_solve, because it is convenient to do this
+    ! Note: This subroutine calls glissade_inversion_bmlt_float, because it is convenient to invert for bmlt_float
     !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
@@ -1255,6 +1255,9 @@ contains
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
     real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt*tim0 by default
+
+    real(dp) :: nudging_factor      ! factor in range [0,1], used for inversion of bmlt_float
+    real(dp) :: weaning_time        ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
     integer :: nsubcyc              ! number of times to subcycle advection
 
@@ -1312,7 +1315,7 @@ contains
 
        ! ------------------------------------------------------------------------
        ! Compute some masks prior to horizontal transport.
-       ! Some of these masks are used for inversion calculations.
+       ! TODO - Remove this call?  Masks were previously needed for inversion, but no longer.
        ! ------------------------------------------------------------------------
 
        call glissade_get_masks(ewn,                      nsn,              &
@@ -1545,38 +1548,42 @@ contains
 
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
-          ! Optionally, set a nudging factor that is used to compute a weighted average
-          !  of the newly computed inversion fields (powerlaw_c_new and bmlt_float_new)
-          !  and the saved fields (powerlaw_c_save and bmlt_float_save).
-          ! If the nudging_factor = 1, then we use the new value and ignore the saved value.
-          ! If the nudging_factor = 0, then the new value is ignored and we keep the saved value.
+          ! Set a nudging factor that is used to compute a weighted average of the
+          !  newly computed inversion field (bmlt_float_new) and the previous field (bmlt_float_inversion).
+          ! If the nudging_factor = 1, then we use the new value and ignore the previous value.
+          ! If the nudging_factor = 0, then the new value is ignored and we keep the previous value.
           ! We have nudging_factor = 1 at the start of the run, until the run reaches wean_tstart.
-          !  Thereafter, the nudging_factor decreaes, reaching 0 when t = wean_tend.
-          ! In this way, the code converges on inversion fields that are no longer nudged,
-          !  so that nudging is not capable of keeping the ice in an unstable, easily perturbed state.
+          !  Thereafter, the nudging factor decreaes, and is set to 0 after t = wean_tend.
+          ! (With an exponential dropoff, the nudging factor will always be slightly > 0
+          !  until forced to zero by t = wean_tend.)
+          ! In this way, the code converges on inversion fields that are no longer nudged.
           ! Note: model%numerics%time = time in years since start of run.
 
-          model%inversion%nudging_factor = 1.0d0  ! default value
+          nudging_factor = 1.0d0  ! default value
 
-          if (model%inversion%wean_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_tstart) then
-             if (model%numerics%time < model%inversion%wean_tend) then
-                model%inversion%nudging_factor = (model%inversion%wean_tend - model%numerics%time) &
-                                               / (model%inversion%wean_tend - model%inversion%wean_tstart)
+          if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
+             if (model%numerics%time < model%inversion%wean_bmlt_float_tend) then
+                !WHL - Replaced linear ramp with an exponential ramp
+!                nudging_factor = (model%inversion%wean_bmlt_float_tend - model%numerics%time) &
+!                               / (model%inversion%wean_bmlt_float_tend - model%inversion%wean_bmlt_float_tstart)
+                weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
+                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
              else
-                model%inversion%nudging_factor = 0.0d0
+                nudging_factor = 0.0d0
              endif
           endif
 
           if (verbose_inversion .and. this_rank == rtest) then
              print*, ' '
-             print*, 'tstep_count, time, nudging_factor =', &
-                  model%numerics%tstep_count, model%numerics%time, model%inversion%nudging_factor
+             print*, 'tstep_count, time, bmlt_float nudging_factor =', &
+                  model%numerics%tstep_count, model%numerics%time, nudging_factor
           endif
 
           ! Compute the new ice thickness that would be computed after applying the SMB and BMB, without inversion.
           thck_new_unscaled = thck_unscaled(:,:) + (acab_unscaled - bmlt_unscaled) * model%numerics%dt*tim0
 
           call glissade_inversion_bmlt_float(model,               &
+                                             nudging_factor,      &
                                              thck_new_unscaled,   &
                                              ice_mask,            &
                                              floating_mask,       &
@@ -1589,6 +1596,8 @@ contains
        ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
        ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
        ! Use thck_calving_front to compute a fractional area for calving_front cells.
+       ! TODO - Is it correct to use the old value of f_ground_cell from the start of the time step?
+       !        Note that this value is used to identify CF cells where the mass balance is corrected.
        ! ------------------------------------------------------------------------
 
        call glissade_get_masks(ewn,                      nsn,              &
@@ -1859,6 +1868,11 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) :: &
          thck_unscaled              ! model%geometry%thck converted to m
 
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ice_mask,                & ! = 1 if ice is present
+         floating_mask,           & ! = 1 if ice is present and floating
+         land_mask                  ! = 1 if topg - eus >= 0
+
     logical :: cull_calving_front   ! true iff init_calving = T and options%cull_calving_front = T
 
     integer :: i, j
@@ -2054,6 +2068,9 @@ contains
          a, b, c, root,   & ! terms in quadratic formula
          lambda1, lambda2   ! eigenvalues of horizontal strain rate tensor
 
+    real(dp) :: nudging_factor      ! factor in range [0,1], used for inversion of powerlaw_c
+    real(dp) :: weaning_time        ! time since the start of weaning (numerics%time - inversion%wean_tstart)
+
     !WHL - debug
     real(dp) :: my_max_diff, global_max_diff
     real(dp) :: my_min_diff, global_min_diff
@@ -2180,7 +2197,6 @@ contains
     ! (e.g., on the first time step of a restart).
     ! ------------------------------------------------------------------------
 
-
     call glissade_grounded_fraction(model%general%ewn,             &
                                     model%general%nsn,             &
                                     itest, jtest, rtest,           &  ! diagnostic only
@@ -2244,9 +2260,29 @@ contains
 
        else
 
-          call glissade_inversion_basal_traction(model,  &
-                                                 ice_mask, &
-                                                 floating_mask, &
+          !TODO - Remove powerlaw_c_save field, and use only powerlaw_c_inversion.
+          ! Set a nudging factor that is used to compute a weighted average of the 
+          !  newly computed inversion field (powerlaw_c_new) and the saved field (powerlaw_c_save).
+          ! See comments above for nudging of bmlt_float_inversion.
+          ! Note: model%numerics%time = time in years since start of run.
+
+          nudging_factor = 1.0d0   ! default value
+
+          if (model%inversion%wean_powerlaw_c_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_powerlaw_c_tstart) then
+             if (model%numerics%time < model%inversion%wean_powerlaw_c_tend) then
+!                nudging_factor = (model%inversion%wean_powerlaw_c_tend - model%numerics%time) &
+!                               / (model%inversion%wean_powerlaw_c_tend - model%inversion%wean_powerlaw_c_tstart)
+                weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
+                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
+             else
+                nudging_factor = 0.0d0
+             endif
+          endif
+
+          call glissade_inversion_basal_traction(model,          &
+                                                 nudging_factor, &
+                                                 ice_mask,       &
+                                                 floating_mask,  &
                                                  land_mask)
        endif   ! first call after a restart
 
@@ -2934,7 +2970,11 @@ contains
        do j = nhalo+1, model%general%nsn-nhalo
           do i = nhalo+1, model%general%ewn-nhalo
              if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
-                write(6,*) 'Floating_mask flip: task, i,  j =', this_rank, i, j
+                if (model%geometry%floating_mask(i,j) == 1) then
+                   write(6,*) 'Floating_mask flip, G to F: task, i,  j =', this_rank, i, j
+                else
+                   write(6,*) 'Floating_mask flip, F to G: task, i,  j =', this_rank, i, j
+                endif
                 call parallel_globalindex(i, j, iglobal, jglobal)
                 write(6,*) 'global i, j =', iglobal, jglobal
              endif
