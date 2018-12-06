@@ -24,7 +24,6 @@
 # python script used to generate source code files given a variable definition file
 
 import sys, time, string,re, os.path
-import argparse
 if sys.version_info[0] == 2:
     from ConfigParser import SafeConfigParser as config_parser
 else:
