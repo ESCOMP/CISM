@@ -2331,9 +2331,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
-       if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
-       endif
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_basal)
