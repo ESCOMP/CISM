@@ -1712,8 +1712,12 @@ contains
          model%inversion%bmlt_max_thck_above_flotation)
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
-    call GetValue(section, 'inversion_wean_tstart', model%inversion%wean_tstart)
-    call GetValue(section, 'inversion_wean_tend', model%inversion%wean_tend)
+    call GetValue(section, 'inversion_wean_bmlt_float_tstart', model%inversion%wean_bmlt_float_tstart)
+    call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
+    call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
+    call GetValue(section, 'inversion_wean_powerlaw_c_tstart', model%inversion%wean_powerlaw_c_tstart)
+    call GetValue(section, 'inversion_wean_powerlaw_c_tend', model%inversion%wean_powerlaw_c_tend)
+    call GetValue(section, 'inversion_wean_powerlaw_c_timescale', model%inversion%wean_powerlaw_c_timescale)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2063,23 +2067,44 @@ contains
        call write_log(message)
        write(message,*) 'inversion max thck above flotation (m)       : ', &
             model%inversion%bmlt_max_thck_above_flotation
+       call write_log(message)
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
        call write_log(message)
        write(message,*) 'inversion thickness threshold (m)            : ', &
             model%inversion%thck_threshold
        call write_log(message)
-       if (model%inversion%wean_tstart > 0.0d0 .and. model%inversion%wean_tend > 0.0d0) then 
-          write(message,*) 'start time (yr) for abated nudging        : ', &
-               model%inversion%wean_tstart
+
+       if (model%inversion%wean_bmlt_float_tstart > 0.0d0 .and. model%inversion%wean_bmlt_float_tend > 0.0d0) then
+          write(message,*) 'start time (yr) for bmlt_float abated nudging  : ', &
+               model%inversion%wean_bmlt_float_tstart
           call write_log(message)
-          write(message,*) 'end time (yr) for abated nudging          : ', &
-               model%inversion%wean_tend
+          write(message,*) 'end time (yr) for bmlt_float abated nudging    : ', &
+               model%inversion%wean_bmlt_float_tend
           call write_log(message)
-          if (model%inversion%wean_tend <= model%inversion%wean_tstart) then
-             call write_log('Error, must have wean_tend > wean_tstart', GM_FATAL)
+          write(message,*) 'time scale (yr) for bmlt_float abated nudging  : ', &
+               model%inversion%wean_bmlt_float_timescale
+          call write_log(message)
+          if (model%inversion%wean_bmlt_float_tend < model%inversion%wean_bmlt_float_tstart) then
+             call write_log('Error, must have wean_bmlt_float_tend >= wean_bmlt_float_tstart', GM_FATAL)
           endif
        endif
+
+       if (model%inversion%wean_powerlaw_c_tstart > 0.0d0 .and. model%inversion%wean_powerlaw_c_tend > 0.0d0) then
+          write(message,*) 'start time (yr) for powerlaw_c abated nudging: ', &
+               model%inversion%wean_powerlaw_c_tstart
+          call write_log(message)
+          write(message,*) 'end time (yr) for powerlaw_c abated nudging  : ', &
+               model%inversion%wean_powerlaw_c_tend
+          call write_log(message)
+          write(message,*) 'time scale (yr) for powerlaw_c abated nudging  : ', &
+               model%inversion%wean_powerlaw_c_timescale
+          call write_log(message)
+          if (model%inversion%wean_powerlaw_c_tend < model%inversion%wean_powerlaw_c_tstart) then
+             call write_log('Error, must have wean_powerlaw_c_tend >= wean_powerlaw_c_tstart', GM_FATAL)
+          endif
+       endif
+
     endif
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
@@ -2693,11 +2718,12 @@ contains
       case (HO_INVERSION_COMPUTE)
          ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
          ! usrf_inversion and dthck_dt_inversion are computed as moving averages while adjusting powerlaw_c
-         !TODO - Remove powerlaw_c_inversion and bmlt_float_inversion, and just write save fields?
+         !TODO - Remove 'save' fields, and just use powerlaw_c_inversion and bmlt_float_inversion
 !!         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
 !!         call glide_add_to_restart_variable_list('bmlt_float_inversion')
          call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
          call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion_mask')
          call glide_add_to_restart_variable_list('dthck_dt')
          call glide_add_to_restart_variable_list('usrf_inversion')
     end select
