@@ -46,7 +46,13 @@
 
     implicit none
 
-    ! All subroutines in this module are public
+    private
+    public :: glissade_get_masks, glissade_extend_mask, glissade_ice_sheet_mask 
+
+    ! colors for the fill subroutines
+    integer, parameter :: initial_color = 0   ! initial color, represented by integer
+    integer, parameter :: fill_color = 1      ! fill color, represented by integer
+    integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   contains
 
@@ -455,6 +461,265 @@
     endif
 
   end subroutine glissade_get_masks
+
+
+!****************************************************************************
+
+  subroutine glissade_extend_mask(nx,       ny,  &
+                                  input_mask,      &
+                                  extended_mask)
+
+    ! Compute a mask that includes
+    ! (1) cells with input_mask = 1
+    ! (2) cells that are adjacent to cells with input_mask = 1
+    ! For now, assume that both edge and diagonal neighbors are adjacent.
+    ! If needed, could add an option to choose only edge neighbors.
+
+    integer, intent(in) ::   &
+         nx,  ny                !> number of grid cells in each direction
+
+    integer, dimension(nx,ny), intent(in) :: &
+         input_mask             !> input mask to be extended
+
+    integer, dimension(nx,ny), intent(out) :: &
+         extended_mask          !> input mask extended by adding neighbor cells
+
+    ! local variables
+
+    integer :: i, j
+
+    extended_mask(:,:) = 0
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (input_mask(i,j) == 1) then
+             extended_mask(i,j) = 1
+          elseif (input_mask(i,j-1)   == 1 .or. input_mask(i,j+1)   == 1   .or.  &
+                  input_mask(i-1,j+1) == 1 .or. input_mask(i+1,j+1) == 1 .or.  &
+                  input_mask(i-1,j)   == 1 .or. input_mask(i+1,j)   == 1 .or.  &
+                  input_mask(i-1,j-1) == 1 .or. input_mask(i+1,j-1) == 1) then
+             extended_mask(i,j) = 1
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(extended_mask)
+
+  end subroutine glissade_extend_mask
+
+!****************************************************************************
+
+  subroutine glissade_ice_sheet_mask(nx,            ny,     &
+                                     itest, jtest,  rtest,  &
+                                     ice_mask,      thck,   &
+                                     ice_sheet_mask,        &
+                                     ice_cap_mask)
+
+    ! Define masks that identify the ice sheet as distinct from ice caps.
+    ! An ice cap is defined as a patch of ice separate from the main ice sheet.
+
+    ! The algorithm is as follows:
+    ! (1) Mark all cells with ice (ice_mask = 1) with the initial color.
+    !     Mark other cells with the boundary color.
+    ! (2) Seed the fill by giving the fill color to some cells that are definitely
+    !     part of the ice sheet (based on thck > minthck_ice_sheet).
+    ! (3) Recursively fill all cells that are connected to filled cells by a path
+    !     that passes through ice-covered cells only.
+    ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
+    ! (5) Once the fill is done, any cells that still have the initial color and
+    !     are on land are considered to be ice caps.
+    !
+    ! Note: The recursive fill applies to edge neighbors, not corner neighbors.
+    !        The path back to ice sheet cells must go through edges, not corners.
+    !       The ice sheet seeding criterion can be changed by adjusting minthck_ice_sheet.
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask               !> = 1 if ice is present (thck > thklim)
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck                   !> ice thickness (m)
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         ice_sheet_mask         !> = 1 for ice sheet cells
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         ice_cap_mask           !> = 1 for ice cap cells, separately from the main ice sheet
+
+    real(dp), parameter :: &
+         minthck_ice_sheet = 2000.d0  !> thickness threshold (m) for initializing ice sheet cells
+
+    ! local variables
+
+    integer :: i, j, n
+    integer :: count, maxcount_fill  ! loop counters
+    real(dp) :: sum_fill_local, sum_fill_global
+
+    integer, dimension(nx,ny) ::  &
+         color                  !> color variable for the fill
+
+    ! initialize
+    ! Note: Ice-covered cells receive the initial color, and ice-free cells receive the boundary color.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (ice_mask(i,j) == 1) then
+             color(i,j) = initial_color
+          else
+             color(i,j) = boundary_color
+          endif
+       enddo
+    enddo
+
+    ! Loop through cells, identifying cells that are definitely part of the ice sheet
+    !  based on a threshold ice thickness. 
+    ! Fill these cells and then recursively fill ice-covered neighbors.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+
+    maxcount_fill = max(ewtasks,nstasks)
+
+    do count = 1, maxcount_fill
+
+       if (count == 1) then   ! identify ice sheet cells that can seed the fill
+
+          do j = 1, ny
+             do i = 1, nx
+                if (color(i,j) == initial_color .and. thck(i,j) >= minthck_ice_sheet) then
+                   ! assign the fill color to this cell, and recursively fill ice-covered neighbors
+                   call glissade_fill_with_mask(nx,    ny,    &
+                                                i,     j,     &
+                                                color, ice_mask)
+                endif
+             enddo
+          enddo
+
+       else  ! count > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
+
+          call parallel_halo(color)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill_with_mask(nx,    ny,    &
+                                             i+1,   j,     &
+                                             color, ice_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill_with_mask(nx,    ny,    &
+                                             i-1,   j,     &
+                                             color, ice_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill_with_mask(nx,    ny,    &
+                                             i,     j+1,   &
+                                             color, ice_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill_with_mask(nx,    ny,    &
+                                             i,     j-1,   &
+                                             color, ice_mask)
+             endif
+          enddo
+
+       endif  ! count = 1
+
+       sum_fill_local = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+          enddo
+       enddo
+
+       !WHL - If running a large problem, may want to reduce the frequency of this global sum
+       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+
+    enddo  ! count
+
+    ! Any cells with the fill color are considered to be part of the land-based ice sheet.
+    ! Any cells with the initial color are deemed to be ice caps.
+ 
+    ice_sheet_mask(:,:) = 0.0d0
+    ice_cap_mask(:,:) = 0.0d0
+
+    call parallel_halo(color)
+
+    do j = 1, ny
+       do i = 1, nx
+          if (color(i,j) == initial_color) then
+             ice_cap_mask(i,j) = 1
+          elseif (color(i,j) == fill_color) then
+             ice_sheet_mask(i,j) = 1
+          endif
+       enddo
+    enddo
+
+  end subroutine glissade_ice_sheet_mask
+
+!****************************************************************************
+
+  recursive subroutine glissade_fill_with_mask(nx,  ny,         &
+                                               i,   j,          &
+                                               color,           &
+                                               fill_mask)
+
+    ! Given a cell (i,j), determine whether it should be given the fill color
+    !  and recursively fill neighbor cells.
+
+    integer, intent(in) :: nx, ny                       !> domain size
+    integer, intent(in) :: i, j                         !> horizontal indices of current cell
+
+    integer, dimension(nx,ny), intent(inout) :: &
+         color                                          !> color (initial, fill or boundary)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         fill_mask                                      !> = 1 if the cell satisfies the fill criterion
+
+    if (color(i,j) /= fill_color .and. color(i,j) /= boundary_color .and. fill_mask(i,j) == 1) then
+
+       ! assign the fill color to this cell
+       color(i,j) = fill_color
+
+       ! recursively call this subroutine for each neighbor to see if it should be filled
+       !TODO - May want to rewrite this to avoid recursion, which can crash the code when
+       !       the recursion stack is very large on fine grids.
+       if (i > 1)  call glissade_fill_with_mask(nx,    ny,  &
+                                                i-1,   j,   &
+                                                color, fill_mask)
+       if (i < nx) call glissade_fill_with_mask(nx,    ny,  &
+                                                i+1,   j,   &
+                                                color, fill_mask)
+       if (j > 1)  call glissade_fill_with_mask(nx,    ny, &
+                                                i,     j-1, &
+                                                color, fill_mask)
+       if (j < ny) call glissade_fill_with_mask(nx,    ny,  &
+                                                i,     j+1, &
+                                                color, fill_mask)
+
+    endif   ! not fill color or boundary color
+
+  end subroutine glissade_fill_with_mask
 
 !****************************************************************************
 

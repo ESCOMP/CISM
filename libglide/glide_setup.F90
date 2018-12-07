@@ -623,6 +623,8 @@ contains
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
+    call GetValue(section, 'block_inception',             model%options%block_inception)
+    call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
 
@@ -1486,6 +1488,18 @@ contains
                 call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
              endif
           end if
+
+          if (model%options%block_inception) then
+             write(message,*) 'Inception outside the main ice sheet will be blocked'
+          else
+             write(message,*) 'Inception outside the main ice sheet is allowed'
+          endif
+
+          if (model%options%remove_ice_caps) then
+             write(message,*) 'Ice caps will be removed and added to the calving flux'
+          else
+             write(message,*) 'Ice caps will not be removed'
+          endif
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
                             ho_whichice_age(model%options%which_ho_ice_age)
