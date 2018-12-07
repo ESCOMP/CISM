@@ -1163,7 +1163,7 @@ contains
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
                                   glissade_add_mbal_anomaly
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: verbose_inversion
 
     implicit none
@@ -1189,7 +1189,8 @@ contains
        ocean_mask,           & ! = 1 if topg is below sea level and thck = 0, else = 0
        land_mask,            & ! = 1 if topg is at or above sea level, else = 0
        grounding_line_mask,  & ! = 1 if a cell is adjacent to the grounding line, else = 0
-       calving_front_mask      ! = 1 where ice is floating and borders an ocean cell, else = 0
+       calving_front_mask,   & ! = 1 where ice is floating and borders an ocean cell, else = 0
+       extended_ice_sheet_mask ! extension of ice_sheet_mask to include neighbor cells
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_flotation,       & ! thickness at which ice is exactly floating
@@ -1446,9 +1447,32 @@ contains
                                        model%climate%acab_corrected)
        endif
 
+       ! Optionally, block ice sheet inception by allowing SMB to be nonzero
+       !  only in the main ice sheet and in cells adjacent to the ice sheet.
+       ! Note: The ice sheet mask is computed in the diagnostic solve at the end of the previous time step
+       !       (and at initialization).  Since it includes all cells that were part of the ice sheet
+       !       before transport, an extended version of the mask will include all cells that potentially
+       !       are part of the ice sheet after transport.
+
+       if (model%options%block_inception) then
+
+          ! Extend the ice sheet mask to include nearest neighbors (both edge and corner neighbors).
+
+          call glissade_extend_mask(model%general%ewn,   model%general%nsn,     &
+                                    model%geometry%ice_sheet_mask,              &
+                                    extended_mask = extended_ice_sheet_mask)
+
+          ! SMB is allowed to be positive only where ice_mask_smb = 1.
+          ! Note: This code allows cells outside the ice sheet to melt.
+
+          where (extended_ice_sheet_mask == 0)
+             model%climate%acab_corrected = min(model%climate%acab_corrected, 0.0d0)
+          endwhere
+
+       endif
+
        ! Convert acab_corrected to a temporary array in SI units (m/s)
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
-
 
        ! Convert bmlt in SI units (m/s)
        ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
@@ -2153,7 +2177,7 @@ contains
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
@@ -2164,7 +2188,6 @@ contains
     use felix_dycore_interface, only: felix_velo_driver
 
     !WHL - debug
-    use glissade_bmlt_float, only: glissade_basal_melting_float
     use glissade_inversion, only: verbose_inversion
 
     implicit none
@@ -2182,7 +2205,8 @@ contains
          calving_front_mask, & ! = 1 where ice is floating and borders an ocean cell, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask,          & ! = 1 where topg is at or above sea level
-         active_ice_mask       ! = 1 where ice is dynamically active, else = 0
+         active_ice_mask,    & ! = 1 where ice is dynamically active, else = 0
+         extended_ice_mask     ! = 1 where ice_mask = 1, and in nearest neighbors of cells with ice_mask = 1
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_calving_front      ! effective thickness of ice at the calving front
@@ -2253,6 +2277,42 @@ contains
                            model%numerics%dew,      model%numerics%dns,      &
                            model%geometry%usrf,                              &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns)
+
+    ! ------------------------------------------------------------------------
+    ! Compute masks for the ice sheet and ice caps.
+    ! Ice caps are defined as ice-covered cells disconnected from the main ice sheet.
+    ! Optionally, the ice sheet mask can be used to block inception outside the existing ice sheet.
+    ! ------------------------------------------------------------------------
+
+    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   model%numerics%thklim, &
+                            ice_mask)
+
+    call glissade_ice_sheet_mask(model%general%ewn,   model%general%nsn, &
+                                 itest,    jtest,   rtest,      &
+                                 ice_mask,                      &
+                                 model%geometry%thck*thk0,      &
+                                 model%geometry%ice_sheet_mask, &
+                                 model%geometry%ice_cap_mask)
+
+    if (model%options%remove_ice_caps) then
+
+       ! Remove ice caps and add them to the calving flux.
+       ! If ice caps are absent in the input file, and SMB = 0 over all cells
+       !  separated from the main sheet, then ice caps may never form.
+       ! However, it is possible that the main ice sheet will advance under a positive SMB,
+       !  and then part of that ice will melt under a negative SMB, leaving a remnant ice cap.
+       ! Such remnant ice caps could flow, possibly joining the main ice sheet.
+       ! Note: The ice cap mask is not updated after removal.  So if this mask is written to output,
+       !       it will show where ice caps existed before they were removed.
+
+       where (model%geometry%ice_cap_mask == 1)
+          model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+          model%geometry%thck = 0.0d0
+       endwhere
+
+    endif   ! remove_ice_caps
 
     ! ------------------------------------------------------------------------
     ! Update some masks that are used for subsequent calculations
