@@ -71,6 +71,8 @@ module glide_types
                                                        ! NOTE: The no-penetration option is currently supported for Glissade only
 
   integer, parameter :: DYCORE_GLIDE = 0     ! old shallow-ice dycore from Glimmer
+!WHL - The Glam dycore is no longer supported; choosing whichdycore = 1 will give a fatal error.
+!      Might repurpose the '1' slot for a future version of Glissade.
   integer, parameter :: DYCORE_GLAM = 1      ! Payne-Price finite-difference solver
   integer, parameter :: DYCORE_GLISSADE = 2  ! prototype finite-element solver
   integer, parameter :: DYCORE_ALBANYFELIX = 3  ! External Albany-Felix finite-element solver
@@ -79,9 +81,9 @@ module glide_types
   integer, parameter :: EVOL_PSEUDO_DIFF = 0    ! glide only
   integer, parameter :: EVOL_ADI = 1            ! glide only
   integer, parameter :: EVOL_DIFFUSION = 2      ! glide only
-  integer, parameter :: EVOL_INC_REMAP = 3      ! glam/glissade only
-  integer, parameter :: EVOL_UPWIND = 4         ! glam/glissade only
-  integer, parameter :: EVOL_NO_THICKNESS = 5   ! glam/glissade only
+  integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
+  integer, parameter :: EVOL_UPWIND = 4         ! glissade only
+  integer, parameter :: EVOL_NO_THICKNESS = 5   ! glissade only
 
   !NOTE: Use option 1 for prognostic temperature with any dycore
   !      Option 3 is under construction
@@ -292,10 +294,11 @@ module glide_types
 
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP = 1
-  integer, parameter :: HO_GROUND_ALL = 2
+  integer, parameter :: HO_GROUND_GLP_QUADRANTS = 2
 
   integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
-  integer, parameter :: HO_GROUND_BMLT_GLP = 1
+  integer, parameter :: HO_GROUND_BMLT_FLOATING_FRAC = 1
+  integer, parameter :: HO_GROUND_BMLT_ZERO_GROUNDED = 2
 
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
@@ -338,10 +341,10 @@ module glide_types
 
     integer :: whichdycore = 2
 
-    ! Choice of two Glimmer dycores:
+    ! Choice of two dycores:
     !> \begin{description} 
     !> \item[0] Glide dycore (SIA, serial (SLAP) only)
-    !> \item[1] SEACISM/Glam dycore (1st-order, FDM, serial (SLAP) or parallel (Trilinos))
+    !> \item[1] Glam dycore (no longer supported!)
     !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \item[3] FELIX-Albany dycore (1st-order, FEM, using Trilino/Albany, mesh information from Glissade)
     !> \item[4] BISICLES dycore (L1L2, FVM, parallel using Chombo AMR)
@@ -544,7 +547,7 @@ module glide_types
     !> \item[0] compute standard Glimmer sigma coordinates
     !> \item[1] sigma coordinates are given in external file
     !> \item[2] sigma coordinates are given in configuration file
-    !> \item[3] evenly spaced levels, as required for glam dycore
+    !> \item[3] evenly spaced levels
     !> \item[4] compute Pattyn sigma coordinates
     !> \end{description}
 
@@ -575,7 +578,6 @@ module glide_types
 
     !-----------------------------------------------------------------------
     ! Higher-order options associated with the glissade dycore
-    ! Most options also work with Payne-Price dycore (glam)
     !-----------------------------------------------------------------------
 
     integer :: which_ho_efvs = 2
@@ -785,13 +787,14 @@ module glide_types
     !> \begin{description}
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
-    !> \item[2] fground = 1 in all cells
+    !> \item[2] similar to [1], but f_ground is summed over quadrants rather than staggered cells
 
     integer :: which_ho_ground_bmlt = 0
     !> Flag that indicates how to compute bmlt_float in partly grounded cells
     !> \begin{description}
-    !> \item[0] Apply bmlt_float in all floating cells, including partly grounded cells
-    !> \item[1] Do not apply bmlt_float in partly grounded cells
+    !> \item[0] Apply bmlt_float in all floating cells, based on floating_mask
+    !> \item[1] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
+    !> \item[2] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
 
     integer :: which_ho_flotation_function = 2
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
@@ -857,13 +860,13 @@ module glide_types
     !> Observed basal topography, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
-    !> flotation function, (rhoi*thck) / (-rhoo*(topg-eus))
-    !> previously was f_pattyn = -rhoo*(topg-eus)/(rhoi*thck)
-    !    (computed by glissade dycore only)
+    !> flotation function, > 0 for floating ice and <= 0 for grounded ice
 
     real(dp),dimension(:,:),pointer :: f_ground => null() 
-    !> The fractional area at each vertex which is grounded 
-    !    (computed by glissade dycore only)
+    !> The fractional area at each vertex which is grounded
+
+    real(dp),dimension(:,:),pointer :: f_ground_cell => null() 
+    !> The fractional area in each cell which is grounded
 
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
@@ -965,14 +968,6 @@ module glide_types
     real(dp),dimension(:,:),pointer :: dlsrfdew => null() !*tb* added
     real(dp),dimension(:,:),pointer :: dlsrfdns => null() !*tb* added
 
-    !Second derivatives on a staggered grid
-    !*tb* added all of these
-    ! Used by glam_strs2
-    real(dp),dimension(:,:),pointer :: d2usrfdew2 => null()
-    real(dp),dimension(:,:),pointer :: d2usrfdns2 => null()
-    real(dp),dimension(:,:),pointer :: d2thckdew2 => null()
-    real(dp),dimension(:,:),pointer :: d2thckdns2 => null()
-
     !Time derivatives
     real(dp),dimension(:,:),pointer :: dthckdtm => null() !> Temporal derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdtm => null() !> Temporal derivative of upper surface elevation.
@@ -1023,11 +1018,6 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
 
-    !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
-!    real(dp),dimension(:,:,:),pointer :: ures => null() !> 3D $x$-residual.
-!    real(dp),dimension(:,:,:),pointer :: vres  => null() !> 3D $y$-residual.
-!    real(dp),dimension(:,:,:),pointer :: magres  => null() !> 3D $magnitude$-residual.
-
     ! Note: uvel_extend and vvel_extend can be used for input and output of uvel, vvel on a staggered grid 
     !       that is the same size as the unstaggered grid. This is required for exact restart if velocities
     !       are nonzero along the north and east boundaries of the global domain.
@@ -1051,9 +1041,6 @@ module glide_types
     !> masks that specify where the outflow velocities on the global boundary should be set to zero
     integer, dimension(:,:), pointer  :: umask_no_penetration => null()
     integer, dimension(:,:), pointer  :: vmask_no_penetration => null()
-
-    !*sfp* mask on vel grid showing which dyn bc is applied at each grid cell (mainly for debugging)
-    integer, dimension(:,:), pointer    :: dynbcmask => null()    
 
     ! for viewing the spatial pattern of residuals
     real(dp),dimension(:,:,:),pointer :: resid_u => null()     ! u component of residual Ax - b where x is the velocity
@@ -1224,7 +1211,7 @@ module glide_types
 
     !Note: In the Glide dycore, temp, flwa and dissip live on the unstaggered vertical grid
     !       at layer interfaces and have vertical dimension (1:upn).
-    !      In the Glam/Glissade dycore, with remapping advection of temperature, 
+    !      In the Glissade dycore, with remapping advection of temperature, 
     !       temp, flwa and dissip live on the staggered vertical grid at layer midpoints.  
     !       The vertical dimensions are (0:upn) for temp and (1:upn-1) for flwa and dissip.
     !
@@ -1995,6 +1982,7 @@ contains
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
     !> \item \texttt{f_flotation(ewn,nsn)}
     !> \item \texttt{f_ground(ewn-1,nsn-1)}
+    !> \item \texttt{f_ground_cell(ewn-1,nsn-1)}
     !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
     !> \item \texttt{ice_mask(ewn,nsn))}
     !> \item \texttt{floating_mask(ewn,nsn))}
@@ -2061,7 +2049,7 @@ contains
     !NOTE: In the glide dycore (whichdycore = DYCORE_GLIDE), the temperature and 
     !       flow factor live on the unstaggered vertical grid, and extra rows and columns 
     !       (with indices 0:ewn+1, 0:nsn+1) are needed.
-    !      In the glam/glissade dycore, the temperature and flow factor live on
+    !      In the Glissade dycore, the temperature and flow factor live on
     !       the staggered vertical grid, with temp and flwa defined at the
     !       center of each layer k = 1:upn-1.  The temperature (but not flwa)
     !       is defined at the upper surface (k = 0) and lower surface (k = upn).
@@ -2070,9 +2058,9 @@ contains
        allocate(model%temper%temp(upn,0:ewn+1,0:nsn+1))
        call coordsystem_allocate(model%general%ice_grid, upn, model%temper%flwa)
        call coordsystem_allocate(model%general%ice_grid, upn, model%temper%dissip)
-    else    ! glam/glissade dycore
+    else    ! glissade dycore
        allocate(model%temper%temp(0:upn,1:ewn,1:nsn))
-       ! tempunstag has the same horizontal grid as the glam/glissade temp, but a
+       ! tempunstag has the same horizontal grid as the glissade temp, but a
        ! vertical axis like the glide temp
        allocate(model%temper%tempunstag(upn,1:ewn,1:nsn))
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%flwa)
@@ -2098,7 +2086,7 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLIDE) then   ! glide only
        call coordsystem_allocate(model%general%ice_grid, model%temper%bwatflx)
-    else   ! glam/glissade only
+    else   ! glissade only
        call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
@@ -2145,7 +2133,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%velocity%total_diffu)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%tau_x)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%tau_y)
-    else   ! glam/glissade dycore
+    else   ! glissade dycore
        call coordsystem_allocate(model%general%velo_grid, model%velocity%beta)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%beta_internal)
        call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
@@ -2155,19 +2143,14 @@ contains
        model%velocity%unstagbeta(:,:) = unphys_val
 
        call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%dynbcmask)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
-         ! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
-!       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%ures)
-!       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%vres)
-!       call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%magres)
        call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
     endif
 
     ! higher-order stress arrays
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade dycore
+    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%efvs)
        call coordsystem_allocate(model%general%ice_grid, model%stress%efvs_vertavg)
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%scalar) 
@@ -2237,27 +2220,24 @@ contains
        model%thckwk%olds = 0.0d0
        call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck)
        call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck2)
-    else   ! glam/glissade dycore
+    else   ! glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt_tavg)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagusrf)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagtopg)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2usrfdew2)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2usrfdns2)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2thckdew2)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%d2thckdns2)
        !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup
 
        ! Basal Physics
        !WHL - Since the number of basal BC options is proliferating, simplify the logic by allocating the following arrays
-       !      whenever running glam/glissade
+       !      whenever running glissade
 !!       if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
 !!            (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
 !!            (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) .or. &
@@ -2270,7 +2250,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%C_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
 !!       endif
-    endif  ! glam/glissade
+    endif  ! glissade
 
     ! bmlt arrays
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
@@ -2385,7 +2365,7 @@ contains
 
     ! grounding line arrays (not currently supported)
 
-!!    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade dycore
+!!    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade dycore
 !!       allocate (model%ground%gl_ew(ewn-1,nsn))
 !!       allocate (model%ground%gl_ns(ewn,nsn-1))
 !!       allocate (model%ground%gline_flux(ewn,nsn)) 
@@ -2394,7 +2374,7 @@ contains
     ! basal process arrays
     ! not currently supported
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glam/glissade dycore
+    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade dycore
 !!       call coordsystem_allocate(model%general%ice_grid, model%basalproc%Hwater)
 !!       allocate(model%basalproc%u (ewn-1,nsn-1,model%basalproc%tnodes)); model%basalproc%u=41.0d3
 !!       allocate(model%basalproc%etill (ewn-1,nsn-1,model%basalproc%tnodes));model%basalproc%etill=0.5d0
@@ -2545,22 +2525,12 @@ contains
         deallocate(model%velocity%beta_internal)
     if (associated(model%velocity%kinbcmask)) &
         deallocate(model%velocity%kinbcmask)
-    if (associated(model%velocity%dynbcmask)) &
-        deallocate(model%velocity%dynbcmask)
     if (associated(model%velocity%umask_no_penetration)) &
         deallocate(model%velocity%umask_no_penetration)
     if (associated(model%velocity%vmask_no_penetration)) &
         deallocate(model%velocity%vmask_no_penetration)
     if (associated(model%velocity%divu)) &
         deallocate(model%velocity%divu)
-
-    !! next 3 used for output of residual fields (when relevant code in glam_strs2 is active)
-!    if (associated(model%velocity%ures)) & 
-!        deallocate(model%velocity%ures) 
-!    if (associated(model%velocity%vres)) & 
-!        deallocate(model%velocity%vres) 
-!    if (associated(model%velocity%magres)) & 
-!        deallocate(model%velocity%magres) 
 
     ! higher-order stress arrays
 
@@ -2793,6 +2763,8 @@ contains
         deallocate(model%geometry%f_flotation)
     if (associated(model%geometry%f_ground)) &
         deallocate(model%geometry%f_ground)
+    if (associated(model%geometry%f_ground_cell)) &
+        deallocate(model%geometry%f_ground_cell)
     if (associated(model%geomderv%dlsrfdew)) &
         deallocate(model%geomderv%dlsrfdew)
     if (associated(model%geomderv%dlsrfdns)) &
@@ -2803,14 +2775,6 @@ contains
         deallocate(model%geomderv%stagusrf)
     if (associated(model%geomderv%stagtopg)) &
         deallocate(model%geomderv%stagtopg)
-    if (associated(model%geomderv%d2usrfdew2)) &
-        deallocate(model%geomderv%d2usrfdew2)
-    if (associated(model%geomderv%d2usrfdns2)) &
-        deallocate(model%geomderv%d2usrfdns2)
-    if (associated(model%geomderv%d2thckdew2)) &
-        deallocate(model%geomderv%d2thckdew2)
-    if (associated(model%geomderv%d2thckdns2)) &
-        deallocate(model%geomderv%d2thckdns2)
 
     ! climate arrays
 
@@ -2862,9 +2826,6 @@ contains
     if (associated(model%solver_data%answ))  &
         deallocate(model%solver_data%answ)
 
-    !KJE do we need this here? The parts within are allocated in glam_strs2
-    call del_sparse_matrix(model%solver_data%matrix)
-
     ! lithosphere arrays
 
     if (associated(model%lithot%temp)) &
@@ -2908,7 +2869,7 @@ contains
 !!        deallocate(model%ground%gline_flux)
 
     ! basal process arrays
-    ! not currently supported, except that glam_strs2 uses mintauf
+    ! not currently supported
 
 !!    if (associated(model%basalproc%Hwater)) &
 !!       deallocate(model%basalproc%Hwater)

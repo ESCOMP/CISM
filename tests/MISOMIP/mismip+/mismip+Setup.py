@@ -438,6 +438,10 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
 
+    # The Spinup run is initialized to the surface air temperature (temp_init = 1).
+    # For all other experiments, the initial temperature is read from the input/restart file.
+    if expt != 'Spinup':
+       config.set('options', 'temp_init', 4)
 
     # Set the time step in the master config file.
     # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).

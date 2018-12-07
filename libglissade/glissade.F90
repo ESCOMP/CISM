@@ -100,7 +100,6 @@ contains
     use glide_mask
     use isostasy
     use glimmer_map_init
-    use glam_strs2, only : glam_velo_init
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger
     use glissade_velo_higher, only: glissade_velo_higher_init
@@ -153,7 +152,6 @@ contains
     elseif (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
        ! Note: In this case, halo updates are treated the same as for periodic BC
        !       In addition, we set masks that are used to zero out the outflow velocities in the Glissade velocity solvers
-       !       The no-penetration BC is not supported for the Glam solver
        call distributed_grid(model%general%ewn, model%general%nsn)
     else
        call distributed_grid(model%general%ewn, model%general%nsn)
@@ -386,12 +384,6 @@ contains
 
     ! Dycore-specific velocity solver initialization
     select case (model%options%whichdycore)
-    case ( DYCORE_GLAM )   ! glam finite-difference
-
-       call glam_velo_init(model%general%ewn,    model%general%nsn,  &
-                           model%general%upn,                        &
-                           model%numerics%dew,   model%numerics%dns, &
-                           model%numerics%sigma)
 
     case ( DYCORE_GLISSADE )   ! glissade finite-element
 
@@ -840,16 +832,24 @@ contains
     ! Local variables
 
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
-       ice_mask,          & ! = 1 if ice is present (thck > 0, else = 0
-       floating_mask        ! = 1 if ice is present (thck > 0) and floating
+         ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
+         floating_mask,         & ! = 1 if ice is present (thck > 0) and floating
+         ocean_mask               ! = 0 if ice is absent (thck = 0) and topg < 0
 
     real(dp) :: previous_time
 
-    integer :: i, j
+!!    logical, parameter :: verbose_bmlt_float = .true.
+    logical, parameter :: verbose_bmlt_float = .false.
 
+    integer :: i, j
+    integer :: ewn, nsn
     integer :: itest, jtest, rtest
 
-    ! Set debug diagnostics
+    ! set grid dimensions
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+
+    ! set debug diagnostics
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
@@ -862,19 +862,7 @@ contains
     !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float subroutine?
     !      Break plume and mismip+ into separate subroutines?
 
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_basal_melting_float'
-
-    ! Compute masks:
-    ! - ice_mask = 1 where thck > 0
-    ! - floating_mask = 1 where thck > 0 and ice is floating;
-    ! - ocean_mask = 1 where topg is below sea level and ice is absent
-    !Note: The '0.0d0' argument is thklim. Here, any ice with thck > 0 gets ice_mask = 1.
-
-    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                            model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
-                            ice_mask,                                   &
-                            floating_mask = floating_mask)
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_bmlt_float_solve'
 
     ! Compute bmlt_float depending on the whichbmlt_float option
 
@@ -897,17 +885,17 @@ contains
           !TODO - Call separate subroutines for each of these three options?
 
        !WHL - May want to comment out temporarily, if doing basal melting in the diagnostic solve for testing
-       call glissade_basal_melting_float(model%options%whichbmlt_float,                                &
-                                         model%general%ewn,          model%general%nsn,                &
-                                         model%numerics%dew*len0,    model%numerics%dns*len0,          &
-                                         model%numerics%idiag_local, model%numerics%jdiag_local,       &
-                                         model%numerics%rdiag_local,                                   &
-                                         model%general%x1,                                             & ! m
-                                         model%geometry%thck*thk0,                                     & ! m
-                                         model%geometry%lsrf*thk0,                                     & ! m
-                                         model%geometry%topg*thk0,                                     & ! m
-                                         model%climate%eus*thk0,                                       & ! m
-                                         model%basal_melt,                                             & ! bmlt_float in m/s
+       call glissade_basal_melting_float(model%options%whichbmlt_float,                         &
+                                         ewn,                        nsn,                       &
+                                         model%numerics%dew*len0,    model%numerics%dns*len0,   &
+                                         itest,                      jtest,                     &
+                                         rtest,                                                 &
+                                         model%general%x1,                                      & ! m
+                                         model%geometry%thck*thk0,                              & ! m
+                                         model%geometry%lsrf*thk0,                              & ! m
+                                         model%geometry%topg*thk0,                              & ! m
+                                         model%climate%eus*thk0,                                & ! m
+                                         model%basal_melt,                                      & ! bmlt_float in m/s
                                          model%plume)
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
@@ -933,36 +921,120 @@ contains
 
     endif
 
-    ! Limit the melting to cells where ice is present and floating.
-    ! Note: For this to work correctly, basal melting must be applied before the floating mask changes
-    !       (i.e., before horizontal transport).
+    ! Compute masks:
+    ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
 
-    where (floating_mask == 0)
+    call glissade_get_masks(ewn,                 nsn,                   &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask)
+
+    ! Zero out bmlt_float in cells that are currently ice-free ocean
+
+    where (ocean_mask == 1)
        model%basal_melt%bmlt_float = 0.0d0
     endwhere
 
-    if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_GLP) then
+    ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
 
-       ! Set bmlt_float = 0 in any grid cells that are grounded, or are adjacent to grounded cells.
-       ! This prevents grounding-line retreat driven by spurious thinning of grounded ice.
+    if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_NO_GLP) then
 
-       do j = 2, model%general%nsn-1
-          do i = 2, model%general%ewn-1
-             if (floating_mask(i,j) == 1) then
-                ! check for grounded edge neighbors
-                ! Note: There might be grounded corner neighbors, but we assume the GL passes
-                !       through the cell only if it has a grounded edge neighbor.
-                if ( (ice_mask(i-1,j)==1 .and. floating_mask(i-1,j)==0) .or. &
-                     (ice_mask(i+1,j)==1 .and. floating_mask(i+1,j)==0) .or. &
-                     (ice_mask(i,j-1)==1 .and. floating_mask(i,j-1)==0) .or. &
-                     (ice_mask(i,j+1)==1 .and. floating_mask(i,j+1)==0) ) then
-                   model%basal_melt%bmlt_float(i,j) = 0.0d0
-                endif
-             endif
+       ! Limit basal melting to cells where ice is present and floating (floating_mask = 1).
+       where (floating_mask == 0)
+          model%basal_melt%bmlt_float = 0.0d0
+       endwhere
+
+    else  ! basal melting GLP
+
+       if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
+
+          ! Where unstagf_ground > 0, multiply bmlt_float by the fraction of the cell that is floating.
+          ! Cells that are fully grounded will have bmlt_float = 0.
+          ! This option ensures smooth changes in bmlt_float as the GL migrates.
+          ! However, it may allow spurious melting of grounded ice near the GL.
+
+          where (model%geometry%f_ground_cell > 0.0d0)
+             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float   &
+                                         * (1.0d0 - model%geometry%f_ground_cell)
+          endwhere
+
+       elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
+
+          ! Where unstagf_ground > 0, set bmlt_float = 0.
+          ! Cells that are even partly grounded will have bmlt_float = 0.
+          ! This option ensures no spurious melting of grounded ice near the GL.
+          ! However, it may underestimate melting of floating ice near the GL, especially on coarser grids.
+
+          where (model%geometry%f_ground_cell > 0.0d0)
+             model%basal_melt%bmlt_float = 0.0d0
+          endwhere
+
+       endif  ! which_ho_ground_bmlt: FLOATING_FRAC or ZERO_GROUNDED
+
+    endif   ! which_ho_ground_bmlt: NO_GLP
+
+    !WHL - debug
+    if (this_rank==rtest .and. verbose_bmlt_float) then
+       print*, ' '
+       print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
+       write(6,*) ' '
+
+       if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_NO_GLP) then
+
+          print*, 'floating_mask:'
+          write(6,'(a6)',advance='no') '      '
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') i
           enddo
-       enddo
+          write(6,*) ' '
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') floating_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
 
-    endif
+       else  ! GLP for bmlt_float
+
+          print*, 'f_ground_cell:'
+          write(6,'(a6)',advance='no') '      '
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') i
+          enddo
+          write(6,*) ' '
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.7)',advance='no') model%geometry%f_ground_cell(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          write(6,*) ' '
+
+       endif   ! which_ho_ground_bmlt
+
+       print*, ' '
+       print*, 'bmlt_float (m/yr):'
+       write(6,'(a6)',advance='no') '      '
+       do i = itest-3, itest+3
+          write(6,'(i10)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.7)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+
+       print*, 'Done in glissade_bmlt_float_solve'
+
+    endif  ! this_rank = rtest and verbose_bmlt_float
 
   end subroutine glissade_bmlt_float_solve
 
@@ -1415,6 +1487,7 @@ contains
 
        !-------------------------------------------------------------------------
        ! Optionally, invert for basal fields: topography, basal traction and basal melting.
+       ! Note: The masks passed to glissade_inversion_solve are based on the ice state before transport.
        !-------------------------------------------------------------------------
 
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
@@ -1490,6 +1563,9 @@ contains
           endwhere
 
        endif  ! which_ho_inversion
+
+       ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
+       !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
 
        ! Initialize the applied acab and bmlt.
        ! Note: These are smaller in magnitude than the input acab and bmlt for cells where either
@@ -2099,17 +2175,16 @@ contains
     use glimmer_physcon, only: scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
-    use glam_velo, only: glam_velo_driver, glam_basal_friction
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
+    use glissade_grid_operators, only: glissade_stagger, glissade_gradient
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
-    use glam_grid_operators, only: glam_geometry_derivs
     use felix_dycore_interface, only: felix_velo_driver
 
     !WHL - debug
@@ -2150,6 +2225,8 @@ contains
     real(dp) :: my_min_diff, global_min_diff
     integer :: iglobal, jglobal, ii, jj
 
+    logical, parameter :: verbose_gl = .false.
+
     rtest = -999
     itest = 1
     jtest = 1
@@ -2188,17 +2265,18 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
     ! ------------------------------------------------------------------------
-    ! Update some geometry derivatives
+    ! Compute some quantities on the staggered grid.
+    ! These are not used by the Glissade velocity solver, but are used for diagnostics
+    !  (and optionally for SIA-based dissipation).
     ! ------------------------------------------------------------------------
-    !Note - The fields computed by glam_geometry_derivs are not required by
-    !       the Glissade velocity solver (which computes them internally).  
-    !       However, some of the fields (stagthck, dusrfdew and dusrfdns) 
-    !       are needed during the next timestep by glissade_therm
-    !       if we're doing shallow-ice dissipation.
-    !TODO - Replace this glam_geometry_derivs call with calls to Glissade subroutines?
-    !       (The glam_velo driver includes its own call to glam_geometry_derivs.) 
 
-    call glam_geometry_derivs(model)
+    call glissade_stagger(model%general%ewn,   model%general%nsn,  &
+                          model%geometry%thck, model%geomderv%stagthck)
+
+    call glissade_gradient(model%general%ewn,       model%general%nsn,       &
+                           model%numerics%dew,      model%numerics%dns,      &
+                           model%geometry%usrf,                              &
+                           model%geomderv%dusrfdew, model%geomderv%dusrfdns)
 
     ! ------------------------------------------------------------------------
     ! Compute masks for the ice sheet and ice caps.
@@ -2259,8 +2337,9 @@ contains
     ! See comments in subroutine glissade_grounded_fraction for details
     ! on the whichground and whichflotation_function options.
     !
-    ! Computing f_ground here ensures that it is always available as a diagnostic, even if
-    ! the velocity solver is not called (e.g., on the first time step of a restart).
+    ! Computing f_ground here ensures that it is always available as a diagnostic
+    ! at the end of the time step, even if the velocity solver is not called
+    ! (e.g., on the first time step of a restart).
     ! ------------------------------------------------------------------------
 
     call glissade_grounded_fraction(model%general%ewn,             &
@@ -2274,8 +2353,43 @@ contains
                                     land_mask,                     &
                                     model%options%which_ho_ground, &
                                     model%options%which_ho_flotation_function, &
+                                    model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
-                                    model%geometry%f_flotation)
+                                    model%geometry%f_ground_cell)
+
+    !WHL - debug
+    if (this_rank == rtest .and. verbose_gl) then
+       print*, ' '
+       print*, 'New GLP subroutine, which_ho_ground =', model%options%which_ho_ground
+       print*, ' '
+       print*, 'f_flotation:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%geometry%f_flotation(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground at vertex:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%geometry%f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground_cell:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%geometry%f_ground_cell(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif  ! this_rank = rtest
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -2427,11 +2541,6 @@ contains
        ! Call the appropriate velocity solver
 
        select case (model%options%whichdycore)
-       case ( DYCORE_GLAM )   ! glam finite-difference
-
-          call t_startf('glam_velo_driver')
-          call glam_velo_driver(model)
-          call t_stopf('glam_velo_driver')
 
        case ( DYCORE_GLISSADE )   ! glissade finite-element
 
@@ -2455,6 +2564,8 @@ contains
 
        if (model%options%which_ho_disp == HO_DISP_SIA) then
 
+          ! Compute dissipation based on the shallow-ice approximation
+
           call glissade_interior_dissipation_sia(model%general%ewn,              &
                                                  model%general%nsn,              &
                                                  model%general%upn,              &
@@ -2477,20 +2588,6 @@ contains
           
        endif    ! which_ho_disp
           
-       ! If running Glam, compute the basal friction heat flux
-       ! (Glissade computes this flux as part of the velocity solution.)
-       
-       if (model%options%whichdycore == DYCORE_GLAM) then
-          call glam_basal_friction(model%general%ewn,                             &
-                                   model%general%nsn,                             &
-                                   ice_mask,                                      &
-                                   floating_mask,                                 &
-                                   model%velocity%uvel(model%general%upn,:,:),    &
-                                   model%velocity%vvel(model%general%upn,:,:),    &
-                                   model%velocity%btraction(:,:,:),               &
-                                   model%temper%bfricflx(:,:) )
-       endif
-       
     endif     ! is_restart
 
     if (this_rank==rtest .and. verbose_glissade) then

@@ -950,8 +950,6 @@ contains
 ! PRIVATE subroutines
 !------------------------------------------------------------------------------------------
 
-!TODO - Remove function vertintg?  Not currently used (glam_strs2 has its own version).  
- 
   function vertintg(velowk,in)
 
     !> Performs a depth integral using the trapezium rule.
