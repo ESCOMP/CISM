@@ -61,8 +61,8 @@ contains
                               var,          stagvar,   &
                               ice_mask,     stagger_margin_in)
 
-    !TODO - Make the mask optional, and drop the stagger_margin_in argument?
-    !       Then the mask determines where to ignore values when interpolating.
+    !TODO - Drop the stagger_margin_in argument, and use the optional mask to
+    !        determine where to ignore values when interpolating?
 
     !----------------------------------------------------------------
     ! Given a variable on the unstaggered grid (dimension nx, ny), interpolate
@@ -269,7 +269,7 @@ contains
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
        df_dx, df_dy             ! gradient components of input field, defined at cell vertices
 
-    integer, dimension(nx,ny), intent(in) ::        &
+    integer, dimension(nx,ny), intent(in), optional ::        &
        ice_mask                 ! = 1 where ice is present, else = 0
 
     integer, intent(in), optional ::    &
@@ -303,6 +303,10 @@ contains
        gradient_margin = gradient_margin_in
     else
        gradient_margin = 0  ! default is to average over all cells, including those where ice is absent
+    endif
+
+    if (gradient_margin == 1 .and. .not.present(ice_mask)) then
+       call write_log('Must pass in ice_mask to compute gradient with gradient_margin = 1', GM_FATAL)
     endif
 
     !--------------------------------------------------------

@@ -222,7 +222,6 @@ contains
     use glimmer_paramets, only: thk0, thk_scale, GLC_DEBUG
     use glide_grid_operators, only: glide_geometry_derivs
 
-    !EIB! use glide_deriv, only : df_field_2d_staggered 
     implicit none
     ! subroutine arguments
     type(glide_global_type) :: model
