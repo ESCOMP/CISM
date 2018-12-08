@@ -106,6 +106,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
+    use glissade_bmlt_float, only: glissade_bmlt_float_ismip6_init
     use glimmer_paramets, only: thk0, len0, tim0
     use felix_dycore_interface, only: felix_velo_init
 
@@ -521,6 +522,17 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
+    ! initialize ocean forcing data, if desired
+    ! Currently, this is done only when using the ISMIP6 basal melting paramterization
+
+    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6 .and.  &
+        model%options%is_restart == RESTART_FALSE) then
+       call glissade_bmlt_float_ismip6_init(&
+            model%options%bmlt_float_ismip6_param,       &
+            model%options%bmlt_float_ismip6_magnitude,   &
+            model%ocean_data)
+    endif
+
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
@@ -861,7 +873,7 @@ contains
     ! Solve for basal melting beneath floating ice.
 
     use glimmer_paramets, only: tim0, thk0, len0
-    use glissade_bmlt_float, only: glissade_basal_melting_float
+    use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_ismip6
     use glissade_transport, only: glissade_add_mbal_anomaly
     use glissade_masks, only: glissade_get_masks
 
@@ -905,6 +917,16 @@ contains
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_bmlt_float_solve'
 
+    ! Compute masks:
+    ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
+
+    call glissade_get_masks(ewn,                 nsn,                   &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask)
+
     ! Compute bmlt_float depending on the whichbmlt_float option
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_NONE) then
@@ -921,6 +943,19 @@ contains
        if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
           model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
        endif
+
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+
+       !TODO - Set delta_tocn_basin at initialization based on ismip6_magnitude??
+       call glissade_bmlt_float_ismip6(model%options%bmlt_float_ismip6_param, &
+                                       ewn,                       nsn,        &
+                                       floating_mask,                         &
+                                       model%geometry%lsrf*thk0,              & ! m
+                                       model%ocean_data,                      &
+                                       model%basal_melt%bmlt_float)             ! m/s
+
+       ! Convert bmlt_float from SI units (m/s) to scaled model units
+       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_DEPTH AND BMLT_FLOAT_MISOMIP
           !TODO - Call separate subroutines for each of these three options?
@@ -965,12 +1000,13 @@ contains
     ! Compute masks:
     ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
 
-    call glissade_get_masks(ewn,                 nsn,                   &
-                            model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
-                            ice_mask,                                   &
-                            floating_mask = floating_mask,              &
-                            ocean_mask = ocean_mask)
+    !TODO - Remove this code (replaced by call above)
+!    call glissade_get_masks(ewn,                 nsn,                   &
+!                            model%geometry%thck, model%geometry%topg,   &
+!                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+!                            ice_mask,                                   &
+!                            floating_mask = floating_mask,              &
+!                            ocean_mask = ocean_mask)
 
     ! Zero out bmlt_float in cells that are currently ice-free ocean
 

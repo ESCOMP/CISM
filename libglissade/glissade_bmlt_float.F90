@@ -44,7 +44,8 @@ module glissade_bmlt_float
   implicit none
   
   private
-  public :: glissade_basal_melting_float
+  public :: glissade_basal_melting_float, &
+       glissade_bmlt_float_ismip6_init, glissade_bmlt_float_ismip6
 
   logical :: verbose_velo = .true.
   logical :: verbose_continuity = .true.
@@ -617,6 +618,499 @@ contains
     first_call = .false.
 
   end subroutine glissade_basal_melting_float
+
+!****************************************************
+
+  subroutine glissade_bmlt_float_ismip6_init(&
+       bmlt_float_ismip6_param,       &
+       bmlt_float_ismip6_magnitude,   &
+       ocean_data)
+
+    ! Initialization for ISMIP6 basal melting parameterization (BMLT_FLOAT_ISMIP6).
+
+    integer, intent(in) :: &
+         bmlt_float_ismip6_param,    & !> kind of melting parameterization, local or nonlocal
+         bmlt_float_ismip6_magnitude   !> magnitude of forcing (e.g., pct5, median, pct95)
+
+    type(glide_ocean_data), intent(inout) ::  &
+         ocean_data                    !> derived type holding ocean input data
+    
+    !WHL - debug
+    logical :: simple_init = .false.
+!!    logical :: simple_init = .true.
+
+    integer :: k
+
+    ! Make basin_number index start at 1 instead of 0?  Assume 0 for now.
+       
+    ! Based on the kind of parameterization (local or nonlocal) and the forcing magnitude,
+    ! assign appropriate values to deltaT_basin and gamm0.
+
+    if (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then
+
+       if (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
+          ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct5
+          ocean_data%gamma0 = ocean_data%gamma0_local_pct5
+       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
+          ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_median
+          ocean_data%gamma0 = ocean_data%gamma0_local_median
+       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
+          ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct95
+          ocean_data%gamma0 = ocean_data%gamma0_local_pct95
+       endif
+
+    elseif (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then
+
+       if (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
+          ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
+          ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct5
+       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
+          ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_median
+          ocean_data%gamma0 = ocean_data%gamma0_nonlocal_median
+       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
+          ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct95
+          ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct95
+       endif
+
+    endif  ! local or nonlocal
+
+    ! Do anything with the transient forcing?
+    ! Initialize zocn?
+
+    !WHL - debug - some simple initializations for testing
+    ! In config file, set nbasin = 4 and nzocn = 10
+
+    if (simple_init) then
+
+       ! Assign basin numbers based on this_rank (0 to 3 on a Mac)
+       ocean_data%basin_number(:,:) = this_rank
+
+       ! Set deltaT_basin in a similar way based on this_rank
+       ! Will have more melting with larger rank
+       ocean_data%deltaT_basin(:,:) = 0.50d0 * this_rank
+
+       ! Use Xylar's median value (m/yr) for gamma0
+       ocean_data%gamma0 = 15000.d0
+
+       ! Set a thermal forcing climatology with zero thermal forcing everywhere
+       ocean_data%thermal_forcing_steady(:,:,:) = 0.0d0
+
+       ! Let the transient thermal forcing be steady in time, increasing from surface to bed
+       do k = 1, ocean_data%nzocn
+          ocean_data%zocn(k) = -100.0d0 * k   ! ocean level every 100 m
+          ocean_data%thermal_forcing_transient(k,:,:) = -ocean_data%zocn(k) / 500.0d0  ! 2 K/km
+       enddo
+
+    endif  ! simple_init
+
+    ! Fill halos
+    call parallel_halo(ocean_data%basin_number)
+    call parallel_halo(ocean_data%thermal_forcing_steady)
+    call parallel_halo(ocean_data%thermal_forcing_transient)
+
+  end subroutine glissade_bmlt_float_ismip6_init
+
+!****************************************************
+
+  subroutine glissade_bmlt_float_ismip6(&
+       bmlt_float_ismip6_param,   &
+       nx,        ny,             &
+       floating_mask,             &
+       lsrf,                      &
+       ocean_data,                &
+       bmlt_float)
+
+    use parallel
+
+    ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
+    !  and the current ice draft, using either a local or nonlocal melt parameterization.
+    ! Note: This subroutine assumes that we are given a steady (e.g., climatological) thermal forcing
+    !        and a transient thermal forcing as input.  The computed bmlt_float is actually
+    !        a melt rate anomaly, equal to the difference between the steady melt rate
+    !        and the transient melt rate.  We then add this anomaly to a background melt rate
+    !        obtained from inversion.
+    !       If we were sufficiently confident in the transient thermal forcing, we could use
+    !        the transient melt rate on its own, without subtracting the steady melt rate.
+
+    integer, intent(in) :: &
+         bmlt_float_ismip6_param   !> kind of melting parameterization, local or nonlocal
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    !TODO - Pass in f_ground_cell also?
+    !       floating_mask currently used for basin average only so difference from partly filled cells would be small
+    integer, dimension(:,:), intent(in) :: &
+         floating_mask             !> = 1 if ice is present and floating, else = 0
+
+    real(dp), dimension(:,:), intent(in) ::  &
+         lsrf                      !> ice lower surface elevation (m), negative below sea level
+
+    type(glide_ocean_data), intent(in) :: &
+         ocean_data                !> derived type with fields and parameters related to basal melting
+
+    real(dp), dimension(:,:), intent(out) :: &
+         bmlt_float                !> basal melt rate for floating ice (m/s)
+
+    ! local variables
+
+    integer :: i, j, k, nb
+
+    ! Note: Ocean basins are indexed from 0 to nbasin-1
+    integer, dimension(0:ocean_data%nbasin-1) :: &
+         nfloat_basin_local,             & ! number of floating cells per basin (local array)
+         nfloat_basin                      ! number of floating cells per basin (global array)
+
+    real(dp), dimension(0:ocean_data%nbasin-1) :: &
+         thermal_forcing_basin_local, &    ! average thermal forcing in basin in floating cells (local array)
+         thermal_forcing_basin             ! average thermal forcing in basin in floating cells (global array)
+
+    real(dp), dimension(nx,ny) ::  &
+         thermal_forcing_lsrf_steady,    & ! thermal forcing at lower ice surface (K) from climatology
+         thermal_forcing_lsrf_transient    ! thermal forcing at lower ice surface (K) from transient
+
+    real(dp), dimension(0:ocean_data%nbasin-1) ::  &
+         thermal_forcing_basin_steady,    & ! basin average thermal forcing (K) from climatology
+         thermal_forcing_basin_transient    ! basin average thermal forcing (K) from transient
+
+    real(dp), dimension(nx,ny) ::  &
+         bmlt_float_steady,               & ! basal melt rate (m/s) from steady forcing
+         bmlt_float_transient               ! basal melt rate (m/s) from transient forcing
+
+    ! initialize the output
+
+    bmlt_float = 0.0d0
+
+    !-----------------------------------------------
+    ! Compute the thermal forcing for each grid cell
+    !-----------------------------------------------
+
+    ! first for the steady thermal forcing
+    call interpolate_thermal_forcing(&
+         nx,                ny,         &
+         ocean_data%nzocn,              &
+         ocean_data%zocn,               &
+         floating_mask,                 &
+         lsrf,                          &
+         ocean_data%thermal_forcing_steady,  &
+         thermal_forcing_lsrf_steady)
+
+    ! then for the transient thermal forcing
+    call interpolate_thermal_forcing(&
+         nx,                ny,         &
+         ocean_data%nzocn,              &
+         ocean_data%zocn,               &
+         floating_mask,                 &
+         lsrf,                          &
+         ocean_data%thermal_forcing_transient,  &
+         thermal_forcing_lsrf_transient)
+
+    ! optionally, compute the average thermal forcing for each basin
+
+    if (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_NONLOCAL) then
+
+       ! nonlocal parameterization
+       ! Melt rate is a quadratic function of the local thermal forcing
+       !  and the basin-average thermal forcing
+
+       ! compute the average thermal forcing for each basin
+
+       call basin_average(&
+            nx,        ny,                    &
+            ocean_data%nbasin,                &
+            ocean_data%basin_number,          &
+            floating_mask,                    &
+            thermal_forcing_lsrf_steady,      &
+            thermal_forcing_basin_steady)
+
+       call basin_average(&
+            nx,        ny,                    &
+            ocean_data%nbasin,                &
+            ocean_data%basin_number,          &
+            floating_mask,                    &
+            thermal_forcing_lsrf_transient,   &
+            thermal_forcing_basin_transient)
+
+    else  ! local parameterization; does not use a basin average
+
+       thermal_forcing_basin_steady(0:) = 0.0d0
+       thermal_forcing_basin_transient(0:) = 0.0d0
+
+    endif
+
+    !-----------------------------------------------
+    ! Compute the basal melt rate for each grid cell.
+    ! Note: The output bmlt_float has units of m/yr.
+    !-----------------------------------------------
+
+    call ismip6_bmlt_float(&
+         bmlt_float_ismip6_param,           &
+         nx,                ny,             &
+         ocean_data%nbasin,                 &
+         ocean_data%basin_number,           &
+         ocean_data%gamma0,                 &
+         ocean_data%deltaT_basin,           &
+         floating_mask,                     &
+         thermal_forcing_lsrf_steady,       &
+         thermal_forcing_basin_steady,      &
+         bmlt_float_steady)
+
+    call ismip6_bmlt_float(&
+         bmlt_float_ismip6_param,           &
+         nx,                ny,             &
+         ocean_data%nbasin,                 &
+         ocean_data%basin_number,           &
+         ocean_data%gamma0,                 &
+         ocean_data%deltaT_basin,           &
+         floating_mask,                     &
+         thermal_forcing_lsrf_transient,    &
+         thermal_forcing_basin_transient,   &
+         bmlt_float_transient)
+
+    ! Given the melt rates from steady forcing and transient forcing, take the difference,
+    !  and assign this melt rate to bmlt_float.
+    ! When doing inversion, this melt rate is added to bmlt_float_inversion.
+
+    bmlt_float(:,:) = bmlt_float_transient(:,:) - bmlt_float_steady(:,:)
+
+    ! Convert from m/yr to m/s for output.
+    bmlt_float(:,:) = bmlt_float(:,:) / scyr
+    
+  end subroutine glissade_bmlt_float_ismip6
+
+!****************************************************
+
+  subroutine interpolate_thermal_forcing(&
+       nx,          ny,          &
+       nzocn,       zocn,        &
+       floating_mask,            &
+       lsrf,                     &
+       thermal_forcing,          &
+       thermal_forcing_lsrf)
+
+    ! Interpolate the ocean thermal forcing field to the lower ice surface.
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nzocn                     !> number of ocean levels
+
+    real(dp), dimension(nzocn), intent(in) :: &
+         zocn                      !> ocean levels (m) where forcing is provided, negative below sea level
+
+    integer, dimension(nx,ny), intent(in) :: &
+         floating_mask             !> = 1 if ice is present and floating, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         lsrf                      !> ice lower surface elevation (m), negative below sea level
+
+    real(dp), dimension(nzocn,nx,ny), intent(in) :: &
+         thermal_forcing           !> thermal forcing field at ocean levels
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         thermal_forcing_lsrf      !> thermal forcing at the lower ice surface
+
+    ! local veriables
+
+    integer :: i, j, k
+    real(dp) :: dtf, dzocn, dzice  ! terms used in linear interpolation
+
+    ! Compute the thermal forcing at the lower ice surface.
+    ! Above the top ocean level, use the TF value at the top level.
+    ! Below the bottom ocean level, use the TF value at the bottom level.
+    ! Use linear interpolation in between.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (floating_mask(i,j) == 1) then
+             if (lsrf(i,j) >= zocn(1)) then
+                thermal_forcing_lsrf(i,j) = thermal_forcing(1,i,j)
+             elseif (lsrf(i,j) < zocn(nzocn)) then
+                thermal_forcing_lsrf(i,j) = thermal_forcing(nzocn,i,j)
+             else
+                do k = 1, nzocn-1
+                   if (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) then
+                      dtf = thermal_forcing(k+1,i,j) - thermal_forcing(k,i,j)
+                      dzocn = zocn(k+1) - zocn(k)
+                      dzice = lsrf(i,j) - zocn(k)
+                      thermal_forcing_lsrf(i,j) = thermal_forcing(k,i,j) + (dzice/dzocn) * dtf
+                      exit
+                   endif
+                enddo
+             endif
+          else  ! not floating
+             thermal_forcing_lsrf(i,j) = 0.0d0
+          endif
+       enddo
+    enddo
+
+  end subroutine interpolate_thermal_forcing
+
+!****************************************************
+
+  subroutine basin_average(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       mask,                        &
+       field_2d,                    &
+       field_basin)
+
+    ! For a given 2D input field, compute the average over a basin
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    integer, dimension(nx,ny), intent(in) :: &
+         mask                      !> compute basin average over cells with mask = 1
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field_2d                  !> input field to be averaged over basins
+
+    ! Note: This and other basin fields are indexed from 0 to nbasin-1
+    real(dp), dimension(0:nbasin-1), intent(out) :: &
+         field_basin               !> basin-average output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(0:nbasin-1) ::  &
+         sumcell_local,          & ! number of cells in each basin on local task
+         sumcell_global,         & ! number of cells in each basin on full domain
+         sumfield_local,         & ! sum of field on local task
+         sumfield_global           ! sum of field over full domain
+
+    sumcell_local(:) = 0.0d0
+    sumfield_local(:) = 0.0d0
+
+    !TODO - Weight by grid cell area?
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (mask(i,j) == 1) then
+             sumcell_local(nb) = sumcell_local(nb) + 1.0d0
+             sumfield_local(nb) = sumfield_local(nb) + field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    sumcell_global(:)  =  parallel_reduce_sum(sumcell_local(:))
+    sumfield_global(:) =  parallel_reduce_sum(sumfield_global(:))
+
+    where (sumcell_global > 0.0d0)
+       field_basin = sumfield_global/sumcell_global
+    elsewhere
+       field_basin = 0.0d0
+    endwhere
+
+  end subroutine basin_average
+
+!****************************************************
+
+  subroutine ismip6_bmlt_float(&
+       bmlt_float_ismip6_param, &
+       nx,         ny,          &
+       nbasin,                  &
+       basin_number,            &
+       gamma0,                  &
+       deltaT_basin,            &
+       floating_mask,           &
+       thermal_forcing_lsrf,    &
+       thermal_forcing_basin,   &
+       bmlt_float)
+
+    integer, intent(in) :: &
+         bmlt_float_ismip6_param  !> kind of melting parameterization, local or nonlocal
+
+    integer, intent(in) :: &
+         nx, ny                   !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                   !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number             !> ID for each basin
+
+    real(dp) ::  &
+         gamma0                   !> ice-sheet wide melt rate coefficient (m/yr)
+
+    ! Note: This and other basin fields are indexed from 0 to nbasin-1
+    real(dp), dimension(nx,ny), intent(in) :: &
+         deltaT_basin             !> deltaT prescribed as a correction factor for each basin
+
+    integer, dimension(nx,ny), intent(in) :: &
+         floating_mask            !> = 1 where ice is present and floating
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thermal_forcing_lsrf     !> thermal forcing (K) at lower ice surface
+
+    real(dp), dimension(0:nbasin-1), intent(in) :: &
+         thermal_forcing_basin    !> thermal forcing averaged over each basin (K)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         bmlt_float               !> basal melt rate (m/yr) at lower ice surface
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    real(dp) :: coeff       ! ice-sheet wide coefficient
+
+    ! ISMIP6 prescribed parameters
+    real(dp), parameter ::  &
+         rhoi_ismip6 = 918.0d0,    & ! ice density (kg/m^3)
+         rhosw_ismip6 = 1028.0d0,  & ! seawater density (kg/m^3)
+         Lf_ismip6 = 3.34d5,              & ! latent heat of fusion (J/kg)
+         cpw_ismip6 = 3974.d0               ! specific heat of seawater (J/kg/K)
+
+    ! initialize
+    bmlt_float(:,:) = 0.0d0
+
+    coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
+
+    if (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then
+
+       ! local parameterization
+       ! melt rate is a quadratic function of local thermal forcing
+
+       do j = 1, ny
+          do i = 1, nx
+             if (floating_mask(i,j) == 1) then
+                bmlt_float(i,j) = coeff * (thermal_forcing_lsrf(i,j) + deltaT_basin(i,j))**2
+             endif
+          enddo
+       enddo
+
+    else
+
+       ! nonlocal paramterization
+       ! melt rate is a quadratic function of local thermal forcing and basin average thermal forcing
+
+       do j = 1, ny
+          do i = 1, nx
+             nb = basin_number(i,j)
+             if (floating_mask(i,j) == 1) then
+                bmlt_float(i,j) = coeff * (thermal_forcing_lsrf(i,j) + deltaT_basin(i,j))  &
+                                        * (thermal_forcing_basin(nb) + deltaT_basin(i,j))
+             endif
+          enddo
+       enddo
+
+    endif  ! local or nonlocal
+
+  end subroutine ismip6_bmlt_float
 
 !****************************************************
 

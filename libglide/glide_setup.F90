@@ -413,6 +413,10 @@ contains
     call GetValue(section,'sigma_file',model%funits%sigfile)
     call GetValue(section,'global_bc',model%general%global_bc)
 
+    ! for reading ocean data at vertical levels and/or in basins
+    call GetValue(section,'nzocn',model%ocean_data%nzocn)
+    call GetValue(section,'nbasin',model%ocean_data%nbasin)
+
     ! We set this flag to one to indicate we've got a sigfile name.
     ! A warning/error is generated if sigma levels are specified in some other way
     ! and mangle the name
@@ -445,6 +449,7 @@ contains
     call write_log(trim(message))
     write(message,*) 'NS grid spacing : ',model%numerics%dns
     call write_log(trim(message))
+
     if (model%general%global_bc==GLOBAL_BC_PERIODIC) then
        write(message,*) 'Periodic global boundary conditions'
        call write_log(trim(message))
@@ -453,6 +458,15 @@ contains
        call write_log(trim(message))
     elseif (model%general%global_bc==GLOBAL_BC_NO_PENETRATION) then
        write(message,*) 'No-penetration global boundary conditions; outflow set to zero at global boundaries'
+       call write_log(trim(message))
+    endif
+
+    if (model%ocean_data%nzocn >= 1) then
+       write(message,*) 'nz for ocean     : ',model%ocean_data%nzocn
+       call write_log(trim(message))
+    endif
+    if (model%ocean_data%nbasin >= 1) then
+       write(message,*) 'number of basins : ',model%ocean_data%nbasin
        call write_log(trim(message))
     endif
 
@@ -564,6 +578,8 @@ contains
     call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
+    call GetValue(section,'bmlt_float_ismip6_param',model%options%bmlt_float_ismip6_param)
+    call GetValue(section,'bmlt_float_ismip6_magnitude',model%options%bmlt_float_ismip6_magnitude)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
@@ -732,13 +748,23 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:5), parameter :: which_bmlt_float = (/ &
-         'none                                 ', &
-         'MISMIP+ melt rate profile            ', &
-         'constant melt rate                   ', &
-         'depth-dependent melt rate            ', &
-         'melt rate from external file         ', &
-         'melt rate from MISOMIP T/S profile   ' /)
+    character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
+         'none                                  ', &
+         'MISMIP+ melt rate profile             ', &
+         'constant melt rate                    ', &
+         'depth-dependent melt rate             ', &
+         'melt rate from external file          ', &
+         'melt rate from MISOMIP T/S profile    ', &
+         'melt rate from ISMIP6 parameterization' /)
+
+    character(len=*), dimension(0:1), parameter :: bmlt_float_ismip6_param = (/ &
+         'local quadratic melt                  ', &
+         'nonlocal quadratic melt               ' /)
+
+    character(len=*), dimension(0:2), parameter :: bmlt_float_ismip6_magnitude = (/ &
+         'lowest forcing magnitude             ', &
+         'median forcing magnitude             ', &
+         'highest forcing magnitude            '  /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -1222,6 +1248,15 @@ contains
 
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
+
+    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+       write(message,*) 'type of melt parameterization: ', model%options%bmlt_float_ismip6_param, &
+            bmlt_float_ismip6_param(model%options%bmlt_float_ismip6_param)
+       call write_log(message)
+       write(message,*) 'magnitude of forcing         : ', model%options%bmlt_float_ismip6_magnitude, &
+            bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
+       call write_log(message)
+    endif
 
     if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(b_mbal)) then
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
@@ -1736,7 +1771,7 @@ contains
     call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
     call GetValue(section,'bmlt_float_xlim', model%basal_melt%bmlt_float_xlim)
 
-    ! depth-dependent melting parameters
+    ! depth-dependent basal melting parameters
     call GetValue(section,'bmlt_float_depth_meltmax', model%basal_melt%bmlt_float_depth_meltmax)
     call GetValue(section,'bmlt_float_depth_frzmax', model%basal_melt%bmlt_float_depth_frzmax)
     call GetValue(section,'bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax)
@@ -1744,6 +1779,9 @@ contains
     call GetValue(section,'bmlt_float_depth_zfrzmax', model%basal_melt%bmlt_float_depth_zfrzmax)
     call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
+
+    ! ISMIP6 basal melting parameters
+    call GetValue(section,'bmlt_float_gamma0', model%ocean_data%gamma0)
 
     ! MISOMIP plume parameters
     !TODO - Put MISMIP+ and MISOMIP parameters in their own section
@@ -2217,6 +2255,9 @@ contains
        call write_log(message)
        write(message,*) 'bmlt_float_h0 (m)              :  ', model%basal_melt%bmlt_float_h0
        call write_log(message)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+       call write_log(message)
+       write(message,*) 'ISMIP6 gamma0 value            :  ', model%ocean_data%gamma0
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
        write(message,*) 'T0 (deg C)               :  ', model%plume%T0
        call write_log(message)
@@ -2541,6 +2582,16 @@ contains
        ! If prescribing a warm ocean mask for depth-dependent melting, this needs to be read on restart
        case (BMLT_FLOAT_DEPTH)
           call glide_add_to_restart_variable_list('warm_ocean_mask')
+
+       case (BMLT_FLOAT_ISMIP6)
+          ! Need basin number for each grid cell
+          call glide_add_to_restart_variable_list('basin_number')
+          ! Need thermal forcing, both steady (from climatology) and transient
+          call glide_add_to_restart_variable_list('thermal_forcing_steady')
+          call glide_add_to_restart_variable_list('thermal_forcing_transient')
+          ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes
+          ! Only need one of these for restart (since param and magnitude will not change during the run)
+          call glide_add_to_restart_variable_list('deltaT_basin')
 
     end select  ! whichbmlt_float
 

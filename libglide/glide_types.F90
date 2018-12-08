@@ -124,6 +124,14 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_DEPTH = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
   integer, parameter :: BMLT_FLOAT_MISOMIP = 5
+  integer, parameter :: BMLT_FLOAT_ISMIP6 = 6
+
+  integer, parameter :: BMLT_FLOAT_ISMIP6_LOCAL = 0
+  integer, parameter :: BMLT_FLOAT_ISMIP6_NONLOCAL = 1
+
+  integer, parameter :: BMLT_FLOAT_ISMIP6_PCT5 = 0
+  integer, parameter :: BMLT_FLOAT_ISMIP6_MEDIAN = 1
+  integer, parameter :: BMLT_FLOAT_ISMIP6_PCT95 = 2
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -433,6 +441,20 @@ module glide_types
     !> \item[3] Depth-dependent basal melt rate for floating ice
     !> \item[4] External basal melt rate field (from input file or coupler)
     !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
+    !> \item[6] Basal melt rate for floating ice from ISMIP6 parameterization based on thermal forcing
+    !> \end{description}
+
+    integer :: bmlt_float_ismip6_param = 0
+    !> \begin{description}
+    !> \item[0] Local parameterization for thermal forcing
+    !> \item[1] Nonlocal parameterization for thermal forcing
+    !> \end{description}
+
+    integer :: bmlt_float_ismip6_magnitude = 1
+    !> \begin{description}
+    !> \item[0] Lowest level of forcing (e.g., pct5)
+    !> \item[1] Median level of forcing
+    !> \item[2] High level of forcing (e.g., pct95)
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
@@ -1418,8 +1440,67 @@ module glide_types
      ! initMIP-Antarctica parameters
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
-
   end type glide_basal_melt
+
+
+  type glide_ocean_data
+
+     !----------------------------------
+     ! fields and parameters for ocean data input
+     ! Note: Currently, this type consists of fields for ISMIP6-style ocean input.
+     !----------------------------------
+
+     ! ocean grid and basin number
+     integer  :: nbasin = 1                         !> number of basins (16 for IMBIE2?)
+     integer  :: nzocn = 1                          !> number of ocean levels
+
+     real(dp), dimension(:), pointer :: &
+          zocn => null()                            !> ocean levels (m) where forcing is provided, negative below sea level
+ 
+     ! Antarctic-wide coefficients
+
+     ! Values from Asay-Davis slides, Dec. 18
+     !TODO - Update with final values?  Not sure if values on slides are local or nonlocal
+     real(dp) :: gamma0_local_median = 15012.d0     !> coefficient for sub-shelf melt rates; local median local (m/yr)
+     real(dp) :: gamma0_local_pct5   =  9755.d0     !> coefficient for sub-shelf melt rates; local 5th percentile (m/yr)
+     real(dp) :: gamma0_local_pct95  = 22165.d0     !> coefficient for sub-shelf melt rates; local 95th percentile (m/yr)
+
+     real(dp) :: gamma0_nonlocal_median = 15012.d0     !> coefficient for sub-shelf melt rates; nonlocal median (m/yr)
+     real(dp) :: gamma0_nonlocal_pct5   =  9755.d0     !> coefficient for sub-shelf melt rates; nonlocal 5th percentile (m/yr)
+     real(dp) :: gamma0_nonlocal_pct95  = 22165.d0     !> coefficient for sub-shelf melt rates; nonlocal 95th percentile (m/yr)
+
+     ! fields read from input or forcing files
+
+     integer, dimension(:,:), pointer :: &
+          basin_number => null()                    !> basin number for each grid cell
+
+     ! Note: The deltaT fields are currently uniform within each basin, but defined with dimensions (nx,ny)
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin_local_median => null()       !> deltaT (K) per basin; local parameterization; median value
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin_local_pct5 => null()         !> deltaT (K) per basin; local parameterization; 5th percentile value
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin_local_pct95 => null()        !> deltaT (K) per basin; local parameterization; 95th percentile value
+
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin_nonlocal_median => null()    !> deltaT (K) per basin; nonlocal parameterization; median value
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin_nonlocal_pct5 => null()      !> deltaT (K) per basin; nonlocal parameterization; 5th percentile value
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin_nonlocal_pct95 => null()     !> deltaT (K) per basin; nonlocal parameterization; 95th percentile value
+
+     real(dp), dimension(:,:,:), pointer :: &
+          thermal_forcing_steady => null()          !> thermal forcing (K) as a function of (x,y,z), e.g., climatology
+     real(dp), dimension(:,:,:), pointer :: &
+          thermal_forcing_transient => null()       !> transient thermal forcing (K) as a function of (x,y,z,t)
+
+     ! fields and coefficients computed at runtime based on type of parameterization and level of forcing
+
+     real(dp) :: gamma0 = 15012.d0                  !> coefficient for sub-shelf melt rates (m/yr)
+     real(dp), dimension(:,:), pointer :: &
+          deltaT_basin => null()                    !> deltaT in each basin (deg C) 
+     
+  end type glide_ocean_data
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1911,6 +1992,7 @@ module glide_types
     type(glide_temper)   :: temper
     type(glide_basal_physics):: basal_physics
     type(glide_basal_melt)   :: basal_melt
+    type(glide_ocean_data)   :: ocean_data
     type(glide_inversion):: inversion
     type(glide_plume)    :: plume
     type(glide_lithot_type)  :: lithot
@@ -1941,27 +2023,35 @@ contains
 
     !> In \texttt{model\%temper}:
     !> \begin{itemize}
-    !> \item \texttt{temp(upn,0:ewn+1,0:nsn+1))}   !WHL - 2 choices
-    !> \item \texttt{bheatflx(ewn,nsn))}
-    !> \item \texttt{flwa(upn,ewn,nsn))}           !WHL - 2 choices
-    !> \item \texttt{dissip(upn,ewn,nsn))}         !WHL - 2 choices
-    !> \item \texttt{bwat(ewn,nsn))}
-    !> \item \texttt{bfricflx(ewn,nsn))}
-    !> \item \texttt{ucondflx(ewn,nsn))}
-    !> \item \texttt{lcondflx(ewn,nsn))}
-    !> \item \texttt{dissipcol(ewn,nsn))}
-    !> \item \texttt{waterfrac(upn-1,ewn,nsn))}
-    !> \item \texttt{enthalpy(0:upn,ewn,nsn))}
+    !> \item \texttt{temp(upn,0:ewn+1,0:nsn+1)}   !WHL - 2 choices
+    !> \item \texttt{bheatflx(ewn,nsn)}
+    !> \item \texttt{flwa(upn,ewn,nsn)}           !WHL - 2 choices
+    !> \item \texttt{dissip(upn,ewn,nsn)}         !WHL - 2 choices
+    !> \item \texttt{bwat(ewn,nsn)}
+    !> \item \texttt{bfricflx(ewn,nsn)}
+    !> \item \texttt{ucondflx(ewn,nsn)}
+    !> \item \texttt{lcondflx(ewn,nsn)}
+    !> \item \texttt{dissipcol(ewn,nsn)}
+    !> \item \texttt{waterfrac(upn-1,ewn,nsn)}
+    !> \item \texttt{enthalpy(0:upn,ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%basal_melt}:
     !> \begin{itemize}
-    !> \item \texttt{bmlt(ewn,nsn))}
-    !> \item \texttt{bmlt_ground(ewn,nsn))}
-    !> \item \texttt{bmlt_applied(ewn,nsn))}
+    !> \item \texttt{bmlt(ewn,nsn)}
+    !> \item \texttt{bmlt_ground(ewn,nsn)}
+    !> \item \texttt{bmlt_applied(ewn,nsn)}
     !> \item \texttt{bmlt_float(ewn,nsn)}
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
+    !> \end{itemize}
+
+    !> In \texttt{model\%ocean_data}:
+    !> \begin{itemize}
+    !> \item \texttt{deltaT_basin(ewn,nsn)}
+    !> \item \texttt{basin_number(ewn,nsn)}
+    !> \item \texttt{thermal_forcing_steady(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_transient(nzocn,ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
@@ -2337,6 +2427,26 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%divDu_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
+       elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+          ! Note: nzocn and nbasin should be set in the [grid] section of the config file
+          if (model%ocean_data%nzocn < 1) &
+             call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
+          if (model%ocean_data%nbasin < 1) &
+             call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
+          allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+          ! Assume basins in input file are indexed from 0 to nbasin-1
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct5)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_median)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct95)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%thermal_forcing_steady)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%thermal_forcing_transient)
        endif
     endif  ! Glissade
 
@@ -2670,6 +2780,28 @@ contains
         deallocate(model%basal_melt%bmlt_applied_old)
     if (associated(model%basal_melt%bmlt_applied_diff)) &
         deallocate(model%basal_melt%bmlt_applied_diff)
+
+    ! ocean data arrays
+    if (associated(model%ocean_data%deltaT_basin_local_pct5)) &
+        deallocate(model%ocean_data%deltaT_basin_local_pct5)
+    if (associated(model%ocean_data%deltaT_basin_local_median)) &
+        deallocate(model%ocean_data%deltaT_basin_local_median)
+    if (associated(model%ocean_data%deltaT_basin_local_pct95)) &
+        deallocate(model%ocean_data%deltaT_basin_local_pct95)
+    if (associated(model%ocean_data%deltaT_basin_nonlocal_pct5)) &
+        deallocate(model%ocean_data%deltaT_basin_nonlocal_pct5)
+    if (associated(model%ocean_data%deltaT_basin_nonlocal_median)) &
+        deallocate(model%ocean_data%deltaT_basin_nonlocal_median)
+    if (associated(model%ocean_data%deltaT_basin_nonlocal_pct95)) &
+        deallocate(model%ocean_data%deltaT_basin_nonlocal_pct95)
+    if (associated(model%ocean_data%deltaT_basin)) &
+        deallocate(model%ocean_data%deltaT_basin)
+    if (associated(model%ocean_data%basin_number)) &
+        deallocate(model%ocean_data%basin_number)
+    if (associated(model%ocean_data%thermal_forcing_steady))  &
+        deallocate(model%ocean_data%thermal_forcing_steady)
+    if (associated(model%ocean_data%thermal_forcing_transient)) &
+        deallocate(model%ocean_data%thermal_forcing_transient)
 
     ! inversion arrays
     if (associated(model%inversion%bmlt_float_save)) &
