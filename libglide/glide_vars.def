@@ -34,7 +34,7 @@ dimlen:        global_nsn-1
 dimensions:    x1
 units:         meter
 long_name:     Cartesian x-coordinate
-axis: X
+axis:          X
 data:          data%general%x1
 dimlen:        global_ewn
 load:          1
@@ -72,6 +72,15 @@ long_name:     stag sigma layers with boundaries
 standard_name: land_ice_stag_sigma_coordinate_with_bnd
 positive:      down
 dimlen:        model%general%upn+1
+
+[zocn]
+dimensions:    zocn
+units:         meter
+long_name:     ocean_z_coordinate
+data:          data%ocean_data%zocn
+positive:      up
+dimlen:        data%ocean_data%nzocn
+load:          1
 
 [lithoz]
 dimensions:    lithoz
@@ -334,6 +343,82 @@ long_name:     warm ocean mask
 data:          data%basal_melt%warm_ocean_mask
 load:          1
 type:          int
+coordinates:   lon lat
+
+#WHL - Fields related to ISMIP6 ocean data
+
+[basin_number]
+dimensions:    time, y1, x1
+units:         1
+long_name:     basin_number
+data:          data%ocean_data%basin_number
+load:          1
+type:          int
+coordinates:   lon lat
+
+[deltaT_basin_local_median]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin_local_median
+data:          data%ocean_data%deltaT_basin_local_median
+load:          1
+
+[deltaT_basin_local_pct5]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin_local_pct5
+data:          data%ocean_data%deltaT_basin_local_pct5
+load:          1
+
+[deltaT_basin_local_pct95]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin_local_pct95
+data:          data%ocean_data%deltaT_basin_local_pct95
+load:          1
+
+[deltaT_basin_nonlocal_median]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin_nonlocal_median
+data:          data%ocean_data%deltaT_basin_nonlocal_median
+load:          1
+
+[deltaT_basin_nonlocal_pct5]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin_nonlocal_pct5
+data:          data%ocean_data%deltaT_basin_nonlocal_pct5
+load:          1
+
+[deltaT_basin_nonlocal_pct95]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin_nonlocal_pct95
+data:          data%ocean_data%deltaT_basin_nonlocal_pct95
+load:          1
+
+[deltaT_basin]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     deltaT_basin
+data:          data%ocean_data%deltaT_basin
+load:          1
+
+[thermal_forcing_steady]
+dimensions:    time, zocn, x1, y1
+units:         degree_Celsius
+long_name:     thermal_forcing_steady
+data:          data%ocean_data%thermal_forcing_steady
+load:          1
+coordinates:   lon lat
+
+[thermal_forcing_transient]
+dimensions:    time, zocn, x1, y1
+units:         degrees K
+long_name:     thermal_forcing_transient
+data:          data%ocean_data%thermal_forcing_transient
+load:          1
 coordinates:   lon lat
 
 #WHL - A number of plume-related fields follow.
