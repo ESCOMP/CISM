@@ -326,6 +326,7 @@ module parallel
      module procedure parallel_reduce_sum_integer
      module procedure parallel_reduce_sum_real4
      module procedure parallel_reduce_sum_real8
+     module procedure parallel_reduce_sum_integer_nvar
      module procedure parallel_reduce_sum_real8_nvar
   end interface
 
@@ -4408,6 +4409,20 @@ contains
     parallel_reduce_sum_real8 = recvbuf
     return
   end function parallel_reduce_sum_real8
+
+  function parallel_reduce_sum_integer_nvar(x)
+    use mpi_mod
+    implicit none
+    integer :: x(:)
+    integer :: ierror, nvar
+    integer, dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_sum_integer_nvar
+    ! begin
+    nvar = size(x)
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,nvar,mpi_integer,mpi_sum,comm,ierror)
+    parallel_reduce_sum_integer_nvar = recvbuf
+    return
+  end function parallel_reduce_sum_integer_nvar
 
   function parallel_reduce_sum_real8_nvar(x)
     use mpi_mod

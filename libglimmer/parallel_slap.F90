@@ -260,6 +260,7 @@ module parallel
      module procedure parallel_reduce_sum_integer
      module procedure parallel_reduce_sum_real4
      module procedure parallel_reduce_sum_real8
+     module procedure parallel_reduce_sum_integer_nvar
      module procedure parallel_reduce_sum_real8_nvar
   end interface
 
@@ -2426,6 +2427,17 @@ contains
     parallel_reduce_sum_real8 = x
     return
   end function parallel_reduce_sum_real8
+
+  function parallel_reduce_sum_integer_nvar(x)
+    ! Sum x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp) :: x(:)
+    real(dp), dimension(size(x)) :: parallel_reduce_sum_integer_nvar
+
+    parallel_reduce_sum_integer_nvar(:) = x(:)
+    return
+  end function parallel_reduce_sum_integer_nvar
 
   function parallel_reduce_sum_real8_nvar(x)
     ! Sum x across all of the nodes.
