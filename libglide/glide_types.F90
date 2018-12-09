@@ -2116,9 +2116,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
-       if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
-       endif
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
     endif  ! Glissade
 
     ! climate arrays
