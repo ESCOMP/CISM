@@ -530,7 +530,8 @@ contains
        call glissade_bmlt_float_ismip6_init(&
             model%options%bmlt_float_ismip6_param,       &
             model%options%bmlt_float_ismip6_magnitude,   &
-            model%ocean_data)
+            model%ocean_data,                            &
+            itest, jtest, rtest)
     endif
 
     ! initial calving, if desired
@@ -874,7 +875,7 @@ contains
 
     use glimmer_paramets, only: tim0, thk0, len0
     use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_ismip6
-    use glissade_transport, only: glissade_add_mbal_anomaly
+    use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_3d_anomaly
     use glissade_masks, only: glissade_get_masks
 
     use parallel
@@ -946,13 +947,25 @@ contains
 
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
 
-       !TODO - Set delta_tocn_basin at initialization based on ismip6_magnitude??
+       !WHL - This is a hack.  Instead of reading thermal_forcing as a time series from a forcing file,
+       !      let it ramp up linearly over 100 years from the baseline value to the final value.
+
+       ! initialize the thermal forcing to the baseline value
+       model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_steady
+
+       call glissade_add_3d_anomaly(model%ocean_data%thermal_forcing,                          &  ! updated with anomaly on output
+            model%ocean_data%thermal_forcing_final - model%ocean_data%thermal_forcing_steady,  &  ! full anomaly at t = 100 yr 
+            model%basal_melt%bmlt_anomaly_timescale,     &                                        ! yr; use existing config option
+            model%numerics%time)                                                                  ! yr
+
+       ! compute bmlt_float
        call glissade_bmlt_float_ismip6(model%options%bmlt_float_ismip6_param, &
-                                       ewn,                       nsn,        &
-                                       floating_mask,                         &
-                                       model%geometry%lsrf*thk0,              & ! m
-                                       model%ocean_data,                      &
-                                       model%basal_melt%bmlt_float)             ! m/s
+                                       ewn,                nsn,      &
+                                       itest,     jtest,   rtest,    &
+                                       floating_mask,                &
+                                       model%geometry%lsrf*thk0,     & ! m
+                                       model%ocean_data,             &
+                                       model%basal_melt%bmlt_float)    ! m/s
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
@@ -1595,7 +1608,15 @@ contains
           ! In this way, the code converges on inversion fields that are no longer nudged.
           ! Note: model%numerics%time = time in years since start of run.
 
-          nudging_factor = 1.0d0  ! default value
+          !WHL - Currently, wean_bmlt_float_tend is set to zero if we want to do a forward run
+          !       with inversion parameters held fixed.
+          !      Might be better to introduce an HO_INVERSION_FIXED option for this case.
+
+          if (model%inversion%wean_bmlt_float_tend > 0.0d0) then
+             nudging_factor = 1.0d0  ! full nudging
+          else
+             nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
+          endif
 
           if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
              if (model%numerics%time < model%inversion%wean_bmlt_float_tend) then
@@ -2302,7 +2323,11 @@ contains
           ! See comments above for nudging of bmlt_float_inversion.
           ! Note: model%numerics%time = time in years since start of run.
 
-          nudging_factor = 1.0d0   ! default value
+          if (model%inversion%wean_powerlaw_c_tend > 0.0d0) then
+             nudging_factor = 1.0d0  ! full nudging
+          else
+             nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
+          endif
 
           if (model%inversion%wean_powerlaw_c_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_powerlaw_c_tstart) then
              if (model%numerics%time < model%inversion%wean_powerlaw_c_tend) then

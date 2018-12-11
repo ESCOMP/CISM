@@ -197,6 +197,9 @@ contains
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
+    ! WHL - adding a vertical coordinate for ocean data
+    NCO%nzocn = model%ocean_data%nzocn
+
   end subroutine glimmer_nc_openappend
 
   !------------------------------------------------------------------------------
@@ -329,6 +332,9 @@ contains
     NCO%nlevel = model%general%upn
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
+
+    ! WHL - adding a vertical coordinate for ocean data
+    NCO%nzocn = model%ocean_data%nzocn
 
   end subroutine glimmer_nc_createfile
 
@@ -564,6 +570,9 @@ contains
     NCI%nlevel = model%general%upn
     NCI%nstaglevel = model%general%upn-1
     NCI%nstagwbndlevel = model%general%upn !MJH This is the max index, not size
+
+    ! WHL - adding a vertical coordinate for ocean data
+    NCI%nzocn = model%ocean_data%nzocn
 
     ! checking if dimensions and grid spacing are the same as in the configuration file
     ! x1

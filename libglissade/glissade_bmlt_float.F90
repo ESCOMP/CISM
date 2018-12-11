@@ -90,6 +90,9 @@ module glissade_bmlt_float
     logical, parameter :: cap_Dplume = .true.
 !!    logical, parameter :: cap_Dplume = .false.
 
+    logical :: verbose_ismip6 = .true.
+
+
 contains
 
 !****************************************************
@@ -624,7 +627,8 @@ contains
   subroutine glissade_bmlt_float_ismip6_init(&
        bmlt_float_ismip6_param,       &
        bmlt_float_ismip6_magnitude,   &
-       ocean_data)
+       ocean_data,                    &
+       itest, jtest, rtest)
 
     ! Initialization for ISMIP6 basal melting parameterization (BMLT_FLOAT_ISMIP6).
 
@@ -635,11 +639,14 @@ contains
     type(glide_ocean_data), intent(inout) ::  &
          ocean_data                    !> derived type holding ocean input data
     
+    integer, intent(in) :: itest, jtest, rtest  !> coordinates of diagnostic point
     !WHL - debug
     logical :: simple_init = .false.
 !!    logical :: simple_init = .true.
 
-    integer :: k
+
+    integer :: i, j, k
+
 
     ! Make basin_number index start at 1 instead of 0?  Assume 0 for now.
        
@@ -659,7 +666,7 @@ contains
           ocean_data%gamma0 = ocean_data%gamma0_local_pct95
        endif
 
-    elseif (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then
+    elseif (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_NONLOCAL) then
 
        if (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
           ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
@@ -675,7 +682,6 @@ contains
     endif  ! local or nonlocal
 
     ! Do anything with the transient forcing?
-    ! Initialize zocn?
 
     !WHL - debug - some simple initializations for testing
     ! In config file, set nbasin = 4 and nzocn = 10
@@ -698,7 +704,7 @@ contains
        ! Let the transient thermal forcing be steady in time, increasing from surface to bed
        do k = 1, ocean_data%nzocn
           ocean_data%zocn(k) = -100.0d0 * k   ! ocean level every 100 m
-          ocean_data%thermal_forcing_transient(k,:,:) = -ocean_data%zocn(k) / 500.0d0  ! 2 K/km
+          ocean_data%thermal_forcing(k,:,:) = -ocean_data%zocn(k) / 500.0d0  ! 2 K/km
        enddo
 
     endif  ! simple_init
@@ -706,7 +712,56 @@ contains
     ! Fill halos
     call parallel_halo(ocean_data%basin_number)
     call parallel_halo(ocean_data%thermal_forcing_steady)
-    call parallel_halo(ocean_data%thermal_forcing_transient)
+    call parallel_halo(ocean_data%thermal_forcing)
+
+    !WHL - debug
+    if (verbose_ismip6 .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Initialize ISMIP6 sub-shelf melting'
+       print*, ' '
+       print*, 'k, zocn:'
+       do k = 1, ocean_data%nzocn
+          print*, k, ocean_data%zocn(k)
+       enddo
+       print*, ' '
+       print*, 'gamma0 =', ocean_data%gamma0
+       print*, ' '
+       print*, 'basin_number, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') ocean_data%basin_number(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'deltaT_basin'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') ocean_data%deltaT_basin(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thermal_forcing_steady, k =', ocean_data%nzocn/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_steady(ocean_data%nzocn/2,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thermal_forcing_final, k =', ocean_data%nzocn/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_final(ocean_data%nzocn/2,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
   end subroutine glissade_bmlt_float_ismip6_init
 
@@ -715,6 +770,7 @@ contains
   subroutine glissade_bmlt_float_ismip6(&
        bmlt_float_ismip6_param,   &
        nx,        ny,             &
+       itest,     jtest,   rtest, &
        floating_mask,             &
        lsrf,                      &
        ocean_data,                &
@@ -729,14 +785,16 @@ contains
     !        a melt rate anomaly, equal to the difference between the steady melt rate
     !        and the transient melt rate.  We then add this anomaly to a background melt rate
     !        obtained from inversion.
-    !       If we were sufficiently confident in the transient thermal forcing, we could use
-    !        the transient melt rate on its own, without subtracting the steady melt rate.
+    !       If we were sufficiently confident in the transient thermal forcing and melt parameterization,
+    !        we could use the transient melt rate on its own, without subtracting the steady melt rate.
 
     integer, intent(in) :: &
          bmlt_float_ismip6_param   !> kind of melting parameterization, local or nonlocal
 
     integer, intent(in) :: &
          nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: itest, jtest, rtest  !> coordinates of diagnostic point
 
     !TODO - Pass in f_ground_cell also?
     !       floating_mask currently used for basin average only so difference from partly filled cells would be small
@@ -756,26 +814,52 @@ contains
 
     integer :: i, j, k, nb
 
-    ! Note: Ocean basins are indexed from 0 to nbasin-1
-    integer, dimension(0:ocean_data%nbasin-1) :: &
-         nfloat_basin_local,             & ! number of floating cells per basin (local array)
-         nfloat_basin                      ! number of floating cells per basin (global array)
-
-    real(dp), dimension(0:ocean_data%nbasin-1) :: &
-         thermal_forcing_basin_local, &    ! average thermal forcing in basin in floating cells (local array)
-         thermal_forcing_basin             ! average thermal forcing in basin in floating cells (global array)
-
     real(dp), dimension(nx,ny) ::  &
-         thermal_forcing_lsrf_steady,    & ! thermal forcing at lower ice surface (K) from climatology
-         thermal_forcing_lsrf_transient    ! thermal forcing at lower ice surface (K) from transient
+         thermal_forcing_lsrf_steady,     & ! thermal forcing at lower ice surface (K) from climatology
+         thermal_forcing_lsrf_transient     ! thermal forcing at lower ice surface (K) at current time
 
+    ! Note: Ocean basins are indexed from 0 to nbasin-1
     real(dp), dimension(0:ocean_data%nbasin-1) ::  &
          thermal_forcing_basin_steady,    & ! basin average thermal forcing (K) from climatology
-         thermal_forcing_basin_transient    ! basin average thermal forcing (K) from transient
+         thermal_forcing_basin_transient    ! basin average thermal forcing (K) at current time
 
     real(dp), dimension(nx,ny) ::  &
          bmlt_float_steady,               & ! basal melt rate (m/s) from steady forcing
-         bmlt_float_transient               ! basal melt rate (m/s) from transient forcing
+         bmlt_float_transient               ! basal melt rate (m/s) from current forcing
+
+    !WHL - debug
+    if (verbose_ismip6 .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Compute ISMIP6 basal melt anomaly'
+       print*, ' '
+       print*, 'thermal_forcing_steady, k =', ocean_data%nzocn/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_steady(ocean_data%nzocn/2,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'transient thermal_forcing, k =', ocean_data%nzocn/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing(ocean_data%nzocn/2,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thermal_forcing anomaly, k =', ocean_data%nzocn/2
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing(ocean_data%nzocn/2,i,j) &
+                                           - ocean_data%thermal_forcing_steady(ocean_data%nzocn/2,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
     ! initialize the output
 
@@ -802,10 +886,34 @@ contains
          ocean_data%zocn,               &
          floating_mask,                 &
          lsrf,                          &
-         ocean_data%thermal_forcing_transient,  &
+         ocean_data%thermal_forcing,    &
          thermal_forcing_lsrf_transient)
 
-    ! optionally, compute the average thermal forcing for each basin
+    !WHL - debug
+    if (verbose_ismip6 .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Interpolate to lower ice surface'
+       print*, ' '
+       print*, 'thermal_forcing_lsrf_steady'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf_steady(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thermal_forcing_lsrf_transient'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf_transient(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! optionally, compute the average thermal forcing for the basin.
 
     if (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_NONLOCAL) then
 
@@ -836,6 +944,20 @@ contains
        thermal_forcing_basin_steady(0:) = 0.0d0
        thermal_forcing_basin_transient(0:) = 0.0d0
 
+    endif
+
+    !WHL - debug
+    if (verbose_ismip6 .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'thermal_forcing_basin_steady:'
+       do k = 0, ocean_data%nbasin-1
+          print*, k, thermal_forcing_basin_steady(k)
+       enddo
+       print*, ' '
+       print*, 'thermal_forcing_basin_transient:'
+       do k = 0, ocean_data%nbasin-1
+          print*, k, thermal_forcing_basin_transient(k)
+       enddo
     endif
 
     !-----------------------------------------------
@@ -873,9 +995,42 @@ contains
 
     bmlt_float(:,:) = bmlt_float_transient(:,:) - bmlt_float_steady(:,:)
 
+    !WHL - debug
+    if (verbose_ismip6 .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Compute melt rate'
+       print*, ' '
+       print*, 'bmlt_float_steady (m/yr)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') bmlt_float_steady(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'bmlt_float_transient (m/yr)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') bmlt_float_transient(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'bmlt_float anomaly (m/yr)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') bmlt_float(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
     ! Convert from m/yr to m/s for output.
     bmlt_float(:,:) = bmlt_float(:,:) / scyr
-    
+
   end subroutine glissade_bmlt_float_ismip6
 
 !****************************************************
@@ -1007,13 +1162,15 @@ contains
     enddo
 
     sumcell_global(:)  =  parallel_reduce_sum(sumcell_local(:))
-    sumfield_global(:) =  parallel_reduce_sum(sumfield_global(:))
+    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
 
-    where (sumcell_global > 0.0d0)
-       field_basin = sumfield_global/sumcell_global
-    elsewhere
-       field_basin = 0.0d0
-    endwhere
+    do nb = 0, nbasin-1
+       if (sumcell_global(nb) > tiny(0.0d0)) then
+          field_basin(nb) = sumfield_global(nb)/sumcell_global(nb)
+       else
+          field_basin(nb) = 0.0d0
+       endif
+    enddo
 
   end subroutine basin_average
 
