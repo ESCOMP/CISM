@@ -80,7 +80,6 @@ long_name:     ocean_z_coordinate
 data:          data%ocean_data%zocn
 positive:      up
 dimlen:        data%ocean_data%nzocn
-load:          1
 
 [lithoz]
 dimensions:    lithoz
@@ -406,18 +405,27 @@ data:          data%ocean_data%deltaT_basin
 load:          1
 
 [thermal_forcing_steady]
-dimensions:    time, zocn, x1, y1
+dimensions:    time, zocn, y1, x1
 units:         degree_Celsius
 long_name:     thermal_forcing_steady
-data:          data%ocean_data%thermal_forcing_steady
+data:          data%ocean_data%thermal_forcing_steady(up,:,:)
 load:          1
 coordinates:   lon lat
 
-[thermal_forcing_transient]
-dimensions:    time, zocn, x1, y1
+[thermal_forcing]
+dimensions:    time, zocn, y1, x1
 units:         degrees K
-long_name:     thermal_forcing_transient
-data:          data%ocean_data%thermal_forcing_transient
+long_name:     thermal_forcing
+data:          data%ocean_data%thermal_forcing(up,:,:)
+load:          1
+coordinates:   lon lat
+
+#WHL - thermal_forcing_final not needed if reading the full thermal_forcing time series
+[thermal_forcing_final]
+dimensions:    time, zocn, y1, x1
+units:         degrees K
+long_name:     thermal_forcing_final
+data:          data%ocean_data%thermal_forcing_final(up,:,:)
 load:          1
 coordinates:   lon lat
 

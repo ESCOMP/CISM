@@ -2588,7 +2588,9 @@ contains
           call glide_add_to_restart_variable_list('basin_number')
           ! Need thermal forcing, both steady (from climatology) and transient
           call glide_add_to_restart_variable_list('thermal_forcing_steady')
-          call glide_add_to_restart_variable_list('thermal_forcing_transient')
+          !TODO - Remove thermal_forcing_final, and simply read in thermal_forcing_transient from the forcing file.
+          !       Make sure that [CF forcing] files are read on restart.
+          call glide_add_to_restart_variable_list('thermal_forcing_final')
           ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes
           ! Only need one of these for restart (since param and magnitude will not change during the run)
           call glide_add_to_restart_variable_list('deltaT_basin')
