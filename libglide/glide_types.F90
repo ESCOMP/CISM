@@ -1498,9 +1498,13 @@ module glide_types
           deltaT_basin_nonlocal_pct95 => null()     !> deltaT (K) per basin; nonlocal parameterization; 95th percentile value
 
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_steady => null()          !> thermal forcing (K) as a function of (x,y,z), e.g., climatology
+          thermal_forcing_steady => null()          !> baseline thermal forcing (K) that is steady in time, e.g., climatology
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_transient => null()       !> transient thermal forcing (K) as a function of (x,y,z,t)
+          thermal_forcing => null()                 !> thermal forcing (K) at a given time
+
+     !TODO - Remove this field, and simply read in the transient forcing from a CF forcing file
+     real(dp), dimension(:,:,:), pointer :: &
+          thermal_forcing_final => null()           !> final thermal forcing (K); may be ramped in from baseline
 
      ! fields and coefficients computed at runtime based on type of parameterization and level of forcing
 
@@ -1508,6 +1512,10 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin => null()                    !> deltaT in each basin (deg C) 
      
+     !WHL - temporary - Set zocn by hand, based on nzocn and dz_ocean.
+     !TODO - Read zocn from the input file
+     real(dp) :: dz_ocean = 60.d0   !> thickness of ocean levels
+
   end type glide_ocean_data
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2059,7 +2067,8 @@ contains
     !> \item \texttt{deltaT_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing_steady(nzocn,ewn,nsn)}
-    !> \item \texttt{thermal_forcing_transient(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_final(nzocn,ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
@@ -2445,7 +2454,8 @@ contains
              call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
           if (model%ocean_data%nbasin < 1) &
              call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
-          allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+          !WHL - zocn currently is allocated and computed in glide_config.  Not sure where is the best place.
+!!          allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
           ! Assume basins in input file are indexed from 0 to nbasin-1
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
@@ -2458,7 +2468,9 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_steady)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing_transient)
+                                    model%ocean_data%thermal_forcing)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%thermal_forcing_final)
        endif
     endif  ! Glissade
 
@@ -2812,8 +2824,10 @@ contains
         deallocate(model%ocean_data%basin_number)
     if (associated(model%ocean_data%thermal_forcing_steady))  &
         deallocate(model%ocean_data%thermal_forcing_steady)
-    if (associated(model%ocean_data%thermal_forcing_transient)) &
-        deallocate(model%ocean_data%thermal_forcing_transient)
+    if (associated(model%ocean_data%thermal_forcing)) &
+        deallocate(model%ocean_data%thermal_forcing)
+    if (associated(model%ocean_data%thermal_forcing_final)) &
+        deallocate(model%ocean_data%thermal_forcing_final)
 
     ! inversion arrays
     if (associated(model%inversion%bmlt_float_save)) &
