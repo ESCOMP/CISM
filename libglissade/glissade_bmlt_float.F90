@@ -698,8 +698,8 @@ contains
        ! Use Xylar's median value (m/yr) for gamma0
        ocean_data%gamma0 = 15000.d0
 
-       ! Set a thermal forcing climatology with zero thermal forcing everywhere
-       ocean_data%thermal_forcing_steady(:,:,:) = 0.0d0
+       ! Set baseline thermal forcing with zero thermal forcing everywhere
+       ocean_data%thermal_forcing_baseline(:,:,:) = 0.0d0
 
        ! Let the transient thermal forcing be steady in time, increasing from surface to bed
        do k = 1, ocean_data%nzocn
@@ -711,7 +711,7 @@ contains
 
     ! Fill halos
     call parallel_halo(ocean_data%basin_number)
-    call parallel_halo(ocean_data%thermal_forcing_steady)
+    call parallel_halo(ocean_data%thermal_forcing_baseline)
     call parallel_halo(ocean_data%thermal_forcing)
 
     !WHL - debug
@@ -744,11 +744,11 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'thermal_forcing_steady, k =', ocean_data%nzocn/2
+       print*, 'thermal_forcing_baseline, k =', ocean_data%nzocn/2
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_steady(ocean_data%nzocn/2,i,j)
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_baseline(ocean_data%nzocn/2,i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -778,15 +778,16 @@ contains
 
     use parallel
 
+    !TODO - Xylar's correction
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
     !  and the current ice draft, using either a local or nonlocal melt parameterization.
-    ! Note: This subroutine assumes that we are given a steady (e.g., climatological) thermal forcing
+    ! Note: This subroutine assumes that we are given a baseline (e.g., climatological) thermal forcing
     !        and a transient thermal forcing as input.  The computed bmlt_float is actually
-    !        a melt rate anomaly, equal to the difference between the steady melt rate
+    !        a melt rate anomaly, equal to the difference between the baseline melt rate
     !        and the transient melt rate.  We then add this anomaly to a background melt rate
     !        obtained from inversion.
     !       If we were sufficiently confident in the transient thermal forcing and melt parameterization,
-    !        we could use the transient melt rate on its own, without subtracting the steady melt rate.
+    !        we could use the transient melt rate on its own, without subtracting the baseline melt rate.
 
     integer, intent(in) :: &
          bmlt_float_ismip6_param   !> kind of melting parameterization, local or nonlocal
@@ -815,28 +816,28 @@ contains
     integer :: i, j, k, nb
 
     real(dp), dimension(nx,ny) ::  &
-         thermal_forcing_lsrf_steady,     & ! thermal forcing at lower ice surface (K) from climatology
+         thermal_forcing_lsrf_baseline,   & ! baseline thermal forcing at lower ice surface (K)
          thermal_forcing_lsrf_transient     ! thermal forcing at lower ice surface (K) at current time
 
     ! Note: Ocean basins are indexed from 0 to nbasin-1
     real(dp), dimension(0:ocean_data%nbasin-1) ::  &
-         thermal_forcing_basin_steady,    & ! basin average thermal forcing (K) from climatology
+         thermal_forcing_basin_baseline,  & ! basin average of baseline thermal forcing (K)
          thermal_forcing_basin_transient    ! basin average thermal forcing (K) at current time
 
     real(dp), dimension(nx,ny) ::  &
-         bmlt_float_steady,               & ! basal melt rate (m/s) from steady forcing
-         bmlt_float_transient               ! basal melt rate (m/s) from current forcing
+         bmlt_float_baseline,             & ! basal melt rate (m/s) from baseline forcing and initial geometry
+         bmlt_float_transient               ! basal melt rate (m/s) from current forcing and geometry
 
     !WHL - debug
     if (verbose_ismip6 .and. this_rank==rtest) then
        print*, ' '
        print*, 'Compute ISMIP6 basal melt anomaly'
        print*, ' '
-       print*, 'thermal_forcing_steady, k =', ocean_data%nzocn/2
+       print*, 'thermal_forcing_baseline, k =', ocean_data%nzocn/2
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_steady(ocean_data%nzocn/2,i,j)
+             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_baseline(ocean_data%nzocn/2,i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -855,7 +856,7 @@ contains
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing(ocean_data%nzocn/2,i,j) &
-                                           - ocean_data%thermal_forcing_steady(ocean_data%nzocn/2,i,j)
+                                           - ocean_data%thermal_forcing_baseline(ocean_data%nzocn/2,i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -869,15 +870,15 @@ contains
     ! Compute the thermal forcing for each grid cell
     !-----------------------------------------------
 
-    ! first for the steady thermal forcing
+    ! first for the baseline thermal forcing
     call interpolate_thermal_forcing(&
          nx,                ny,         &
          ocean_data%nzocn,              &
          ocean_data%zocn,               &
          floating_mask,                 &
          lsrf,                          &
-         ocean_data%thermal_forcing_steady,  &
-         thermal_forcing_lsrf_steady)
+         ocean_data%thermal_forcing_baseline,  &
+         thermal_forcing_lsrf_baseline)
 
     ! then for the transient thermal forcing
     call interpolate_thermal_forcing(&
@@ -894,11 +895,11 @@ contains
        print*, ' '
        print*, 'Interpolate to lower ice surface'
        print*, ' '
-       print*, 'thermal_forcing_lsrf_steady'
+       print*, 'thermal_forcing_lsrf_baseline'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf_steady(i,j)
+             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf_baseline(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -928,8 +929,8 @@ contains
             ocean_data%nbasin,                &
             ocean_data%basin_number,          &
             floating_mask,                    &
-            thermal_forcing_lsrf_steady,      &
-            thermal_forcing_basin_steady)
+            thermal_forcing_lsrf_baseline,      &
+            thermal_forcing_basin_baseline)
 
        call basin_average(&
             nx,        ny,                    &
@@ -941,7 +942,7 @@ contains
 
     else  ! local parameterization; does not use a basin average
 
-       thermal_forcing_basin_steady(0:) = 0.0d0
+       thermal_forcing_basin_baseline(0:) = 0.0d0
        thermal_forcing_basin_transient(0:) = 0.0d0
 
     endif
@@ -949,9 +950,9 @@ contains
     !WHL - debug
     if (verbose_ismip6 .and. this_rank==rtest) then
        print*, ' '
-       print*, 'thermal_forcing_basin_steady:'
+       print*, 'thermal_forcing_basin_baseline:'
        do k = 0, ocean_data%nbasin-1
-          print*, k, thermal_forcing_basin_steady(k)
+          print*, k, thermal_forcing_basin_baseline(k)
        enddo
        print*, ' '
        print*, 'thermal_forcing_basin_transient:'
@@ -965,6 +966,7 @@ contains
     ! Note: The output bmlt_float has units of m/yr.
     !-----------------------------------------------
 
+    !TODO - Compute bmlt_float_baseline at initialization only, not each time step
     call ismip6_bmlt_float(&
          bmlt_float_ismip6_param,           &
          nx,                ny,             &
@@ -973,9 +975,9 @@ contains
          ocean_data%gamma0,                 &
          ocean_data%deltaT_basin,           &
          floating_mask,                     &
-         thermal_forcing_lsrf_steady,       &
-         thermal_forcing_basin_steady,      &
-         bmlt_float_steady)
+         thermal_forcing_lsrf_baseline,     &
+         thermal_forcing_basin_baseline,    &
+         bmlt_float_baseline)
 
     call ismip6_bmlt_float(&
          bmlt_float_ismip6_param,           &
@@ -989,22 +991,21 @@ contains
          thermal_forcing_basin_transient,   &
          bmlt_float_transient)
 
-    ! Given the melt rates from steady forcing and transient forcing, take the difference,
-    !  and assign this melt rate to bmlt_float.
+    ! Given the baseline and transient melt rates, compute bmlt_float as the difference.
     ! When doing inversion, this melt rate is added to bmlt_float_inversion.
 
-    bmlt_float(:,:) = bmlt_float_transient(:,:) - bmlt_float_steady(:,:)
+    bmlt_float(:,:) = bmlt_float_transient(:,:) - bmlt_float_baseline(:,:)
 
     !WHL - debug
     if (verbose_ismip6 .and. this_rank==rtest) then
        print*, ' '
        print*, 'Compute melt rate'
        print*, ' '
-       print*, 'bmlt_float_steady (m/yr)'
+       print*, 'bmlt_float_baseline (m/yr)'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') bmlt_float_steady(i,j)
+             write(6,'(f10.4)',advance='no') bmlt_float_baseline(i,j)
           enddo
           write(6,*) ' '
        enddo

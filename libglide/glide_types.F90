@@ -1490,7 +1490,7 @@ module glide_types
           deltaT_basin_nonlocal_pct95 => null()     !> deltaT (K) per basin; nonlocal parameterization; 95th percentile value
 
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_steady => null()          !> baseline thermal forcing (K) that is steady in time, e.g., climatology
+          thermal_forcing_baseline => null()          !> baseline thermal forcing (K), e.g. from climatology
      real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing => null()                 !> thermal forcing (K) at a given time
 
@@ -2058,7 +2058,7 @@ contains
     !> \begin{itemize}
     !> \item \texttt{deltaT_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
-    !> \item \texttt{thermal_forcing_steady(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_final(nzocn,ewn,nsn)}
     !> \end{itemize}
@@ -2454,7 +2454,7 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing_steady)
+                                    model%ocean_data%thermal_forcing_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
@@ -2810,8 +2810,8 @@ contains
         deallocate(model%ocean_data%deltaT_basin)
     if (associated(model%ocean_data%basin_number)) &
         deallocate(model%ocean_data%basin_number)
-    if (associated(model%ocean_data%thermal_forcing_steady))  &
-        deallocate(model%ocean_data%thermal_forcing_steady)
+    if (associated(model%ocean_data%thermal_forcing_baseline))  &
+        deallocate(model%ocean_data%thermal_forcing_baseline)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_final)) &
