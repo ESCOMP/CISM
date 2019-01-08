@@ -951,10 +951,10 @@ contains
        !      let it ramp up linearly over 100 years from the baseline value to the final value.
 
        ! initialize the thermal forcing to the baseline value
-       model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_steady
+       model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_baseline
 
-       call glissade_add_3d_anomaly(model%ocean_data%thermal_forcing,                          &  ! updated with anomaly on output
-            model%ocean_data%thermal_forcing_final - model%ocean_data%thermal_forcing_steady,  &  ! full anomaly at t = 100 yr 
+       call glissade_add_3d_anomaly(model%ocean_data%thermal_forcing,                           & ! updated with anomaly on output
+            model%ocean_data%thermal_forcing_final - model%ocean_data%thermal_forcing_baseline, & ! full anomaly at t = 100 yr
             model%basal_melt%bmlt_anomaly_timescale,     &                                        ! yr; use existing config option
             model%numerics%time)                                                                  ! yr
 
