@@ -404,11 +404,11 @@ long_name:     deltaT_basin
 data:          data%ocean_data%deltaT_basin
 load:          1
 
-[thermal_forcing_steady]
+[thermal_forcing_baseline]
 dimensions:    time, zocn, y1, x1
 units:         degree_Celsius
-long_name:     thermal_forcing_steady
-data:          data%ocean_data%thermal_forcing_steady(up,:,:)
+long_name:     thermal_forcing_baseline
+data:          data%ocean_data%thermal_forcing_baseline(up,:,:)
 load:          1
 coordinates:   lon lat
 
