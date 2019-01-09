@@ -2459,7 +2459,6 @@ contains
              call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
           !WHL - zocn currently is allocated and computed in glide_config.  Not sure where is the best place.
 !!          allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
-          ! Assume basins in input file are indexed from 0 to nbasin-1
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)

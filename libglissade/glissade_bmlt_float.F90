@@ -798,7 +798,7 @@ contains
     integer, intent(in) :: itest, jtest, rtest  !> coordinates of diagnostic point
 
     !TODO - Pass in f_ground_cell also?
-    !       floating_mask currently used for basin average only so difference from partly filled cells would be small
+    !       floating_mask currently used for basin average only, so difference from partly filled cells would be small
     integer, dimension(:,:), intent(in) :: &
          floating_mask             !> = 1 if ice is present and floating, else = 0
 
@@ -871,7 +871,7 @@ contains
     !-----------------------------------------------
 
     ! first for the baseline thermal forcing
-    call interpolate_thermal_forcing(&
+    call interpolate_thermal_forcing_to_lsrf(&
          nx,                ny,         &
          ocean_data%nzocn,              &
          ocean_data%zocn,               &
@@ -881,7 +881,7 @@ contains
          thermal_forcing_lsrf_baseline)
 
     ! then for the transient thermal forcing
-    call interpolate_thermal_forcing(&
+    call interpolate_thermal_forcing_to_lsrf(&
          nx,                ny,         &
          ocean_data%nzocn,              &
          ocean_data%zocn,               &
@@ -1036,7 +1036,7 @@ contains
 
 !****************************************************
 
-  subroutine interpolate_thermal_forcing(&
+  subroutine interpolate_thermal_forcing_to_lsrf(&
        nx,          ny,          &
        nzocn,       zocn,        &
        floating_mask,            &
@@ -1101,7 +1101,7 @@ contains
        enddo
     enddo
 
-  end subroutine interpolate_thermal_forcing
+  end subroutine interpolate_thermal_forcing_to_lsrf
 
 !****************************************************
 
