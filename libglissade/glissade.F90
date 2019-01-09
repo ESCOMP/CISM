@@ -523,7 +523,7 @@ contains
     jtest = model%numerics%jdiag_local
 
     ! initialize ocean forcing data, if desired
-    ! Currently, this is done only when using the ISMIP6 basal melting paramterization
+    ! Currently, this is done only when using the ISMIP6 basal melting parameterization
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6 .and.  &
         model%options%is_restart == RESTART_FALSE) then
@@ -1608,12 +1608,12 @@ contains
           ! In this way, the code converges on inversion fields that are no longer nudged.
           ! Note: model%numerics%time = time in years since start of run.
 
-          !WHL - Currently, wean_bmlt_float_tend is set to zero if we want to do a forward run
+          !WHL - Currently, wean_bmlt_float_tend should be set to zero if we want to do a forward run
           !       with inversion parameters held fixed.
           !      Might be better to introduce an HO_INVERSION_FIXED option for this case.
 
           if (model%inversion%wean_bmlt_float_tend > 0.0d0) then
-             nudging_factor = 1.0d0  ! full nudging
+             nudging_factor = 1.0d0  ! full nudging at start of run
           else
              nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
           endif
@@ -2323,8 +2323,12 @@ contains
           ! See comments above for nudging of bmlt_float_inversion.
           ! Note: model%numerics%time = time in years since start of run.
 
+          !WHL - Currently, wean_powerlaw_c_tend should be set to zero if we want to do a forward run
+          !       with inversion parameters held fixed.
+          !      Might be better to introduce an HO_INVERSION_FIXED option for this case.
+
           if (model%inversion%wean_powerlaw_c_tend > 0.0d0) then
-             nudging_factor = 1.0d0  ! full nudging
+             nudging_factor = 1.0d0  ! full nudging at start of run
           else
              nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
           endif
@@ -2338,6 +2342,12 @@ contains
              else
                 nudging_factor = 0.0d0
              endif
+          endif
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'tstep_count, time, powerlaw_c nudging_factor =', &
+                  model%numerics%tstep_count, model%numerics%time, nudging_factor
           endif
 
           call glissade_inversion_basal_traction(model,          &

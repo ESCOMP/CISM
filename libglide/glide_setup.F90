@@ -461,11 +461,11 @@ contains
        call write_log(trim(message))
     endif
 
-    if (model%ocean_data%nzocn >= 1) then
+    if (model%ocean_data%nzocn > 1) then
        write(message,*) 'nz for ocean     : ',model%ocean_data%nzocn
        call write_log(trim(message))
     endif
-    if (model%ocean_data%nbasin >= 1) then
+    if (model%ocean_data%nbasin > 1) then
        write(message,*) 'number of basins : ',model%ocean_data%nbasin
        call write_log(trim(message))
     endif
@@ -2140,6 +2140,9 @@ contains
           if (model%inversion%wean_bmlt_float_tend < model%inversion%wean_bmlt_float_tstart) then
              call write_log('Error, must have wean_bmlt_float_tend >= wean_bmlt_float_tstart', GM_FATAL)
           endif
+          if (model%inversion%wean_bmlt_float_tend == 0.0d0) then
+             call write_log('bmlt_float will not be nudged, since wean_bmlt_float_tend = 0')
+          endif
        endif
 
        if (model%inversion%wean_powerlaw_c_tstart > 0.0d0 .and. model%inversion%wean_powerlaw_c_tend > 0.0d0) then
@@ -2154,6 +2157,9 @@ contains
           call write_log(message)
           if (model%inversion%wean_powerlaw_c_tend < model%inversion%wean_powerlaw_c_tstart) then
              call write_log('Error, must have wean_powerlaw_c_tend >= wean_powerlaw_c_tstart', GM_FATAL)
+          endif
+          if (model%inversion%wean_powerlaw_c_tend == 0.0d0) then
+             call write_log('powerlaw_c will not be nudged, since wean_powerlaw_c_tend = 0')
           endif
        endif
 

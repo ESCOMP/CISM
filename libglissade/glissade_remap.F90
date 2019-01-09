@@ -279,6 +279,7 @@ module glissade_remap
       real(dp), intent(in) ::    &   
          dx, dy       ! x and y gridcell dimensions
 
+      !TODO - Change nx_block and ny_block to nx and ny
       integer, intent(in) :: &
          nx_block   ,&! number of cells in x direction
          ny_block   ,&! number of cells in y direction
