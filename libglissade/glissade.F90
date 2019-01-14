@@ -106,7 +106,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
-    use glissade_bmlt_float, only: glissade_bmlt_float_ismip6_init
+    use glissade_bmlt_float, only: glissade_bmlt_float_ismip6_init, verbose_bmlt_float
     use glimmer_paramets, only: thk0, len0, tim0
     use felix_dycore_interface, only: felix_velo_init
 
@@ -522,18 +522,6 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
-    ! initialize ocean forcing data, if desired
-    ! Currently, this is done only when using the ISMIP6 basal melting parameterization
-
-    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6 .and.  &
-        model%options%is_restart == RESTART_FALSE) then
-       call glissade_bmlt_float_ismip6_init(&
-            model%options%bmlt_float_ismip6_param,       &
-            model%options%bmlt_float_ismip6_magnitude,   &
-            model%ocean_data,                            &
-            itest, jtest, rtest)
-    endif
-
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
@@ -597,6 +585,14 @@ contains
     ! recalculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+    ! initialize ocean forcing data, if desired
+    ! Currently, this is done only when using the ISMIP6 basal melting parameterization
+    ! Note: Need the current value of lsrf when calling this subroutine
+
+    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+       call glissade_bmlt_float_ismip6_init(model, model%ocean_data)
+    endif
 
     !WHL - debug
     if (main_task) print*, 'Done in glissade_initialise'
@@ -874,7 +870,7 @@ contains
     ! Solve for basal melting beneath floating ice.
 
     use glimmer_paramets, only: tim0, thk0, len0
-    use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_ismip6
+    use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_ismip6, verbose_bmlt_float
     use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_3d_anomaly
     use glissade_masks, only: glissade_get_masks
 
@@ -891,9 +887,12 @@ contains
          floating_mask,         & ! = 1 if ice is present (thck > 0) and floating
          ocean_mask               ! = 0 if ice is absent (thck = 0) and topg < 0
 
-    real(dp) :: previous_time
+    ! melt rate field for ISMIP6
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
+         bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s);
+                                  ! take bmlt_float_transient - bmlt_float_baseline to compute anomaly
 
-    logical, parameter :: verbose_bmlt_float = .false.
+    real(dp) :: previous_time
 
     integer :: i, j
     integer :: ewn, nsn
@@ -947,8 +946,9 @@ contains
 
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
 
-       !WHL - This is a hack.  Instead of reading thermal_forcing as a time series from a forcing file,
+       !WHL - This is a temporary hack.  Instead of reading thermal_forcing as a time series from a forcing file,
        !      let it ramp up linearly over 100 years from the baseline value to the final value.
+       !TODO - Read thermal_forcing from a CF forcing file.
 
        ! initialize the thermal forcing to the baseline value
        model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_baseline
@@ -958,14 +958,37 @@ contains
             model%basal_melt%bmlt_anomaly_timescale,     &                                        ! yr; use existing config option
             model%numerics%time)                                                                  ! yr
 
-       ! compute bmlt_float
+       if (this_rank == rtest .and. verbose_bmlt_float) then
+          print*, ' '
+          print*, 'Compute bmlt_float at runtime from current thermal forcing'
+       endif
+
        call glissade_bmlt_float_ismip6(model%options%bmlt_float_ismip6_param, &
-                                       ewn,                nsn,      &
-                                       itest,     jtest,   rtest,    &
-                                       floating_mask,                &
-                                       model%geometry%lsrf*thk0,     & ! m
-                                       model%ocean_data,             &
-                                       model%basal_melt%bmlt_float)    ! m/s
+                                       ewn,                nsn,           &
+                                       itest,     jtest,   rtest,         &
+                                       floating_mask,                     &
+                                       model%geometry%lsrf*thk0,          & ! m
+                                       model%ocean_data%thermal_forcing,  &
+                                       model%ocean_data,                  &
+                                       bmlt_float_transient)                ! m/s
+
+       ! Given the baseline and transient melt rates, compute bmlt_float as the difference.
+       ! When doing inversion, this melt rate is added to bmlt_float_inversion.
+
+       model%basal_melt%bmlt_float(:,:) = bmlt_float_transient(:,:) - model%basal_melt%bmlt_float_baseline(:,:)
+
+       !WHL - debug
+       if (verbose_bmlt_float .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'bmlt_float anomaly (m/yr)'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
