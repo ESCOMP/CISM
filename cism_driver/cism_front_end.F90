@@ -248,7 +248,7 @@ subroutine cism_run_dycore(model)
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
-  use glide_io, only: glide_io_writeall, glide_io_writeall
+  use glide_io, only: glide_io_writeall
 
   use cism_external_dycore_interface
   

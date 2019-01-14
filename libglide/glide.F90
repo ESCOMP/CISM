@@ -78,6 +78,9 @@ contains
     use glimmer_map_init
     use glimmer_filenames
 
+    !WHL - debug
+    use parallel, only: main_task
+
     implicit none
 
     type(glide_global_type), intent(inout) :: model  ! model instance
@@ -103,12 +106,12 @@ contains
 
     !WHL - debug - temporary fix to compute ocean levels (zocn); negative below sea level
     if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       print*, 'Computing zocn in glide_config instead of reading from input file'
+       if (main_task) print*, 'Computing zocn in glide_config instead of reading from input file'
        if (.not.associated(model%ocean_data%zocn)) &
             allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
        do k = 1, model%ocean_data%nzocn
           model%ocean_data%zocn(k) = -model%ocean_data%dz_ocean * (real(k,dp) - 0.5d0)
-          print*, k, model%ocean_data%zocn(k)
+          if (main_task) print*, k, model%ocean_data%zocn(k)
        enddo
     endif
 
