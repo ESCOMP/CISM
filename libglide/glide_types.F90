@@ -1412,7 +1412,8 @@ module glide_types
           bmlt_ground => null(),                  & !> basal melt rate for grounded ice
           bmlt_float => null(),                   & !> basal melt rate for floating ice
           bmlt_float_external => null(),          & !> external basal melt rate field
-          bmlt_float_anomaly => null()              !> basal melt rate anomaly field
+          bmlt_float_anomaly => null(),           & !> basal melt rate anomaly field
+          bmlt_float_baseline => null()             !> baseline melt rate (subtracted to compute the ISMIP6 anomaly melt rate)
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
@@ -1470,8 +1471,8 @@ module glide_types
  
      ! Antarctic-wide coefficients
 
-     ! Values from Asay-Davis slides, Dec. 18
-     !TODO - Update with final values?  Not sure if values on slides are local or nonlocal
+     ! Values from Asay-Davis slides, Dec. 2018
+     !TODO - Update these values?  Not sure if values on the slides are local or nonlocal.
      real(dp) :: gamma0_local_median = 15012.d0     !> coefficient for sub-shelf melt rates; local median local (m/yr)
      real(dp) :: gamma0_local_pct5   =  9755.d0     !> coefficient for sub-shelf melt rates; local 5th percentile (m/yr)
      real(dp) :: gamma0_local_pct95  = 22165.d0     !> coefficient for sub-shelf melt rates; local 95th percentile (m/yr)
@@ -2063,6 +2064,7 @@ contains
     !> \item \texttt{bmlt_float(ewn,nsn)}
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
+    !> \item \texttt{bmlt_float_baseline(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%ocean_data}:
@@ -2459,6 +2461,7 @@ contains
              call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
           !WHL - zocn currently is allocated and computed in glide_config.  Not sure where is the best place.
 !!          allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
@@ -2800,6 +2803,8 @@ contains
         deallocate(model%basal_melt%bmlt_float_external)
     if (associated(model%basal_melt%bmlt_float_anomaly)) &
         deallocate(model%basal_melt%bmlt_float_anomaly)
+    if (associated(model%basal_melt%bmlt_float_baseline)) &
+        deallocate(model%basal_melt%bmlt_float_baseline)
     if (associated(model%basal_melt%warm_ocean_mask)) &
         deallocate(model%basal_melt%warm_ocean_mask)
     if (associated(model%basal_melt%bmlt_applied_old)) &
