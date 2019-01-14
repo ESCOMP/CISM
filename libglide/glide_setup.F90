@@ -1794,9 +1794,6 @@ contains
     call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
-    ! ISMIP6 basal melting parameters
-    call GetValue(section,'bmlt_float_gamma0', model%ocean_data%gamma0)
-
     ! MISOMIP plume parameters
     !TODO - Put MISMIP+ and MISOMIP parameters in their own section
     call GetValue(section,'T0',   model%plume%T0)
@@ -2276,8 +2273,9 @@ contains
        write(message,*) 'bmlt_float_h0 (m)              :  ', model%basal_melt%bmlt_float_h0
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       call write_log(message)
+       !TODO - Remove, since gamma0 comes from input file, not config file
        write(message,*) 'ISMIP6 gamma0 value            :  ', model%ocean_data%gamma0
+       call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
        write(message,*) 'T0 (deg C)               :  ', model%plume%T0
        call write_log(message)
@@ -2606,14 +2604,18 @@ contains
        case (BMLT_FLOAT_ISMIP6)
           ! Need basin number for each grid cell
           call glide_add_to_restart_variable_list('basin_number')
-          ! Need thermal forcing, both steady (from climatology) and transient
-          call glide_add_to_restart_variable_list('thermal_forcing_steady')
-          !TODO - Remove thermal_forcing_final, and simply read in thermal_forcing_transient from the forcing file.
-          !       Make sure that [CF forcing] files are read on restart.
-          call glide_add_to_restart_variable_list('thermal_forcing_final')
-          ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes
-          ! Only need one of these for restart (since param and magnitude will not change during the run)
+          ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes.
+          ! Only need one of these for restart (since param and magnitude will not change during the run).
+          ! Similarly for gamma0 (a scalar).
           call glide_add_to_restart_variable_list('deltaT_basin')
+          call glide_add_to_restart_variable_list('gamma0')
+          ! Need bmlt_float associated with baseline thermal forcing and ice geometry
+          call glide_add_to_restart_variable_list('bmlt_float_baseline')
+          ! Need the transient thermal forcing field
+          !TODO - Remove thermal_forcing_baseline/final, and simply read in the transient thermal forcing from the forcing file.
+          !       Make sure that [CF forcing] files are read on restart.
+          call glide_add_to_restart_variable_list('thermal_forcing_baseline')
+          call glide_add_to_restart_variable_list('thermal_forcing_final')
 
     end select  ! whichbmlt_float
 

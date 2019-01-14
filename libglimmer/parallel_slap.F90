@@ -151,6 +151,11 @@ module parallel
      module procedure distributed_get_var_real8_1d
      module procedure distributed_get_var_real8_2d
      module procedure distributed_get_var_real8_3d
+
+     !TODO - Put these in the parallel_get_var interface only?
+     module procedure parallel_get_var_integer
+     module procedure parallel_get_var_real4
+     module procedure parallel_get_var_real8
   end interface
 
   interface distributed_print
@@ -168,7 +173,8 @@ module parallel
      module procedure distributed_put_var_real8_2d
      module procedure distributed_put_var_real8_3d
 
-     !TODO - Should the parallel_put_var routines be part of this interface?
+     !TODO - Put these in the parallel_put_var interface only?
+     module procedure parallel_put_var_integer
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
   end interface
@@ -1544,6 +1550,36 @@ contains
     if (main_task) parallel_get_att_real8_1d = &
          nf90_get_att(ncid,varid,name,values)
   end function parallel_get_att_real8_1d
+
+  function parallel_get_var_integer(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_integer,varid
+    integer,dimension(:) :: start
+    integer :: values
+    ! begin
+    if (main_task) parallel_get_var_integer = &
+         nf90_get_var(ncid,varid,values,start)
+  end function parallel_get_var_integer
+
+  function parallel_get_var_real4(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real4,varid
+    integer,dimension(:) :: start
+    real(sp) :: values
+    ! begin
+    if (main_task) parallel_get_var_real4 = &
+         nf90_get_var(ncid,varid,values,start)
+  end function parallel_get_var_real4
+
+  function parallel_get_var_real8(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real8,varid
+    integer,dimension(:) :: start
+    real(dp) :: values
+    ! begin
+    if (main_task) parallel_get_var_real8 = &
+         nf90_get_var(ncid,varid,values,start)
+  end function parallel_get_var_real8
 
   function parallel_get_var_integer_1d(ncid,varid,values)
     implicit none

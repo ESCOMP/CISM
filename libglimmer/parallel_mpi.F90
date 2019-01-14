@@ -191,6 +191,11 @@ module parallel
      module procedure distributed_get_var_real8_1d
      module procedure distributed_get_var_real8_2d
      module procedure distributed_get_var_real8_3d
+
+     !TODO - Put these in the parallel_get_var interface only?
+     module procedure parallel_get_var_integer
+     module procedure parallel_get_var_real4
+     module procedure parallel_get_var_real8
   end interface
 
   interface distributed_print
@@ -208,7 +213,8 @@ module parallel
      module procedure distributed_put_var_real8_2d
      module procedure distributed_put_var_real8_3d
 
-     !TODO - Should the parallel_put_var routines be part of this interface?
+     !TODO - Put these in the parallel_put_var interface only?
+     module procedure parallel_put_var_integer
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
   end interface
@@ -246,6 +252,9 @@ module parallel
   end interface
 
   interface parallel_get_var
+     module procedure parallel_get_var_integer
+     module procedure parallel_get_var_real4
+     module procedure parallel_get_var_real8
      module procedure parallel_get_var_integer_1d
      module procedure parallel_get_var_real4_1d
      module procedure parallel_get_var_real8_1d
@@ -3012,6 +3021,41 @@ contains
     ! begin
     call mpi_finalize(ierror)
   end subroutine parallel_finalise
+
+  !WHL - Added parallel_get_var functions in analogy to parallel_put_var functions.
+  !      Currently included in the distributed_get_var interface.
+  !      Could put them in a parallel_get_var interface if Fortran autogen I/O routines
+  !       called parallel_get_var for real scalars.
+
+  function parallel_get_var_integer(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_integer,varid
+    integer,dimension(:) :: start
+    integer :: values
+    ! begin
+    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values,start)
+    call broadcast(parallel_get_var_integer)
+  end function parallel_get_var_integer
+
+  function parallel_get_var_real4(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real4,varid
+    integer,dimension(:) :: start
+    real(sp) :: values
+    ! begin
+    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values,start)
+    call broadcast(parallel_get_var_real4)
+  end function parallel_get_var_real4
+
+  function parallel_get_var_real8(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real8,varid
+    integer,dimension(:) :: start
+    real(dp) :: values
+    ! begin
+    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values,start)
+    call broadcast(parallel_get_var_real8)
+  end function parallel_get_var_real8
 
   function parallel_get_att_character(ncid,varid,name,values)
     implicit none

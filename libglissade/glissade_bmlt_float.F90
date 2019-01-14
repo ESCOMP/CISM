@@ -44,12 +44,15 @@ module glissade_bmlt_float
   implicit none
   
   private
-  public :: glissade_basal_melting_float, &
+  public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_ismip6_init, glissade_bmlt_float_ismip6
 
-  logical :: verbose_velo = .true.
-  logical :: verbose_continuity = .true.
-  logical :: verbose_melt = .true.
+    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .true.
+
+    logical :: verbose_velo = .true.
+    logical :: verbose_continuity = .true.
+    logical :: verbose_melt = .true.
 
     !WHL - Should the MISOMIP parameters go elsewhere?
     !      Note: gammaS and gammaT are namelist parameters
@@ -90,10 +93,7 @@ module glissade_bmlt_float
     logical, parameter :: cap_Dplume = .true.
 !!    logical, parameter :: cap_Dplume = .false.
 
-    logical :: verbose_ismip6 = .true.
-
-
-contains
+  contains
 
 !****************************************************
 
@@ -223,8 +223,6 @@ contains
     real(dp) :: frz_ramp_factor    ! multiplying factor for linear ramp at depths with basal freezing
     real(dp) :: melt_ramp_factor   ! multiplying factor for linear ramp at depths with basal melting
 
-    logical, parameter :: verbose_bmlt = .false.
-
 !TODO - Make first_call depend on whether we are restarting
 !!    logical :: first_call = .false.
     logical :: first_call = .true.
@@ -233,7 +231,7 @@ contains
     ! Compute the basal melt rate for floating ice
     !-----------------------------------------------------------------
 
-    if (main_task .and. verbose_bmlt) print*, 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
+    if (main_task .and. verbose_bmlt_float) print*, 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
 
     ! Set bmlt_float pointer and initialize
     bmlt_float  => basal_melt%bmlt_float
@@ -306,7 +304,7 @@ contains
                                 * max(basal_melt%bmlt_float_z0 - z_draft, 0.0d0)
 
                 !debug
-!                if (j == jtest .and. verbose_bmlt) then
+!                if (j == jtest .and. verbose_bmlt_float) then
 !                   print*, 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, &
 !                         tanh(h_cavity/basal_melt%bmlt_float_h0), thck(i,j), z_draft, bmlt_float(i,j)*scyr
 !                endif
@@ -317,7 +315,7 @@ contains
        enddo
 
        !WHL - debug
-       if (verbose_bmlt .and. this_rank == rtest) then
+       if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, 'itest, jtest, rtest =', itest, jtest, rtest
           print*, ' '
           print*, 'thck (m):'
@@ -420,7 +418,7 @@ contains
        enddo
 
        !debug
-       if (verbose_bmlt .and. this_rank == rtest) then
+       if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, 'itest, jtest, rtest =', itest, jtest, rtest
           print*, ' '
           print*, 'topg (m):'
@@ -502,7 +500,7 @@ contains
        T_ambient     => plume%T_ambient
        S_ambient     => plume%S_ambient
 
-       if (verbose_bmlt .and. this_rank == rtest) then
+       if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, 'itest, jtest, rtest =', itest, jtest, rtest
           print*, ' '
 
@@ -550,7 +548,7 @@ contains
              write(6,*) ' '
           enddo
 
-       endif  ! verbose_bmlt
+       endif  ! verbose_bmlt_float
 
        ! Given the ice draft in each floating grid cell, compute the ambient ocean T and S
        !  using the prescribed MISOMIP profile.
@@ -624,64 +622,70 @@ contains
 
 !****************************************************
 
-  subroutine glissade_bmlt_float_ismip6_init(&
-       bmlt_float_ismip6_param,       &
-       bmlt_float_ismip6_magnitude,   &
-       ocean_data,                    &
-       itest, jtest, rtest)
+  subroutine glissade_bmlt_float_ismip6_init(model, ocean_data)
+
+    use glimmer_paramets, only: thk0
+    use glissade_masks, only : glissade_get_masks
 
     ! Initialization for ISMIP6 basal melting parameterization (BMLT_FLOAT_ISMIP6).
 
-    integer, intent(in) :: &
-         bmlt_float_ismip6_param,    & !> kind of melting parameterization, local or nonlocal
-         bmlt_float_ismip6_magnitude   !> magnitude of forcing (e.g., pct5, median, pct95)
+    type(glide_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
 
     type(glide_ocean_data), intent(inout) ::  &
-         ocean_data                    !> derived type holding ocean input data
+         ocean_data                                   !> derived type holding ocean input data
     
-    integer, intent(in) :: itest, jtest, rtest  !> coordinates of diagnostic point
-    !WHL - debug
-    logical :: simple_init = .false.
-!!    logical :: simple_init = .true.
+    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+         ice_mask,                   &  ! = 1 if ice is present (thck > 0)
+         floating_mask                  ! = 1 if ice is present and floating
 
-
+    integer :: itest, jtest, rtest      ! coordinates of diagnostic point
     integer :: i, j, k
 
+    !WHL - debug
+    logical :: simple_init = .false.
+
+    ! Set debug diagnostics
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
 
     ! Make basin_number index start at 1 instead of 0?  Assume 0 for now.
        
     ! Based on the kind of parameterization (local or nonlocal) and the forcing magnitude,
-    ! assign appropriate values to deltaT_basin and gamm0.
+    !  assign appropriate values to deltaT_basin and gamma0.
+    ! Note: On restart, deltaT_basin and gamma0 are in the restart file.
 
-    if (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then
+    if (model%options%is_restart == RESTART_FALSE) then
 
-       if (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
-          ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct5
-          ocean_data%gamma0 = ocean_data%gamma0_local_pct5
-       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
-          ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_median
-          ocean_data%gamma0 = ocean_data%gamma0_local_median
-       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
-          ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct95
-          ocean_data%gamma0 = ocean_data%gamma0_local_pct95
-       endif
+       if (model%options%bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then
 
-    elseif (bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_NONLOCAL) then
+          if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
+             ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct5
+             ocean_data%gamma0 = ocean_data%gamma0_local_pct5
+          elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
+             ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_median
+             ocean_data%gamma0 = ocean_data%gamma0_local_median
+          elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
+             ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct95
+             ocean_data%gamma0 = ocean_data%gamma0_local_pct95
+          endif
 
-       if (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
-          ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
-          ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct5
-       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
-          ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_median
-          ocean_data%gamma0 = ocean_data%gamma0_nonlocal_median
-       elseif (bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
-          ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct95
-          ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct95
-       endif
+       elseif (model%options%bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_NONLOCAL) then
 
-    endif  ! local or nonlocal
+          if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
+             ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
+             ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct5
+          elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
+             ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_median
+             ocean_data%gamma0 = ocean_data%gamma0_nonlocal_median
+          elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
+             ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct95
+             ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct95
+          endif
 
-    ! Do anything with the transient forcing?
+       endif  ! local or nonlocal
+
+    endif   ! restart_false
 
     !WHL - debug - some simple initializations for testing
     ! In config file, set nbasin = 4 and nzocn = 10
@@ -709,13 +713,13 @@ contains
 
     endif  ! simple_init
 
-    ! Fill halos
+    ! Fill halos (might not be needed)
     call parallel_halo(ocean_data%basin_number)
     call parallel_halo(ocean_data%thermal_forcing_baseline)
     call parallel_halo(ocean_data%thermal_forcing)
 
     !WHL - debug
-    if (verbose_ismip6 .and. this_rank==rtest) then
+    if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
        print*, 'Initialize ISMIP6 sub-shelf melting'
        print*, ' '
@@ -763,6 +767,34 @@ contains
        enddo
     endif
 
+    if (model%options%is_restart == RESTART_FALSE) then
+
+       ! Compute the melt rate associated with the baseline thermal forcing and initial lower ice surface.
+       ! This melt rate can be subtracted from the runtime melt rate to give a runtime anomaly.
+       ! Note: On restart, bmlt_float_baseline is read from the restart file.
+
+       if (main_task .and. verbose_bmlt_float) then
+          print*, ' '
+          print*, 'Compute baseline bmlt_float at initialization'
+       endif
+
+       call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                               model%geometry%thck, model%geometry%topg,   &
+                               model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                               ice_mask,                                   &
+                               floating_mask = floating_mask)
+
+       call glissade_bmlt_float_ismip6(model%options%bmlt_float_ismip6_param,    &
+                                       model%general%ewn,  model%general%nsn,    &
+                                       itest,     jtest,   rtest,                &
+                                       floating_mask,                            &
+                                       model%geometry%lsrf*thk0,                 & ! m
+                                       ocean_data%thermal_forcing_baseline,      &
+                                       ocean_data,                               &
+                                       model%basal_melt%bmlt_float_baseline)
+
+    endif  ! restart_false
+
   end subroutine glissade_bmlt_float_ismip6_init
 
 !****************************************************
@@ -773,21 +805,14 @@ contains
        itest,     jtest,   rtest, &
        floating_mask,             &
        lsrf,                      &
+       thermal_forcing,           &
        ocean_data,                &
        bmlt_float)
 
     use parallel
 
-    !TODO - Xylar's correction
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
-    !  and the current ice draft, using either a local or nonlocal melt parameterization.
-    ! Note: This subroutine assumes that we are given a baseline (e.g., climatological) thermal forcing
-    !        and a transient thermal forcing as input.  The computed bmlt_float is actually
-    !        a melt rate anomaly, equal to the difference between the baseline melt rate
-    !        and the transient melt rate.  We then add this anomaly to a background melt rate
-    !        obtained from inversion.
-    !       If we were sufficiently confident in the transient thermal forcing and melt parameterization,
-    !        we could use the transient melt rate on its own, without subtracting the baseline melt rate.
+    !  and the current lower ice surface, using either a local or nonlocal melt parameterization.
 
     integer, intent(in) :: &
          bmlt_float_ismip6_param   !> kind of melting parameterization, local or nonlocal
@@ -805,6 +830,9 @@ contains
     real(dp), dimension(:,:), intent(in) ::  &
          lsrf                      !> ice lower surface elevation (m), negative below sea level
 
+    real(dp), dimension(:,:,:), intent(in) ::  &
+         thermal_forcing           !> 3D field of ocean thermal forcing (deg K); 1st index is kocn
+
     type(glide_ocean_data), intent(in) :: &
          ocean_data                !> derived type with fields and parameters related to basal melting
 
@@ -816,47 +844,22 @@ contains
     integer :: i, j, k, nb
 
     real(dp), dimension(nx,ny) ::  &
-         thermal_forcing_lsrf_baseline,   & ! baseline thermal forcing at lower ice surface (K)
-         thermal_forcing_lsrf_transient     ! thermal forcing at lower ice surface (K) at current time
+         thermal_forcing_lsrf             ! thermal forcing at lower ice surface (K)
 
     ! Note: Ocean basins are indexed from 0 to nbasin-1
     real(dp), dimension(0:ocean_data%nbasin-1) ::  &
-         thermal_forcing_basin_baseline,  & ! basin average of baseline thermal forcing (K)
-         thermal_forcing_basin_transient    ! basin average thermal forcing (K) at current time
-
-    real(dp), dimension(nx,ny) ::  &
-         bmlt_float_baseline,             & ! basal melt rate (m/s) from baseline forcing and initial geometry
-         bmlt_float_transient               ! basal melt rate (m/s) from current forcing and geometry
+         thermal_forcing_basin            ! basin average thermal forcing (K) at current time
 
     !WHL - debug
-    if (verbose_ismip6 .and. this_rank==rtest) then
+    if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Compute ISMIP6 basal melt anomaly'
+       print*, 'Compute ISMIP6 basal melt rate, my basin =', ocean_data%basin_number(itest,jtest)
        print*, ' '
-       print*, 'thermal_forcing_baseline, k =', ocean_data%nzocn/2
+       print*, 'thermal_forcing, k =', ocean_data%nzocn/2
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_baseline(ocean_data%nzocn/2,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'transient thermal_forcing, k =', ocean_data%nzocn/2
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing(ocean_data%nzocn/2,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing anomaly, k =', ocean_data%nzocn/2
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing(ocean_data%nzocn/2,i,j) &
-                                           - ocean_data%thermal_forcing_baseline(ocean_data%nzocn/2,i,j)
+             write(6,'(f10.4)',advance='no') thermal_forcing(ocean_data%nzocn/2,i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -870,45 +873,25 @@ contains
     ! Compute the thermal forcing for each grid cell
     !-----------------------------------------------
 
-    ! first for the baseline thermal forcing
     call interpolate_thermal_forcing_to_lsrf(&
-         nx,                ny,         &
-         ocean_data%nzocn,              &
-         ocean_data%zocn,               &
-         floating_mask,                 &
-         lsrf,                          &
-         ocean_data%thermal_forcing_baseline,  &
-         thermal_forcing_lsrf_baseline)
-
-    ! then for the transient thermal forcing
-    call interpolate_thermal_forcing_to_lsrf(&
-         nx,                ny,         &
-         ocean_data%nzocn,              &
-         ocean_data%zocn,               &
-         floating_mask,                 &
-         lsrf,                          &
-         ocean_data%thermal_forcing,    &
-         thermal_forcing_lsrf_transient)
+         nx,                ny,           &
+         ocean_data%nzocn,                &
+         ocean_data%zocn,                 &
+         floating_mask,                   &
+         lsrf,                            &
+         thermal_forcing,                 &
+         thermal_forcing_lsrf)
 
     !WHL - debug
-    if (verbose_ismip6 .and. this_rank==rtest) then
+    if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
        print*, 'Interpolate to lower ice surface'
        print*, ' '
-       print*, 'thermal_forcing_lsrf_baseline'
+       print*, 'thermal_forcing_lsrf'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf_baseline(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing_lsrf_transient'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf_transient(i,j)
+             write(6,'(f10.4)',advance='no') thermal_forcing_lsrf(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -925,40 +908,17 @@ contains
        ! compute the average thermal forcing for each basin
 
        call basin_average(&
-            nx,        ny,                    &
-            ocean_data%nbasin,                &
-            ocean_data%basin_number,          &
-            floating_mask,                    &
-            thermal_forcing_lsrf_baseline,      &
-            thermal_forcing_basin_baseline)
-
-       call basin_average(&
-            nx,        ny,                    &
-            ocean_data%nbasin,                &
-            ocean_data%basin_number,          &
-            floating_mask,                    &
-            thermal_forcing_lsrf_transient,   &
-            thermal_forcing_basin_transient)
+            nx,        ny,                &
+            ocean_data%nbasin,            &
+            ocean_data%basin_number,      &
+            floating_mask,                &
+            thermal_forcing_lsrf,         &
+            thermal_forcing_basin)
 
     else  ! local parameterization; does not use a basin average
 
-       thermal_forcing_basin_baseline(0:) = 0.0d0
-       thermal_forcing_basin_transient(0:) = 0.0d0
+       thermal_forcing_basin(0:) = 0.0d0
 
-    endif
-
-    !WHL - debug
-    if (verbose_ismip6 .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'thermal_forcing_basin_baseline:'
-       do k = 0, ocean_data%nbasin-1
-          print*, k, thermal_forcing_basin_baseline(k)
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing_basin_transient:'
-       do k = 0, ocean_data%nbasin-1
-          print*, k, thermal_forcing_basin_transient(k)
-       enddo
     endif
 
     !-----------------------------------------------
@@ -966,60 +926,36 @@ contains
     ! Note: The output bmlt_float has units of m/yr.
     !-----------------------------------------------
 
-    !TODO - Compute bmlt_float_baseline at initialization only, not each time step
     call ismip6_bmlt_float(&
-         bmlt_float_ismip6_param,           &
-         nx,                ny,             &
-         ocean_data%nbasin,                 &
-         ocean_data%basin_number,           &
-         ocean_data%gamma0,                 &
-         ocean_data%deltaT_basin,           &
-         floating_mask,                     &
-         thermal_forcing_lsrf_baseline,     &
-         thermal_forcing_basin_baseline,    &
-         bmlt_float_baseline)
-
-    call ismip6_bmlt_float(&
-         bmlt_float_ismip6_param,           &
-         nx,                ny,             &
-         ocean_data%nbasin,                 &
-         ocean_data%basin_number,           &
-         ocean_data%gamma0,                 &
-         ocean_data%deltaT_basin,           &
-         floating_mask,                     &
-         thermal_forcing_lsrf_transient,    &
-         thermal_forcing_basin_transient,   &
-         bmlt_float_transient)
-
-    ! Given the baseline and transient melt rates, compute bmlt_float as the difference.
-    ! When doing inversion, this melt rate is added to bmlt_float_inversion.
-
-    bmlt_float(:,:) = bmlt_float_transient(:,:) - bmlt_float_baseline(:,:)
+         bmlt_float_ismip6_param,         &
+         nx,                ny,           &
+         ocean_data%nbasin,               &
+         ocean_data%basin_number,         &
+         ocean_data%gamma0,               &
+         ocean_data%deltaT_basin,         &
+         floating_mask,                   &
+         thermal_forcing_lsrf,            &
+         thermal_forcing_basin,           &
+         bmlt_float)
 
     !WHL - debug
-    if (verbose_ismip6 .and. this_rank==rtest) then
+    if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Compute melt rate'
+       print*, 'thermal_forcing_basin:'
+       do k = 0, ocean_data%nbasin-1
+          print*, k, thermal_forcing_basin(k)
+       enddo
        print*, ' '
-       print*, 'bmlt_float_baseline (m/yr)'
+       print*, 'lsrf (m)'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') bmlt_float_baseline(i,j)
+             write(6,'(f10.4)',advance='no') lsrf(i,j)
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'bmlt_float_transient (m/yr)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') bmlt_float_transient(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bmlt_float anomaly (m/yr)'
+       print*, 'bmlt_float (m/yr)'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3

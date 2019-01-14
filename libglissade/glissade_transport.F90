@@ -1833,7 +1833,7 @@
        !       Here we will apply a linear ramp throughout.
 !!       fraction = floor(time,dp) / anomaly_timescale
        fraction = real(time,dp) / anomaly_timescale
-       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, fraction
+!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, fraction
 
     endif
 
