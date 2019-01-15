@@ -1219,33 +1219,6 @@ contains
      end if
      end if
 
-    !     bmlt_float_prescribed -- prescribed basal melt rate for floating ice
-    pos = index(NCO%vars,' bmlt_float_prescribed ')
-    status = parallel_inq_varid(NCO%id,'bmlt_float_prescribed',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+21) = '                     '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%inversion%bmlt_float_prescribed)) then
-       call write_log('Creating variable bmlt_float_prescribed')
-       status = parallel_def_var(NCO%id,'bmlt_float_prescribed',get_xtype(outfile,NF90_FLOAT), &
-            (/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scyr))
-       status = parallel_put_att(NCO%id, varid, 'long_name', &
-            'prescribed basal melt rate for floating ice')
-       status = parallel_put_att(NCO%id, varid, 'units', &
-            'meter/year')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable bmlt_float_prescribed was specified for output but it is &
-          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
     !     bmlt_ground -- basal melt rate for grounded ice
     pos = index(NCO%vars,' bmlt_ground ')
     status = parallel_inq_varid(NCO%id,'bmlt_ground',varid)
@@ -2030,64 +2003,6 @@ contains
      end if
      end if
 
-    !     dthck_dt_inversion -- dH/dt used for inversion
-    pos = index(NCO%vars,' dthck_dt_inversion ')
-    status = parallel_inq_varid(NCO%id,'dthck_dt_inversion',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+18) = '                  '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%inversion%dthck_dt_inversion)) then
-       call write_log('Creating variable dthck_dt_inversion')
-       status = parallel_def_var(NCO%id,'dthck_dt_inversion',get_xtype(outfile,NF90_FLOAT), &
-            (/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scyr))
-       status = parallel_put_att(NCO%id, varid, 'long_name', &
-            'dH/dt used for inversion')
-       status = parallel_put_att(NCO%id, varid, 'units', &
-            'meter/year')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable dthck_dt_inversion was specified for output but it is &
-          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     dthck_dt_tavg -- tendency of ice thickness (NOTE: Glissade only) (time average)
-    pos = index(NCO%vars,' dthck_dt_tavg ')
-    status = parallel_inq_varid(NCO%id,'dthck_dt_tavg',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+13) = '             '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%geometry%dthck_dt_tavg)) then
-       call write_log('Creating variable dthck_dt_tavg')
-       status = parallel_def_var(NCO%id,'dthck_dt_tavg',get_xtype(outfile,NF90_FLOAT), &
-            (/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'scale_factor',(scyr))
-       status = parallel_put_att(NCO%id, varid, 'avg_factor', &
-            'tavgf')
-       status = parallel_put_att(NCO%id, varid, 'long_name', &
-            'tendency of ice thickness (NOTE: Glissade only) (time average)')
-       status = parallel_put_att(NCO%id, varid, 'cell_methods', &
-            'time: mean over years')
-       status = parallel_put_att(NCO%id, varid, 'units', &
-            'meter/year')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable dthck_dt_tavg was specified for output but it is &
-          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
     !     dthckdtm -- tendency of ice thickness (NOTE: Glide only)
     pos = index(NCO%vars,' dthckdtm ')
     status = parallel_inq_varid(NCO%id,'dthckdtm',varid)
@@ -2138,31 +2053,6 @@ contains
        end if
      else
      call write_log('Variable dusrfdtm was specified for output but it is &
-          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     dynbcmask -- 2d array of higher-order model boundary condition mask values (NOTE: Glam ONLY)
-    pos = index(NCO%vars,' dynbcmask ')
-    status = parallel_inq_varid(NCO%id,'dynbcmask',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+9) = '         '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%velocity%dynbcmask)) then
-       call write_log('Creating variable dynbcmask')
-       status = parallel_def_var(NCO%id,'dynbcmask',get_xtype(outfile,NF90_INT), &
-            (/x0_dimid, y0_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', &
-            '2d array of higher-order model boundary condition mask values (NOTE: Glam ONLY)')
-       status = parallel_put_att(NCO%id, varid, 'units', &
-            '1')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-       end if
-     else
-     call write_log('Variable dynbcmask was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -3236,32 +3126,6 @@ contains
        end if
      else
      call write_log('Variable powerlaw_c_inversion was specified for output but it is &
-          &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
-     end if
-     end if
-
-    !     powerlaw_c_prescribed -- prescribed spatially varying C for powerlaw sliding
-    pos = index(NCO%vars,' powerlaw_c_prescribed ')
-    status = parallel_inq_varid(NCO%id,'powerlaw_c_prescribed',varid)
-    if (pos.ne.0) then
-      NCO%vars(pos+1:pos+21) = '                     '
-    end if
-    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%inversion%powerlaw_c_prescribed)) then
-       call write_log('Creating variable powerlaw_c_prescribed')
-       status = parallel_def_var(NCO%id,'powerlaw_c_prescribed',get_xtype(outfile,NF90_FLOAT), &
-            (/x1_dimid, y1_dimid, time_dimid/),varid)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_put_att(NCO%id, varid, 'long_name', &
-            'prescribed spatially varying C for powerlaw sliding')
-       status = parallel_put_att(NCO%id, varid, 'units', &
-            'Pa (m/yr)**(-1/3)')
-       if (glimmap_allocated(model%projection)) then
-          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
-          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
-       end if
-     else
-     call write_log('Variable powerlaw_c_prescribed was specified for output but it is &
           &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
@@ -5437,13 +5301,6 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    status = parallel_inq_varid(NCO%id,'bmlt_float_prescribed',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%inversion%bmlt_float_prescribed, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
     status = parallel_inq_varid(NCO%id,'bmlt_ground',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -5653,20 +5510,6 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    status = parallel_inq_varid(NCO%id,'dthck_dt_inversion',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%inversion%dthck_dt_inversion, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'dthck_dt_tavg',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            (tavgf)*(data%geometry%dthck_dt_tavg), (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
     status = parallel_inq_varid(NCO%id,'dthckdtm',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
@@ -5678,13 +5521,6 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%geomderv%dusrfdtm, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'dynbcmask',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%velocity%dynbcmask, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -5987,13 +5823,6 @@ contains
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
             data%inversion%powerlaw_c_inversion, (/1,1,outfile%timecounter/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    status = parallel_inq_varid(NCO%id,'powerlaw_c_prescribed',varid)
-    if (status .eq. nf90_noerr) then
-       status = distributed_put_var(NCO%id, varid, &
-            data%inversion%powerlaw_c_prescribed, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -7119,31 +6948,6 @@ contains
 
     end if
 
-    status = parallel_inq_varid(NCI%id,'bmlt_float_prescribed',varid)
-    if (status .eq. nf90_noerr) then
-    if (is_enabled(data%inversion%bmlt_float_prescribed)) then
-       call write_log('  Loading bmlt_float_prescribed')
-       status = distributed_get_var(NCI%id, varid, &
-            data%inversion%bmlt_float_prescribed, (/1,1,infile%current_time/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
-       if (status.ne.NF90_NOERR) then
-          scaling_factor = 1.0d0/(scyr)
-       else
-          scaling_factor = scaling_factor/(scyr)
-       end if
-       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
-          call write_log("scaling bmlt_float_prescribed",GM_DIAGNOSTIC)
-          data%inversion%bmlt_float_prescribed = &
-               data%inversion%bmlt_float_prescribed*scaling_factor
-       end if
-    else
-    call write_log('Variable bmlt_float_prescribed was specified for input but it is &
-         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
-    end if
-
-    end if
-
     status = parallel_inq_varid(NCI%id,'btract',varid)
     if (status .eq. nf90_noerr) then
     if (is_enabled(data%stress%btract)) then
@@ -7446,31 +7250,6 @@ contains
 
     end if
 
-    status = parallel_inq_varid(NCI%id,'dthck_dt_inversion',varid)
-    if (status .eq. nf90_noerr) then
-    if (is_enabled(data%inversion%dthck_dt_inversion)) then
-       call write_log('  Loading dthck_dt_inversion')
-       status = distributed_get_var(NCI%id, varid, &
-            data%inversion%dthck_dt_inversion, (/1,1,infile%current_time/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
-       if (status.ne.NF90_NOERR) then
-          scaling_factor = 1.0d0/(scyr)
-       else
-          scaling_factor = scaling_factor/(scyr)
-       end if
-       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
-          call write_log("scaling dthck_dt_inversion",GM_DIAGNOSTIC)
-          data%inversion%dthck_dt_inversion = &
-               data%inversion%dthck_dt_inversion*scaling_factor
-       end if
-    else
-    call write_log('Variable dthck_dt_inversion was specified for input but it is &
-         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
-    end if
-
-    end if
-
     status = parallel_inq_varid(NCI%id,'effecpress',varid)
     if (status .eq. nf90_noerr) then
     if (is_enabled(data%basal_physics%effecpress)) then
@@ -7737,29 +7516,6 @@ contains
        end if
     else
     call write_log('Variable powerlaw_c_inversion was specified for input but it is &
-         &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
-    end if
-
-    end if
-
-    status = parallel_inq_varid(NCI%id,'powerlaw_c_prescribed',varid)
-    if (status .eq. nf90_noerr) then
-    if (is_enabled(data%inversion%powerlaw_c_prescribed)) then
-       call write_log('  Loading powerlaw_c_prescribed')
-       status = distributed_get_var(NCI%id, varid, &
-            data%inversion%powerlaw_c_prescribed, (/1,1,infile%current_time/))
-       call nc_errorhandle(__FILE__,__LINE__,status)
-       status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
-       if (status.ne.NF90_NOERR) then
-          scaling_factor = 1.0d0
-       end if
-       if (abs(scaling_factor-1.0d0).gt.1.d-17) then
-          call write_log("scaling powerlaw_c_prescribed",GM_DIAGNOSTIC)
-          data%inversion%powerlaw_c_prescribed = &
-               data%inversion%powerlaw_c_prescribed*scaling_factor
-       end if
-    else
-    call write_log('Variable powerlaw_c_prescribed was specified for input but it is &
          &inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
@@ -8718,12 +8474,6 @@ contains
        data%calving%calving_rate_tavg = data%calving%calving_rate_tavg + factor * data%calving%calving_rate
     end if
 
-    ! accumulate dthck_dt
-    status = parallel_inq_varid(NCO%id,'dthck_dt_tavg',varid)
-    if (status .eq. nf90_noerr) then
-       data%geometry%dthck_dt_tavg = data%geometry%dthck_dt_tavg + factor * data%geometry%dthck_dt
-    end if
-
     ! accumulate gl_flux
     status = parallel_inq_varid(NCO%id,'gl_flux_tavg',varid)
     if (status .eq. nf90_noerr) then
@@ -8780,12 +8530,6 @@ contains
     status = parallel_inq_varid(NCO%id,'calving_rate_tavg',varid)
     if (status .eq. nf90_noerr) then
        data%calving%calving_rate_tavg = 0.
-    end if
-
-    ! reset dthck_dt
-    status = parallel_inq_varid(NCO%id,'dthck_dt_tavg',varid)
-    if (status .eq. nf90_noerr) then
-       data%geometry%dthck_dt_tavg = 0.
     end if
 
     ! reset gl_flux
@@ -9321,28 +9065,6 @@ contains
     data%inversion%bmlt_float_inversion = inarray/(scyr)
   end subroutine glide_set_bmlt_float_inversion
 
-  subroutine glide_get_bmlt_float_prescribed(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = (scyr)*(data%inversion%bmlt_float_prescribed)
-  end subroutine glide_get_bmlt_float_prescribed
-
-  subroutine glide_set_bmlt_float_prescribed(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%inversion%bmlt_float_prescribed = inarray/(scyr)
-  end subroutine glide_set_bmlt_float_prescribed
-
   subroutine glide_get_bmlt_ground(data,outarray)
     use glimmer_scales
     use glimmer_paramets
@@ -9838,28 +9560,6 @@ contains
     data%geometry%dthck_dt = inarray/(scyr)
   end subroutine glide_set_dthck_dt
 
-  subroutine glide_get_dthck_dt_inversion(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = (scyr)*(data%inversion%dthck_dt_inversion)
-  end subroutine glide_get_dthck_dt_inversion
-
-  subroutine glide_set_dthck_dt_inversion(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%inversion%dthck_dt_inversion = inarray/(scyr)
-  end subroutine glide_set_dthck_dt_inversion
-
   subroutine glide_get_dthckdtm(data,outarray)
     use glimmer_scales
     use glimmer_paramets
@@ -9903,28 +9603,6 @@ contains
 
     data%geomderv%dusrfdtm = inarray/(scale_acab)
   end subroutine glide_set_dusrfdtm
-
-  subroutine glide_get_dynbcmask(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    integer, dimension(:,:), intent(out) :: outarray
-
-    outarray = data%velocity%dynbcmask
-  end subroutine glide_get_dynbcmask
-
-  subroutine glide_set_dynbcmask(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    integer, dimension(:,:), intent(in) :: inarray
-
-    data%velocity%dynbcmask = inarray
-  end subroutine glide_set_dynbcmask
 
   subroutine glide_get_effecpress(data,outarray)
     use glimmer_scales
@@ -10508,28 +10186,6 @@ contains
 
     data%inversion%powerlaw_c_inversion = inarray
   end subroutine glide_set_powerlaw_c_inversion
-
-  subroutine glide_get_powerlaw_c_prescribed(data,outarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    real(dp), dimension(:,:), intent(out) :: outarray
-
-    outarray = data%inversion%powerlaw_c_prescribed
-  end subroutine glide_get_powerlaw_c_prescribed
-
-  subroutine glide_set_powerlaw_c_prescribed(data,inarray)
-    use glimmer_scales
-    use glimmer_paramets
-    use glide_types
-    implicit none
-    type(glide_global_type) :: data
-    real(dp), dimension(:,:), intent(in) :: inarray
-
-    data%inversion%powerlaw_c_prescribed = inarray
-  end subroutine glide_set_powerlaw_c_prescribed
 
   subroutine glide_get_relx(data,outarray)
     use glimmer_scales
