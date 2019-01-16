@@ -704,10 +704,6 @@ contains
                params%instances(instance_index)%bmlt_float(:,:) * &
                params%tstep_mbal * hours2seconds / 1000.d0
 
-          params%instances(instance_index)%bmlt_float(:,:) = &
-               params%instances(instance_index)%bmlt_float(:,:) * &
-               params%tstep_mbal * hours2seconds / 1000.d0
-
           if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glad time step, instance', instance_index
           call glad_i_tstep_gcm(time, params%instances(instance_index), icets)
 
