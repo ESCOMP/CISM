@@ -204,6 +204,8 @@ contains
                                 dx,               dy,    &  ! m
                                 sigma,                   &
                                 thklim,                  &  ! m
+                                efvs,                    &  ! Pa s
+                                acab,                    &  ! m/s
                                 thck,             relx,  &  ! m
                                 topg,             eus)      ! m
 
@@ -265,6 +267,8 @@ contains
     real(dp), intent(in)                    :: dx, dy            !> grid cell size in x and y directions (m)
     real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
     real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), dimension(:,:,:), intent(in)  :: efvs              !> effective viscosity (Pa s)
+    real(dp), dimension(:,:), intent(in)    :: acab              !> mass balance (m/s)
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography (m)
     real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography (m)
@@ -277,6 +281,10 @@ contains
                            ! Note: number of ice layers = nz-1
     integer :: i, j, k, n
     integer :: ii, jj
+
+    real(dp), dimension(:,:,:), allocatable ::  &
+         eps_max,                & ! maximum principal strain rate
+         d_damage_dt               ! rate of change of damage scalar (1/s)
 
     real(dp), dimension(:,:), allocatable ::  &
          thck_calving_front,     & ! effective ice thickness at the calving front
@@ -318,9 +326,11 @@ contains
          frac_lateral,         & ! lateral_rate / lateral_rate_max 
          areafrac,             & ! fractional ice-covered area in a calving_front cell
          dthck,                & ! thickness change (m)
-         d_damage_dt,          & ! rate of change of damage scalar (1/s)
          thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
-         factor                  ! factor in quadratic formula
+         factor,               & ! factor in quadratic formula
+         beta,                 & ! flow law exponent anisotropy parameter
+         nstar,                & ! effective flow law exponent
+         szero                   ! ratio of hydrostatic to tensile stress
 
     real(dp), parameter :: &
          thinning_limit = 0.99d0  ! When ice not originally on the calving front is allowed to thin,
@@ -380,6 +390,7 @@ contains
     allocate (thck_calving_front(nx,ny))
     allocate (thck_init(nx,ny))
     allocate (marine_cliff_mask(nx,ny))
+    allocate (d_damage_dt(nz,nx,ny))
 
     !WHL - debug
     allocate(calving_thck_init(nx,ny))
@@ -591,11 +602,30 @@ contains
           ! Note: The damage is formally a 3D field, which makes it easier to advect, even though
           !       (in the current scheme) the damage source term is uniform in each column.
 
+          ! Allocate strain rate eigenvalue matrix
+          allocate(eps_max(nz,nx,ny))
+
           do j = 2, ny-1
              do i = 2, nx-1
                 if (floating_mask(i,j) == 1) then
-                   d_damage_dt = calving%damage_constant * calving%tau_eff(i,j)  ! damage_constant has units of s^{-1}/(Pa)
-                   calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt * dt
+                   ! Compute the ratio of the principal stresses (equivalent to the ratio of the
+                   ! principal strain rates)
+                   beta = calving%tau_eigen2(i,j) / calving%tau_eigen1(i,j)
+
+                   ! Find the max principal strain rate using Glen's Flow Law
+                   eps_max(:,i,j) = calving%tau_eigen1(i,j) / (2.0d0 * efvs(:,i,j))
+
+                   ! Compute the effective flow law exponent
+                   nstar = 12.0d0*(1.0d0+beta+beta**2) / (4.0d0*(1.0d0+beta+beta**2)+6.0d0*beta**2)
+
+                   ! Compute the hydrostatic to tensile stress ratio
+                   szero = rhoi*(rhoo-rhoi)*grav*thck(i,j)/(2.0d0*calving%tau_eigen1(i,j)*rhoo)
+
+                   ! Prognose damage following Bassis & Ma 2015
+                   d_damage_dt(:,i,j) = (nstar*(1.0d0-szero)*eps_max(:,i,j) &
+                                         - acab(i,j)/thck(i,j)) * calving%damage(:,i,j)
+!                   d_damage_dt = calving%damage_constant * calving%tau_eff(i,j)  ! damage_constant has units of s^{-1}/(Pa)
+                   calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt(:,i,j) * dt
                    calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
                    calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
                 else  ! set damage to zero for grounded ice
@@ -1375,11 +1405,13 @@ contains
     deallocate (thck_calving_front)
     deallocate (thck_init)
     deallocate (marine_cliff_mask)
+    deallocate (d_damage_dt)
 
     if (allocated(calving_thck_init)) deallocate(calving_thck_init)
     if (allocated(damage_column)) deallocate(damage_column)
     if (allocated(tau1)) deallocate(tau1)
     if (allocated(tau2)) deallocate(tau2)
+    if (allocated(eps_max)) deallocate(eps_max)
 
   end subroutine glissade_calve_ice
 

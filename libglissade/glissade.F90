@@ -2007,7 +2007,7 @@ contains
 
     use parallel
 
-    use glimmer_paramets, only: thk0, tim0, len0
+    use glimmer_paramets, only: thk0, tim0, len0, evs0
     use glissade_calving, only: glissade_calve_ice
     use glide_mask, only: glide_set_mask
 
@@ -2057,6 +2057,8 @@ contains
                             model%numerics%dns*len0,           &        ! m
                             model%numerics%sigma,              &
                             model%numerics%thklim*thk0,        &        ! m
+                            model%stress%efvs*evs0,            &        ! Pa s
+                            model%climate%acab*thk0/tim0,      &        ! m/s
                             thck_unscaled,                     &        ! m
                             model%isostasy%relx*thk0,          &        ! m
                             model%geometry%topg*thk0,          &        ! m
