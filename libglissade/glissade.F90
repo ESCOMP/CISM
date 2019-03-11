@@ -1376,18 +1376,18 @@ contains
        ! MJH: I put the no thickness evolution option here so that it is still possible 
        !      (but not required) to use IR to advect temperature when thickness evolution is turned off.
        ! TODO  MJH If we really want to support no evolution, then we may want to implement it so that IR does not occur 
-       !       at all - right now a run can fail because of a CFL violation in IR even if evolution is turned off.  Do we want
-       !       to support temperature evolution without thickness evolution?  If so, then the current implementation may be preferred approach.
+       !       at all - right now a run can fail because of a CFL violation in IR even if evolution is turned off.
+       !       Do we want to support temperature evolution without thickness evolution?
+       !       If so, then the current implementation may be preferred approach.
 
        call t_startf('inc_remap_driver')
 
-       if (verbose_glissade .and. main_task) print *, 'Compute dH/dt'
+       if (verbose_glissade .and. main_task) print*, 'Compute dH/dt'
 
        call t_startf('glissade_transport_driver')
 
        ! ------------------------------------------------------------------------
        ! Compute some masks prior to horizontal transport.
-       ! TODO - Remove this call?  Masks were previously needed for inversion, but no longer.
        ! ------------------------------------------------------------------------
 
        call glissade_get_masks(ewn,                      nsn,              &
@@ -1526,6 +1526,19 @@ contains
 
        enddo     ! subcycling of transport
 
+       if (verbose_inversion .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'After glissade_transport_driver, thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
        !-------------------------------------------------------------------------
        ! Prepare the surface and basal mass balance terms.
        ! Note: The basal mass balance has been computed in subroutine glissade_bmlt_float_solve.
@@ -1641,7 +1654,8 @@ contains
              nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
           endif
 
-          if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
+          if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. &
+              model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
              if (model%numerics%time < model%inversion%wean_bmlt_float_tend) then
                 !WHL - Replaced linear ramp with an exponential ramp
 !                nudging_factor = (model%inversion%wean_bmlt_float_tend - model%numerics%time) &
@@ -1691,22 +1705,8 @@ contains
                                ocean_mask = ocean_mask,                    &
                                which_ho_calving_front = model%options%which_ho_calving_front, &
                                calving_front_mask = calving_front_mask,    &
-                               thck_calving_front = thck_calving_front)
-
-       ! Compute the effective fractional area of calving_front cells.
-
-       do j = 1, nsn
-          do i = 1, ewn
-             if (calving_front_mask(i,j) == 1 .and. thck_calving_front(i,j) > 0.0d0) then
-                effective_areafrac(i,j) = thck_unscaled(i,j) / thck_calving_front(i,j)
-                effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
-             elseif (ocean_mask(i,j) == 1) then
-                effective_areafrac(i,j) = 0.0d0  ! acab and bmlt not applied to ice-free ocean cells
-             else  ! non-CF ice-covered cells and/or land cells
-                effective_areafrac(i,j) = 1.0d0
-             endif
-          enddo
-       enddo
+                               thck_calving_front = thck_calving_front,    &
+                               effective_areafrac = effective_areafrac)
 
        if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 

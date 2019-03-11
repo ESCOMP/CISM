@@ -48,6 +48,7 @@ module glissade_inversion
   !-----------------------------------------------------------------------------
 
     logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .true.
 
     real(dp), parameter :: eps08 = 1.0d-08  ! small number
 
@@ -159,6 +160,7 @@ contains
        thck_flotation(:,:) = 0.0d0
        model%geometry%thck_obs(:,:) = 0.0d0
 
+       !TODO - Write a subroutine to compute thck, given usrf, topg, and eus?
        where (model%geometry%thck > 0.0d0)  ! ice is present
           where (model%geometry%topg - model%climate%eus < 0.0d0)  ! marine-based ice
              thck_flotation = -(rhoo/rhoi) * (model%geometry%topg - model%climate%eus)
@@ -221,6 +223,7 @@ contains
 
           ! Reset usrf_obs to be consistent with thck_obs.
           ! (usrf itself will be reset later in glissade_initialise)
+          !TODO - Use glide_calclsrf/usrf instead
           where (model%geometry%topg - model%climate%eus < (-rhoi/rhoo) * model%geometry%thck_obs)
              model%geometry%usrf_obs = (1.0d0 - rhoi/rhoo) * model%geometry%thck_obs  ! floating
           elsewhere
@@ -422,7 +425,11 @@ contains
          topg_unscaled,        & ! bedrock topography (m)
          lsrf_new_unscaled,    & ! expected new lower surface elevation (m)
          usrf_new_unscaled,    & ! expected new upper surface elevation (m)
-         bmlt_float_new          ! newly computed value of bmlt_float (m/s)
+         bmlt_float_new,       & ! newly computed value of bmlt_float (m/s)
+         correction              ! correction term in range [-1,1]
+
+    !WHL - Make this a config parameter?
+    real(dp) :: correction_time_scale = 2.0d0    ! time scale (yr) for correction term proportional to dH/dt
 
     integer :: i, j
     integer :: ewn, nsn
@@ -514,8 +521,6 @@ contains
        endif  ! which_ho_ground
 
 
-
-
        !WHL - debug
        if (verbose_inversion .and. this_rank == rtest) then
           i = itest
@@ -524,26 +529,32 @@ contains
           print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
           print*, 'usrf (m), usrf_obs (m), new bmlt_float (m/yr):', usrf_new_unscaled(i,j), &
                model%geometry%usrf_obs(i,j)*thk0, bmlt_float_new(i,j)*scyr
-          print*, ' '
-       endif
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, ' '
           print*, 'bmlt_float old value, new value, nudging factor:', &
                model%inversion%bmlt_float_inversion(i,j)*scyr, bmlt_float_new(i,j)*scyr, nudging_factor
+          print*, ' '
+          print*, 'new bmlt_float inversion, limited by f_ground_cell (m/yr):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') bmlt_float_new(i,j)*scyr
+             enddo
+             write(6,*) ' '
+          enddo
        endif
-
-       ! Based on nudging_factor (a number between 0 and 1), take a weighted average of the new value and the saved value.
-       ! Note: When bmlt_float_new = 0 (e.g., because ice has grounded), we will average in a zero value,
-       !        but bmlt_float_inversion can still be nonzero from averaging in earlier values from when the ice was floating.
-       !       When the nudging factor is small (close to 0), abrupt changes in f_ground_cell will have
-       !        a relatively small effect on bmlt_float_inversion, because bmlt_float_inversion effectively
-       !        weighs f_ground_cell over many time steps.
 
        model%inversion%bmlt_float_inversion(:,:) = nudging_factor  * bmlt_float_new(:,:) &
                                         + (1.0d0 - nudging_factor) * model%inversion%bmlt_float_inversion(:,:)
+
+
+       ! Adjust bmlt_float_inversion if dH/dt is substantial.
+       ! This term damps cycling due to perturbations in m lagging perturbations in H.
+       !TODO - Combine with nudging_factor above?
+
+       correction(:,:) = 0.0d0
+
+       where (bmlt_float_new /= 0.0d0)
+          correction = model%geometry%dthck_dt * (model%numerics%dt * tim0/scyr) / correction_time_scale
+          model%inversion%bmlt_float_inversion = model%inversion%bmlt_float_inversion + correction
+       endwhere
 
        if (verbose_inversion .and. this_rank == rtest) then
           i = itest
@@ -566,7 +577,23 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'limited bmlt_float inversion (m/yr):'
+          print*, 'dH/dt (m/yr):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') model%geometry%dthck_dt(i,j)*scyr
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'correction term:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') correction(i,j)*scyr
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'nudged bmlt_float inversion (m/yr):'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(f10.4)',advance='no') model%inversion%bmlt_float_inversion(i,j)*scyr
@@ -983,7 +1010,7 @@ contains
     else
 
        ! Determine cells for inversion using floating_mask
-       where (land_mask == 1 .or. floating_mask == 1)
+       where (land_mask == 1 .or. (ice_mask == 1 .and. floating_mask == 0))
           powerlaw_c_inversion_mask = 1
        elsewhere
           powerlaw_c_inversion_mask = 0
@@ -1255,7 +1282,7 @@ contains
          floating_mask           ! = 1 where ice is present and floating, else = 0
 
     real(dp), dimension(nx,ny), intent(out) ::  &
-         bmlt_float_new          ! new value of bmlt_float_inversion, based on current ice geometry
+         bmlt_float_new          ! new value of bmlt_float_inversion (m/s), based on current ice geometry
 
     ! local variables
 
@@ -1275,7 +1302,8 @@ contains
 
     character(len=100) :: message
 
-!!    real(dp), parameter :: max_thck_above_flotation = 10.0d0  ! max of (H - Hf) when restoring grounded ice
+    real(dp) :: &
+         dthck          ! thck - thck_target
 
     ! For floating cells, adjust the basal melt rate (or freezing rate, if bmlt < 0)
     !  so as to restore the upper surface to a target based on observations.
@@ -1359,9 +1387,6 @@ contains
                 thck_target(i,j) = min(thck_target(i,j), &
                                        thck_flotation(i,j) + inversion%bmlt_max_thck_above_flotation*thk0)
 
-                ! If the ice is already thicker than the target, do not thin it.
-                thck_target(i,j) = max(thck_target(i,j), thck(i,j))
-
              else  ! floating target
                 thck_target(i,j) = usrf_obs(i,j) * rhoo/(rhoo - rhoi)  ! target is the observed thickness
                 thck_target(i,j) = min(thck_target(i,j), thck_flotation(i,j) - inversion%thck_flotation_buffer*thk0)
@@ -1369,15 +1394,34 @@ contains
 
              thck_target(i,j) = max(thck_target(i,j), 0.0d0)
 
-             bmlt_float_new(i,j) = (thck(i,j) - thck_target(i,j)) / dt
+             dthck = thck(i,j) - thck_target(i,j)
+
+             !WHL - debug - Some cells are thinning dynamically, and it requires a very large freezing rate
+             !               (bmlt_float < 0) to restore them to the target thickness.
+             !              For these cells, limit the freezing rate to a prescribed maximum, thus allowing
+             !               the cells to remain thinner than the target.
+             ! Note: inversion%bmlt_freeze_max has been scaled to have units of m/s
+
+             if (inversion%bmlt_freeze_max*scyr > eps08) then
+                if (dthck < 0.0d0) then
+                   ! Reduces to -bmlt_float_freeze_max when dthck/dt is large, and to dthck/dt when dthck/dt is small.
+                   ! Minus sign because bmlt_float is positive for melting
+                   bmlt_float_new(i,j) = -inversion%bmlt_freeze_max * &
+                        (1.0d0 - exp((dthck/dt)/inversion%bmlt_freeze_max))
+                else
+                   bmlt_float_new(i,j) = dthck / dt
+                endif
+             else
+                bmlt_float_new(i,j) = dthck / dt
+             endif
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'Invert for bmlt_float_inversion: rank, i, j =', rtest, itest, jtest
                 print*, 'topg - eus, usrf_obs:', topg(i,j) - eus, usrf_obs(i,j)
-                print*, 'thck, buffer, thck_target, bmlt_float:', & 
-                     thck(i,j), inversion%thck_flotation_buffer, thck_target(i,j), bmlt_float_new(i,j)*scyr
+                print*, 'thck, buffer, thck_target:', thck(i,j), inversion%thck_flotation_buffer, thck_target(i,j)
+                print*, 'dthck/dt, bmlt_float_new:', (dthck/dt)*scyr, bmlt_float_new(i,j)*scyr
              endif
 
           endif   ! bmlt_float_mask = 1
@@ -1450,7 +1494,7 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'new bmlt_float inversion (m/yr):'
+       print*, 'new (unlimited) bmlt_float inversion (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.4)',advance='no') bmlt_float_new(i,j)*scyr

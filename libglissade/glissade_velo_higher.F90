@@ -793,6 +793,8 @@
                                 ! 1 = apply local value of driving stress at each vertex
        whichassemble_bfric, &   ! 0 = standard finite element assembly
                                 ! 1 = apply local value of basal friction at each vertex
+       whichassemble_lateral, & ! 0 = standard finite element assembly
+                                ! 1 = apply local value of thck and usrf at each marine edge
        whichcalving_front,  &   ! option for subgrid calving front scheme (either on or off)
        whichground,  &          ! option for computing grounded fraction of each cell
        whichflotation_function,&! option for computing flotation function at and near each vertex
@@ -1102,6 +1104,7 @@
      whichassemble_beta   = model%options%which_ho_assemble_beta
      whichassemble_taud   = model%options%which_ho_assemble_taud
      whichassemble_bfric  = model%options%which_ho_assemble_bfric
+     whichassemble_lateral= model%options%which_ho_assemble_lateral
      whichcalving_front   = model%options%which_ho_calving_front
      whichground          = model%options%which_ho_ground
      whichflotation_function = model%options%which_ho_flotation_function
@@ -1470,10 +1473,11 @@
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
     ! (5) active_ice_mask = 1 for dynamically active cells, else = 0
-    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0
-    !     With the subgrid calving front scheme, all cells with ice_mask = 1 are active, unless they lie on the
-    !      calving front and have thck <= thck_calving_front. Here, thck_calving_front is the effective thickness
-    !      defined by adjacent cells not on the calving front. 
+    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0.
+    !     With subgrid calving front scheme option 1, all cells with ice_mask = 1 are active,
+    !      except for calving-front cells with thck < thck_calving_front.
+    !      (Here, thck_calving_front is defined by adjacent cells not on the calving front.)
+    !
     ! Note: There is a subtle difference between the active_ice_mask and active_cell array,
     !       aside from the fortran type (integer v. logical).
     !       The condition for active_cell = .true. is (1) active_ice_mask = 1, and 
@@ -1504,7 +1508,7 @@
     !        prevents abrupt changes in stagthck when these cells activate.
     !------------------------------------------------------------------------------
 
-    ! Make a temporary array in which thck is replaced by thck_calving_front in CF cells.
+    ! Make a temporary array in which thck is replaced by thck_calving_front in inactive CF cells.
     ! This will give a more accurate ice thickness and flotation function in CF cells.
 
     thck_adjusted = thck
@@ -2152,10 +2156,12 @@
     call load_vector_lateral_bc(nx,               ny,              &
                                 nz,               sigma,           &
                                 nhalo,                             &
+                                whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
                                 calving_front_mask,                &
                                 active_cell,                       &
                                 xVertex,          yVertex,         &
+                                usrf,             thck,            &
                                 stagusrf,         stagthck,        &
                                 loadu,            loadv)
     call t_stopf('glissade_load_vector_lateral_bc')
@@ -2232,6 +2238,26 @@
        enddo
 
        if (solve_2d) then
+
+          print*, ' '
+          print*, 'loadu_2d (lateral term only), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.2)',advance='no') loadu_2d(i,j) - taudx(i,j) *dx*dy/vol0
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'loadv_2d (lateral term only), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.2)',advance='no') loadv_2d(i,j) - taudy(i,j) *dx*dy/vol0
+             enddo
+             write(6,*) ' '
+          enddo
 
           print*, ' '
           print*, 'loadu_2d, itest, jtest, rank =', itest, jtest, rtest
@@ -2331,7 +2357,7 @@
                 write(6,'(f10.4)',advance='no') usrf(i,j)
              enddo
              write(6,*) ' '
-          enddo          
+          enddo
 
           print*, ' '
           print*, 'thck field, itest, jtest, rank =', itest, jtest, rtest
@@ -2355,19 +2381,7 @@
                 write(6,'(f10.4)',advance='no') topg(i,j)
              enddo
              write(6,*) ' '
-          enddo          
-
-          print*, ' '
-          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') active_ice_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
+          enddo
 
           print*, ' '
           print*, 'ice_mask, itest, jtest, rank =', itest, jtest, rtest
@@ -2379,19 +2393,7 @@
                 write(6,'(i10)',advance='no') ice_mask(i,j)
              enddo
              write(6,*) ' '
-          enddo          
-
-          print*, ' '
-          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo          
+          enddo
 
           print*, ' '
           print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
@@ -2403,7 +2405,7 @@
                 write(6,'(i10)',advance='no') floating_mask(i,j)
              enddo
              write(6,*) ' '
-          enddo          
+          enddo
 
           print*, ' '
           print*, 'ocean_mask, itest, jtest, rank =', itest, jtest, rtest
@@ -2415,7 +2417,41 @@
                 write(6,'(i10)',advance='no') ocean_mask(i,j)
              enddo
              write(6,*) ' '
-          enddo          
+          enddo
+
+          print*, ' '
+          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') active_ice_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') calving_front_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') thck_calving_front(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
 
           print*, ' '
           print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
@@ -2427,7 +2463,7 @@
                 write(6,'(f10.4)',advance='no') f_flotation(i,j)
              enddo
              write(6,*) ' '
-          enddo          
+          enddo
 
           print*, ' '
           print*, 'f_ground_cell, itest, jtest, rank =', itest, jtest, rtest
@@ -2502,7 +2538,7 @@
           enddo
 
           !WHL - debug - Skip the next few fields for now
-!!          go to 500
+          go to 500
 
           print*, ' '
           print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
@@ -2552,8 +2588,6 @@
              write(6,*) ' '
           enddo
 
-!!500       continue
-
           print*, ' '
           print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2593,6 +2627,8 @@
              enddo
              write(6,*) ' '
           enddo
+
+ 500       continue
 
           ! Uncomment for inversion runs
 !          print*, ' '
@@ -2856,7 +2892,7 @@
 
           ! Assemble the matrix
           !TODO - Different calls for SSA, L1L2 and DIVA?
-          
+
           call assemble_stiffness_matrix_2d(nx,               ny,              &
                                             nz,                                &
                                             sigma,            stagsigma,       &
@@ -2872,7 +2908,7 @@
                                             Auu_2d,           Auv_2d,          &
                                             Avu_2d,           Avv_2d,          &
                                             dusrf_dx,         dusrf_dy,        &
-                                            thck,                              &          
+                                            thck,                              &
                                             btractx,          btracty,         &
                                             omega_k,          omega,   &
                                             efvs_qp_3d)
@@ -4674,11 +4710,13 @@
   subroutine load_vector_lateral_bc(nx,               ny,              &
                                     nz,               sigma,           &
                                     nhalo,                             &
+                                    whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
                                     calving_front_mask,                &
                                     active_cell,                       &
                                     xVertex,          yVertex,         &
+                                    usrf,             thck,            &
                                     stagusrf,         stagthck,        &
                                     loadu,            loadv)
 
@@ -4686,7 +4724,9 @@
        nx, ny,                  &    ! horizontal grid dimensions
        nz,                      &    ! number of vertical levels at which velocity is computed
                                      ! Note: the number of elements per column is nz-1
-       nhalo                         ! number of halo layers
+       nhalo,                   &    ! number of halo layers
+       whichassemble_lateral         ! = 0 for standard finite element computation of lateral load terms
+                                     ! = 1 for computation that uses usrf and thck of the cell containing the marine edge
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
@@ -4702,6 +4742,10 @@
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+       usrf,            & ! upper surface elevation (m) on ice grid
+       thck               ! ice thickness (m) on ice grid
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        stagusrf,        & ! upper surface elevation (m) on staggered grid
@@ -4726,7 +4770,7 @@
     do i = nhalo+1, nx-nhalo+1
        
        if ((verbose_shelf .or. verbose_load) .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-          print*, 'i, j =', i, j
+          print*, 'rank, i, j =', this_rank, i, j
           print*, 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
           print*, 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
           print*, 'calving_front_mask (i-1:i,j)  =', calving_front_mask(i-1:i, j)
@@ -4742,8 +4786,10 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   whichassemble_lateral,            &
                                    'west',                           &
                                    i,               j,               &
+                                   usrf,            thck,            &
                                    stagusrf,        stagthck,        &
                                    xVertex,         yVertex,         &
                                    loadu,           loadv)
@@ -4754,8 +4800,10 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   whichassemble_lateral,            &
                                    'east',                           &
                                    i,               j,               &
+                                   usrf,            thck,            &
                                    stagusrf,        stagthck,        &
                                    xVertex,         yVertex,         &
                                    loadu,           loadv)
@@ -4766,8 +4814,10 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   whichassemble_lateral,            &
                                    'south',                          &
                                    i,               j,               &
+                                   usrf,            thck,            &
                                    stagusrf,        stagthck,        &
                                    xVertex,         yVertex,         &
                                    loadu,           loadv)
@@ -4778,8 +4828,10 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   whichassemble_lateral,            &
                                    'north',                          &
                                    i,               j,               &
+                                   usrf,            thck,            &
                                    stagusrf,        stagthck,        &
                                    xVertex,         yVertex,         &
                                    loadu,           loadv)
@@ -4796,8 +4848,10 @@
 
   subroutine lateral_shelf_bc(nx,                  ny,              &
                               nz,                  sigma,           &
+                              whichassemble_lateral,                &
                               face,                                 &
                               iCell,               jCell,           &
+                              usrf,                thck,            &
                               stagusrf,            stagthck,        &
                               xVertex,             yVertex,         &
                               loadu,               loadv)
@@ -4840,6 +4894,8 @@
        nx, ny,                  &    ! horizontal grid dimensions
        nz,                      &    ! number of vertical levels at which velocity is computed
                                      ! Note: the number of elements per column is nz-1
+       whichassemble_lateral,   &    ! = 0 for standard finite element computation of lateral load terms
+                                     ! = 1 for computation that uses usrf and thck of the cell containing the marine edge
        iCell, jCell                  ! i and j indices for this cell
 
     character(len=*), intent(in) ::  &
@@ -4849,14 +4905,19 @@
        sigma                         ! sigma vertical coordinate
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
-       xVertex, yVertex   ! x and y coordinates of vertices
+       xVertex, yVertex              ! x and y coordinates of vertices
+
+    !Note: usrf and thck are used for local assembly; stagusrf and stagthck are used for standard assembly
+    real(dp), dimension(nx,ny), intent(in) ::  &
+       usrf,                      &  ! upper surface elevation (m) on ice grid
+       thck                          ! ice thickness (m) on ice grid (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stagusrf,          &  ! upper surface elevation (m) on staggered grid
-       stagthck              ! ice thickness (m) on staggered grid (m)
+       stagusrf,                  &  ! upper surface elevation (m) on staggered grid
+       stagthck                      ! ice thickness (m) on staggered grid (m)
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
-       loadu, loadv          ! load vector, divided into u and v components
+       loadu, loadv                  ! load vector, divided into u and v components
 
     !----------------------------------------------------------------
     ! Local variables
@@ -4882,6 +4943,11 @@
                           !  between the reference element and true element
 
     integer :: k, n, p
+
+    if (iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
+       print*, 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
+       print*, 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
+    endif
 
     ! Compute nodal geometry in a local xy reference system.
     ! Note: The local y direction is really the vertical direction.
@@ -5023,19 +5089,29 @@
 
           ! Evaluate the ice thickness and surface elevation at this quadrature point
 
-          h_qp = 0.d0
-          s_qp = 0.d0
-          do n = 1, nNodesPerElement_2d
-             h_qp = h_qp + phi_2d(n,p) * h(n)
-             s_qp = s_qp + phi_2d(n,p) * s(n)
-          enddo
+          if (whichassemble_lateral == HO_ASSEMBLE_LATERAL_LOCAL) then  ! use thck and usrf of the cell that owns the marine edge
 
-          if (verbose_shelf .and. this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
+             h_qp = thck(iCell,jCell)
+             s_qp = usrf(iCell,jCell)
+
+          else   ! standard finite-element assembly, use staggered thck and usrf at vertices
+
+             h_qp = 0.d0
+             s_qp = 0.d0
+             do n = 1, nNodesPerElement_2d
+                h_qp = h_qp + phi_2d(n,p) * h(n)
+                s_qp = s_qp + phi_2d(n,p) * s(n)
+             enddo
+
+          endif
+
+          if ( (verbose_shelf .or. verbose_load) .and. &
+               this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
              print*, ' '
+             print*, 'whichassemble_lateral =', whichassemble_lateral
              print*, 'Increment shelf load vector, i, j, face, k, p =', iCell, jCell, trim(face), k, p
              print*, 'h_qp, s_qp =', h_qp, s_qp
              print*, 'detJ/vol0 =', detJ/vol0
-             print*, 'grav =', grav
           endif
 
           ! Increment the load vector with the shelf water pressure contribution from 
@@ -5360,7 +5436,7 @@
                                           dusrf_dx,         dusrf_dy,        &
                                           thck,                              &
                                           btractx,          btracty,         &
-                                          omega_k,          omega,   &
+                                          omega_k,          omega,           &
                                           efvs_qp_3d)
   
     !----------------------------------------------------------------

@@ -213,6 +213,7 @@ contains
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr
     model%inversion%babc_dthck_dt_scale = model%inversion%babc_dthck_dt_scale / scyr
     model%inversion%bmlt_max_thck_above_flotation = model%inversion%bmlt_max_thck_above_flotation / thk0
+    model%inversion%bmlt_freeze_max = model%inversion%bmlt_freeze_max / scyr  ! convert m/yr to m/s
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
 
@@ -641,6 +642,7 @@ contains
     call GetValue(section, 'which_ho_assemble_beta',      model%options%which_ho_assemble_beta)
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
+    call GetValue(section, 'which_ho_assemble_lateral',   model%options%which_ho_assemble_lateral)
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
@@ -935,9 +937,13 @@ contains
          'standard finite-element assembly (glissade dycore)       ', &
          'use local basal friction at each vertex (glissade dycore)'  /)
 
+    character(len=*), dimension(0:1), parameter :: ho_whichassemble_lateral = (/ &
+         'standard finite-element assembly (glissade dycore)         ', &
+         'use local thck and usrf on each cell face (glissade dycore)'  /)
+
     character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization ', &
-         'subgrid calving front parameterization    ' /)
+         'no subgrid calving front parameterization      ', &
+         'subgrid calving front scheme; inactive CF cells' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
@@ -953,10 +959,11 @@ contains
          'weigh bmlt_float by floating fraction of cell', &
          'set bmlt_float = 0 in partly grounded cells  ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
-         'f_pattyn = (-rhow*b)/(rhoi*H)  ', &
-         '1/fpattyn = (rhoi*H)/(-rhow*b) ', &
-         'linear = -rhow*b - rhoi*H      ' /)
+    character(len=*), dimension(0:3), parameter :: ho_whichflotation_function = (/ &
+         'f_pattyn = (-rhoo*b)/(rhoi*H)       ', &
+         '1/fpattyn = (rhoi*H)/(-rhoo*b)      ', &
+         'linear = -b - (rhoi/rhoo)*H         ', &
+         'modified linear = -b - (rhoi/rhoo)*H' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -1523,6 +1530,14 @@ contains
              call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
+          write(message,*) 'ho_whichassemble_lateral  : ',model%options%which_ho_assemble_lateral,  &
+                            ho_whichassemble_lateral(model%options%which_ho_assemble_lateral)
+          call write_log(message)
+          if (model%options%which_ho_assemble_lateral < 0 .or. &
+              model%options%which_ho_assemble_lateral >= size(ho_whichassemble_lateral)) then
+             call write_log('Error, lateral-stress assembly option out of range for glissade dycore', GM_FATAL)
+          end if
+
           write(message,*) 'ho_whichcalving_front   : ',model%options%which_ho_calving_front,  &
                             ho_whichcalving_front(model%options%which_ho_calving_front)
           call write_log(message)
@@ -1759,6 +1774,7 @@ contains
     call GetValue(section, 'inversion_babc_time_smoothing', model%inversion%babc_time_smoothing)
     call GetValue(section, 'inversion_bmlt_max_thck_above_flotation', &
          model%inversion%bmlt_max_thck_above_flotation)
+    call GetValue(section, 'inversion_bmlt_freeze_max', model%inversion%bmlt_freeze_max)
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
     call GetValue(section, 'inversion_wean_bmlt_float_tstart', model%inversion%wean_bmlt_float_tstart)
@@ -1893,11 +1909,9 @@ contains
         model%options%whichcalving == EIGENCALVING) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-          model%options%which_ho_calving_front = HO_CALVING_FRONT_SUBGRID
-          write(message,*) 'Setting which_ho_calving_front =', HO_CALVING_FRONT_SUBGRID
-          call write_log(message)
-          write(message,*) 'Calving option ', model%options%whichcalving, ' is unstable without a subgrid calving front'
-          call write_log(message)
+          write(message,*) &
+               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
+          call write_log(message, GM_FATAL)
        endif
 
        if (model%calving%timescale <= 0.0d0) then
@@ -1910,7 +1924,7 @@ contains
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (.not.model%options%remove_icebergs) then
           model%options%remove_icebergs = .true.
-          write(message,*) 'Setting remove_icebergs = T for stability when using the calving_front subgrid scheme'
+          write(message,*) 'Setting remove_icebergs = T for stability when using subgrid calving_front scheme'
           call write_log(message)
        endif
     endif
@@ -2116,6 +2130,9 @@ contains
        call write_log(message)
        write(message,*) 'inversion max thck above flotation (m)       : ', &
             model%inversion%bmlt_max_thck_above_flotation
+       call write_log(message)
+       write(message,*) 'inversion max freezing rate (m/yr)           : ', &
+            model%inversion%bmlt_freeze_max
        call write_log(message)
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
