@@ -1745,7 +1745,7 @@ contains
     ! Remove ice in these cells, adding it to the calving field.
     ! Note: Inactive land-based cells are not considered to be icebergs.
     ! Note: Another exception is that we do not remove cells that are
-    !       (1) adjacent to at least one floating cell (sharing an edge), and
+    !       (1) adjacent to at least one ice-covered cell (sharing an edge), and
     !       (2) connected diagonally to active cells with the fill color.
     !       Such cells are considered part of the inactive calving front and are
     !        allowed to continue filling instead of calving.
@@ -1755,13 +1755,13 @@ contains
        do i = 2, nx-1
           if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
              if (  ( color(i-1,j+1)==fill_color .and. active_ice_mask(i-1,j+1)==1 .and. &
-                       (floating_mask(i-1,j)==1 .or. floating_mask(i,j+1)==1) ) &
+                       (ice_mask(i-1,j)==1 .or. ice_mask(i,j+1)==1) ) &
               .or. ( color(i+1,j+1)==fill_color .and. active_ice_mask(i+1,j+1)==1 .and. &
-                       (floating_mask(i+1,j)==1 .or. floating_mask(i,j+1)==1) ) &
+                       (ice_mask(i+1,j)==1 .or. ice_mask(i,j+1)==1) ) &
               .or. ( color(i-1,j-1)==fill_color .and. active_ice_mask(i-1,j-1)==1 .and. &
-                       (floating_mask(i-1,j)==1 .or. floating_mask(i,j-1)==1) ) &
+                       (ice_mask(i-1,j)==1 .or. ice_mask(i,j-1)==1) ) &
               .or. ( color(i+1,j-1)==fill_color .and. active_ice_mask(i+1,j-1)==1 .and. &
-                       (floating_mask(i+1,j)==1 .or. floating_mask(i,j-1)==1) ) ) then
+                       (ice_mask(i+1,j)==1 .or. ice_mask(i,j-1)==1) ) ) then
                 ! do nothing; this cell is part of the inactive calving front
              else  ! not part of the inactive calving front; calve as an iceberg
                 !WHL - debug
