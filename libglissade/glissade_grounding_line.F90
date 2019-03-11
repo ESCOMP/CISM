@@ -87,22 +87,26 @@
     !        and then both f_ground (at vertices) and f_ground_cell are computed by summing over quadrants.
     !        A GLP is applied not only to basal friction but also to basal melting and other processes near the GL.
     !
-    ! For options (1) and (2), there are three options for the flotation function:
+    ! For options (1) and (2), there are four options for the flotation function:
     ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
     !     Here, f_pattyn = (-rhoo*b)/(rhoi*H) as in Pattyn et al. (2006).
     ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn
     ! (2) HO_FLOTATION_FUNCTION_LINEAR: f_flotation = -b - (rhoi/rhoo)*H = ocean cavity thickness
     !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
-    ! All three functions are defined such that f <=0 for grounded ice and f > 0 for floating ice.
+    ! (3) HO_FLOTATION_FUNCTION_LINEARB: This is like (2), except that we do not extrapolate f_flotation
+    !     from ice-covered cells to ice-free ocean. Instead, we use the value of f_flotation in ice-free
+    !     ocean cells.
+    ! All flotation functions are defined such that f <= 0 for grounded ice and f > 0 for floating ice.
     ! For each option, land-based cells are assigned a large negative value, so that any vertices
     !  with land-based neighbors are strongly grounded.
     !
     ! We first compute f_flotation in all active ice-covered cells.
-    ! Then f_flotation is extrapolated to ice-free neighbors.  Thus, f_flotation has a physically
-    !   meaningful value (either computed directly, or extrapolated from a neighbor) in all four
-    !   cells surrounding each active vertex. (By definition, an active vertex is a vertex with
-    !   at least one active ice-covered neighbor.) Thus, we can interpolate f_flotation
-    !   within the staggered cell around each active vertex to compute f_ground at the vertex.
+    ! Then f_flotation is extrapolated to ice-free neighbors (except for option 3).
+    !   Thus, f_flotation has a physically meaningful value (either computed directly,
+    !   or extrapolated from a neighbor) in all four cells surrounding each active vertex.
+    !   (By definition, an active vertex has at least one active ice-covered neighbor.)
+    !   Thus, we can interpolate f_flotation within the staggered cell around each active vertex
+    !   to compute f_ground at the vertex.
     !
     ! The linear function (2) is the default.
     !
@@ -177,8 +181,10 @@
          cground            ! true if a cell is land and/or has grounded ice, else = false
 
     real(dp), parameter :: &
-         f_flotation_land_topg_min = 1.0d0   ! min value of (topg - eus) in f_flotation expression for land cells (m)
+         f_flotation_land_topg_min = 10.0d0    ! min value of (topg - eus) in f_flotation expression for land cells (m)
 
+    real(dp), parameter :: &
+         f_flotation_marine_min = 0.01d0       ! min magnitude (m) of f_flotation for marine based cells (topg < 0)
     logical :: filled       ! true if f_flotation has been filled by extrapolation
 
     !TODO - Test sensitivity to these values
@@ -262,18 +268,44 @@
           enddo
        enddo
 
+    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEARB) then
+
+       ! WHL - A new option similar to HO_FLOTATION_FUNCTION_LINEAR
+       ! The main difference is f_flotation is not extrapolated from ice-covered cells to ice-free ocean.
+       ! Instead, f_flotation = -(topg - eus) for ice-free ocean.
+
+       do j = 1, ny
+          do i = 1, nx
+             if (land_mask(i,j) == 1) then
+                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
+                topg_eus_diff = max((topg(i,j) - eus), f_flotation_land_topg_min)
+                f_flotation(i,j) = -topg_eus_diff
+             else
+                ! Note: f_flotation reduces to -(topg - eus) for ice-free ocean
+                f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
+                !WHL - Make sure f_flotation is not too close to 0, for reasons of numerical robustness.
+                !      If very close to 0, then make it slightly positive (i.e., barely floating)
+                if (abs(f_flotation(i,j)) < f_flotation_marine_min) f_flotation(i,j) = f_flotation_marine_min
+             endif
+          enddo
+       enddo
+
     endif  ! which_ho_flotation_function
 
-    ! In ice-free ocean cells, fill in f_flotation by extrapolation.
-    ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
-    !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
-    ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
-    !  (i.e., with at least one ice-filled or land-based neighbor cell) has physically sensible values
-    !  of f_flotation in all four neighbor cells, for purposes of interpolation.
+    ! Extrapolate f_flotation to ice-free ocean cells (except for the LINEARB option)
 
-    f_flotation_extrap(:,:) = f_flotation(:,:)
+    if (which_ho_flotation_function /= HO_FLOTATION_FUNCTION_LINEARB) then
 
-    do j = 2, ny-1
+       ! In ice-free ocean cells, fill in f_flotation by extrapolation.
+       ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
+       !  edge neighbors (if possible) or corner neighbors (if there are no ice-filled edge neighbors).
+       ! The reason for this fairly intricate calculation is to make sure that each vertex with vmask = 1
+       !  (i.e., with at least one ice-filled or land-based neighbor cell) has physically sensible values
+       !  of f_flotation in all four neighbor cells, for purposes of interpolation.
+
+       f_flotation_extrap(:,:) = f_flotation(:,:)
+
+       do j = 2, ny-1
        do i = 2, nx-1
           if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
 
@@ -312,23 +344,47 @@
              endif   ! not filled
 
           endif   ! ice_mask = 0
-       enddo   ! i
-    enddo  !j
+       enddo  ! i
+       enddo  ! j
 
-    ! halo update
-    call parallel_halo(f_flotation_extrap)
+       ! halo update
+       call parallel_halo(f_flotation_extrap)
 
-    ! copy the extrapolated array to the main f_flotation array
-    f_flotation(:,:) = f_flotation_extrap(:,:)
+       ! copy the extrapolated array to the main f_flotation array
+       f_flotation(:,:) = f_flotation_extrap(:,:)
+
+    endif   ! which_ho_flotation_function
 
     if (verbose_glp .and. this_rank == rtest) then
        i = itest; j = jtest
        print*, ' '
-       print*, 'rank, i, j =', this_rank, i, j
-       print*, 'f_flotation(i:i+1,j+1):', f_flotation(i:i+1,j+1)
-       print*, 'f_flotation(i:i+1,j)  :', f_flotation(i:i+1,j)
+       print*, 'thck, itest, jtest, rtest:', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'topg, itest, jtest, rtest:', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') topg(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') f_flotation(i,j)
+          enddo
+          print*, ' '
+       enddo
     endif
-
 
     ! initialize f_ground arrays
     f_ground(:,:) = 0.0d0
