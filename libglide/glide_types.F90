@@ -299,6 +299,9 @@ module glide_types
   integer, parameter :: HO_ASSEMBLE_BFRIC_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_BFRIC_LOCAL = 1
 
+  integer, parameter :: HO_ASSEMBLE_LATERAL_STANDARD = 0
+  integer, parameter :: HO_ASSEMBLE_LATERAL_LOCAL = 1
+
   integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
   integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
 
@@ -316,6 +319,7 @@ module glide_types
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
+  integer, parameter :: HO_FLOTATION_FUNCTION_LINEARB = 3
 
   integer, parameter :: HO_ICE_AGE_NONE = 0 
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
@@ -811,17 +815,26 @@ module glide_types
 
     integer :: which_ho_assemble_bfric = 1
 
-    !> Flag that describes how the basal friction heat flux is computed in the glissade finite-element calculation
+    !> Flag that describes how the basal friction heat flux is assembled in the glissade finite-element calculation
     !> \begin{description}
     !> \item[0] standard finite-element calculation summing over quadrature points
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
+    !> \end{description}
+
+    !TODO - Change default to option 1?  Choosing 0 for now so as not to change answers.
+    integer :: which_ho_assemble_lateral = 0
+
+    !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[0] standard finite-element calculation of thck and usrf at quadrature points
+    !> \item[1] apply local cell-center value of thck and usrf on each face
     !> \end{description}
 
     integer :: which_ho_calving_front = 0
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid calving front parameterization
+    !> \item[1] subgrid calving front parameterization with inactive CF cells
     !> \end{description}
 
     integer :: which_ho_ground = 0
@@ -855,6 +868,7 @@ module glide_types
     !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !> \item[3] Modified version of 2, without extrapolation to ice-free ocean
     !> \end{description}
 
     logical :: block_inception = .false.
@@ -1361,8 +1375,9 @@ module glide_types
 
      ! parameters for adjusting bmlt_float_inversion
      real(dp) ::  &
-          bmlt_max_thck_above_flotation = 1.0d0   !> cells with a grounded target are restored to no more than 
-                                                  !> thck_flotation + bmlt_max_thck_above_flotation
+          bmlt_max_thck_above_flotation = 1.0d0, & !> cells with a grounded target are restored to no more than
+                                                   !>  thck_flotation + bmlt_max_thck_above_flotation
+          bmlt_freeze_max = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
 
      ! parameters for initializing inversion fields
      real(dp) :: &
