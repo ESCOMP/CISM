@@ -948,13 +948,21 @@ module glissade_therm
                 if (verbose_column) then
                    print*, ' '
                    print*, 'Before prognostic temp, i, j =', ew, ns
+                   print*, ' '
+                   print*, 'bfricflx =', bfricflx(ew,ns)
+                   print*, 'dissip (deg/yr):'
+                   do k = 1, upn-1
+                      print*, k, dissip(k,ew,ns)*scyr
+                   enddo
+                   print*, ' '
                    print*, 'thck =', thck(ew,ns)
                    print*, 'Temp:'
                    do k = 0, upn
                       print*, k, temp(k,ew,ns)
                    enddo
                    print*, ' '
-                   print*, 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns)
+                   print*, 'bpmp =', bpmp(ew,ns)
+                   print*, 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
                    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
                       print*, ' '
                       print*, 'f_ground_cell, btemp_ground, btemp_float =', &
@@ -1071,7 +1079,7 @@ module glissade_therm
                       print*, k, temp(k,ew,ns)
                    enddo
                    print*, ' '
-                   print*, 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns)
+                   print*, 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
                    print*, ' '
                    print*, 'dTbot(ground) =', btemp_ground(ew,ns) - temp(upn-1,ew,ns)
                    print*, 'dTbot(float) =', btemp_float(ew,ns) - temp(upn-1,ew,ns)
@@ -1837,7 +1845,7 @@ module glissade_therm
 
     integer :: up, ew, ns
 
-    real(dp), parameter :: eps08 = 1.d-08     ! small number used to set T slightly less than bpmp - pmp_threshold
+    real(dp), parameter :: eps08 = 1.d-08     ! small number used to evaluate whether T > Tpmp
     real(dp), parameter :: eps11 = 1.d-11     ! smaller number used as a melt threshold
 
     bmlt_ground(:,:) = 0.0d0
@@ -1910,9 +1918,13 @@ module glissade_therm
              !  then set the basal temperature to a value less than bpmp.
              ! btemp will then be computed instead of prescribed during the next time step.
              ! Note: If using a nonzero pmp_threshold to diagnose whether the bed is thawed,
-             !       then we should set btemp to a temperature below this threshold.
-             !       But going too far below the threshold can lead to oscillations;
-             !        so go just slightly below the threshold.
+             !        then we should set btemp to a temperature below this threshold.
+             !       Going too far below the threshold can lead to oscillations.
+             !       Not going far enough below the threshold can also be a problem, since bpmp
+             !        evolves with thickness, and we don't want the ice to be diagnosed as thawed
+             !        during the next time step as a result of small bpmp changes.
+             !       As a compromise, try dropping btemp_ground to bpmp - 2.0*pmp_threshold.
+             !        (Unless pmp_threshold ~ 0, in which case we subtract a small positive constant)
              ! Note: Energy conservation is not violated here, because no energy is associated with
              !       the infinitesimally thin layer at the bed.
 
@@ -1924,9 +1936,11 @@ module glissade_therm
                 print*, 'bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
              endif
 
-             if (bmlt_ground(ew,ns) < 0.0d0 .and. bwat(ew,ns) == 0.0d0 .and. btemp_ground(ew,ns) >= bpmp(ew,ns)) then
+             if (bmlt_ground(ew,ns) < 0.0d0 .and. bwat(ew,ns) == 0.0d0 .and. &
+                  btemp_ground(ew,ns) >= (bpmp(ew,ns) - eps08)) then
 !!                btemp_ground(ew,ns) = temp(upn-1,ew,ns)
-                btemp_ground(ew,ns) = bpmp(ew,ns) - pmp_threshold - eps08
+                btemp_ground(ew,ns) = bpmp(ew,ns) - 2.0d0*pmp_threshold
+                btemp_ground(ew,ns) = min(btemp_ground(ew,ns), bpmp(ew,ns) - eps08)
                 bmlt_ground(ew,ns) = 0.0d0   ! Set freeze-on to zero since no water is present
 
                 if (verbose_therm .and. ew == itest .and. ns == jtest .and. this_rank == rtest) then
