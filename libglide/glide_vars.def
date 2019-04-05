@@ -573,6 +573,14 @@ data:          data%calving%damage(up,:,:)
 load:          1
 coordinates:   lon lat
 
+[damage_init]
+dimensions:    time, staglevel, y1, x1
+units:         unitless [0,1]
+long_name:     initial ice damage
+data:          data%calving%damage_init(up,:,:)
+load:          1
+coordinates:   lon lat
+
 [area_factor]
 dimensions:    time, y1, x1
 units:         unitless
@@ -639,6 +647,15 @@ dimensions:    time, y1, x1
 long_name:     mask
 units:         1
 data:          data%geometry%thkmask
+type:          int
+coordinates:   lon lat
+load:          1
+
+[const_thk_mask]
+dimensions:    time, y1, x1
+long_name:     mask
+units:         1
+data:          data%geometry%const_thk_mask
 type:          int
 coordinates:   lon lat
 load:          1

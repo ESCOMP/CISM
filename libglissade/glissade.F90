@@ -510,6 +510,11 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
+    ! Save the initial damage field
+    if (model%options%whichcalving == CALVING_DAMAGE .and.  model%options%damage_manufactured) then
+       model%calving%damage_init(:,:,:) = model%calving%damage(:,:,:)
+    endif
+
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
@@ -1683,6 +1688,15 @@ contains
           model%geometry%thck(:,:) = model%geometry%thck_old(:,:)
        endif
 
+       do i = 1, model%general%ewn
+          do j = 1, model%general%nsn
+             ! Enforce constant thickness where specified
+             if (model%geometry%const_thk_mask(i,j) == 1) then
+                model%geometry%thck(i,j) = model%geometry%thck_old(i,j)
+             endif
+          enddo
+       enddo
+
     end select
 
     !------------------------------------------------------------------------
@@ -2007,7 +2021,8 @@ contains
 
     use parallel
 
-    use glimmer_paramets, only: thk0, tim0, len0, evs0
+    use glimmer_physcon, only: scyr
+    use glimmer_paramets, only: thk0, vel0, tim0, len0, evs0
     use glissade_calving, only: glissade_calve_ice
     use glide_mask, only: glide_set_mask
 
@@ -2042,27 +2057,33 @@ contains
 
     thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
 
-    call glissade_calve_ice(model%options%whichcalving,        &
-                            model%options%calving_domain,      &
+    call glissade_calve_ice(model%options%whichcalving,           &
+                            model%options%calving_domain,         &
+                            model%options%damage_src,             &
+                            model%options%damage_floor,           &
                             model%options%which_ho_calving_front, &
-                            model%options%remove_icebergs,     &
-                            model%options%limit_marine_cliffs, &
-                            cull_calving_front,                &
-                            model%calving,                     &        ! calving object; includes calving_thck (m)
-                            model%numerics%idiag_local,        &
-                            model%numerics%jdiag_local,        &
-                            model%numerics%rdiag_local,        &
-                            model%numerics%dt*tim0,            &        ! s
-                            model%numerics%dew*len0,           &        ! m
-                            model%numerics%dns*len0,           &        ! m
-                            model%numerics%sigma,              &
-                            model%numerics%thklim*thk0,        &        ! m
-                            model%stress%efvs*evs0,            &        ! Pa s
-                            model%climate%acab*thk0/tim0,      &        ! m/s
-                            thck_unscaled,                     &        ! m
-                            model%isostasy%relx*thk0,          &        ! m
-                            model%geometry%topg*thk0,          &        ! m
-                            model%climate%eus*thk0)                     ! m
+                            model%options%remove_icebergs,        &
+                            model%options%limit_marine_cliffs,    &
+                            cull_calving_front,                   &
+                            model%options%damage_manufactured,    &
+                            model%options%damage_advect,          &
+                            model%calving,                        &   ! calving object; includes calving_thck (m)
+                            model%numerics%idiag_local,           &
+                            model%numerics%jdiag_local,           &
+                            model%numerics%rdiag_local,           &
+                            model%numerics%time*scyr,             &   ! s
+                            model%numerics%dt*tim0,               &   ! s
+                            model%numerics%dew*len0,              &   ! m
+                            model%numerics%dns*len0,              &   ! m
+                            model%numerics%sigma,                 &
+                            model%numerics%thklim*thk0,           &   ! m
+                            model%stress%efvs*evs0,               &   ! Pa s
+                            model%velocity%uvel*vel0,             &   ! m/s
+                            model%climate%acab*thk0/tim0,         &   ! m/s
+                            thck_unscaled,                        &   ! m
+                            model%isostasy%relx*thk0,             &   ! m
+                            model%geometry%topg*thk0,             &   ! m
+                            model%climate%eus*thk0)                   ! m
     
     ! Convert geometry%thck and calving%calving_thck to scaled model units
     model%geometry%thck(:,:) = thck_unscaled(:,:)/thk0

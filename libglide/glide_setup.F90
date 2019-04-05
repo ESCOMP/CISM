@@ -570,9 +570,13 @@ contains
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
+    call GetValue(section,'damage_src', model%options%damage_src)
+    call GetValue(section,'damage_floor', model%options%damage_floor)
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'damage_advect', model%options%damage_advect)
+    call GetValue(section,'damage_manufactured', model%options%damage_manufactured)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck',model%options%diag_minthck)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
@@ -777,6 +781,15 @@ contains
     character(len=*), dimension(0:1), parameter :: domain_calving = (/ &
          'calving only at the ocean edge             ',  &
          'calving in all cells where criterion is met'/)
+
+    character(len=*), dimension(0:2), parameter :: damage_src = (/ &
+         'no damage source               ',  &
+         'effective stress damage source ',  &
+         'bassis and ma damage source    '  /)
+
+    character(len=*), dimension(0:1), parameter :: damage_floor = (/ &
+         'zero damage floor ',  &
+         'nye damage floor  '  /)
 
     character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
          'write dmass/dt diagnostic in units of kg/s ',  &
@@ -1104,6 +1117,27 @@ contains
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
 
+    if (model%options%damage_src < 0 .or. model%options%damage_src >= size(damage_src)) then
+       call write_log('Error, damage_src out of range',GM_FATAL)
+    elseif (model%options%damage_src /= EFF_STRESS_DAMAGE_SRC &
+            .and. model%options%whichcalving /= CALVING_DAMAGE) then
+       write(message,*) 'WARNING: damage source type can be selected for damage marine margin only; user selection ignored'
+       call write_log(message, GM_WARNING)
+       model%options%damage_src = EFF_STRESS_DAMAGE_SRC
+    end if
+    write(message,*) 'damage_src              : ', model%options%damage_src, damage_src(model%options%damage_src)
+    call write_log(message)
+
+    if (model%options%damage_floor < 0 .or. model%options%damage_floor >= size(damage_floor)) then
+       call write_log('Error, damage_floor out of range',GM_FATAL)
+    elseif (model%options%damage_floor /= ZERO_DAMAGE_FLOOR .and. model%options%whichcalving /= CALVING_DAMAGE) then
+       write(message,*) 'WARNING: damage floor type can be selected for damage marine margin only; user selection ignored'
+       call write_log(message, GM_WARNING)
+       model%options%damage_floor = ZERO_DAMAGE_FLOOR
+    end if
+    write(message,*) 'damage_floor            : ', model%options%damage_floor, damage_floor(model%options%damage_floor)
+    call write_log(message)
+
     ! dycore-dependent calving options
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
@@ -1128,6 +1162,18 @@ contains
           call write_log(' Calving-front cells will not be culled at initialization')
        endif
 
+       if (model%options%damage_advect) then
+          call write_log(' Damage will advect')
+       else
+          call write_log(' Damage will not advect')
+       endif
+
+       if (model%options%damage_manufactured) then
+          call write_log(' Damage will use a manufactured solution')
+       else
+          call write_log(' Damage will evolve normally')
+       endif
+
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
           write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
           call write_log(message, GM_WARNING)
@@ -1144,7 +1190,9 @@ contains
        if (model%options%whichcalving == CALVING_GRID_MASK) then
           call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
        endif
-       if (model%options%whichcalving == CALVING_DAMAGE) then
+       if (model%options%whichcalving == CALVING_DAMAGE &
+           .or. model%options%damage_src /= EFF_STRESS_DAMAGE_SRC &
+           .or. model%options%damage_floor /= ZERO_DAMAGE_FLOOR) then
           call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
@@ -1818,6 +1866,23 @@ contains
           write(message,*) 'Setting remove_icebergs = T for stability when using the calving_front subgrid scheme'
           call write_log(message)
        endif
+
+       if (model%options%whichcalving == CALVING_DAMAGE .and. model%options%damage_manufactured) then
+          model%options%which_ho_calving_front = HO_CALVING_FRONT_NO_SUBGRID
+          write(message,*) 'Setting which_ho_calving_front =', HO_CALVING_FRONT_NO_SUBGRID
+          call write_log(message)
+          write(message,*) 'Manufactured damage calving option does not support subgrid calving front scheme'
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_DAMAGE) then
+          write(message,*) 'Subgrid calving front scheme chosen: damage will be converted into a lateral calving rate'
+          call write_log(message)
+       endif
+    endif
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID &
+        .and. model%options%whichcalving == CALVING_DAMAGE) then
+       write(message,*) 'Subgrid calving front scheme not chosen: ice will not calve based on damage'
+       call write_log(message)
     endif
 
     if (model%options%limit_marine_cliffs) then

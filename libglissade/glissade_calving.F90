@@ -194,18 +194,22 @@ contains
 
   subroutine glissade_calve_ice(which_calving,           &
                                 calving_domain,          &
+                                damage_src,              &
+                                damage_floor,            &
                                 which_ho_calving_front,  &
                                 remove_icebergs,         &
                                 limit_marine_cliffs,     &
                                 cull_calving_front,      &
+                                damage_manufactured,     &
+                                damage_advect,           &
                                 calving,                 &  ! calving derived type
                                 itest,   jtest,   rtest, &
-                                dt,                      &  ! s
+                                time,             dt,    &  ! s
                                 dx,               dy,    &  ! m
                                 sigma,                   &
                                 thklim,                  &  ! m
                                 efvs,                    &  ! Pa s
-                                acab,                    &  ! m/s
+                                uvel,             acab,  &  ! m/s
                                 thck,             relx,  &  ! m
                                 topg,             eus)      ! m
 
@@ -226,11 +230,20 @@ contains
                                                    !> = 1 if calving occurs everywhere the calving criterion is met
                                                    !> = 2 if calving occurs where criterion is met and there is a connected path
                                                    !>     to the ocean through other cells where the criterion is met
+    integer, intent(in) :: damage_src              !> option for type of damage src
+                                                   !> = 0 if no damage source
+                                                   !> = 1 for effective stress-based damage source
+                                                   !> = 2 for Bassis and Ma 2015 damage source
+    integer, intent(in) :: damage_floor            !> option for type of damage floor
+                                                   !> = 0 if zero floor
+                                                   !> = 1 if nye zero stress floor
     integer, intent(in) :: which_ho_calving_front  !> = 1 for subgrid calving-front scheme, else = 0
     logical, intent(in) :: remove_icebergs         !> if true, then remove icebergs after calving
     logical, intent(in) :: limit_marine_cliffs     !> if true, then limit the thickness of marine-based ice cliffs
     logical, intent(in) :: cull_calving_front      !> if true, then cull calving_front cells to improve model stability;
                                                    !> generally applied only at initialization
+    logical, intent(in) :: damage_manufactured     !> if true, use a manufactured solution for damage
+    logical, intent(in) :: damage_advect           !> if true, damage advects
 
     type(glide_calving), intent(inout) :: calving !> calving object
 
@@ -263,11 +276,13 @@ contains
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
     integer, intent(in) :: itest, jtest, rtest                   !> coordinates of diagnostic point
+    real(dp), intent(in)                    :: time              !> current model time (s)
     real(dp), intent(in)                    :: dt                !> model timestep (s)
     real(dp), intent(in)                    :: dx, dy            !> grid cell size in x and y directions (m)
     real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
     real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice (m)
     real(dp), dimension(:,:,:), intent(in)  :: efvs              !> effective viscosity (Pa s)
+    real(dp), dimension(:,:,:), intent(in)  :: uvel              !> ice velocity along x (m/s)
     real(dp), dimension(:,:), intent(in)    :: acab              !> mass balance (m/s)
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography (m)
@@ -284,16 +299,26 @@ contains
 
     real(dp), dimension(:,:,:), allocatable ::  &
          eps_max,                & ! maximum principal strain rate
-         d_damage_dt               ! rate of change of damage scalar (1/s)
+         source,                 & ! damage evolution source term
+         vel_exp,                & ! exponential used in computing manufactured damage
+         force,                  & ! forcing term used in computing manufactured damage
+         d_damage_dt,            & ! rate of change of damage scalar (1/s)
+         adv_term,               & ! advective term in manufactured damage solution
+         uvel_unstag,            & ! unstaggered x velocity (m/s)
+         efvs_eff                  ! effective ice viscosity everywhere (subgrid damage only)
 
     real(dp), dimension(:,:), allocatable ::  &
          thck_calving_front,     & ! effective ice thickness at the calving front
          thck_init,              & ! value of thck before calving
          tau1, tau2,             & ! tau_eigen1 and tau_eigen2 (Pa), modified for calving
-         damage_column             ! 2D vertically integrated scalar damage parameter
+         damage_column,          & ! 2D vertically integrated scalar damage parameter
+         thck_eff                  ! effective ice thickness everywhere (subgrid damage only)
 
     real(dp), dimension(:,:), allocatable ::  &
          calving_thck_init         ! debug diagnostic
+
+    real(dp), dimension(:), allocatable ::  &
+         hgl                       ! grounding line thickness (m), assuming primary ice flow along x
 
     ! basic masks
     integer, dimension(:,:), allocatable   ::  &
@@ -301,6 +326,7 @@ contains
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,              & ! = 1 where topg is at or above sea level, else = 0
+         grounding_line_mask,    & ! = 1 where ice is adjacent to the grounding line, else = 0
          active_ice_mask,        & ! = 1 for cells that are dynamically active, else = 0 
          calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
          marine_cliff_mask         ! = 1 where ice is grounded and marine-based and borders at least
@@ -328,9 +354,10 @@ contains
          dthck,                & ! thickness change (m)
          thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
          factor,               & ! factor in quadratic formula
-         beta,                 & ! flow law exponent anisotropy parameter
+         alpha,                & ! flow law exponent anisotropy parameter
          nstar,                & ! effective flow law exponent
-         szero                   ! ratio of hydrostatic to tensile stress
+         szero,                & ! ratio of hydrostatic to tensile stress
+         damage_nye              ! nye's zero stress damage
 
     real(dp), parameter :: &
          thinning_limit = 0.99d0  ! When ice not originally on the calving front is allowed to thin,
@@ -385,6 +412,7 @@ contains
     allocate (floating_mask(nx,ny))
     allocate (ocean_mask(nx,ny))
     allocate (land_mask(nx,ny))
+    allocate (grounding_line_mask(nx,ny))
     allocate (active_ice_mask(nx,ny))
     allocate (calving_front_mask(nx,ny))
     allocate (thck_calving_front(nx,ny))
@@ -457,6 +485,7 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
+                               grounding_line_mask = grounding_line_mask, &
                                which_ho_calving_front = which_ho_calving_front, &
                                calving_front_mask = calving_front_mask, &
                                thck_calving_front = thck_calving_front)
@@ -519,24 +548,49 @@ contains
        call parallel_halo(tau1)
        call parallel_halo(tau2)
 
+       ! Create effective thickness and viscosity matrices
+       if (which_calving == CALVING_DAMAGE) then
+          allocate(thck_eff(nx,ny))
+          allocate(efvs_eff(nz,nx,ny))
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (calving_front_mask(i,j) == 1) then
+                   thck_eff(i,j) = thck_calving_front(i,j)
+                else
+                   thck_eff(i,j) = thck(i,j)
+                endif
+                efvs_eff(:,i,j) = efvs(:,i,j)
+             enddo
+          enddo
+       endif
+
        ! In inactive calving-front cells where both eigenvalues are zero (because a cell is dynamically inactive),
        !  extrapolate nonzero values in upstream cells.
+       ! It is also necessary to extrapolate the viscosity in the subgrid damage case.
        ! Note: A similar extrapolation is done in glissade_diagnostic_variable_solve, but an extra one
        !       may be useful here for cells where ice was just advected from upstream.
 
        do j = 2, ny-1
           do i = 2, nx-1
              if (calving_front_mask(i,j) == 1) then
-                if (tau1(i,j) == 0.0d0 .and. tau2(i,j) == 0) then
-                   do jj = j-1, j+1
-                      do ii = i-1, i+1
-                         if (thck_calving_front(i,j) > 0.0d0 .and. thck_init(ii,jj) == thck_calving_front(i,j)) then
+                ! Look for nonzero values in an upstream cell
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (thck_calving_front(i,j) > 0.0d0 &
+                          .and. thck_init(ii,jj) == thck_calving_front(i,j)) then
+                         if (tau1(i,j) == 0.0d0 .and. tau2(i,j) == 0) then
                             tau1(i,j) = tau1(ii,jj)
                             tau2(i,j) = tau2(ii,jj)
-                         endif
-                      enddo
-                   enddo
-                endif  ! tau1 = tau2 = 0
+                         endif   ! tau1 = tau2 = 0
+
+                         do k = 1, nz-1
+                            if (allocated(efvs_eff) .and. efvs(k,i,j) == 0.0d0) then
+                               efvs_eff(k,i,j) = efvs(k,ii,jj)
+                            endif   ! efvs = 0
+                         enddo   ! k
+                      endif   ! calving front thickness
+                   enddo   ! ii
+                enddo   ! jj
              endif   ! calving_front_mask
           enddo   ! i
        enddo   ! j
@@ -544,41 +598,43 @@ contains
        ! Compute the effective stress.
        ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
        !       This may be useful in calving unbuttressed shelves that are spreading in both directions.
+       if (which_calving == EIGENCALVING .or. damage_src == EFF_STRESS_DAMAGE_SRC) then
+          calving%tau_eff(:,:) = sqrt(tau1(:,:)**2 + (calving%eigen2_weight * tau2(:,:))**2)
 
-       calving%tau_eff(:,:) = sqrt(tau1(:,:)**2 + (calving%eigen2_weight * tau2(:,:))**2)
-
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'tau1 (Pa), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') tau1(i,j)
+          if (verbose_calving .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'tau1 (Pa), itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') tau1(i,j)
+                enddo
+                write(6,*) ' '
              enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'tau2 (Pa), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') tau2(i,j)
+             print*, ' '
+             print*, 'tau2 (Pa), itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') tau2(i,j)
+                enddo
+                write(6,*) ' '
              enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'tau_eff (Pa), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') calving%tau_eff(i,j)
+             print*, ' '
+             print*, 'tau_eff (Pa), itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') calving%tau_eff(i,j)
+                enddo
+                write(6,*) ' '
              enddo
-             write(6,*) ' '
-          enddo
-       endif
+          endif
+       endif   ! which_calving / damage_src
 
        ! Use the effective stress either to directly compute a lateral calving rate (for eigencalving),
-       ! or to accumulate damage which is then used to derive a lateral calving rate (for damage-based calving).
+       ! or to accumulate damage which is then used to derive a lateral calving rate (for damage-based
+       ! calving with the effective stress damage source option only).
 
        calving%lateral_rate(:,:) = 0.0d0
 
@@ -596,43 +652,127 @@ contains
 
        elseif (which_calving == CALVING_DAMAGE) then
 
-          ! Prognose changes in damage.
-          ! For now, this is done using a simple scheme based on the effective tensile stress, calving%tau_eff
+          ! Prognose changes in damage based on the specified source term.
           ! The damage is subsequently advected downstream.
           ! Note: The damage is formally a 3D field, which makes it easier to advect, even though
           !       (in the current scheme) the damage source term is uniform in each column.
 
-          ! Allocate strain rate eigenvalue matrix
-          allocate(eps_max(nz,nx,ny))
+          ! Allocate relevant data matrices
+          if (damage_src == BASSIS_MA_DAMAGE_SRC) then
+             allocate(eps_max(nz,nx,ny))
+             allocate(source(nz,nx,ny))
+             allocate(force(nz,nx,ny))
+          endif
+          if (damage_manufactured) then
+             allocate(vel_exp(nz,nx,ny))
+             allocate(adv_term(nz,nx,ny))
+             allocate(uvel_unstag(nz,nx,ny))
+             allocate(hgl(ny))
+
+             ! Identify the grounding line thickness for manufactured damage on
+             ! an ice tongue (assumes only one grounding line point per j)
+             do j = 2, ny-1
+                do i = 2, nx-1
+                   if (floating_mask(i,j) == 0 .and. grounding_line_mask(i,j) == 1) then
+                      hgl(j) = thck(i,j)
+                   endif
+                enddo
+             enddo
+          endif   ! damage_manufactured
 
           do j = 2, ny-1
              do i = 2, nx-1
                 if (floating_mask(i,j) == 1) then
-                   ! Compute the ratio of the principal stresses (equivalent to the ratio of the
-                   ! principal strain rates)
-                   beta = calving%tau_eigen2(i,j) / calving%tau_eigen1(i,j)
+                   ! Prognose damage using a simple scheme based on the
+                   ! effective tensile stress, calving%tau_eff
+                   if (damage_src == EFF_STRESS_DAMAGE_SRC) then
+                      d_damage_dt = calving%damage_constant * calving%tau_eff(i,j)  ! damage_constant has units of s^{-1}/(Pa)
 
-                   ! Find the max principal strain rate using Glen's Flow Law
-                   eps_max(:,i,j) = calving%tau_eigen1(i,j) / (2.0d0 * efvs(:,i,j))
+                   ! Prognose damage based on eq 27 in Bassis and Ma 2015
+                   else if (damage_src == BASSIS_MA_DAMAGE_SRC) then 
+                      ! Compute the ratio of the principal stresses (equivalent to the ratio of the
+                      ! principal strain rates)
+                      alpha = calving%tau_eigen2(i,j) / calving%tau_eigen1(i,j)
 
-                   ! Compute the effective flow law exponent
-                   nstar = 12.0d0*(1.0d0+beta+beta**2) / (4.0d0*(1.0d0+beta+beta**2)+6.0d0*beta**2)
+                      ! Find the max principal strain rate using Glen's Flow Law
+                      eps_max(:,i,j) = calving%tau_eigen1(i,j) / (2.0d0 * efvs_eff(:,i,j))
 
-                   ! Compute the hydrostatic to tensile stress ratio
-                   szero = rhoi*(rhoo-rhoi)*grav*thck(i,j)/(2.0d0*calving%tau_eigen1(i,j)*rhoo)
+                      ! Compute the effective flow law exponent
+                      nstar = 12.0d0*(1.0d0+alpha+alpha**2)/(4.0d0*(1.0d0+alpha+alpha**2)+6.0d0*alpha**2)
 
-                   ! Prognose damage following Bassis & Ma 2015
-                   d_damage_dt(:,i,j) = (nstar*(1.0d0-szero)*eps_max(:,i,j) &
-                                         - acab(i,j)/thck(i,j)) * calving%damage(:,i,j)
-!                   d_damage_dt = calving%damage_constant * calving%tau_eff(i,j)  ! damage_constant has units of s^{-1}/(Pa)
-                   calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt(:,i,j) * dt
+                      ! Compute the hydrostatic to tensile stress ratio
+                      szero = rhoi*(rhoo-rhoi)*grav*thck_eff(i,j)/(2.0d0*calving%tau_eigen1(i,j)*rhoo)
+
+                      ! Prognose damage following Bassis & Ma 2015
+                      source(:,i,j) = nstar*(1.0d0-szero)*eps_max(:,i,j)-acab(i,j)/thck_eff(i,j)
+                      d_damage_dt(:,i,j) = source(:,i,j)*calving%damage(:,i,j)
+
+                      ! Compute the manufactured forcing term if requested; otherwise, set it to zero
+                      if (damage_manufactured) then
+                         ! Compute the advection term
+                         adv_term(:,i,j) = 1.0d0
+                         if (damage_advect) then
+                            adv_term(:,i,j) = adv_term(:,i,j)+eps_max(:,i,j)*time
+                         endif
+
+                         ! Linearly interpolate uvel to the unstaggered grid
+                         uvel_unstag(:,i,j) = 0.25d0*abs(uvel(:,i,j)+uvel(:,i-1,j)+uvel(:,i,j-1) &
+                                                         +uvel(:,i-1,j-1))
+
+                         ! Compute the manufactured forcing term
+                         vel_exp(:,i,j) = exp(-uvel_unstag(:,i,j)*time/hgl(j))
+                         force(:,i,j) = -0.5d0*calving%damage_init(:,i,j)*(uvel_unstag(:,i,j)/hgl(j) &
+                                        *adv_term(:,i,j)*vel_exp(:,i,j) &
+                                        +source(:,i,j)*(1.0d0+vel_exp(:,i,j)))
+                      else
+                         force(:,i,j) = 0.0d0
+                      endif
+
+                      d_damage_dt(:,i,j) = d_damage_dt(:,i,j) + force(:,i,j)
+                      calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt(:,i,j) * dt
+
+                   endif   ! damage_src
+
+                   ! Constrain damage to the specified range of values
                    calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
-                   calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
-                else  ! set damage to zero for grounded ice
+                   if (damage_floor == ZERO_DAMAGE_FLOOR) then
+                      calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
+                   elseif (damage_floor == NYE_DAMAGE_FLOOR) then
+                      ! Compute the Nye zero stress value
+                      damage_nye = (2.0d0+alpha)*calving%tau_eigen1(i,j)/(grav*(rhoo-rhoi)*thck_eff(i,j))
+                      calving%damage(:,i,j) = max(calving%damage(:,i,j), damage_nye)
+                   endif
+                endif   ! floating_mask
+             enddo   ! i
+
+             do i = 2, nx-1
+                ! Make sure that damage is zero where there isn't ice and where
+                ! the ice is grounded
+                if (thck(i,j) <= thklim) then
+                   calving%damage(:,i,j) = 0.0d0
+                elseif (floating_mask(i,j) == 0) then
                    calving%damage(:,i,j) = 0.0d0
                 endif
-             enddo
-          enddo
+
+                ! When the Nye damage floor is not enforced, we need to sweep
+                ! across i a second time to get the damage along grounding lines
+                ! right. This is important because damage advected into the
+                ! domain is set to match the damage of what's already there,
+                ! which for ice tongues happens to be the zero damage along the
+                ! grounding line. We want new damage to be as damaged as
+                ! existing ice, so we need the grounding line to also be as
+                ! damaged as the ice further downstream.
+                if (damage_floor == ZERO_DAMAGE_FLOOR) then
+                   ! If i,j is the grounding line
+                   if (floating_mask(i,j) == 0 .and. grounding_line_mask(i,j) == 1) then
+                      ! If i+1,j is floating and ice exists there
+                      if (floating_mask(i+1,j) == 1 .and. thck(i+1,j) > thklim) then
+                         calving%damage(:,i,j) = calving%damage(:,i+1,j)
+                      endif
+                   endif
+                endif   ! damage_floor
+             enddo   ! i
+          enddo   ! j
 
           ! Compute the vertically integrated damage in each column.
           allocate(damage_column(nx,ny))
@@ -646,41 +786,44 @@ contains
              enddo
           enddo
 
-          ! Convert damage in CF cells to a lateral calving rate (m/s).
-          ! Note: Although eigenprod = 0 in inactive calving-front cells, these cells can have significant damage
-          !       advected from upstream, so in general we should not have to interpolate damage from upstream.
-          !TODO - Verify this.
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (calving_front_mask(i,j) == 1) then
-                   frac_lateral = (damage_column(i,j) - calving%damage_threshold) / (1.0d0 - calving%damage_threshold)
-                   frac_lateral = max(0.0d0, min(1.0d0, frac_lateral))
-                   calving%lateral_rate(i,j) = calving%lateral_rate_max * frac_lateral  ! m/s
-                endif
+          if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+             ! Convert damage in CF cells to a lateral calving rate (m/s).
+             ! Note: Although eigenprod = 0 in inactive calving-front cells, these cells can have significant damage
+             !       advected from upstream, so in general we should not have to interpolate damage from upstream.
+             !TODO - Verify this.
+             do j = 2, ny-1
+                do i = 2, nx-1
+                   if (calving_front_mask(i,j) == 1) then
+                      frac_lateral = (damage_column(i,j) - calving%damage_threshold) / (1.0d0 - calving%damage_threshold)
+                      frac_lateral = max(0.0d0, min(1.0d0, frac_lateral))
+                      calving%lateral_rate(i,j) = calving%lateral_rate_max * frac_lateral  ! m/s
+                   endif
+                enddo
              enddo
-          enddo
 
-          if (verbose_calving .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'damage increment, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.6)',advance='no') calving%damage_constant * calving%tau_eff(i,j) * dt
+             if (verbose_calving .and. this_rank==rtest) then
+                print*, ' '
+                print*, 'damage increment, itest, jtest, rank =', itest, jtest, rtest
+                do j = jtest+3, jtest-3, -1
+                   write(6,'(i6)',advance='no') j
+                   do i = itest-3, itest+3
+                      write(6,'(f10.6)',advance='no') calving%damage_constant * calving%tau_eff(i,j) * dt
+                   enddo
+                   write(6,*) ' '
                 enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'new damage, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.6)',advance='no') damage_column(i,j)
+                print*, ' '
+                print*, 'new damage, itest, jtest, rank =', itest, jtest, rtest
+                do j = jtest+3, jtest-3, -1
+                   write(6,'(i6)',advance='no') j
+                   do i = itest-3, itest+3
+                      write(6,'(f10.6)',advance='no') damage_column(i,j)
+                   enddo
+                   write(6,*) ' '
                 enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-          endif
+                print*, ' '
+             endif
+
+          endif   ! which_ho_calving_front
           
        endif   ! EIGENCALVING or CALVING_DAMAGE
 
@@ -1400,6 +1543,7 @@ contains
     deallocate (floating_mask)
     deallocate (ocean_mask)
     deallocate (land_mask)
+    deallocate (grounding_line_mask)
     deallocate (active_ice_mask)
     deallocate (calving_front_mask)
     deallocate (thck_calving_front)
@@ -1412,6 +1556,14 @@ contains
     if (allocated(tau1)) deallocate(tau1)
     if (allocated(tau2)) deallocate(tau2)
     if (allocated(eps_max)) deallocate(eps_max)
+    if (allocated(source)) deallocate(source)
+    if (allocated(vel_exp)) deallocate(vel_exp)
+    if (allocated(force)) deallocate(force)
+    if (allocated(hgl)) deallocate(hgl)
+    if (allocated(adv_term)) deallocate(adv_term)
+    if (allocated(uvel_unstag)) deallocate(uvel_unstag)
+    if (allocated(thck_eff)) deallocate(thck_eff)
+    if (allocated(efvs_eff)) deallocate(efvs_eff)
 
   end subroutine glissade_calve_ice
 
