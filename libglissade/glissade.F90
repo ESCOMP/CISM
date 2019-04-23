@@ -1302,6 +1302,7 @@ contains
     ! temporary arrays in SI units
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
        thck_unscaled,     & ! ice thickness (m)
+       thck_unscaled_smooth, & ! ice thickness with Laplacian smoother (m)
        topg_unscaled,     & ! bedrock topography (m)
        thck_new_unscaled, & ! expected new ice thickness, after mass balance (m)
        acab_unscaled,     & ! surface mass balance (m/s)
@@ -1341,6 +1342,9 @@ contains
     integer :: i, j, k
     integer :: ewn, nsn, upn
     integer :: itest, jtest, rtest
+
+    real(dp) :: ww, we, wn, ws, wc   ! weights for Laplacian filtering added by GL
+    integer  :: L, nL                ! loop integer and number of iteration for Laplacian smoothing
 
     rtest = -999
     itest = 1
@@ -1519,6 +1523,42 @@ contains
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap,                &
                                          upwind_transport_in = do_upwind_transport)
+
+
+
+          !------------------------------------------------
+          ! G.L: Trying a dirty Laplacian smoothing on thickness
+          ! for MISOMIP experiments
+          ! I am not expecting it to work properly
+          !------------------------------------------------
+
+          nL = 3
+          thck_unscaled_smooth = thck_unscaled
+          do L = 1,nL
+             do j = nhalo,nsn-nhalo
+                do i = nhalo,ewn-nhalo
+              
+                  if (floating_mask(i,j) == 0) then
+                     cycle
+                  endif
+
+                   ww = 0.125*floating_mask(i-1,j)
+                   we = 0.125*floating_mask(i+1,j)
+                   ws = 0.125*floating_mask(i,j-1)
+                   wn = 0.125*floating_mask(i,j+1)
+                   wc = 1 - (ww+we+ws+wn)
+
+                   thck_unscaled_smooth(i,j) =  wc*thck_unscaled(i,j) &
+                                              + ww*thck_unscaled(i-1,j) &  
+                                              + we*thck_unscaled(i+1,j) &
+                                              + ws*thck_unscaled(i,j-1) &
+                                              + wn*thck_unscaled(i,j+1)
+
+                enddo
+             enddo
+          enddo
+
+          thck_unscaled = thck_unscaled_smooth
 
           ! halo updates for thickness and tracers
           call parallel_halo(thck_unscaled)
