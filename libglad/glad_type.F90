@@ -80,6 +80,13 @@ module glad_type
 
      real(dp),dimension(:,:),pointer :: artm => null() !> Annual mean air temperature
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
+     real(dp),dimension(:,:),pointer :: thermal_forcing1 => null() !> thermal forcing at level 0 (deg K)
+     real(dp),dimension(:,:),pointer :: thermal_forcing2 => null() !> thermal forcing at level 10 (deg K)
+     real(dp),dimension(:,:),pointer :: thermal_forcing3 => null() !> thermal forcing at level 19 (deg K)
+     real(dp),dimension(:,:),pointer :: thermal_forcing4 => null() !> thermal forcing at level 26 (deg K)
+     real(dp),dimension(:,:),pointer :: thermal_forcing5 => null() !> thermal forcing at level 30 (deg K)
+     real(dp),dimension(:,:),pointer :: thermal_forcing6 => null() !> thermal forcing at level 33 (deg K)
+     real(dp),dimension(:,:),pointer :: thermal_forcing7 => null() !> thermal forcing at level 35 (deg K)
 
      ! Arrays to accumulate mass-balance quantities --------------
 
@@ -133,6 +140,13 @@ contains
 
     if (associated(instance%artm))          deallocate(instance%artm)
     if (associated(instance%acab))          deallocate(instance%acab)
+    if (associated(instance%thermal_forcing1))          deallocate(instance%thermal_forcing1)
+    if (associated(instance%thermal_forcing2))          deallocate(instance%thermal_forcing2)
+    if (associated(instance%thermal_forcing3))          deallocate(instance%thermal_forcing3)
+    if (associated(instance%thermal_forcing4))          deallocate(instance%thermal_forcing4)
+    if (associated(instance%thermal_forcing5))          deallocate(instance%thermal_forcing5)
+    if (associated(instance%thermal_forcing6))          deallocate(instance%thermal_forcing6)
+    if (associated(instance%thermal_forcing7))          deallocate(instance%thermal_forcing7)
 
     if (associated(instance%lat))           deallocate(instance%lat)
     if (associated(instance%lon))           deallocate(instance%lon)
@@ -146,6 +160,13 @@ contains
 
     allocate(instance%artm(ewn,nsn));          instance%artm = 0.d0
     allocate(instance%acab(ewn,nsn));          instance%acab = 0.d0
+    allocate(instance%thermal_forcing1(ewn,nsn));          instance%thermal_forcing1 = 0.d0
+    allocate(instance%thermal_forcing2(ewn,nsn));          instance%thermal_forcing2 = 0.d0
+    allocate(instance%thermal_forcing3(ewn,nsn));          instance%thermal_forcing3 = 0.d0
+    allocate(instance%thermal_forcing4(ewn,nsn));          instance%thermal_forcing4 = 0.d0
+    allocate(instance%thermal_forcing5(ewn,nsn));          instance%thermal_forcing5 = 0.d0
+    allocate(instance%thermal_forcing6(ewn,nsn));          instance%thermal_forcing6 = 0.d0
+    allocate(instance%thermal_forcing7(ewn,nsn));          instance%thermal_forcing7 = 0.d0
 
     allocate(instance%lat(ewn,nsn));           instance%lat  = 0.d0
     allocate(instance%lon(ewn,nsn));           instance%lon  = 0.d0
