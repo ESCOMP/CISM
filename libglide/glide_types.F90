@@ -963,7 +963,6 @@ module glide_types
     logical :: empty = .true.   ! true if totpts = 0
 
     ! global scalars
-    !TODO - Allow these scalars to be output as time averages instead of snapshots
 
     real(dp) :: iarea                  ! total ice area (m^2)
     real(dp) :: iareag                 ! total grounded ice area (m^2)
@@ -975,6 +974,10 @@ module glide_types
     real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
     real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
     real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
+    real(dp) :: total_smb_flux_tavg    ! total surface mass balance flux (kg/s), time average
+    real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
+    real(dp) :: total_calving_flux_tavg! total calving mass flux (kg/s), time average
+    real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
 
   end type glide_geometry
 
