@@ -111,12 +111,16 @@ contains
 
     call glide_get_thk(instance%model,thck_temp)
 
-    ! Accumulate Glide input fields, acab and artm
+    ! Accumulate Glide input fields, acab and artm and 7 layers of POP thermal forcings
     ! Note: At this point, instance%acab has units of m
     !       Upon averaging (in glad_average_input_gcm), units are converted to m/yr
 
-    call glad_accumulate_input_gcm(instance%mbal_accum,   time,        &
-                                    instance%acab,         instance%artm)
+    call glad_accumulate_input_gcm(instance%mbal_accum,   time,                          &
+                                   instance%acab,         instance%artm,                 &
+                                   instance%thermal_forcing1, instance%thermal_forcing2, &
+                                   instance%thermal_forcing3, instance%thermal_forcing4, &
+                                   instance%thermal_forcing5, instance%thermal_forcing6, &
+                                   instance%thermal_forcing7) 
 
 
     if (GLC_DEBUG .and. main_task) then
@@ -157,11 +161,16 @@ contains
              write (stdout,*) 'Ice sheet timestep, iteration =', i
           end if
 
-          ! Get average values of acab and artm during mbal_accum_time
+          ! Get average values of acab and artm and 7 layers of POP thermal forcings 
+          ! during mbal_accum_time
           ! instance%acab has units of m/yr w.e. after averaging
 
           call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
-                                      instance%acab,       instance%artm)
+                                      instance%acab,       instance%artm,             &
+                                      instance%thermal_forcing1, instance%thermal_forcing2, &
+                                      instance%thermal_forcing3, instance%thermal_forcing4, &
+                                      instance%thermal_forcing5, instance%thermal_forcing6, &
+                                      instance%thermal_forcing7)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
           call glide_get_thk(instance%model,thck_temp)
@@ -197,13 +206,20 @@ contains
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
 
+          ! This is the place to convert to 3-D thermal forcing field to pass to glide
+          call compute_thermal_forcing_3D(instance%thermal_forcing1, instance%thermal_forcing2, instance%thermal_forcing3,    &
+                                          instance%thermal_forcing4, instance%thermal_forcing5, instance%thermal_forcing6,    &
+                                          instance%thermal_forcing7, instance%thermal_forcing)
+
+          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
+
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
              write (stdout,*) ' '
-             write (stdout,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
+             write (stdout,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
+             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(il,jl,:)
           end if
 
           ! Adjust glad acab for output
@@ -349,6 +365,30 @@ contains
     enddo
 
   end subroutine glad_find_bath
+
+  subroutine compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
+                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &
+                                          thermal_forcing7, thermal_forcing)
+
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing1   ! input thermal forcing at level 1 (deg K)
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing2   ! input thermal forcing at level 2 (deg K)
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing3   ! input thermal forcing at level 3 (deg K)
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing4   ! input thermal forcing at level 4 (deg K)
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing5   ! input thermal forcing at level 5 (deg K)
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing6   ! input thermal forcing at level 6 (deg K)
+    real(dp),dimension(:,:),intent(in)    :: thermal_forcing7   ! input thermal forcing at level 7 (deg K)
+    real(dp),dimension(:,:,:),intent(out) :: thermal_forcing   ! output thermal forcing  (deg K)
+
+    thermal_forcing(:,:,1) = thermal_forcing1
+    thermal_forcing(:,:,2) = thermal_forcing2
+    thermal_forcing(:,:,3) = thermal_forcing3
+    thermal_forcing(:,:,4) = thermal_forcing4
+    thermal_forcing(:,:,5) = thermal_forcing5
+    thermal_forcing(:,:,6) = thermal_forcing6
+    thermal_forcing(:,:,7) = thermal_forcing7
+
+  end subroutine compute_thermal_forcing_3D
+
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
