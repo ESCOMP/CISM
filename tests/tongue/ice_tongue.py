@@ -117,19 +117,14 @@ class geometry_vals:
       s.compute_uvel(c)
 
       # Lower the bedrock elevation everywhere to make the ice shelf float everywhere but the gl
-      # We have to raise topg by a small amount in order to account for floating point inaccuracies,
-      # which we've chosen here to use half the difference between the grounding line thickness and the
-      # thickness in the grid cell immediately downstream from it
-      for i in range(0,s.nx):
-         s.topg[0,:,i] = -(c.rhoi/c.rhoo)*s.hgl + 0.5*(s.hgl-s.thk[0,:,s.gl+1])
+      s.topg[0] = compute_topg(s,c,s,s.topg[0],s.thk[0])
 
       # Enforce lateral confinement
       if s.conflen > 0.:   # If laterally confined
-         s.enforce_confinement(s.acab[0],0.,'acab',s.confend)
-         s.enforce_confinement(s.thk[0],0.,'thk',min(s.cf,s.confend))
-         s.enforce_confinement(s.uvel_extend[0],0.,'uvel',min(s.cf,s.confend))
-         s.enforce_confinement(s.topg[0],s.hgl,'topg',s.confend)
-         s.enforce_confinement(s.kbc[0],1,'kbc',s.confend)
+         enforce_confinement(s,s.acab[0],0.,'acab',s.confend)
+         enforce_confinement(s,s.thk[0],0.,'thk',min(s.cf,s.confend))
+         enforce_confinement(s,s.uvel_extend[0],0.,'uvel',min(s.cf,s.confend))
+         enforce_confinement(s,s.kbc[0],1,'kbc',s.confend)
 
    def compute_thk(s,c,x,xgl):
       # Compute the analytic ice thickness, via van der Veen Ch. 5
@@ -155,32 +150,6 @@ class geometry_vals:
       # Compute the velocity
       for i in range(s.gl,s.cf+1):
          s.uvel_extend[0,:,:,i] = (s.hgl*s.ugl-s.mdot*(s.xst[i]-s.x[s.gl]))/thk_stag[i-s.gl]
-
-   def enforce_confinement(s,field,val,fieldstr,xend):
-      # Enforce lateral confinement in the specified fluid field
-      twod_fields = ['acab','thk','topg','kbc']
-      threed_fields = ['uvel','damage']
-      if fieldstr in twod_fields:
-         field[0,:xend+1] = val
-         field[-1,:xend+1] = val
-      elif fieldstr in threed_fields:
-         field[:,0,:xend+1] = val
-         field[:,-1,:xend+1] = val
-
-         if fieldstr == 'uvel':   # Need to include an extra row for uvel_extend
-            field[:,-2,:xend+1] = val
-
-      # Save the altered field to the struct
-      if fieldstr == 'acab':
-         s.acab[0] = field
-      elif fieldstr == 'thk':
-         s.thk[0] = field
-      elif fieldstr == 'uvel':
-         s.uvel_extend[0] = field
-      elif fieldstr == 'topg':
-         s.topg[0] = field
-      elif fieldstr == 'damage':
-         s.damage[0] = field
 
 class restart_file:
    # Structure for holding data from the restart file, when specified
@@ -364,6 +333,26 @@ def init_netcdf(s,filename):
 
    return infile
 
+def compute_topg(s,c,g,topg,thk):
+   # Compute the bedrock elevation
+   #
+   # We have to raise topg by a small amount in order to account for floating point inaccuracies,
+   # which we've chosen here to use quarter the difference between the grounding line thickness and the
+   # thickness in the grid cell immediately downstream from it
+   #
+   # This needs to be done again in the case of a restart file because the thickness is no longer
+   # laterally uniform, and that is how topg is initially defined with the guess thickness field.
+   # If it's not re-calculated, what this means is that parts of the ice shelf that do not lie along
+   # the grounding line will be treated as grounded rather than floating.
+   for i in range(0,s.nx):
+      topg[:,i] = -(c.rhoi/c.rhoo)*g.hgl + 0.25*(g.hgl-thk[:,g.gl+1])
+
+   # Enforce lateral confinement
+   if g.conflen > 0.:   # If laterally confined
+      enforce_confinement(s,topg,g.hgl,'topg',g.confend)
+
+   return topg
+
 def initialize_damage(s,g):
    # Initialize the damage field across the ice tongue
    # Create the damage matrix
@@ -374,7 +363,33 @@ def initialize_damage(s,g):
 
    # Enforce lateral confinement
    if g.conflen > 0.:   # If laterally confined
-      g.enforce_confinement(s.damage[0],0.,'damage',min(g.cf,g.confend))
+      enforce_confinement(s,s.damage[0],0.,'damage',min(g.cf,g.confend))
+
+def enforce_confinement(s,field,val,fieldstr,xend):
+   # Enforce lateral confinement in the specified fluid field
+   twod_fields = ['acab','thk','topg','kbc']
+   threed_fields = ['uvel','damage']
+   if fieldstr in twod_fields:
+      field[0,:xend+1] = val
+      field[-1,:xend+1] = val
+   elif fieldstr in threed_fields:
+      field[:,0,:xend+1] = val
+      field[:,-1,:xend+1] = val
+
+      if fieldstr == 'uvel':   # Need to include an extra row for uvel_extend
+         field[:,-2,:xend+1] = val
+
+   # Save the altered field to the struct
+   if fieldstr == 'acab':
+      s.acab[0] = field
+   elif fieldstr == 'thk':
+      s.thk[0] = field
+   elif fieldstr == 'uvel':
+      s.uvel_extend[0] = field
+   elif fieldstr == 'topg':
+      s.topg = field
+   elif fieldstr == 'damage':
+      s.damage[0] = field
 
 def finalize_netcdf(s,infile,restart=False):
    # Finalize the input netCDF file for outputting to CISM
@@ -449,6 +464,7 @@ if options.restfile is None:   # Not a restart
 else:   # Restarting
    r = restart_file(g,options)
    infile = init_netcdf(r,filename)
+   r.topg = compute_topg(r,c,g,r.topg,r.thk)
    initialize_damage(r,g)
    finalize_netcdf(r,infile,restart=True)
 

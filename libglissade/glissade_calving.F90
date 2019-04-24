@@ -734,7 +734,6 @@ contains
                    endif   ! damage_src
 
                    ! Constrain damage to the specified range of values
-                   calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
                    if (damage_floor == ZERO_DAMAGE_FLOOR) then
                       calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
                    elseif (damage_floor == NYE_DAMAGE_FLOOR) then
@@ -742,6 +741,8 @@ contains
                       damage_nye = (2.0d0+alpha)*calving%tau_eigen1(i,j)/(grav*(rhoo-rhoi)*thck_eff(i,j))
                       calving%damage(:,i,j) = max(calving%damage(:,i,j), damage_nye)
                    endif
+                   calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
+
                 endif   ! floating_mask
              enddo   ! i
 
