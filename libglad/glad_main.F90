@@ -121,13 +121,10 @@ module glad_main
   ! Some notes on coupling to the Community Earth System Model (CESM).  These may be applicable
   ! for coupling to other GCMs:
   !
-  ! When coupled to CESM, Glad receives several fields from the coupler on the ice sheet grid:
+  ! When coupled to CESM, Glad receives two fields from the coupler on the ice sheet grid:
   !   qsmb = surface mass balance (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
-  !   salinity1..7 = ocean salinity at levels 0,10,19,26,30,33,35 (g/kg)
-  !   tocn1..7     = ocean temperatures at levels 0,10,19,26,30,33,35 (deg K)
   ! Both qsmb and tsfc are computed in the CESM land model.
-  ! Both set of fields salinity1..7 and tocan1..7 are computed in POP.
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
@@ -545,14 +542,11 @@ contains
   
   !===================================================================
 
-  subroutine glad_gcm(params,         instance_index, time,              &
-                      qsmb,           tsfc,                              &
-                      salinit1, salinit2, salinity3, salinity4,          &
-                      salinit5, salinit6, salinity7,                     &
-                      tocn1, tocn2, tocn3, tocn4, tocn5, tocn6, tocn7,   &
-                      ice_covered,    topo,                              &
-                      rofi,           rofl,           hflx,              &
-                      ice_sheet_grid_mask, valid_inputs,                 &
+  subroutine glad_gcm(params,         instance_index, time,  &
+                      qsmb,           tsfc,                  &
+                      ice_covered,    topo,                  &
+                      rofi,           rofl,           hflx,  &
+                      ice_sheet_grid_mask, valid_inputs,     &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
@@ -583,20 +577,7 @@ contains
 
     real(dp),dimension(:,:),intent(in)    :: qsmb          ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc          ! input surface ground temperature (deg C)
-    real(dp),dimension(:,:),intent(in)    :: salinity1     ! input ocean salinity at level 0 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: salinity2     ! input ocean salinity at level 10 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: salinity3     ! input ocean salinity at level 19 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: salinity4     ! input ocean salinity at level 26 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: salinity5     ! input ocean salinity at level 30 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: salinity6     ! input ocean salinity at level 33 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: salinity7     ! input ocean salinity at level 35 (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: tocn1         ! input ocean temperature at level 0 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: tocn2         ! input ocean temperature at level 10 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: tocn3         ! input ocean temperature at level 19 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: tocn4         ! input ocean temperature at level 26 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: tocn5         ! input ocean temperature at level 30 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: tocn6         ! input ocean temperature at level 33 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: tocn7         ! input ocean temperature at level 35 (deg K)
+
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
@@ -608,31 +589,14 @@ contains
     logical,optional,intent(out)   :: output_flag     ! Set true if outputs are set
     logical,optional,intent(out)   :: ice_tstep       ! Set when an ice dynamic timestep has been done
                                                       !  and new output is available
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing1  ! sub-shelf thermal_forcing at pop level 0 (deg K)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing2  ! sub-shelf thermal_forcing at pop level 10 (deg K)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing3  ! sub-shelf thermal_forcing at pop level 19 (deg K)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing4  ! sub-shelf thermal_forcing at pop level 26 (deg K)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing5  ! sub-shelf thermal_forcing at pop level 30 (deg K)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing6  ! sub-shelf thermal_forcing at pop level 33 (deg K)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing7  ! sub-shelf thermal_forcing at pop level 35 (deg K)
 
-
-! Internal variables ----------------------------------------------------------------------------
+    ! Internal variables ----------------------------------------------------------------------------
 
     integer :: ewn,nsn    ! dimensions of local grid
-!    integer :: nx,ny
 
     ! version of input fields with halo cells
     real(dp),dimension(:,:),allocatable :: qsmb_haloed
     real(dp),dimension(:,:),allocatable :: tsfc_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing1_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing2_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing3_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing4_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing5_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing6_haloed
-    real(dp),dimension(:,:),allocatable :: thermal_forcing7_haloed
-
 
     logical :: icets
     character(250) :: message
@@ -649,47 +613,15 @@ contains
        ! Accumulate input fields for later averaging
 
     if (valid_inputs) then
-!       nx=size(salinity1,1) ; ny=size(salinity1,2)
-
-       call compute_thermal_forcing_level(1.d0, salinity1, tocn1, thermal_forcing1)
-       call compute_thermal_forcing_level(2.d0, salinity2, tocn2, thermal_forcing2)
-       call compute_thermal_forcing_level(3.d0, salinity3, tocn3, thermal_forcing3)
-       call compute_thermal_forcing_level(4.d0, salinity4, tocn4, thermal_forcing4)
-       call compute_thermal_forcing_level(5.d0, salinity5, tocn5, thermal_forcing5)
-       call compute_thermal_forcing_level(6.d0, salinity6, tocn6, thermal_forcing6)
-       call compute_thermal_forcing_level(7.d0, salinity7, tocn7, thermal_forcing7)
-
        ewn = get_ewn(params%instances(instance_index)%model)
        nsn = get_nsn(params%instances(instance_index)%model)
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
-       allocate(thermal_forcing1_haloed(ewn,nsn))
-       allocate(thermal_forcing2_haloed(ewn,nsn))
-       allocate(thermal_forcing3_haloed(ewn,nsn))
-       allocate(thermal_forcing4_haloed(ewn,nsn))
-       allocate(thermal_forcing5_haloed(ewn,nsn))
-       allocate(thermal_forcing6_haloed(ewn,nsn))
-       allocate(thermal_forcing7_haloed(ewn,nsn))
        call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing1, thermal_forcing1_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing2, thermal_forcing2_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing3, thermal_forcing3_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing4, thermal_forcing4_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing5, thermal_forcing5_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing6, thermal_forcing6_haloed)
-       call parallel_convert_nonhaloed_to_haloed(thermal_forcing7, thermal_forcing7_haloed)
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-            qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
-            thermal_forcing1 = thermal_forcin1_haloed,                        &
-            thermal_forcing2 = thermal_forcin2_haloed,                        &
-            thermal_forcing3 = thermal_forcin3_haloed,                        &
-            thermal_forcing4 = thermal_forcin4_haloed,                        &
-            thermal_forcing5 = thermal_forcin5_haloed,                        &
-            thermal_forcing6 = thermal_forcin6_haloed,                        &
-            thermal_forcing7 = thermal_forcin7_haloed,                        &
-            time = time)
+            qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
     end if
 
     ! ---------------------------------------------------------
@@ -744,25 +676,10 @@ contains
 
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
-          call compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
-                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &
-                                          thermal_forcing7, thermal_forcing)
-
           call calculate_averages(&
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
-               tsfc = params%instances(instance_index)%artm, &
-               thermal_forcing1 = params%instances(instance_index)%thermal_frocing1, &
-               thermal_forcing2 = params%instances(instance_index)%thermal_frocing2, &
-               thermal_forcing3 = params%instances(instance_index)%thermal_frocing3, &
-               thermal_forcing4 = params%instances(instance_index)%thermal_frocing4, &
-               thermal_forcing5 = params%instances(instance_index)%thermal_frocing5, &
-               thermal_forcing6 = params%instances(instance_index)%thermal_frocing6, &
-               thermal_forcing7 = params%instances(instance_index)%thermal_frocing7)
-
-!          call compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
-!                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &
-!                                          thermal_forcing7, thermal_forcing)
+               tsfc = params%instances(instance_index)%artm)
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -809,42 +726,6 @@ contains
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
 
   end subroutine glad_gcm
-
-  !===================================================================
-
-  subroutine compute_thermal_forcing_level(level, salinity, ocean_temp, thermal_forcing)
-    ! returns the thermal forcing applied under ice shelf.
-    ! The forcing depends on the level of the POP ocean. At this point only 7 fixed level are considered.
-    ! We obtained the freezing temperature based on Beckmann, A. and Goose, 2003, equation2.
-
-    real(dp), intent(in)   :: level  ! pop ocean level             
-    real(dp),dimension(:,:),intent(in)    :: salinity          ! input ocean salinity (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: ocean_temp        ! input ocean temperature (deg K) 
-    real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg K)
-    real(dp)  ::  zlevel    !  ocean depth (m)
-
-    if (level == 1.d0) then
-      zlevel = 5.d0
-    else if (level == 2.d0) then
-      zlevel = 105.d0
-    else if (level == 3.d0) then
-      zlevel = 198.d0
-    else if (level == 4.d0) then
-      zlevel = 305.d0
-    else if (level == 5.d0) then
-      zlevel = 408.d0
-    else if (level == 6.d0) then
-      zlevel = 527.d0
-    else if (level == 7.d0) then
-      zlevel = 638.d0
-    end if 
-
-    thermal_forcing(:,:) = ocean_temp(:,:) - (0.0939 - 0.057*salinity(:,:) + 7.64e-4*zlevel)+273.15
-
-
-
-  end subroutine compute_thermal_forcing_level
-
 
   !===================================================================
 
