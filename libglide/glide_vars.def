@@ -782,18 +782,21 @@ dimensions:    time
 units:         kg/s
 long_name:     total surface mass balance flux
 data:          data%geometry%total_smb_flux
+average:       1
 
 [total_bmb_flux]
 dimensions:    time
 units:         kg/s
 long_name:     total basal mass balance flux
 data:          data%geometry%total_bmb_flux
+average:       1
 
 [total_calving_flux]
 dimensions:    time
 units:         kg/s
 long_name:     total calving mass balance flux
 data:          data%geometry%total_calving_flux
+average:       1
 
 [thkmask]
 dimensions:    time, y1, x1
@@ -1596,6 +1599,7 @@ dimensions:    time
 units:         kg/s
 long_name:     total grounding line flux
 data:          data%geometry%total_gl_flux
+average:       1
 
 [rho_ice]
 dimensions:    time
