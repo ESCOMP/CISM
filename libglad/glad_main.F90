@@ -545,14 +545,17 @@ contains
   
   !===================================================================
 
-  subroutine glad_gcm(params,         instance_index, time,              &
-                      qsmb,           tsfc,                              &
-                      salinit1, salinit2, salinity3, salinity4,          &
-                      salinit5, salinit6, salinity7,                     &
-                      tocn1, tocn2, tocn3, tocn4, tocn5, tocn6, tocn7,   &
-                      ice_covered,    topo,                              &
-                      rofi,           rofl,           hflx,              &
-                      ice_sheet_grid_mask, valid_inputs,                 &
+  subroutine glad_gcm(params,         instance_index, time,                 &
+                      qsmb,           tsfc,                                 &
+                      salinity1, salinity2, salinity3, salinity4,           &
+                      salinity5, salinity6, salinity7,                      &
+                      tocn1, tocn2, tocn3, tocn4, tocn5, tocn6, tocn7,      &
+                      thermal_forcing1, thermal_forcing2, thermal_forcing3, &
+                      thermal_forcing4, thermal_forcing5, thermal_forcing6, &
+                      thermal_forcing7,                                     &
+                      ice_covered,    topo,                                 &
+                      rofi,           rofl,           hflx,                 &
+                      ice_sheet_grid_mask, valid_inputs,                    &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
@@ -682,13 +685,13 @@ contains
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
             qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
-            thermal_forcing1 = thermal_forcin1_haloed,                        &
-            thermal_forcing2 = thermal_forcin2_haloed,                        &
-            thermal_forcing3 = thermal_forcin3_haloed,                        &
-            thermal_forcing4 = thermal_forcin4_haloed,                        &
-            thermal_forcing5 = thermal_forcin5_haloed,                        &
-            thermal_forcing6 = thermal_forcin6_haloed,                        &
-            thermal_forcing7 = thermal_forcin7_haloed,                        &
+            thermal_forcing1 = thermal_forcing1_haloed,                        &
+            thermal_forcing2 = thermal_forcing2_haloed,                        &
+            thermal_forcing3 = thermal_forcing3_haloed,                        &
+            thermal_forcing4 = thermal_forcing4_haloed,                        &
+            thermal_forcing5 = thermal_forcing5_haloed,                        &
+            thermal_forcing6 = thermal_forcing6_haloed,                        &
+            thermal_forcing7 = thermal_forcing7_haloed,                        &
             time = time)
     end if
 
@@ -744,21 +747,18 @@ contains
 
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
-          call compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
-                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &
-                                          thermal_forcing7, thermal_forcing)
 
           call calculate_averages(&
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
                tsfc = params%instances(instance_index)%artm, &
-               thermal_forcing1 = params%instances(instance_index)%thermal_frocing1, &
-               thermal_forcing2 = params%instances(instance_index)%thermal_frocing2, &
-               thermal_forcing3 = params%instances(instance_index)%thermal_frocing3, &
-               thermal_forcing4 = params%instances(instance_index)%thermal_frocing4, &
-               thermal_forcing5 = params%instances(instance_index)%thermal_frocing5, &
-               thermal_forcing6 = params%instances(instance_index)%thermal_frocing6, &
-               thermal_forcing7 = params%instances(instance_index)%thermal_frocing7)
+               thermal_forcing1 = params%instances(instance_index)%thermal_forcing1, &
+               thermal_forcing2 = params%instances(instance_index)%thermal_forcing2, &
+               thermal_forcing3 = params%instances(instance_index)%thermal_forcing3, &
+               thermal_forcing4 = params%instances(instance_index)%thermal_forcing4, &
+               thermal_forcing5 = params%instances(instance_index)%thermal_forcing5, &
+               thermal_forcing6 = params%instances(instance_index)%thermal_forcing6, &
+               thermal_forcing7 = params%instances(instance_index)%thermal_forcing7)
 
 !          call compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
 !                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &

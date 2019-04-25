@@ -87,6 +87,7 @@ module glad_type
      real(dp),dimension(:,:),pointer :: thermal_forcing5 => null() !> thermal forcing at level 30 (deg K)
      real(dp),dimension(:,:),pointer :: thermal_forcing6 => null() !> thermal forcing at level 33 (deg K)
      real(dp),dimension(:,:),pointer :: thermal_forcing7 => null() !> thermal forcing at level 35 (deg K)
+     real(dp),dimension(:,:,:),pointer :: thermal_forcing => null() !> 3-D thermal forcing field
 
      ! Arrays to accumulate mass-balance quantities --------------
 

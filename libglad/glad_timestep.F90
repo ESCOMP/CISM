@@ -209,9 +209,9 @@ contains
           ! This is the place to convert to 3-D thermal forcing field to pass to glide
           call compute_thermal_forcing_3D(instance%thermal_forcing1, instance%thermal_forcing2, instance%thermal_forcing3,    &
                                           instance%thermal_forcing4, instance%thermal_forcing5, instance%thermal_forcing6,    &
-                                          instance%thermal_forcing7, thermal_forcing)
+                                          instance%thermal_forcing7, instance%thermal_forcing)
 
-          call glide_set_thermal_forcing(instance%model, thermal_focing)
+          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
 
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then
@@ -219,7 +219,7 @@ contains
              jl = instance%model%numerics%jdiag
              write (stdout,*) ' '
              write (stdout,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), thermal_forcing(il,jl,:)
+             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(il,jl,:)
           end if
 
           ! Adjust glad acab for output
