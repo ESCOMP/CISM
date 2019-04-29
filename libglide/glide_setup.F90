@@ -831,14 +831,15 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:7), parameter :: which_bmlt_float = (/ &
          'none                                  ', &
          'MISMIP+ melt rate profile             ', &
          'constant melt rate                    ', &
          'depth-dependent melt rate             ', &
          'melt rate from external file          ', &
          'melt rate from MISOMIP T/S profile    ', &
-         'melt rate from ISMIP6 parameterization' /)
+         'melt rate from ISMIP6 parameterization', &
+         'melt rate for POP-CISM coupling       ' /)
 
     character(len=*), dimension(0:1), parameter :: bmlt_float_ismip6_param = (/ &
          'local quadratic melt                  ', &
@@ -2735,6 +2736,11 @@ contains
           if (options%which_ho_inversion == HO_INVERSION_APPLY) then
              call glide_add_to_restart_variable_list('bmlt_float_baseline')
           endif
+
+       case (BMLT_FLOAT_POP_CPL)
+          ! GL - Not sure it is needed but just in case for now.
+          !WHL - Probably not needed, since it is computed as needed from coupled input.  Commented out for now.
+!!          call glide_add_to_restart_variable_list('thermal_forcing')
 
     end select  ! whichbmlt_float
 
