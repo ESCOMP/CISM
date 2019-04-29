@@ -1267,6 +1267,10 @@ contains
        call write_log(message)
     endif
 
+    if (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
+      write(message,*) 'type of melt parameterization: POP ocean forcing extrapolated under cavities'
+      call write_log(message)
+
     if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(b_mbal)) then
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
     end if
@@ -2633,6 +2637,10 @@ contains
           !       Make sure that [CF forcing] files are read on restart.
           call glide_add_to_restart_variable_list('thermal_forcing_baseline')
           call glide_add_to_restart_variable_list('thermal_forcing_final')
+
+       case (BMLT_FLOAT_POP_CPL)
+          ! GL - Not sure it is needed but just in case for now.
+          call glide_add_to_restart_variable_list('thermal_forcing') 
 
     end select  ! whichbmlt_float
 
