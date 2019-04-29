@@ -1128,8 +1128,12 @@ contains
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
-    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_DEPTH AND BMLT_FLOAT_MISOMIP
-          !TODO - Call separate subroutines for each of these three options?
+!!    elseif (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
+
+       !TODO - Add a separate subroutine for this option?
+
+    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_DEPTH, BMLT_FLOAT_MISOMIP and BMLT_FLOAT_POP_CPL
+          !TODO - Call separate subroutines for each of these options?
 
        !WHL - May want to comment out temporarily, if doing basal melting in the diagnostic solve for testing
        call glissade_basal_melting_float(model%options%whichbmlt_float,                         &
@@ -1143,6 +1147,7 @@ contains
                                          model%geometry%topg*thk0,                              & ! m
                                          model%climate%eus*thk0,                                & ! m
                                          model%basal_melt,                                      & ! bmlt_float in m/s
+                                         model%ocean_data,                                      &
                                          model%plume)
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units

@@ -118,6 +118,8 @@ module glide_types
   ! option 4 is deprecated; if selected, the code will throw a fatal error
   integer, parameter :: BWATER_OCEAN_PENETRATION = 4
 
+  !TODO - Change names of options 6 and 7?
+  !       Maybe 6 = BMLT_FLOAT_THERMAL_FORCING, 7 = BMLT_FLOAT_TS_OCEAN
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
@@ -125,6 +127,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
   integer, parameter :: BMLT_FLOAT_MISOMIP = 5
   integer, parameter :: BMLT_FLOAT_ISMIP6 = 6
+  integer, parameter :: BMLT_FLOAT_POP_CPL = 7
 
   integer, parameter :: BMLT_FLOAT_ISMIP6_LOCAL = 0
   integer, parameter :: BMLT_FLOAT_ISMIP6_NONLOCAL = 1
@@ -447,6 +450,7 @@ module glide_types
     !> \item[4] External basal melt rate field (from input file or coupler)
     !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
     !> \item[6] Basal melt rate for floating ice from ISMIP6 parameterization based on thermal forcing
+    !> \item[7] Basal melt rate for floating ice from ocean T and S, converted to thermal forcing
     !> \end{description}
 
     integer :: bmlt_float_ismip6_param = 0
@@ -2494,6 +2498,9 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_baseline)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%thermal_forcing)
+       elseif (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
        endif
