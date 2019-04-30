@@ -45,7 +45,7 @@ module glad_main
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   
-  use glimmer_paramets, only: stdout, GLC_DEBUG
+  use glimmer_paramets, only: stdout, GLC_DEBUG, unphys_val
 
   implicit none
   private
@@ -654,13 +654,13 @@ contains
     if (valid_inputs) then
 !       nx=size(salinity1,1) ; ny=size(salinity1,2)
 
-       call compute_thermal_forcing_level(1.d0, salinity1, tocn1, thermal_forcing1)
-       call compute_thermal_forcing_level(2.d0, salinity2, tocn2, thermal_forcing2)
-       call compute_thermal_forcing_level(3.d0, salinity3, tocn3, thermal_forcing3)
-       call compute_thermal_forcing_level(4.d0, salinity4, tocn4, thermal_forcing4)
-       call compute_thermal_forcing_level(5.d0, salinity5, tocn5, thermal_forcing5)
-       call compute_thermal_forcing_level(6.d0, salinity6, tocn6, thermal_forcing6)
-       call compute_thermal_forcing_level(7.d0, salinity7, tocn7, thermal_forcing7)
+       call compute_thermal_forcing_level(1, salinity1, tocn1, thermal_forcing1)
+       call compute_thermal_forcing_level(2, salinity2, tocn2, thermal_forcing2)
+       call compute_thermal_forcing_level(3, salinity3, tocn3, thermal_forcing3)
+       call compute_thermal_forcing_level(4, salinity4, tocn4, thermal_forcing4)
+       call compute_thermal_forcing_level(5, salinity5, tocn5, thermal_forcing5)
+       call compute_thermal_forcing_level(6, salinity6, tocn6, thermal_forcing6)
+       call compute_thermal_forcing_level(7, salinity7, tocn7, thermal_forcing7)
 
        ewn = get_ewn(params%instances(instance_index)%model)
        nsn = get_nsn(params%instances(instance_index)%model)
@@ -760,9 +760,6 @@ contains
                thermal_forcing6 = params%instances(instance_index)%thermal_forcing6, &
                thermal_forcing7 = params%instances(instance_index)%thermal_forcing7)
 
-!          call compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
-!                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &
-!                                          thermal_forcing7, thermal_forcing)
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -817,30 +814,37 @@ contains
     ! The forcing depends on the level of the POP ocean. At this point only 7 fixed level are considered.
     ! We obtained the freezing temperature based on Beckmann, A. and Goose, 2003, equation2.
 
-    real(dp), intent(in)   :: level  ! pop ocean level             
+    integer, intent(in)   :: level  ! pop ocean level             
     real(dp),dimension(:,:),intent(in)    :: salinity          ! input ocean salinity (g/kg)
     real(dp),dimension(:,:),intent(in)    :: ocean_temp        ! input ocean temperature (deg K) 
     real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg K)
     real(dp)  ::  zlevel    !  ocean depth (m)
 
-    if (level == 1.d0) then
-      zlevel = 5.d0
-    else if (level == 2.d0) then
-      zlevel = 105.d0
-    else if (level == 3.d0) then
-      zlevel = 198.d0
-    else if (level == 4.d0) then
-      zlevel = 305.d0
-    else if (level == 5.d0) then
-      zlevel = 408.d0
-    else if (level == 6.d0) then
-      zlevel = 527.d0
-    else if (level == 7.d0) then
-      zlevel = 638.d0
+    if (level == 1) then
+      zlevel = -5.d0
+    else if (level == 2) then
+      zlevel = -105.d0
+    else if (level == 3) then
+      zlevel = -198.d0
+    else if (level == 4) then
+      zlevel = -305.d0
+    else if (level == 5) then
+      zlevel = -408.d0
+    else if (level == 6) then
+      zlevel = -527.d0
+    else if (level == 7) then
+      zlevel = -638.d0
     end if 
 
-    thermal_forcing(:,:) = ocean_temp(:,:) - (0.0939 - 0.057*salinity(:,:) + 7.64e-4*zlevel)+273.15
+    ! In POP a special value of 0 is given to salinity cells over land as a dummy value. 
+    ! We need to make sure that corresponding thermal forcing cells are given a dummy
+    ! at the same locations. 
 
+    where (salinity == 0.0d0)
+      thermal_forcing = unphys_val
+    elsewhere
+      thermal_forcing = ocean_temp - (0.0939 - 0.057*salinity + 7.64e-4*zlevel)+273.15
+    endwhere
 
 
   end subroutine compute_thermal_forcing_level

@@ -219,7 +219,7 @@ contains
              jl = instance%model%numerics%jdiag
              write (stdout,*) ' '
              write (stdout,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(il,jl,:)
+             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(:,il,jl)
           end if
 
           ! Adjust glad acab for output
@@ -379,13 +379,13 @@ contains
     real(dp),dimension(:,:),intent(in)    :: thermal_forcing7   ! input thermal forcing at level 7 (deg K)
     real(dp),dimension(:,:,:),intent(out) :: thermal_forcing   ! output thermal forcing  (deg K)
 
-    thermal_forcing(:,:,1) = thermal_forcing1
-    thermal_forcing(:,:,2) = thermal_forcing2
-    thermal_forcing(:,:,3) = thermal_forcing3
-    thermal_forcing(:,:,4) = thermal_forcing4
-    thermal_forcing(:,:,5) = thermal_forcing5
-    thermal_forcing(:,:,6) = thermal_forcing6
-    thermal_forcing(:,:,7) = thermal_forcing7
+    thermal_forcing(1,:,:) = thermal_forcing1
+    thermal_forcing(2,:,:) = thermal_forcing2
+    thermal_forcing(3,:,:) = thermal_forcing3
+    thermal_forcing(4,:,:) = thermal_forcing4
+    thermal_forcing(5,:,:) = thermal_forcing5
+    thermal_forcing(6,:,:) = thermal_forcing6
+    thermal_forcing(7,:,:) = thermal_forcing7
 
   end subroutine compute_thermal_forcing_3D
 

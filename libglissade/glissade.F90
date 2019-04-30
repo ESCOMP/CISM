@@ -1008,6 +1008,7 @@ contains
                                          model%geometry%topg*thk0,                              & ! m
                                          model%climate%eus*thk0,                                & ! m
                                          model%basal_melt,                                      & ! bmlt_float in m/s
+                                         model%ocean_data,                                      &
                                          model%plume)
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
