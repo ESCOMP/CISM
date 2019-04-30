@@ -213,7 +213,7 @@ module glissade_bmlt_float
 
 
     ! parameters and variables for POP ocean coupling
-    real(dp), dimension(:,:,:) :: tf_temp  !> temporary thermal forcing field 
+    real(dp), dimension(ocean_data%nzocn,ewn,nsn) :: tf_temp  !> temporary thermal forcing field 
     
     real(dp) :: &
          spval_cell,        & ! special value assigned to thermal forcing cells outside of ocean
@@ -224,7 +224,7 @@ module glissade_bmlt_float
          tf_ne, tf_n, tf_nw,& ! thermal forcing values of north-east, north, north-west,
          tf_se, tf_s, tf_sw,& ! south-east, south, south-west,
          tf_e,  tf_w,       & ! east, and west of current cell
-         z_bot, z_top,      & ! bottom and top ocean layer
+         z_bot, z_top         ! bottom and top ocean layer
 
     integer :: &
          dim_count,         & ! sum of horizontal dimension
@@ -232,7 +232,7 @@ module glissade_bmlt_float
          global_count_save, & ! counter for thermal focing filled values saved
          task_count,        & ! counter for number of tasks
          sum_count,         & ! counter that sums over thermal forcing real valued filled cells 
-         
+         k, l, p              ! loop indices
 
 
 
@@ -245,7 +245,7 @@ module glissade_bmlt_float
          floating_mask,       & ! = 1 where ice is present and floating, else = 0
          ocean_mask             ! = 1 where topg is below sea level and ice is absent
 
-    integer  :: i, j, k
+    integer  :: i, j
     real(dp) :: h_cavity        ! depth of ice cavity beneath floating ice (m)
     real(dp) :: z_draft         ! draft of floating ice (m below sea level)
 
@@ -663,7 +663,7 @@ module glissade_bmlt_float
 
       ! Loop over ocean layers, 7 in this case
       do k = 1, ocean_data%nzocn
-        if k == 1 then
+        if (k == 1) then
           z_top = spval_z
           z_bot = ocean_data%zocn(k)
         else
@@ -697,12 +697,12 @@ module glissade_bmlt_float
                     tf_s  = tf_temp(i  , j-1, k)
                     tf_sw = tf_temp(i-1, j-1, k)
    
-                    if k == 1 then
-                      tf_bot = thermal_forcing(i,j,k)
+                    if (k == 1) then
+                      tf_bot = tf_temp(k,i,j)
                       tf_top = tf_bot
                     else
-                      tf_top = thermal_forcing(i,j,k-1)
-                      tf_bot = thermal_forcing(i,j,k)
+                      tf_top = tf_temp(k-1,i,j)
+                      tf_bot = tf_temp(k,i,j)
                     endif
 
                     call glissade_average_thermal_forcing(ocean_data%thermal_forcing(k,i,j),   &
@@ -723,7 +723,7 @@ module glissade_bmlt_float
                  elseif (((floating_mask(i,j) == 1) .AND. (z_draft > topg(i,j)) .AND. (tf_temp(k,i,j) == spval_cell)) &
                         .OR. (ocean_mask(i,j) == 1)) then
 
-                    if tf_temp(ocean_data%nzocn, i, j) .NE. spval_cell then
+                    if (tf_temp(ocean_data%nzocn, i, j) .NE. spval_cell) then
                       tf_interp  = tf_temp(ocean_data%nzocn, i, j)
                     else 
                       tf_interp = spval_cell
@@ -738,7 +738,7 @@ module glissade_bmlt_float
               enddo  ! end i (nx) loop
             enddo  ! end j (ny) loop
             ! update halo cell of thermal forcing
-            call parallel_halo(thermal_forcing)
+            call parallel_halo(ocean_data%thermal_forcing)
           enddo  ! end l (nx+ny) loop
           ! Counting the values of thermal forcing that are real as opposed to special values. 
           ! If that number is the same between 2 consecutive loops, then the filling of thermal
@@ -793,7 +793,7 @@ module glissade_bmlt_float
 
     real(dp), intent(in) ::          &
             z_top, z_bot, z_draft,   &  !> the ocean depth of the top, bottom and current ice draft respectively 
-            tf_top, tf_bot           &  !> the thermal forcing of the top and bottom ocean layer.
+            tf_top, tf_bot              !> the thermal forcing of the top and bottom ocean layer.
 
     real(dp), intent(out) :: tf_interp  !> interpolated thermal forcing
     real(dp), intent(in)  :: spval      !> special value to identify special cases.
@@ -861,56 +861,56 @@ module glissade_bmlt_float
     thermal_forcing_avg = 0.d0
 
     ! West cell
-    if tf_w .NE. spval then
+    if (tf_w .NE. spval) then
        w_w = 1.d0
        thermal_forcing_avg = thermal_forcing_avg + w_w*tf_w
     endif
 
     ! North-west cell
-    if tf_nw .NE. spval then
+    if (tf_nw .NE. spval) then
        w_nw = 1.d0/sqrt(2.d0)
        thermal_forcing_avg = thermal_forcing_avg + w_nw*tf_nw
     endif
 
     ! North cell
-    if tf_n .NE. spval then
+    if (tf_n .NE. spval) then
        w_n = 1.d0
        thermal_forcing_avg = thermal_forcing_avg + w_n*tf_n
     endif
 
     ! North-east cell
-    if tf_ne .NE. spval then
+    if (tf_ne .NE. spval) then
        w_ne = 1.d0/sqrt(2.d0)
        thermal_forcing_avg = thermal_forcing_avg + w_ne*tf_ne
     endif
 
     ! East cell
-    if tf_e .NE. spval then
+    if (tf_e .NE. spval) then
        w_e = 1.d0
        thermal_forcing_avg = thermal_forcing_avg + w_e*tf_e
     endif
 
     ! South-east cell
-    if tf_se .NE. spval then
+    if (tf_se .NE. spval) then
        w_se = 1.d0/sqrt(2.d0)
        thermal_forcing_avg = thermal_forcing_avg + w_se*tf_se
     endif
 
     ! South cell
-    if tf_s .NE. spval then
+    if (tf_s .NE. spval) then
        w_s = 1.d0
        thermal_forcing_avg = thermal_forcing_avg + w_s*tf_s
     endif
 
     ! South-west cell
-    if tf_sw .NE. spval then
+    if (tf_sw .NE. spval) then
        w_sw = 1.d0/sqrt(2.d0)
        thermal_forcing_avg = thermal_forcing_avg + w_sw*tf_sw
     endif
 
-    w_tot = ww+wnw+wn+wne+we+wse+ws+wsw
+    w_tot = w_w+w_nw+w_n+w_ne+w_e+w_se+w_s+w_sw
     ! Avoid a division by zero.
-    if w_tot .GE. 1.d0 then
+    if (w_tot .GE. 1.d0) then
        thermal_forcing_avg = thermal_forcing_avg/w_tot
     else 
        thermal_forcing_avg = spval
@@ -939,13 +939,13 @@ module glissade_bmlt_float
          cpo     = 3974.d0,   & ! specific heat of seawater (J/kg/K)
          gamma_t = 1.0d-4,    & ! thermal exchange velocity of ocean water (m/s)
          Fm      = 5.0d-3,    & ! dimensionless parameter for tuning purposes
-         Li      = 3.34d5     & ! latent heat of fusion (J/kg)
+         Li      = 3.34d5,    & ! latent heat of fusion (J/kg)
          rhoi    = 918.0d0      ! seawater density (kg/m^3)
 
     ! Compute basal melt rate
 
     ! Set melt rate to zero where thermal_forcing is a special value.
-    if thermal_forcing == spval then
+    if (thermal_forcing == spval) then
        melt_rate = 0.d0
     else
        melt_rate = rhoo*cpo*gamma_t*Fm*thermal_forcing**2/(Li*rhoi)
@@ -987,7 +987,7 @@ module glissade_bmlt_float
     ! Based on the kind of parameterization (local or nonlocal) and the forcing magnitude,
     !  assign appropriate values to deltaT_basin and gamma0.
     ! Note: On restart, deltaT_basin and gamma0 are in the restart file.
-`
+
     if (model%options%is_restart == RESTART_FALSE) then
 
        if (model%options%bmlt_float_ismip6_param == BMLT_FLOAT_ISMIP6_LOCAL) then

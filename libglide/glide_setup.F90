@@ -1270,6 +1270,7 @@ contains
     if (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
       write(message,*) 'type of melt parameterization: POP ocean forcing extrapolated under cavities'
       call write_log(message)
+    endif
 
     if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(b_mbal)) then
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
