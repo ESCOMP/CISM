@@ -3196,7 +3196,16 @@ contains
 
     get_nsn = model%general%nsn
   end function get_nsn
-  
+
+  function get_nzocn(model)
+    !> get number of ocean layers
+    implicit none
+    integer get_nzocn
+    type(glide_global_type) :: model
+
+    get_nzocn = model%ocean_data%nzocn
+  end function get_nzocn
+
   subroutine set_time(model,time)
     !> Set the model time counter --- useful for
     !> fractional year output

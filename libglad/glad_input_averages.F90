@@ -64,13 +64,7 @@ module glad_input_averages
      
      real(dp),pointer,dimension(:,:) :: tot_qsmb => null()  ! running total surface mass balance (kg m-2 s-1)
      real(dp),pointer,dimension(:,:) :: tot_tsfc => null()  ! running total surface temperature (deg C)
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing1 => null()  ! running total thermal forcing at level 0 (deg K) 
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing2 => null()  ! running total thermal forcing at level 10 (deg K)
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing3 => null()  ! running total thermal forcing at level 19 (deg K)
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing4 => null()  ! running total thermal forcing at level 26 (deg K)
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing5 => null()  ! running total thermal forcing at level 30 (deg K)
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing6 => null()  ! running total thermal forcing at level 33 (deg K)
-     real(dp),pointer,dimension(:,:) :: tot_thermal_forcing7 => null()  ! running total thermal forcing at level 35 (deg K)
+     real(dp),pointer,dimension(:,:,:) :: tot_thermal_forcing => null()  ! running total 3D thermal forcing
 
 
   end type glad_input_averages_type
@@ -84,29 +78,27 @@ module glad_input_averages
 
 contains
 
-  subroutine initialize_glad_input_averages(glad_inputs, ewn, nsn, next_av_start)
+  subroutine initialize_glad_input_averages(glad_inputs, ewn, nsn, nzocn, next_av_start)
+
     ! Initialize a glad_inputs instance
     type(glad_input_averages_type), intent(inout) :: glad_inputs
 
     ! dimensions of local grid
     integer, intent(in) :: ewn
     integer, intent(in) :: nsn
+    integer, intent(in) :: nzocn
 
     ! Starting time of next averaging period (hours)
     integer, intent(in) :: next_av_start
 
     allocate(glad_inputs%tot_qsmb(ewn,nsn));  glad_inputs%tot_qsmb = 0.d0
     allocate(glad_inputs%tot_tsfc(ewn,nsn));  glad_inputs%tot_tsfc = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing1(ewn,nsn));  glad_inputs%tot_thermal_forcing1 = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing2(ewn,nsn));  glad_inputs%tot_thermal_forcing2 = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing3(ewn,nsn));  glad_inputs%tot_thermal_forcing3 = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing4(ewn,nsn));  glad_inputs%tot_thermal_forcing4 = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing5(ewn,nsn));  glad_inputs%tot_thermal_forcing5 = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing6(ewn,nsn));  glad_inputs%tot_thermal_forcing6 = 0.d0
-    allocate(glad_inputs%tot_thermal_forcing7(ewn,nsn));  glad_inputs%tot_thermal_forcing7 = 0.d0
+    allocate(glad_inputs%tot_thermal_forcing(nzocn,ewn,nsn));  glad_inputs%tot_thermal_forcing = 0.d0
 
     glad_inputs%av_start_time = next_av_start
+
   end subroutine initialize_glad_input_averages
+
 
   integer function get_av_start_time(glad_inputs)
     ! Get value of time from the last occasion averaging was restarted (hours)
@@ -115,66 +107,43 @@ contains
     get_av_start_time = glad_inputs%av_start_time
   end function get_av_start_time
     
-  subroutine accumulate_averages(glad_inputs, qsmb, tsfc,             &
-                                 thermal_forcing1, thermal_forcing2,  &
-                                 thermal_forcing3, thermal_forcing4,  &
-                                 thermal_forcing5, thermal_forcing6,  &
-                                 thermal_forcing7, time)
+
+  subroutine accumulate_averages(glad_inputs, qsmb, tsfc,    &
+                                 thermal_forcing, time)
 
     ! Accumulate averages based on one set of inputs.
     ! Should be called every time we have new inputs from the climate model.
     type(glad_input_averages_type), intent(inout) :: glad_inputs
     real(dp),dimension(:,:),intent(in)  :: qsmb     ! flux of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)  :: tsfc     ! surface ground temperature (C)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing1     ! thermal forcing at level 0 (K)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing2     ! thermal forcing at level 10 (K)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing3     ! thermal forcing at level 19 (K)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing4     ! thermal forcing at level 26 (K)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing5     ! thermal forcing at level 30 (K)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing6     ! thermal forcing at level 33 (K)
-    real(dp),dimension(:,:),intent(in)  :: thermal_forcing7     ! thermal forcing at level 35 (K)
+    real(dp),dimension(:,:,:),intent(in)  :: thermal_forcing     ! thermal forcing (C)
     integer, intent(in) :: time  ! Current model time
     
     glad_inputs%tot_qsmb(:,:) = glad_inputs%tot_qsmb(:,:) + qsmb(:,:)
     glad_inputs%tot_tsfc(:,:) = glad_inputs%tot_tsfc(:,:) + tsfc(:,:)
-    glad_inputs%tot_thermal_forcing1(:,:) = glad_inputs%tot_thermal_forcing1(:,:) + thermal_forcing1(:,:)
-    glad_inputs%tot_thermal_forcing2(:,:) = glad_inputs%tot_thermal_forcing2(:,:) + thermal_forcing2(:,:)
-    glad_inputs%tot_thermal_forcing3(:,:) = glad_inputs%tot_thermal_forcing3(:,:) + thermal_forcing3(:,:)
-    glad_inputs%tot_thermal_forcing4(:,:) = glad_inputs%tot_thermal_forcing4(:,:) + thermal_forcing4(:,:)
-    glad_inputs%tot_thermal_forcing5(:,:) = glad_inputs%tot_thermal_forcing5(:,:) + thermal_forcing5(:,:)
-    glad_inputs%tot_thermal_forcing6(:,:) = glad_inputs%tot_thermal_forcing6(:,:) + thermal_forcing6(:,:)
-    glad_inputs%tot_thermal_forcing7(:,:) = glad_inputs%tot_thermal_forcing7(:,:) + thermal_forcing7(:,:)
+    glad_inputs%tot_thermal_forcing(:,:,:) = glad_inputs%tot_thermal_forcing(:,:,:) + thermal_forcing(:,:,:)
     glad_inputs%av_steps = glad_inputs%av_steps + 1
+
   end subroutine accumulate_averages
 
-  subroutine calculate_averages(glad_inputs, qsmb, tsfc, thermal_forcing1,            &
-                                thermal_forcing2, thermal_forcing3, thermal_forcing4, &
-                                thermal_forcing5, thermal_forcing6, thermal_forcing7)
+
+  subroutine calculate_averages(glad_inputs, qsmb, tsfc, thermal_forcing)
+
     ! Calculate averages over the averaging period
     type(glad_input_averages_type), intent(in) :: glad_inputs
     real(dp), dimension(:,:), intent(out) :: qsmb  ! average surface mass balance (kg m-2 s-1)
     real(dp), dimension(:,:), intent(out) :: tsfc  ! average surface temperature (deg C)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing1 ! average thermal forcing at level 0 (deg K)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing2 ! average thermal forcing at level 0 (deg K)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing3 ! average thermal forcing at level 0 (deg K)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing4 ! average thermal forcing at level 0 (deg K)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing5 ! average thermal forcing at level 0 (deg K)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing6 ! average thermal forcing at level 0 (deg K)
-    real(dp), dimension(:,:), intent(out) :: thermal_forcing7 ! average thermal forcing at level 0 (deg K)
+    real(dp), dimension(:,:,:), intent(out) :: thermal_forcing ! average thermal forcing at level 0 (deg K)
 
     qsmb(:,:) = glad_inputs%tot_qsmb(:,:) / real(glad_inputs%av_steps,dp)
     tsfc(:,:) = glad_inputs%tot_tsfc(:,:) / real(glad_inputs%av_steps,dp)
-    thermal_forcing1(:,:) = glad_inputs%tot_thermal_forcing1(:,:) / real(glad_inputs%av_steps,dp) 
-    thermal_forcing2(:,:) = glad_inputs%tot_thermal_forcing2(:,:) / real(glad_inputs%av_steps,dp)
-    thermal_forcing3(:,:) = glad_inputs%tot_thermal_forcing3(:,:) / real(glad_inputs%av_steps,dp)
-    thermal_forcing4(:,:) = glad_inputs%tot_thermal_forcing4(:,:) / real(glad_inputs%av_steps,dp)
-    thermal_forcing5(:,:) = glad_inputs%tot_thermal_forcing5(:,:) / real(glad_inputs%av_steps,dp)
-    thermal_forcing6(:,:) = glad_inputs%tot_thermal_forcing6(:,:) / real(glad_inputs%av_steps,dp)
-    thermal_forcing7(:,:) = glad_inputs%tot_thermal_forcing7(:,:) / real(glad_inputs%av_steps,dp)
+    thermal_forcing(:,:,:) = glad_inputs%tot_thermal_forcing(:,:,:) / real(glad_inputs%av_steps,dp)
   
   end subroutine calculate_averages
 
+
   subroutine reset_glad_input_averages(glad_inputs, next_av_start)
+
     ! Resets this glad_inputs instance
     ! Should be called at the end of an averaging period, in order to prepare for the
     ! next averaging period
@@ -183,18 +152,15 @@ contains
 
     glad_inputs%tot_qsmb(:,:) = 0.d0
     glad_inputs%tot_tsfc(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing1(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing2(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing3(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing4(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing5(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing6(:,:) = 0.d0
-    glad_inputs%tot_thermal_forcing7(:,:) = 0.d0
+    glad_inputs%tot_thermal_forcing(:,:,:) = 0.d0
     glad_inputs%av_steps      = 0
     glad_inputs%av_start_time = next_av_start
+
   end subroutine reset_glad_input_averages
 
+
   pure logical function averages_okay_to_restart(glad_inputs)
+
     ! Returns true if this is an okay time to write a restart file based on these
     ! glad_inputs, false if not.
     !
@@ -203,6 +169,8 @@ contains
     type(glad_input_averages_type), intent(in) :: glad_inputs
 
     averages_okay_to_restart = (glad_inputs%av_steps == 0)
+
   end function averages_okay_to_restart
+
 
 end module glad_input_averages
