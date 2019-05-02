@@ -763,8 +763,54 @@ module glissade_bmlt_float
       enddo  ! end k (nzocn) loop
           
     ! Add some writing to log file for debugging purposes HERE. 
+    if (verbose_bmlt_float .and. this_rank == rtest) then
+          print*, 'itest, jtest, rtest =', itest, jtest, rtest
+          print*, ' '
 
+          print*, ' '
+          print*, 'thck:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
 
+          print*, 'lsrf:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') lsrf(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'topg:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') topg(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'lsrf - topg:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f12.5)',advance='no') lsrf(i,j) - topg(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'floating_mask:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(i8)',advance='no') floating_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif  ! verbose_bmlt_float
 
     endif   ! whichbmlt_float
 

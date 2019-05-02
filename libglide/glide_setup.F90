@@ -2639,9 +2639,9 @@ contains
           call glide_add_to_restart_variable_list('thermal_forcing_baseline')
           call glide_add_to_restart_variable_list('thermal_forcing_final')
 
-       case (BMLT_FLOAT_POP_CPL)
-          ! GL - Not sure it is needed but just in case for now.
-          call glide_add_to_restart_variable_list('thermal_forcing') 
+!       case (BMLT_FLOAT_POP_CPL)
+!          ! GL - Not sure it is needed but just in case for now.
+!          call glide_add_to_restart_variable_list('thermal_forcing') 
 
     end select  ! whichbmlt_float
 
