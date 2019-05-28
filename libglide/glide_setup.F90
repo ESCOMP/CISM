@@ -752,14 +752,15 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:7), parameter :: which_bmlt_float = (/ &
          'none                                  ', &
          'MISMIP+ melt rate profile             ', &
          'constant melt rate                    ', &
          'depth-dependent melt rate             ', &
          'melt rate from external file          ', &
          'melt rate from MISOMIP T/S profile    ', &
-         'melt rate from ISMIP6 parameterization' /)
+         'melt rate from ISMIP6 parameterization', &
+         'melt rate for POP-CISM coupling       ' /)
 
     character(len=*), dimension(0:1), parameter :: bmlt_float_ismip6_param = (/ &
          'local quadratic melt                  ', &
