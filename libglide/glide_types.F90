@@ -2495,10 +2495,11 @@ contains
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
           ! Note: nzocn should be set in the [grid] section of the config file. 
           ! For this particular case study, nzocn = 7.
-          if (model%ocean_data%nzocn .NE. 7) &
-             call write_log('Must set nzocn = 7 for this bmlt_float option', GM_FATAL)
+          if (model%ocean_data%nzocn < 1 ) &
+             call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
           ! GL - maybe need to add logic to define the ocean level as well.
-
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%thermal_forcing)
        endif
     endif  ! Glissade
 
@@ -3187,7 +3188,16 @@ contains
 
     get_nsn = model%general%nsn
   end function get_nsn
-  
+ 
+  function get_nzocn(model)
+    !> get number of ocean layer 
+    implicit none
+    integer get_nzocn
+    type(glide_global_type) :: model
+
+    get_nzocn = model%ocean_data%nzocn
+  end function get_nzocn
+ 
   subroutine set_time(model,time)
     !> Set the model time counter --- useful for
     !> fractional year output

@@ -43,23 +43,11 @@ module glad_mbal_coupling
   type glad_mbc
      real(dp),dimension(:,:),pointer :: acab_save  => null() ! used to accumulate mass-balance
      real(dp),dimension(:,:),pointer :: artm_save  => null() ! used to average air-temperature
-     real(dp),dimension(:,:),pointer :: thermal_forcing1_save  => null() ! used to average thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing2_save  => null() ! used to average thermal_forcing2 
-     real(dp),dimension(:,:),pointer :: thermal_forcing3_save  => null() ! used to average thermal_forcing3
-     real(dp),dimension(:,:),pointer :: thermal_forcing4_save  => null() ! used to average thermal_forcing4
-     real(dp),dimension(:,:),pointer :: thermal_forcing5_save  => null() ! used to average thermal_forcing5
-     real(dp),dimension(:,:),pointer :: thermal_forcing6_save  => null() ! used to average thermal_forcing6
-     real(dp),dimension(:,:),pointer :: thermal_forcing7_save  => null() ! used to average thermal_forcing7
+     real(dp),dimension(:,:,:),pointer :: thermal_forcing_save  => null() ! used to average 3D thermal forcing
 
      real(dp),dimension(:,:),pointer :: acab       => null() ! Instantaneous mass-balance
      real(dp),dimension(:,:),pointer :: artm       => null() ! Instantaneous air temperature
-     real(dp),dimension(:,:),pointer :: thermal_forcing1 => null() ! Instantaneous thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing2 => null() ! Instantaneous thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing3 => null() ! Instantaneous thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing4 => null() ! Instantaneous thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing5 => null() ! Instantaneous thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing6 => null() ! Instantaneous thermal_forcing1
-     real(dp),dimension(:,:),pointer :: thermal_forcing7 => null() ! Instantaneous thermal_forcing1
+     real(dp),dimension(:,:,:),pointer :: thermal_forcing => null() ! Instantaneous thermal_forcing
 
      integer :: av_count  = 0 ! Counter for averaging inputs
      logical :: new_accum = .true.
@@ -69,7 +57,7 @@ module glad_mbal_coupling
 
 contains
 
-  subroutine glad_mbc_init(params,lgrid)
+  subroutine glad_mbc_init(params,lgrid,nzocn)
 
     ! Initialize the glad_mbc structure ('params').
 
@@ -80,53 +68,32 @@ contains
 
     use glimmer_coordinates
     use glad_constants, only : years2hours
+    use glide_types, only : get_nzocn
 
     type(glad_mbc)  :: params
     type(coordsystem_type) :: lgrid
+    integer, intent(in) :: nzocn
+    
 
     ! Deallocate if necessary
 
     if (associated(params%acab_save))  deallocate(params%acab_save)
     if (associated(params%artm_save))  deallocate(params%artm_save)
-    if (associated(params%thermal_forcing1_save))  deallocate(params%thermal_forcing1_save)
-    if (associated(params%thermal_forcing2_save))  deallocate(params%thermal_forcing2_save)
-    if (associated(params%thermal_forcing3_save))  deallocate(params%thermal_forcing3_save)
-    if (associated(params%thermal_forcing4_save))  deallocate(params%thermal_forcing4_save)
-    if (associated(params%thermal_forcing5_save))  deallocate(params%thermal_forcing5_save)
-    if (associated(params%thermal_forcing6_save))  deallocate(params%thermal_forcing6_save)
-    if (associated(params%thermal_forcing7_save))  deallocate(params%thermal_forcing7_save)
+    if (associated(params%thermal_forcing_save))  deallocate(params%thermal_forcing_save)
 
     if (associated(params%acab))       deallocate(params%acab)
     if (associated(params%artm))       deallocate(params%artm)
-    if (associated(params%thermal_forcing1))  deallocate(params%thermal_forcing1)
-    if (associated(params%thermal_forcing2))  deallocate(params%thermal_forcing2)
-    if (associated(params%thermal_forcing3))  deallocate(params%thermal_forcing3)
-    if (associated(params%thermal_forcing4))  deallocate(params%thermal_forcing4)
-    if (associated(params%thermal_forcing5))  deallocate(params%thermal_forcing5)
-    if (associated(params%thermal_forcing6))  deallocate(params%thermal_forcing6)
-    if (associated(params%thermal_forcing7))  deallocate(params%thermal_forcing7)
+    if (associated(params%thermal_forcing))  deallocate(params%thermal_forcing)
 
     ! Allocate arrays and zero
 
     call coordsystem_allocate(lgrid,params%acab_save);  params%acab_save = 0.d0
     call coordsystem_allocate(lgrid,params%artm_save);  params%artm_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing1_save);  params%thermal_forcing1_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing2_save);  params%thermal_forcing2_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing3_save);  params%thermal_forcing3_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing4_save);  params%thermal_forcing4_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing5_save);  params%thermal_forcing5_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing6_save);  params%thermal_forcing6_save = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing7_save);  params%thermal_forcing7_save = 0.d0
+    call coordsystem_allocate(lgrid,nzocn,params%thermal_forcing_save);  params%thermal_forcing_save = 0.d0
 
     call coordsystem_allocate(lgrid,params%acab);       params%acab = 0.d0
     call coordsystem_allocate(lgrid,params%artm);       params%artm = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing1);  params%thermal_forcing1 = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing2);  params%thermal_forcing2 = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing3);  params%thermal_forcing3 = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing4);  params%thermal_forcing4 = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing5);  params%thermal_forcing5 = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing6);  params%thermal_forcing6 = 0.d0
-    call coordsystem_allocate(lgrid,params%thermal_forcing7);  params%thermal_forcing7 = 0.d0
+    call coordsystem_allocate(lgrid,nzocn,params%thermal_forcing);  params%thermal_forcing = 0.d0
 
     ! Set default mass balance time step
     !
@@ -138,9 +105,9 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_accumulate_input_gcm(params, time, acab, artm, thermal_forcing1, &
-                                       thermal_forcing2, thermal_forcing3, thermal_forcing4,  &
-                                       thermal_forcing5, thermal_forcing6, thermal_forcing7)
+  subroutine glad_accumulate_input_gcm(params, time, acab, artm, thermal_forcing) !, &
+!                                       thermal_forcing2, thermal_forcing3, thermal_forcing4,  &
+!                                       thermal_forcing5, thermal_forcing6, thermal_forcing7)
 
     ! In glint, this was done in glint_downscale.F90
     
@@ -149,13 +116,7 @@ contains
 
     real(dp),dimension(:,:),intent(in) :: acab   ! Surface mass balance (m)
     real(dp),dimension(:,:),intent(in) :: artm   ! Mean air temperature (degC)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing1   ! Mean thermal_forcing at level 0 (degK)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing2   ! Mean thermal_forcing at level 10 (degK)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing3   ! Mean thermal_forcing at level 19 (degK)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing4   ! Mean thermal_forcing at level 26 (degK)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing5   ! Mean thermal_forcing at level 30 (degK)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing6   ! Mean thermal_forcing at level 33 (degK)
-    real(dp),dimension(:,:),intent(in) :: thermal_forcing7   ! Mean thermal_forcing at level 35 (degK)
+    real(dp),dimension(:,:,:),intent(in) :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
 
     ! Things to do the first time
 
@@ -168,13 +129,7 @@ contains
 
        params%acab_save = 0.d0
        params%artm_save = 0.d0
-       params%thermal_forcing1_save = 0.d0
-       params%thermal_forcing2_save = 0.d0
-       params%thermal_forcing3_save = 0.d0
-       params%thermal_forcing4_save = 0.d0
-       params%thermal_forcing5_save = 0.d0
-       params%thermal_forcing6_save = 0.d0
-       params%thermal_forcing7_save = 0.d0
+       params%thermal_forcing_save = 0.d0
        params%start_time = time
 
     end if
@@ -185,33 +140,19 @@ contains
 
     params%acab_save = params%acab_save + acab
     params%artm_save = params%artm_save + artm
-    params%thermal_forcing1_save = params%thermal_forcing1_save + thermal_forcing1
-    params%thermal_forcing2_save = params%thermal_forcing2_save + thermal_forcing2
-    params%thermal_forcing3_save = params%thermal_forcing3_save + thermal_forcing3
-    params%thermal_forcing4_save = params%thermal_forcing4_save + thermal_forcing4
-    params%thermal_forcing5_save = params%thermal_forcing5_save + thermal_forcing5
-    params%thermal_forcing6_save = params%thermal_forcing6_save + thermal_forcing6
-    params%thermal_forcing7_save = params%thermal_forcing7_save + thermal_forcing7
+    params%thermal_forcing_save = params%thermal_forcing_save + thermal_forcing
 
     ! Copy instantaneous fields
 
     params%acab = acab
     params%artm = artm
-    params%thermal_forcing1 = thermal_forcing1
-    params%thermal_forcing2 = thermal_forcing2
-    params%thermal_forcing3 = thermal_forcing3
-    params%thermal_forcing4 = thermal_forcing4
-    params%thermal_forcing5 = thermal_forcing5
-    params%thermal_forcing6 = thermal_forcing6
-    params%thermal_forcing7 = thermal_forcing7
+    params%thermal_forcing = thermal_forcing
 
   end subroutine glad_accumulate_input_gcm
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_average_input_gcm(params, dt, acab, artm, thermal_forcing1,                 &
-                                       thermal_forcing2, thermal_forcing3, thermal_forcing4,  &
-                                       thermal_forcing5, thermal_forcing6, thermal_forcing7)
+  subroutine glad_average_input_gcm(params, dt, acab, artm, thermal_forcing)                 
 
     ! In glint, this was done in glint_downscale.F90
 
@@ -221,32 +162,14 @@ contains
     integer,                intent(in)   :: dt     !> mbal accumulation time (hours)
     real(dp),dimension(:,:),intent(out)  :: artm   !> Mean air temperature (degC)
     real(dp),dimension(:,:),intent(out)  :: acab   !> Mass-balance (m/yr)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing1   ! Mean thermal_forcing at level 0 (degK)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing2   ! Mean thermal_forcing at level 10 (degK)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing3   ! Mean thermal_forcing at level 19 (degK)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing4   ! Mean thermal_forcing at level 26 (degK)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing5   ! Mean thermal_forcing at level 30 (degK)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing6   ! Mean thermal_forcing at level 33 (degK)
-    real(dp),dimension(:,:),intent(out)  :: thermal_forcing7   ! Mean thermal_forcing at level 35 (degK)
+    real(dp),dimension(:,:,:),intent(out)  :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
 
     if (.not. params%new_accum) then
        params%artm_save = params%artm_save / real(params%av_count,dp)
-       params%thermal_forcing1_save = params%thermal_forcing1_save / real(params%av_count,dp)
-       params%thermal_forcing2_save = params%thermal_forcing2_save / real(params%av_count,dp)
-       params%thermal_forcing3_save = params%thermal_forcing3_save / real(params%av_count,dp)
-       params%thermal_forcing4_save = params%thermal_forcing4_save / real(params%av_count,dp)
-       params%thermal_forcing5_save = params%thermal_forcing5_save / real(params%av_count,dp)
-       params%thermal_forcing6_save = params%thermal_forcing6_save / real(params%av_count,dp)
-       params%thermal_forcing7_save = params%thermal_forcing7_save / real(params%av_count,dp)
+       params%thermal_forcing_save = params%thermal_forcing_save / real(params%av_count,dp)
     end if
     artm  = params%artm_save
-    thermal_forcing1  = params%thermal_forcing1_save
-    thermal_forcing2  = params%thermal_forcing2_save
-    thermal_forcing3  = params%thermal_forcing3_save
-    thermal_forcing4  = params%thermal_forcing4_save
-    thermal_forcing5  = params%thermal_forcing5_save
-    thermal_forcing6  = params%thermal_forcing6_save
-    thermal_forcing7  = params%thermal_forcing7_save
+    thermal_forcing  = params%thermal_forcing_save
 
     ! Note: acab_save has units of m, but acab has units of m/yr
     acab  = params%acab_save / real(dt*hours2years,dp)

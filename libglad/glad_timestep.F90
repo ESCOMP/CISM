@@ -115,12 +115,9 @@ contains
     ! Note: At this point, instance%acab has units of m
     !       Upon averaging (in glad_average_input_gcm), units are converted to m/yr
 
-    call glad_accumulate_input_gcm(instance%mbal_accum,   time,                          &
-                                   instance%acab,         instance%artm,                 &
-                                   instance%thermal_forcing1, instance%thermal_forcing2, &
-                                   instance%thermal_forcing3, instance%thermal_forcing4, &
-                                   instance%thermal_forcing5, instance%thermal_forcing6, &
-                                   instance%thermal_forcing7) 
+    call glad_accumulate_input_gcm(instance%mbal_accum,   time,               &
+                                   instance%acab,         instance%artm,      &
+                                   instance%thermal_forcing)
 
 
     if (GLC_DEBUG .and. main_task) then
@@ -167,10 +164,7 @@ contains
 
           call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
                                       instance%acab,       instance%artm,             &
-                                      instance%thermal_forcing1, instance%thermal_forcing2, &
-                                      instance%thermal_forcing3, instance%thermal_forcing4, &
-                                      instance%thermal_forcing5, instance%thermal_forcing6, &
-                                      instance%thermal_forcing7)
+                                      instance%thermal_forcing)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
           call glide_get_thk(instance%model,thck_temp)
@@ -206,12 +200,9 @@ contains
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
 
-          ! This is the place to convert to 3-D thermal forcing field to pass to glide
-          call compute_thermal_forcing_3D(instance%thermal_forcing1, instance%thermal_forcing2, instance%thermal_forcing3,    &
-                                          instance%thermal_forcing4, instance%thermal_forcing5, instance%thermal_forcing6,    &
-                                          instance%thermal_forcing7, instance%thermal_forcing)
-
-          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
+          ! GL:  At this point, glide_set does not work for 3D variables.
+!          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
+          instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
 
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then
@@ -365,29 +356,6 @@ contains
     enddo
 
   end subroutine glad_find_bath
-
-  subroutine compute_thermal_forcing_3D(thermal_forcing1, thermal_forcing2, thermal_forcing3,    &
-                                          thermal_forcing4, thermal_forcing5, thermal_forcing6,    &
-                                          thermal_forcing7, thermal_forcing)
-
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing1   ! input thermal forcing at level 1 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing2   ! input thermal forcing at level 2 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing3   ! input thermal forcing at level 3 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing4   ! input thermal forcing at level 4 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing5   ! input thermal forcing at level 5 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing6   ! input thermal forcing at level 6 (deg K)
-    real(dp),dimension(:,:),intent(in)    :: thermal_forcing7   ! input thermal forcing at level 7 (deg K)
-    real(dp),dimension(:,:,:),intent(out) :: thermal_forcing   ! output thermal forcing  (deg K)
-
-    thermal_forcing(1,:,:) = thermal_forcing1
-    thermal_forcing(2,:,:) = thermal_forcing2
-    thermal_forcing(3,:,:) = thermal_forcing3
-    thermal_forcing(4,:,:) = thermal_forcing4
-    thermal_forcing(5,:,:) = thermal_forcing5
-    thermal_forcing(6,:,:) = thermal_forcing6
-    thermal_forcing(7,:,:) = thermal_forcing7
-
-  end subroutine compute_thermal_forcing_3D
 
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
