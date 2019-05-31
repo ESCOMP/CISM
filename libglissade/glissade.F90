@@ -101,7 +101,7 @@ contains
     use isostasy
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
-    use glissade_grid_operators, only: glissade_stagger
+    use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
@@ -123,11 +123,16 @@ contains
     real(dp) :: var_maxval   ! max value of a given variable; = 0 if not yet read in
     integer :: i, j, k
     logical :: l_evolve_ice  ! local version of evolve_ice
+
     integer, dimension(:,:), allocatable :: &
          ice_mask,          & ! = 1 where ice is present, else = 0
          floating_mask,     & ! = 1 where ice is present and floating, else = 0
          ocean_mask,        & ! = 1 if topg is below sea level and ice is absent, else = 0
          land_mask            ! = 1 if topg is at or above sea level, else = 0
+
+    real(dp), dimension(:,:), allocatable :: &
+         topg_smoothed,     & ! smoothed input topography
+         thck_flotation       ! flotation thickness
 
     integer :: itest, jtest, rtest
 
@@ -195,6 +200,14 @@ contains
     ! read first time slice
     call glide_io_readall(model,model)
 
+    ! initialize model diagnostics
+    call glide_init_diag(model)
+
+    ! Set coordinates of diagnostic point
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+
     ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
     ! Note: Not yet enabled for other map projections.
@@ -241,6 +254,126 @@ contains
     else
        ! assume acab was read in with units of m/yr ice; do nothing
     endif
+
+    ! Optionally, smooth the input topography with a 9-point Laplacian smoother.
+    !TODO - This smoothing needs some more testing.  In particular, it is unclear how best to treat
+    !        the ice thickness in regions that transition from grounded to floating
+    !        when the topography is smoothed. Is it better to preserve thickness, or to
+    !        increase thickness to keep the ice grounded?
+
+    if (model%options%smooth_input_topography .and. model%options%is_restart == RESTART_FALSE) then
+
+       allocate(topg_smoothed(model%general%ewn,model%general%nsn))
+       allocate(thck_flotation(model%general%ewn,model%general%nsn))
+       allocate(ice_mask(model%general%ewn, model%general%nsn))
+       allocate(floating_mask(model%general%ewn, model%general%nsn))
+
+       ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
+       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+       ! compute initial mask
+       call glissade_get_masks(model%general%ewn, model%general%nsn,    &
+                               model%geometry%thck, model%geometry%topg,   &
+                               model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                               ice_mask,                                   &
+                               floating_mask = floating_mask)
+
+       if (verbose_glissade .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'itest, jtest, rank =', itest, jtest, rtest
+          print*, ' '
+          print*, 'Before Laplacian smoother, topg (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'Before Laplacian smoother, usrf (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'Before Laplacian smoother, thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       call glissade_laplacian_smoother(model%general%ewn, model%general%nsn,  &
+                                        model%geometry%topg, topg_smoothed,    &
+                                        npoints_stencil = 5)
+
+       !WHL - debug - Try doing less smoothing than the smoother computes
+       model%geometry%topg = 0.50d0 * (model%geometry%topg + topg_smoothed)
+
+       ! Given the smoothed topography, adjust the input thickness such that usrf is unchanged.
+       where (model%geometry%topg - model%climate%eus < 0.0d0)  ! marine-based ice
+          thck_flotation = -(rhoo/rhoi) * (model%geometry%topg - model%climate%eus)
+          where (ice_mask == 1 .and. floating_mask == 0)
+             ! Ice was grounded before smoothing of topography; assume it is still grounded.
+             ! This means that where topg has been lowered, we should thicken the ice.
+             !TODO - Maintain the same thickness and allow the ice to float?
+             model%geometry%thck = model%geometry%usrf - model%geometry%topg
+          elsewhere
+             ! Ice was floating before smoothing of topography.
+             ! It may have grounded where topg has been raised, in which case we move lsrf up to meet the topography.
+             model%geometry%lsrf = max(model%geometry%lsrf, model%geometry%topg)
+             model%geometry%thck = model%geometry%usrf - model%geometry%lsrf
+          endwhere
+       elsewhere   ! land-based ice
+          model%geometry%thck = model%geometry%usrf - model%geometry%topg
+       endwhere
+
+       !WHL - usrf for debugging only
+       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+       if (verbose_glissade .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'itest, jtest, rank =', itest, jtest, rtest
+          print*, ' '
+          print*, 'After Laplacian smoother, topg (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'After Laplacian smoother, usrf (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'After Laplacian smoother, thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       deallocate(topg_smoothed)
+       deallocate(thck_flotation)
+
+    endif   ! smooth_input_topography
 
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first
@@ -298,16 +431,6 @@ contains
        write(message,*) 'Basal heat flux is defined as positive down, so should be <= 0 on input'
        call write_log(trim(message), GM_FATAL)
     endif
-
-    ! initialize model diagnostics
-    call glide_init_diag(model)
-
-!!    if (this_rank == model%numerics%rdiag_local) then
-!!       i = model%numerics%idiag_local
-!!       j = model%numerics%jdiag_local
-!!       print*, ' '
-!!       print*, 'this_rank, i, j, new acab:', this_rank, i, j, model%climate%acab(i,j) * scyr*thk0/tim0
-!!    endif
 
     ! initialize glissade components
 
@@ -516,11 +639,6 @@ contains
           model%geometry%thck = 0.d0
        endwhere
     endif
-
-    ! Set debug diagnostics
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
 
     ! initial calving, if desired
     ! Note: Do this only for a cold start with evolving ice, not for a restart
@@ -741,7 +859,7 @@ contains
 
     model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
 
-    if (verbose_inversion .and. this_rank == rtest) then
+    if (verbose_glissade .and. this_rank == rtest) then
        i = itest
        j = jtest
        print*, ' '
@@ -767,7 +885,7 @@ contains
 
     call glissade_calving_solve(model, .false.)   ! init_calving = .false.
 
-    if (verbose_inversion .and. this_rank == rtest) then
+    if (verbose_glissade .and. this_rank == rtest) then
        i = itest
        j = jtest
        print*, ' '
@@ -1033,17 +1151,6 @@ contains
 
     endif
 
-    ! Compute masks:
-    ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
-
-    !TODO - Remove this code (replaced by call above)
-!    call glissade_get_masks(ewn,                 nsn,                   &
-!                            model%geometry%thck, model%geometry%topg,   &
-!                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
-!                            ice_mask,                                   &
-!                            floating_mask = floating_mask,              &
-!                            ocean_mask = ocean_mask)
-
     ! Zero out bmlt_float in cells that are currently ice-free ocean
 
     where (ocean_mask == 1)
@@ -1051,6 +1158,7 @@ contains
     endwhere
 
     ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
+    !TODO - Call subroutine to do this calculation (in glissade_ground or glissade_bmlt_float?)
 
     if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
@@ -1627,7 +1735,7 @@ contains
        !-------------------------------------------------------------------------
        ! Optionally, invert for basal melting.
        ! Note: The masks passed to glissade_inversion_solve are based on the ice state before transport.
-       !       Inversion for basal_traction used to be done here but now is done
+       !       Inversion for basal_friction used to be done here but now is done
        !        as part of the diagnostic solve, just before computing velocity.
        !-------------------------------------------------------------------------
 
@@ -1657,11 +1765,18 @@ contains
           if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. &
               model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
              if (model%numerics%time < model%inversion%wean_bmlt_float_tend) then
-                !WHL - Replaced linear ramp with an exponential ramp
-!                nudging_factor = (model%inversion%wean_bmlt_float_tend - model%numerics%time) &
-!                               / (model%inversion%wean_bmlt_float_tend - model%inversion%wean_bmlt_float_tstart)
                 weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
-                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
+                ! exponentially weighted nudging commented out.
+!!                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
+                ! Let nudging_factor fall off as 1/weaning_time.  As a result, bmlt_timescale will increase
+                ! in proportion to weaning_time: by 1 yr for every 10 model years.
+                ! The increase in bmlt_timescale is faster with this scaling than with exponential scaling.
+                !TODO - Implement in glissade_inversion, without a hardwired constant of 10.
+                nudging_factor = 10.d0 / weaning_time  ! Make 10 = bmlt_timescale multiplier?
+                nudging_factor = min(nudging_factor, 1.0d0)
+                ! Optionally, do not allow the nudging factor (if > 0) to fall below a prescribed minimum value.
+                ! This allows us to exclude nudging that is so small as to have virtually no effect.
+                nudging_factor = max(nudging_factor, model%inversion%nudging_factor_min)
              else
                 nudging_factor = 0.0d0
              endif
@@ -1875,47 +1990,11 @@ contains
           enddo
           write(6,*) ' '
        enddo
-
-       !WHL - debug
-       print*, ' '
-       print*, 'basal_melt%bmlt (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%basal_melt%bmlt(i,j) * thk0/tim0 * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bmlt_unscaled (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') bmlt_unscaled(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-
        print*, ' '
        print*, 'bmlt_applied (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_applied(i,j)*(thk0/tim0)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'usrf (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%geometry%usrf(i,j)*thk0
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'usrf - usrf_obs (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') &
-                  model%geometry%usrf(i,j)*thk0 - model%geometry%usrf_obs(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
@@ -2117,7 +2196,7 @@ contains
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
-    use glissade_inversion, only: glissade_inversion_basal_traction, verbose_inversion
+    use glissade_inversion, only: glissade_inversion_basal_friction, verbose_inversion
 
     implicit none
 
@@ -2152,8 +2231,7 @@ contains
     real(dp) :: weaning_time        ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
     !WHL - debug
-    real(dp) :: my_max_diff, global_max_diff
-    real(dp) :: my_min_diff, global_min_diff
+    real(dp) :: my_max, my_min, global_max, global_min
     integer :: iglobal, jglobal, ii, jj
 
     integer, dimension(model%general%ewn, model%general%nsn) :: floating_mask_old
@@ -2291,7 +2369,11 @@ contains
                                     model%options%which_ho_fground_no_glp,     &
                                     model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
-                                    model%geometry%f_ground_cell)
+                                    model%geometry%f_ground_cell,  &
+                                    model%geometry%bmlt_cavity_thck_scale,  &
+                                    model%geometry%weight_float_cell,       &
+                                    model%geometry%beta_cavity_thck_scale,  &
+                                    model%geometry%weight_ground_vertex)
 
     !WHL - debug
     if (this_rank == rtest .and. verbose_glp) then
@@ -2327,7 +2409,28 @@ contains
        print*, ' '
     endif  ! this_rank = rtest
 
-    ! If inverting for basal traction, update powerlaw_c_inversion here
+    ! Compute the thickness tendency dH/dt from one step to the next (m/s)
+    ! Note: This diagnostic is needed for inversion of basal friction.
+    !       However, it is not computed correctly on the first step of a restart, since thck_old is unavailable.
+    !       If doing inversion, dthck_dt is added to the restart file since it is needed for exact restart.
+    ! TODO: Put thck_old instead of dthck_dt in the restart file?
+    !       Then the diagnostic would be correct, and inversion would still restart exactly.
+
+    if ( (model%options%is_restart == RESTART_TRUE) .and. &
+         (model%numerics%time == model%numerics%tstart) ) then
+
+       ! first call after a restart; do not compute dthck_dt
+
+    else
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j))*thk0 &
+                                          / (model%numerics%dt * tim0)
+          enddo
+       enddo
+    endif
+
+    ! If inverting for basal friction, update powerlaw_c_inversion here
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
@@ -2336,11 +2439,10 @@ contains
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
 
-          ! first call after a restart; do not call glissade_inversion_basal traction
+          ! first call after a restart; do not call glissade_inversion_basal friction
 
        else
 
-          !TODO - Remove powerlaw_c_save field, and use only powerlaw_c_inversion.
           ! Set a nudging factor that is used to compute a weighted average of the 
           !  newly computed inversion field (powerlaw_c_new) and the saved field (powerlaw_c_save).
           ! See comments above for nudging of bmlt_float_inversion.
@@ -2358,8 +2460,6 @@ contains
 
           if (model%inversion%wean_powerlaw_c_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_powerlaw_c_tstart) then
              if (model%numerics%time < model%inversion%wean_powerlaw_c_tend) then
-!                nudging_factor = (model%inversion%wean_powerlaw_c_tend - model%numerics%time) &
-!                               / (model%inversion%wean_powerlaw_c_tend - model%inversion%wean_powerlaw_c_tstart)
                 weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
                 nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
              else
@@ -2373,7 +2473,7 @@ contains
                   model%numerics%tstep_count, model%numerics%time, nudging_factor
           endif
 
-          call glissade_inversion_basal_traction(model,          &
+          call glissade_inversion_basal_friction(model,          &
                                                  nudging_factor, &
                                                  ice_mask,       &
                                                  floating_mask,  &
@@ -2911,24 +3011,6 @@ contains
        enddo
     enddo
 
-    ! thickness tendency dH/dt from one step to the next (m/s)
-    ! Note: This diagnostic will not be correct on the first step of a restart
-    !       For inversion, dthck_dt is in the restart file as needed for exact restart.
-
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
-
-       ! first call after a restart; do not compute dthck_dt
-
-    else
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
-             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j))*thk0 &
-                                          / (model%numerics%dt * tim0)
-          enddo
-       enddo
-    endif
-
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab * scale_acab) has units of m/yr of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
@@ -2954,16 +3036,16 @@ contains
        model%basal_melt%bmlt_applied_diff(:,:) = &
             abs(model%basal_melt%bmlt_applied(:,:) - model%basal_melt%bmlt_applied_old(:,:))
 
-       my_max_diff = maxval(model%basal_melt%bmlt_applied_diff)
-       global_max_diff = parallel_reduce_max(my_max_diff)
+       my_max = maxval(model%basal_melt%bmlt_applied_diff)
+       global_max = parallel_reduce_max(my_max)
 
-       if (abs((my_max_diff - global_max_diff)/global_max_diff) < 1.0d-6) then
+       if (abs((my_max - global_max)/global_max) < 1.0d-6) then
           do j = nhalo+1, model%general%nsn-nhalo
              do i = nhalo+1, model%general%ewn-nhalo
-                if (abs((model%basal_melt%bmlt_applied_diff(i,j) - global_max_diff)/global_max_diff) < 1.0d-6) then
+                if (abs((model%basal_melt%bmlt_applied_diff(i,j) - global_max)/global_max) < 1.0d-6) then
                    ii = i; jj = j
                    print*, ' '
-                   print*, 'task, i, j, global_max_diff (m/yr):', this_rank, i, j, global_max_diff * scyr*thk0/tim0
+                   print*, 'task, i, j, global_max_diff (m/yr):', this_rank, i, j, global_max * scyr*thk0/tim0
                    print*, 'bmlt_float_inversion:', model%inversion%bmlt_float_inversion(i,j) * scyr
                    print*, 'bmlt_applied old, new:', model%basal_melt%bmlt_applied_old(i,j) * scyr*thk0/tim0, &
                         model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
@@ -2985,27 +3067,65 @@ contains
 
        model%basal_melt%bmlt_applied_old(:,:) = model%basal_melt%bmlt_applied(:,:)
 
-       ! repeat for dthck_dt
-       my_max_diff = maxval(model%geometry%dthck_dt)
-       my_min_diff = minval(model%geometry%dthck_dt)
-       global_max_diff = parallel_reduce_max(my_max_diff)
-       global_min_diff = parallel_reduce_min(my_min_diff)
+       ! global max and min values of bmlt_float_inversion
+       my_max = maxval(model%inversion%bmlt_float_inversion)
+       my_min = minval(model%inversion%bmlt_float_inversion)
+       global_max = parallel_reduce_max(my_max)
+       global_min = parallel_reduce_min(my_min)
 
-       if (abs((my_max_diff - global_max_diff)/global_max_diff) < 1.0d-6) then
+       if (abs((my_max - global_max)/global_max) < 1.0d-3) then
+          do j = nhalo+1, model%general%nsn-nhalo
+             do i = nhalo+1, model%general%ewn-nhalo
+                if (ice_mask(i,j) == 1 .and. &
+                     abs((model%inversion%bmlt_float_inversion(i,j) - global_max)/global_max) < 1.0d-3) then
+                   print*, ' '
+                   print*, 'task, i, j, global_max bmlt_float_inversion (m/yr):', this_rank, i, j, global_max * scyr
+                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
+                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   print*, 'global i, j =', iglobal, jglobal
+                endif
+             enddo
+          enddo
+       endif
+
+       !WHL - Will have multiple prints if the same limit is reached in multiple cells; just print for one cell
+!       if (abs((my_min - global_min)/global_min) < 1.0d-3) then
+!          do j = nhalo+1, model%general%nsn-nhalo
+!             do i = nhalo+1, model%general%ewn-nhalo
+!                if (ice_mask(i,j) == 1 .and. &
+!                     abs((model%inversion%bmlt_float_inversion(i,j) - global_min)/global_min) < 1.0d-11) then
+!                   print*, ' '
+!                   print*, 'task, i, j, global_min bmlt_float_inversion (m/yr):', this_rank, i, j, global_min * scyr
+!                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
+!                   call parallel_globalindex(i, j, iglobal, jglobal)
+!                   print*, 'global i, j =', iglobal, jglobal
+!                   exit
+!                endif
+!             enddo
+!          enddo
+!       endif
+
+       ! repeat for dthck_dt
+       my_max = maxval(model%geometry%dthck_dt)
+       my_min = minval(model%geometry%dthck_dt)
+       global_max = parallel_reduce_max(my_max)
+       global_min = parallel_reduce_min(my_min)
+
+       if (abs((my_max - global_max)/global_max) < 1.0d-6) then
           do j = nhalo+1, model%general%nsn-nhalo
              do i = nhalo+1, model%general%ewn-nhalo
 
-                if (abs((model%geometry%dthck_dt(i,j) - global_max_diff)/global_max_diff) < 1.0d-6) then
+                if (abs((model%geometry%dthck_dt(i,j) - global_max)/global_max) < 1.0d-6) then
                    print*, ' '
-                   print*, 'task, i, j, global_max_diff dthck/dt (m/yr):', this_rank, i, j, global_max_diff * scyr
+                   print*, 'task, i, j, global_max_diff dthck/dt (m/yr):', this_rank, i, j, global_max * scyr
                    print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
                    call parallel_globalindex(i, j, iglobal, jglobal)
                    print*, 'global i, j =', iglobal, jglobal
                 endif
 
-                if (abs((model%geometry%dthck_dt(i,j) - global_min_diff)/global_min_diff) < 1.0d-6) then
+                if (abs((model%geometry%dthck_dt(i,j) - global_min)/global_min) < 1.0d-6) then
                    print*, ' '
-                   print*, 'task, i, j, global_min_diff dthck/dt (m/yr):', this_rank, i, j, global_min_diff * scyr
+                   print*, 'task, i, j, global_min_diff dthck/dt (m/yr):', this_rank, i, j, global_min * scyr
                    print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
                    call parallel_globalindex(i, j, iglobal, jglobal)
                    print*, 'global i, j =', iglobal, jglobal

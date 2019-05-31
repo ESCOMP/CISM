@@ -733,7 +733,8 @@
        f_flotation,          &  ! flotation function = (rhoi*thck) / (-rhoo*(topg-eus)) by default
                                 ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
        f_ground,             &  ! grounded ice fraction at vertices, 0 <= f_ground <= 1
-       f_ground_cell            ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
+       f_ground_cell,        &  ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
+       weight_ground_vertex     ! like f_ground, but reduced for shallow cavities based on beta_cavity_thck_scale
 
     !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
     integer, dimension(:,:), pointer ::   &
@@ -758,7 +759,7 @@
        tau_eff                  ! effective stress (Pa)
 
     real(dp), dimension(:,:), pointer ::  &
-       stag_powerlaw_c_inversion  ! Cp (for basal traction) computed from inversion, on staggered grid
+       stag_powerlaw_c_inversion  ! Cp (for basal friction) computed from inversion, on staggered grid
 
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
@@ -768,7 +769,7 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
-       whichinversion, &        ! option for basal traction inversion
+       whichinversion, &        ! option for basal inversion
        whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
@@ -1044,6 +1045,7 @@
      f_ground => model%geometry%f_ground(:,:)
      f_ground_cell => model%geometry%f_ground_cell(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
+     weight_ground_vertex => model%geometry%weight_ground_vertex(:,:)
 
      temp     => model%temper%temp
      flwa     => model%temper%flwa(:,:,:)
@@ -2419,39 +2421,17 @@
              write(6,*) ' '
           enddo
 
-          print*, ' '
-          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+!          print*, ' '
+!          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
+!          do j = jtest+3, jtest-3, -1
+!             write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') active_ice_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') thck_calving_front(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+!             do i = itest-3, itest+3
+!                write(6,'(i10)',advance='no') active_ice_mask(i,j)
+!             enddo
+!             write(6,*) ' '
+!          enddo
 
           print*, ' '
           print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
@@ -2488,6 +2468,21 @@
              enddo
              write(6,*) ' '
           enddo
+
+          print*, ' '
+          print*, 'weight_ground_vertex, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') weight_ground_vertex(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          !WHL - debug - Skip the next few fields for now
+          go to 500
 
           print*, ' '
           print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
@@ -2538,7 +2533,7 @@
           enddo
 
           !WHL - debug - Skip the next few fields for now
-          go to 500
+!!          go to 500
 
           print*, ' '
           print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
@@ -2628,6 +2623,28 @@
              write(6,*) ' '
           enddo
 
+          print*, ' '
+          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+!!          do j = ny-1, 1, -1
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+!!             do i = 1, nx-1
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') calving_front_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') thck_calving_front(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
  500       continue
 
           ! Uncomment for inversion runs
@@ -2653,8 +2670,8 @@
                       topg,          eus,               &
                       ice_mask,                         &
                       land_mask,                        &
-                      f_ground,                         &
-!!                      f_ground_cell,                    &
+!!                      f_ground,                         &
+                      weight_ground_vertex,             &  ! equal to f_ground when beta_cavity_thck_scale = 0
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                       whichbeta_limit,                  &
@@ -2677,7 +2694,7 @@
 !!       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,30)==0) then
        if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
           print*, ' '
-          print*, 'log(beta), itest, jtest, rank =', itest, jtest, rtest
+          print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
@@ -2702,22 +2719,6 @@
 !             enddo
 !             write(6,*) ' '
 !          enddo
-
-          print*, ' '
-          print*, 'beta/f_ground, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                if (f_ground(i,j) > 0.0d0) then 
-                   write(6,'(e10.3)',advance='no') beta_internal(i,j)/f_ground(i,j)
-                else
-                   write(6,'(e10.3)',advance='no') 0.0d0
-                endif
-             enddo
-             write(6,*) ' '
-          enddo          
 
           if (solve_2d) then
 
@@ -4944,7 +4945,7 @@
 
     integer :: k, n, p
 
-    if (iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
+    if (verbose_shelf .and. iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
        print*, 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
        print*, 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif

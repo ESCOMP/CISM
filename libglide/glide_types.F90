@@ -552,6 +552,9 @@ module glide_types
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
 
+    logical :: smooth_input_topography = .false.
+    !> if true, then apply Laplacian smoothing to the topography at initialization
+
     integer :: dm_dt_diag = 0
     !> \begin{description}
     !> \item[0] Write dmass/dt diagnostic in units of kg/s
@@ -668,11 +671,11 @@ module glide_types
     !> \end{description}
 
     integer :: which_ho_inversion = 0
-    !> Flag for basal traction inversion options
+    !> Flag for basal inversion options
     !> Note: Inversion is currently supported for which_ho_babc = 11 only
     !> \begin{description}
     !> \item[0] no inversion
-    !> \item[1] invert for basal traction parameters and subshelf melting
+    !> \item[1] invert for basal friction parameters and subshelf melt rates
     !> \end{description}
 
     integer :: which_ho_bwat = 0
@@ -936,6 +939,18 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: f_ground_cell => null() 
     !> The fractional area in each cell which is grounded
+
+    real(dp),dimension(:,:),pointer :: weight_float_cell => null()
+    !> Weighting factor in range [0,1], computed for the floating part of a cell
+
+    real(dp),dimension(:,:),pointer :: weight_ground_vertex => null()
+    !> Weighting factor in range [0,1], computed for the grounded part of a staggered cell (i.e., centered on a vertex
+
+    real(dp) :: bmlt_cavity_thck_scale = 0.0d0   !> thickness scale (m) for basal melting in thin cavities;
+                                                 !> used to compute of weight_float_cell
+
+    real(dp) :: beta_cavity_thck_scale = 0.0d0   !> thickness scale (m) for weighting beta in thin cavities;
+                                                 !> used to compute weight_ground_vertex
 
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
@@ -1337,11 +1352,9 @@ module glide_types
 
   type glide_inversion
 
-     !WHL - working on new fields here
-     !TODO - Remove bmlt_float_save; it is now just a copy of bmlt_float_inversion
      real(dp), dimension(:,:), pointer :: &
-          bmlt_float_save => null(),           & !> saved value of bmlt_float; can be a time-weighted average
-          bmlt_float_inversion => null()         !> basal melt rate from inversion
+          bmlt_float_save => null(),           & !> saved value of bmlt_float; potential melt rate (m/s)
+          bmlt_float_inversion => null()         !> applied basal melt rate, computed by inversion (m/s)
 
      integer, dimension(:,:), pointer :: &
           bmlt_float_inversion_mask => null()    !> = 1 in cells where bmlt_float_inversion can be applied,
@@ -1349,14 +1362,14 @@ module glide_types
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_save => null(),           & !> saved powerlaw_c field; can be a time-weighted average
+          powerlaw_c_save => null(),           & !> saved powerlaw_c field
           powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field to be applied to grounded ice
           stag_powerlaw_c_inversion => null(), & !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
-          usrf_inversion => null()               !> upper surface elevation, used for Cp inversion (m)
+          thck_save => null()                    !> saved thck field (m); used to compute dthck_dt_inversion
 
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
-     ! Note: inversion_babc_timescale and inversion_babc_dthck_dt_scale are later rescaled to SI units (s and m/s).
+     ! Note: inversion_babc_timescale is later rescaled to SI units (s).
 
      real(dp) ::  &
           powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
@@ -1366,18 +1379,16 @@ module glide_types
 
      ! parameters for adjusting powerlaw_c_inversion
      real(dp) ::  &
-          babc_timescale = 500.d0,        & !> inversion timescale (yr); must be > 0
-          babc_thck_scale = 100.d0,       & !> thickness inversion scale (m); must be > 0
-          babc_dthck_dt_scale = 0.10d0,   & !> dthck_dt inversion scale (m/yr); must be > 0
-          babc_space_smoothing = 1.0d-2,  & !> factor for spatial smoothing of powerlaw_c; larger => more smoothing
-          babc_time_smoothing = 0.0d0       !> factor for exponential moving average of usrf
-                                            !> range [0,1]; larger => slower discounting of old values, more smoothing
+          babc_timescale = 500.d0,         & !> inversion timescale (yr); must be > 0
+          babc_thck_scale = 100.d0,        & !> thickness inversion scale (m); must be > 0
+          babc_smoothing_timescale = 1000.d0 !> timescale (yr) for spatial smoothing of powerlaw_c; larger => less smoothing
+                                             !> set to zero to turn off smoothing; set to dt for max smoothing
 
      ! parameters for adjusting bmlt_float_inversion
      real(dp) ::  &
-          bmlt_max_thck_above_flotation = 1.0d0, & !> cells with a grounded target are restored to no more than
-                                                   !>  thck_flotation + bmlt_max_thck_above_flotation
-          bmlt_freeze_max = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
+          bmlt_timescale = 0.d0,          &  !> time scale (yr) for relaxing toward observed thickness
+          bmlt_max_melt = 0.d0,           &  !> max melting rate allowed from inversion (m/yr); ignored when set to 0
+          bmlt_max_freeze = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
 
      ! parameters for initializing inversion fields
      real(dp) :: &
@@ -1391,11 +1402,13 @@ module glide_types
      ! Setting wean_*_tend = 0.0 (the default) is interpreted as turning off this nudging.
      ! In this case, the saved values are set to the new values every time step.
      real(dp) ::  &
-          nudging_factor = 1.0d0,         & !> = 1 to use the newly computed value; = 0 to use the saved value;
-                                            !> 0 < nudging_factor < 1 between wean_tstart and wean_tend
+          nudging_factor_min = 0.0d0,       & !> min value of nudging factor between wean_tstart and wean_tend
           wean_bmlt_float_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of bmlt_float
           wean_bmlt_float_tend = 0.0d0,     & !> end time (yr) for weighted nudging of bmlt_float
-          wean_bmlt_float_timescale = 0.0d0,& !> time scale for weaning of bmlt_float
+          wean_bmlt_float_timescale = 0.0d0   !> time scale for weaning of bmlt_float
+
+     !TODO - Do not use weaning for powerlaw_c?  May be able to run with nudging simply on or off.
+     real(dp) ::  &
           wean_powerlaw_c_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of powerlaw_c
           wean_powerlaw_c_tend = 0.0d0,     & !> end time (yr) for weighted nudging of powerlaw_c
           wean_powerlaw_c_timescale = 0.0d0   !> time scale for weaning of powerlaw_c
@@ -2098,7 +2111,7 @@ contains
     !> \item \texttt{powerlaw_c_save(ewn,nsn)}
     !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
     !> \item \texttt{stag_powerlaw_c_inversion(ewn,nsn)}
-    !> \item \texttt{usrf_inversion(ewn,nsn)}
+    !> \item \texttt{thck_save(ewn,nsn)}
 
     !> In \texttt{model\%plume}:
     !> \begin{itemize}
@@ -2412,6 +2425,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%weight_float_cell)
+       call coordsystem_allocate(model%general%velo_grid, model%geometry%weight_ground_vertex)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
@@ -2501,8 +2516,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion_mask)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
-       call coordsystem_allocate(model%general%velo_grid, model%inversion%stag_powerlaw_c_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%usrf_inversion)
+       call coordsystem_allocate(model%general%velo_grid,model%inversion%stag_powerlaw_c_inversion)
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
     else
        ! Always allocate powerlaw_c_inversion fields so they can be passed as arguments
        allocate(model%inversion%powerlaw_c_inversion(1,1))
@@ -2854,6 +2869,8 @@ contains
     ! inversion arrays
     if (associated(model%inversion%bmlt_float_save)) &
         deallocate(model%inversion%bmlt_float_save)
+    if (associated(model%inversion%bmlt_float_inversion)) &
+        deallocate(model%inversion%bmlt_float_inversion)
     if (associated(model%inversion%bmlt_float_inversion_mask)) &
         deallocate(model%inversion%bmlt_float_inversion_mask)
     if (associated(model%inversion%powerlaw_c_save)) &
@@ -2862,8 +2879,8 @@ contains
         deallocate(model%inversion%powerlaw_c_inversion)
     if (associated(model%inversion%stag_powerlaw_c_inversion)) &
         deallocate(model%inversion%stag_powerlaw_c_inversion)
-    if (associated(model%inversion%usrf_inversion)) &
-        deallocate(model%inversion%usrf_inversion)
+    if (associated(model%inversion%thck_save)) &
+        deallocate(model%inversion%thck_save)
 
     ! plume arrays
     if (associated(model%plume%T_basal)) &
@@ -2998,6 +3015,10 @@ contains
         deallocate(model%geometry%f_ground)
     if (associated(model%geometry%f_ground_cell)) &
         deallocate(model%geometry%f_ground_cell)
+    if (associated(model%geometry%weight_float_cell)) &
+        deallocate(model%geometry%weight_float_cell)
+    if (associated(model%geometry%weight_ground_vertex)) &
+        deallocate(model%geometry%weight_ground_vertex)
     if (associated(model%geomderv%dlsrfdew)) &
         deallocate(model%geomderv%dlsrfdew)
     if (associated(model%geomderv%dlsrfdns)) &
