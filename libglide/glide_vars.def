@@ -1007,7 +1007,6 @@ dimensions:    time, y1, x1
 units:         watt/meter2
 long_name:     basal friction heat flux
 data:          data%temper%bfricflx
-factor:        1.0
 load:          1
 coordinates:   lon lat
 
@@ -1052,6 +1051,14 @@ data:          data%inversion%powerlaw_c_inversion
 load:          0
 coordinates:   lon lat
 
+[stag_powerlaw_c_inversion]
+dimensions:    time, y1, x1
+units:         Pa (m/yr)**(-1/3)
+long_name:     spatially varying C for powerlaw sliding, staggered grid
+data:          data%inversion%stag_powerlaw_c_inversion
+load:          0
+coordinates:   lon lat
+
 [powerlaw_c_inversion_save]
 dimensions:    time, y1, x1
 units:         Pa (m/yr)**(-1/3)
@@ -1060,11 +1067,11 @@ data:          data%inversion%powerlaw_c_save
 load:          1
 coordinates:   lon lat
 
-[usrf_inversion]
+[thck_inversion_save]
 dimensions:    time, y1,x1
 units:         meter
-long_name:     surface elevation used for inversion
-data:          data%inversion%usrf_inversion
+long_name:     thickness from previous time step, for inversion
+data:          data%inversion%thck_save
 coordinates:   lon lat
 load:          1
 
