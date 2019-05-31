@@ -1132,7 +1132,7 @@
       call parallel_reduce_minloc(xin=my_allowable_dt_adv, xout=allowable_dt_adv, xprocout=procnum)
 
       if (deltat > allowable_dt_adv) then
-          ierr = 1  ! Advective CFL violation is a fatal error
+          ierr = 1  ! advective CFL violation
 
           ! Get position of the limiting location - do this only if an error message is needed to avoid 2 MPI comms
           indices_adv_global(1) = indices_adv(1)
@@ -1149,8 +1149,15 @@
           write(message,*) 'Advective CFL violation!  Maximum allowable time step for advective CFL condition is ' &
                // trim(adjustl(dt_string)) // ' yr, limited by global position i=' &
                // trim(adjustl(xpos_string)) // ' j=' //trim(adjustl(ypos_string))
-          ! Write a warning first before throwing a fatal error so we can also check the diffusive CFL before aborting
-          call write_log(trim(message),GM_WARNING)      
+
+          ! If the violation is egregious (defined at deltat > 10 * allowable_dt_adv), then abort.
+          ! Otherwise, write a warning and proceed.
+          if (deltat > 10.d0 * allowable_dt_adv) then
+             call write_log(trim(message),GM_FATAL)
+          else
+             call write_log(trim(message),GM_WARNING)
+          endif
+
       endif
 
       ! Perform global reduce for diffusive time step and determine where in the domain it occurs
@@ -1416,7 +1423,7 @@
       real(dp) :: bed_accum, bed_ablat  ! bed accumulation/ablation, from bmlt
       real(dp) :: dthck                 ! thickness change
 
-      integer :: i, j, k, nt
+      integer :: i, j, k, nt, iglobal, jglobal
 
       character(len=100) :: message
 
@@ -1611,9 +1618,10 @@
                thck_final(i,j) = sum(thck_layer(i,j,:))
                dthck = (acab(i,j) - bmlt(i,j))*dt*effective_areafrac(i,j)
                if (abs(thck_init(i,j) + dthck - thck_final(i,j) + melt_potential(i,j)) > 1.d-8) then
+                  call parallel_globalindex(i,j, iglobal, jglobal)
                   print*, ' '
-                  print*, 'ERROR: Column conservation check, r, i, j, err =', &
-                       this_rank, i, j, thck_init(i,j) + dthck - thck_final(i,j)
+                  print*, 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
+                       this_rank, i, j, iglobal, jglobal, thck_init(i,j) + dthck - thck_final(i,j)
                   print*, 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
                   print*, 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
                        acab(i,j)*dt, bmlt(i,j)*dt, effective_areafrac(i,j), melt_potential(i,j)
