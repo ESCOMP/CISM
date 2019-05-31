@@ -210,10 +210,11 @@ contains
 
     ! scale basal inversion parameters
     !TODO - Leave buffer units as meters?
-    model%inversion%babc_timescale = model%inversion%babc_timescale * scyr
-    model%inversion%babc_dthck_dt_scale = model%inversion%babc_dthck_dt_scale / scyr
-    model%inversion%bmlt_max_thck_above_flotation = model%inversion%bmlt_max_thck_above_flotation / thk0
-    model%inversion%bmlt_freeze_max = model%inversion%bmlt_freeze_max / scyr  ! convert m/yr to m/s
+    model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
+    model%inversion%babc_smoothing_timescale = model%inversion%babc_smoothing_timescale * scyr  ! convert yr to s
+    model%inversion%bmlt_timescale = model%inversion%bmlt_timescale * scyr    ! convert yr to s
+    model%inversion%bmlt_max_melt = model%inversion%bmlt_max_melt / scyr      ! convert m/yr to m/s
+    model%inversion%bmlt_max_freeze = model%inversion%bmlt_max_freeze / scyr  ! convert m/yr to m/s
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
 
@@ -594,6 +595,7 @@ contains
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck',model%options%diag_minthck)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
@@ -1151,7 +1153,7 @@ contains
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
 
-    ! dycore-dependent calving options
+    ! dycore-dependent options; most of these are supported for Glissade only
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
@@ -1180,6 +1182,11 @@ contains
           call write_log(message, GM_WARNING)
        endif
 
+       if (model%options%smooth_input_topography) then
+          write(message,*) ' Input topography will be smoothed'
+          call write_log(message)
+       endif
+
     else   ! not Glissade
 
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
@@ -1199,10 +1206,15 @@ contains
           call write_log(message, GM_WARNING)
        endif
        if (model%calving%timescale > 0.0d0) then
-          write(message,*) 'WARNING: calving timescale option suppored for Glissade dycore only; user selection ignored'
+          write(message,*) 'WARNING: calving timescale option supported for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
        endif
-    endif
+       if (model%options%smooth_input_topography) then
+          write(message,*) 'WARNING: Topography smoothing supported for Glissade dycore only; user selection ignored'
+          call write_log(message, GM_WARNING)
+       endif
+
+    endif  ! dycore
 
     if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(slip_coeff)) then
        call write_log('Error, slip_coeff out of range',GM_FATAL)
@@ -1686,6 +1698,8 @@ contains
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
+    call GetValue(section,'bmlt_cavity_thck_scale',  model%geometry%bmlt_cavity_thck_scale)
+    call GetValue(section,'beta_cavity_thck_scale',  model%geometry%beta_cavity_thck_scale)
 
     ! parameters to adjust external forcing
     call GetValue(section,'acab_factor',        model%climate%acab_factor)
@@ -1769,14 +1783,13 @@ contains
     call GetValue(section, 'powerlaw_c_marine', model%inversion%powerlaw_c_marine)
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
-    call GetValue(section, 'inversion_babc_dthck_dt_scale', model%inversion%babc_dthck_dt_scale)
-    call GetValue(section, 'inversion_babc_space_smoothing', model%inversion%babc_space_smoothing)
-    call GetValue(section, 'inversion_babc_time_smoothing', model%inversion%babc_time_smoothing)
-    call GetValue(section, 'inversion_bmlt_max_thck_above_flotation', &
-         model%inversion%bmlt_max_thck_above_flotation)
-    call GetValue(section, 'inversion_bmlt_freeze_max', model%inversion%bmlt_freeze_max)
+    call GetValue(section, 'inversion_babc_smoothing_timescale', model%inversion%babc_smoothing_timescale)
+    call GetValue(section, 'inversion_bmlt_timescale', model%inversion%bmlt_timescale)
+    call GetValue(section, 'inversion_bmlt_max_melt', model%inversion%bmlt_max_melt)
+    call GetValue(section, 'inversion_bmlt_max_freeze', model%inversion%bmlt_max_freeze)
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
+    call GetValue(section, 'inversion_nudging_factor_min', model%inversion%nudging_factor_min)
     call GetValue(section, 'inversion_wean_bmlt_float_tstart', model%inversion%wean_bmlt_float_tstart)
     call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
     call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
@@ -1987,6 +2000,16 @@ contains
     if (model%options%whichdycore == DYCORE_GLISSADE) then
        write(message,*) 'max surface slope             : ', model%paramets%max_slope
        call write_log(message)
+       if (model%geometry%bmlt_cavity_thck_scale > 0.0d0) then
+          write(message,*) 'bmlt cavity thickness scale (m)    : ', &
+               model%geometry%bmlt_cavity_thck_scale
+          call write_log(message)
+       endif
+       if (model%geometry%beta_cavity_thck_scale > 0.0d0) then
+          write(message,*) 'beta cavity thickness scale (m)    : ', &
+               model%geometry%beta_cavity_thck_scale
+          call write_log(message)
+       endif
     end if       
  
     if (model%options%whichflwa == FLWA_CONST_FLWA) then
@@ -2113,26 +2136,23 @@ contains
        write(message,*) 'powerlaw_c marine, Pa (m/yr)^(-1/3)          : ', &
             model%inversion%powerlaw_c_marine
        call write_log(message)
-       write(message,*) 'inversion basal traction timescale (yr)      : ', &
+       write(message,*) 'inversion basal friction timescale (yr)      : ', &
             model%inversion%babc_timescale
        call write_log(message)
        write(message,*) 'inversion thickness scale (m)                : ', &
             model%inversion%babc_thck_scale
        call write_log(message)
-       write(message,*) 'inversion dthck/dt scale (m/yr)              : ', &
-            model%inversion%babc_dthck_dt_scale
+       write(message,*) 'inversion basal friction smoothing timescale : ', &
+            model%inversion%babc_smoothing_timescale
        call write_log(message)
-       write(message,*) 'inversion basal traction space smoothing     : ', &
-            model%inversion%babc_space_smoothing
+       write(message,*) 'inversion basal melting timescale (yr)       : ', &
+            model%inversion%bmlt_timescale
        call write_log(message)
-       write(message,*) 'inversion basal traction time smoothing      : ', &
-            model%inversion%babc_time_smoothing
-       call write_log(message)
-       write(message,*) 'inversion max thck above flotation (m)       : ', &
-            model%inversion%bmlt_max_thck_above_flotation
+       write(message,*) 'inversion max melting rate (m/yr)            : ', &
+            model%inversion%bmlt_max_melt
        call write_log(message)
        write(message,*) 'inversion max freezing rate (m/yr)           : ', &
-            model%inversion%bmlt_freeze_max
+            model%inversion%bmlt_max_freeze
        call write_log(message)
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
@@ -2150,6 +2170,9 @@ contains
           call write_log(message)
           write(message,*) 'time scale (yr) for bmlt_float abated nudging  : ', &
                model%inversion%wean_bmlt_float_timescale
+          call write_log(message)
+          write(message,*) 'min nudging factor for bmlt_float              : ', &
+               model%inversion%nudging_factor_min
           call write_log(message)
           if (model%inversion%wean_bmlt_float_tend < model%inversion%wean_bmlt_float_tstart) then
              call write_log('Error, must have wean_bmlt_float_tend >= wean_bmlt_float_tstart', GM_FATAL)
@@ -2809,24 +2832,16 @@ contains
     select case(options%which_ho_inversion)
       case (HO_INVERSION_COMPUTE)
          ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
-         ! usrf_inversion and dthck_dt_inversion are computed as moving averages while adjusting powerlaw_c
-         !TODO - Remove 'save' fields, and just use powerlaw_c_inversion and bmlt_float_inversion
-!!         call glide_add_to_restart_variable_list('powerlaw_c_inversion')
-!!         call glide_add_to_restart_variable_list('bmlt_float_inversion')
+         call glide_add_to_restart_variable_list('usrf_obs')
          call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
          call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
          call glide_add_to_restart_variable_list('bmlt_float_inversion_mask')
          call glide_add_to_restart_variable_list('dthck_dt')
-         call glide_add_to_restart_variable_list('usrf_inversion')
+         call glide_add_to_restart_variable_list('thck_inversion_save')   ! used for bmlt_float_inversion
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,
     !  then usrf_obs needs to be in the restart file.
-    ! TODO: Inversion for topg_obs still needs to be tested.
-    if (options%which_ho_inversion == HO_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('usrf_obs')
-       call glide_add_to_restart_variable_list('topg_obs')
-    endif
 
     ! geothermal heat flux option
     select case (options%gthf)
