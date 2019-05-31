@@ -149,7 +149,7 @@ module glissade_bmlt_float
     !        along with a number of prescribed parameters for MISMIP+:
     !
     !       MISMIP+ Ice1
-    !       - bmlt_float_omega     ! time scale for basal melting (s-1), default = 0.2/yr
+    !       - bmlt_float_omega     ! lapse rate for basal melting (m/s/m = s-1), default = 0.2/yr
     !       - bmlt_float_h0        ! scale for sub-shelf cavity thickness (m), default = 75 m
     !       - bmlt_float_z0        ! scale for ice draft (m), default = -100 m
     !

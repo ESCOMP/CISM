@@ -252,6 +252,8 @@ contains
        write(message,*)'Scale factor: ',proj%stere%scale_factor_at_proj_origin
        call write_log(message)
        write(message,*)'compute_area_factor:',proj%stere%compute_area_factor
+       call write_log(message)
+
     end if
 
   end subroutine glimmap_printproj
