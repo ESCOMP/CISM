@@ -49,6 +49,7 @@ module glissade_grid_operators
     public :: glissade_stagger, glissade_unstagger, glissade_stagger_real_mask, &
               glissade_gradient, glissade_gradient_at_edges, &
               glissade_surface_elevation_gradient,  &
+              glissade_laplacian_smoother,  &
               glissade_vertical_average
 
     logical, parameter :: verbose_gradient = .false.
@@ -1235,6 +1236,115 @@ contains
     endif
 
   end subroutine glissade_surface_elevation_gradient
+
+!****************************************************************************
+
+  subroutine glissade_laplacian_smoother(nx,         ny,            &
+                                         var,        var_smooth,    &
+                                         smoother_mask,             &
+                                         npoints_stencil)
+
+    !----------------------------------------------------------------
+    ! Given a 2D field on the ice grid, smooth the field using a 9-point Laplacian stencil.
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) :: nx, ny                             ! horizontal grid dimensions
+
+    real(dp), dimension(nx,ny), intent(in) :: var             ! input field, before smoothing
+
+    real(dp), dimension(nx,ny), intent(out) :: var_smooth     ! output field, after smoothing
+
+    real(dp), dimension(nx,ny), intent(in), optional :: &
+         smoother_mask                                        ! real mask to weight the cells included in the smoothing
+
+    integer, intent(in), optional :: &
+         npoints_stencil                                      ! number of points in stencil, either 5 or 9
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    real(dp), dimension(nx,ny) :: rmask   ! real mask set to the optional smoother_mask, else = 1 everywhere
+
+    real(dp) :: sum_mask   ! sum of mask values in the cell and its neighbors, converted to real(dp)
+
+    integer :: npoints  ! set equal to npoints_stencil, else defaults to 5
+
+    integer :: i, j
+
+    if (present(smoother_mask)) then
+       rmask = smoother_mask
+    else
+       rmask = 1.0d0
+    endif
+
+    if (present(npoints_stencil)) then
+       npoints = npoints_stencil
+       if (.not.(npoints == 5 .or. npoints == 9)) then
+          call write_log('ERROR, glissade_laplacian_smoother: Must choose 5 or 9 points for the stencil', GM_FATAL)
+       endif
+    else
+       npoints = 5
+    endif
+
+    sum_mask = 0.0d0
+
+    if (npoints == 5) then
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+
+             sum_mask =  4.0d0 *  rmask(i,j)  &
+                       + 1.0d0 * (rmask(i-1,j) + rmask(i+1,j) + rmask(i,j-1) + rmask(i,j+1))
+
+             if (sum_mask > 0.0d0) then
+
+                var_smooth(i,j) = (1.0d0/sum_mask) *  &
+                                 ( 4.0d0 *  rmask(i,j)*var(i,j)  &
+                                 + 1.0d0 * (rmask(i-1,j)*var(i-1,j) + rmask(i+1,j)*var(i+1,j)   &
+                                          + rmask(i,j-1)*var(i,j-1) + rmask(i,j+1)*var(i,j+1)) )
+             else
+                var_smooth(i,j) = var(i,j)
+             endif
+
+          enddo
+       enddo
+
+    elseif (npoints == 9) then
+
+       call write_log('Apply Laplacian smoother with 9-point stencil')
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+
+             sum_mask =  4.0d0 *  rmask(i,j)  &
+                       + 2.0d0 * (rmask(i-1,j) + rmask(i+1,j) + rmask(i,j-1) + rmask(i,j+1))  &
+                       + 1.0d0 * (rmask(i-1,j+1) + rmask(i+1,j+1) + rmask(i-1,j-1) + rmask(i+1,j-1))
+
+             if (sum_mask > 0.0d0) then
+
+                var_smooth(i,j) = (1.0d0/sum_mask) *  &
+                                 ( 4.0d0 *  rmask(i,j)*var(i,j) &
+                                 + 2.0d0 * (rmask(i-1,j)*var(i-1,j) + rmask(i+1,j)*var(i+1,j)   &
+                                          + rmask(i,j-1)*var(i,j-1) + rmask(i,j+1)*var(i,j+1))  &
+                                 + 1.0d0 * (rmask(i-1,j+1)*var(i-1,j+1) + rmask(i+1,j+1)*var(i+1,j+1)   &
+                                          + rmask(i-1,j-1)*var(i-1,j-1) + rmask(i+1,j-1)*var(i+1,j-1)) )
+             else
+                var_smooth(i,j) = var(i,j)
+             endif
+
+          enddo
+       enddo
+
+    endif   ! npoints
+
+    call parallel_halo(var_smooth)
+
+  end subroutine glissade_laplacian_smoother
 
 !****************************************************************************
 
