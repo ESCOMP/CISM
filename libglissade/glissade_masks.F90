@@ -466,6 +466,8 @@
 
        else   ! no subgrid calving front scheme
 
+          !TODO - Allow for cases when we would want to compute a CF mask even when not using the subgrid CF scheme?
+          !       E.g., when culling CF cells before inversion.
           calving_front_mask(:,:) = 0
 
           if (present(thck_calving_front)) then
@@ -473,7 +475,7 @@
           endif
 
           if (present(effective_areafrac)) then
-             where (ice_mask == 1)
+             where (ice_mask == 1 .or. land_mask == 1)
                 effective_areafrac = 1.0d0
              elsewhere
                 effective_areafrac = 0.0d0
