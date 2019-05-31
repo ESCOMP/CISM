@@ -44,6 +44,7 @@ module glissade_calving
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
   
 contains
 
@@ -1214,6 +1215,35 @@ contains
 
     endif   ! which_calving
 
+    ! Remove any icebergs.
+    ! Typically these will be removed by the calving scheme above, but if not,
+    !  then they need to be removed before calling the velocity solver,
+    !  which will have problems in regions without any grounded ice.
+
+    if (remove_icebergs) then
+
+       if (verbose_calving .and. main_task) then
+          print*, 'Remove icebergs'
+       endif
+
+       ! Set the thickness thresholds for cells to be counted as active.
+       ! Floating regions will be identified as icebergs unless they are connected to grounded ice
+       !  along a path consisting only of active cells.
+       ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
+       !       Then the algorithm can fail to identify floating regions that should be removed.
+
+       call glissade_remove_icebergs(&
+            itest,   jtest,   rtest, &
+            thck,                    &
+            topg,          eus,      &
+            thklim,                  &
+            which_ho_calving_front,  &
+            calving%calving_thck,    &
+            cull_calving_front,      &
+            calving%ncull_calving_front)
+
+    endif
+
     ! Optionally, impose a thickness limit on marine ice cliffs.
     ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
 
@@ -1309,35 +1339,6 @@ contains
        enddo   ! j
 
     endif   ! limit_marine_cliffs
-
-    ! Remove any icebergs.
-    ! Typically these will be removed by the calving scheme above, but if not, 
-    !  then they need to be removed before calling the velocity solver,
-    !  which will have problems in regions without any grounded ice.
-
-    if (remove_icebergs) then
-
-       if (verbose_calving .and. main_task) then
-          print*, 'Remove icebergs'
-       endif
-
-       ! Set the thickness thresholds for cells to be counted as active.
-       ! Floating regions will be identified as icebergs unless they are connected to grounded ice
-       !  along a path consisting only of active cells.
-       ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
-       !       Then the algorithm can fail to identify floating regions that should be removed.
-
-       call glissade_remove_icebergs(&
-            itest,   jtest,   rtest, &
-            thck,                    &
-            topg,          eus,      &
-            thklim,                  &
-            which_ho_calving_front,  &
-            calving%calving_thck,    &
-            cull_calving_front,      &
-            calving%ncull_calving_front)
-
-    endif
 
     if (verbose_calving .and. this_rank == rtest) then
 
@@ -1526,26 +1527,29 @@ contains
        enddo
     endif
     
-    !WHL - debug
     ! Optionally, do a preliminary step where all cells currently at the calving front are removed.
     ! Then recompute the masks.
-    ! The result is that long, skinny floating peninsulas that can be dynamically unstable are more likely
-    !  to be removed. Without this step, peninsulas that are two cells thick (with calving-front cells on each side)
+    ! Culling can removed long, skinny floating peninsulas that can be dynamically unstable.
+    !  Without this step, peninsulas up to two cells thick (with calving-front cells on each side)
     !  will typically be removed as icebergs (because there is no path back to grounded ice through active cells).
-    !  With this step, peninsulas up to four cells thick will be removed (two outer layers during the preliminary step,
-    !  followed by two inner layers on the remove_iceberg step).
-    ! If necessary, this step could be repeated to remove peninsulas with a thickness of 6 layers, 8 layers, etc.
+    ! With one round of culling, peninsulas up to four cells thick will be removed (two outer layers
+    !  during the preliminary step, followed by two inner layers on the remove_iceberg step).
+    ! If necessary, culling can be repeated to remove peninsulas with a thickness of 6 layers, 8 layers, etc.
 
     if (cull_calving_front) then
 
        do n = 1, ncull_calving_front
 
-          ! Identify calving front cells (ice-covered cells that border ice-free ocean), including grounded cells.
-          ! Note: This is different from the CF criterion in glissade_masks, which includes only floating cells.
+          ! compute a calving front mask
+          ! Note: This computation is redundant when running with the subgrid CF scheme, in which case
+          !        we already have the correct CF mask from glissade_get_masks.
+          !       But if we are running without the subgrid CF scheme (as we typically do for inversion),
+          !        then glissade_get_masks sets calving_front_mask = 0 everywhere, which is not what we want here.
+          !       TODO: Allow calving_front_mask = 1 in glissade_get_masks without the subgrid CF scheme?
+
           do j = 2, ny-1
              do i = 2, nx-1
-!!                if (floating_mask(i,j) == 1) then
-                if (ice_mask(i,j) == 1) then
+                if (floating_mask(i,j) == 1) then
                    if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
                        ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                       calving_front_mask(i,j) = 1
@@ -1556,14 +1560,21 @@ contains
 
           call parallel_halo(calving_front_mask)
 
-          ! remove the calving_front cells just identified
           if (main_task) then
              call write_log ('cull_calving_front: Removing ice from calving_front cells')
              print*, 'cull_calving_front: Removing ice from calving_front cells'
           endif
 
-          !WHL - debug
           if (verbose_calving .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'calving_front_mask for culling, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
              print*, ' '
              print*, 'cull_calving_front: Before removing CF cells, n =', n
              print*, ' '
@@ -1572,15 +1583,6 @@ contains
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') thck(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'calving_front_mask for culling, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -1595,9 +1597,7 @@ contains
              enddo
           enddo
 
-          !WHL - debug
-!!          if (verbose_calving .and. this_rank == rtest) then
-          if (this_rank == rtest) then
+          if (verbose_calving .and. this_rank == rtest) then
              print*, ' '
              print*, 'cull_calving_front: After removing CF cells, n =', n
              print*, ' '
@@ -1664,13 +1664,23 @@ contains
 
           do j = 1, ny
              do i = 1, nx
+
+                ! Active cells that are firmly grounded can seed the fill.
+                ! It is somewhat arbitrary how to define "firmly grounded", but one way is to
+                ! required that f_ground_cell exceed a modest threshold, defined above as a parameter.
+                ! TODO - Add this criterion; floating_mask may not be robust on its own.
+
                 if (active_ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
+
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
+
                       ! assign the fill color to this cell, and recursively fill neighbor cells
                       call glissade_fill(nx,    ny,    &
                                          i,     j,     &
                                          color, active_ice_mask)
+
                    endif
+
                 endif
              enddo
           enddo
@@ -1750,7 +1760,6 @@ contains
     !       Such cells are considered part of the inactive calving front and are
     !        allowed to continue filling instead of calving.
 
-
     do j = 2, ny-1
        do i = 2, nx-1
           if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
@@ -1781,6 +1790,7 @@ contains
     deallocate (ice_mask)
     deallocate (floating_mask)
     deallocate (ocean_mask)
+    deallocate (land_mask)
     deallocate (calving_front_mask)
     deallocate (thck_calving_front)
     deallocate (active_ice_mask)
@@ -2089,6 +2099,209 @@ contains
     endif   ! present(lake_mask)
 
   end subroutine glissade_ocean_connection_mask
+
+!****************************************************************************
+  subroutine glissade_marine_connection_mask(nx,           ny,             &
+                                             itest, jtest, rtest,          &
+                                             ocean_mask,                   &
+                                             land_mask,                    &
+                                             marine_connection_mask)
+
+  ! Identify cells that have a marine path to the ocean.
+  ! The path can include grounded marine-based ice.
+
+  !TODO - Move this subroutine to glissade_masks?
+  !       The only connection to calving is the use of glissade_fill.
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    ! Note: Each input mask needs to be correct in halo cells
+    integer, dimension(nx,ny), intent(in) ::  &
+         ocean_mask,             & !> = 1 where topg - eus is below sea level and ice is absent, else = 0
+         land_mask                 !> = 1 for topg - eus is at or above sea level
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         marine_connection_mask     !> = 1 for ocean cells, and cells connected to the ocean through marine-based ice
+
+    ! local variables
+
+    integer, dimension(nx,ny) ::  &
+         color,                   &  ! integer 'color' mask to mark filled cells
+         marine_mask                 ! marine-based cells; complement of land_mask
+
+    integer :: i, j
+    integer :: count, maxcount_fill  ! loop counters
+
+    logical, parameter :: verbose_marine_connection = .true.
+
+    real(dp) :: sum_fill_local, sum_fill_global
+
+    ! initialize
+    ! Compute a marine mask; = 1 for all cells that are not land-based.
+    ! Marine-based cells receive the initial color; land cells receive the boundary color.
+
+    where (land_mask == 1)
+       marine_mask = 0
+       color = boundary_color
+    elsewhere
+       marine_mask = 1
+       color = initial_color
+    endwhere
+
+    if (verbose_marine_connection .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_marine_connection_mask, itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'marine_mask'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') marine_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! Loop through cells, identifying marine-based cells that border the ocean.
+    ! Fill each such cell, and then recursively fill marine-based neighbor cells.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+    ! The result is a mask that identifies (with the fill color) all marine-based cells connected to the ocean.
+
+    maxcount_fill = max(ewtasks,nstasks)
+
+    if (verbose_marine_connection .and. main_task) print*, 'maxcount_fill =', maxcount_fill
+
+    do count = 1, maxcount_fill
+
+       if (count == 1) then   ! identify marine-based cells adjacent to ocean cells, which can seed the fill
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (marine_mask(i,j) == 1) then
+                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or.   &
+                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+
+                      if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
+
+                         ! assign the fill color to this cell, and recursively fill marine-based neighbor cells
+                         call glissade_fill(nx,    ny,    &
+                                            i,     j,     &
+                                            color, marine_mask)
+                      endif
+                   endif  ! adjacent to ocean
+                endif  ! marine-based
+             enddo  ! i
+          enddo  ! j
+
+       else  ! count > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
+          !       but also must have marine_mask = 1.
+
+          call parallel_halo(color)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, marine_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, marine_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, marine_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, marine_mask)
+             endif
+          enddo
+
+       endif  ! count = 1
+
+       sum_fill_local = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+          enddo
+       enddo
+
+       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+
+       if (verbose_marine_connection .and. main_task) then
+          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+       endif
+
+       !TODO - Exit when sum_fill_global is no longer increasing
+
+    enddo  ! count
+
+    call parallel_halo(color)
+
+    ! Identify marine-based cells connected to the ocean.  This includes:
+    ! (1) cells that are already ocean.
+    ! (2) cells with the fill color, meaning they are marine-based cells connected to the ocean
+
+    marine_connection_mask(:,:) = 0
+
+    do j = 1, ny
+       do i = 1, nx
+          if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
+             marine_connection_mask(i,j) = 1
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(marine_connection_mask)
+
+    if (verbose_marine_connection .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'color, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') color(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, ', marine_connection_mask, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') marine_connection_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_marine_connection_mask
 
 !****************************************************************************
 
