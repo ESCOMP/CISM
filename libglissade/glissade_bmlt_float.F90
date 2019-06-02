@@ -47,8 +47,8 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_ismip6_init, glissade_bmlt_float_ismip6
 
-    logical :: verbose_bmlt_float = .false.
-!!    logical :: verbose_bmlt_float = .true.
+!!    logical :: verbose_bmlt_float = .false.
+    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -747,23 +747,16 @@ module glissade_bmlt_float
           enddo
           write(6,*) ' '
        enddo
-       print*, ' '
-       print*, 'thermal_forcing_baseline, k =', ocean_data%nzocn/2
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_baseline(ocean_data%nzocn/2,i,j)
+       do k = 1, min(15, ocean_data%nzocn)
+          print*, ' '
+          print*, 'thermal_forcing_baseline, k =', k
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_baseline(k,i,j)
+             enddo
+             write(6,*) ' '
           enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing_final, k =', ocean_data%nzocn/2
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') ocean_data%thermal_forcing_final(ocean_data%nzocn/2,i,j)
-          enddo
-          write(6,*) ' '
        enddo
     endif
 
@@ -792,6 +785,10 @@ module glissade_bmlt_float
                                        ocean_data%thermal_forcing_baseline,      &
                                        ocean_data,                               &
                                        model%basal_melt%bmlt_float_baseline)
+
+       ! Initialize the runtime thermal forcing to the baseline value.
+       ! Typically, this field is updated at runtime by reading from a forcing file.
+       ocean_data%thermal_forcing = ocean_data%thermal_forcing_baseline
 
     endif  ! restart_false
 

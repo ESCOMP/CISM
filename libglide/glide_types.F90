@@ -240,6 +240,7 @@ module glide_types
 
   integer, parameter :: HO_INVERSION_NONE = 0
   integer, parameter :: HO_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_INVERSION_APPLY = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -676,6 +677,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] no inversion
     !> \item[1] invert for basal friction parameters and subshelf melt rates
+    !> \item[2] apply basal parameters from a previous inversion
     !> \end{description}
 
     integer :: which_ho_bwat = 0
@@ -1493,7 +1495,7 @@ module glide_types
      ! ocean grid and basin number
      integer  :: nbasin = 1                         !> number of basins (16 for IMBIE2?)
      integer  :: nzocn = 1                          !> number of ocean levels
-
+     real(dp) :: dzocn = 0.d0                       !> thickness of ocean levels; nonzero value set in config file
      real(dp), dimension(:), pointer :: &
           zocn => null()                            !> ocean levels (m) where forcing is provided, negative below sea level
  
@@ -1510,6 +1512,11 @@ module glide_types
      real(dp) :: gamma0_nonlocal_pct95  = 22165.d0     !> coefficient for sub-shelf melt rates; nonlocal 95th percentile (m/yr)
 
      ! fields read from input or forcing files
+
+     real(dp), dimension(:,:,:), pointer :: &
+          thermal_forcing_baseline => null()        !> baseline thermal forcing (K), e.g. from climatology
+     real(dp), dimension(:,:,:), pointer :: &
+          thermal_forcing => null()                 !> thermal forcing (K) at a given time
 
      integer, dimension(:,:), pointer :: &
           basin_number => null()                    !> basin number for each grid cell
@@ -1529,25 +1536,12 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin_nonlocal_pct95 => null()     !> deltaT (K) per basin; nonlocal parameterization; 95th percentile value
 
-     real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_baseline => null()          !> baseline thermal forcing (K), e.g. from climatology
-     real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing => null()                 !> thermal forcing (K) at a given time
-
-     !TODO - Remove this field, and simply read in the transient forcing from a CF forcing file
-     real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_final => null()           !> final thermal forcing (K); may be ramped in from baseline
-
      ! fields and coefficients computed at runtime based on type of parameterization and level of forcing
 
-     real(dp) :: gamma0 = 15012.d0                  !> coefficient for sub-shelf melt rates (m/yr)
+     real(dp) :: gamma0 = 15000.d0                  !> default coefficient for sub-shelf melt rates (m/yr)
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin => null()                    !> deltaT in each basin (deg C) 
      
-     !WHL - temporary - Set zocn by hand, based on nzocn and dz_ocean.
-     !TODO - Read zocn from the input file
-     real(dp) :: dz_ocean = 60.d0   !> thickness of ocean levels
-
   end type glide_ocean_data
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2101,7 +2095,6 @@ contains
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
-    !> \item \texttt{thermal_forcing_final(nzocn,ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
@@ -2484,14 +2477,11 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-          ! Note: nzocn and nbasin should be set in the [grid] section of the config file
+          ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
           if (model%ocean_data%nzocn < 1) &
              call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
           if (model%ocean_data%nbasin < 1) &
              call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
-          !WHL - zocn currently is allocated and computed in glide_config.  Not sure where is the best place.
-!!          allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
@@ -2500,12 +2490,12 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct95)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
+          !TODO - Add other bmlt_float options for which these fields should be allocated?
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing_final)
        endif
     endif  ! Glissade
 
@@ -2863,8 +2853,6 @@ contains
         deallocate(model%ocean_data%thermal_forcing_baseline)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
-    if (associated(model%ocean_data%thermal_forcing_final)) &
-        deallocate(model%ocean_data%thermal_forcing_final)
 
     ! inversion arrays
     if (associated(model%inversion%bmlt_float_save)) &
