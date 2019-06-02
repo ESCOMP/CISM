@@ -479,15 +479,6 @@ data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
 coordinates:   lon lat
 
-#WHL - thermal_forcing_final not needed if reading the full thermal_forcing time series
-[thermal_forcing_final]
-dimensions:    time, zocn, y1, x1
-units:         degrees K
-long_name:     thermal_forcing_final
-data:          data%ocean_data%thermal_forcing_final(up,:,:)
-load:          1
-coordinates:   lon lat
-
 #WHL - A number of plume-related fields follow.
 
 [T_ambient]

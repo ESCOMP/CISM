@@ -40,7 +40,7 @@ module glide_setup
 
   private
   public :: glide_readconfig, glide_printconfig, glide_scale_params, &
-            glide_load_sigma, glide_read_sigma, glide_calc_sigma
+            glide_load_sigma, glide_read_sigma, glide_calc_sigma, glide_get_zocn
 
 !-------------------------------------------------------------------------
 
@@ -392,6 +392,96 @@ contains
 
   end function glide_calc_sigma_pattyn
 
+!-------------------------------------------------------------------------
+
+  subroutine glide_get_zocn(model,config)
+
+    ! Read ocean grid information, if present, from the config file.
+    ! Called after glide_readconfig
+
+    use glide_types
+    use glimmer_config
+    use glimmer_log
+    use parallel, only: main_task
+    implicit none
+
+    type(glide_global_type) :: model        !> model instance
+    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
+
+    ! local variables
+    type(ConfigSection), pointer :: section
+    character(len=512) :: message
+    character(len=16) :: message_tmp
+    integer :: k
+
+    ! Check for section [grid_ocn]
+    call GetSection(config,section,'grid_ocn')
+
+    if (associated(section)) then
+
+       call GetValue(section,'nzocn',model%ocean_data%nzocn)
+       call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
+       call GetValue(section,'nbasin',model%ocean_data%nbasin)
+
+       call write_log('')
+       write(message,*) 'number of ocean basins        : ',model%ocean_data%nbasin
+       call write_log(trim(message))
+       write(message,*) 'number of ocean levels        : ',model%ocean_data%nzocn
+       call write_log(trim(message))
+
+       if (.not.associated(model%ocean_data%zocn)) &
+            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+
+       ! There are two ways to get zocn levels:
+       ! (1) Compute uniform levels based on dzocn.  This is done if dzocn is set to a nonzero value in the config file.
+       ! (2) Load zocn levels from the config file.  This is done if dzocn = 0 (the default value).
+       ! Note: By convention, k = 1 is the top level, and z becomes more negative with increasing k.
+       !       If the input zocn levels do not satisfy this criterion (or if dzocn and zocn are not in the config file),
+       !        The code aborts with an error message.
+
+       if (model%ocean_data%dzocn > 0.0d0) then
+          call write_log (' Computing zocn levels based on dzocn')
+          write(message,*) 'dz (m) for ocean levels       : ',model%ocean_data%dzocn
+          call write_log(trim(message))
+          do k = 1, model%ocean_data%nzocn
+             model%ocean_data%zocn(k) = -model%ocean_data%dzocn * (real(k,dp) - 0.5d0)
+          enddo
+       else
+          call write_log (' Reading zocn levels from config file')
+          call GetValue(section,'zocn',model%ocean_data%zocn, model%ocean_data%nzocn)
+          do k = 2, model%ocean_data%nzocn
+             if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
+                write(message,*) 'Must have zocn decreasing with increasing k in the [grid_ocn] section'
+                call write_log(message, GM_FATAL)
+             endif
+          enddo
+       endif
+
+       if (model%ocean_data%nzocn > 1) then
+          call write_log('')
+          call write_log('zocn levels (m):')
+          call write_log('------------------')
+          message = ''
+          do k = 1, model%ocean_data%nzocn
+             write(message_tmp,'(f8.1)') model%ocean_data%zocn(k)
+             message = trim(message)//trim(message_tmp)
+          enddo
+          call write_log(trim(message))
+          call write_log('')
+       endif
+
+    else    ! no 'grid_ocn' section
+
+       !TODO - Add other options that need this section
+       if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+          write(message,*) 'Must have a [grid_ocn] section to use this bmlt_float option'
+          call write_log(message, GM_FATAL)
+       endif
+
+    endif   ! associated(section)
+
+  end subroutine glide_get_zocn
+
 !--------------------------------------------------------------------------------
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -414,10 +504,6 @@ contains
     call GetValue(section,'dns',model%numerics%dns)
     call GetValue(section,'sigma_file',model%funits%sigfile)
     call GetValue(section,'global_bc',model%general%global_bc)
-
-    ! for reading ocean data at vertical levels and/or in basins
-    call GetValue(section,'nzocn',model%ocean_data%nzocn)
-    call GetValue(section,'nbasin',model%ocean_data%nbasin)
 
     ! We set this flag to one to indicate we've got a sigfile name.
     ! A warning/error is generated if sigma levels are specified in some other way
@@ -460,15 +546,6 @@ contains
        call write_log(trim(message))
     elseif (model%general%global_bc==GLOBAL_BC_NO_PENETRATION) then
        write(message,*) 'No-penetration global boundary conditions; outflow set to zero at global boundaries'
-       call write_log(trim(message))
-    endif
-
-    if (model%ocean_data%nzocn > 1) then
-       write(message,*) 'nz for ocean     : ',model%ocean_data%nzocn
-       call write_log(trim(message))
-    endif
-    if (model%ocean_data%nbasin > 1) then
-       write(message,*) 'number of basins : ',model%ocean_data%nbasin
        call write_log(trim(message))
     endif
 
@@ -865,9 +942,10 @@ contains
          'absolute beta limit based on beta_grounded_min   ', &
          'beta is limited, then scaled by f_ground_cell    ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichinversion = (/ &
-         'no inversion for basal parameters or melting     ', &
-         'invert for basal parameters and subshelf melting ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichinversion = (/ &
+         'no inversion for basal friction and melting fields ', &
+         'invert for basal friction and melting fields       ', &
+         'apply basal friction/melting from earlier inversion' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -1271,10 +1349,10 @@ contains
     call write_log(message)
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       write(message,*) 'type of melt parameterization: ', model%options%bmlt_float_ismip6_param, &
+       write(message,*) 'melt parameterization   : ', model%options%bmlt_float_ismip6_param, &
             bmlt_float_ismip6_param(model%options%bmlt_float_ismip6_param)
        call write_log(message)
-       write(message,*) 'magnitude of forcing         : ', model%options%bmlt_float_ismip6_magnitude, &
+       write(message,*) 'magnitude of forcing    : ', model%options%bmlt_float_ismip6_magnitude, &
             bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
        call write_log(message)
     endif
@@ -2312,10 +2390,6 @@ contains
        call write_log(message)
        write(message,*) 'bmlt_float_h0 (m)              :  ', model%basal_melt%bmlt_float_h0
        call write_log(message)
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       !TODO - Remove, since gamma0 comes from input file, not config file
-       write(message,*) 'ISMIP6 gamma0 value            :  ', model%ocean_data%gamma0
-       call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
        write(message,*) 'T0 (deg C)               :  ', model%plume%T0
        call write_log(message)
@@ -2649,13 +2723,18 @@ contains
           ! Similarly for gamma0 (a scalar).
           call glide_add_to_restart_variable_list('deltaT_basin')
           call glide_add_to_restart_variable_list('gamma0')
-          ! Need bmlt_float associated with baseline thermal forcing and ice geometry
-          call glide_add_to_restart_variable_list('bmlt_float_baseline')
-          ! Need the transient thermal forcing field
-          !TODO - Remove thermal_forcing_baseline/final, and simply read in the transient thermal forcing from the forcing file.
-          !       Make sure that [CF forcing] files are read on restart.
-          call glide_add_to_restart_variable_list('thermal_forcing_baseline')
-          call glide_add_to_restart_variable_list('thermal_forcing_final')
+
+          ! Need the latest value of the thermal forcing field.
+          ! This could be either the baseline value (if not updating during runtime), or a value read from a forcing file.
+          ! If the latter, this field may not be needed, but include to be on the safe side, in case the forcing file
+          !  is not read at restart.
+          call glide_add_to_restart_variable_list('thermal_forcing')
+
+          ! If running with inversion, then we apply a melting anomaly to the value obtained from inversion.
+          ! In this case we need the baseline melt rate to compute the anomaly.
+          if (options%which_ho_inversion == HO_INVERSION_APPLY) then
+             call glide_add_to_restart_variable_list('bmlt_float_baseline')
+          endif
 
     end select  ! whichbmlt_float
 
@@ -2838,6 +2917,10 @@ contains
          call glide_add_to_restart_variable_list('bmlt_float_inversion_mask')
          call glide_add_to_restart_variable_list('dthck_dt')
          call glide_add_to_restart_variable_list('thck_inversion_save')   ! used for bmlt_float_inversion
+      case (HO_INVERSION_APPLY)
+         ! Only need powerlaw_c and bmlt_float from an earlier inversion.
+         call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
+         call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
     end select
 
     ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,
