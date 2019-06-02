@@ -1064,17 +1064,8 @@ contains
 
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
 
-       !WHL - This is a temporary hack.  Instead of reading thermal_forcing as a time series from a forcing file,
-       !      let it ramp up linearly over 100 years from the baseline value to the final value.
        !TODO - Read thermal_forcing from a CF forcing file.
-
-       ! initialize the thermal forcing to the baseline value
-       model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_baseline
-
-       call glissade_add_3d_anomaly(model%ocean_data%thermal_forcing,                           & ! updated with anomaly on output
-            model%ocean_data%thermal_forcing_final - model%ocean_data%thermal_forcing_baseline, & ! full anomaly at t = 100 yr
-            model%basal_melt%bmlt_anomaly_timescale,     &                                        ! yr; use existing config option
-            model%numerics%time)                                                                  ! yr
+       !       For now, thermal_forcing is held at the baseline value.
 
        if (this_rank == rtest .and. verbose_bmlt_float) then
           print*, ' '
@@ -1088,17 +1079,11 @@ contains
                                        model%geometry%lsrf*thk0,          & ! m
                                        model%ocean_data%thermal_forcing,  &
                                        model%ocean_data,                  &
-                                       bmlt_float_transient)                ! m/s
+                                       model%basal_melt%bmlt_float)         ! m/s
 
-       ! Given the baseline and transient melt rates, compute bmlt_float as the difference.
-       ! When doing inversion, this melt rate is added to bmlt_float_inversion.
-
-       model%basal_melt%bmlt_float(:,:) = bmlt_float_transient(:,:) - model%basal_melt%bmlt_float_baseline(:,:)
-
-       !WHL - debug
        if (verbose_bmlt_float .and. this_rank==rtest) then
           print*, ' '
-          print*, 'bmlt_float anomaly (m/yr)'
+          print*, 'ISMIP6 bmlt_float from transient thermal forcing (m/yr)'
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
@@ -1106,6 +1091,35 @@ contains
              enddo
              write(6,*) ' '
           enddo
+       endif
+
+       ! There are two ways to compute the transient basal melting at runtime:
+       ! (1) Use the value just computed, based on the current thermal_forcing.
+       !     Note: Even if the thermal forcing is fixed, the melt rate will evolve with the shelf geometry.
+       ! (2) Start with the value obtained from inversion, and add the runtime anomaly.
+       !     The runtime anomaly is obtained by subtracting the baseline value from the value just computed.
+       !     Note that the baseline value = 0 where the initial ice is fully grounded.
+       !     This means that the anomaly is potentially much larger for newly formed cavities
+       !      than for cavities present at initialization.
+       ! Note: This is a basal melting potential; it can be reduced later for partly or fully grounded ice.
+
+       if (model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+
+          model%basal_melt%bmlt_float(:,:) = model%inversion%bmlt_float_save(:,:)   &
+               + model%basal_melt%bmlt_float(:,:) - model%basal_melt%bmlt_float_baseline(:,:)
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'ISMIP6 bmlt_float based on inversion value plus anomaly (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
        endif
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units

@@ -478,7 +478,7 @@ contains
     implicit none
     type(ConfigSection), pointer :: section     !< the section from which the value is loaded
     character(len=*),intent(in) :: name         !< the name of the key
-    real(dp), pointer, dimension(:) :: val !< on exit this will hold the values
+    real(dp), pointer, dimension(:) :: val      !< on exit this will hold the values
     integer,intent(in), optional :: numval      !< maximum number of values to be read
 
     ! local variables

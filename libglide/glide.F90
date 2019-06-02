@@ -104,16 +104,8 @@ contains
     ! read sigma levels from config file, if present
     call glide_read_sigma(model,config)
 
-    !WHL - debug - temporary fix to compute ocean levels (zocn); negative below sea level
-    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       if (main_task) print*, 'Computing zocn in glide_config instead of reading from input file'
-       if (.not.associated(model%ocean_data%zocn)) &
-            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
-       do k = 1, model%ocean_data%nzocn
-          model%ocean_data%zocn(k) = -model%ocean_data%dz_ocean * (real(k,dp) - 0.5d0)
-          if (main_task) print*, k, model%ocean_data%zocn(k)
-       enddo
-    endif
+    ! optionally, read zocn levels from config file, if present, or compute them from dzocn
+    call glide_get_zocn(model,config)
 
     !WHL - Moved isostasy configuration to glide_setup
 !    call isos_readconfig(model%isos,config)
