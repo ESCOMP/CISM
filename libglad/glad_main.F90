@@ -581,8 +581,8 @@ contains
 
     real(dp),dimension(:,:),intent(in)    :: qsmb          ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc          ! input surface ground temperature (deg C)
-    real(dp),dimension(:,:,:),intent(in)    :: salinity     ! input ocean salinity 
-    real(dp),dimension(:,:,:),intent(in)    :: tocn         ! input ocean temperature 
+    real(dp),dimension(:,:,:),intent(in)  :: salinity     ! input ocean salinity 
+    real(dp),dimension(:,:,:),intent(in)  :: tocn         ! input ocean temperature 
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
@@ -603,12 +603,14 @@ contains
 !    integer :: nx,ny
     integer :: k
 
-    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing  ! sub-shelf thermal_forcing (deg K)
+!    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing  ! sub-shelf thermal_forcing (deg K)
 
     ! version of input fields with halo cells
-    real(dp),dimension(:,:),allocatable :: qsmb_haloed
-    real(dp),dimension(:,:),allocatable :: tsfc_haloed
-    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing_haloed
+    real(dp),dimension(:,:),allocatable   :: qsmb_haloed
+    real(dp),dimension(:,:),allocatable   :: tsfc_haloed
+    real(dp),dimension(:,:,:),allocatable :: salinity_haloed
+    real(dp),dimension(:,:,:),allocatable :: tocn_haloed
+    real(dp),dimension(:,:,:),allocatable :: thermal_forcing_haloed
 
     logical :: icets
     character(250) :: message
@@ -630,29 +632,37 @@ contains
        nsn = get_nsn(params%instances(instance_index)%model)
        nzocn = get_nzocn(params%instances(instance_index)%model)
 
-       allocate(thermal_forcing(nzocn,ewn,nsn))
-
-       do k = 1,nzocn
-         call compute_thermal_forcing_level(k, salinity(k,:,:), tocn(k,:,:), thermal_forcing(k,:,:))
-       enddo
-
+!       allocate(thermal_forcing(nzocn,ewn,nsn))
 
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
-       allocate(thermal_forcing_haloed(nzocn,ewn,nsn))
+       allocate(salinity_haloed(nzocn,ewn,nsn))
+       allocate(tocn_haloed(nzocn,ewn,nsn))
+       allocate(thermal_forcing_haloed(nzocn,ewn,nsn))       
 
        call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
 
        do k = 1,nzocn
-         call parallel_convert_nonhaloed_to_haloed(thermal_forcing(k,:,:), thermal_forcing_haloed(k,:,:))
+         call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:))
+         call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:), tocn_haloed(k,:,:))
        enddo
 
+       do k = 1,nzocn
+         call compute_thermal_forcing_level(k, salinity_haloed(k,:,:), tocn_haloed(k,:,:), thermal_forcing_haloed(k,:,:))
+       enddo
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
             qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
             thermal_forcing = thermal_forcing_haloed,                         &
             time = time)
+
+       deallocate(qsmb_haloed)
+       deallocate(tsfc_haloed)
+       deallocate(salinity_haloed)
+       deallocate(tocn_haloed)
+       deallocate(thermal_forcing_haloed)
+
     end if
 
     ! ---------------------------------------------------------
