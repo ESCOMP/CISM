@@ -234,6 +234,8 @@ for expt in experiments:
     outputFreq  = config.get('CF output',  'frequency')
     endTime     = config.get('time',       'tend')
     endTime     = float(endTime)
+    restartFreq = config.get('CF restart', 'frequency')
+    restartFreq = float(restartFreq)
     
     # Time buffer to remedy the restart pb when switching to different time step within a run.
     buffer = float(outputFreq) - 1.
@@ -255,7 +257,8 @@ for expt in experiments:
     if (lastTimeEntry >= (endTime - buffer)) and (sizeTimeOutput > 1):
         # The run for this A value is done, moving to the next one.
         pass
-    elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
+#    elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
+    elif (lastTimeEntry < endTime) and (lastTimeEntry >= restartFreq):
         # The run for this A value is not done and needs to continue.
         print 'Continuing experiment from restart.'
 
