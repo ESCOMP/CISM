@@ -367,9 +367,8 @@ contains
           ! Set beta assuming a spatially uniform value of powerlaw_c
           beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
-       elseif (which_inversion == HO_INVERSION_COMPUTE) then  ! use powerlaw_c from inversion
-
-          m = basal_physics%powerlaw_m
+       elseif (which_inversion == HO_INVERSION_COMPUTE .or.   &
+               which_inversion == HO_INVERSION_APPLY) then  ! use powerlaw_c from inversion
 
           do ns = 1, nsn-1
              do ew = 1, ewn-1
@@ -494,7 +493,8 @@ contains
              enddo
           enddo
 
-       elseif (which_inversion == HO_INVERSION_COMPUTE) then   ! use powerlaw_c and coulomb_c from inversion
+       elseif (which_inversion == HO_INVERSION_COMPUTE .or.   &
+               which_inversion == HO_INVERSION_APPLY) then   ! use powerlaw_c and coulomb_c from inversion
 
           m = basal_physics%powerlaw_m
 
@@ -510,7 +510,6 @@ contains
                 !WHL - debug
                 if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                    if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-!!                   if (this_rank == rtest .and. ew == itest-1 .and. ns == jtest) then
                       print*, ' '
                       write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
                            rtest, ew, ns, stag_powerlaw_c_inversion(ew,ns), &

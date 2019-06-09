@@ -47,8 +47,8 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_ismip6_init, glissade_bmlt_float_ismip6
 
-!!    logical :: verbose_bmlt_float = .false.
-    logical :: verbose_bmlt_float = .true.
+    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.

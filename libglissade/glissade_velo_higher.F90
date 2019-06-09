@@ -2356,7 +2356,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') usrf(i,j)
+                write(6,'(f10.3)',advance='no') usrf(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -2368,7 +2368,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') thck(i,j)
+                write(6,'(f10.3)',advance='no') thck(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -2380,7 +2380,7 @@
              write(6,'(i6)',advance='no') j
 !!             do i = 1, nx-1
              do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') topg(i,j)
+                write(6,'(f10.3)',advance='no') topg(i,j)
              enddo
              write(6,*) ' '
           enddo

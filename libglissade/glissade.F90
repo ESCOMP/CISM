@@ -675,6 +675,9 @@ contains
 
        call glissade_init_inversion(model)
 
+       call parallel_halo(model%inversion%powerlaw_c_save)
+       call parallel_halo(model%inversion%bmlt_float_save)
+
     endif  ! which_ho_inversion
 
     ! Initialize the no-advance calving_mask, if desired
@@ -1097,20 +1100,20 @@ contains
        ! (1) Use the value just computed, based on the current thermal_forcing.
        !     Note: Even if the thermal forcing is fixed, the melt rate will evolve with the shelf geometry.
        ! (2) Start with the value obtained from inversion, and add the runtime anomaly.
-       !     The runtime anomaly is obtained by subtracting the baseline value from the value just computed.
-       !     Note that the baseline value = 0 where the initial ice is fully grounded.
-       !     This means that the anomaly is potentially much larger for newly formed cavities
-       !      than for cavities present at initialization.
-       ! Note: This is a basal melting potential; it can be reduced later for partly or fully grounded ice.
+       !     The runtime anomaly is obtained here by subtracting the baseline value from the value just computed.
+       !     Below, it will be added to bmlt_float_inversion.
+       ! Note: bmlt_float_baseline = 0 where the baseline ice is fully grounded.
+       !       This means that the anomaly is potentially much larger for new cavities
+       !        than for cavities initially present.
+       ! Note: bmlt_float is a basal melting potential; it is reduced below for partly or fully grounded ice.
 
        if (model%options%which_ho_inversion == HO_INVERSION_APPLY) then
 
-          model%basal_melt%bmlt_float(:,:) = model%inversion%bmlt_float_save(:,:)   &
-               + model%basal_melt%bmlt_float(:,:) - model%basal_melt%bmlt_float_baseline(:,:)
+          model%basal_melt%bmlt_float = model%basal_melt%bmlt_float - model%basal_melt%bmlt_float_baseline
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
-             print*, 'ISMIP6 bmlt_float based on inversion value plus anomaly (m/yr)'
+             print*, 'ISMIP6 bmlt_float anomaly (m/yr)'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
@@ -1172,7 +1175,8 @@ contains
     endwhere
 
     ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
-    !TODO - Call subroutine to do this calculation (in glissade_ground or glissade_bmlt_float?)
+    !TODO - Write a subroutine to do this calculation (in glissade_ground or glissade_bmlt_float?)
+    !       The same subroutine could be called from the inversion solver.
 
     if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
@@ -1449,9 +1453,6 @@ contains
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
     real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt*tim0 by default
-
-    real(dp) :: nudging_factor      ! factor in range [0,1], used for inversion of bmlt_float
-    real(dp) :: weaning_time        ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
     integer :: nsubcyc              ! number of times to subcycle advection
 
@@ -1753,64 +1754,16 @@ contains
        !        as part of the diagnostic solve, just before computing velocity.
        !-------------------------------------------------------------------------
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
-
-          ! Set a nudging factor that is used to compute a weighted average of the
-          !  newly computed inversion field (bmlt_float_new) and the previous field (bmlt_float_inversion).
-          ! If the nudging_factor = 1, then we use the new value and ignore the previous value.
-          ! If the nudging_factor = 0, then the new value is ignored and we keep the previous value.
-          ! We have nudging_factor = 1 at the start of the run, until the run reaches wean_tstart.
-          !  Thereafter, the nudging factor decreaes, and is set to 0 after t = wean_tend.
-          ! (With an exponential dropoff, the nudging factor will always be slightly > 0
-          !  until forced to zero by t = wean_tend.)
-          ! In this way, the code converges on inversion fields that are no longer nudged.
-          ! Note: model%numerics%time = time in years since start of run.
-
-          !WHL - Currently, wean_bmlt_float_tend should be set to zero if we want to do a forward run
-          !       with inversion parameters held fixed.
-          !      Might be better to introduce an HO_INVERSION_FIXED option for this case.
-
-          if (model%inversion%wean_bmlt_float_tend > 0.0d0) then
-             nudging_factor = 1.0d0  ! full nudging at start of run
-          else
-             nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
-          endif
-
-          if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. &
-              model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
-             if (model%numerics%time < model%inversion%wean_bmlt_float_tend) then
-                weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
-                ! exponentially weighted nudging commented out.
-!!                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
-                ! Let nudging_factor fall off as 1/weaning_time.  As a result, bmlt_timescale will increase
-                ! in proportion to weaning_time: by 1 yr for every 10 model years.
-                ! The increase in bmlt_timescale is faster with this scaling than with exponential scaling.
-                !TODO - Implement in glissade_inversion, without a hardwired constant of 10.
-                nudging_factor = 10.d0 / weaning_time  ! Make 10 = bmlt_timescale multiplier?
-                nudging_factor = min(nudging_factor, 1.0d0)
-                ! Optionally, do not allow the nudging factor (if > 0) to fall below a prescribed minimum value.
-                ! This allows us to exclude nudging that is so small as to have virtually no effect.
-                nudging_factor = max(nudging_factor, model%inversion%nudging_factor_min)
-             else
-                nudging_factor = 0.0d0
-             endif
-          endif
-
-          if (verbose_inversion .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'tstep_count, time, bmlt_float nudging_factor =', &
-                  model%numerics%tstep_count, model%numerics%time, nudging_factor
-          endif
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
+           model%options%which_ho_inversion == HO_INVERSION_APPLY) then
 
           ! Compute the new ice thickness that would be computed after applying the SMB and BMB, without inversion.
           thck_new_unscaled = thck_unscaled(:,:) + (acab_unscaled - bmlt_unscaled) * model%numerics%dt*tim0
 
           call glissade_inversion_bmlt_float(model,               &
-                                             nudging_factor,      &
                                              thck_new_unscaled,   &
                                              ice_mask,            &
-                                             floating_mask,       &
-                                             land_mask)
+                                             floating_mask)
 
        endif  ! which_ho_inversion
 
@@ -1837,7 +1790,8 @@ contains
                                thck_calving_front = thck_calving_front,    &
                                effective_areafrac = effective_areafrac)
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
+           model%options%which_ho_inversion == HO_INVERSION_APPLY) then
 
           ! Add bmlt_float_inversion to bmlt_unscaled, the melt rate passed to the mass balance driver.
           ! Both fields have units of m/s.
@@ -2448,51 +2402,21 @@ contains
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
-    if ( model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if ( model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
+         model%options%which_ho_inversion == HO_INVERSION_APPLY) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
 
-          ! first call after a restart; do not call glissade_inversion_basal friction
+          ! first call after a restart; do not update powerlaw_c
 
        else
 
-          ! Set a nudging factor that is used to compute a weighted average of the 
-          !  newly computed inversion field (powerlaw_c_new) and the saved field (powerlaw_c_save).
-          ! See comments above for nudging of bmlt_float_inversion.
-          ! Note: model%numerics%time = time in years since start of run.
-
-          !WHL - Currently, wean_powerlaw_c_tend should be set to zero if we want to do a forward run
-          !       with inversion parameters held fixed.
-          !      Might be better to introduce an HO_INVERSION_FIXED option for this case.
-
-          if (model%inversion%wean_powerlaw_c_tend > 0.0d0) then
-             nudging_factor = 1.0d0  ! full nudging at start of run
-          else
-             nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
-          endif
-
-          if (model%inversion%wean_powerlaw_c_tend > 0.0d0 .and. model%numerics%time >= model%inversion%wean_powerlaw_c_tstart) then
-             if (model%numerics%time < model%inversion%wean_powerlaw_c_tend) then
-                weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
-                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
-             else
-                nudging_factor = 0.0d0
-             endif
-          endif
-
-          if (verbose_inversion .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'tstep_count, time, powerlaw_c nudging_factor =', &
-                  model%numerics%tstep_count, model%numerics%time, nudging_factor
-          endif
-
           call glissade_inversion_basal_friction(model,          &
-                                                 nudging_factor, &
                                                  ice_mask,       &
                                                  floating_mask,  &
                                                  land_mask)
-       endif   ! first call after a restart
+       endif
 
     endif   ! which_ho_inversion
 
@@ -3065,7 +2989,7 @@ contains
                         model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
                    call parallel_globalindex(i, j, iglobal, jglobal)
                    print*, 'global i, j =', iglobal, jglobal
-                   print*, ' '
+!                   print*, ' '
 !                   print*, 'bmlt_applied:'
 !                   do jj = j-3, j+3
 !                      write(6,'(i8)',advance='no') jj
@@ -3073,7 +2997,7 @@ contains
 !                         write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_applied(ii,jj) * scyr*thk0/tim0
 !                      enddo
 !                      print*, ' '
-!                   enddo
+!'                   enddo
                 endif
              enddo
           enddo
@@ -3087,22 +3011,23 @@ contains
        global_max = parallel_reduce_max(my_max)
        global_min = parallel_reduce_min(my_min)
 
-       if (abs((my_max - global_max)/global_max) < 1.0d-3) then
-          do j = nhalo+1, model%general%nsn-nhalo
-             do i = nhalo+1, model%general%ewn-nhalo
-                if (ice_mask(i,j) == 1 .and. &
-                     abs((model%inversion%bmlt_float_inversion(i,j) - global_max)/global_max) < 1.0d-3) then
-                   print*, ' '
-                   print*, 'task, i, j, global_max bmlt_float_inversion (m/yr):', this_rank, i, j, global_max * scyr
-                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
-                   call parallel_globalindex(i, j, iglobal, jglobal)
-                   print*, 'global i, j =', iglobal, jglobal
-                endif
-             enddo
-          enddo
-       endif
+       !WHL - Will have multiple prints if the same limit is reached in multiple cells
+       ! TODO - Just print for one cell?
+!       if (abs((my_max - global_max)/global_max) < 1.0d-3) then
+!          do j = nhalo+1, model%general%nsn-nhalo
+!             do i = nhalo+1, model%general%ewn-nhalo
+!                if (ice_mask(i,j) == 1 .and. &
+!                     abs((model%inversion%bmlt_float_inversion(i,j) - global_max)/global_max) < 1.0d-3) then
+!                   print*, ' '
+!                   print*, 'task, i, j, global_max bmlt_float_inversion (m/yr):', this_rank, i, j, global_max * scyr
+!                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
+!                   call parallel_globalindex(i, j, iglobal, jglobal)
+!                   print*, 'global i, j =', iglobal, jglobal
+!                endif
+!             enddo
+!          enddo
+!       endif
 
-       !WHL - Will have multiple prints if the same limit is reached in multiple cells; just print for one cell
 !       if (abs((my_min - global_min)/global_min) < 1.0d-3) then
 !          do j = nhalo+1, model%general%nsn-nhalo
 !             do i = nhalo+1, model%general%ewn-nhalo

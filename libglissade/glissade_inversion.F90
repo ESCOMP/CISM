@@ -278,16 +278,9 @@ contains
 
        endif  ! var_maxval > 0
 
-       call parallel_halo(model%inversion%powerlaw_c_save)
-
        ! Note: There is no initialization of bmlt_float_save.
        ! If restarting, it should have been read in already.
        ! If not restarting, it will have been set to zero, which is an appropriate initial value.
-
-       call parallel_halo(model%inversion%bmlt_float_save)
-
-       !WHL - temporary setting - Copy bmlt_float_save to bmlt_float_inversion at restart.
-!!       model%inversion%bmlt_float_inversion = model%inversion%bmlt_float_save
 
     endif  ! which_ho_inversion
 
@@ -318,11 +311,9 @@ contains
 !***********************************************************************
 
   subroutine glissade_inversion_bmlt_float(model,               &
-                                           nudging_factor,      &
                                            thck_new_unscaled,   &
                                            ice_mask,            &
-                                           floating_mask,       &
-                                           land_mask)
+                                           floating_mask)
 
     use parallel
 
@@ -333,10 +324,6 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    real(dp), intent(in) :: &
-         nudging_factor          ! factor in range [0,1]
-                                 ! = 1 to nudge fully toward the new value, = 0 to keep the current value
-
     real(dp), dimension(model%general%ewn, model%general%nsn), intent(in) ::   &
          thck_new_unscaled       ! ice thickness expected after mass balance, without applying bmlt_float_inversion (m)
 
@@ -346,8 +333,7 @@ contains
 
     integer, dimension(model%general%ewn, model%general%nsn), intent(in) ::   &
          ice_mask,             & ! = 1 if thck > 0, else = 0
-         floating_mask,        & ! = 1 where ice is present and floating, else = 0
-         land_mask               ! = 1 if topg is at or above sea level, else = 0
+         floating_mask           ! = 1 where ice is present and floating, else = 0
 
     ! --- Local variables ---
 
@@ -357,6 +343,10 @@ contains
          dthck_dt_inversion,   & ! newly computed value of dthck_dt (m/s)
          bmlt_weight,          & ! weighting factor that reduces bmlt_float in partly grounded cells and shallow cavities
          thck_projected          ! projected thickness after appyling bmlt_float_save * bmlt_weight
+
+    real(dp) ::  &
+         nudging_factor,       & ! factor in range [0,1], used for inversion of bmlt_float
+         weaning_time            ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
     integer :: i, j
     integer :: ewn, nsn
@@ -376,45 +366,86 @@ contains
     ewn = model%general%ewn
     nsn = model%general%nsn
 
-    topg_unscaled = model%geometry%topg * thk0
+    ! Compute a weighting factor that reduces the applied basal melting in partly or fully grounded cells.
+
+    if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE .and.  &
+        model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
+
+       ! Note: weight_float_cell = 1 - f_ground_cell in the limit H_cavity >> h0_cavity (or h0_cavity = 0)
+       !       Otherwise, weight_float_cell is reduced for shallow cavities,
+       !        to represent the difficulty for warm ocean water to enter the cavity.
+
+       bmlt_weight = model%geometry%weight_float_cell
+
+    else
+
+       ! Compute a weighting factor proportional to the floating cell fraction.
+       ! Depending on which_ho_ground and which_ho_ground_bmlt, basal melting may or may not be allowed
+       !  in partly grounded cells.
+
+       call get_float_fraction_factor(&
+            model%options%which_ho_ground,       &
+            model%options%which_ho_ground_bmlt,  &
+            ice_mask,                            &
+            floating_mask,                       &
+            model%geometry%f_ground_cell,        &
+            bmlt_weight)
+
+    endif
 
     if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
-       ! Invert for bmlt_float_inversion, adjusting the melt rate to relax toward the observed thickness.
-       ! Note: basal_melt%bmlt_float_inversion is passed out with units of m/s
-
+       ! Invert for bmlt_float, adjusting the melt rate to relax toward the observed thickness.
        ! Note: Other kinds of sub-shelf basal melting are handled in subroutine glissade_bmlt_float_solve.
        !       Inversion is done here, after transport, when there is an updated ice thickness.
        !       Then bmlt_float_inversion is added to the previously computed bmlt.
        ! Note: Typically, whichbmlt_float = 0 when doing a model spin-up with inversion.
        !       However, we might want to add an anomaly to fields already computed by inversion.
 
-       ! Optionally, compute a weighting factor that reduces the potential for basal melting
-       ! in shallow ocean cavities near the grounding line.
+       ! Compute the time scale for nudging.
+       ! The idea (for now) is that nudging is associated with a timescale.
+       ! With strong nudging we have a short timescale, ~ 1 yr, given by inversion%bmlt_timescale.
+       ! With short nudging we have a long timescale, 100+ yr.
+       ! Here we compute a nudging factor between 0 and 1.
+       ! Then we divide bmlt_timescale by nudging_factor to get the timescale used during this timestep.
+       ! Notes:
+       ! * model%numerics%time = time in years since start of run
+       ! * nudging_factor = 1 from the start of the run until inversion%wean_bmlt_float_tstart.
+       ! * Then nudging_factor falls off until we reach nudging_factor_min, which is a floor for nudging.
+       ! * If t > wean_bmlt_float_tend, we stop nudging entirely.
 
-       if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE .and.  &
-           model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
+       !TODO - Do away with nudging_factor, and work directly with bmlt_timescale.
 
-          ! Note: weight_float_cell = 1 - f_ground_cell in the limit H_cavity >> h0_cavity (or h0_cavity = 0)
-          !       Otherwise, weight_float_cell is reduced for shallow cavities,
-          !        to represent the difficulty for warm ocean water to enter the cavity.
-
-          bmlt_weight = model%geometry%weight_float_cell
-
+       if (model%inversion%wean_bmlt_float_tend > 0.0d0) then
+          nudging_factor = 1.0d0  ! full nudging at start of run
        else
+          nudging_factor = 0.0d0  ! no nudging if wean_bmlt_float_tend = 0
+       endif
 
-          ! Compute a weighting factor proportional to the floating cell fraction.
-          ! Depending on which_ho_ground and which_ho_ground_bmlt, basal melting may or may not be allowed
-          !  in partly grounded cells.
+       if (model%inversion%wean_bmlt_float_tend > 0.0d0 .and. &
+            model%numerics%time >= model%inversion%wean_bmlt_float_tstart) then
+          if (model%numerics%time < model%inversion%wean_bmlt_float_tend) then
+             weaning_time = model%numerics%time - model%inversion%wean_bmlt_float_tstart
+             ! exponentially weighted nudging commented out.
+!!                nudging_factor = exp(-weaning_time / model%inversion%wean_bmlt_float_timescale)
+             ! Let nudging_factor fall off as 1/weaning_time.  As a result, bmlt_timescale will increase
+             ! in proportion to weaning_time: by 1 yr for every 10 model years.
+             ! The increase in bmlt_timescale is faster with this scaling than with exponential scaling.
+             !TODO - Make the hardwired constant of 10 a config parameter.
+             nudging_factor = 10.d0 / weaning_time  ! Make 10 = bmlt_timescale multiplier?
+             nudging_factor = min(nudging_factor, 1.0d0)
+             ! Optionally, do not allow the nudging factor (if > 0) to fall below a prescribed minimum value.
+             ! This allows us to exclude nudging that is so small as to have virtually no effect.
+             nudging_factor = max(nudging_factor, model%inversion%nudging_factor_min)
+          else
+             nudging_factor = 0.0d0
+          endif
+       endif
 
-          call get_float_fraction_factor(&
-               model%options%which_ho_ground,       &
-               model%options%which_ho_ground_bmlt,  &
-               ice_mask,                            &
-               floating_mask,                       &
-               model%geometry%f_ground_cell,        &
-               bmlt_weight)
-
+       if (verbose_inversion .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'tstep_count, time, bmlt_float nudging_factor =', &
+               model%numerics%tstep_count, model%numerics%time, nudging_factor
        endif
 
        ! Compute the new thickness, assuming application of bmlt_float_save * bmlt_weight.
@@ -466,7 +497,7 @@ contains
                                  itest,   jtest,    rtest,                      &
                                  thck_projected,                                &    ! m
                                  model%geometry%thck_obs*thk0,                  &    ! m
-                                 topg_unscaled,                                 &    ! m
+                                 model%geometry%topg*thk0,                      &    ! m
                                  model%climate%eus*thk0,                        &    ! m
                                  ice_mask,                                      &
                                  dthck_dt_inversion,                            &    ! m/s
@@ -534,6 +565,14 @@ contains
              write(6,*) ' '
              enddo
              print*, ' '
+             print*, 'dH_dt_inversion (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.4)',advance='no') dthck_dt_inversion(i,j)*scyr
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
              print*, 'bmlt_weight:'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
@@ -549,45 +588,38 @@ contains
                 enddo
                 write(6,*) ' '
              enddo
-             print*, ' '
-             print*, 'new bmlt_float after weighting:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') model%inversion%bmlt_float_inversion(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'dH_dt_inversion (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') dthck_dt_inversion(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
           endif ! verbose_inversion
 
        else  ! no nudging
 
-          if (verbose_inversion .and. main_task) print*, 'No nudging of bmlt_float'
+          ! Note: To hold the inverted bmlt_float fixed, we would typically set which_ho_inversion = HO_INVERSION_APPLY.
+          !       Alternatively, if running with which_ho_inversion = HO_INVERSION_COMPUTE,
+          !        nudging is turned off when time > wean_bmlt_float_tend.
 
-          !TODO - Test the following
+          if (verbose_inversion .and. main_task) print*, 'Apply saved value of bmlt_float inversion'
+
           model%inversion%bmlt_float_inversion = model%inversion%bmlt_float_save * bmlt_weight
-
-          if (verbose_inversion .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'new bmlt_float_inversion (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') model%inversion%bmlt_float_inversion(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
 
        endif   ! nudging is turned on
 
+    elseif (model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+
+       if (verbose_inversion .and. main_task) print*, 'Apply saved value of bmlt_float inversion'
+
+       model%inversion%bmlt_float_inversion = model%inversion%bmlt_float_save * bmlt_weight
+
     endif   ! which_ho_inversion
+
+    if (verbose_inversion .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'new bmlt_float_inversion (m/yr)'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') model%inversion%bmlt_float_inversion(i,j)*scyr
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
   end subroutine glissade_inversion_bmlt_float
 
@@ -951,7 +983,6 @@ contains
 !***********************************************************************
 
   subroutine glissade_inversion_basal_friction(model,          &
-                                               nudging_factor, &
                                                ice_mask,       &
                                                floating_mask,  &
                                                land_mask)
@@ -965,10 +996,6 @@ contains
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
-
-    real(dp), intent(in) :: &
-         nudging_factor          ! factor in range [0,1]
-                                 ! = 1 to nudge fully toward the new value, = 0 to keep the current value
 
     !TODO - Compute these locally?
     integer, dimension(model%general%ewn, model%general%nsn), intent(in) ::   &
@@ -991,7 +1018,6 @@ contains
 
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
 
-
     rtest = -999
     itest = 1
     jtest = 1
@@ -1006,7 +1032,16 @@ contains
 
     if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
 
-       if (nudging_factor > eps08) then
+       ! Note: Earlier code versions allowed for gradual relaxing of nudging, as for bmlt_float.
+       !       Since inversion%babc_timescale is typically long (~500 yr or more), nudging is now all or nothing.
+
+       if (model%inversion%wean_powerlaw_c_tend > 0.0d0 .and.  &
+           model%numerics%time < model%inversion%wean_powerlaw_c_tend) then
+
+          ! Invert for powerlaw_c
+          ! Note: The parameter we invert for is called powerlaw_c_save.
+          !       Before interpolating to the staggered grid, we derive a parameter called powerlaw_c_inversion,
+          !        which is nonzero only where the ice is at least partly grounded.
 
           call invert_basal_friction(model%numerics%dt*tim0,                 &  ! s
                                      ewn,               nsn,                 &
@@ -1020,91 +1055,65 @@ contains
                                      model%geometry%thck*thk0,               &  ! m
                                      model%geometry%thck_obs*thk0,           &  ! m
                                      model%geometry%dthck_dt,                &  ! m/s
-                                     powerlaw_c_new)
-
-       else
-
-          powerlaw_c_new(:,:) = 0.0d0
-
-       endif
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'tstep_count, time, basal friction nudging_factor =', &
-            model%numerics%tstep_count, model%numerics%time, nudging_factor
-       endif
-
-       !Note: The saved value is adjusted only where the new value is nonzero
-       !      (i.e., where the ice is at least partly grounded).
-       !      This means that zero values when a cell is ice-free or floating are not included in the saved average.
-       !TODO - Replace powerlaw_c_save with powerlaw_c_inversion.
-
-       where (powerlaw_c_new > 0.0d0)
-          model%inversion%powerlaw_c_save(:,:) = nudging_factor  * powerlaw_c_new(:,:) &
-                                      + (1.0d0 - nudging_factor) * model%inversion%powerlaw_c_save(:,:)
-       endwhere
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, 'powerlaw_c saved value, new value:', model%inversion%powerlaw_c_save(i,j), powerlaw_c_new(i,j)
-          print*, 'powerlaw_c nudged value =', model%inversion%powerlaw_c_save(i,j)
-       endif
-
-       ! Set powerlaw_c_inversion = powerlaw_c_save where the ice is at least partly grounded.
-       ! Elsewhere, set powerlaw_c_inversion = 0.
-
-       where (land_mask == 1 .or. model%geometry%f_ground_cell > 0.0d0)
-          model%inversion%powerlaw_c_inversion = model%inversion%powerlaw_c_save
-       elsewhere
-          model%inversion%powerlaw_c_inversion = 0.0d0
-       endwhere
-
-       ! Interpolate powerlaw_c_inversion to the staggered grid.
-       ! In order to give appropriate weight to lower values, the staggering is based on log(powerlaw_c)
-       !  instead of powerlaw_c itself.
-       where (model%inversion%powerlaw_c_inversion > 0.0d0)
-          unstag_powerlaw_c = log(model%inversion%powerlaw_c_inversion)
-       elsewhere
-          unstag_powerlaw_c = 0.0d0
-       endwhere
-
-       ! For the staggered averaging, give each cell a weight of f_ground_cell,
-       !  to prevent abrupt changes in stag_powerlaw_c due to changes in lightly grounded cells.
-
-       call glissade_stagger_real_mask(ewn,            nsn,         &
-                                       unstag_powerlaw_c,           &
-                                       stag_powerlaw_c,             &
-                                       model%geometry%f_ground_cell)
-
-       !TODO - 'where' statement needed here to deal with vertices where stag_powerlaw_c = 0?
-       model%inversion%stag_powerlaw_c_inversion = exp(stag_powerlaw_c)
-
-       ! Replace zeroes with default values to avoid divzeroes
-       where (model%inversion%stag_powerlaw_c_inversion == 0.0d0)
-          model%inversion%stag_powerlaw_c_inversion = model%inversion%powerlaw_c_min
-       endwhere
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'f_ground_cell:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') model%geometry%f_ground_cell(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'stag_powerlaw_c:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') model%inversion%stag_powerlaw_c_inversion(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+                                     model%inversion%powerlaw_c_save)
        endif
 
     endif   ! which_ho_inversion
+
+    ! The rest of the subroutine is executed for either HO_INVERSION_COMPUTE or HO_INVERSION_APPLY
+
+    ! Set powerlaw_c_inversion = powerlaw_c_save where the ice is at least partly grounded.
+    ! Elsewhere, set powerlaw_c_inversion = 0.
+
+    where (land_mask == 1 .or. model%geometry%f_ground_cell > 0.0d0)
+       model%inversion%powerlaw_c_inversion = model%inversion%powerlaw_c_save
+    elsewhere
+       model%inversion%powerlaw_c_inversion = 0.0d0
+    endwhere
+
+    ! Interpolate powerlaw_c_inversion to the staggered grid.
+    ! In order to give appropriate weight to lower values, the staggering is based on log(powerlaw_c)
+    !  instead of powerlaw_c itself.
+    where (model%inversion%powerlaw_c_inversion > 0.0d0)
+       unstag_powerlaw_c = log(model%inversion%powerlaw_c_inversion)
+    elsewhere
+       unstag_powerlaw_c = 0.0d0
+    endwhere
+
+    ! For the staggered averaging, give each cell a weight of f_ground_cell,
+    !  to prevent abrupt changes in stag_powerlaw_c due to changes in lightly grounded cells.
+
+    call glissade_stagger_real_mask(ewn,            nsn,         &
+                                    unstag_powerlaw_c,           &
+                                    stag_powerlaw_c,             &
+                                    model%geometry%f_ground_cell)
+
+    !TODO - 'where' statement needed here to deal with vertices where stag_powerlaw_c = 0?
+    model%inversion%stag_powerlaw_c_inversion = exp(stag_powerlaw_c)
+
+    ! Replace zeroes with default values to avoid divzeroes
+    where (model%inversion%stag_powerlaw_c_inversion == 0.0d0)
+       model%inversion%stag_powerlaw_c_inversion = model%inversion%powerlaw_c_min
+    endwhere
+
+    if (verbose_inversion .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'f_ground_cell:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') model%geometry%f_ground_cell(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'stag_powerlaw_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') model%inversion%stag_powerlaw_c_inversion(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
   end subroutine glissade_inversion_basal_friction
 
