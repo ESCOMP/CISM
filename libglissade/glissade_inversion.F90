@@ -94,20 +94,6 @@ contains
 
     integer :: ewn, nsn
 
-    !TODO - Make some of these parameters user-configurable?
-
-    !WHL - The following values give good results for a 4-km simulation in Dec. 2018.
-    !      There is a narrow trough flowing into the Shackleton shelf that overthickens and
-    !      can cause a crash around year 400 (with dt = 0.20 yr) unless the bed is
-    !      initialized to have faster sliding in the trough and slower sliding outside the trough.
-    !TODO - Revisit these values; see if we can find a single initial value of powerlaw_c
-    !       that works well for all ice-covered cells.
-
-    real(dp) :: powerlaw_c_init_high = 80000.d0      ! value of Cp for cells at high topography
-    real(dp) :: powerlaw_c_init_low  = 20000.d0      ! value of Cp for cells at low topography
-    real(dp) :: powerlaw_c_topg_high = 500.d0        ! high topography value (m)
-    real(dp) :: powerlaw_c_topg_low = -500.d0        ! low topography value (m)
-
     ewn = model%general%ewn
     nsn = model%general%nsn
 
@@ -256,20 +242,7 @@ contains
        else
 
           where (model%geometry%thck_obs > 0.0d0)
-
-             ! make it a function of topography
-             where (model%geometry%topg * thk0 > powerlaw_c_topg_high)
-                model%inversion%powerlaw_c_save = powerlaw_c_init_high
-             elsewhere (model%geometry%topg * thk0 < powerlaw_c_topg_low)
-                model%inversion%powerlaw_c_save = powerlaw_c_init_low
-             elsewhere (model%geometry%topg * thk0 >= powerlaw_c_topg_low .and.  &
-                        model%geometry%topg * thk0 <= powerlaw_c_topg_high)
-                model%inversion%powerlaw_c_save = powerlaw_c_init_low  &
-                     + (powerlaw_c_init_high - powerlaw_c_init_low)  &
-                     * (model%geometry%topg*thk0 - powerlaw_c_topg_low) / &
-                       (powerlaw_c_topg_high - powerlaw_c_topg_low)
-             endwhere
-
+             model%inversion%powerlaw_c_save = 0.5d0 * model%inversion%powerlaw_c_max
           elsewhere (land_mask == 1)
              model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_land
           elsewhere   ! ice-free ocean
