@@ -2500,7 +2500,8 @@ contains
     endif  ! Glissade
 
     ! inversion arrays (Glissade only)
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_inversion == HO_INVERSION_APPLY) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion_mask)
