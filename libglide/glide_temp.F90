@@ -208,7 +208,7 @@ contains
 
     elseif ( minval(model%temper%temp(1:model%general%upn, &
                     1+lhalo:model%general%ewn-lhalo, 1+uhalo:model%general%nsn-uhalo)) > &
-                    (-1.0d0 * trpt) ) then    ! trpt = 273.15 K
+                    (-1.0d0 * trpt) ) then    ! trpt = 273.16 K
                                               ! Default initial temps are unphys_val (a large negative number)
 
        ! Temperature has already been initialized from an input file.
@@ -1337,7 +1337,7 @@ contains
     !> temperature, $T_0$ is the triple point of water, $\rho$ is the ice density, and 
     !> $\Phi$ is the (constant) rate of change of melting point temperature with pressure.
 
-    use glimmer_physcon, only : trpt
+    use glimmer_physcon, only : celsius_to_kelvin
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
@@ -1366,9 +1366,9 @@ contains
     ! Actual calculation is done here - constants depend on temperature -----------------
 
     where (tempcor >= -10.0d0)         
-      calcga = arrfact(1) * exp(arrfact(3) / (tempcor + trpt))
+      calcga = arrfact(1) * exp(arrfact(3) / (tempcor + celsius_to_kelvin))
     elsewhere
-      calcga = arrfact(2) * exp(arrfact(4) / (tempcor + trpt))
+      calcga = arrfact(2) * exp(arrfact(4) / (tempcor + celsius_to_kelvin))
     end where
 
   end subroutine patebudd
