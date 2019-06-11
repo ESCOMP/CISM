@@ -204,8 +204,8 @@ module glissade_therm
        endif
 
 
-       if ( minval(temp) > (-1.0d0 * trpt)) then  ! temperature has been read from an input file
-                                                      ! Note: trpt = 273.15 K
+       if ( minval(temp) > (-1.0d0*trpt)) then  ! temperature has been read from an input file
+                                                  ! Note: trpt = 273.16 K
 
           ! Temperature has already been initialized from a restart or input file.
           ! We know this because the default initial temps of unphys_val
@@ -2384,7 +2384,7 @@ module glissade_therm
     ! temperature, $T_0$ is the triple point of water, $\rho$ is the ice density, and 
     ! $\Phi$ is the (constant) rate of change of melting point temperature with pressure.
 
-    use glimmer_physcon, only: scyr, arrmlh, arrmll, actenh, actenl, gascon, trpt
+    use glimmer_physcon, only: scyr, arrmlh, arrmll, actenh, actenl, gascon, celsius_to_kelvin
     use glimmer_paramets, only: vis0
 
     !------------------------------------------------------------------------------------
@@ -2505,9 +2505,9 @@ module glissade_therm
                ! Calculate Glen's A (including flow enhancement factor)
 
                if (tempcor >= -10.d0) then
-                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + trpt))
+                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + celsius_to_kelvin))
                else
-                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + trpt))
+                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + celsius_to_kelvin))
                endif
 
                ! BDM added correction for a liquid water fraction
@@ -2534,9 +2534,9 @@ module glissade_therm
             ! Calculate Glen's A with a fixed temperature (including flow enhancement factor)
 
             if (const_temp >= -10.d0) then
-               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + trpt))
+               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + celsius_to_kelvin))
             else
-               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(const_temp + trpt))
+               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(const_temp + celsius_to_kelvin))
             endif
 
          end do

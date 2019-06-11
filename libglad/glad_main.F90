@@ -566,7 +566,7 @@ contains
     use glimmer_utils
     use glad_timestep, only : glad_i_tstep_gcm
     use glimmer_log
-    use glimmer_paramets, only : scyr
+    use glimmer_physcon, only : celsius_to_kelvin
     use parallel, only : parallel_convert_nonhaloed_to_haloed
     use glide_types, only : get_ewn, get_nsn, get_nzocn
     use glad_output_fluxes, only : calculate_average_output_fluxes
@@ -581,8 +581,8 @@ contains
 
     real(dp),dimension(:,:),intent(in)    :: qsmb         ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc         ! input surface ground temperature (deg C)
-    real(dp),dimension(:,:,:),intent(in)  :: salinity     ! input ocean salinity 
-    real(dp),dimension(:,:,:),intent(in)  :: tocn         ! input ocean temperature 
+    real(dp),dimension(:,:,:),intent(in)  :: salinity     ! input ocean salinity (g/kg)
+    real(dp),dimension(:,:,:),intent(in)  :: tocn         ! input ocean temperature (deg K)
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
@@ -640,12 +640,15 @@ contains
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
 
        do k = 1,nzocn
-         call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:))
-         call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:), tocn_haloed(k,:,:))
+          call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:))
+          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:), tocn_haloed(k,:,:))
        enddo
 
        do k = 1,nzocn
-         call compute_thermal_forcing_level(k, salinity_haloed(k,:,:), tocn_haloed(k,:,:), thermal_forcing_haloed(k,:,:))
+          call compute_thermal_forcing_level(k, &
+               salinity_haloed(k,:,:), &                   ! g/kg
+               tocn_haloed(k,:,:) - celsius_to_kelvin, &   ! convert K to C
+               thermal_forcing_haloed(k,:,:))
        enddo
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
@@ -777,9 +780,9 @@ contains
 
     integer, intent(in)                   :: level             ! pop ocean level
     real(dp),dimension(:,:),intent(in)    :: salinity          ! input ocean salinity (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: ocean_temp        ! input ocean temperature (deg K) 
-    real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg K)
-    real(dp)                              :: zlevel            !  ocean depth (m)
+    real(dp),dimension(:,:),intent(in)    :: ocean_temp        ! input ocean temperature (deg C)
+    real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg C)
+    real(dp)                              :: zlevel            ! ocean depth (m)
 
     if (level == 1) then
        zlevel = -5.d0
@@ -805,7 +808,7 @@ contains
        thermal_forcing = unphys_val
     elsewhere
        ! Tf = 0.0939 - 0.057*S + 7.64e-4*z from Eq. 2, Beckmann & Goosse (2003)
-       ! Note z < 0 below sea level, so Tf decreases with increasing depth
+       ! Note: z < 0 below sea level, so Tf decreases with increasing depth
        thermal_forcing = ocean_temp - (0.0939d0 - 0.057d0*salinity + 7.64d-4*zlevel)
     endwhere
 

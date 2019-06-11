@@ -66,9 +66,10 @@ module glimmer_physcon
   real(dp) :: grav = 9.81d0                      !< The acceleration due to gravity (m s<SUP>-2</SUP>)
   real(dp) :: shci = 2009.0d0                    !< Specific heat capacity of ice (J kg<SUP>-1</SUP> K<SUP>-1</SUP>) 
   real(dp) :: lhci = 335.0d3                     !< Latent heat of melting of ice (J kg<SUP>-1</SUP>)  
-  real(dp) :: trpt = 273.15d0                    !< Triple point of water (K)    
+  real(dp) :: trpt = 273.16d0                    !< Triple point of water (K)
 #endif
 
+  real(dp),parameter :: celsius_to_kelvin = 273.15d0  !< Note: Not quite equal to trpt
   real(dp),parameter :: scyr = 31536000.d0       !< Number of seconds in a year of exactly 365 days
   real(dp),parameter :: rhom = 3300.0d0          !< The density of magma(?) (kg m<SUP>-3</SUP>) 
   real(dp),parameter :: rhos = 2600.0d0          !< The density of solid till (kg m$^{-3}$) 
@@ -88,4 +89,5 @@ module glimmer_physcon
   real(dp),parameter :: dtocnfrz_dh = -7.53d-4   !< Rate of change of freezing temperature of seawater with depth (deg/m), given S = 35 PSU
                                                  !< These values are from the Ocean Water Freezing Point Calculator,
                                                  !< http://www.csgnetwork.com/h2ofreezecalc.html (25 Nov. 2014)
+
 end module glimmer_physcon

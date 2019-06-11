@@ -147,7 +147,7 @@ contains
     ! case they are Kelvin.
     !*RV Saturated vapour pressure in Pascals.
 
-    use glimmer_physcon, only: trpt
+    use glimmer_physcon, only: celsius_to_kelvin
     implicit none
 
     ! Arguments
@@ -167,7 +167,7 @@ contains
 
     if (present(kelvin)) then
        if (kelvin) then 
-          ts = temp - trpt   !trpt = 273.15
+          ts = temp - celsius_to_kelvin   ! subtract 273.15
        else 
           ts = temp
        endif
