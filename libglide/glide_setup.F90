@@ -472,9 +472,8 @@ contains
 
     else    ! no 'grid_ocn' section
 
-       !TODO - Add other options that need this section
-       if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-          write(message,*) 'Must have a [grid_ocn] section to use this bmlt_float option'
+       if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+          write(message,*) 'Must have a [grid_ocn] section to use the thermal forcing option'
           call write_log(message, GM_FATAL)
        endif
 
@@ -657,8 +656,9 @@ contains
     call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
-    call GetValue(section,'bmlt_float_ismip6_param',model%options%bmlt_float_ismip6_param)
+    call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
     call GetValue(section,'bmlt_float_ismip6_magnitude',model%options%bmlt_float_ismip6_magnitude)
+    call GetValue(section,'ocean_data_domain',model%options%ocean_data_domain)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
@@ -831,24 +831,28 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:7), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
          'none                                  ', &
          'MISMIP+ melt rate profile             ', &
          'constant melt rate                    ', &
          'depth-dependent melt rate             ', &
          'melt rate from external file          ', &
          'melt rate from MISOMIP T/S profile    ', &
-         'melt rate from ISMIP6 parameterization', &
-         'melt rate for POP-CISM coupling       ' /)
+         'melt rate from thermal forcing        ' /)
 
-    character(len=*), dimension(0:1), parameter :: bmlt_float_ismip6_param = (/ &
-         'local quadratic melt                  ', &
-         'nonlocal quadratic melt               ' /)
+    character(len=*), dimension(0:2), parameter :: bmlt_float_thermal_forcing_param = (/ &
+         'quadratic function of thermal forcing ', &
+         'ISMIP6 local quadratic                ', &
+         'ISMIP6 nonlocal quadratic             ' /)
 
     character(len=*), dimension(0:2), parameter :: bmlt_float_ismip6_magnitude = (/ &
          'lowest forcing magnitude             ', &
          'median forcing magnitude             ', &
          'highest forcing magnitude            '  /)
+
+    character(len=*), dimension(0:1), parameter :: ocean_data_domain = (/ &
+         'data in ocean domain only; must extrapolate to cavities', &
+         'ocean data already extrapolated to ice shelf cavities  ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -1349,12 +1353,18 @@ contains
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       write(message,*) 'melt parameterization   : ', model%options%bmlt_float_ismip6_param, &
-            bmlt_float_ismip6_param(model%options%bmlt_float_ismip6_param)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
+            bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
        call write_log(message)
-       write(message,*) 'magnitude of forcing    : ', model%options%bmlt_float_ismip6_magnitude, &
-            bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
+       if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
+          write(message,*) 'magnitude of forcing    : ', model%options%bmlt_float_ismip6_magnitude, &
+               bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
+          call write_log(message)
+       endif
+       write(message,*) 'ocean data domain       : ', model%options%ocean_data_domain, &
+            ocean_data_domain(model%options%ocean_data_domain)
        call write_log(message)
     endif
 
@@ -2716,14 +2726,7 @@ contains
        case (BMLT_FLOAT_DEPTH)
           call glide_add_to_restart_variable_list('warm_ocean_mask')
 
-       case (BMLT_FLOAT_ISMIP6)
-          ! Need basin number for each grid cell
-          call glide_add_to_restart_variable_list('basin_number')
-          ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes.
-          ! Only need one of these for restart (since param and magnitude will not change during the run).
-          ! Similarly for gamma0 (a scalar).
-          call glide_add_to_restart_variable_list('deltaT_basin')
-          call glide_add_to_restart_variable_list('gamma0')
+       case (BMLT_FLOAT_THERMAL_FORCING)
 
           ! Need the latest value of the thermal forcing field.
           ! This could be either the baseline value (if not updating during runtime), or a value read from a forcing file.
@@ -2731,16 +2734,31 @@ contains
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing')
 
+          ! If thermal_forcing input data are being ignored where ocean_data_mask = 0,
+          !  then we need to read in the ocean data mask at restart.
+          ! Note: This mask currently is not used when coupling to POP; but only when reading TF from an input or forcing file.
+          ! TODO - Let Glad set this mask to indicate where TF data are valid?
+          if (options%ocean_data_domain == DATA_OCEAN_ONLY) then
+             call glide_add_to_restart_variable_list('ocean_data_mask')
+          endif
+
           ! If running with inversion, then we apply a melting anomaly to the value obtained from inversion.
           ! In this case we need the baseline melt rate to compute the anomaly.
           if (options%which_ho_inversion == HO_INVERSION_APPLY) then
              call glide_add_to_restart_variable_list('bmlt_float_baseline')
           endif
 
-       case (BMLT_FLOAT_POP_CPL)
-          ! GL - Not sure it is needed but just in case for now.
-          !WHL - Probably not needed, since it is computed as needed from coupled input.  Commented out for now.
-!!          call glide_add_to_restart_variable_list('thermal_forcing')
+          ! If using an ISMIP6 melt parameterization (either local or nonlocal),
+          !  we need basin numbers and deltaT values for the parameterization.
+          if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then 
+             call glide_add_to_restart_variable_list('basin_number')
+             ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes.
+             ! Only need one of these for restart (since param and magnitude will not change during the run).
+             ! Similarly for gamma0 (a scalar).
+             call glide_add_to_restart_variable_list('deltaT_basin')
+             call glide_add_to_restart_variable_list('gamma0')
+          endif
 
     end select  ! whichbmlt_float
 

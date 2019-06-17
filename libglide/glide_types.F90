@@ -118,23 +118,24 @@ module glide_types
   ! option 4 is deprecated; if selected, the code will throw a fatal error
   integer, parameter :: BWATER_OCEAN_PENETRATION = 4
 
-  !TODO - Change names of options 6 and 7?
-  !       Maybe 6 = BMLT_FLOAT_THERMAL_FORCING, 7 = BMLT_FLOAT_TS_OCEAN
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
   integer, parameter :: BMLT_FLOAT_DEPTH = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
   integer, parameter :: BMLT_FLOAT_MISOMIP = 5
-  integer, parameter :: BMLT_FLOAT_ISMIP6 = 6
-  integer, parameter :: BMLT_FLOAT_POP_CPL = 7
+  integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
-  integer, parameter :: BMLT_FLOAT_ISMIP6_LOCAL = 0
-  integer, parameter :: BMLT_FLOAT_ISMIP6_NONLOCAL = 1
+  integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
+  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
+  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
 
   integer, parameter :: BMLT_FLOAT_ISMIP6_PCT5 = 0
   integer, parameter :: BMLT_FLOAT_ISMIP6_MEDIAN = 1
   integer, parameter :: BMLT_FLOAT_ISMIP6_PCT95 = 2
+
+  integer, parameter :: DATA_OCEAN_ONLY = 0
+  integer, parameter :: DATA_OCEAN_ICE = 1
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -449,21 +450,30 @@ module glide_types
     !> \item[3] Depth-dependent basal melt rate for floating ice
     !> \item[4] External basal melt rate field (from input file or coupler)
     !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
-    !> \item[6] Basal melt rate for floating ice from ISMIP6 parameterization based on thermal forcing
-    !> \item[7] Basal melt rate for floating ice from ocean T and S, converted to thermal forcing
+    !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
-    integer :: bmlt_float_ismip6_param = 0
+    integer :: bmlt_float_thermal_forcing_param = 0
+
     !> \begin{description}
-    !> \item[0] Local parameterization for thermal forcing
-    !> \item[1] Nonlocal parameterization for thermal forcing
+    !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[1] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[2] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
     !> \end{description}
 
     integer :: bmlt_float_ismip6_magnitude = 1
+
     !> \begin{description}
     !> \item[0] Lowest level of forcing (e.g., pct5)
     !> \item[1] Median level of forcing
     !> \item[2] High level of forcing (e.g., pct95)
+    !> \end{description}
+
+    integer :: ocean_data_domain = 0
+
+    !> \begin{description}
+    !> \item[0] ocean data for ocean domain only; extrapolation needed to shelf cavities
+    !> \item[1] ocean data already extrapolated to potential shelf cavities
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
@@ -1520,8 +1530,16 @@ module glide_types
      real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing_baseline => null()        !> baseline thermal forcing (K), e.g. from climatology
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing => null()                 !> thermal forcing (K) at a given time
+          thermal_forcing => null()                 !> 3D thermal forcing forcing(K) input to CISM
+     real(dp), dimension(:,:,:), pointer :: &
+          thermal_forcing_applied => null()         !> 3D thermal forcing forcing(K) applied in CISM;
+                                                    !> may include extrapolation to current geometry
+     real(dp), dimension(:,:), pointer :: &
+          thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing(K) applied at lower ice surface
 
+     integer, dimension(:,:), pointer :: &
+          data_mask                                 !> = 1 where data should be used by CISM, = 0 where CISM should extrapolate;
+                                                    !> used for ocean_data_domain = DATA_OCEAN_ONLY
      integer, dimension(:,:), pointer :: &
           basin_number => null()                    !> basin number for each grid cell
 
@@ -2097,8 +2115,11 @@ contains
     !> \begin{itemize}
     !> \item \texttt{deltaT_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
-    !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_applied(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
+    !> \item \texttt{data_mask(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
@@ -2480,29 +2501,32 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%divDu_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
-       elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+       elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
           ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
           if (model%ocean_data%nzocn < 1) &
              call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
           if (model%ocean_data%nbasin < 1) &
              call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct5)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_median)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct95)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
-          !TODO - Add other bmlt_float options for which these fields should be allocated?
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_baseline)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing)
-       elseif (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing)
+                                    model%ocean_data%thermal_forcing_applied)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%data_mask)
+          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
+          if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
+              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct5)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_median)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_nonlocal_pct95)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
+          endif
        endif
     endif  ! Glissade
 
@@ -2861,6 +2885,12 @@ contains
         deallocate(model%ocean_data%thermal_forcing_baseline)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
+    if (associated(model%ocean_data%thermal_forcing_applied)) &
+        deallocate(model%ocean_data%thermal_forcing_applied)
+    if (associated(model%ocean_data%thermal_forcing_lsrf)) &
+        deallocate(model%ocean_data%thermal_forcing_lsrf)
+    if (associated(model%ocean_data%data_mask)) &
+        deallocate(model%ocean_data%data_mask)
 
     ! inversion arrays
     if (associated(model%inversion%bmlt_float_save)) &

@@ -34,10 +34,8 @@
 !
 ! NOTE: MJH Lines that start with !### are ones I have identified to be deleted.
 !
-! This is a new module, originally copied from glide.F90 (William Lipscomb, June 2012)
-! Removed SIA-specific code, leaving only the HO code with remapping transport
-! Whenever possible, parallel_halo updates should go in this module rather
-!  than at lower levels.
+! This module was originally copied from glide.F90 (William Lipscomb, June 2012)
+! Removed SIA-specific code, leaving only the HO code with remapping transport.
 !
 ! +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! +                                                           +
@@ -106,7 +104,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
-    use glissade_bmlt_float, only: glissade_bmlt_float_ismip6_init, verbose_bmlt_float
+    use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glimmer_paramets, only: thk0, len0, tim0
     use felix_dycore_interface, only: felix_velo_init
 
@@ -711,8 +709,8 @@ contains
     ! Currently, this is done only when using the ISMIP6 basal melting parameterization
     ! Note: Need the current value of lsrf when calling this subroutine
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
-       call glissade_bmlt_float_ismip6_init(model, model%ocean_data)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
     endif
 
     !WHL - debug
@@ -991,7 +989,7 @@ contains
     ! Solve for basal melting beneath floating ice.
 
     use glimmer_paramets, only: tim0, thk0, len0
-    use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_ismip6, verbose_bmlt_float
+    use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_3d_anomaly
     use glissade_masks, only: glissade_get_masks
 
@@ -1065,7 +1063,7 @@ contains
           model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
        endif
 
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_ISMIP6) then
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        !TODO - Read thermal_forcing from a CF forcing file.
        !       For now, thermal_forcing is held at the baseline value.
@@ -1075,28 +1073,20 @@ contains
           print*, 'Compute bmlt_float at runtime from current thermal forcing'
        endif
 
-       call glissade_bmlt_float_ismip6(model%options%bmlt_float_ismip6_param, &
-                                       ewn,                nsn,           &
-                                       itest,     jtest,   rtest,         &
-                                       floating_mask,                     &
-                                       model%geometry%lsrf*thk0,          & ! m
-                                       model%ocean_data%thermal_forcing,  &
-                                       model%ocean_data,                  &
-                                       model%basal_melt%bmlt_float)         ! m/s
+       call glissade_bmlt_float_thermal_forcing(&
+            model%options%bmlt_float_thermal_forcing_param, &
+            model%options%ocean_data_domain,   &
+            ewn,                nsn,           &
+            itest,     jtest,   rtest,         &
+            floating_mask,                     &
+            ocean_mask,                        &
+            model%geometry%lsrf*thk0,          & ! m
+            model%geometry%topg*thk0,          & ! m
+            model%ocean_data%thermal_forcing,  & ! K
+            model%ocean_data,                  &
+            model%basal_melt%bmlt_float)         ! m/s
 
-       if (verbose_bmlt_float .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'ISMIP6 bmlt_float from transient thermal forcing (m/yr)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       ! There are two ways to compute the transient basal melting at runtime:
+       ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
        ! (1) Use the value just computed, based on the current thermal_forcing.
        !     Note: Even if the thermal forcing is fixed, the melt rate will evolve with the shelf geometry.
        ! (2) Start with the value obtained from inversion, and add the runtime anomaly.
@@ -1127,10 +1117,6 @@ contains
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
-
-!!    elseif (model%options%whichbmlt_float == BMLT_FLOAT_POP_CPL) then
-
-       !TODO - Add a separate subroutine for this option?
 
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_DEPTH, BMLT_FLOAT_MISOMIP and BMLT_FLOAT_POP_CPL
           !TODO - Call separate subroutines for each of these options?

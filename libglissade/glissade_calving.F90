@@ -38,7 +38,12 @@ module glissade_calving
 
   implicit none
 
-  ! colors for fill subroutine
+  private
+  public :: glissade_calving_mask_init, glissade_calve_ice
+  public :: glissade_lake_mask, glissade_marine_connection_mask
+  public :: verbose_calving
+
+  ! colors for fill subroutines
   integer, parameter :: initial_color = 0   ! initial color, represented by integer
   integer, parameter :: fill_color = 1      ! fill color, represented by integer
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
@@ -1814,16 +1819,18 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_ocean_connection_mask(nx,           ny,             &
-                                            itest, jtest, rtest,          &
-                                            ice_mask,     floating_mask,  &
-                                            ocean_mask,   land_mask,      &
-                                            ocean_connection_mask,        &
-                                            lake_mask)
+  subroutine glissade_lake_mask(nx,           ny,             &
+                                itest, jtest, rtest,          &
+                                floating_mask,                &
+                                ocean_mask,                   &
+                                lake_mask,                    &
+                                ocean_connection_mask)
 
-  ! Identify cells that are connected to the ocean: cells that are already ice-free ocean,
-  !  or are floating and are connected through other floating cells to the ocean.
-  ! Also identify inland lake cells: cells that are floating but not connected.
+  ! Identify interior lake cells: cells that are floating but are not connected
+  !  to the ocean along a path through other floating cells.
+  ! Optionally, identify cells with an ocean connection: either ice-free ocean,
+  !  or floating and connected through other floating cells to the ocean.
+  ! Note: The path to the ocean must pass through edge neighbors, not corner neighbors.
 
   !TODO - Move this subroutine to glissade_masks? 
   !       The only connection to calving is the use of glissade_fill.
@@ -1835,20 +1842,20 @@ contains
     ! Note: The calling subroutine decides how to define floating_mask.
     !       E.g., it could be defined based on f_ground_cell with which_ho_ground = 2.
     ! Each input mask needs to be correct in halo cells
-    integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask,               & !> = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,          & !> = 1 where ice is present (thck > thklim) and floating, else = 0
-         ocean_mask,             & !> = 1 where topg - eus is below sea level and ice is absent, else = 0
-         land_mask                 !> = 1 for topg - eus is at or above sea level
 
-    ! Note: As defined, ocean_connection_mask includes grounded marine cells adjacent to connected floating cells.
+    integer, dimension(nx,ny), intent(in) ::  &
+         floating_mask,          & !> = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask                !> = 1 where topg - eus is below sea level and ice is absent, else = 0
+
+    ! Note: Given the logic in glissade_fill, ocean_connection_mask includes grounded marine cells
+    !        adjacent to connected floating cells.
     !       However, grounded marine cells do not serve as a path to the ocean for other grounded cells.
 
     integer, dimension(nx,ny), intent(out) ::  &
-         ocean_connection_mask     !> = 1 for ocean cells, and cells connected to the ocean through floating ice
+         lake_mask                 !> = 1 for floating cells disconnected from the ocean, else = 0
 
     integer, dimension(nx,ny), intent(out), optional ::  &
-         lake_mask                 !> = 1 for floating cells disconnected from the ocean, else = 0
+         ocean_connection_mask     !> = 1 for ocean cells, and cells connected to the ocean through floating ice
 
     ! local variables
 
@@ -1859,24 +1866,15 @@ contains
     integer :: i, j
     integer :: count, maxcount_fill  ! loop counters
 
-    logical, parameter :: verbose_ocean_connection = .false.
+    logical, parameter :: verbose_lake = .false.
 
     !WHL - debug
     real(dp) :: sum_fill_local, sum_fill_global
     integer :: ig, jg
 
-    if (verbose_ocean_connection .and. this_rank == rtest) then
+    if (verbose_lake .and. this_rank == rtest) then
        print*, ' '
-       print*, 'In glissade_ocean_connection_mask, itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'ice_mask'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') ice_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+       print*, 'In glissade_lake_mask, itest, jtest, rank =', itest, jtest, rtest
        print*, ' '
        print*, 'floating_mask'
        do j = jtest+3, jtest-3, -1
@@ -1909,7 +1907,7 @@ contains
 
     maxcount_fill = max(ewtasks,nstasks)
 
-    if (verbose_ocean_connection .and. main_task) print*, 'maxcount_fill =', maxcount_fill
+    if (verbose_lake .and. main_task) print*, 'maxcount_fill =', maxcount_fill
 
     do count = 1, maxcount_fill
 
@@ -1937,7 +1935,7 @@ contains
 
           ! Check for halo cells that were just filled on neighbor processors
           ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
-          !       but also must be an active cell (as identified by floating_mask = 1).
+          !       but also must have floating_mask = 1.
 
           call parallel_halo(color)
 
@@ -1993,114 +1991,91 @@ contains
        !WHL - If running a large problem, may want to reduce the frequency of this global sum
        sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
-       if (verbose_ocean_connection .and. main_task) then
-          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+       if (verbose_lake .and. main_task) then
+!!          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
        endif
 
     enddo  ! count
 
     call parallel_halo(color)
 
-    ! Identify cells connected to the ocean.  This includes:
-    ! (1) cells that are already ocean.
-    ! (2) cells with the fill color, meaning they are floating cells connected to the ocean
-    ! (3) cells at the ocean border: containing grounded marine ice, and adjacent to cells in category (1) or (2)
+    ! Identify lake cells: floating cells that still have the initial color.
 
-    ! Identify ocean cells and ocean-connected floating cells
-
-    ocean_connection_mask(:,:) = 0
+    lake_mask(:,:) = 0
 
     do j = 1, ny
        do i = 1, nx
-          if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
-             ocean_connection_mask(i,j) = 1
-          endif
-       enddo
-    enddo
+          if (color(i,j) == initial_color .and. floating_mask(i,j) == 1) then
+             lake_mask(i,j) = 1
 
-    ! Identify border cells
-
-    border_mask(:,:) = 0
-
-    do j = 2, ny-1
-       do i = 2, nx -1
-          if (.not.(land_mask(i,j) == 1) .and. .not.(ocean_mask(i,j)==1)) then  ! marine ice
-             if (ocean_connection_mask(i-1,j) == 1 .or. ocean_connection_mask(i+1,j) == 1 .or. &
-                 ocean_connection_mask(i,j-1) == 1 .or. ocean_connection_mask(i,j+1) == 1) then
-                border_mask(i,j) = 1
+             if (verbose_lake .and. this_rank == rtest) then
+                call parallel_globalindex(i, j, ig, jg)
+                print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
              endif
+
           endif
        enddo
     enddo
 
-    ! Add border cells to the ocean connection mask
+    call parallel_halo(lake_mask)
 
-    where (border_mask == 1)
-       ocean_connection_mask = 1
-    endwhere
-
-    call parallel_halo(ocean_connection_mask)
-
-    if (verbose_ocean_connection .and. this_rank == rtest) then
+    if (verbose_lake .and. this_rank == rtest) then
        print*, ' '
-       print*, 'color, rank =', this_rank
+       print*, 'lake_mask, rank =', this_rank
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') color(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'ocean_connection_mask, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
+             write(6,'(i10)',advance='no') lake_mask(i,j)
           enddo
           write(6,*) ' '
        enddo
     endif
 
-    if (present(lake_mask)) then
+    if (present(ocean_connection_mask)) then
 
-       ! Identify lake cells: floating cells that still have the initial color.
+       ! Identify cells connected to the ocean.  This includes:
+       ! (1) cells that are already ocean
+       ! (2) floating cells with the fill color, meaning they are connected to the ocean via other floating cells
 
-       lake_mask(:,:) = 0
+       ocean_connection_mask(:,:) = 0
 
        do j = 1, ny
           do i = 1, nx
-             if (color(i,j) == initial_color .and. floating_mask(i,j) == 1) then
-                lake_mask(i,j) = 1
-
-                if (verbose_ocean_connection .and. this_rank == rtest) then
-                   call parallel_globalindex(i, j, ig, jg)
-                   print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
-                endif
-
+             if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
+                ocean_connection_mask(i,j) = 1
              endif
           enddo
        enddo
+       
+       call parallel_halo(ocean_connection_mask)
 
-       call parallel_halo(lake_mask)
-
-       if (verbose_ocean_connection .and. this_rank == rtest) then
+       if (verbose_lake .and. this_rank == rtest) then
           print*, ' '
-          print*, 'lake_mask, rank =', this_rank
+          print*, 'color, rank =', this_rank
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') lake_mask(i,j)
+                write(6,'(i10)',advance='no') color(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ocean_connection_mask, rank =', this_rank
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
        endif
 
-    endif   ! present(lake_mask)
+    endif  ! present(ocean_connection_mask)
 
-  end subroutine glissade_ocean_connection_mask
+  end subroutine glissade_lake_mask
 
 !****************************************************************************
+
   subroutine glissade_marine_connection_mask(nx,           ny,             &
                                              itest, jtest, rtest,          &
                                              ocean_mask,                   &
@@ -2311,17 +2286,17 @@ contains
                                      active_ice_mask)
 
     ! Given a domain with an initial color, a boundary color and a fill color,
-    ! assign the fill color to all cells that either (1) are prescribed to have
-    ! the fill color or (2) are connected to cells with the fill color.
+    ! recursively assign the fill color to all cells that are connected to cells
+    ! with the fill color.  The connection must pass through cell edges (not vertices).
 
     integer, intent(in) :: nx, ny                       !> domain size
     integer, intent(in) :: i, j                         !> horizontal indices of current cell
 
     integer, dimension(nx,ny), intent(inout) :: &
-         color                                          ! color (initial, fill or boundary)
+         color                                          !> color (initial, fill or boundary)
 
     integer, dimension(nx,ny), intent(in) :: &
-         active_ice_mask                                ! true for dynamically active ice
+         active_ice_mask                                !> true for dynamically active ice
 
     if (color(i,j) /= fill_color .and. color(i,j) /= boundary_color) then
 
