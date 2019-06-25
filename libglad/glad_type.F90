@@ -80,6 +80,8 @@ module glad_type
 
      real(dp),dimension(:,:),pointer :: artm => null() !> Annual mean air temperature
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
+     real(dp),dimension(:,:,:),pointer :: salinity => null() !> 3-D ocean salinity field
+     real(dp),dimension(:,:,:),pointer :: tocn     => null() !> 3-D ocean temperature field
      real(dp),dimension(:,:,:),pointer :: thermal_forcing => null() !> 3-D thermal forcing field
 
      ! Arrays to accumulate mass-balance quantities --------------
@@ -136,6 +138,8 @@ contains
 
     if (associated(instance%artm))          deallocate(instance%artm)
     if (associated(instance%acab))          deallocate(instance%acab)
+    if (associated(instance%salinity))           deallocate(instance%salinity)
+    if (associated(instance%tocn))               deallocate(instance%tocn)
     if (associated(instance%thermal_forcing))    deallocate(instance%thermal_forcing)
 
     if (associated(instance%lat))           deallocate(instance%lat)
@@ -150,6 +154,8 @@ contains
 
     allocate(instance%artm(ewn,nsn));          instance%artm = 0.d0
     allocate(instance%acab(ewn,nsn));          instance%acab = 0.d0
+    allocate(instance%salinity(nzocn,ewn,nsn));            instance%salinity = 0.d0
+    allocate(instance%tocn(nzocn,ewn,nsn));                instance%tocn     = 0.d0
     allocate(instance%thermal_forcing(nzocn,ewn,nsn));     instance%thermal_forcing = 0.d0
 
     allocate(instance%lat(ewn,nsn));           instance%lat  = 0.d0

@@ -601,8 +601,6 @@ contains
     integer :: nzocn      ! dimension of ocean layer
     integer :: k
 
-!    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing  ! sub-shelf thermal_forcing (deg K)
-
     ! version of input fields with halo cells
     real(dp),dimension(:,:),allocatable   :: qsmb_haloed
     real(dp),dimension(:,:),allocatable   :: tsfc_haloed
@@ -645,14 +643,15 @@ contains
        enddo
 
        do k = 1,nzocn
-          call compute_thermal_forcing_level(k, &
-               salinity_haloed(k,:,:), &                   ! g/kg
+          call compute_thermal_forcing_level(k,        &
+               salinity_haloed(k,:,:),                 &   ! g/kg
                tocn_haloed(k,:,:) - celsius_to_kelvin, &   ! convert K to C
                thermal_forcing_haloed(k,:,:))
        enddo
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-            qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
+            qsmb = qsmb_haloed,         tsfc = tsfc_haloed,                   &
+            salinity = salinity_haloed, tocn = tocn_haloed,                   &
             thermal_forcing = thermal_forcing_haloed,                         &
             time = time)
 
@@ -721,6 +720,8 @@ contains
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
                tsfc = params%instances(instance_index)%artm, &
+               salinity = params%instances(instance_index)%salinity, &
+               tocn     = params%instances(instance_index)%tocn,     &
                thermal_forcing = params%instances(instance_index)%thermal_forcing)
 
 

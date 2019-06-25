@@ -64,7 +64,9 @@ module glad_input_averages
      
      real(dp),pointer,dimension(:,:) :: tot_qsmb => null()  ! running total surface mass balance (kg m-2 s-1)
      real(dp),pointer,dimension(:,:) :: tot_tsfc => null()  ! running total surface temperature (deg C)
-     real(dp),pointer,dimension(:,:,:) :: tot_thermal_forcing => null()  ! running total 3D thermal forcing
+     real(dp),pointer,dimension(:,:,:) :: tot_salinity => null()  ! running total 3D ocean salinity (g/kg)
+     real(dp),pointer,dimension(:,:,:) :: tot_tocn     => null()  ! running total 3D ocean temperature (degK)
+     real(dp),pointer,dimension(:,:,:) :: tot_thermal_forcing => null()  ! running total 3D thermal forcing (degK)
 
 
   end type glad_input_averages_type
@@ -93,6 +95,8 @@ contains
 
     allocate(glad_inputs%tot_qsmb(ewn,nsn));  glad_inputs%tot_qsmb = 0.d0
     allocate(glad_inputs%tot_tsfc(ewn,nsn));  glad_inputs%tot_tsfc = 0.d0
+    allocate(glad_inputs%tot_salinity(nzocn,ewn,nsn));         glad_inputs%tot_salinity = 0.d0
+    allocate(glad_inputs%tot_tocn(nzocn,ewn,nsn));             glad_inputs%tot_tocn     = 0.d0
     allocate(glad_inputs%tot_thermal_forcing(nzocn,ewn,nsn));  glad_inputs%tot_thermal_forcing = 0.d0
 
     glad_inputs%av_start_time = next_av_start
@@ -109,34 +113,42 @@ contains
     
 
   subroutine accumulate_averages(glad_inputs, qsmb, tsfc,    &
-                                 thermal_forcing, time)
+                                 salinity, tocn, thermal_forcing, time)
 
     ! Accumulate averages based on one set of inputs.
     ! Should be called every time we have new inputs from the climate model.
     type(glad_input_averages_type), intent(inout) :: glad_inputs
     real(dp),dimension(:,:),intent(in)  :: qsmb     ! flux of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)  :: tsfc     ! surface ground temperature (C)
+    real(dp),dimension(:,:,:),intent(in)  :: salinity            ! ocean salinity (g/kg)
+    real(dp),dimension(:,:,:),intent(in)  :: tocn                ! ocean temperature (C)
     real(dp),dimension(:,:,:),intent(in)  :: thermal_forcing     ! thermal forcing (C)
     integer, intent(in) :: time  ! Current model time
     
     glad_inputs%tot_qsmb(:,:) = glad_inputs%tot_qsmb(:,:) + qsmb(:,:)
     glad_inputs%tot_tsfc(:,:) = glad_inputs%tot_tsfc(:,:) + tsfc(:,:)
+    glad_inputs%tot_salinity(:,:,:)        = glad_inputs%tot_salinity(:,:,:)        + salinity(:,:,:)
+    glad_inputs%tot_tocn(:,:,:)            = glad_inputs%tot_tocn(:,:,:)            + tocn(:,:,:)
     glad_inputs%tot_thermal_forcing(:,:,:) = glad_inputs%tot_thermal_forcing(:,:,:) + thermal_forcing(:,:,:)
     glad_inputs%av_steps = glad_inputs%av_steps + 1
 
   end subroutine accumulate_averages
 
 
-  subroutine calculate_averages(glad_inputs, qsmb, tsfc, thermal_forcing)
+  subroutine calculate_averages(glad_inputs, qsmb, tsfc, salinity, tocn, thermal_forcing)
 
     ! Calculate averages over the averaging period
     type(glad_input_averages_type), intent(in) :: glad_inputs
     real(dp), dimension(:,:), intent(out) :: qsmb  ! average surface mass balance (kg m-2 s-1)
     real(dp), dimension(:,:), intent(out) :: tsfc  ! average surface temperature (deg C)
-    real(dp), dimension(:,:,:), intent(out) :: thermal_forcing ! average thermal forcing at level 0 (deg K)
+    real(dp), dimension(:,:,:), intent(out) :: salinity ! average ocean salinity (g/Kg)
+    real(dp), dimension(:,:,:), intent(out) :: tocn     ! average ocean temperature (deg K)
+    real(dp), dimension(:,:,:), intent(out) :: thermal_forcing ! average thermal forcing (deg K)
 
     qsmb(:,:) = glad_inputs%tot_qsmb(:,:) / real(glad_inputs%av_steps,dp)
     tsfc(:,:) = glad_inputs%tot_tsfc(:,:) / real(glad_inputs%av_steps,dp)
+    salinity(:,:,:) = glad_inputs%tot_salinity(:,:,:) / real(glad_inputs%av_steps,dp)
+    tocn(:,:,:)     = glad_inputs%tot_tocn(:,:,:) / real(glad_inputs%av_steps,dp)
     thermal_forcing(:,:,:) = glad_inputs%tot_thermal_forcing(:,:,:) / real(glad_inputs%av_steps,dp)
   
   end subroutine calculate_averages
@@ -152,6 +164,8 @@ contains
 
     glad_inputs%tot_qsmb(:,:) = 0.d0
     glad_inputs%tot_tsfc(:,:) = 0.d0
+    glad_inputs%tot_salinity(:,:,:) = 0.d0
+    glad_inputs%tot_tocn(:,:,:)     = 0.d0
     glad_inputs%tot_thermal_forcing(:,:,:) = 0.d0
     glad_inputs%av_steps      = 0
     glad_inputs%av_start_time = next_av_start

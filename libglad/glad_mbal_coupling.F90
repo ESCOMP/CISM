@@ -43,10 +43,14 @@ module glad_mbal_coupling
   type glad_mbc
      real(dp),dimension(:,:),pointer :: acab_save  => null() ! used to accumulate mass-balance
      real(dp),dimension(:,:),pointer :: artm_save  => null() ! used to average air-temperature
+     real(dp),dimension(:,:,:),pointer :: salinity_save  => null() ! used to average 3D ocean salinity
+     real(dp),dimension(:,:,:),pointer :: tocn_save      => null() ! used to average 3D ocean temperature
      real(dp),dimension(:,:,:),pointer :: thermal_forcing_save  => null() ! used to average 3D thermal forcing
 
      real(dp),dimension(:,:),pointer :: acab       => null() ! Instantaneous mass-balance
      real(dp),dimension(:,:),pointer :: artm       => null() ! Instantaneous air temperature
+     real(dp),dimension(:,:,:),pointer :: salinity => null() ! Instantaneous ocean salinity
+     real(dp),dimension(:,:,:),pointer :: tocn     => null() ! Instantaneous ocean temperature
      real(dp),dimension(:,:,:),pointer :: thermal_forcing => null() ! Instantaneous thermal_forcing
 
      integer :: av_count  = 0 ! Counter for averaging inputs
@@ -77,21 +81,29 @@ contains
     ! Deallocate if necessary
 
     if (associated(params%acab_save))  deallocate(params%acab_save)
-    if (associated(params%artm_save))  deallocate(params%artm_save)
+    if (associated(params%artm_save))  deallocate(params%artm_save) 
+    if (associated(params%salinity_save))         deallocate(params%salinity_save)
+    if (associated(params%tocn_save))             deallocate(params%tocn_save)
     if (associated(params%thermal_forcing_save))  deallocate(params%thermal_forcing_save)
 
     if (associated(params%acab))       deallocate(params%acab)
     if (associated(params%artm))       deallocate(params%artm)
+    if (associated(params%salinity))         deallocate(params%salinity)
+    if (associated(params%tocn))             deallocate(params%tocn)
     if (associated(params%thermal_forcing))  deallocate(params%thermal_forcing)
 
     ! Allocate arrays and zero
 
     call coordsystem_allocate(lgrid,params%acab_save);  params%acab_save = 0.d0
     call coordsystem_allocate(lgrid,params%artm_save);  params%artm_save = 0.d0
+    call coordsystem_allocate(lgrid,nzocn,params%salinity_save);  params%salinity_save = 0.d0
+    call coordsystem_allocate(lgrid,nzocn,params%tocn_save);      params%tocn_save     = 0.d0
     call coordsystem_allocate(lgrid,nzocn,params%thermal_forcing_save);  params%thermal_forcing_save = 0.d0
 
     call coordsystem_allocate(lgrid,params%acab);       params%acab = 0.d0
     call coordsystem_allocate(lgrid,params%artm);       params%artm = 0.d0
+    call coordsystem_allocate(lgrid,nzocn,params%salinity);  params%salinity = 0.d0
+    call coordsystem_allocate(lgrid,nzocn,params%tocn);      params%tocn     = 0.d0
     call coordsystem_allocate(lgrid,nzocn,params%thermal_forcing);  params%thermal_forcing = 0.d0
 
     ! Set default mass balance time step
@@ -104,9 +116,7 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_accumulate_input_gcm(params, time, acab, artm, thermal_forcing) !, &
-!                                       thermal_forcing2, thermal_forcing3, thermal_forcing4,  &
-!                                       thermal_forcing5, thermal_forcing6, thermal_forcing7)
+  subroutine glad_accumulate_input_gcm(params, time, acab, artm, salinity, tocn, thermal_forcing) 
 
     ! In glint, this was done in glint_downscale.F90
     
@@ -115,7 +125,9 @@ contains
 
     real(dp),dimension(:,:),intent(in) :: acab   ! Surface mass balance (m)
     real(dp),dimension(:,:),intent(in) :: artm   ! Mean air temperature (degC)
-    real(dp),dimension(:,:,:),intent(in) :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
+    real(dp),dimension(:,:,:),intent(in) :: salinity   ! Mean salinity (g/Kg)
+    real(dp),dimension(:,:,:),intent(in) :: tocn       ! Mean tocn (degK)
+    real(dp),dimension(:,:,:),intent(in) :: thermal_forcing   ! Mean thermal_forcing (degK)
 
     ! Things to do the first time
 
@@ -128,6 +140,8 @@ contains
 
        params%acab_save = 0.d0
        params%artm_save = 0.d0
+       params%salinity_save = 0.d0
+       params%tocn_save     = 0.d0 
        params%thermal_forcing_save = 0.d0
        params%start_time = time
 
@@ -139,19 +153,23 @@ contains
 
     params%acab_save = params%acab_save + acab
     params%artm_save = params%artm_save + artm
+    params%salinity_save = params%salinity_save + salinity
+    params%tocn_save     = params%tocn_save + tocn
     params%thermal_forcing_save = params%thermal_forcing_save + thermal_forcing
 
     ! Copy instantaneous fields
 
     params%acab = acab
     params%artm = artm
+    params%salinity = salinity
+    params%tocn     = tocn
     params%thermal_forcing = thermal_forcing
 
   end subroutine glad_accumulate_input_gcm
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_average_input_gcm(params, dt, acab, artm, thermal_forcing)
+  subroutine glad_average_input_gcm(params, dt, acab, artm, salinity, tocn, thermal_forcing)
 
     ! In glint, this was done in glint_downscale.F90
 
@@ -161,13 +179,19 @@ contains
     integer,                intent(in)   :: dt     !> mbal accumulation time (hours)
     real(dp),dimension(:,:),intent(out)  :: artm   !> Mean air temperature (degC)
     real(dp),dimension(:,:),intent(out)  :: acab   !> Mass-balance (m/yr)
-    real(dp),dimension(:,:,:),intent(out)  :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
+    real(dp),dimension(:,:,:),intent(out)  :: salinity        !> Mean ocean salinity (g/Kg)
+    real(dp),dimension(:,:,:),intent(out)  :: tocn            !> Mean ocean temperature (degK)
+    real(dp),dimension(:,:,:),intent(out)  :: thermal_forcing !> Mean thermal_forcing (degK)
 
     if (.not. params%new_accum) then
-       params%artm_save = params%artm_save / real(params%av_count,dp)
+       params%artm_save     = params%artm_save / real(params%av_count,dp)
+       params%salinity_save = params%salinity_save / real(params%av_count,dp)
+       params%tocn_save     = params%tocn_save / real(params%av_count,dp)
        params%thermal_forcing_save = params%thermal_forcing_save / real(params%av_count,dp)
     end if
-    artm  = params%artm_save
+    artm     = params%artm_save
+    salinity = params%salinity_save
+    tocn     = params%tocn_save
     thermal_forcing  = params%thermal_forcing_save
 
     ! Note: acab_save has units of m, but acab has units of m/yr

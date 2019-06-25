@@ -117,6 +117,7 @@ contains
 
     call glad_accumulate_input_gcm(instance%mbal_accum,   time,               &
                                    instance%acab,         instance%artm,      &
+                                   instance%salinity,     instance%tocn,      &
                                    instance%thermal_forcing)
 
 
@@ -164,6 +165,7 @@ contains
 
           call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
                                       instance%acab,       instance%artm,             &
+                                      instance%salinity,   instance%tocn,             &
                                       instance%thermal_forcing)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
@@ -202,6 +204,8 @@ contains
 
           ! GL:  At this point, glide_set does not work for 3D variables.
 !!          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
+          instance%model%ocean_data%salinity        = instance%salinity
+          instance%model%ocean_data%tocn            = instance%tocn
           instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
 
           ! This will work only for single-processor runs
@@ -209,9 +213,9 @@ contains
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
              write (stdout,*) ' '
-             write (stdout,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', &
-                  instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(:,il,jl)
+             write (stdout,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
+             write (stdout,*) 'acab (m/y), artm (C), salinity (g/kg), tocn (K), thermal_forcing (K) =', &
+                  instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%salinity(:,il,ij), instance%tocn(:,il,ij), instance%thermal_forcing(:,il,jl)
           end if
 
           ! Adjust glad acab for output
