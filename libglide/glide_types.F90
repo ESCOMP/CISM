@@ -1528,6 +1528,10 @@ module glide_types
      ! fields read from input or forcing files
 
      real(dp), dimension(:,:,:), pointer :: &
+           salinity => null()                       !> 3D ocean salinity forcing (g/kg) input to CISM
+     real(dp), dimension(:,:,:), pointer :: &
+           tocn => null()                           !> 3D ocean temperature forcing (K) input to CISM
+     real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing_baseline => null()        !> baseline thermal forcing (K), e.g. from climatology
      real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing => null()                 !> 3D thermal forcing forcing(K) input to CISM
@@ -2115,6 +2119,8 @@ contains
     !> \begin{itemize}
     !> \item \texttt{deltaT_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
+    !> \item \texttt{salinity(nzocn,ewn,nsn)}
+    !> \item \texttt{tocn(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_applied(nzocn,ewn,nsn)}
@@ -2508,6 +2514,10 @@ contains
           if (model%ocean_data%nbasin < 1) &
              call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                     model%ocean_data%salinity)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                     model%ocean_data%tocn)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_baseline)
@@ -2881,6 +2891,10 @@ contains
         deallocate(model%ocean_data%deltaT_basin)
     if (associated(model%ocean_data%basin_number)) &
         deallocate(model%ocean_data%basin_number)
+    if (associated(model%ocean_data%salinity)) &
+        deallocate(model%ocean_data%salinity)
+    if (associated(model%ocean_data%tocn)) &
+        deallocate(model%ocean_data%tocn)
     if (associated(model%ocean_data%thermal_forcing_baseline))  &
         deallocate(model%ocean_data%thermal_forcing_baseline)
     if (associated(model%ocean_data%thermal_forcing)) &

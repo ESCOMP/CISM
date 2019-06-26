@@ -463,6 +463,22 @@ long_name:     gamma0
 data:          data%ocean_data%gamma0
 load:          1
 
+[salinity]
+dimensions:    time, zocn, y1, x1
+units:         g/kg (psu)
+long_name:     ocean salinity
+data:          data%ocean_data%salinity(up,:,:)
+load:          1
+coordinates:   lon lat
+
+[tocn]
+dimensions:    time, zocn, y1, x1
+units:         degrees K
+long_name:     ocean temperature
+data:          data%ocean_data%tocn(up,:,:)
+load:          1
+coordinates:   lon lat
+
 [thermal_forcing_baseline]
 dimensions:    time, zocn, y1, x1
 units:         degree_Celsius
