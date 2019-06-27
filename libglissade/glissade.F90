@@ -990,7 +990,7 @@ contains
 
     use glimmer_paramets, only: tim0, thk0, len0
     use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
-    use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_3d_anomaly
+    use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_2d_anomaly, glissade_add_3d_anomaly
     use glissade_masks, only: glissade_get_masks
 
     use parallel
@@ -1658,14 +1658,17 @@ contains
        ! Note: The basal mass balance has been computed in subroutine glissade_bmlt_float_solve.
        !-------------------------------------------------------------------------
 
-       ! Compute a corrected acab field that includes any prescribed anomalies.
-       ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.
-       ! Note that acab itself does not change in time.
+       ! Compute corrected acab and artm fields that include any prescribed anomalies.
+       ! Typically, acab_corrected = acab and artm_corrected = artm, but sometimes 
+       ! (e.g., for initMIP) it includes a time-dependent anomaly.
+       ! Note that acab and artm themselves do not change in time.
 
        ! initialize
        model%climate%acab_corrected(:,:) = model%climate%acab(:,:)
+       model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
 
        ! Optionally, multiply acab by a scalar adjustment factor
+       ! GL: note: at this point this option is not valid for artm 
        if (model%climate%acab_factor /= 1.0d0) then
           model%climate%acab_corrected(:,:) = model%climate%acab_corrected(:,:) * model%climate%acab_factor
        endif
@@ -1690,6 +1693,29 @@ contains
 !!          endif
 
        endif
+
+       if (model%options%enable_artm_anomaly) then
+
+            ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+            !       This is the reason for passing the previous time to the subroutine.
+            previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+            call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! scaled model units
+            model%climate%artm_anomaly,            &   ! scaled model units
+            model%climate%artm_anomaly_timescale,  &   ! yr
+            previous_time)
+
+            !GL - debug
+            !!          if (this_rank==rtest) then
+            !!             i = model%numerics%idiag
+            !!             j = model%numerics%jdiag
+            !!             print*, 'i, j, total anomaly (degC), previous_time, new artm (degC):', &
+            !!                      i, j, model%climate%artm_anomaly(i,j)
+            !!          endif
+
+        endif
+
+
 
        ! Optionally, overwrite acab_corrected where overwrite_acab_mask = 1.
 
@@ -1880,7 +1906,7 @@ contains
           print*, 'max, min acab (m/yr) =', &
                   maxval(model%climate%acab_corrected)*scale_acab, &
                   minval(model%climate%acab_corrected)*scale_acab
-          print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
+          print*, 'max, min artm =', maxval(model%climate%artm_corrected), minval(model%climate%artm_corrected)
           print*, 'thklim =', model%numerics%thklim * thk0
           print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
           print*, ' '
