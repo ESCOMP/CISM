@@ -202,7 +202,8 @@ contains
 
           ! GL:  At this point, glide_set does not work for 3D variables.
 !!          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
-          instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
+          if ( associated(instance%model%ocean_data%thermal_forcing) ) &
+             instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
 
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then
