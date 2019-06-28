@@ -1212,6 +1212,9 @@ module glide_types
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
+     real(dp),dimension(:,:),pointer :: smb_anomaly    => null()  !> Surface mass balance anomaly (mm/yr water equivalent)
+                                                                  !> Note: acab_anomaly (m/y ice) is used internally by dycore,
+                                                                  !>       but can use smb_anomaly (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
@@ -2579,6 +2582,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
@@ -3100,6 +3104,8 @@ contains
         deallocate(model%climate%acab_applied_tavg)
     if (associated(model%climate%smb)) &
         deallocate(model%climate%smb)
+    if (associated(model%climate%smb_anomaly)) &
+        deallocate(model%climate%smb_anomaly)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%artm_corrected)) &

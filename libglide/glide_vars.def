@@ -935,6 +935,16 @@ standard_name: land_ice_surface_specific_mass_balance
 coordinates:   lon lat
 load:          1
 
+[smb_anomaly]
+dimensions:    time, y1, x1
+units:         meter/year water equivalent
+long_name:     surface mass balance anomaly
+data:          data%climate%smb_anomaly
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance_anomaly
+coordinates:   lon lat
+load:          1
+
 [acab]
 dimensions:    time, y1, x1
 units:         meter/year ice

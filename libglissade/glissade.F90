@@ -249,6 +249,27 @@ contains
        ! Convert acab from m/yr ice to model units
        model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
 
+       ! GL 06-28-2019:
+       ! Adding the convertion from smb_anomaly to acab_anomaly if
+       ! enable_acab_anomaly is set to true and smb_anomaly is in
+       ! the input or forcing file.
+
+       if (model%options%enable_acab_anomaly) then
+ 
+          ! make sure a nonzero SMB was read in
+          var_maxval = maxval(abs(model%climate%smb_anomaly))
+          if (var_maxval < 1.0d-11) then
+             write(message,*) 'Error: Failed to read in a nonzero SMB_ANOMALY field with enable_acab_anomaly and smb_input =', SMB_INPUT_MMYR_WE
+             call write_log(trim(message), GM_FATAL)
+          endif
+
+          ! Convert units from mm/yr w.e. to m/yr ice
+          model%climate%acab_anomaly(:,:) = model%climate%smb_anomaly(:,:) * (rhow/rhoi) / 1000.d0
+
+          ! Convert acab from m/yr ice to model units
+          model%climate%acab_anomaly(:,:) = model%climate%acab_anomaly(:,:) / scale_acab
+       endif
+
     else
        ! assume acab was read in with units of m/yr ice; do nothing
     endif
@@ -1701,9 +1722,9 @@ contains
             previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
             call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! scaled model units
-            model%climate%artm_anomaly,            &   ! scaled model units
-            model%climate%artm_anomaly_timescale,  &   ! yr
-            previous_time)
+                                         model%climate%artm_anomaly,            &   ! scaled model units
+                                         model%climate%artm_anomaly_timescale,  &   ! yr
+                                         previous_time)
 
             !GL - debug
             !!          if (this_rank==rtest) then
@@ -2971,6 +2992,12 @@ contains
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
     if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+
+       ! GL 06-28-2019
+       ! Converting acab_anomaly to smb_anomaly in case field specified in output.
+       if (model%options%enable_acab_anomaly) then
+          model%climate%smb_anomaly(:,:) = (model%climate%acab_anomaly(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+       endif
     endif
 
     ! surface, basal and calving mass fluxes (kg/m^2/s)
