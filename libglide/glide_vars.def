@@ -493,14 +493,6 @@ long_name:     thermal_forcing at lower ice surface
 data:          data%ocean_data%thermal_forcing_lsrf(:,:)
 coordinates:   lon lat
 
-[ocean_data_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     mask for input ocean data
-data:          data%ocean_data%data_mask(:,:)
-load:          1
-coordinates:   lon lat
-
 
 #WHL - A number of plume-related fields follow.
 

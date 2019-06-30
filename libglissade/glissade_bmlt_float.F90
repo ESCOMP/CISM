@@ -215,31 +215,6 @@ module glissade_bmlt_float
          gammaT,            & ! nondimensional heat transfer coefficient
          gammaS               ! nondimensional salt transfer coefficient
 
-
-    ! parameters and variables for POP ocean coupling
-
-    real(dp), dimension(ocean_data%nzocn,ewn,nsn) :: &
-         tf_temp              ! temporary thermal forcing field
-
-    real(dp) :: &
-         spval_cell,        & ! special value assigned to thermal forcing cells outside of ocean
-         spval_z,           & ! special value assigned for z level outside of zocn limits
-         tf_interp,         & ! interpolated thermal forcing value in current cell
-         tf_bot,            & ! thermal_forcing value of bottom ocean level cell
-         tf_top,            & ! thermal_forcing value of top ocean level cell
-         tf_ne, tf_n, tf_nw,& ! thermal forcing values of north-east, north, north-west,
-         tf_se, tf_s, tf_sw,& ! south-east, south, south-west,
-         tf_e,  tf_w,       & ! east, and west of current cell
-         z_bot, z_top         ! bottom and top ocean layer
-
-    integer :: &
-         dim_count,         & ! sum of horizontal dimension
-         global_count,      & ! counter for thermal focing filled values
-         global_count_save, & ! counter for thermal focing filled values saved
-         task_count,        & ! counter for number of tasks
-         sum_count,         & ! counter that sums over thermal forcing real valued filled cells
-         k, l, p              ! loop indices
-
     !-----------------------------------------------------------------
     ! Local variables
     !-----------------------------------------------------------------
@@ -674,7 +649,6 @@ module glissade_bmlt_float
 
     integer :: itest, jtest, rtest      ! coordinates of diagnostic point
     integer :: i, j, k, ewn, nsn
-    integer :: mask_maxval              ! max value of ocean data mask
 
     !WHL - debug
     real(dp), dimension(ocean_data%nzocn, model%general%ewn, model%general%nsn) ::  &
@@ -690,42 +664,6 @@ module glissade_bmlt_float
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
-
-    ! Compute some masks that are used below.
-
-    call glissade_get_masks(&
-         ewn,                 nsn,     &
-         model%geometry%thck, model%geometry%topg,   &
-         model%climate%eus,   0.0d0,                 &  ! thklim = 0
-         ice_mask,                                   &
-         floating_mask = floating_mask,              &
-         ocean_mask = ocean_mask)
-
-    ! If ocean_data_domain = DATA_OCEAN_ONLY, then we use a mask to define the domain of valid data.
-    !  Where ocean_data%data_mask = 1, we apply thermal_forcing from the input or restart file.
-    !  Where ocean_data%data_mask = 0, we compute thermal_forcing by extrapolating into sub-shelf cavities.
-    !  If this mask is in the input/restart file, it will be loaded and then applied throughout the run.
-    !  If not in the input file, then it is set here based on CISM's initial ocean mask.
-    ! If ocean_data_domain = DATA_OCEAN_ICE, then the mask is set to 1 everywhere.
-
-    if (model%options%ocean_data_domain == DATA_OCEAN_ONLY) then
-       mask_maxval = maxval(model%ocean_data%data_mask)
-       mask_maxval = parallel_reduce_max(mask_maxval)
-       if (mask_maxval > 0) then
-          ! mask was read in; nothing to do here
-          call write_log('ocean data mask was read from the input file')
-       elseif (model%options%is_restart == RESTART_FALSE) then
-          !WHL - For now, initialize the ocean data mask to CISM's initial ocean mask.
-          !      This allows us to extrapolate ISMIP6 data to cavities without reading in an ocean mask.
-          !TODO - Get an ISMIP6 mask (from Xylar?) that denotes where ocean TF is based on observations.
-          !       Then we can simply set the ocean data mask = 1 everywhere, if not read in.
-          model%ocean_data%data_mask = ocean_mask
-       else
-          model%ocean_data%data_mask = 1
-       endif
-    else   ! input ocean data is valid everywhere, including ice shelf cavities
-       model%ocean_data%data_mask = 1
-    endif
 
     ! For ISMIP6 parameterizations: based on the kind of parameterization (local or nonlocal)
     !  and the forcing magnitude, assign appropriate values to deltaT_basin and gamma0.
@@ -854,6 +792,16 @@ module glissade_bmlt_float
           print*, 'Compute baseline bmlt_float at initialization'
        endif
 
+       ! Compute some masks
+
+       call glissade_get_masks(&
+            ewn,                 nsn,     &
+            model%geometry%thck, model%geometry%topg,   &
+            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+            ice_mask,                                   &
+            floating_mask = floating_mask,              &
+            ocean_mask = ocean_mask)
+
        ! Compute basal melt rates, given the thermal forcing.
 
        call glissade_bmlt_float_thermal_forcing(&
@@ -971,7 +919,9 @@ module glissade_bmlt_float
     endif
 
     ! Copy the input thermal forcing to thermal_forcing applied.
-    ! For ocean_data_domain = DATA_OCEAN_ONLY, the input TF is modified by extrapolation into sub-shelf cavities..
+    ! For ocean_data_domain = DATA_OCEAN_ONLY, this field will be extended into sub-shelf cavities.
+    ! Note: thermal_forcing is intent(in) and is not modified at runtime.
+
     ocean_data%thermal_forcing_applied = thermal_forcing
 
     ! Make sure thermal_forcing is up to date in halo cells.
@@ -982,13 +932,18 @@ module glissade_bmlt_float
     ! Note: For POP coupling, TF is read in every coupling interval, with unphys_val already
     !       assigned to cells outside the POP/CISM overlap domain.
 
-    do j = 1, ny
-       do i = 1, nx
-          if (ocean_data%data_mask(i,j) == 0) then
-             ocean_data%thermal_forcing_applied(:,i,j) = unphys_val      
-          endif
+    if (ocean_data_domain == DATA_CISM_OCEAN_MASK) then
+
+       ! Set thermal_forcing = unphys_val everywhere that CISM does not have ice-free ocean
+       do j = 1, ny
+          do i = 1, nx
+             if (ocean_mask(i,j) == 0) then
+                ocean_data%thermal_forcing_applied(:,i,j) = unphys_val
+             endif
+          enddo
        enddo
-    enddo
+
+    endif
 
     ! initialize the output
     bmlt_float = 0.0d0
@@ -1010,7 +965,8 @@ module glissade_bmlt_float
     ! then extrapolate the data beneath ice shelf cavities.
     !-----------------------------------------------
 
-    if (ocean_data_domain == DATA_OCEAN_ONLY) then
+    if (ocean_data_domain == DATA_OCEAN_ONLY .or. &
+        ocean_data_domain == DATA_CISM_OCEAN_MASK) then
 
        if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, ' '
@@ -1029,14 +985,6 @@ module glissade_bmlt_float
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(i10)',advance='no') ocean_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ocean data mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') ocean_data%data_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1074,7 +1022,7 @@ module glissade_bmlt_float
        ! Note: For now, unfilled cells retain values of unphys_val.
        ! TODO: Replace unphys_val with an integer mask?
  
-       call glissade_ocean_data_extrapolate(&
+       call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
             itest,     jtest,     rtest,       &
             ocean_data%nzocn,                  &
@@ -1209,7 +1157,7 @@ module glissade_bmlt_float
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'thermal_forcing_lsrf (deg)'
+       print*, 'thermal_forcing_lsrf (deg C)'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -1235,7 +1183,7 @@ module glissade_bmlt_float
 
 !****************************************************
 
-  subroutine glissade_ocean_data_extrapolate(&
+  subroutine glissade_thermal_forcing_extrapolate(&
        nx,            ny,                    &
        itest,         jtest,        rtest,   &
        nzocn,         zocn,                  &
@@ -1243,10 +1191,12 @@ module glissade_bmlt_float
        floating_mask, ocean_mask,            &
        lake_mask,                            &
        unphys_val,    default_val,           &
-       field)
+       thermal_forcing)
 
-    ! Extrapolate an ocean data field (e.g., thermal forcing), from an ocean domain that
-    ! typically excludes ice shelf cavities, to an expanded domain that includes cavities.
+    use glimmer_physcon, only : dtocnfrz_dz  ! value from Beckmann & Goosse (2003), eq. 2
+
+    ! Extrapolate ocean thermal forcing from an ocean domain that typically excludes
+    !  ice shelf cavities, to an expanded domain that includes cavities.
     ! The algorithm works as follows:
     ! First, for each grid cell, determine the levels where we would like to have filled values.
     ! - In ice-free ocean cells, this includes the sea surface down to the bed topography.
@@ -1257,6 +1207,7 @@ module glissade_bmlt_float
     !  In this way we extend the domain of filled cells by one set of neighbors per iteration.
     !  We then extrapolate vertically to fill levels in the range ktop:kbot that are not yet filled.
     ! The iteration ends when there are no more cells and levels to fill.
+    ! Note: The input thermal_forcing should be set to unphys_val for cells and levels without valid data.
     ! Note: Cells are filled only if they have a connection to the ocean through floating cells.
     !       Interior lakes are not filled.
 
@@ -1276,20 +1227,20 @@ module glissade_bmlt_float
          floating_mask,        & ! = 1 if ice is present and floating, else = 0
          ocean_mask,           & ! = 1 for ice-free ocean, else = 0
          lake_mask               ! = 1 for interior lakes, else = 0
-
-    real(dp), intent(in) :: &
+   real(dp), intent(in) :: &
          unphys_val,           & ! unphysical value given to cells/levels not yet filled
          default_val             ! default value given to unfilled cells on output;
                                  ! might be different from unphys_val
 
-    ! The ocean field should be indexed with k = 1 at the top, and k = nzocn at the bottom
+    ! The thermal forcing field should be indexed with k = 1 at the top, and k = nzocn at the bottom
+
     real(dp), dimension(nzocn,nx,ny), intent(inout) :: &
-         field                   ! ocean field to be extrapolated
+         thermal_forcing         ! 3D ocean thermal forcing to be extrapolated
 
     ! local variables
 
     real(dp), dimension(nzocn,nx,ny) :: &
-         phi                     ! temporary copy of ocean field
+         phi                     ! temporary copy of thermal_forcing
 
     integer, dimension(nzocn,nx,ny) :: &
          mask                    ! = 1 for filled cells/levels, = 0 for unfilled cells/levels
@@ -1300,7 +1251,7 @@ module glissade_bmlt_float
 
     real(dp) ::  &
          sum_mask,             & ! sum of mask over neighbor cells at a given level
-         sum_field               ! sum of mask*field over neighbor cells at a given level
+         sum_phi                 ! sum of mask*thermal_forcing over neighbor cells at a given level
        
     integer :: &
          max_iter,             & ! max(nx,ny) * max(ewtasks, nxtasks)
@@ -1310,19 +1261,20 @@ module glissade_bmlt_float
 
     integer :: i, j, k, iter
     integer :: iglobal, jglobal
-    integer :: kw, ke, ks, kn
+    integer :: kw, ke, ks, kn           ! ocean level in neighbor cells
+    real(dp) :: phiw, phie, phin, phis  ! field value in neighbor cells
 
     logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
     character(len=128) :: message
 
-    ! Count the number of filled levels/cells in the input field.
+    ! Count the number of filled levels/cells in the input thermal forcing field.
 
     local_count = 0
     do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo,  nx-nhalo
           do k = 1, nzocn
-             if (field(k,i,j) /= unphys_val) local_count = local_count + 1
+             if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
           enddo
        enddo
     enddo
@@ -1416,7 +1368,7 @@ module glissade_bmlt_float
 
        ! Create a mask, = 1 for filled cells/levels and = 0 for unfilled cells/levels
 
-       where (field == unphys_val)
+       where (thermal_forcing == unphys_val)
           mask = 0
        elsewhere
           mask = 1
@@ -1424,21 +1376,21 @@ module glissade_bmlt_float
 
        if (verbose_extrapolate .and. this_rank == rtest) then
           print*, ' ' 
-          print*, '   Iteration =', iter
+          print*, 'Iteration =', iter
           do k = 1, kmax_diag
              print*, ' '
-             print*, '   Field: k, zocn =', k, zocn(k)
+             print*, 'thermal_forcing: k, zocn =', k, zocn(k)
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') field(k,i,j)
+                   write(6,'(f10.3)',advance='no') thermal_forcing(k,i,j)
                 enddo
                 write(6,*) ' '
              enddo
           enddo
        endif
 
-       ! Create a temporary copy of the field.
-       phi(:,:,:) = field(:,:,:)
+       ! Create a temporary copy of the TF field.
+       phi(:,:,:) = thermal_forcing(:,:,:)
             
        ! Loop through all locally owned cells, filling levels ktop:kbot in unfilled cells
        !  that have one or more filled neighbors at the corresponding levels.
@@ -1453,49 +1405,105 @@ module glissade_bmlt_float
 
                    if (mask(k,i,j) == 0) then   ! not yet filled
 
-                      ! Set field(k,i,j) to the mean value in filled neighbors at the same level
+                      ! Set thermal_forcing(k,i,j) to the mean value in filled neighbors at the same level
 
                       if (k == ktop(i,j)) then
 
-                         ! need extra logic to allow spreading of values up the ice shelf slope,
-                         ! in case kbot in a neighbor cell lies above ktop in this cell
+                         ! Need extra logic to allow spreading of values up the ice shelf slope,
+                         !  in case kbot in a neighbor cell lies above ktop in this cell
+                         ! Note: Thermal forcing is corrected for the elevation difference,
+                         !       assuming linear dependence of Tf on zocn.
 
-                         kw  = min(k, kbot(i-1,j))
-                         ke  = min(k, kbot(i+1,j))
-                         ks  = min(k, kbot(i,j-1))
-                         kn  = min(k, kbot(i,j+1))
+                         if (kbot(i-1,j) < k) then  ! kbot in west neighbor lies above k in this cell
+                            kw = kbot(i-1,j)
+                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
+                         else
+                            kw = k
+                            phiw = phi(k,i-1,j)
+                         endif
+
+                         if (kbot(i+1,j) < k) then  ! kbot in east neighbor lies above k in this cell
+                            ke = kbot(i+1,j)
+                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
+                         else
+                            ke = k
+                            phie = phi(k,i+1,j)
+                         endif
+
+                         if (kbot(i,j-1) < k) then  ! kbot in south neighbor lies above k in this cell
+                            ks = kbot(i,j-1)
+                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
+                         else
+                            ks = k
+                            phis = phi(k,i,j-1)
+                         endif
+
+                         if (kbot(i,j+1) < k) then  ! kbot in north neighbor lies above k in this cell
+                            kn = kbot(i,j+1)
+                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
+                         else
+                            kn = k
+                            phin = phi(k,i,j+1)
+                         endif
 
                          sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
 
-                         sum_field = mask(kw,i-1,j)*phi(kw,i-1,j) + mask(ke,i+1,j)*phi(ke,i+1,j)   &
-                                   + mask(ks,i,j-1)*phi(ks,i,j-1) + mask(kn,i,j+1)*phi(kn,i,j+1)
+                         sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
+                                 + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
 
                       elseif (k == kbot(i,j)) then
 
                          ! need extra logic to allow spreading of values down the ice shelf slope,
                          ! in case ktop in a neighbor cell lies below kbot in this cell
 
-                         kw  = max(k, ktop(i-1,j))
-                         ke  = max(k, ktop(i+1,j))
-                         ks  = max(k, ktop(i,j-1))
-                         kn  = max(k, ktop(i,j+1))
+                         if (ktop(i-1,j) > k) then  ! ktop in west neighbor lies below k in this cell
+                            kw = ktop(i-1,j)
+                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
+                         else
+                            kw = k
+                            phiw = phi(k,i-1,j)
+                         endif
+
+                         if (ktop(i+1,j) > k) then  ! ktop in east neighbor lies below k in this cell
+                            ke = ktop(i+1,j)
+                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
+                         else
+                            ke = k
+                            phie = phi(k,i+1,j)
+                         endif
+
+                         if (ktop(i,j-1) > k) then  ! ktop in south neighbor lies below k in this cell
+                            ks = ktop(i,j-1)
+                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
+                         else
+                            ks = k
+                            phis = phi(k,i,j-1)
+                         endif
+
+                         if (ktop(i,j+1) > k) then  ! ktop in north neighbor lies below k in this cell
+                            kn = ktop(i,j+1)
+                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
+                         else
+                            kn = k
+                            phin = phi(k,i,j+1)
+                         endif
 
                          sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
 
-                         sum_field = mask(kw,i-1,j)*phi(kw,i-1,j) + mask(ke,i+1,j)*phi(ke,i+1,j)   &
-                                   + mask(ks,i,j-1)*phi(ks,i,j-1) + mask(kn,i,j+1)*phi(kn,i,j+1)
+                         sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
+                                 + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
 
                       else  ! simpler case; look only at neighbor levels with the same k value
 
                          sum_mask = mask(k,i-1,j) + mask(k,i+1,j) + mask(k,i,j-1) + mask(k,i,j+1)
 
-                         sum_field = mask(k,i-1,j)*phi(k,i-1,j) + mask(k,i+1,j)*phi(k,i+1,j)   &
-                                   + mask(k,i,j-1)*phi(k,i,j-1) + mask(k,i,j+1)*phi(k,i,j+1)
+                         sum_phi = mask(k,i-1,j)*phi(k,i-1,j) + mask(k,i+1,j)*phi(k,i+1,j)   &
+                                 + mask(k,i,j-1)*phi(k,i,j-1) + mask(k,i,j+1)*phi(k,i,j+1)
 
                       endif
 
                       if (sum_mask > 0.0d0) then
-                         field(k,i,j) = sum_field / sum_mask
+                         thermal_forcing(k,i,j) = sum_phi / sum_mask
                       endif
 
                    endif   ! mask(k,i,j) = 0
@@ -1505,15 +1513,15 @@ module glissade_bmlt_float
           enddo   ! i
        enddo  ! j
 
-       ! Extend the field downward in columns that contain unfilled cells below filled cells.
+       ! Extend TF downward in columns that contain unfilled cells below filled cells.
 
        do j = 1+nhalo, ny-nhalo
           do i = 1+nhalo,  nx-nhalo
              if (ktop(i,j) >= 1 .and. kbot(i,j) >= 1) then  ! ocean or floating cell
                 do k = ktop(i,j)+1, kbot(i,j)
 
-                   if (field(k,i,j) == unphys_val .and. field(k-1,i,j) /= unphys_val) then
-                      field(k,i,j) = field(k-1,i,j)
+                   if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k-1,i,j) /= unphys_val) then
+                      thermal_forcing(k,i,j) = thermal_forcing(k-1,i,j) - dtocnfrz_dz * (zocn(k) - zocn(k-1))
                    endif
 
                 enddo   ! k
@@ -1521,7 +1529,7 @@ module glissade_bmlt_float
           enddo   ! i
        enddo  ! j
 
-       ! Extend the field upward in columns that contain unfilled cells above filled cells.
+       ! Extend TF upward in columns that contain unfilled cells above filled cells.
        ! This is less common than having unfilled cells below filled cells, but it happens occasionally.
 
        do j = 1+nhalo, ny-nhalo
@@ -1529,8 +1537,8 @@ module glissade_bmlt_float
              if (ktop(i,j) >= 1 .and. kbot(i,j) >= 1) then  ! ocean or floating cell
                 do k = kbot(i,j)-1, ktop(i,j), -1
 
-                   if (field(k,i,j) == unphys_val .and. field(k+1,i,j) /= unphys_val) then
-                      field(k,i,j) = field(k+1,i,j)
+                   if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k+1,i,j) /= unphys_val) then
+                      thermal_forcing(k,i,j) = thermal_forcing(k+1,i,j) - dtocnfrz_dz * (zocn(k) - zocn(k+1))
                    endif
 
                 enddo   ! k
@@ -1538,7 +1546,7 @@ module glissade_bmlt_float
           enddo   ! i
        enddo  ! j
 
-       call parallel_halo(field)
+       call parallel_halo(thermal_forcing)
 
        ! Every several iterations, count the total number of filled cells/levels in the global domain.
        ! If this number has not increased since the previous iteration, then exit the loop.
@@ -1550,7 +1558,7 @@ module glissade_bmlt_float
           do j = 1+nhalo, ny-nhalo
              do i = 1+nhalo,  nx-nhalo
                 do k = ktop(i,j), kbot(i,j)
-                   if (field(k,i,j) /= unphys_val) local_count = local_count + 1
+                   if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
                 enddo
              enddo
           enddo
@@ -1576,6 +1584,11 @@ module glissade_bmlt_float
 
     enddo   ! max_iter
 
+    ! Make sure thermal forcing is non-negative
+    where (thermal_forcing /= unphys_val)
+       thermal_forcing = max(thermal_forcing, 0.0d0)
+    endwhere
+
     ! Bug check:
     ! Make sure all levels from ktop to kbot are filled in floating cells (except lakes).
 
@@ -1583,7 +1596,7 @@ module glissade_bmlt_float
        do i = 1, nx
           if (floating_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
              do k = ktop(i,j), kbot(i,j)
-                if (field(k,i,j) == unphys_val) then
+                if (thermal_forcing(k,i,j) == unphys_val) then
                    call parallel_globalindex(i, j, iglobal, jglobal)
 !!                   print*, 'floating_mask, lake_mask =', floating_mask(i,j), lake_mask(i,j)
 !!                   print*, 'ktop, kbot =', ktop(i,j), kbot(i,j) 
@@ -1596,14 +1609,14 @@ module glissade_bmlt_float
        enddo   ! i
     enddo   ! j
 
-    ! Set the field to a default value in the remaining unfilled cell/levels.
-    ! For example, we might set field = 0 to get cleaner diagnostics.
+    ! Set the thermal forcing to a default value in the remaining unfilled cell/levels.
+    ! For example, we might set thermal_forcing = 0 to get cleaner diagnostics.
 
-    where (field == unphys_val)
-       field = default_val
+    where (thermal_forcing == unphys_val)
+       thermal_forcing = default_val
     endwhere
 
-  end subroutine glissade_ocean_data_extrapolate
+  end subroutine glissade_thermal_forcing_extrapolate
 
 !****************************************************
 

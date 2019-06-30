@@ -644,6 +644,7 @@ contains
           call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:), tocn_haloed(k,:,:))
        enddo
 
+       !TODO - Pass in zocn instead of hardwiring
        do k = 1,nzocn
           call compute_thermal_forcing_level(k, &
                salinity_haloed(k,:,:), &                   ! g/kg
@@ -772,16 +773,20 @@ contains
 
   !===================================================================
 
-  subroutine compute_thermal_forcing_level(level, salinity, ocean_temp, thermal_forcing)
+  subroutine compute_thermal_forcing_level(level, salinity, tocn, thermal_forcing)
 
     ! returns the thermal forcing applied under ice shelf.
     ! The forcing depends on the level of the POP ocean. At this point only 7 fixed level are considered.
-    ! We obtained the freezing temperature based on Beckmann, A. and Goose, 2003, equation 2.
+
+    ! Freezing temperature parameters based on Beckmann, A. and Goosse (2003), equation 2.
+    use glimmer_physcon, only: tocnfrz_const, dtocnfrz_dsal, dtocnfrz_dz
 
     integer, intent(in)                   :: level             ! pop ocean level
     real(dp),dimension(:,:),intent(in)    :: salinity          ! input ocean salinity (g/kg)
-    real(dp),dimension(:,:),intent(in)    :: ocean_temp        ! input ocean temperature (deg C)
+    real(dp),dimension(:,:),intent(in)    :: tocn              ! input ocean temperature (deg C)
     real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg C)
+
+    ! local variables
     real(dp)                              :: zlevel            ! ocean depth (m)
 
     if (level == 1) then
@@ -809,7 +814,7 @@ contains
     elsewhere
        ! Tf = 0.0939 - 0.057*S + 7.64e-4*z from Eq. 2, Beckmann & Goosse (2003)
        ! Note: z < 0 below sea level, so Tf decreases with increasing depth
-       thermal_forcing = ocean_temp - (0.0939d0 - 0.057d0*salinity + 7.64d-4*zlevel)
+       thermal_forcing = tocn - (tocnfrz_const + dtocnfrz_dsal * salinity + dtocnfrz_dz * zlevel)
     endwhere
 
   end subroutine compute_thermal_forcing_level

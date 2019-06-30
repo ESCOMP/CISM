@@ -136,6 +136,7 @@ module glide_types
 
   integer, parameter :: DATA_OCEAN_ONLY = 0
   integer, parameter :: DATA_OCEAN_ICE = 1
+  integer, parameter :: DATA_CISM_OCEAN_MASK = 2
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -472,8 +473,9 @@ module glide_types
     integer :: ocean_data_domain = 0
 
     !> \begin{description}
-    !> \item[0] ocean data for ocean domain only; extrapolation needed to shelf cavities
-    !> \item[1] ocean data already extrapolated to potential shelf cavities
+    !> \item[0] ocean data on ocean domain only; extrapolate data to shelf cavities
+    !> \item[1] ocean data available everywhere; already extrapolated to shelf cavities
+    !> \item[2] ocean data applied where CISM has ice-free ocean; extrapolated to shelf cavities
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
@@ -1528,18 +1530,14 @@ module glide_types
      ! fields read from input or forcing files
 
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_baseline => null()        !> baseline thermal forcing (K), e.g. from climatology
-     real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing => null()                 !> 3D thermal forcing forcing(K) input to CISM
-     real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing_applied => null()         !> 3D thermal forcing forcing(K) applied in CISM;
-                                                    !> may include extrapolation to current geometry
-     real(dp), dimension(:,:), pointer :: &
-          thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing(K) applied at lower ice surface
+          thermal_forcing_baseline => null(),     & !> baseline thermal forcing (deg C), e.g. from climatology
+          thermal_forcing => null(),              & !> 3D thermal forcing forcing (deg C) input to CISM
+          thermal_forcing_applied => null()         !> 3D thermal forcing forcing (deg C) applied in CISM;
+                                                    !>  may be based on extrapolation to shelf cavities
 
-     integer, dimension(:,:), pointer :: &
-          data_mask                                 !> = 1 where data should be used by CISM, = 0 where CISM should extrapolate;
-                                                    !> used for ocean_data_domain = DATA_OCEAN_ONLY
+     real(dp), dimension(:,:), pointer :: &
+          thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg C) applied at lower ice surface
+
      integer, dimension(:,:), pointer :: &
           basin_number => null()                    !> basin number for each grid cell
 
@@ -2119,7 +2117,6 @@ contains
     !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_applied(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
-    !> \item \texttt{data_mask(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
@@ -2514,7 +2511,6 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_applied)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%data_mask)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
@@ -2889,8 +2885,6 @@ contains
         deallocate(model%ocean_data%thermal_forcing_applied)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
-    if (associated(model%ocean_data%data_mask)) &
-        deallocate(model%ocean_data%data_mask)
 
     ! inversion arrays
     if (associated(model%inversion%bmlt_float_save)) &

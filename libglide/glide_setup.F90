@@ -846,13 +846,14 @@ contains
          'ISMIP6 nonlocal quadratic             ' /)
 
     character(len=*), dimension(0:2), parameter :: bmlt_float_ismip6_magnitude = (/ &
-         'lowest forcing magnitude             ', &
-         'median forcing magnitude             ', &
-         'highest forcing magnitude            '  /)
+         'lowest forcing magnitude  ', &
+         'median forcing magnitude  ', &
+         'highest forcing magnitude '  /)
 
-    character(len=*), dimension(0:1), parameter :: ocean_data_domain = (/ &
-         'data in ocean domain only; must extrapolate to cavities', &
-         'ocean data already extrapolated to ice shelf cavities  ' /)
+    character(len=*), dimension(0:2), parameter :: ocean_data_domain = (/ &
+         'data from external ocean model domain; extrapolate to cavities', &
+         'ocean data already extrapolated to ice shelf cavities         ', &
+         'apply data in CISM ice-free ocean; extrapolate to cavities    ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -2733,14 +2734,6 @@ contains
           ! If the latter, this field may not be needed, but include to be on the safe side, in case the forcing file
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing')
-
-          ! If thermal_forcing input data are being ignored where ocean_data_mask = 0,
-          !  then we need to read in the ocean data mask at restart.
-          ! Note: This mask currently is not used when coupling to POP; but only when reading TF from an input or forcing file.
-          ! TODO - Let Glad set this mask to indicate where TF data are valid?
-          if (options%ocean_data_domain == DATA_OCEAN_ONLY) then
-             call glide_add_to_restart_variable_list('ocean_data_mask')
-          endif
 
           ! If running with inversion, then we apply a melting anomaly to the value obtained from inversion.
           ! In this case we need the baseline melt rate to compute the anomaly.
