@@ -1922,6 +1922,9 @@ contains
     call GetValue(section,'gammaT',    model%plume%gammaT)
     call GetValue(section,'gammaS',    model%plume%gammaS)
 
+    ! basal slope parameter
+    call GetValue(section,'bmlt_float_slope_factor', model%basal_melt%bmlt_float_slope_factor)
+
   end subroutine handle_parameters
 
 !--------------------------------------------------------------------------------
@@ -2414,6 +2417,11 @@ contains
        write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
        call write_log(message)
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+       call write_log(message)
+    endif
+
+    if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
+       write(message,*) 'bmlt_float_slope_factor        :  ', model%basal_melt%bmlt_float_slope_factor
        call write_log(message)
     endif
 
