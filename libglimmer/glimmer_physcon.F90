@@ -85,9 +85,16 @@ module glimmer_physcon
   real(dp),parameter :: gascon = 8.314d0         !< The gas ideal constant \f$R\f$ (J mol<SUP>-1</SUP> K<SUP>-1</SUP>)
   real(dp),parameter :: coni = 2.1d0             !< Thermal conductivity of ice (W m<SUP>-1</SUP> K<SUP>-1</SUP>)
   real(dp),parameter :: pmlt = 9.7456d-8         !< Factor for dependence of melting point on pressure (K Pa<SUP>-1</SUP>)
-  real(dp),parameter :: tocnfrz_sfc = -1.92d0    !< Freezing temperature of seawater (deg C) at surface pressure, S = 35 PSU
-  real(dp),parameter :: dtocnfrz_dh = -7.53d-4   !< Rate of change of freezing temperature of seawater with depth (deg/m), given S = 35 PSU
-                                                 !< These values are from the Ocean Water Freezing Point Calculator,
-                                                 !< http://www.csgnetwork.com/h2ofreezecalc.html (25 Nov. 2014)
+
+  !< Next two values are from the Ocean Water Freezing Point Calculator,
+  !< http://www.csgnetwork.com/h2ofreezecalc.html (25 Nov. 2014)
+  real(dp),parameter :: tocnfrz_sfc = -1.92d0    !< Freezing temperature Tf of seawater (deg C) at surface pressure, S = 35 PSU
+  real(dp),parameter :: dtocnfrz_dh = -7.53d-4   !< Rate of change of Tf with depth (deg/m), given S = 35 PSU
+
+  ! Next three values are from Beckmann & Goosse (2003) linearization of ocean freezing temperature, Eq. 2
+  real(dp),parameter :: tocnfrz_const = 0.0939d0 !< ocean Tf at surface pressure with S = 0
+  real(dp),parameter :: dtocnfrz_dsal = -0.057d0 !< rate of change of Tf with salinity (deg/psu)
+  real(dp),parameter :: dtocnfrz_dz = 7.64d-4    !< rate of change of Tf with z (deg/m)
+
 
 end module glimmer_physcon
