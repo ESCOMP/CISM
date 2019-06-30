@@ -992,6 +992,7 @@ contains
     use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_3d_anomaly
     use glissade_masks, only: glissade_get_masks
+    use glissade_grid_operators, only: glissade_gradient, glissade_unstagger
 
     use parallel
 
@@ -1012,6 +1013,16 @@ contains
                                   ! take bmlt_float_transient - bmlt_float_baseline to compute anomaly
 
     real(dp) :: previous_time
+
+    ! next 5 variables used to compute basal slope angle
+    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
+         dlsrf_dx,            & ! x component of horizontal gradient of lsrf at vertices (m/m)
+         dlsrf_dy,            & ! y component of horizontal gradient of lsrf at vertices (m/m)
+         stag_slope             ! magnitude of gradient of lsrf at vertices
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
+         slope,               & ! magnitude of gradient of lsrf, interpolated to cell centers
+         theta_slope            ! slope angle (rad)
 
     integer :: i, j
     integer :: ewn, nsn
@@ -1082,9 +1093,9 @@ contains
             ocean_mask,                        &
             model%geometry%lsrf*thk0,          & ! m
             model%geometry%topg*thk0,          & ! m
-            model%ocean_data%thermal_forcing,  & ! K
+            model%ocean_data%thermal_forcing,  & ! deg C
             model%ocean_data,                  &
-            model%basal_melt%bmlt_float)         ! m/s
+            model%basal_melt%bmlt_float)
 
        ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
        ! (1) Use the value just computed, based on the current thermal_forcing.
@@ -1140,6 +1151,64 @@ contains
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
     endif  ! whichbmlt_float
+
+    ! Optionally, multiply the computed melt rate by bmlt_slope_factor * sin(theta_slope),
+    !  where bmlt_slope_factor is an empirical parameter and theta_slope is the angle
+    !  of the basal shelf slope.
+    ! This option can be used to concentrate basal melting near the grounding line,
+    !  where slopes are typically greatest, and to reduce melting near the calving front
+    !  where slopes are small.
+
+    if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
+
+       ! Compute dlsrf_dx and dlsrf_dy on the staggered grid.
+       ! With gradient_margin_in = 1, edge gradients are computed only for edges
+       !  with floating ice on either side.
+
+       call glissade_gradient(ewn,                        nsn,                       &
+                              model%numerics%dew*len0,    model%numerics%dns*len0,   &  ! m
+                              model%geometry%lsrf*thk0,                              &  ! m
+                              dlsrf_dx,                   dlsrf_dy,                  &  ! m/m
+                              floating_mask,                                         &
+                              gradient_margin_in = 1)
+
+       ! Compute the slope on the staggered grid
+       stag_slope(:,:) = sqrt(dlsrf_dx(:,:)**2 + dlsrf_dy(:,:)**2)
+
+       ! Interpolate the slope to cell centers
+       call glissade_unstagger(ewn,         nsn,         &
+                               stag_slope,  slope)
+
+       ! Compute the slope angle
+       theta_slope = atan(slope)
+
+       ! Adjust the basal melt rate based on sin(theta_slope)
+       model%basal_melt%bmlt_float = &
+            model%basal_melt%bmlt_float * model%basal_melt%bmlt_float_slope_factor * sin(theta_slope)
+
+       if (verbose_bmlt_float .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'sin(theta_slope)'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') sin(theta_slope(i,j))
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'bmlt_float after slope adjustment (m/yr)'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif   ! bmlt_float_slope_factor > 0
+
 
     ! If desired, add a bmlt_anomaly field.
     ! This is done for the initMIP Greenland and Antarctic experimennts.
@@ -1264,7 +1333,7 @@ contains
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.7)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
           enddo
           write(6,*) ' '
        enddo

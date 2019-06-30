@@ -1498,6 +1498,10 @@ module glide_types
      ! initMIP-Antarctica parameters
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
+
+     ! slope factor
+     real(dp) :: bmlt_float_slope_factor = 0.0d0      !> factor for weighting bmlt_float by slope of ice shelf base
+
   end type glide_basal_melt
 
 
@@ -1561,7 +1565,7 @@ module glide_types
      real(dp) :: gamma0 = 15000.d0                  !> default coefficient for sub-shelf melt rates (m/yr)
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin => null()                    !> deltaT in each basin (deg C) 
-     
+
   end type glide_ocean_data
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

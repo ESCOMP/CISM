@@ -49,6 +49,7 @@ module glissade_bmlt_float
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
 
     logical :: verbose_bmlt_float = .false.
+
 !!    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
@@ -813,9 +814,9 @@ module glissade_bmlt_float
             ocean_mask,                               &
             model%geometry%lsrf*thk0,                 & ! m
             model%geometry%topg*thk0,                 & ! m
-            ocean_data%thermal_forcing_baseline,      &
+            ocean_data%thermal_forcing_baseline,      & ! deg C
             ocean_data,                               &
-            model%basal_melt%bmlt_float_baseline)
+            model%basal_melt%bmlt_float_baseline)       ! m/s
 
        if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, ' '
@@ -1067,6 +1068,36 @@ module glissade_bmlt_float
          ocean_data%thermal_forcing_applied, &
          ocean_data%thermal_forcing_lsrf)
 
+    if (verbose_bmlt_float .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'lsrf (m)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') lsrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'topg (m)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') topg(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thermal_forcing_lsrf (deg C)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing_lsrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
     ! optionally, compute the average thermal forcing for the basin.
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
@@ -1138,33 +1169,6 @@ module glissade_bmlt_float
     endif
 
     if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'lsrf (m)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'topg (m)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') topg(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing_lsrf (deg C)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing_lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
        print*, ' '
        print*, 'bmlt_float (m/yr)'
        do j = jtest+3, jtest-3, -1
@@ -1836,9 +1840,9 @@ module glissade_bmlt_float
     integer :: i, j, nb
 
     integer, dimension(nx,ny) :: &
-         bmlt_mask          ! local version of bmlt_float_mask
+         bmlt_mask            ! local version of bmlt_float_mask
 
-    real(dp) :: coeff       ! ice-sheet wide coefficient
+    real(dp) :: coeff         ! ice-sheet wide coefficient
 
     ! ISMIP6 prescribed parameters
     real(dp), parameter ::  &
