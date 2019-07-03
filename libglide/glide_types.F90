@@ -500,6 +500,9 @@ module glide_types
     logical :: enable_acab_anomaly = .false.
     !> if true, then apply a prescribed anomaly to acab
 
+    logical :: enable_artm_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to artm
+
     integer :: overwrite_acab = 0
     !> overwrite acab (m/yr ice) in selected regions:
     !> \begin{description}
@@ -1193,6 +1196,9 @@ module glide_types
   ! Note on acab_corrected: Optionally, acab can be supplemented with a flux correction or an anomaly.
   !                         The background field, acab, does not include the corrections.
   !                         Write acab_corrected to the output file to see the modified SMB field.
+  ! Note on artm_corrected: Optionally, artm can be supplemented with a flux correction or an anomaly.
+  !                         The background field, artm, does not include the corrections.
+  !                         Write artm_corrected to the output file to see the modified SMB field.
 
   type glide_climate
      !> Holds fields used to drive the model
@@ -1207,6 +1213,8 @@ module glide_types
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
+     real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
+     real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask for cells where advance is not allowed 
                                                                   !> (any ice reaching these locations is eliminated)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
@@ -1218,6 +1226,8 @@ module glide_types
                                                     !> The initMIP value is 40 yr.
      real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
      real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
+     real(dp) :: artm_anomaly_timescale = 0.0d0     !> number of years over which the artm anomaly is phased in linearly
+                                                    !> If set to zero, then the anomaly is applied immediately.
 
   end type glide_climate
 
@@ -2554,6 +2564,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%artm_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
@@ -3072,6 +3084,10 @@ contains
         deallocate(model%climate%smb)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
+    if (associated(model%climate%artm_corrected)) &
+        deallocate(model%climate%artm_corrected)
+    if (associated(model%climate%artm_anomaly)) &
+        deallocate(model%climate%artm_anomaly)
     if (associated(model%climate%no_advance_mask)) &
         deallocate(model%climate%no_advance_mask)
     if (associated(model%climate%overwrite_acab_mask)) &

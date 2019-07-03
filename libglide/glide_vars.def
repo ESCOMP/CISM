@@ -1091,6 +1091,25 @@ cell_methods:  time: mean
 coordinates:   lon lat
 load:          1
 
+[artm_corrected]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     annual mean air temperature corrected
+data:          data%climate%artm_corrected
+standard_name: surface_air_temperature_corrected
+cell_methods:  time: mean
+coordinates:   lon lat
+load:          1
+
+[artm_anomaly]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     annual mean air temperature anomaly
+data:          data%climate%artm_anomaly
+standard_name: surface_air_temperature_anomaly
+coordinates:   lon lat
+load:          1
+
 [btemp]
 dimensions:    time, y1, x1
 units:         degree_Celsius
