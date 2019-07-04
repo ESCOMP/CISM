@@ -1473,7 +1473,8 @@ contains
                                   glissade_transport_setup_tracers, &
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
-                                  glissade_add_mbal_anomaly
+                                  glissade_add_mbal_anomaly,&
+                                  glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
 
