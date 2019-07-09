@@ -52,7 +52,7 @@
     public :: glissade_mass_balance_driver, glissade_transport_driver, glissade_check_cfl, &
               glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
               glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
-              glissade_add_mbal_anomaly, glissade_add_3d_anomaly
+              glissade_add_2d_anomaly, glissade_add_3d_anomaly
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -1743,60 +1743,68 @@
   end subroutine glissade_overwrite_acab
 
 !----------------------------------------------------------------------
+!TODO - Move this utility subroutine to another module?
 
-  !TODO - Change to glissade_add_2d_anomaly and replace mbal with a generic field?
-
-  subroutine glissade_add_mbal_anomaly(mbal,                    &
-                                       mbal_anomaly,            &
-                                       mbal_anomaly_timescale,  &
-                                       time)
+  subroutine glissade_add_2d_anomaly(var2d,                    &
+                                     var2d_anomaly,            &
+                                     anomaly_timescale,        &
+                                     time)
 
     real(dp), dimension(:,:), intent(inout) ::  &
-         mbal           !> mass balance, either surface or basal (uncorrected)
-                        !> uncorrrected on input, corrected on output
+         var2d               !> 2D field (uncorrected)
+                             !> uncorrrected on input, corrected on output
 
     real(dp), dimension(:,:), intent(in) ::   &
-         mbal_anomaly   !> anomalous mass balance to be added to the input value
+         var2d_anomaly       !> anomalous field to be added to the var2d input value
 
     real(dp), intent(in) ::  &
-         mbal_anomaly_timescale   !> number of years over which the anomaly is phased in linearly
+         anomaly_timescale   !> number of years over which the anomaly is phased in linearly
 
     real(dp), intent(in) :: &
-         time                     !> model time in years
-                                  !> Note: Should be the time at the start of the time step, not the end
+         time                !> model time in years
+                             !> Note: Should be the time at the start of the time step, not the end
 
     integer :: ewn, nsn
     integer :: i, j
-    real(dp) :: mbal_fraction
+    real(dp) :: anomaly_fraction
 
-    ewn = size(mbal,1)
-    nsn = size(mbal,2)
+    ewn = size(var2d,1)
+    nsn = size(var2d,2)
 
     ! Given the model time, compute the fraction of the anomaly to be applied now
-    ! Note: Following initMIP protocols, the anomaly is applied in annual step functions
-    !       starting at the end of the first year.
+    ! Note: the anomaly is applied in annual step functions starting at the end of the first year.
+    !
+    ! GL 06-26-19: note: Do we need the restriction of annual anomaly application?
+    ! WHL: The anomaly can now be applied as a smooth linear ramp (instead of yearly step changes)
+    !      by uncommenting one line below, when computing anomaly_fraction..
 
-    if (time > mbal_anomaly_timescale) then
+    if (time > anomaly_timescale) then
 
        ! apply the full anomaly
-       mbal_fraction = 1.0d0
+       anomaly_fraction = 1.0d0
 
     else
 
        ! truncate the number of years and divide by the timescale
-       mbal_fraction = floor(time,dp) / mbal_anomaly_timescale
+       anomaly_fraction = floor(time,dp) / anomaly_timescale
+
+       ! Note: For initMIP, the anomaly is applied in annual step functions
+       !        starting at the end of the first year.
+       !       Comment out the line above and uncomment the following line
+       !        to apply a linear ramp throughout the anomaly run.
+!!       anomaly_fraction = real(time,dp) / anomaly_timescale
+!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, anomaly_fraction
 
     endif
 
     ! apply the anomaly
-
     do j = 1, nsn
        do i = 1, ewn
-          mbal(i,j) = mbal(i,j) + mbal_fraction*mbal_anomaly(i,j)
+          var2d(i,j) = var2d(i,j) + anomaly_fraction*var2d_anomaly(i,j)
        enddo
     enddo
 
-  end subroutine glissade_add_mbal_anomaly
+  end subroutine glissade_add_2d_anomaly
 
 !----------------------------------------------------------------------
 
@@ -1821,7 +1829,7 @@
 
     integer :: ewn, nsn
     integer :: i, j
-    real(dp) :: fraction
+    real(dp) :: anomaly_fraction
 
     ewn = size(var3d,2)
     nsn = size(var3d,3)
@@ -1831,17 +1839,19 @@
     if (time > anomaly_timescale) then
 
        ! apply the full anomaly
-       fraction = 1.0d0
+       anomaly_fraction = 1.0d0
 
     else
 
        ! truncate the number of years and divide by the timescale
+       anomaly_fraction = floor(time,dp) / anomaly_timescale
+
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
-       !       Here we will apply a linear ramp throughout.
-!!       fraction = floor(time,dp) / anomaly_timescale
-       fraction = real(time,dp) / anomaly_timescale
-!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, fraction
+       !       Comment out the line above and uncomment the following line
+       !        to apply a linear ramp throughout the anomaly run.
+!!       anomaly_fraction = real(time,dp) / anomaly_timescale
+!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, anomaly_fraction
 
     endif
 
@@ -1849,7 +1859,7 @@
 
     do j = 1, nsn
        do i = 1, ewn
-          var3d(:,i,j) = var3d(:,i,j) + fraction*var3d_anomaly(:,i,j)
+          var3d(:,i,j) = var3d(:,i,j) + anomaly_fraction*var3d_anomaly(:,i,j)
        enddo
     enddo
 

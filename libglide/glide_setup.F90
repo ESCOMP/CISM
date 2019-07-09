@@ -663,6 +663,7 @@ contains
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
+    call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
@@ -1391,6 +1392,10 @@ contains
        call write_log('acab anomaly forcing is enabled')
     endif
 
+    if (model%options%enable_artm_anomaly) then
+       call write_log('artm anomaly forcing is enabled')
+    endif
+
     if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
        call write_log('Error, overwrite_acab option out of range',GM_FATAL)
     end if
@@ -1891,11 +1896,14 @@ contains
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
-    ! initMIP parameters
+    ! parameters for acab/artm anomaly and overwrite options
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
     call GetValue(section,'overwrite_acab_value', model%climate%overwrite_acab_value)
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
     call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
+
+    ! parameters for artm anomaly option
+    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
 
     ! MISMIP+ basal melting parameters
     call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
@@ -2367,6 +2375,12 @@ contains
 
     if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
        write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
+       call write_log(message)
+    endif
+
+    ! parameters for artm anomaly option
+    if (model%climate%artm_anomaly_timescale > 0.0d0) then
+       write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
        call write_log(message)
     endif
 
