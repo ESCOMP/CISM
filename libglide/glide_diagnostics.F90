@@ -846,7 +846,7 @@ contains
              relx_diag = model%isostasy%relx(i,j)*thk0
              load_diag = model%isostasy%load(i,j)*thk0
           endif
-          artm_diag = model%climate%artm(i,j)
+          artm_diag = model%climate%artm_corrected(i,j)  ! acab_corrected = acab + acab_anomaly
           acab_diag = model%climate%acab_applied(i,j) * thk0*scyr/tim0
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * thk0*scyr/tim0
           bwat_diag = model%temper%bwat(i,j) * thk0

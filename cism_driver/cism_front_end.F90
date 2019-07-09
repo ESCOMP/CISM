@@ -284,9 +284,13 @@ subroutine cism_run_dycore(model)
 
       !!! SFP moved block of code for applying time dependent forcing read in from netCDF here,
       !!! as opposed to at the end of the time step (commented it out in it's original location for now)
-      !!! This is a short-term fix. See additioanl discussion as part of issue #19 (in cism-piscees github repo).
+      !!! This is a short-term fix. See additional discussion as part of issue #19 (in cism-piscees github repo).
 
       ! Forcing from a 'forcing' data file - will read time slice if needed
+      ! Note: Forcing is read from the appropriate time slice after every dynamic time step.
+      !       This is not strictly necessary if there are multiple time steps per forcing time slice.
+      !       We would need additional logic if we wanted to read a new time slice only when needed
+      !        to replace the current data.  TODO: Add this logic?
       call t_startf('read_forcing')
       call glide_read_forcing(model, model)
       call t_stopf('read_forcing')

@@ -485,6 +485,11 @@ contains
     call glissade_basal_water_init(model)
 
     ! Initialize the temperature profile in each column
+    ! Note: We are passing artm (and not artm_corrected) to glissade_init_therm.
+    !       This means that artm_anomaly will not be incorporated in the initial temperature profile.
+    !       This should be OK, provided that runs with anomaly forcing either start with zero anomaly,
+    !         or else start with a spun-up temperature (read from the input or restart file)
+    !         and do not need to be initialized here.
     call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
                              model%general%ewn,          model%general%nsn,         &
                              model%general%upn,                                     &
@@ -989,8 +994,9 @@ contains
     ! Solve for basal melting beneath floating ice.
 
     use glimmer_paramets, only: tim0, thk0, len0
-    use glissade_bmlt_float, only: glissade_basal_melting_float, glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
-    use glissade_transport, only: glissade_add_mbal_anomaly, glissade_add_3d_anomaly
+    use glissade_bmlt_float, only: glissade_basal_melting_float, &
+         glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
+    use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_gradient, glissade_unstagger
 
@@ -1221,10 +1227,10 @@ contains
        previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
        ! Add the bmlt_float anomaly where ice is present and floating
-       call glissade_add_mbal_anomaly(model%basal_melt%bmlt_float,              &   ! scaled model units
-                                      model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units 
-                                      model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
-                                      previous_time)                                ! yr
+       call glissade_add_2d_anomaly(model%basal_melt%bmlt_float,              &   ! scaled model units
+                                    model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units
+                                    model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
+                                    previous_time)                                ! yr
 
     endif
 
@@ -1357,6 +1363,7 @@ contains
     use glimmer_paramets, only: tim0, thk0, len0
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat
+    use glissade_transport, only: glissade_add_2d_anomaly
 
     implicit none
 
@@ -1369,9 +1376,51 @@ contains
        bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
        bwat_unscaled             ! basal water thickness (m)
 
-    integer :: up
+    real(dp) :: previous_time       ! time (yr) at the start of this time step
+                                    ! (model%numerics%time is the time at the end of the step.)
+
+    integer :: i, j, up
+    integer :: itest, jtest, rtest
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
 
     call t_startf('glissade_thermal_solve')
+
+    ! Optionally, add an anomaly to the surface air temperature
+    ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
+    !  it includes a time-dependent anomaly.
+    ! Note that artm itself does not change in time.
+
+    ! initialize
+    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
+
+    if (model%options%enable_artm_anomaly) then
+
+       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+       !       This is the reason for passing the previous time to the subroutine.
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
+                                    model%climate%artm_anomaly,            &   ! degC
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+
+       if (verbose_glissade .and. this_rank==rtest) then
+          i = itest
+          j = jtest
+          print*, 'i, j, previous_time, artm, artm anomaly, corrected artm (deg C):', &
+               i, j, previous_time, model%climate%artm(i,j), model%climate%artm_anomaly(i,j), &
+               model%climate%artm_corrected(i,j)
+       endif
+
+    endif
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
@@ -1390,7 +1439,7 @@ contains
                                 model%geometry%topg*thk0,                                     & ! m
                                 model%geometry%lsrf*thk0,                                     & ! m
                                 model%climate%eus*thk0,                                       & ! m
-                                model%climate%artm,                                           & ! deg C    
+                                model%climate%artm_corrected,                                 & ! deg C
                                 model%options%which_ho_ground,                                &
                                 model%geometry%f_ground_cell,                                 & ! [0,1]
                                 model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
@@ -1473,7 +1522,7 @@ contains
                                   glissade_transport_setup_tracers, &
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
-                                  glissade_add_mbal_anomaly
+                                  glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
 
@@ -1508,7 +1557,7 @@ contains
        effective_areafrac      ! effective fractional area of ice at the calving front
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
-                                    ! (The input time is the time at the end of the step.)
+                                    ! (model%numerics%time is the time at the end of the step.)
 
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
@@ -1745,20 +1794,23 @@ contains
           !       This is the reason for passing the previous time to the subroutine.
           previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
-          call glissade_add_mbal_anomaly(model%climate%acab_corrected,          &   ! scaled model units
-                                         model%climate%acab_anomaly,            &   ! scaled model units
-                                         model%climate%acab_anomaly_timescale,  &   ! yr
-                                         previous_time)
+          call glissade_add_2d_anomaly(model%climate%acab_corrected,          &   ! scaled model units
+                                       model%climate%acab_anomaly,            &   ! scaled model units
+                                       model%climate%acab_anomaly_timescale,  &   ! yr
+                                       previous_time)                             ! yr
 
-          !WHL - debug
-!!          if (this_rank==rtest) then
-!!             i = model%numerics%idiag
-!!             j = model%numerics%jdiag
-!!             print*, 'i, j, total anomaly (m/yr), previous_time, new acab (m/yr):', &
-!!                      i, j, model%climate%acab_anomaly(i,j)*thk0*scyr/tim0, previous_time, model%climate%acab_corrected(i,j)
-!!          endif
+          if (verbose_glissade .and. this_rank==rtest) then
+             i = itest
+             j = jtest
+             print*, 'i, j, previous_time, input acab, acab anomaly, corrected acab (m/yr):', &
+                  i, j, previous_time, model%climate%acab(i,j)*thk0*scyr/tim0,  &
+                  model%climate%acab_anomaly(i,j)*thk0*scyr/tim0,  &
+                  model%climate%acab_corrected(i,j)*thk0*scyr/tim0
+          endif
 
        endif
+
+       ! Note: If enable_artm_anomaly = T, then artm_anomaly is computed above, before calling glissade_therm_driver.
 
        ! Optionally, overwrite acab_corrected where overwrite_acab_mask = 1.
 
@@ -1949,7 +2001,6 @@ contains
           print*, 'max, min acab (m/yr) =', &
                   maxval(model%climate%acab_corrected)*scale_acab, &
                   minval(model%climate%acab_corrected)*scale_acab
-          print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
           print*, 'thklim =', model%numerics%thklim * thk0
           print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
           print*, ' '
