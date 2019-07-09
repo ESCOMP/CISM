@@ -1116,11 +1116,32 @@ contains
 
        if (model%options%which_ho_inversion == HO_INVERSION_APPLY) then
 
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'ISMIP6 bmlt_float from full thermal forcing (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
           model%basal_melt%bmlt_float = model%basal_melt%bmlt_float - model%basal_melt%bmlt_float_baseline
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
-             print*, 'ISMIP6 bmlt_float anomaly (m/yr)'
+             print*, 'Baseline bmlt_float (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float_baseline(i,j)*scyr
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'Adjusted ISMIP6 bmlt_float due to TF anomaly (m/yr)'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
@@ -1339,7 +1360,7 @@ contains
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+             write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
           enddo
           write(6,*) ' '
        enddo
@@ -1525,6 +1546,7 @@ contains
                                   glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
+    use glissade_bmlt_float, only: verbose_bmlt_float
 
     implicit none
 
@@ -1923,6 +1945,17 @@ contains
              bmlt_unscaled = bmlt_unscaled + model%inversion%bmlt_float_inversion/effective_areafrac
           endwhere
 
+          if (this_rank == rtest .and. verbose_bmlt_float) then
+             print*, ' '
+             print*, 'bmlt passed to mbal driver (m/yr):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') bmlt_unscaled(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
        endif  ! which_ho_inversion
 
        ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
@@ -1970,6 +2003,17 @@ contains
 
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
+
+       if (this_rank == rtest .and. verbose_bmlt_float) then
+          print*, ' '
+          print*, 'bmlt_applied (m/yr):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_applied(i,j) * scyr
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
        ! convert applied mass balance from m/s back to scaled model units
        model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
