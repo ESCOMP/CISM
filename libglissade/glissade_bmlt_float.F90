@@ -632,8 +632,9 @@ module glissade_bmlt_float
 
   subroutine glissade_bmlt_float_thermal_forcing_init(model, ocean_data)
 
-    use glimmer_paramets, only: thk0, unphys_val
+    use glimmer_paramets, only: thk0, len0, tim0, unphys_val
     use glissade_masks, only : glissade_get_masks
+    use glissade_grid_operators, only: glissade_slope_angle
 
     ! Initialization for basal melting based on ocean thermal forcing
 
@@ -644,11 +645,14 @@ module glissade_bmlt_float
     
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask,                   &  ! = 1 if ice is present (thck > 0)
-         floating_mask,              &  ! = 1 if ice is present and floating
+         bmlt_float_mask,            &  ! = 1 where bmlt_float is potential nonzero, else = 0
          ocean_mask                     ! = 1 if topg < 0 and ice is absent
 
     integer :: itest, jtest, rtest      ! coordinates of diagnostic point
     integer :: i, j, k, ewn, nsn
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
+         theta_slope            ! slope angle (rad)
 
     !WHL - debug
     real(dp), dimension(ocean_data%nzocn, model%general%ewn, model%general%nsn) ::  &
@@ -799,8 +803,14 @@ module glissade_bmlt_float
             model%geometry%thck, model%geometry%topg,   &
             model%climate%eus,   0.0d0,                 &  ! thklim = 0
             ice_mask,                                   &
-            floating_mask = floating_mask,              &
             ocean_mask = ocean_mask)
+
+       ! Set bmlt_float_mask based on f_ground_cell.
+       where (ice_mask == 1 .and. model%geometry%f_ground_cell < 1.0d0)
+          bmlt_float_mask = 1
+       elsewhere
+          bmlt_float_mask = 0
+       endwhere
 
        ! Compute basal melt rates, given the thermal forcing.
 
@@ -809,7 +819,7 @@ module glissade_bmlt_float
             model%options%ocean_data_domain,          &
             model%general%ewn,  model%general%nsn,    &
             itest,     jtest,   rtest,                &
-            floating_mask,                            &
+            bmlt_float_mask,                          &
             ocean_mask,                               &
             model%geometry%lsrf*thk0,                 & ! m
             model%geometry%topg*thk0,                 & ! m
@@ -817,27 +827,74 @@ module glissade_bmlt_float
             ocean_data,                               &
             model%basal_melt%bmlt_float_baseline)       ! m/s
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Initial applied thermal forcing, rank, i, j =', rtest, itest, jtest
-          do k = 1, kmax_diag
+       ! Optionally, multiply the computed melt rate by bmlt_slope_factor * sin(theta_slope),
+       !  where bmlt_slope_factor is an empirical parameter and theta_slope is the angle
+       !  of the basal shelf slope.
+       !TODO - Package the following code into a subroutine.  Currently is used twice.
+
+       if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
+
+          ! Compute the angle between the lower ice shelf surface and the horizontal
+
+          call glissade_slope_angle(ewn,                      nsn,                     &
+                                    model%numerics%dew*len0,  model%numerics%dns*len0, &  ! m
+                                    model%geometry%lsrf*thk0,                          &  ! m
+                                    theta_slope,                                       &  ! radians
+                                    slope_mask_in = bmlt_float_mask)
+
+          if (verbose_bmlt_float .and. this_rank == rtest) then
              print*, ' '
-             print*, 'kocn =', k
+             print*, 'bmlt_float_baseline before slope adjustment (m/yr)'
              do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing_applied(k,i,j)
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float_baseline(i,j) * scyr
                 enddo
                 write(6,*) ' '
              enddo
-          enddo  ! k
-       endif
+             print*, ' '
+             print*, 'bmlt_float_mask'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') bmlt_float_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          ! Adjust the basal melt rate based on sin(theta_slope)
+          model%basal_melt%bmlt_float_baseline = &
+               model%basal_melt%bmlt_float_baseline * model%basal_melt%bmlt_float_slope_factor * sin(theta_slope)
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'sin(theta_slope)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.4)',advance='no') sin(theta_slope(i,j))
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'bmlt_float_baseline after slope adjustment (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float_baseline(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+       endif   ! bmlt_float_slope_factor > 0
 
        ! Initialize the runtime thermal forcing to the baseline value.
        ! Typically, this field is updated at runtime by reading from a forcing file.
        ocean_data%thermal_forcing = ocean_data%thermal_forcing_baseline
 
     endif  ! restart_false
-
 
   end subroutine glissade_bmlt_float_thermal_forcing_init
 
@@ -848,7 +905,7 @@ module glissade_bmlt_float
        ocean_data_domain,         &
        nx,        ny,             &
        itest,     jtest,   rtest, &
-       floating_mask,             &
+       bmlt_float_mask,           &
        ocean_mask,                &
        lsrf,                      &
        topg,                      &
@@ -872,9 +929,11 @@ module glissade_bmlt_float
 
     integer, intent(in) :: itest, jtest, rtest  !> coordinates of diagnostic point
 
-    !TODO - Pass in f_ground_cell also?
+    ! Note: bmlt_float_mask is similar but not identical to floating_mask.
+    !       * floating_mask = 1 where ice is present, and thck satisfies a flotation condition
+    !       * bmlt_float_mask = 1 where ice is present, and f_ground_cell < 1
     integer, dimension(:,:), intent(in) :: &
-         floating_mask,          & !> = 1 if ice is present and floating, else = 0
+         bmlt_float_mask,        & !> = 1 where bmlt_float is potentially nonzero, else = 0
          ocean_mask                !> = 1 for ice-free ocean, else = 0
 
     real(dp), dimension(:,:), intent(in) ::  &
@@ -949,14 +1008,14 @@ module glissade_bmlt_float
     bmlt_float = 0.0d0
 
     ! Identify lakes.
-    ! Lakes are defined as floating cells that are not connected to the ocean
-    !  along a path through other floating cells.
+    ! Lakes are defined as floating cells (bmlt_float_mask = 1) that are not connected
+    !  to the ocean along a path through other floating cells.
     ! Ocean thermal forcing will be set to zero for lakes.
 
     call glissade_lake_mask(&
          nx,           ny,              &
          itest, jtest, rtest,           &
-         floating_mask,                 &
+         bmlt_float_mask,               &
          ocean_mask,                    &
          lake_mask)
 
@@ -973,10 +1032,10 @@ module glissade_bmlt_float
           print*, 'Extrapolating TF data beneath ice shelves'
           print*, 'rank, i, j =', rtest, itest, jtest
           print*, ' '
-          print*, 'floating_mask:'
+          print*, 'bmlt_float_mask:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') floating_mask(i,j)
+                write(6,'(i10)',advance='no') bmlt_float_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1029,7 +1088,7 @@ module glissade_bmlt_float
             ocean_data%zocn,                   &  ! m
             lsrf,                              &  ! m
             topg,                              &  ! m
-            floating_mask,                     &
+            bmlt_float_mask,                   &
             ocean_mask,                        &
             lake_mask,                         &
             unphys_val,                        &  ! identifies unfilled cells on input
@@ -1061,7 +1120,7 @@ module glissade_bmlt_float
          nx,                ny,              &
          ocean_data%nzocn,                   &
          ocean_data%zocn,                    &
-         floating_mask,                      &
+         bmlt_float_mask,                    &
          lake_mask,                          &
          lsrf,                               &
          ocean_data%thermal_forcing_applied, &
@@ -1106,13 +1165,13 @@ module glissade_bmlt_float
        !  and the basin-average thermal forcing
 
        ! Compute the average thermal forcing for each basin.
-       ! The average is taken over grid cells with floating_mask = 1.
+       ! The average is taken over grid cells with bmlt_float_mask = 1.
 
        call basin_average(&
             nx,        ny,                   &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
-            floating_mask,                   &
+            bmlt_float_mask,                 &
             ocean_data%thermal_forcing_lsrf, &
             thermal_forcing_basin)
 
@@ -1161,7 +1220,7 @@ module glissade_bmlt_float
        ! Note: Because of the deltaT correction_basin, subroutine ismip6_bmlt_float generates
        !       nonzero bmlt_float ever where thermal_forcing_lsrf = 0.
 
-       where (floating_mask == 0 .or. lake_mask == 1)
+       where (bmlt_float_mask == 0 .or. lake_mask == 1)
           bmlt_float = 0.0d0
        endwhere
 
@@ -1187,13 +1246,13 @@ module glissade_bmlt_float
 !****************************************************
 
   subroutine glissade_thermal_forcing_extrapolate(&
-       nx,            ny,                    &
-       itest,         jtest,        rtest,   &
-       nzocn,         zocn,                  &
-       lsrf,          topg,                  &
-       floating_mask, ocean_mask,            &
-       lake_mask,                            &
-       unphys_val,    default_val,           &
+       nx,              ny,                    &
+       itest,           jtest,        rtest,   &
+       nzocn,           zocn,                  &
+       lsrf,            topg,                  &
+       bmlt_float_mask, ocean_mask,            &
+       lake_mask,                              &
+       unphys_val,      default_val,           &
        thermal_forcing)
 
     use glimmer_physcon, only : dtocnfrz_dz  ! value from Beckmann & Goosse (2003), eq. 2
@@ -1227,9 +1286,10 @@ module glissade_bmlt_float
          topg                    ! bed elevation (m)
 
     integer, dimension(nx,ny), intent(in) ::  &
-         floating_mask,        & ! = 1 if ice is present and floating, else = 0
+         bmlt_float_mask,      & ! = 1 if ice is present and bmlt_float is potentially nonzero, else = 0
          ocean_mask,           & ! = 1 for ice-free ocean, else = 0
          lake_mask               ! = 1 for interior lakes, else = 0
+
    real(dp), intent(in) :: &
          unphys_val,           & ! unphysical value given to cells/levels not yet filled
          default_val             ! default value given to unfilled cells on output;
@@ -1298,7 +1358,7 @@ module glissade_bmlt_float
              ! fill from the top level
              ktop(i,j) = 1
 
-          elseif (floating_mask(i,j) == 1) then  ! floating ice
+          elseif (bmlt_float_mask(i,j) == 1) then  ! floating ice
 
              ! ktop is the layer just above lsrf
              if (lsrf(i,j) < zocn(nzocn)) then ! lsrf lies below the bottom ocean layer
@@ -1314,7 +1374,7 @@ module glissade_bmlt_float
 
           endif
 
-          if (ocean_mask(i,j) == 1 .or. floating_mask(i,j) == 1) then
+          if (ocean_mask(i,j) == 1 .or. bmlt_float_mask(i,j) == 1) then
 
              ! kbot is the layer just below topg
              if (topg(i,j) > zocn(1)) then     ! topg lies above the top ocean layer
@@ -1597,11 +1657,11 @@ module glissade_bmlt_float
 
     do j = 1, ny
        do i = 1, nx
-          if (floating_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
+          if (bmlt_float_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
              do k = ktop(i,j), kbot(i,j)
                 if (thermal_forcing(k,i,j) == unphys_val) then
                    call parallel_globalindex(i, j, iglobal, jglobal)
-!!                   print*, 'floating_mask, lake_mask =', floating_mask(i,j), lake_mask(i,j)
+!!                   print*, 'bmlt_float_mask, lake_mask =', bmlt_float_mask(i,j), lake_mask(i,j)
 !!                   print*, 'ktop, kbot =', ktop(i,j), kbot(i,j) 
                    write(message,*) &
                         'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
@@ -1626,7 +1686,7 @@ module glissade_bmlt_float
   subroutine interpolate_thermal_forcing_to_lsrf(&
        nx,          ny,          &
        nzocn,       zocn,        &
-       floating_mask,            &
+       bmlt_float_mask,          &
        lake_mask,                &
        lsrf,                     &
        thermal_forcing,          &
@@ -1644,7 +1704,7 @@ module glissade_bmlt_float
          zocn                      !> ocean levels (m) where forcing is provided, negative below sea level
 
     integer, dimension(nx,ny), intent(in) :: &
-         floating_mask,          & !> = 1 if ice is present and floating, else = 0
+         bmlt_float_mask,        & !> = 1 if ice is present and floating, else = 0
          lake_mask
 
     real(dp), dimension(nx,ny), intent(in) ::  &
@@ -1671,7 +1731,7 @@ module glissade_bmlt_float
 
     do j = 1, ny
        do i = 1, nx
-          if (floating_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
+          if (bmlt_float_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
              if (lsrf(i,j) >= zocn(1)) then
                 thermal_forcing_lsrf(i,j) = thermal_forcing(1,i,j)
              elseif (lsrf(i,j) < zocn(nzocn)) then
@@ -2034,7 +2094,8 @@ module glissade_bmlt_float
     real(dp), dimension(nx,ny), intent(in) ::  &
          topg                   ! bedrock elevation (m, negative below sea level)
 
-    !WHL - Change to intent(inout) to allow calving of floating ice
+    !WHL - Change to intent(inout) to allow calving of floating ice?
+    !TODO - Change to bmlt_float_mask?
 !!    integer, dimension(nx,ny), intent(inout) :: &
     integer, dimension(nx,ny), intent(in) :: &
          floating_mask          ! = 1 where ice is present and floating, else = 0

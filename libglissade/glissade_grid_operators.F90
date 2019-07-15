@@ -49,7 +49,8 @@ module glissade_grid_operators
     public :: glissade_stagger, glissade_unstagger, glissade_stagger_real_mask, &
               glissade_gradient, glissade_gradient_at_edges, &
               glissade_surface_elevation_gradient,  &
-              glissade_laplacian_smoother,  &
+              glissade_slope_angle,                 &
+              glissade_laplacian_smoother,          &
               glissade_vertical_average
 
     logical, parameter :: verbose_gradient = .false.
@@ -1236,6 +1237,86 @@ contains
     endif
 
   end subroutine glissade_surface_elevation_gradient
+
+!****************************************************************************
+
+  subroutine glissade_slope_angle(nx,         ny,      &
+                                  dx,         dy,      &
+                                  zsfc,                &
+                                  theta_slope,         &
+                                  slope_mask_in)
+
+    ! Compute the slope angle between a surface of elevation zsfc and the horizontal.
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+         nx, ny                   ! horizontal grid dimensions
+
+    real(dp), intent(in) ::     &
+         dx, dy                   ! grid cell length and width
+                                  ! assumed to have the same value for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) ::       &
+         zsfc                     ! elevation of the surface whose slope is to be computed
+
+    real(dp), dimension(nx,ny), intent(out) ::       &
+         theta_slope              ! angle formed by the surface with the horizontal (x-y) direction
+
+    integer, dimension(nx,ny), intent(in), optional ::  &
+         slope_mask_in            ! = 1 for the part of the surface whose slope is computed, else = 0
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer, dimension(nx,ny) ::  &
+         slope_mask                 ! local version of slope_mask
+
+    real(dp), dimension(nx-1,ny-1) ::    &
+         dz_dx, dz_dy,         &  ! gradient components of zsfc, defined at cell vertices
+         stag_slope               ! slope (= magnitude of gradient) at cell vertices
+
+    real(dp), dimension(nx,ny) ::    &
+         slope                    ! stag_slope interpolated to cell centers
+
+    ! initialize
+
+    if (present(slope_mask_in)) then
+       slope_mask = slope_mask_in
+    else
+       slope_mask = 1    ! default is to compute the slope everywhere
+    endif
+
+    theta_slope = 0.0d0
+
+    ! Compute the x and y components of the surface gradient
+    ! Note: With gradient_margin_in = 1, edge gradients are computed only for edges
+    !        with slope_mask = 1 on either side.
+    !       For instance, if slope_mask = 1 for floating cells only, then dz_dz = dz_dy = 0
+    !        for grounded regions.
+
+    call glissade_gradient(nx,         ny,          &
+                           dx,         dy,          &
+                           zsfc,                    &
+                           dz_dx,      dz_dy,       &
+                           slope_mask,              &
+                           gradient_margin_in = 1)
+
+    ! Compute the magnitude of the gradient.  This is the scalar slope, on the staggered grid.
+    stag_slope = sqrt(dz_dx**2 + dz_dy**2)
+
+    ! Interpolate the slope to cell centers
+
+    call glissade_unstagger(nx,          ny,        &
+                            stag_slope,  slope)
+
+    ! Compute the slope angle
+    theta_slope = atan(slope)
+
+  end subroutine glissade_slope_angle
 
 !****************************************************************************
 

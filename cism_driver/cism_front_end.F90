@@ -122,8 +122,8 @@ subroutine cism_init_dycore(model)
   endif
 
   call CheckSections(config)
- 
- ! fill dimension variables on output files
+
+  ! fill dimension variables on output files
   call glide_nc_fillall(model)
 
   time = model%numerics%tstart

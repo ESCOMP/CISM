@@ -820,8 +820,7 @@
        call parallel_halo(f_ground_cell)
        if (present(weight_float_cell)) call parallel_halo(weight_float_cell)
 
-       if ((verbose_glp .or. verbose_inversion) .and. &
-            this_rank == rtest .and. present(weight_ground_vertex)) then
+       if (verbose_glp .and. this_rank == rtest .and. present(weight_ground_vertex)) then
           print*, ' '
           print*, 'weight_ground_vertex, rtest, itest, jtest:', rtest, itest, jtest
           do j = jtest+3, jtest-3, -1
@@ -833,8 +832,7 @@
           enddo
        endif
 
-       if ((verbose_glp .or. verbose_inversion) .and. &
-            this_rank == rtest .and. present(weight_float_cell)) then
+       if (verbose_glp .and. this_rank == rtest .and. present(weight_float_cell)) then
           print*, ' '
           print*, 'weight_float_cell, rtest, itest, jtest:', rtest, itest, jtest
           do j = jtest+3, jtest-3, -1

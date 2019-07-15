@@ -108,6 +108,9 @@ contains
     use glimmer_paramets, only: thk0, len0, tim0
     use felix_dycore_interface, only: felix_velo_init
 
+    !WHL - debug
+    use glissade_grounding_line, only: glissade_grounded_fraction
+
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -206,6 +209,11 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
+    ! Allocate mask arrays in case they are needed below
+    allocate(ice_mask(model%general%ewn, model%general%nsn))
+    allocate(floating_mask(model%general%ewn, model%general%nsn))
+    allocate(land_mask(model%general%ewn, model%general%nsn))
+
     ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
     ! Note: Not yet enabled for other map projections.
@@ -263,8 +271,6 @@ contains
 
        allocate(topg_smoothed(model%general%ewn,model%general%nsn))
        allocate(thck_flotation(model%general%ewn,model%general%nsn))
-       allocate(ice_mask(model%general%ewn, model%general%nsn))
-       allocate(floating_mask(model%general%ewn, model%general%nsn))
 
        ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
        call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
@@ -715,7 +721,35 @@ contains
     ! Note: Need the current value of lsrf when calling this subroutine
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+
+       ! update some masks
+       call glissade_get_masks(model%general%ewn, model%general%nsn,    &
+                               model%geometry%thck, model%geometry%topg,   &
+                               model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                               ice_mask,                                   &
+                               floating_mask = floating_mask,              &
+                               land_mask = land_mask)
+
+       ! compute f_ground_cell, which is needed by glissade_bmlt_float_thermal_forcing_init,
+       ! and has not yet been computed within glissade_initialise
+       call glissade_grounded_fraction(model%general%ewn,             &
+                                       model%general%nsn,             &
+                                       itest, jtest, rtest,           &  ! diagnostic only
+                                       model%geometry%thck*thk0,      &
+                                       model%geometry%topg*thk0,      &
+                                       model%climate%eus*thk0,        &
+                                       ice_mask,                      &
+                                       floating_mask,                 &
+                                       land_mask,                     &
+                                       model%options%which_ho_ground, &
+                                       model%options%which_ho_flotation_function, &
+                                       model%options%which_ho_fground_no_glp,     &
+                                       model%geometry%f_flotation,    &
+                                       model%geometry%f_ground,       &
+                                       model%geometry%f_ground_cell)
+
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
+
     endif
 
     !WHL - debug
@@ -998,7 +1032,7 @@ contains
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
-    use glissade_grid_operators, only: glissade_gradient, glissade_unstagger
+    use glissade_grid_operators, only: glissade_slope_angle
 
     use parallel
 
@@ -1011,6 +1045,7 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
          ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
          floating_mask,         & ! = 1 if ice is present (thck > 0) and floating
+         bmlt_float_mask,       & ! = 1 if ice is present (thck > 0) and bmlt_float is potentially nonzero, else = 0
          ocean_mask               ! = 0 if ice is absent (thck = 0) and topg < 0
 
     ! melt rate field for ISMIP6
@@ -1020,14 +1055,7 @@ contains
 
     real(dp) :: previous_time
 
-    ! next 5 variables used to compute basal slope angle
-    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
-         dlsrf_dx,            & ! x component of horizontal gradient of lsrf at vertices (m/m)
-         dlsrf_dy,            & ! y component of horizontal gradient of lsrf at vertices (m/m)
-         stag_slope             ! magnitude of gradient of lsrf at vertices
-
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
-         slope,               & ! magnitude of gradient of lsrf, interpolated to cell centers
          theta_slope            ! slope angle (rad)
 
     integer :: i, j
@@ -1082,20 +1110,25 @@ contains
 
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
-       !TODO - Read thermal_forcing from a CF forcing file.
-       !       For now, thermal_forcing is held at the baseline value.
-
        if (this_rank == rtest .and. verbose_bmlt_float) then
           print*, ' '
           print*, 'Compute bmlt_float at runtime from current thermal forcing'
        endif
+
+       !WHL - Set bmlt_float_mask based on f_ground_cell.
+
+       where (ice_mask == 1 .and. model%geometry%f_ground_cell < 1.0d0)
+          bmlt_float_mask = 1
+       elsewhere
+          bmlt_float_mask = 0
+       endwhere
 
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_domain,   &
             ewn,                nsn,           &
             itest,     jtest,   rtest,         &
-            floating_mask,                     &
+            bmlt_float_mask,                   &
             ocean_mask,                        &
             model%geometry%lsrf*thk0,          & ! m
             model%geometry%topg*thk0,          & ! m
@@ -1103,12 +1136,57 @@ contains
             model%ocean_data,                  &
             model%basal_melt%bmlt_float)
 
+       ! Optionally, multiply the computed melt rate by bmlt_slope_factor * sin(theta_slope),
+       !  where bmlt_slope_factor is an empirical parameter and theta_slope is the angle
+       !  of the basal shelf slope.
+       ! This option can be used to concentrate basal melting near the grounding line,
+       !  where slopes are typically greatest, and to reduce melting near the calving front
+       !  where slopes are small.
+
+       if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
+
+          ! Compute the angle between the lower ice shelf surface and the horizontal
+
+          call glissade_slope_angle(ewn,                      nsn,                     &
+                                    model%numerics%dew*len0,  model%numerics%dns*len0, &  ! m
+                                    model%geometry%lsrf*thk0,                          &  ! m
+                                    theta_slope,                                       &  ! radians
+                                    slope_mask_in = bmlt_float_mask)
+
+          ! Adjust the basal melt rate based on sin(theta_slope)
+          model%basal_melt%bmlt_float = &
+               model%basal_melt%bmlt_float * model%basal_melt%bmlt_float_slope_factor * sin(theta_slope)
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'sin(theta_slope)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') sin(theta_slope(i,j))
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'bmlt_float after slope adjustment (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+       endif   ! bmlt_float_slope_factor > 0
+
        ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
        ! (1) Use the value just computed, based on the current thermal_forcing.
        !     Note: Even if the thermal forcing is fixed, the melt rate will evolve with the shelf geometry.
        ! (2) Start with the value obtained from inversion, and add the runtime anomaly.
        !     The runtime anomaly is obtained here by subtracting the baseline value from the value just computed.
        !     Below, it will be added to bmlt_float_inversion.
+       ! If doing a forward run following inversion, we use method (2).
        ! Note: bmlt_float_baseline = 0 where the baseline ice is fully grounded.
        !       This means that the anomaly is potentially much larger for new cavities
        !        than for cavities initially present.
@@ -1178,63 +1256,6 @@ contains
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
     endif  ! whichbmlt_float
-
-    ! Optionally, multiply the computed melt rate by bmlt_slope_factor * sin(theta_slope),
-    !  where bmlt_slope_factor is an empirical parameter and theta_slope is the angle
-    !  of the basal shelf slope.
-    ! This option can be used to concentrate basal melting near the grounding line,
-    !  where slopes are typically greatest, and to reduce melting near the calving front
-    !  where slopes are small.
-
-    if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
-
-       ! Compute dlsrf_dx and dlsrf_dy on the staggered grid.
-       ! With gradient_margin_in = 1, edge gradients are computed only for edges
-       !  with floating ice on either side.
-
-       call glissade_gradient(ewn,                        nsn,                       &
-                              model%numerics%dew*len0,    model%numerics%dns*len0,   &  ! m
-                              model%geometry%lsrf*thk0,                              &  ! m
-                              dlsrf_dx,                   dlsrf_dy,                  &  ! m/m
-                              floating_mask,                                         &
-                              gradient_margin_in = 1)
-
-       ! Compute the slope on the staggered grid
-       stag_slope(:,:) = sqrt(dlsrf_dx(:,:)**2 + dlsrf_dy(:,:)**2)
-
-       ! Interpolate the slope to cell centers
-       call glissade_unstagger(ewn,         nsn,         &
-                               stag_slope,  slope)
-
-       ! Compute the slope angle
-       theta_slope = atan(slope)
-
-       ! Adjust the basal melt rate based on sin(theta_slope)
-       model%basal_melt%bmlt_float = &
-            model%basal_melt%bmlt_float * model%basal_melt%bmlt_float_slope_factor * sin(theta_slope)
-
-       if (verbose_bmlt_float .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'sin(theta_slope)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') sin(theta_slope(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'bmlt_float after slope adjustment (m/yr)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-    endif   ! bmlt_float_slope_factor > 0
 
 
     ! If desired, add a bmlt_anomaly field.
@@ -1306,7 +1327,6 @@ contains
     else
 
        ! Zero out bmlt_float in grounded cells based on floating_mask
-
        where (floating_mask == 0)
           model%basal_melt%bmlt_float = 0.0d0
        endwhere
@@ -1329,12 +1349,12 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.7)',advance='no') model%geometry%f_ground_cell(i,j)
+                write(6,'(f10.3)',advance='no') model%geometry%f_ground_cell(i,j)
              enddo
              write(6,*) ' '
           enddo
-          write(6,*) ' '
        else
+          print*, ' '
           print*, 'floating_mask:'
           write(6,'(a6)',advance='no') '      '
           do i = itest-3, itest+3
@@ -2368,6 +2388,10 @@ contains
        jtest = model%numerics%jdiag_local
     endif
 
+    if (verbose_glissade .and. main_task) then
+       print*, 'In glissade_diagnostic_variable_solve'
+    endif
+
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
     ! 1. First part of diagnostic solve: 
@@ -3336,6 +3360,10 @@ contains
     call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
                         model%climate%eus,   model%geometry%lsrf)
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+
+    if (verbose_glissade .and. main_task) then
+       print*, 'Done in glissade_diagnostic_variable_solve'
+    endif
 
   end subroutine glissade_diagnostic_variable_solve
 
