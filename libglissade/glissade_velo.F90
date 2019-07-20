@@ -84,7 +84,8 @@ contains
                              model%general%ewn-1,     model%general%nsn-1,       &
                              model%climate%eus,       model%geometry%stagmask)
 
-         if (model%options%which_ho_nonlinear == HO_NONLIN_PICARD ) then ! Picard (standard solver)
+         if (model%options%which_ho_nonlinear == HO_NONLIN_PICARD .or.  &
+             model%options%which_ho_nonlinear == HO_NONLIN_PICARD_ACCEL) then ! Picard (standard or accelerated)
 
             ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
             !        before calling glissade_velo_higher_solve.
