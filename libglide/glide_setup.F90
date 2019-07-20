@@ -966,9 +966,10 @@ contains
          'reduced effecpress where bed is connected to ocean   ', &
          'reduced effecpress with increasing basal water       '/)
 
-    character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
-         'use standard Picard iteration  ', &
-         'use JFNK                       '/)
+    character(len=*), dimension(0:2), parameter :: which_ho_nonlinear = (/ &
+         'use standard Picard iteration          ', &
+         'use Picard iteration with acceleration ', &
+         'use JFNK                               '/)
 
     character(len=*), dimension(0:4), parameter :: ho_whichresid = (/ &
          'max value                   ', &

@@ -776,6 +776,8 @@
        whichresid, &            ! option for method of calculating residual
        whichsparse, &           ! option for method of doing elliptic solve
                                 ! (BiCG, GMRES, standalone Trilinos, etc.)
+       whichnonlinear, &        ! option for nonlinear solver
+                                ! (standard or accelerated Picard)
        whichapprox, &           ! option for which Stokes approximation to use
                                 ! 0 = SIA, 1 = SSA, 2 = Blatter-Pattyn HO, 3 = L1L2
                                 ! default = 2
@@ -999,6 +1001,30 @@
     ! for diagnostic prints
     integer, parameter :: xmax_print = 20
 
+    !WHL - debug - test accelerated Picard solve (starting with DIVA)
+
+    logical :: accel_picard  ! TODO - Just use whichnonlinear?
+    integer :: accel_counter
+    real(dp) :: alpha_accel
+    real(dp) :: resid_alpha_L2_norm
+    real(dp), parameter :: gamma_accel = 0.20d0
+!!    real(dp), parameter :: alpha_accel_max = 10.0d0
+    real(dp), parameter :: alpha_accel_max = 3.0d0
+
+    real(dp), dimension(:,:), allocatable :: &
+         uvel_2d_old, vvel_2d_old,  & ! velocity solution from previous nonlinear iteration
+         duvel_2d, dvvel_2d           ! difference between current and previous velocity solutions
+
+    real(dp), dimension(:,:), allocatable :: &
+         uvel_2d_sav, vvel_2d_sav,  & ! current best value for velocity solution (smallest residual)
+         beta_sav                     ! beta_internal associated with (uvel_2d_sav, vvel_2d_sav)
+
+    real(dp), dimension(:,:,:), allocatable :: &
+         Auu_2d_sav, Auv_2d_sav,    & ! assembled matrices associated with (uvel_2d_sav, vvel_2d_sav)
+         Avu_2d_sav, Avv_2d_sav
+
+    !WHL - end of new Picard accel code
+
     call t_startf('glissade_vhs_init')
     rtest = -999
     itest = 1
@@ -1098,6 +1124,7 @@
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
      whichsparse          = model%options%which_ho_sparse
+     whichnonlinear       = model%options%which_ho_nonlinear
      whichapprox          = model%options%which_ho_approx
      whichprecond         = model%options%which_ho_precond
      maxiter_nonlinear    = model%options%glissade_maxiter
@@ -1154,6 +1181,14 @@
        solve_2d = .false.
     endif
 
+    if (whichnonlinear == HO_NONLIN_PICARD_ACCEL) then
+       accel_picard = .true.
+       if (main_task) print*, 'Running with Picard acceleration'
+    else
+       accel_picard = .false.
+       if (main_task) print*, 'Running standard Picard'
+    endif
+
     if (solve_2d) then
        ! allocate arrays needed for a 2D solve
        allocate(Auu_2d(nNodeNeighbors_2d,nx-1,ny-1))
@@ -1168,6 +1203,19 @@
        allocate(vsav_2d(nx-1,ny-1))
        allocate(resid_u_2d(nx-1,ny-1))
        allocate(resid_v_2d(nx-1,ny-1))
+       if (accel_picard) then
+          allocate(uvel_2d_old(nx-1,ny-1))
+          allocate(vvel_2d_old(nx-1,ny-1))
+          allocate(duvel_2d(nx-1,ny-1))
+          allocate(dvvel_2d(nx-1,ny-1))
+          allocate(uvel_2d_sav(nx-1,ny-1))
+          allocate(vvel_2d_sav(nx-1,ny-1))
+          allocate(Auu_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
+          allocate(Auv_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
+          allocate(Avu_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
+          allocate(Avv_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
+          allocate(beta_sav(nx-1,ny-1))
+       endif
     else
        ! These are big, so do not allocate them for the 2D solve
        allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
@@ -2070,6 +2118,20 @@
     outer_it_criterion = 1.0d10   ! guarantees at least one loop
     outer_it_target    = 1.0d-12
 
+    ! Set initial values for the accelerated Picard solver
+
+    if (accel_picard) then
+       alpha_accel = 1.0d0
+       resid_alpha_L2_norm = 1.0d20  ! arbitrary large value
+       accel_counter = 0
+       if (solve_2d) then
+          uvel_2d_old(:,:) = uvel_2d(:,:)
+          vvel_2d_old(:,:) = vvel_2d(:,:)
+          duvel_2d(:,:) = 0.0d0
+          dvvel_2d(:,:) = 0.0d0
+       endif
+    endif
+
     !------------------------------------------------------------------------------
     ! Assemble the load vector b
     ! This goes before the outer loop because the load vector
@@ -2299,6 +2361,7 @@
        
     endif   ! verbose
     
+
     !------------------------------------------------------------------------------
     ! Main outer loop: Iterate to solve the nonlinear problem
     !------------------------------------------------------------------------------
@@ -2309,6 +2372,62 @@
        ! Advance the iteration counter
 
        counter = counter + 1
+
+       !TODO - Figure out how to do this without a goto.
+
+       ! If using the accelerated Picard solver, then update the velocity.
+       ! Note: For the first velocity update during the new nonlinear iteration,
+       !       we have alpha_accel = 1 and (duvel_2d, dvvel_2d) = 0,
+       !       so uvel_2d and vvel_2d are the final values from the previous nonliner iteration.
+
+300    if (accel_picard .and. counter >= 2) then
+
+          accel_counter = accel_counter + 1
+
+          ! Update the 2D velocity by extending the vector (duvel_2d, dvvel_2d)
+          uvel_2d(:,:) = uvel_2d_old(:,:) + alpha_accel * duvel_2d(:,:)
+          vvel_2d(:,:) = vvel_2d_old(:,:) + alpha_accel * dvvel_2d(:,:)
+          call staggered_parallel_halo(uvel_2d)
+          call staggered_parallel_halo(vvel_2d)
+
+          if (whichapprox == HO_APPROX_DIVA) then
+
+             ! Update the basal traction and the 3D velocity, given the new 2D velocity.
+             ! Note: The updated quantities needed for Picard acceleration are ubas and vbas (for calcbeta)
+             !       along with btractx and btracty (for effective viscosity).
+             !       We do not need velocity at all levels, but it is simplest just to call compute_3d_velocity_diva.
+
+             ! TODO: Check whether we need any updated quantities for Blatter-Pattyn
+
+             call compute_3d_velocity_diva(nx,              ny,                   &
+                                           nz,              sigma,                &
+                                           active_vertex,   diva_level_index,     &
+                                           ice_plus_land_mask,                    &
+                                           stag_omega,      omega_k,              &
+                                           beta_eff,                              &
+                                           uvel_2d,         vvel_2d,              &
+                                           btractx,         btracty,              &
+                                           uvel,            vvel)
+
+          endif
+
+          !WHL - debug
+          if (main_task) then
+             print*, ' '
+             print*, 'Picard accel: counter, accel_counter, alpha =', &
+                  counter, accel_counter, alpha_accel
+             if (this_rank == rtest) then
+                i = itest
+                j = jtest
+                print*, 'rank, i, j =', rtest, i, j
+                print*, '   old uvel_2d, vvel_2d:', uvel_2d_old(i,j), vvel_2d_old(i,j)
+                print*, '     duvel_2d, dvvel_2d:', duvel_2d(i,j), dvvel_2d(i,j)
+                print*, '   new uvel_2d, vvel_2d:', uvel_2d(i,j), vvel_2d(i,j)
+                print*, '      new ubas, vbas   :', uvel(nz,i,j), vvel(nz,i,j)
+             endif
+          endif
+
+       endif  ! accelerated Picard
 
        !---------------------------------------------------------------------------
        ! Compute or prescribe the basal traction field 'beta'.
@@ -3443,6 +3562,121 @@
                                              L2_norm,     L2_norm_relative)
              call t_stopf('glissade_resid_vec')
 
+
+             !WHL - debug
+             if (this_rank == rtest) then
+                print*, ' '
+                print*, 'resid_u_2d, rank =', rtest
+                do j = ny/2+1, 6, -1
+                   do i = 6, nx/2+1
+                      write(6,'(e14.7)',advance='no') resid_u_2d(i,j)
+                   enddo
+                   print*, ' '
+                enddo
+                print*, ' '
+                print*, 'uvel_2d, rank =', rtest
+                do j = ny/2+1, 6, -1
+                   do i = 6, nx/2+1
+                      write(6,'(f14.9)',advance='no') uvel_2d(i,j)
+                   enddo
+                   print*, ' '
+                enddo
+                if (solve_2d) then
+                   print*, ' '
+                   print*, 'beta_eff =', rtest
+                   do j = ny/2+1, 6, -1
+                      do i = 6, nx/2+1
+                         write(6,'(e14.7)',advance='no') beta_eff(i,j)
+                      enddo
+                      print*, ' '
+                   enddo
+                endif
+             endif
+
+             if (accel_picard) then
+
+                !TODO - Figure out how to do this without a goto. Separate residual call from solver call?
+
+                !WHL - debug
+                if (main_task) then
+                   print*, 'Saved L2 norm, new L2 norm:', resid_alpha_L2_norm, L2_norm
+                endif
+
+                if (counter >= 2) then
+
+                   if (L2_norm < resid_alpha_L2_norm .and. alpha_accel + gamma_accel <= alpha_accel_max) then
+
+                      ! With the current value of alpha_accel, the residual is smaller than the previous value.
+                      ! Save the latest values of the solver inputs.
+                      uvel_2d_sav = uvel_2d
+                      vvel_2d_sav = vvel_2d
+                      Auu_2d_sav = Auu_2d
+                      Auv_2d_sav = Auv_2d
+                      Avu_2d_sav = Avu_2d
+                      Avv_2d_sav = Avv_2d
+                      beta_sav = beta_internal
+
+                      ! Increase alpha_accel and see if the residual keeps getting smaller.
+                      ! If not, we will back off to the saved values above.
+                      alpha_accel = alpha_accel + gamma_accel
+                      resid_alpha_L2_norm = L2_norm
+
+                      !WHL - debug
+                      if (main_task) then
+                         print*, 'Keep going, alpha =', alpha_accel
+                      endif
+
+                      go to 300
+
+                   else
+
+                      ! With the current value of alpha_accel, the residual is larger than the previous value.
+                      ! (Or we have reached the max allowed values of alpha_accel.)
+                      ! Stop increasing alpha_accel, and use the most recently computed velocity and assembled matrix.
+                      uvel_2d = uvel_2d_sav
+                      vvel_2d = vvel_2d_sav
+                      Auu_2d = Auu_2d_sav
+                      Auv_2d = Auv_2d_sav
+                      Avu_2d = Avu_2d_sav
+                      Avv_2d = Avv_2d_sav
+                      beta_internal = beta_sav
+
+                      ! Save this velocity as the starting point for the next nonlinear iteration
+                      uvel_2d_old = uvel_2d
+                      vvel_2d_old = vvel_2d
+
+                      !WHL - debug
+                      if (main_task) then
+                         print*, 'Back off to alpha =', alpha_accel - gamma_accel
+                      endif
+
+                      ! Reset alpha_accel and resid_alpha_L2_norm for the next nonlinear iteration
+                      accel_counter = 0
+                      alpha_accel = 1.0d0
+                      resid_alpha_L2_norm = 1.0d20
+
+                      ! When the goto is removed, there should be a graceful exit here?
+
+                   endif  ! L2_norm of residual has reduced
+
+                else   ! counter = 1
+
+                   !WHL - debug
+                   if (main_task) then
+                      print*, 'counter = 1, proceed with linear solver'
+                   endif
+
+                endif  ! counter >= 2
+
+             else   ! accel_picard = F
+
+                !WHL - debug
+                if (main_task) then
+                   print*, 'New L2 norm:', L2_norm
+                endif
+
+             endif  ! accel_picard
+
              !------------------------------------------------------------------------
              ! Call linear PCG solver, compute uvel and vvel on local processor
              !------------------------------------------------------------------------
@@ -3793,6 +4027,32 @@
                                             resid_velo)
           call t_stopf('glissade_resid_vec2')
 
+          !WHL - debug
+          if (this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'Solution, rank, i, j =', rtest, i, j
+             print*, '   new uvel_2d, vvel_2d:', uvel_2d(i,j), vvel_2d(i,j)
+             print*, '   resid_velo =', resid_velo
+             print*, ' '
+             print*, 'Solved uvel_2d:'
+             do j = ny/2+1, 6, -1
+                do i = 6, nx/2+1
+                   write(6,'(f9.3)',advance='no') uvel_2d(i,j)
+                enddo
+                print*, ' '
+             enddo
+          endif
+
+          if (accel_picard) then
+             ! Compute the velocity difference (du,dv).
+             ! For the next nonlinear iteration, we will see if extending the difference vector
+             !  (i.e., alpha_accel > 1) reduces the residual.
+             duvel_2d = uvel_2d - uvel_2d_old
+             dvvel_2d = vvel_2d - vvel_2d_old
+          endif
+
        else   ! 3D solve
 
           !------------------------------------------------------------------------
@@ -3830,43 +4090,21 @@
        endif ! 2D or 3D solve
 
        !---------------------------------------------------------------------------
-       ! Some calculations specific to the DIVA scheme
+       ! Do some calculations specific to the DIVA scheme.
+       ! Given the new 2D velocity, compute the new basal traction and 3D velocity.
        !---------------------------------------------------------------------------
 
        if (whichapprox == HO_APPROX_DIVA) then
 
-          ! Compute the components of basal traction, based on Goldberg (2011) eq. 38-39
-          ! These are needed to compute the effective viscosity on the next iteration
-
-          btractx(:,:) = beta_eff(:,:) * uvel_2d(:,:)
-          btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
-
-          ! Interpolate omega_k to the staggered grid
-
-          do k = 1, nz
-             call glissade_stagger(nx,              ny,                   &
-                                   omega_k(k,:,:),  stag_omega_k(k,:,:),  &
-                                   ice_plus_land_mask,                    &
-                                   stagger_margin_in = 1)
-          enddo
-
-          ! Compute the new 3D velocity field
-          ! NOTE: The full velocity field is not needed to update efvs and solve 
-          !       again for uvel_2d and vvel_2D.  However, the basal velocity
-          !       may be needed as an input to calcbeta.  It is possible to
-          !       compute the basal velocity without computing the full column
-          !       velocity, but it is simpler just to compute over the full column.
-
           call compute_3d_velocity_diva(nx,              ny,                   &
                                         nz,              sigma,                &
                                         active_vertex,   diva_level_index,     &
-                                        stag_omega_k,    stag_omega,           &
-                                        btractx,         btracty,              &
+                                        ice_plus_land_mask,                    &
+                                        stag_omega,      omega_k,              &
+                                        beta_eff,                              &
                                         uvel_2d,         vvel_2d,              &
+                                        btractx,         btracty,              &
                                         uvel,            vvel)
-
-          call staggered_parallel_halo(uvel)
-          call staggered_parallel_halo(vvel)
 
        endif   ! DIVA
 
@@ -5767,7 +6005,7 @@
 
           endif
 
-          ! Compute average of effective viscosity over quad points
+          ! Compute average of effective viscosity over quad points.
           ! For L1L2 and DIVA there is a different efvs in each layer.
           ! For SSA, simply write the vertical average value to each layer.
 
@@ -5945,9 +6183,11 @@
   subroutine compute_3d_velocity_diva(nx,               ny,                 &
                                       nz,               sigma,              &
                                       active_vertex,    diva_level_index,   &  
-                                      stag_omega_k,     stag_omega,         &
-                                      btractx,          btracty,            &
+                                      ice_plus_land_mask,                   &
+                                      stag_omega,       omega_k,            &
+                                      beta_eff,                             &
                                       uvel_2d,          vvel_2d,            &
+                                      btractx,          btracty,            &
                                       uvel,             vvel)
     
     !----------------------------------------------------------------
@@ -5973,17 +6213,24 @@
        diva_level_index   ! level for which the DIVA scheme finds the 2D velocity
                           ! 0 = mean, 1 = upper surface
 
-    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
-       stag_omega_k       ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
-                          ! interpolated to staggered grid
+    integer, dimension(nx,ny), intent(in) :: &
+       ice_plus_land_mask ! = 1 for active ice cells plus ice-free land cells
+
+    real(dp), dimension(nz,nx,ny), intent(in) ::  &
+       omega_k            ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
+                          ! interpolated to staggered grid below
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stag_omega,       &! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
-                          ! interpolated to staggered grid
+       beta_eff,        & ! effective beta, defined by Goldberg (2011) eq. 41
+                          ! beta*u_b = beta_eff*u_av
+       stag_omega,      & ! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
+                          ! already interpolated to staggered grid
                           ! Note: omega here = Goldberg's omega/H
-       btractx, btracty, &! components of basal traction (Pa)
        uvel_2d, vvel_2d   ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
                             
+    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
+       btractx, btracty   ! components of basal traction (Pa); btractx = beta_eff * uvel
+
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        uvel, vvel         ! 3D velocity components (m/yr)
 
@@ -5991,10 +6238,29 @@
 
     integer :: i, j, k
 
+    real(dp), dimension(nz,nx-1,ny-1) ::  &
+         stag_omega_k       ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
+                            ! interpolated to staggered grid
+
     real(dp), dimension(nx-1,ny-1) ::  &
-         stag_integral         ! integral that relates bed velocity to uvel_2d/vvel_2d
-                               ! = stag_omega for diva_level_index = 0
-                               ! = stag_omega_k(k,:,:) for other values of diva_level_index
+         stag_integral      ! integral that relates bed velocity to uvel_2d/vvel_2d
+                            ! = stag_omega for diva_level_index = 0
+                            ! = stag_omega_k(k,:,:) for other values of diva_level_index
+
+
+    ! Compute the components of basal traction, based on Goldberg (2011) eq. 38-39.
+    ! These are needed to compute the effective viscosity on the next nonlinear iteration.
+
+    btractx(:,:) = beta_eff(:,:) * uvel_2d(:,:)
+    btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
+
+    ! Interpolate omega_k to the staggered grid
+    do k = 1, nz
+       call glissade_stagger(nx,              ny,                   &
+                             omega_k(k,:,:),  stag_omega_k(k,:,:),  &
+                             ice_plus_land_mask,                    &
+                             stagger_margin_in = 1)
+    enddo
 
     ! Identify the appropriate integral for relating uvel_2d/vvel_2d to the bed velocity
 
@@ -6009,7 +6275,6 @@
     ! Compute the 3D velocity field
     ! TODO: Try computing u_b from beta*u_b = beta_eff*u_av.
     !       Will the answer be much different? Will convergence be faster?
-    !       Here, btractx is lagged; btractx = old value of beta*u_b
     !----------------------------------------------------------------
 
     do j = 1, ny-1
@@ -6029,6 +6294,9 @@
           endif   ! active_vertex
        enddo      ! i
     enddo         ! j
+
+    call staggered_parallel_halo(uvel)
+    call staggered_parallel_halo(vvel)
 
     if (verbose_diva .and. this_rank==rtest) then
        print*, ' '
