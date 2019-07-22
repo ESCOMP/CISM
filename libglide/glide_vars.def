@@ -850,6 +850,14 @@ coordinates:   lon lat
 #factor:        1.0
 #coordinates:   lon lat
 
+[ice_domain_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for where ice is potentially present and active
+data:          data%general%ice_domain_mask
+coordinates:   lon lat
+load:          1
+
 [ice_mask]
 dimensions:    time, y1, x1
 units:         1

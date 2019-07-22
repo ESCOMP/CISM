@@ -65,7 +65,6 @@ module glissade
   implicit none
 
   integer, private, parameter :: dummyunit=99
-
   logical, parameter :: verbose_glissade = .false.
 
   ! Change any of the following logical parameters to true to carry out simple tests
@@ -108,10 +107,8 @@ contains
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glimmer_paramets, only: thk0, len0, tim0
-    use felix_dycore_interface, only: felix_velo_init
-
-    !WHL - debug
     use glissade_grounding_line, only: glissade_grounded_fraction
+    use felix_dycore_interface, only: felix_velo_init
 
     implicit none
 
@@ -138,6 +135,8 @@ contains
          thck_flotation       ! flotation thickness
 
     integer :: itest, jtest, rtest
+    integer :: status, varid
+    type(glimmer_nc_input), pointer :: infile
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -153,17 +152,83 @@ contains
     ! scale parameters
     call glide_scale_params(model)
 
-    ! set up coordinate systems, and change to the parallel values of ewn and nsn
+    ! Set up coordinate systems, and change the parallel values of ewn and nsn.
+    ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
 
-    ! With outflow BCs, scalars in the halos are set to zero.
-    if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
-       call distributed_grid(model%general%ewn, model%general%nsn, outflow_bc_in=.true.)
+    if (model%options%compute_blocks == ACTIVE_BLOCKS_ONLY .or.   &
+        model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
+
+       ! Allocate memory for a global array, ice_domain_mask, on main_task.
+
+       if (associated(model%general%ice_domain_mask)) &
+            deallocate(model%general%ice_domain_mask)
+
+       if (main_task) then
+          allocate(model%general%ice_domain_mask(model%general%ewn, model%general%nsn))
+       else
+          allocate(model%general%ice_domain_mask(1,1))
+       endif
+       model%general%ice_domain_mask = 0
+
+       ! Read ice_domain_mask from the input or restart file
+       ! Note: In generaly, input arrays are read from subroutine glide_io_readall (called below) in glide_io.F90.
+       !       However, ice_domain_masks is needed now to identify active blocks.
+
+       infile => model%funits%in_first   ! assume ice_domain_mask is in the input or restart file
+
+       call glimmer_nc_get_var(infile, 'ice_domain_mask', &
+                               model%general%ice_domain_mask)
+
+       if (model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
+
+          ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
+          ! The user can then resubmit (on an optimal number of processors) with model%options%compute_blocks = ACTIVE_BLOCKS.
+
+          call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
+                                              model%general%nx_block, model%general%ny_block, &
+                                              model%general%ice_domain_mask,                  &
+                                              inquire_only = .true.)
+
+       else  ! compute_blocks = ACTIVE_BLOCKS_ONLY
+
+          ! Set up a distributed grid with computations on active blocks only.
+          ! An active block contains one or more cells with ice_domain_mask = 1.
+          ! This option is supported only with outflow BCs.
+
+          if (model%general%global_bc /= GLOBAL_BC_NO_ICE) then
+             call write_log('Changing to outflow boundary conditions to support the active_blocks option')
+             model%general%global_bc = GLOBAL_BC_NO_ICE
+          endif
+
+          call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
+                                              model%general%nx_block, model%general%ny_block, &
+                                              model%general%ice_domain_mask)
+
+       endif   ! compute_blocks
+
+       ! Nullify ice_domain_mask so it can be read again and scattered below.
+       nullify(model%general%ice_domain_mask)
+
+    elseif (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+
+       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'outflow')
+
+    elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
+
+       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'no_ice')
+
     elseif (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
-       ! Note: In this case, halo updates are treated the same as for periodic BC
-       !       In addition, we set masks that are used to zero out the outflow velocities in the Glissade velocity solvers
-       call distributed_grid(model%general%ewn, model%general%nsn)
-    else
-       call distributed_grid(model%general%ewn, model%general%nsn)
+
+       ! Note: In this case, halo updates are the same as for periodic BC.
+       !       The difference is that we also use no-penetration masks for (uvel,vvel) at the global boundary
+       !       (computed by calling staggered_no_penetration_mask below).
+
+       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'no_penetration')
+
+    else  ! global_bc = GLOBAL_BC_PERIODIC
+
+       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'periodic')
+
     endif
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0,               &
@@ -424,6 +489,7 @@ contains
     !       We do an update here for temp in case temp is read from an input file.
     !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
     !        then the halos will receive the correct values.
+
     call parallel_halo(model%geometry%thck)
     call parallel_halo(model%climate%artm)
     call parallel_halo(model%temper%temp)
@@ -440,7 +506,9 @@ contains
     !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
     !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
     !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
-    ! Note: For periodic BCs, there is an optional argument periodic_offset_ew for topg.
+    !       Similarly, for no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
+    !        but we do not want to zero out the topography.
+    ! Note: For periodic BCs, there is an optional aargument periodic_offset_ew for topg.
     !       This is for ismip-hom experiments. A positive EW offset means that
     !        the topography in west halo cells will be raised, and the topography
     !        in east halo cells will be lowered.  This ensures that the topography
@@ -449,7 +517,8 @@ contains
     !       In other cases (anything but ismip-hom), periodic_offset_ew = periodic_offset_ns = 0,
     !        and this argument will have no effect.
 
-    if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+    if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or.  &
+        model%general%global_bc == GLOBAL_BC_NO_ICE) then
        call parallel_halo_extrapolate(model%geometry%topg)
     else  ! other global BCs, including periodic
        call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
@@ -606,8 +675,17 @@ contains
                         model%geometry%iarea, model%geometry%ivol)
 
     ! compute halo for relaxed topography
+    ! Note: See comments above with regard to the halo update for topg.
+    !       Outflow BCs zero out scalars beyond the global boundary, and no_ice BCs zero out scalars
+    !        adjacent to or beyond the global boundary. This is an appropriate treatment for
+    !        ice state variables, but not for bed topography and related fields (like relx).
     !TODO - Is this halo update necessary?
-    call parallel_halo(model%isostasy%relx)
+    if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or. &
+        model%general%global_bc == GLOBAL_BC_NO_ICE) then
+       call parallel_halo_extrapolate(model%isostasy%relx)
+    else
+       call parallel_halo(model%isostasy%relx)
+    endif
 
     ! register the newly created model so that it can be finalised in the case
     ! of an error without needing to pass the whole thing around to every
@@ -716,6 +794,14 @@ contains
                                        model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
                                        model%calving%calving_front_x, model%calving%calving_front_y,  &
                                        model%calving%calving_mask)
+
+       !WHL - This is temporary code to generate ice_domain_mask as the complement of calving_mask.
+!!       where (model%calving%calving_mask == 1)
+!!          model%general%ice_domain_mask = 0
+!!       elsewhere (model%calving%calving_mask == 0)
+!!          model%general%ice_domain_mask = 1
+!!       endwhere
+
     endif
 
     ! Note: The DIVA solver needs a halo update for effective viscosity.
@@ -1831,6 +1917,8 @@ contains
                                          upwind_transport_in = do_upwind_transport)
 
           ! halo updates for thickness and tracers
+          !TODO: For outflow and no_ice BCs where halo routines can remove ice near the global boundary,
+          !      keep track of the mass of ice removed, and incorporate it into the global mass balance.
           call parallel_halo(thck_unscaled)
           call parallel_halo_tracers(model%geometry%tracers)
 
@@ -2659,11 +2747,15 @@ contains
        !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
        !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
        !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
+       !       Similarly, for no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
+       !        but we do not want to zero out the topography.
        ! Note: The topg halo update at initialization has an optional argument periodic_ew,
        !        which is needed for ismip-hom. I doubt ismip-hom will be run with active isostasy,
        !        but the argument is included to be on the safe side.
+       ! TODO: Do we need similar logic for halo updates of relx?
 
-       if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+       if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or. &
+           model%general%global_bc == GLOBAL_BC_NO_ICE) then
           call parallel_halo_extrapolate(model%geometry%topg)
        else  ! other global BCs, including periodic
           call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)

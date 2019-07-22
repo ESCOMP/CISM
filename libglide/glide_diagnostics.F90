@@ -539,6 +539,10 @@ contains
 
        ! total rate of change of ice mass (kg/s)
        ! Note: dthck_dt has units of m/s
+       !TODO: Change this calculation to use the total mass of ice in the global domain
+       !       in successive time steps, instead of summing over dthck_dt.
+       !      Note that dthck_dt does not account for global outflow fluxes (i.e., removal of ice
+       !       near the global boundary in halo updates).
        tot_dmass_dt = 0.d0
        do j = lhalo+1, nsn-uhalo
           do i = lhalo+1, ewn-uhalo

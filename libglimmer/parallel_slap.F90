@@ -129,6 +129,7 @@ module parallel
      module procedure broadcast_integer
      module procedure broadcast_integer_1d
      module procedure broadcast_logical
+     module procedure broadcast_logical_1d
      module procedure broadcast_real4
      module procedure broadcast_real4_1d
      module procedure broadcast_real8     
@@ -217,9 +218,14 @@ module parallel
   end interface
 
   interface parallel_get_var
+     module procedure parallel_get_var_integer
+     module procedure parallel_get_var_real4
+     module procedure parallel_get_var_real8
      module procedure parallel_get_var_integer_1d
      module procedure parallel_get_var_real4_1d
      module procedure parallel_get_var_real8_1d
+     module procedure parallel_get_var_integer_2d
+     module procedure parallel_get_var_real8_2d
   end interface
 
   interface parallel_halo
@@ -340,6 +346,12 @@ contains
     logical :: l
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from - not relevant to serial version
   end subroutine broadcast_logical
+
+  subroutine broadcast_logical_1d(l, proc)
+    implicit none
+    logical,dimension(:) :: l
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from - not relevant to serial version
+  end subroutine broadcast_logical_1d
 
   subroutine broadcast_real4(r, proc)
     implicit none
@@ -692,6 +704,29 @@ contains
     write(*,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
 
   end subroutine distributed_grid
+
+
+  subroutine distributed_grid_active_blocks(ewn,      nsn,        &
+                                            nx_block, ny_block,   &
+                                            ice_domain_mask,      &
+                                            inquire_only)
+
+    implicit none
+
+    integer, intent(inout) :: ewn, nsn              ! global grid dimensions
+    integer, intent(in) :: nx_block, ny_block       ! block sizes in each direction
+    integer, intent(in), dimension(:,:) :: &
+         ice_domain_mask                            ! = 1 where ice is potentially present and active, else = 0
+    logical, intent(in), optional :: inquire_only   ! if true, then report the number of active blocks and abort
+
+    ! The active_blocks option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The active_blocks option is not supported for serial code.'
+    write(*,*) 'Please resubmit with compute_blocks = 0.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_grid_active_blocks
 
   function distributed_execution()
      ! Returns if running distributed or not.
@@ -1609,6 +1644,24 @@ contains
          nf90_get_var(ncid,varid,values)
   end function parallel_get_var_real8_1d
 
+  function parallel_get_var_integer_2d(ncid,varid,values)
+    implicit none
+    integer :: ncid,parallel_get_var_integer_2d,varid
+    integer,dimension(:,:) :: values
+    ! begin
+    if (main_task) parallel_get_var_integer_2d = &
+         nf90_get_var(ncid,varid,values)
+  end function parallel_get_var_integer_2d
+
+  function parallel_get_var_real8_2d(ncid,varid,values)
+    implicit none
+    integer :: ncid,parallel_get_var_real8_2d,varid
+    real(dp),dimension(:,:) :: values
+    ! begin
+    if (main_task) parallel_get_var_real8_2d = &
+         nf90_get_var(ncid,varid,values)
+  end function parallel_get_var_real8_2d
+
   !TODO - Is function parallel_globalID still needed?
 
   function parallel_globalID(locns, locew, upstride)
@@ -2479,8 +2532,8 @@ contains
     ! Sum x across all of the nodes.
     ! In parallel_slap mode just return x.
     implicit none
-    real(dp) :: x(:)
-    real(dp), dimension(size(x)) :: parallel_reduce_sum_integer_nvar
+    integer :: x(:)
+    integer, dimension(size(x)) :: parallel_reduce_sum_integer_nvar
 
     parallel_reduce_sum_integer_nvar(:) = x(:)
     return
