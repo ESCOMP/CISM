@@ -68,13 +68,14 @@ module glide_types
   integer, parameter :: GLOBAL_BC_PERIODIC = 0  ! doubly periodic
   integer, parameter :: GLOBAL_BC_OUTFLOW = 1   ! free outflow; scalars in global halo set to zero
   integer, parameter :: GLOBAL_BC_NO_PENETRATION = 2   ! no penetration; outflow set to zero at global boundaries
-                                                       ! NOTE: The no-penetration option is currently supported for Glissade only
+                                                       ! NOTE: The no-penetration option is supported for Glissade only
+  integer, parameter :: GLOBAL_BC_NO_ICE = 3    ! no ice at global boundary; scalars set to zero adjacent to boundary
 
-  integer, parameter :: DYCORE_GLIDE = 0     ! old shallow-ice dycore from Glimmer
+  integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
 !WHL - The Glam dycore is no longer supported; choosing whichdycore = 1 will give a fatal error.
 !      Might repurpose the '1' slot for a future version of Glissade.
-  integer, parameter :: DYCORE_GLAM = 1      ! Payne-Price finite-difference solver
-  integer, parameter :: DYCORE_GLISSADE = 2  ! prototype finite-element solver
+  integer, parameter :: DYCORE_GLAM = 1         ! Payne-Price finite-difference solver
+  integer, parameter :: DYCORE_GLISSADE = 2     ! prototype finite-element solver
   integer, parameter :: DYCORE_ALBANYFELIX = 3  ! External Albany-Felix finite-element solver
   integer, parameter :: DYCORE_BISICLES = 4     ! BISICLES-Chombo external FVM solver
 
@@ -210,6 +211,10 @@ module glide_types
 !!  integer, parameter :: BAS_PROC_FASTCALC = 2
 
   ! higher-order options
+
+  integer, parameter :: ALL_BLOCKS = 0            ! compute on all blocks in the global domain
+  integer, parameter :: ACTIVE_BLOCKS_ONLY = 1    ! compute on active blocks only (where ice is potentially present)
+  integer, parameter :: ACTIVE_BLOCKS_INQUIRE = 2 ! inquire how many active blocks there are for a given ice domain mask and block size
 
   integer, parameter :: HO_EFVS_CONSTANT = 0
   integer, parameter :: HO_EFVS_FLOWFACT = 1
@@ -348,7 +353,13 @@ module glide_types
     real(dp), dimension(:),pointer :: x1 => null() !original x1 grid
     real(dp), dimension(:),pointer :: y1 => null() !original y1 grid
 
-    integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no-penetration
+    integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no_penetration, 3 for no_ice
+
+    !WHL - added to handle the active-blocks option
+    integer, dimension(:,:), pointer :: ice_domain_mask => null()  ! = 1 for cells that are potentially active
+
+    integer :: nx_block = 0      ! user-specified block sizes
+    integer :: ny_block = 0      ! one task per block; optionally, tasks not assigned to inactive blocks
 
   end type glide_general
 
@@ -633,6 +644,13 @@ module glide_types
     !-----------------------------------------------------------------------
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
+
+    integer :: compute_blocks = 0
+    !> \begin{description}
+    !> \item[0] Compute on all blocks in the global domain; one task per block
+    !> \item[1] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
+    !> \item[2] Inquire how many active blocks there are, in prep for resubmitting with option 1
+    !> \end{description}
 
     integer :: which_ho_efvs = 2
 
@@ -2269,6 +2287,11 @@ contains
     allocate(model%numerics%stagsigma(upn-1))
     allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
 
+    ! ice domain mask (to identify active blocks)
+    if (model%options%compute_blocks == ACTIVE_BLOCKS_ONLY) then
+       call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
+    endif
+
     ! temperature arrays
 
     !NOTE: In the glide dycore (whichdycore = DYCORE_GLIDE), the temperature and 
@@ -2655,6 +2678,8 @@ contains
         deallocate(model%general%x1) 
     if (associated(model%general%y1)) &
         deallocate(model%general%y1) 
+    if (associated(model%general%ice_domain_mask)) &
+        deallocate(model%general%ice_domain_mask)
 
     ! vertical sigma coordinates
 

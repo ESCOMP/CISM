@@ -39,8 +39,16 @@ module glimmer_ncio
 
   implicit none
 
+  ! All routines in this module are public
+
   integer,parameter,private :: msglen=512
   
+  ! WHL - added subroutines for reading single fields at initialization
+  interface glimmer_nc_get_var
+     module procedure glimmer_nc_get_var_integer_2d
+     module procedure glimmer_nc_get_var_real8_2d
+  end interface
+
 contains
 
   !*****************************************************************************
@@ -882,6 +890,99 @@ contains
       nc%vars_copy = nc%vars
 
   end subroutine check_for_tempstag
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_var_integer_2d(infile, varname, field_2d)
+
+    !WHL, July 2019:
+    ! This is a custom subroutine that opens an input file, reads an integer array,
+    ! and closes the file.  It is useful for reading fields that are needed for
+    ! model initialization before the calls to openall_in and glide_io_readall.
+    ! Currently, it is called from glissade_initialise to read ice_domain_mask,
+    ! which is used to limit the computational domain to active blocks.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+    use parallel, only: parallel_open, parallel_get_var, parallel_inq_varid
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: varname
+    integer, dimension(:,:), intent(inout) :: field_2d
+
+    ! local variables
+    integer :: status, varid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! read a 2D field
+    status = parallel_inq_varid(infile%nc%id, trim(varname), varid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Loading '//trim(varname)//' ')
+       status = parallel_get_var(infile%nc%id, varid, field_2d)
+       call nc_errorhandle(__FILE__,__LINE__, status)
+    else
+       call write_log('Error: Unable to read '//trim(varname)//' from file '//trim(process_path(infile%nc%filename))//' ', &
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_var_integer_2d
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_var_real8_2d(infile, varname, field_2d)
+
+    !WHL, July 2019:
+    ! This is the real8 version of the subroutine above.
+    ! It is not currently called, but is included for generality.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+    use parallel, only: parallel_open, parallel_get_var, parallel_inq_varid
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: varname
+    real(dp), dimension(:,:), intent(inout) :: field_2d
+
+    ! local variables
+    integer :: status, varid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! read a 2D field
+    status = parallel_inq_varid(infile%nc%id, trim(varname), varid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Loading '//trim(varname)//' ')
+       status = parallel_get_var(infile%nc%id, varid, field_2d)
+       call nc_errorhandle(__FILE__,__LINE__, status)
+    else
+       call write_log('Error: Unable to read '//trim(varname)//' from file '//trim(process_path(infile%nc%filename))//' ', &
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_var_real8_2d
 
 !------------------------------------------------------------------------------
 

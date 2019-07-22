@@ -502,6 +502,8 @@ contains
     call GetValue(section,'dew',model%numerics%dew)
     call GetValue(section,'dns',model%numerics%dns)
     call GetValue(section,'sigma_file',model%funits%sigfile)
+    call GetValue(section,'nx_block', model%general%nx_block)
+    call GetValue(section,'ny_block', model%general%ny_block)
     call GetValue(section,'global_bc',model%general%global_bc)
 
     ! We set this flag to one to indicate we've got a sigfile name.
@@ -537,6 +539,13 @@ contains
     write(message,*) 'NS grid spacing : ',model%numerics%dns
     call write_log(trim(message))
 
+    if (model%general%nx_block > 0 .and. model%general%ny_block> 0) then
+       write(message,*) 'nx_block        :', model%general%nx_block
+       call write_log(trim(message))
+       write(message,*) 'ny_block        :', model%general%ny_block
+       call write_log(trim(message))
+    endif
+
     if (model%general%global_bc==GLOBAL_BC_PERIODIC) then
        write(message,*) 'Periodic global boundary conditions'
        call write_log(trim(message))
@@ -546,6 +555,12 @@ contains
     elseif (model%general%global_bc==GLOBAL_BC_NO_PENETRATION) then
        write(message,*) 'No-penetration global boundary conditions; outflow set to zero at global boundaries'
        call write_log(trim(message))
+    elseif (model%general%global_bc==GLOBAL_BC_NO_ICE) then
+       write(message,*) 'No-ice global boundary conditions; scalars set to zero adjacent to global boundaries'
+       call write_log(trim(message))
+    else
+       write(message,*) ('Error: Invalid option for global_bc')
+       call write_log(trim(message), GM_FATAL)
     endif
 
     write(message,*) 'sigma file      : ',trim(model%funits%sigfile)
@@ -702,6 +717,7 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type) :: model
     
+    call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
     call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
@@ -777,6 +793,11 @@ contains
          'glissade           ', &  ! prototype finite element
          'albany-felix       ', &  ! External Albany-FELIX finite element
          'bisicles           ' /)  ! External BISICLES-Chombo FVM 
+
+    character(len=*), dimension(0:2), parameter :: compute_blocks = (/ &
+         'compute on all blocks              ', &
+         'compute on active blocks only      ', &
+         'inquire the number of active blocks'/)
 
     character(len=*), dimension(0:5), parameter :: evolution = (/ &
          'pseudo-diffusion                      ', &
@@ -1081,6 +1102,7 @@ contains
 
     ! Forbidden options associated with the Glide dycore
     if (model%options%whichdycore == DYCORE_GLIDE) then
+
        if (model%options%whichevol == EVOL_INC_REMAP     .or.  &
            model%options%whichevol == EVOL_UPWIND        .or.  &
            model%options%whichevol == EVOL_NO_THICKNESS) then
@@ -1446,6 +1468,19 @@ contains
        call write_log(' ')
        call write_log('Higher-order options:')
        call write_log('----------')
+
+       if (model%options%compute_blocks /= 0) then
+          write(message,*) 'compute_blocks          : ', model%options%compute_blocks, &
+               compute_blocks(model%options%compute_blocks)
+          call write_log(message)
+          if (model%general%nx_block < 1 .or. model%general%ny_block < 1) then
+             write(message,*) 'Must set nx_block and ny_block > 0 for this compute_blocks option'
+             call write_log(message, GM_FATAL)
+          endif
+       endif
+       if (model%options%compute_blocks < 0 .or. model%options%compute_blocks >= size(compute_blocks)) then
+          call write_log('Error, compute_blocks out of range',GM_FATAL)
+       end if
 
        write(message,*) 'ho_whichefvs            : ',model%options%which_ho_efvs,  &
                          ho_whichefvs(model%options%which_ho_efvs)
@@ -2879,6 +2914,11 @@ contains
 
         end select   ! which_ho_approx
            
+        ! mask used to limit computation to active blocks
+        if (options%compute_blocks == ACTIVE_BLOCKS_ONLY) then
+           call glide_add_to_restart_variable_list('ice_domain_mask')
+        endif
+
         ! basal water option for Glissade
         select case (options%which_ho_bwat)
         case (HO_BWAT_NONE, HO_BWAT_CONSTANT)
