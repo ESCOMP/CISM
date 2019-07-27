@@ -273,10 +273,8 @@ module glide_types
   integer, parameter :: HO_EFFECPRESS_BWAT = 4
 
   !WHL - added Picard acceleration option
-  !TODO - Edit the config files that have JFNK = option 1 in comments
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_PICARD_ACCEL = 1
-  integer, parameter :: HO_NONLIN_JFNK = 2
 
   integer, parameter :: HO_RESID_MAXU = 0
   integer, parameter :: HO_RESID_MAXU_NO_UBAS = 1
@@ -780,7 +778,6 @@ module glide_types
     !> \begin{description}
     !> \item[0] do standard Picard iteration
     !> \item[1] do Picard iteration with acceleration
-    !> \item[2] use Jacobian Free Newton Krylov (JFNK) method
     !> \end{description}
 
     integer :: which_ho_resid = 3

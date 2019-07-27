@@ -93,9 +93,6 @@ module glimmer_paramets
   real(dp), parameter :: thk0 = 1.d0        ! no scaling of thickness
   real(dp), parameter :: len0 = 1.d0        ! no scaling of length
   real(dp), parameter :: vel0 = 1.d0 / scyr ! yr * s^{-1}  
-!Note - With the new value of vel0, the serial JFNK solver barely converges
-!       for the first time step of the dome test.  The Picard solver does fine.
-!       Safer to use old scaling for now.
 ! end (no rescaling)
 #endif
 

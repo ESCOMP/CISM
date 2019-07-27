@@ -1016,10 +1016,9 @@ contains
          'reduced effecpress where bed is connected to ocean   ', &
          'reduced effecpress with increasing basal water       '/)
 
-    character(len=*), dimension(0:2), parameter :: which_ho_nonlinear = (/ &
+    character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration          ', &
-         'use Picard iteration with acceleration ', &
-         'use JFNK                               '/)
+         'use Picard iteration with acceleration '/)
 
     character(len=*), dimension(0:4), parameter :: ho_whichresid = (/ &
          'max value                   ', &
@@ -1641,11 +1640,6 @@ contains
        if (model%options%which_ho_nonlinear < 0 .or. model%options%which_ho_nonlinear >= size(which_ho_nonlinear)) then
           call write_log('Error, HO nonlinear solution input out of range', GM_FATAL)
        end if
-       ! unsupported nonlinear options
-       if (model%options%which_ho_nonlinear == HO_NONLIN_JFNK) then
-         call write_log('JFNK treatment of nonlinearity in momentum balance is not currently scientifically supported.  &
-              &USE AT YOUR OWN RISK.', GM_WARNING)
-       endif
 
        write(message,*) 'ho_whichresid           : ',model%options%which_ho_resid,  &
                          ho_whichresid(model%options%which_ho_resid)
