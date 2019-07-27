@@ -84,31 +84,16 @@ contains
                              model%general%ewn-1,     model%general%nsn-1,       &
                              model%climate%eus,       model%geometry%stagmask)
 
-         if (model%options%which_ho_nonlinear == HO_NONLIN_PICARD .or.  &
-             model%options%which_ho_nonlinear == HO_NONLIN_PICARD_ACCEL) then ! Picard (standard or accelerated)
+         ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
+         !        before calling glissade_velo_higher_solve.
+         !       These updates are done in subroutine glissade_diagnostic_variable_solve
+         !        in module glissade.F90.
 
-            ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
-            !        before calling glissade_velo_higher_solve.
-            !       These updates are done in subroutine glissade_diagnostic_variable_solve
-            !        in module glissade.F90.
-
-            call t_startf('glissade_velo_higher_solver')
-            call glissade_velo_higher_solve(model,                                             &
-                                            model%general%ewn,      model%general%nsn,         &
-                                            model%general%upn)
-            call t_stopf('glissade_velo_higher_solver')
-
-         else if (model%options%which_ho_nonlinear == HO_NONLIN_JFNK) then
-
-            !TODO - Create a JFNK solver?
-
-            call write_log('JFNK not supported for Glissade velocity solver', GM_FATAL)
-
-         else   
-
-            call write_log('Invalid which_ho_nonlinear option.', GM_FATAL)
-
-         end if  ! which_ho_nonlinear
+         call t_startf('glissade_velo_higher_solver')
+         call glissade_velo_higher_solve(model,                                             &
+                                         model%general%ewn,      model%general%nsn,         &
+                                         model%general%upn)
+         call t_stopf('glissade_velo_higher_solver')
 
       endif   ! which_ho_approx
 
