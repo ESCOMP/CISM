@@ -306,6 +306,7 @@ module parallel
 
   interface parallel_put_att
      module procedure parallel_put_att_character
+     module procedure parallel_put_att_integer
      module procedure parallel_put_att_real4
      module procedure parallel_put_att_real4_1d
      module procedure parallel_put_att_real8
@@ -4314,6 +4315,16 @@ contains
     if (main_task) parallel_put_att_character = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_character)
   end function parallel_put_att_character
+
+  function parallel_put_att_integer(ncid,varid,name,values)
+    implicit none
+    integer :: ncid,parallel_put_att_integer,varid
+    character(len=*) :: name
+    integer :: values
+    ! begin
+    if (main_task) parallel_put_att_integer = nf90_put_att(ncid,varid,name,values)
+    call broadcast(parallel_put_att_integer)
+  end function parallel_put_att_integer
 
   function parallel_put_att_real4(ncid,varid,name,values)
     implicit none

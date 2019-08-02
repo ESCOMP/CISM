@@ -324,6 +324,20 @@ class PrintNC_template(PrintVars):
                                                                                             attrib))
                 self.stream.write("%s         '%s')\n"%(spaces*' ', var[attrib]))
         if not is_dimvar(var):
+           #WHL, 8/19: Adding _FillValue and missing_value as attributes. For now, assume 1.0e20 for floats, 1.0d20 for doubles.
+            #          For integers, set to the smallest (i.e., most negative) 4-byte integer.
+            #          I found that Ferret sometimes has trouble plotting values of 0.0 when _FillValue and missing_value are not set.
+            if var['type'] == 'float':
+                self.stream.write("%s    if (get_xtype(outfile,NF90_FLOAT) == NF90_DOUBLE) then\n"%(spaces*' '))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, '_FillValue', 1.0d20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'missing_value', 1.0d20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    elseif (get_xtype(outfile,NF90_FLOAT) == NF90_FLOAT) then\n"%(spaces*' '))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, '_FillValue', 1.0e20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'missing_value', 1.0e20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    endif\n"%(spaces*' '))
+            elif var['type'] == 'int':
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '_FillValue', -2147483647)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, 'missing_value', -2147483647)\n"%(spaces*' ',idstring))
             self.stream.write("%s    if (glimmap_allocated(model%%projection)) then\n"%(spaces*' '))
             self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'grid_mapping',glimmer_nc_mapvarname)\n"%(spaces*' ',idstring))
             attrib='coordinates'
