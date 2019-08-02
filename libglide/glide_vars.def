@@ -333,6 +333,7 @@ units:         meter/year
 long_name:     mask for basal melt rate inversion
 data:          data%inversion%bmlt_float_inversion_mask
 load:          1
+type:          int
 coordinates:   lon lat
 
 #Remove bmlt_float_inversion_save
@@ -864,6 +865,7 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     mask for ice (1) or no ice (0)
 data:          data%geometry%ice_mask
+type:          int
 coordinates:   lon lat
 
 [ice_mask_stag]
@@ -871,6 +873,7 @@ dimensions:    time, y0, x0
 units:         1
 long_name:     mask on staggered grid for ice (1) or no ice (0)
 data:          data%geometry%ice_mask_stag
+type:          int
 coordinates:   lon lat
 
 [floating_mask]
@@ -878,6 +881,7 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     mask for floating ice 
 data:          data%geometry%floating_mask
+type:          int
 coordinates:   lon lat
 
 [grounded_mask]
@@ -885,6 +889,7 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     mask for grounded ice
 data:          data%geometry%grounded_mask
+type:          int
 coordinates:   lon lat
 
 [ice_sheet_mask]
@@ -892,6 +897,7 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     mask for ice sheet
 data:          data%geometry%ice_sheet_mask
+type:          int
 coordinates:   lon lat
 
 [ice_cap_mask]
@@ -899,6 +905,7 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     mask for ice caps
 data:          data%geometry%ice_cap_mask
+type:          int
 coordinates:   lon lat
 
 [smb]
@@ -955,8 +962,8 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     cells where advance is not allowed
 data:          data%climate%no_advance_mask
-type:          int
 standard_name: land_ice_no_advance_mask
+type:          int
 coordinates:   lon lat
 load:          1
 
@@ -965,8 +972,8 @@ dimensions:    time, y1, x1
 units:         1
 long_name:     cells where acab is overwritten
 data:          data%climate%overwrite_acab_mask
-type:          int
 standard_name: land_ice_overwrite_acab_mask
+type:          int
 coordinates:   lon lat
 load:          1
 
@@ -1691,4 +1698,3 @@ dimensions:    time
 units:         years
 long_name:     diffusive CFL maximum time step
 data:          data%numerics%diff_cfl_dt
-
