@@ -2336,9 +2336,7 @@ contains
     allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
 
     ! ice domain mask (to identify active blocks)
-    if (model%options%compute_blocks == ACTIVE_BLOCKS_ONLY) then
-       call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
-    endif
+    call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
 
     ! temperature arrays
 
