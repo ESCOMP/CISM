@@ -1150,7 +1150,7 @@
                // trim(adjustl(dt_string)) // ' yr, limited by global position i=' &
                // trim(adjustl(xpos_string)) // ' j=' //trim(adjustl(ypos_string))
 
-          ! If the violation is egregious (defined at deltat > 10 * allowable_dt_adv), then abort.
+          ! If the violation is egregious (defined as deltat > 10 * allowable_dt_adv), then abort.
           ! Otherwise, write a warning and proceed.
           if (deltat > 10.d0 * allowable_dt_adv) then
              call write_log(trim(message),GM_FATAL)

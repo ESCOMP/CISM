@@ -2469,18 +2469,6 @@
           enddo
 
           print*, ' '
-          print*, 'weight_ground_vertex, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') weight_ground_vertex(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
           print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
           do j = jtest+3, jtest-3, -1
@@ -2656,6 +2644,9 @@
 
        endif  ! verbose_beta
 
+       !TODO - Remove weight_ground_vertex?  Have not found it to work well.
+       !       Would require changes in iceberg removal criteria.
+ 
        call calcbeta (whichbabc,                        &
                       dx,            dy,                &
                       nx,            ny,                &
@@ -2666,8 +2657,8 @@
                       topg,          eus,               &
                       ice_mask,                         &
                       land_mask,                        &
-!!                      f_ground,                         &
-                      weight_ground_vertex,             &  ! equal to f_ground when beta_cavity_thck_scale = 0
+                      f_ground,                         &
+!!                      weight_ground_vertex,             &  ! equal to f_ground when beta_cavity_thck_scale = 0
                       beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                       beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                       whichbeta_limit,                  &

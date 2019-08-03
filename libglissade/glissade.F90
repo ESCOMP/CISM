@@ -132,6 +132,11 @@ contains
          topg_smoothed,     & ! smoothed input topography
          thck_flotation       ! flotation thickness
 
+    integer, dimension(:,:), allocatable :: &
+         ice_domain_mask      ! = 1 where ice is potentially present and active
+    logical, parameter :: &
+         make_ice_domain_mask = .false.   ! set to .true. to create mask at initialization
+
     integer :: itest, jtest, rtest
     integer :: status, varid
     type(glimmer_nc_input), pointer :: infile
@@ -170,7 +175,7 @@ contains
 
        ! Read ice_domain_mask from the input or restart file
        ! Note: In generaly, input arrays are read from subroutine glide_io_readall (called below) in glide_io.F90.
-       !       However, ice_domain_masks is needed now to identify active blocks.
+       !       However, ice_domain_mask is needed now to identify active blocks.
 
        infile => model%funits%in_first   ! assume ice_domain_mask is in the input or restart file
 
@@ -599,6 +604,46 @@ contains
 
     !TODO - Add halo updates of state variables here?
 
+    ! WHL: Set make_ice_domain_mask = .true. above to create an ice_domain_mask at initialization.
+    !      False by default, because usually we will read in a mask created previously.
+    !      Could make this a config option if desired.
+
+    ! Create an ice_domain_mask which includes all cells with thck > 0 and/or topg > 0,
+    !  along with one or more buffer layers of ocean cells.
+    ! This could be made more complex, for instance by choosing a negative threshold for topg.
+    ! For now, we just want to create a mask that can be used to identify active blocks
+    !  for whole-ice-sheet experiments.
+
+    if (make_ice_domain_mask) then
+
+       where (model%geometry%thck > 0.0d0 .or. model%geometry%topg > 0.0d0)
+          model%general%ice_domain_mask = 1
+       elsewhere
+          model%general%ice_domain_mask = 0
+       endwhere
+
+       ! Extend the mask a couple of cells in each direction to be on the safe side.
+       ! The number of buffer layers could be made a config parameter.
+
+       allocate(ice_domain_mask(model%general%ewn,model%general%nsn))
+
+       do k = 1, 2
+          call parallel_halo(model%general%ice_domain_mask)
+          ice_domain_mask = model%general%ice_domain_mask   ! temporary copy
+          do j = nhalo+1, model%general%nsn - nhalo
+             do i = nhalo+1, model%general%ewn - nhalo
+                if (ice_domain_mask(i-1,j) == 1 .or. ice_domain_mask(i+1,j) == 1 .or. &
+                     ice_domain_mask(i,j-1) == 1 .or. ice_domain_mask(i,j+1) == 1) then
+                   model%general%ice_domain_mask(i,j) = 1
+                endif
+             enddo
+          enddo
+       enddo
+
+       deallocate(ice_domain_mask)
+
+    endif   ! make_ice_domain_mask
+
     ! If unstagbeta (i.e., beta on the scalar ice grid) was read from an input file,
     !  then interpolate it to beta on the staggered grid.
     ! NOTE: unstagbeta is initialized to unphys_val (a large negative number),
@@ -780,13 +825,6 @@ contains
                                        model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
                                        model%calving%calving_front_x, model%calving%calving_front_y,  &
                                        model%calving%calving_mask)
-
-       !WHL - This is temporary code to generate ice_domain_mask as the complement of calving_mask.
-!!       where (model%calving%calving_mask == 1)
-!!          model%general%ice_domain_mask = 0
-!!       elsewhere (model%calving%calving_mask == 0)
-!!          model%general%ice_domain_mask = 1
-!!       endwhere
 
     endif
 
@@ -1888,7 +1926,7 @@ contains
 
        enddo     ! subcycling of transport
 
-       if (verbose_inversion .and. this_rank == rtest) then
+       if ((verbose_inversion .or. verbose_glissade) .and. this_rank == rtest) then
           i = itest
           j = jtest
           print*, ' '
@@ -2162,10 +2200,10 @@ contains
              write(6,'(i14)',advance='no') i
           enddo
           write(6,*) ' '
-          do j = jtest+2, jtest-2, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
-             do i = itest-5, itest+5
-                write(6,'(f14.7)',advance='no') model%geometry%thck(i,j) * thk0
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j) * thk0
              enddo
              write(6,*) ' '
           enddo
@@ -2173,14 +2211,14 @@ contains
           k = upn
           print*, 'temp, k =', k
           write(6,'(a6)',advance='no') '      '
-          do i = itest-5, itest+5
-             write(6,'(i14)',advance='no') i
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') i
           enddo
           write(6,*) ' '
-          do j = jtest+2, jtest-2, -1
+          do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
-             do i = itest-5, itest+5
-                write(6,'(f14.7)',advance='no') model%temper%temp(k,i,j)
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%temper%temp(k,i,j)
              enddo
              write(6,*) ' '
           enddo
