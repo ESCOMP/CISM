@@ -2109,7 +2109,7 @@ contains
     integer :: i, j
     integer :: count, maxcount_fill  ! loop counters
 
-    logical, parameter :: verbose_marine_connection = .true.
+    logical, parameter :: verbose_marine_connection = .false.
 
     real(dp) :: sum_fill_local, sum_fill_global
 

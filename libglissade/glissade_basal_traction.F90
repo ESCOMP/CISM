@@ -490,6 +490,15 @@ contains
                 denominator = ( powerlaw_c**m * speed(ew,ns) +  &
                                (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
                 beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
+
+                !WHL - debug
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                      write(6,*) 'Cp, Cc, N, speed, beta =', &
+                           powerlaw_c, coulomb_c, basal_physics%effecpress_stag(ew,ns), speed(ew,ns), beta(ew,ns)
+                   endif
+                endif
+
              enddo
           enddo
 
@@ -681,9 +690,8 @@ contains
                 if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                    if (this_rank == rtest) then
                       ew = itest; ns = jtest
-!!                      ew = itest-1; ns = jtest
-                      write(6,*) 'End of calcbeta, r, i, j, speed, beta:', &
-                           rtest, ew, ns, speed(ew,ns), beta(ew,ns)
+                      write(6,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
+                           rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
                    endif
                 endif
 

@@ -97,6 +97,10 @@ module parallel
   integer,save :: east,north,south,west
   integer,save :: ewtasks,nstasks
 
+  !WHL - added to handle gathers and scatters correctly when computing on active blocks only
+  integer,save :: global_minval_ewlb, global_maxval_ewub
+  integer,save :: global_minval_nslb, global_maxval_nsub
+
   ! logical variables to identify corner tasks.
   ! A southeast corner task is a task with active south and east neighbors but an
   !  inactive southeast neighbor; and similarly for other directions.
@@ -522,6 +526,20 @@ contains
      distributed_execution = .true.
   end function distributed_execution
 
+
+  ! WHL, July 2019:
+  ! There is an issue with allocating the global_values array in the distributed_gather_var_*,
+  !  distribued_get_var_*, distributed_print_*, and distributed_put_var_* functions and subroutines
+  !  when computing only on active blocks (compute_blocks = 1).
+  ! This array is allocated based on the max and min of ewlb, ewub, nslb, and nsub over the global domain.
+  ! Previously, this was done based on a bounds array computed in fc_gather_int, which gathers
+  !  the bounds for all tasks (i.e., all active blocks).
+  ! However, these global bounds will be incorrect if either the west, east, south, or north row
+  !  of the global domain contains only inactive blocks.
+  ! The fix is to allocate global values based on global_minval_ewlb, global_maxval_ewub,
+  !  global_minval_nslb, and global_maxval_nsub, which are now computed at initialization
+  !  based on the bounds in all blocks (including inactive blocks), not just active blocks.
+
   subroutine distributed_gather_var_integer_2d(values, global_values)
 
     ! JEFF Gather a distributed variable back to main_task node
@@ -566,9 +584,13 @@ contains
        if (allocated(global_values)) then
           deallocate(global_values)
        endif
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(&
+!!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
+!!                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
        allocate(global_values(&
-                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
-                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
+                 global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+                 global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
        global_values(:,:) = 0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
@@ -649,9 +671,13 @@ contains
        if (allocated(global_values)) then
           deallocate(global_values)
        endif
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(&
+!!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
+!!                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
        allocate(global_values(&
-                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
-                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
+                 global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+                 global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
        global_values(:,:) = .false.
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
@@ -732,10 +758,14 @@ contains
        if (allocated(global_values)) then
           deallocate(global_values)
        endif
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(&
+!!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
+!!                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
        allocate(global_values(&
-                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
-                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
-       global_values(:,:) = 0
+                 global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+                 global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
+       global_values(:,:) = 0.0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (d_gs_bounds(2,:)-d_gs_bounds(1,:)+1) &
@@ -830,10 +860,14 @@ contains
           write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
           call parallel_stop(__FILE__, __LINE__)
        endif
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(d1l:d1u,&
+!!                              minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
+!!                              minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
        allocate(global_values(d1l:d1u,&
-                              minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
-                              minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
-       global_values(:,:,:) = 0
+                global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+                global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
+       global_values(:,:,:) = 0.0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (d_gs_bounds(2,:)-d_gs_bounds(1,:)+1)&
@@ -917,10 +951,14 @@ contains
        if (allocated(global_values)) then
           deallocate(global_values)
        endif
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(&
+!!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
+!!                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
        allocate(global_values(&
-                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
-                 minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
-       global_values(:,:) = 0
+                 global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+                 global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
+       global_values(:,:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (d_gs_bounds(2,:)-d_gs_bounds(1,:)+1)&
@@ -1015,10 +1053,14 @@ contains
           write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
           call parallel_stop(__FILE__, __LINE__)
        endif
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(d1l:d1u,&
+!!                              minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
+!!                              minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
        allocate(global_values(d1l:d1u,&
-                              minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
-                              minval(d_gs_bounds(3,:)):maxval(d_gs_bounds(4,:))))
-       global_values(:,:,:) = 0
+                global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+                global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
+       global_values(:,:,:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (d_gs_bounds(2,:)-d_gs_bounds(1,:)+1)&
@@ -1095,8 +1137,11 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub))
        global_values(:,:) = 0
        distributed_get_var_integer_2d = nf90_get_var(ncid,varid,&
             global_values(1:ew,1:ns),start)
@@ -1165,8 +1210,14 @@ contains
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
-       global_values(:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
+       if (varid==x1id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
+       elseif (varid==y1id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub))
+       endif
+       global_values(:) = 0.0
        distributed_get_var_real4_1d = &
             nf90_get_var(ncid,varid,global_values(1:myn),start)
        allocate(displs(tasks+1))
@@ -1229,9 +1280,12 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
-       global_values(:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub))
+       global_values(:,:) = 0.0
        distributed_get_var_real4_2d = nf90_get_var(ncid,varid,&
             global_values(1:ew,1:ns),start)
        allocate(displs(tasks+1))
@@ -1300,8 +1354,14 @@ contains
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
-       global_values(:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
+       if (varid==x1id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
+       elseif (varid==y1id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub))
+       endif
+       global_values(:) = 0.0d0
        distributed_get_var_real8_1d = &
             nf90_get_var(ncid,varid,global_values(1:myn),start)
        allocate(displs(tasks+1))
@@ -1363,10 +1423,14 @@ contains
     end if
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
+
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
-       global_values(:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub))
+       global_values(:,:) = 0.0d0
        distributed_get_var_real8_2d = nf90_get_var(ncid,varid,&
             global_values(1:ew,1:ns),start)
        allocate(displs(tasks+1))
@@ -1433,9 +1497,13 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:)),size(values,3)))
-       global_values(:,:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:)),size(values,3)))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub, &
+                              size(values,3)))
+       global_values(:,:,:) = 0.0d0
        distributed_get_var_real8_3d = nf90_get_var(ncid,varid,&
             global_values(1:ew,1:ns,:),start)
        allocate(displs(tasks+1))
@@ -1610,6 +1678,21 @@ contains
     local_nsn = nsub-nslb+1
     own_nsn = local_nsn-lhalo-uhalo
     nsn = local_nsn
+
+    ! Determine the global bounds of ewlb, ewub, nslb, and nsub.
+    ! These are used to allocate global arrays used in gathers and scatters.
+    global_minval_ewlb = parallel_reduce_min(ewlb)
+    global_maxval_ewub = parallel_reduce_max(ewub)
+    global_minval_nslb = parallel_reduce_min(nslb)
+    global_maxval_nsub = parallel_reduce_max(nsub)
+
+    !WHL - debug
+    if (main_task) then
+       print*, 'global_minval_ewlb =', global_minval_ewlb
+       print*, 'global_maxval_ewub =', global_maxval_ewub
+       print*, 'global_minval_nslb =', global_minval_nslb
+       print*, 'global_maxval_nsub =', global_maxval_nsub
+    endif
 
     west = this_rank-1
     if ((west/ewtasks<this_rank/ewtasks).or.(west<0)) west = west+ewtasks
@@ -1933,6 +2016,21 @@ contains
 
     enddo   ! nblocks
 
+    ! Determine the global bounds of ewlb, ewub, nslb, and nsub.
+    ! These are used to allocate global arrays used in gathers and scatters.
+    global_minval_ewlb = minval(ewlb_block)
+    global_maxval_ewub = maxval(ewub_block)
+    global_minval_nslb = minval(nslb_block)
+    global_maxval_nsub = maxval(nsub_block)
+
+    !WHL - debug
+    if (main_task) then
+       print*, 'global_minval_ewlb =', global_minval_ewlb
+       print*, 'global_maxval_ewub =', global_maxval_ewub
+       print*, 'global_minval_nslb =', global_minval_nslb
+       print*, 'global_maxval_nsub =', global_maxval_nsub
+    endif
+
     ! Determine which blocks are active.
     ! A block is active if one or more locally owned cells has ice_domain_mask = 1.
     ! Note: This calculation is done on main_task only, since this is where
@@ -1962,7 +2060,7 @@ contains
           do j = nstasks-1, 0, -1
              do i = 0, ewtasks-1
                 nb = ewtasks*j + i
-                write(6, '(i6)', advance='no') nb
+                write(6, '(i5)', advance='no') nb
              enddo
              print*, ' '
           enddo
@@ -1971,7 +2069,7 @@ contains
           do j = nstasks-1, 0, -1
              do i = 0, ewtasks-1
                 nb = ewtasks*j + i
-                write(6, '(l6)', advance='no') block_is_active(nb)
+                write(6, '(l5)', advance='no') block_is_active(nb)
              enddo
              print*, ' '
           enddo
@@ -2041,7 +2139,7 @@ contains
              do j = nstasks-1, 0, -1
                 do i = 0, ewtasks-1
                    nb = ewtasks*j + i
-                   write(6, '(i6)', advance='no') nb
+                   write(6, '(i5)', advance='no') nb
                 enddo
                 print*, ' '
              enddo
@@ -2050,7 +2148,7 @@ contains
              do j = nstasks-1, 0, -1
                 do i = 0, ewtasks-1
                    nb = ewtasks*j + i
-                   write(6, '(l6)', advance='no') block_is_active(nb)
+                   write(6, '(l5)', advance='no') block_is_active(nb)
                 enddo
                 print*, ' '
              enddo
@@ -2088,7 +2186,7 @@ contains
        do j = nstasks-1, 0, -1
           do i = 0, ewtasks-1
              nb = ewtasks*j + i
-             write(6, '(i6)', advance='no') block_to_task(nb)
+             write(6, '(i5)', advance='no') block_to_task(nb)
           enddo
           print*, ' '
        enddo
@@ -2186,10 +2284,10 @@ contains
     endif
 
     if (verbose_active_blocks) then
-       if (southwest_corner) print*, 'Southwest corner, task =', this_rank
-       if (southeast_corner) print*, 'Southeast corner, task =', this_rank
-       if (northeast_corner) print*, 'Northeast corner, task =', this_rank
-       if (northwest_corner) print*, 'Northwest corner, task =', this_rank
+!       if (southwest_corner) print*, 'Southwest corner, task =', this_rank
+!       if (southeast_corner) print*, 'Southeast corner, task =', this_rank
+!       if (northeast_corner) print*, 'Northeast corner, task =', this_rank
+!       if (northwest_corner) print*, 'Northwest corner, task =', this_rank
     endif
 
     ! Set the limits of locally owned vertices on the staggered grid.
@@ -2217,10 +2315,10 @@ contains
     endif
 
     if (verbose_active_blocks) then
-       call parallel_barrier
-       print*, 'task, west, east, south, north:', this_rank, west, east, south, north
-       print*, 'task, SW, SE, NE, NW:', this_rank, &
-            southwest_corner, southeast_corner, northwest_corner, northeast_corner
+    call parallel_barrier
+!       print*, 'task, west, east, south, north:', this_rank, west, east, south, north
+!       print*, 'task, SW, SE, NE, NW:', this_rank, &
+!            southwest_corner, southeast_corner, northwest_corner, northeast_corner
     endif
 
     ! Uncomment to print grid geometry
@@ -2327,8 +2425,12 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(&
+            global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+            global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
        global_values(:,:) = 0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
@@ -2411,9 +2513,13 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
-       global_values(:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(&
+            global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+            global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
+       global_values(:,:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (bounds(2,:)-bounds(1,:)+1)*(bounds(4,:)-bounds(3,:)+1)
@@ -2495,9 +2601,13 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(size(values,1),minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
-       global_values(:,:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(size(values,1),minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(size(values,1), &
+            global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+            global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
+       global_values(:,:,:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (bounds(2,:)-bounds(1,:)+1)*(bounds(4,:)-bounds(3,:)+1)*size(values,1)
@@ -2575,8 +2685,12 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(&
+            global_minval_ewlb+lhalo:global_maxval_ewub-uhalo, &
+            global_minval_nslb+lhalo:global_maxval_nsub-uhalo))
        global_values(:,:) = 0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
@@ -2661,8 +2775,18 @@ contains
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
-       global_values(:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
+       if (varid==x0id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub-1))
+       elseif (varid==x1id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
+       elseif (varid==y0id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub-1))
+       elseif (varid==y1id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub))
+       endif
+       global_values(:) = 0.0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = bounds(2,:)-bounds(1,:)+1
@@ -2726,9 +2850,12 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
-       global_values(:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub))
+       global_values(:,:) = 0.0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (bounds(2,:)-bounds(1,:)+1)*(bounds(4,:)-bounds(3,:)+1)
@@ -2813,8 +2940,18 @@ contains
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
-       global_values(:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
+       if (varid==x0id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub-1))
+       elseif (varid==x1id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
+       elseif (varid==y0id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub-1))
+       elseif (varid==y1id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub))
+       endif
+       global_values(:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = bounds(2,:)-bounds(1,:)+1
@@ -2878,9 +3015,12 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:))))
-       global_values(:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:))))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub))
+       global_values(:,:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (bounds(2,:)-bounds(1,:)+1)*(bounds(4,:)-bounds(3,:)+1)
@@ -2944,9 +3084,12 @@ contains
     call fc_gather_int(mybounds,4,mpi_integer,bounds,4,&
        mpi_integer,main_rank,comm)
     if (main_task) then
-       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
-            minval(bounds(3,:)):maxval(bounds(4,:)),nz))
-       global_values(:,:,:) = 0
+       !WHL - See comments above on allocating the global_values array
+!!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:)),&
+!!            minval(bounds(3,:)):maxval(bounds(4,:)),nz))
+       allocate(global_values(global_minval_ewlb:global_maxval_ewub, &
+                              global_minval_nslb:global_maxval_nsub, nz))
+       global_values(:,:,:) = 0.0d0
        allocate(displs(tasks+1))
        allocate(recvcounts(tasks))
        recvcounts(:) = (bounds(2,:)-bounds(1,:)+1)*(bounds(4,:)-bounds(3,:)+1)&
