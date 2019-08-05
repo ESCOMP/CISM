@@ -244,7 +244,6 @@ subroutine cism_run_dycore(model)
   use eismint_forcing
   use glimmer_log
   use glimmer_config
-  use glide_nc_custom, only: glide_nc_fillall
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
@@ -401,7 +400,6 @@ subroutine cism_finalize_dycore(model)
   use glissade
   use glimmer_log
   use glimmer_config
-  use glide_nc_custom, only: glide_nc_fillall
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
