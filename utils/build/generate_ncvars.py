@@ -440,8 +440,14 @@ class PrintNC_template(PrintVars):
             data = var['data']
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
-            self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
-                                                                                                               spaces,data, dimstring))
+
+            #WHL: Call parallel_put_var to write scalars; else call distributed_put_var
+            if dimstring == 'outfile%timecounter':   # scalar variable; no dimensions except time
+                self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
+            else:
+                self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
             self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
 
             if  'level' in dims:
@@ -540,6 +546,20 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s          %s = &\n"%(spaces,var['data']))
                 self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data']))
                 self.stream.write("%s       end if\n"%(spaces))
+
+                #*WHL* added to read x1 and y1 into global arrays called x1_global and y1_global
+                if var['name'] == 'x1' or var['name'] == 'y1':
+                    self.stream.write("%s       ! Also read this variable into a global array\n"%(spaces))
+                    name_global = var['name']+'_global'
+                    data_global = var['data']+'_global'
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
+                                                                                                               spaces,data_global))
+                    self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
+                    self.stream.write("%s       if (abs(scaling_factor-1.0d0).gt.1.d-17) then\n"%(spaces))
+                    self.stream.write("%s          call write_log(\"scaling %s\",GM_DIAGNOSTIC)\n"%(spaces,name_global))
+                    self.stream.write("%s          %s = &\n"%(spaces,data_global))
+                    self.stream.write("%s               %s*scaling_factor\n"%(spaces,data_global))
+                    self.stream.write("%s       end if\n"%(spaces))
 
                 if  'level' in dims:
                     self.stream.write("       end do\n")

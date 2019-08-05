@@ -80,10 +80,11 @@ contains
     type(glide_global_type) :: model
 
     integer i,status,varid
-    real(dp),dimension(model%general%ewn-1) :: x0
-    real(dp),dimension(model%general%ewn) :: x1
-    real(dp),dimension(model%general%nsn-1) :: y0
-    real(dp),dimension(model%general%nsn) :: y1
+
+    real(dp),dimension(global_ewn-1) :: x0_global
+    real(dp),dimension(global_ewn) :: x1_global
+    real(dp),dimension(global_nsn-1) :: y0_global
+    real(dp),dimension(global_nsn) :: y1_global
 
     ! check if we are still in define mode and if so leave it
     if (NCO%define_mode) then
@@ -98,59 +99,72 @@ contains
 
     if (associated(model%funits%in_first)) then
 
+       ! WHL, 8/5/19:
+       ! The original code called subroutine distributed_put_var to gather model%general%x1, etc.
+       !  from local tasks into a global array that was written to the output file.
+       ! This does not work, in general, when computing on active blocks only, because the local versions
+       !  of model%general%x1 may not span the global domain.
+       ! The revised code calls parallel_put_var to write (x0,y0) and (x1,y1) to the output file.
+       ! This assumes that x1_global and y1_global were read from the input file and saved in a global array.
+
        status = parallel_inq_varid(NCO%id,'x1',varid)
-       status = distributed_put_var(NCO%id,varid,model%general%x1)
+       status = parallel_put_var(NCO%id,varid,model%general%x1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y1',varid)
-       status= distributed_put_var(NCO%id,varid,model%general%y1)
+       status = parallel_put_var(NCO%id,varid,model%general%y1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
-       !create the x0 and y0 grids from x1 and y1
+       ! create the x0 and y0 grids from x1 and y1
 
        status = parallel_inq_varid(NCO%id,'x0',varid)
-       do i=1, model%general%ewn-1
-          x0(i) = (model%general%x1(i)+model%general%x1(i+1))/2.0
+       do i = 1, global_ewn-1
+          x0_global(i) = (model%general%x1_global(i) + model%general%x1_global(i+1)) / 2.0d0
        end do
-       status=distributed_put_var(NCO%id,varid,x0)
+       status = parallel_put_var(NCO%id,varid,x0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y0',varid)
-       do i=1, model%general%nsn-1
-          y0(i) = (model%general%y1(i)+model%general%y1(i+1))/2.0
+       do i = 1, global_nsn-1
+          y0_global(i) = (model%general%y1_global(i) + model%general%y1_global(i+1)) / 2.0d0
        end do
-       status = distributed_put_var(NCO%id,varid,y0)
+       status = parallel_put_var(NCO%id,varid,y0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
-    
+
     else if(.not. associated(model%funits%in_first)) then
 
-       ! filling coordinate variables
+       ! WHL, 8/5/19: See comments above.
+       ! The original code computed (x0,y0) and (x1,y1) on the local task, then called subroutine
+       !  distributed_put_var to gather data to a global array that is written to the output file.
+       ! The revised code computes global versions of (x0,y0) and (x1,y1) and calls parallel_put_var
+       !  to write them to the output file.
+
        status = parallel_inq_varid(NCO%id,'x0',varid)
-       do i=1, model%general%ewn-1
-          x0(i) = ((i-0.5)*model%numerics%dew*len0)
+       do i = 1, global_ewn-1
+          x0_global(i) = (real(i,dp)-0.5d0)*model%numerics%dew*len0
        end do
-       status=distributed_put_var(NCO%id,varid,x0)
+       status = parallel_put_var(NCO%id,varid,x0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y0',varid)
-       do i=1, model%general%nsn-1
-          y0(i) = (i-0.5)*model%numerics%dns*len0
+       do i = 1, global_nsn-1
+          y0_global(i) = (real(i,dp)-0.5d0)*model%numerics%dns*len0
        end do
-       status=distributed_put_var(NCO%id,varid,y0)
+       status = parallel_put_var(NCO%id,varid,y0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'x1',varid)
-       do i=1, model%general%ewn
-          x1(i) = (i-1.)*model%numerics%dew*len0
+       do i = 1, global_ewn
+          x1_global(i) = (real(i,dp)-1.0d0)*model%numerics%dew*len0
        end do
-       status=distributed_put_var(NCO%id,varid,x1)
+       status = parallel_put_var(NCO%id,varid,x1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y1',varid)
-       do i=1, model%general%nsn
-          y1(i) = (i-1.)*model%numerics%dns*len0
+       do i = 1, global_nsn
+          y1_global(i) = (real(i,dp)-1.0d0)*model%numerics%dns*len0
        end do
-       status=distributed_put_var(NCO%id,varid,y1)
+       status = parallel_put_var(NCO%id,varid,y1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
     end if   ! associated(model%funits%in_first)

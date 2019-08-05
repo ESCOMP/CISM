@@ -229,11 +229,6 @@ module parallel
      module procedure distributed_put_var_real8_1d
      module procedure distributed_put_var_real8_2d
      module procedure distributed_put_var_real8_3d
-
-     !TODO - Put these in the parallel_put_var interface only?
-     module procedure parallel_put_var_integer
-     module procedure parallel_put_var_real4
-     module procedure parallel_put_var_real8
   end interface
 
   interface distributed_scatter_var
@@ -5454,33 +5449,48 @@ contains
   function parallel_put_var_integer(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_integer,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     integer :: values
     ! begin
-    if (main_task) parallel_put_var_integer = &
-         nf90_put_var(ncid,varid,values,start)
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer = nf90_put_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_put_var_integer)
   end function parallel_put_var_integer
 
   function parallel_put_var_real4(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_real4,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(sp) :: values
     ! begin
-    if (main_task) parallel_put_var_real4 = &
-         nf90_put_var(ncid,varid,values,start)
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real4 = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real4 = nf90_put_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_put_var_real4)
   end function parallel_put_var_real4
 
   function parallel_put_var_real8(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_real8,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(dp) :: values
     ! begin
-    if (main_task) parallel_put_var_real8 = &
-         nf90_put_var(ncid,varid,values,start)
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real8 = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real8 = nf90_put_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_put_var_real8)
   end function parallel_put_var_real8
 
@@ -7170,7 +7180,7 @@ contains
 
 !BOP -------------------------------------------------------------------
 !
-! !IROUTINE: fc_gatherv_real8 - Gather an array of type real*4
+! !IROUTINE: fc_gatherv_real8 - Gather an array of type real*8
 !
 ! !DESCRIPTION:
 ! This routine gathers a {\em distributed} array of type {\em real*8} to

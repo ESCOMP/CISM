@@ -348,10 +348,17 @@ module glide_types
     type(coordsystem_type) :: ice_grid  !> coordinate system of the ice grid
     type(coordsystem_type) :: velo_grid !> coordinate system of the velocity grid
 
+    ! horizontal dimensions: (x1,y1) for unstaggered ice grid, (x0,y0) for staggered velocity grid
     real(dp), dimension(:),pointer :: x0 => null() !original x0 grid 
     real(dp), dimension(:),pointer :: y0 => null() !original y0 grid
     real(dp), dimension(:),pointer :: x1 => null() !original x1 grid
     real(dp), dimension(:),pointer :: y1 => null() !original y1 grid
+
+    ! global versions of horizontal dimension arrays
+    real(dp), dimension(:),pointer :: x0_global => null()
+    real(dp), dimension(:),pointer :: y0_global => null()
+    real(dp), dimension(:),pointer :: x1_global => null()
+    real(dp), dimension(:),pointer :: y1_global => null()
 
     integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no_penetration, 3 for no_ice
 
@@ -2253,6 +2260,7 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
+    use parallel, only: global_ewn, global_nsn
 
     implicit none
 
@@ -2272,6 +2280,11 @@ contains
     allocate(model%general%y0(nsn-1))!; model%general%y0 = 0.d0
     allocate(model%general%x1(ewn))!; model%general%x1 = 0.d0    ! ice grid (for scalars)
     allocate(model%general%y1(nsn))!; model%general%y1 = 0.d0
+
+    allocate(model%general%x0_global(global_ewn-1))!; model%general%x0_global = 0.d0  ! velocity grid
+    allocate(model%general%y0_global(global_nsn-1))!; model%general%y0_global = 0.d0
+    allocate(model%general%x1_global(global_ewn))!; model%general%x1_global = 0.d0    ! ice grid (for scalars)
+    allocate(model%general%y1_global(global_nsn))!; model%general%y1_global = 0.d0
 
     ! vertical sigma coordinates
     ! If we already have sigma, don't reallocate
@@ -2676,6 +2689,14 @@ contains
         deallocate(model%general%x1) 
     if (associated(model%general%y1)) &
         deallocate(model%general%y1) 
+    if (associated(model%general%x0_global)) &
+        deallocate(model%general%x0_global)
+    if (associated(model%general%y0_global)) &
+        deallocate(model%general%y0_global)
+    if (associated(model%general%x1_global)) &
+        deallocate(model%general%x1_global)
+    if (associated(model%general%y1_global)) &
+        deallocate(model%general%y1_global)
     if (associated(model%general%ice_domain_mask)) &
         deallocate(model%general%ice_domain_mask)
 
