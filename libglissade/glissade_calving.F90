@@ -209,7 +209,8 @@ contains
                                 sigma,                   &
                                 thklim,                  &  ! m
                                 efvs,                    &  ! Pa s
-                                uvel,             acab,  &  ! m/s
+                                uvel,             vvel,  &  ! m/s
+                                acab,                    &  ! m/s
                                 thck,             relx,  &  ! m
                                 topg,             eus)      ! m
 
@@ -283,6 +284,7 @@ contains
     real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice (m)
     real(dp), dimension(:,:,:), intent(in)  :: efvs              !> effective viscosity (Pa s)
     real(dp), dimension(:,:,:), intent(in)  :: uvel              !> ice velocity along x (m/s)
+    real(dp), dimension(:,:,:), intent(in)  :: vvel              !> ice velocity along y (m/s)
     real(dp), dimension(:,:), intent(in)    :: acab              !> mass balance (m/s)
     real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography (m)
@@ -295,6 +297,7 @@ contains
     integer :: nz          ! number of vertical levels
                            ! Note: number of ice layers = nz-1
     integer :: i, j, k, n
+    integer :: ud, vd      ! Velocity sign index modulations
     integer :: ii, jj
 
     real(dp), dimension(:,:,:), allocatable ::  &
@@ -305,14 +308,15 @@ contains
          d_damage_dt,            & ! rate of change of damage scalar (1/s)
          adv_term,               & ! advective term in manufactured damage solution
          uvel_unstag,            & ! unstaggered x velocity (m/s)
-         efvs_eff                  ! effective ice viscosity everywhere (subgrid damage only)
+         vvel_unstag,            & ! unstaggered y velocity (m/s)
+         speed_unstag,           & ! unstaggered horizontal speed (m/s)
+         efvs_eff                  ! effective viscosity including the calving front (Pa s)
 
     real(dp), dimension(:,:), allocatable ::  &
          thck_calving_front,     & ! effective ice thickness at the calving front
          thck_init,              & ! value of thck before calving
          tau1, tau2,             & ! tau_eigen1 and tau_eigen2 (Pa), modified for calving
-         damage_column,          & ! 2D vertically integrated scalar damage parameter
-         thck_eff                  ! effective ice thickness everywhere (subgrid damage only)
+         damage_column             ! 2D vertically integrated scalar damage parameter
 
     real(dp), dimension(:,:), allocatable ::  &
          calving_thck_init         ! debug diagnostic
@@ -354,6 +358,8 @@ contains
          dthck,                & ! thickness change (m)
          thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
          factor,               & ! factor in quadratic formula
+         xext,                 & ! extrapolated x value
+         yext,                 & ! extrapolated x value
          alpha,                & ! flow law exponent anisotropy parameter
          nstar,                & ! effective flow law exponent
          szero,                & ! ratio of hydrostatic to tensile stress
@@ -535,9 +541,14 @@ contains
        allocate(tau1(nx,ny))
        allocate(tau2(nx,ny))
 
-       ! Ignore negative eigenvalues corresponding to compressive stresses
-       tau1 = max(calving%tau_eigen1, 0.0d0)
-       tau2 = max(calving%tau_eigen2, 0.0d0)
+       if (which_calving == EIGENCALVING) then
+          ! Ignore negative eigenvalues corresponding to compressive stresses
+          tau1 = max(calving%tau_eigen1, 0.0d0)
+          tau2 = max(calving%tau_eigen2, 0.0d0)
+       else
+          tau1 = calving%tau_eigen1
+          tau2 = calving%tau_eigen2
+       endif
 
        ! Ignore values on grounded ice
        where (floating_mask == 0)
@@ -547,53 +558,6 @@ contains
 
        call parallel_halo(tau1)
        call parallel_halo(tau2)
-
-       ! Create effective thickness and viscosity matrices
-       if (which_calving == CALVING_DAMAGE) then
-          allocate(thck_eff(nx,ny))
-          allocate(efvs_eff(nz,nx,ny))
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (calving_front_mask(i,j) == 1) then
-                   thck_eff(i,j) = thck_calving_front(i,j)
-                else
-                   thck_eff(i,j) = thck(i,j)
-                endif
-                efvs_eff(:,i,j) = efvs(:,i,j)
-             enddo
-          enddo
-       endif
-
-       ! In inactive calving-front cells where both eigenvalues are zero (because a cell is dynamically inactive),
-       !  extrapolate nonzero values in upstream cells.
-       ! It is also necessary to extrapolate the viscosity in the subgrid damage case.
-       ! Note: A similar extrapolation is done in glissade_diagnostic_variable_solve, but an extra one
-       !       may be useful here for cells where ice was just advected from upstream.
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (calving_front_mask(i,j) == 1) then
-                ! Look for nonzero values in an upstream cell
-                do jj = j-1, j+1
-                   do ii = i-1, i+1
-                      if (thck_calving_front(i,j) > 0.0d0 &
-                          .and. thck_init(ii,jj) == thck_calving_front(i,j)) then
-                         if (tau1(i,j) == 0.0d0 .and. tau2(i,j) == 0) then
-                            tau1(i,j) = tau1(ii,jj)
-                            tau2(i,j) = tau2(ii,jj)
-                         endif   ! tau1 = tau2 = 0
-
-                         do k = 1, nz-1
-                            if (allocated(efvs_eff) .and. efvs(k,i,j) == 0.0d0) then
-                               efvs_eff(k,i,j) = efvs(k,ii,jj)
-                            endif   ! efvs = 0
-                         enddo   ! k
-                      endif   ! calving front thickness
-                   enddo   ! ii
-                enddo   ! jj
-             endif   ! calving_front_mask
-          enddo   ! i
-       enddo   ! j
 
        ! Compute the effective stress.
        ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
@@ -657,22 +621,99 @@ contains
           ! Note: The damage is formally a 3D field, which makes it easier to advect, even though
           !       (in the current scheme) the damage source term is uniform in each column.
 
+          ! Set initial dummy values
+          d_damage_dt(:,:,:) = 0.0d0
+
           ! Allocate relevant data matrices
           if (damage_src == BASSIS_MA_DAMAGE_SRC) then
+             allocate(uvel_unstag(nz,nx,ny))
+             allocate(vvel_unstag(nz,nx,ny))
+             allocate(speed_unstag(nz,nx,ny))
+             allocate(efvs_eff(nz-1,nx,ny))
              allocate(eps_max(nz,nx,ny))
              allocate(source(nz,nx,ny))
              allocate(force(nz,nx,ny))
-          endif
+
+             ! Set initial dummy values
+             uvel_unstag(:,:,:) = 0.0d0
+             vvel_unstag(:,:,:) = 0.0d0
+             speed_unstag(:,:,:) = 0.0d0
+             efvs_eff(:,:,:) = efvs(:,:,:)
+             eps_max(:,:,:) = 0.0d0
+             source(:,:,:) = 0.0d0
+             force(:,:,:) = 0.0d0
+
+             ! Construct unstaggered velocity matrices
+             do j = 3, ny-2
+                do i = 3, nx-2
+                   ! Linearly interpolate velocities to the unstaggered grid
+                   uvel_unstag(:,i,j) = 0.25d0*abs(uvel(:,i,j)+uvel(:,i-1,j)+uvel(:,i,j-1) &
+                                                   +uvel(:,i-1,j-1))
+                   vvel_unstag(:,i,j) = 0.25d0*abs(vvel(:,i,j)+vvel(:,i-1,j)+vvel(:,i,j-1) &
+                                                   +vvel(:,i-1,j-1))
+
+                   ! Compute the magnitude of the horizontal velocity vectors
+                   speed_unstag(:,i,j) = SQRT(uvel_unstag(:,i,j)**2+vvel_unstag(:,i,j)**2)
+                enddo   ! i
+             enddo   ! j
+
+             call parallel_halo(uvel_unstag)
+             call parallel_halo(vvel_unstag)
+
+             ! We need to restart the loops here to have the matrices fully computed for extrapolation
+             ! We want to only sweep over points that exist (so we need a buffer of at
+             ! least two in the halo).
+             do j = 3, ny-2
+                do i = 3, nx-2
+                   ! To do this right we also need to extrapolate the velocities to
+                   ! the calving front, since there are too few points on the
+                   ! staggered grid to fully interpolate
+                   if (calving_front_mask(i,j) == 1) then
+                      do k = 1, nz
+                         ! Store the velocity directions as matrix index modulations
+                         ! e.g. if uvel is positive, set ud = -1 because ice will flow
+                         ! from i-1 to i
+                         ud = find_velocity_sign(uvel_unstag(k,i,j))
+                         vd = find_velocity_sign(vvel_unstag(k,i,j))
+
+                         uvel_unstag(k,i,j) = linear_extrapolation(uvel_unstag(k,i+ud,j), &
+                                                                   uvel_unstag(k,i+2*ud,j))
+                         vvel_unstag(k,i,j) = linear_extrapolation(vvel_unstag(k,i,j+vd), &
+                                                                   vvel_unstag(k,i,j+2*vd))
+
+                         ! Compute the magnitude of the horizontal velocity vectors
+                         speed_unstag(k,i,j) = SQRT(uvel_unstag(k,i,j)**2+vvel_unstag(k,i,j)**2)
+
+                         ! We also need to extrapolate the ice viscosity to the
+                         ! calving front, by weighting the components against the
+                         ! magnitudes of the horizontal velocities
+                         if (k < nz) then   ! efvs is on staglevel
+                            xext = linear_extrapolation(efvs(k,i+ud,j),efvs(k,i+2*ud,j))
+                            yext = linear_extrapolation(efvs(k,i,j+vd),efvs(k,i,j+2*vd))
+                            efvs_eff(k,i,j) = (uvel_unstag(k,i,j)*xext+vvel_unstag(k,i,j) &
+                                               *yext)/speed_unstag(k,i,j)
+                         endif
+                      enddo   ! k
+                   endif   ! calving_front_mask
+                enddo   ! i
+             enddo   ! j
+             ! Finished unstaggered velocity computation !!!
+          endif   ! Bassis & Ma damage
+
           if (damage_manufactured) then
              allocate(vel_exp(nz,nx,ny))
              allocate(adv_term(nz,nx,ny))
-             allocate(uvel_unstag(nz,nx,ny))
              allocate(hgl(ny))
+
+             ! Set initial dummy values
+             vel_exp(:,:,:) = 0.0d0
+             adv_term(:,:,:) = 0.0d0
+             hgl(:) = 0.0d0
 
              ! Identify the grounding line thickness for manufactured damage on
              ! an ice tongue (assumes only one grounding line point per j)
-             do j = 2, ny-1
-                do i = 2, nx-1
+             do j = 3, ny-2
+                do i = 3, nx-2
                    if (floating_mask(i,j) == 0 .and. grounding_line_mask(i,j) == 1) then
                       hgl(j) = thck(i,j)
                    endif
@@ -680,8 +721,8 @@ contains
              enddo
           endif   ! damage_manufactured
 
-          do j = 2, ny-1
-             do i = 2, nx-1
+          do j = 3, ny-2
+             do i = 3, nx-2
                 if (floating_mask(i,j) == 1) then
                    ! Prognose damage using a simple scheme based on the
                    ! effective tensile stress, calving%tau_eff
@@ -692,37 +733,38 @@ contains
                    else if (damage_src == BASSIS_MA_DAMAGE_SRC) then 
                       ! Compute the ratio of the principal stresses (equivalent to the ratio of the
                       ! principal strain rates)
-                      alpha = calving%tau_eigen2(i,j) / calving%tau_eigen1(i,j)
+                      alpha = tau2(i,j) / tau1(i,j)
 
                       ! Find the max principal strain rate using Glen's Flow Law
-                      eps_max(:,i,j) = calving%tau_eigen1(i,j) / (2.0d0 * efvs_eff(:,i,j))
+                      eps_max(:,i,j) = tau1(i,j) / (2.0d0 * efvs_eff(:,i,j))
 
                       ! Compute the effective flow law exponent
                       nstar = 12.0d0*(1.0d0+alpha+alpha**2)/(4.0d0*(1.0d0+alpha+alpha**2)+6.0d0*alpha**2)
 
                       ! Compute the hydrostatic to tensile stress ratio
-                      szero = rhoi*(rhoo-rhoi)*grav*thck_eff(i,j)/(2.0d0*calving%tau_eigen1(i,j)*rhoo)
+                      szero = rhoi*(rhoo-rhoi)*grav*thck(i,j)/(2.0d0*tau1(i,j)*rhoo)
 
                       ! Prognose damage following Bassis & Ma 2015
-                      source(:,i,j) = nstar*(1.0d0-szero)*eps_max(:,i,j)-acab(i,j)/thck_eff(i,j)
+                      source(:,i,j) = nstar*(1.0d0-szero)*eps_max(:,i,j)
                       d_damage_dt(:,i,j) = source(:,i,j)*calving%damage(:,i,j)
 
                       ! Compute the manufactured forcing term if requested; otherwise, set it to zero
                       if (damage_manufactured) then
+                         ! Compute the exponential
+                         vel_exp(:,i,j) = exp(-uvel_unstag(:,i,j)*time/hgl(j))
+
                          ! Compute the advection term
                          adv_term(:,i,j) = 1.0d0
                          if (damage_advect) then
                             adv_term(:,i,j) = adv_term(:,i,j)+eps_max(:,i,j)*time
                          endif
-
-                         ! Linearly interpolate uvel to the unstaggered grid
-                         uvel_unstag(:,i,j) = 0.25d0*abs(uvel(:,i,j)+uvel(:,i-1,j)+uvel(:,i,j-1) &
-                                                         +uvel(:,i-1,j-1))
+                         adv_term(:,i,j) = adv_term(:,i,j)*uvel_unstag(:,i,j)*vel_exp(:,i,j)/hgl(j)
+                         if (damage_advect) then
+                            adv_term(:,i,j) = adv_term(:,i,j)-eps_max(:,i,j)*(1.0d0+vel_exp(:,i,j))
+                         endif
 
                          ! Compute the manufactured forcing term
-                         vel_exp(:,i,j) = exp(-uvel_unstag(:,i,j)*time/hgl(j))
-                         force(:,i,j) = -0.5d0*calving%damage_init(:,i,j)*(uvel_unstag(:,i,j)/hgl(j) &
-                                        *adv_term(:,i,j)*vel_exp(:,i,j) &
+                         force(:,i,j) = -0.5d0*calving%damage_init(:,i,j)*thck(i,j)*(adv_term(:,i,j) &
                                         +source(:,i,j)*(1.0d0+vel_exp(:,i,j)))
                       else
                          force(:,i,j) = 0.0d0
@@ -733,21 +775,27 @@ contains
 
                    endif   ! damage_src
 
+                   ! Convert crevasse depth back into damage
+                   calving%damage(:,i,j) = calving%damage(:,i,j)/thck(i,j)
+
                    ! Constrain damage to the specified range of values
                    if (damage_floor == ZERO_DAMAGE_FLOOR) then
                       calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
                    elseif (damage_floor == NYE_DAMAGE_FLOOR) then
                       ! Compute the Nye zero stress value
-                      damage_nye = (2.0d0+alpha)*calving%tau_eigen1(i,j)/(grav*(rhoo-rhoi)*thck_eff(i,j))
+                      damage_nye = (2.0d0+alpha)*tau1(i,j)/(grav*(rhoo-rhoi))
                       calving%damage(:,i,j) = max(calving%damage(:,i,j), damage_nye)
                    endif
                    calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
-
                 endif   ! floating_mask
              enddo   ! i
+          enddo   ! j
 
-             do i = 2, nx-1
-                ! Make sure that damage is zero where there isn't ice and where
+          call parallel_halo(calving%damage)
+
+          do j = 3, ny-2
+             do i = 3, nx-2
+                ! Make sure that damage is zero where there isn't active ice and where
                 ! the ice is grounded
                 if (thck(i,j) <= thklim) then
                    calving%damage(:,i,j) = 0.0d0
@@ -755,37 +803,50 @@ contains
                    calving%damage(:,i,j) = 0.0d0
                 endif
 
-                ! When the Nye damage floor is not enforced, we need to sweep
-                ! across i a second time to get the damage along grounding lines
-                ! right. This is important because damage advected into the
-                ! domain is set to match the damage of what's already there,
+                ! Linearly extrapolate damage upstream to the grounding line
+                ! This is important because damage advected into the domain is
+                ! set to match the damage of what's already there,
                 ! which for ice tongues happens to be the zero damage along the
-                ! grounding line. We want new damage to be as damaged as
-                ! existing ice, so we need the grounding line to also be as
-                ! damaged as the ice further downstream.
-                if (damage_floor == ZERO_DAMAGE_FLOOR) then
-                   ! If i,j is the grounding line
-                   if (floating_mask(i,j) == 0 .and. grounding_line_mask(i,j) == 1) then
-                      ! If i+1,j is floating and ice exists there
-                      if (floating_mask(i+1,j) == 1 .and. thck(i+1,j) > thklim) then
-                         calving%damage(:,i,j) = calving%damage(:,i+1,j)
+                ! grounding line.
+                if (grounding_line_mask(i,j) == 1) then
+                   do k = 1, nz
+                      ! Store the velocity directions as matrix index modulations
+                      ! e.g. if uvel is positive, set ud = -1 because ice will flow
+                      ! from i-1 to i
+                      ud = find_velocity_sign(uvel_unstag(k,i,j))
+                      vd = find_velocity_sign(vvel_unstag(k,i,j))
+
+                      ! If the two points downstream along either horizontal axis
+                      ! are floating, then linearly extrapolate upstream to
+                      ! guess the grounding line damage
+                      ! We use - instead of + here for ud/vd because we've
+                      ! flipped the direction of extrapolation compared to what
+                      ! we did for uvel/vvel/efvs_eff
+                      if (floating_mask(i-ud,j) == 1 .and. floating_mask(i-2*ud,j) == 1) then
+                         xext = linear_extrapolation(calving%damage(k,i-ud,j), &
+                                                     calving%damage(k,i-2*ud,j))
+                      else
+                         xext = 0.0d0
                       endif
-                   endif
-                endif   ! damage_floor
+                      if (floating_mask(i,j-vd) == 1 .and. floating_mask(i,j-2*vd) == 1) then
+                         yext = linear_extrapolation(calving%damage(k,i,j-vd), &
+                                                     calving%damage(k,i,j-2*vd))
+                      else
+                         yext = 0.0d0
+                      endif
+
+                      calving%damage(k,i,j) = (uvel_unstag(k,i,j)*xext+vvel_unstag(k,i,j) &
+                                               *yext)/speed_unstag(k,i,j)
+                   enddo   ! k
+                endif   ! grounding_line_mask
              enddo   ! i
           enddo   ! j
 
+          call parallel_halo(calving%damage)
+
           ! Compute the vertically integrated damage in each column.
           allocate(damage_column(nx,ny))
-          damage_column(:,:) = 0.0d0
-
-          do j = 1, ny
-             do i = 1, nx
-                do k = 1, nz-1
-                   damage_column(i,j) = damage_column(i,j) + calving%damage(k,i,j) * (sigma(k+1) - sigma(k))
-                enddo
-             enddo
-          enddo
+          damage_column(:,:) = calving%damage(1,:,:)
 
           if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
              ! Convert damage in CF cells to a lateral calving rate (m/s).
@@ -1563,7 +1624,8 @@ contains
     if (allocated(hgl)) deallocate(hgl)
     if (allocated(adv_term)) deallocate(adv_term)
     if (allocated(uvel_unstag)) deallocate(uvel_unstag)
-    if (allocated(thck_eff)) deallocate(thck_eff)
+    if (allocated(vvel_unstag)) deallocate(vvel_unstag)
+    if (allocated(speed_unstag)) deallocate(speed_unstag)
     if (allocated(efvs_eff)) deallocate(efvs_eff)
 
   end subroutine glissade_calve_ice
@@ -2244,6 +2306,39 @@ contains
     endif   ! not fill color or boundary color
 
   end subroutine glissade_fill
+
+!-------------------------------------------------------------------------------
+
+  function find_velocity_sign(vel_unstag) result(d)
+     ! Find the direction of the velocity at a given point, and report it as a
+     ! matrix index integer modulation (negative for positive velocities,
+     ! positive for negative velocities)
+
+     real(dp), intent(in) :: vel_unstag   ! Velocity on unstaggered grid (m/s)
+     integer :: d   ! Output, sign of velocity as index modulation
+
+     if (vel_unstag > 0.0d0) then
+        d = -1
+     elseif (vel_unstag < 0.0d0) then
+        d = 1
+     endif
+  end function 
+
+!---------------------------------------------------------------------------
+
+  function linear_extrapolation(yup,yuptwo) result(ynew)
+     ! Extrapolate a quantity linearly in one dimension
+
+     real(dp), intent(in) :: &
+        yup,    & ! Function evaluated at xup
+        yuptwo    ! Function evaluated at xuptwo
+     real(dp) :: ynew   ! Output, extrapolated function value
+
+     ! We're doing everything on a regular grid, so the absolute magnitudes of
+     ! the positions don't matter (only the relative magnitudes)
+     ynew = yuptwo + 2.0d0*(yup-yuptwo)
+
+  end function
 
 !---------------------------------------------------------------------------
 

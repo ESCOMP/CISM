@@ -1867,13 +1867,7 @@ contains
           call write_log(message)
        endif
 
-       if (model%options%whichcalving == CALVING_DAMAGE .and. model%options%damage_manufactured) then
-          model%options%which_ho_calving_front = HO_CALVING_FRONT_NO_SUBGRID
-          write(message,*) 'Setting which_ho_calving_front =', HO_CALVING_FRONT_NO_SUBGRID
-          call write_log(message)
-          write(message,*) 'Manufactured damage calving option does not support subgrid calving front scheme'
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_DAMAGE) then
+       if (model%options%whichcalving == CALVING_DAMAGE) then
           write(message,*) 'Subgrid calving front scheme chosen: damage will be converted into a lateral calving rate'
           call write_log(message)
        endif

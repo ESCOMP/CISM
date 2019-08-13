@@ -2039,7 +2039,7 @@ contains
 
     logical :: cull_calving_front   ! true iff init_calving = T and options%cull_calving_front = T
 
-    integer :: i, j
+    integer :: i, j, k
 
     !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
@@ -2055,7 +2055,14 @@ contains
     !       Pass in thck, topg, etc. with units of meters.
     ! ------------------------------------------------------------------------ 
 
-    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
+    ! Convert damage to crevasse depth
+    if (model%options%whichcalving == CALVING_DAMAGE) then
+       do k = 1, size(model%numerics%stagsigma)
+          model%calving%damage(k,:,:) = model%calving%damage(k,:,:)*model%geometry%thck_old(:,:)*thk0
+       enddo
+    endif
+
+    thck_unscaled(:,:) = model%geometry%thck_old(:,:)*thk0
 
     call glissade_calve_ice(model%options%whichcalving,           &
                             model%options%calving_domain,         &
@@ -2079,6 +2086,7 @@ contains
                             model%numerics%thklim*thk0,           &   ! m
                             model%stress%efvs*evs0,               &   ! Pa s
                             model%velocity%uvel*vel0,             &   ! m/s
+                            model%velocity%vvel*vel0,             &   ! m/s
                             model%climate%acab*thk0/tim0,         &   ! m/s
                             thck_unscaled,                        &   ! m
                             model%isostasy%relx*thk0,             &   ! m

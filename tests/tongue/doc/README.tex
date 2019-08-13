@@ -85,7 +85,7 @@ Given Eq.~\ref{eq:thickness}, the velocity $U\left(x\right)$ is computed directl
 
 \section{Damage}
 
-As stated above, this test case is specifically designed to verify damage $r$ as computed by Eq.~27 in \citet{Bassis-Ma}:
+As stated above, this test case is specifically designed to verify damage $r$ as governed by Eq.~27 in \citet{Bassis-Ma}:
 \begin{equation}
    \frac{\mathrm{d}r}{\mathrm{d}t} = \left[n^* \left(1-S_0\right) \dot{\epsilon}_{xx} + \frac{\dot{m}}{H}\right] r
    \label{eq:bassis-ma-damage}
@@ -102,7 +102,19 @@ The parameter $\alpha = \dot{\epsilon}_{yy}/\dot{\epsilon}_{xx}$ is the ratio of
 \end{equation}
 where $\tau_{xx}$ is the largest principal deviatoric stress.
 
-Eq.~\ref{eq:bassis-ma-damage} takes in an initial damage field, evolving it in time and advecting it with the flow field. Depending on the value of the \texttt{damage\_floor} configuration option, the initial value $r_0$ is specified as either a uniform value (set as the \texttt{const\_damage} variable in the python script) or as the Nye's zero stress value, computed via \citep{Jezek,Nick-et-al,Nye}
+CISM solves Eq.~\ref{eq:bassis-ma-damage} by separating the equation into an advective component and an advection-less component. The former is handled by CISM's built-in incremental remapping scheme, which assumes an equation of the form
+\begin{equation}
+   \frac{\delta \left( hr \right)}{\delta t} + \nabla\cdot\left( hr\mathbf{U} \right) = 0
+   \label{eq:advection}
+\end{equation}
+
+In order to make use of this scheme, we need to reformulate the damage evolution equation in terms of the crevasse depth $\tilde{r} \equiv rH$:
+\begin{equation}
+   \frac{\mathrm{d}\tilde{r}}{\mathrm{d}t} = n^* \left(1-S_0\right) \dot{\epsilon}_{xx} \tilde{r}
+   \label{eq:bassis-ma-crevasse-depth}
+\end{equation}
+
+Eq.~\ref{eq:bassis-ma-crevasse-depth} takes in an initial damage field, evolving it in time and advecting it with the flow field. Depending on the value of the \texttt{damage\_floor} configuration option, the initial value $r_0$ is specified as either a uniform value (set as the \texttt{const\_damage} variable in the python script) or as the Nye's zero stress value, computed via \citep{Jezek,Nick-et-al,Nye}
 \begin{equation}
    r_0 = \frac{\rho_i}{\rho_w-\rho_i} \left[\frac{\left(2+\alpha\right) \tau_{xx}}{\rho_i gH}\right].
    \label{eq:nye-damage}
@@ -110,17 +122,17 @@ Eq.~\ref{eq:bassis-ma-damage} takes in an initial damage field, evolving it in t
 
 Verification of the damage solution can be performed by toggling the \texttt{damage\_} \texttt{manufactured} configuration option. When activated, this option adjusts Eq.~\ref{eq:bassis-ma-damage} by adding a forcing term $f$:
 \begin{equation}
-   \frac{\mathrm{d}r}{\mathrm{d}t} = \left[n^* \left(1-S_0\right) \dot{\epsilon}_{xx} + \frac{\dot{m}}{H}\right] r + f
+   \frac{\mathrm{d}\tilde{r}}{\mathrm{d}t} = n^* \left(1-S_0\right) \dot{\epsilon}_{xx} \tilde{r} + f
    \label{eq:bassis-ma-damage-forced}
 \end{equation}
 This forcing term is defined as
 \begin{equation}
-   f = -\frac{r_0}{2} \left\{\frac{U}{H_0} \left(1+\dot{\epsilon}_{xx}t\right) e^{-Ut/H_0} + \left[n^*\left(1-S_0\right)\dot{\epsilon}_{xx}+\frac{\dot{m}}{H}\right] \left(1+e^{-Ut/H_0}\right)\right\},
+   f = -\frac{\tilde{r}_0}{2} \left\{\frac{U}{H_0} \left(1+\dot{\epsilon}_{xx}t\right) e^{-Ut/H_0} + \dot{\epsilon}_{xx} \left[ n^*\left(1-S_0\right)-1 \right] \left(1+e^{-Ut/H_0}\right)\right\},
    \label{eq:damage-forcing}
 \end{equation}
 such that Eq.~\ref{eq:bassis-ma-damage-forced} produces a damage field given by
 \begin{equation}
-   r = \frac{r_0}{2} \left(1+e^{-Ut/H_0}\right).
+   \tilde{r} = \frac{\tilde{r}_0}{2} \left(1+e^{-Ut/H_0}\right).
    \label{eq:manufactured-damage}
 \end{equation}
 
