@@ -621,44 +621,46 @@ contains
           ! Note: The damage is formally a 3D field, which makes it easier to advect, even though
           !       (in the current scheme) the damage source term is uniform in each column.
 
+          ! Allocate relevant data matrices
+          allocate(uvel_unstag(nz,nx,ny))
+          allocate(vvel_unstag(nz,nx,ny))
+          allocate(speed_unstag(nz,nx,ny))
+
           ! Set initial dummy values
+          uvel_unstag(:,:,:) = 0.0d0
+          vvel_unstag(:,:,:) = 0.0d0
+          speed_unstag(:,:,:) = 0.0d0
           d_damage_dt(:,:,:) = 0.0d0
 
-          ! Allocate relevant data matrices
+          ! Construct unstaggered velocity matrices
+          do j = 3, ny-2
+             do i = 3, nx-2
+                ! Linearly interpolate velocities to the unstaggered grid
+                uvel_unstag(:,i,j) = 0.25d0*abs(uvel(:,i,j)+uvel(:,i-1,j)+uvel(:,i,j-1) &
+                                                +uvel(:,i-1,j-1))
+                vvel_unstag(:,i,j) = 0.25d0*abs(vvel(:,i,j)+vvel(:,i-1,j)+vvel(:,i,j-1) &
+                                                +vvel(:,i-1,j-1))
+
+                ! Compute the magnitude of the horizontal velocity vectors
+                speed_unstag(:,i,j) = SQRT(uvel_unstag(:,i,j)**2+vvel_unstag(:,i,j)**2)
+             enddo   ! i
+          enddo   ! j
+
+          call parallel_halo(uvel_unstag)
+          call parallel_halo(vvel_unstag)
+
           if (damage_src == BASSIS_MA_DAMAGE_SRC) then
-             allocate(uvel_unstag(nz,nx,ny))
-             allocate(vvel_unstag(nz,nx,ny))
-             allocate(speed_unstag(nz,nx,ny))
+             ! Allocate relevant data matrices
              allocate(efvs_eff(nz-1,nx,ny))
              allocate(eps_max(nz,nx,ny))
              allocate(source(nz,nx,ny))
              allocate(force(nz,nx,ny))
 
              ! Set initial dummy values
-             uvel_unstag(:,:,:) = 0.0d0
-             vvel_unstag(:,:,:) = 0.0d0
-             speed_unstag(:,:,:) = 0.0d0
              efvs_eff(:,:,:) = efvs(:,:,:)
              eps_max(:,:,:) = 0.0d0
              source(:,:,:) = 0.0d0
              force(:,:,:) = 0.0d0
-
-             ! Construct unstaggered velocity matrices
-             do j = 3, ny-2
-                do i = 3, nx-2
-                   ! Linearly interpolate velocities to the unstaggered grid
-                   uvel_unstag(:,i,j) = 0.25d0*abs(uvel(:,i,j)+uvel(:,i-1,j)+uvel(:,i,j-1) &
-                                                   +uvel(:,i-1,j-1))
-                   vvel_unstag(:,i,j) = 0.25d0*abs(vvel(:,i,j)+vvel(:,i-1,j)+vvel(:,i,j-1) &
-                                                   +vvel(:,i-1,j-1))
-
-                   ! Compute the magnitude of the horizontal velocity vectors
-                   speed_unstag(:,i,j) = SQRT(uvel_unstag(:,i,j)**2+vvel_unstag(:,i,j)**2)
-                enddo   ! i
-             enddo   ! j
-
-             call parallel_halo(uvel_unstag)
-             call parallel_halo(vvel_unstag)
 
              ! We need to restart the loops here to have the matrices fully computed for extrapolation
              ! We want to only sweep over points that exist (so we need a buffer of at
