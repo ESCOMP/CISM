@@ -299,6 +299,7 @@ module glide_types
   integer, parameter :: HO_PRECOND_NONE = 0
   integer, parameter :: HO_PRECOND_DIAG = 1
   integer, parameter :: HO_PRECOND_SIA  = 2
+  integer, parameter :: HO_PRECOND_TRIDIAG  = 3
 
   integer, parameter :: HO_GRADIENT_CENTERED = 0
   integer, parameter :: HO_GRADIENT_UPSTREAM1 = 1
@@ -838,6 +839,7 @@ module glide_types
     !> \item[0] No preconditioner
     !> \item[1] Diagonal preconditioner
     !> \item[2] Physics-based shallow-ice preconditioner
+    !> \item[3] Tridiagonal preconditioner
     !> \end{description}
 
     integer :: which_ho_gradient = 0    

@@ -692,11 +692,13 @@
 
     ! Set up matrices for preconditioning
 
+    !TODO - Add tridiagonal option
+
     call t_startf("pcg_precond_init")
-    call setup_preconditioner_2d(nx,         ny,       &
-                                 precond,    indxA,    &
-                                 Auu,        Avv,      &
-                                 Adiagu,     Adiagv)
+    call setup_preconditioner_diag_2d(nx,         ny,       &
+                                      indxA,                &
+                                      Auu,        Avv,      &
+                                      Adiagu,     Adiagv)
     call t_stopf("pcg_precond_init")
 
     ! Compute initial residual and initialize the direction vector d
@@ -1638,11 +1640,12 @@
     !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential 
     !  nonzero elements per node (i,j).
     !
-    !  The current preconditioning options are
+    !  The current preconditioning options for the 2D solver are
     !  (0) no preconditioning
     !  (1) diagonal preconditioning
+    !  (3) tridiagonal preconditioning  !TODO - Add tridiagonal option for standard 2D solver
     !
-    !  The SIA-based preconditioning optional is not available for a 2D solve.
+    !  The SIA-based preconditioning option is not available for a 2D solve.
     !
     !---------------------------------------------------------------
 
@@ -1712,9 +1715,20 @@
     real(dp), dimension(2) ::   &
        gsum                ! result of global sum for dot products
    
+    ! diagonal matrix elements
+    real(dp), dimension(nx-1,ny-1) ::  &
+       Adiagu, Adiagv      ! diagonal terms of matrices Auu and Avv
+
+    ! tridiagonal matrix elements
+    real(dp), dimension(staggered_ihi-staggered_ilo+1,staggered_jhi-staggered_jlo+1) ::   &
+         Ausubdiag, Audiag, Ausupdiag    ! matrix entries from Auu for tridiagonal preconditioning
+
+    real(dp), dimension(staggered_jhi-staggered_jlo+1,staggered_ihi-staggered_ilo+1) ::   &
+         Avsubdiag, Avdiag, Avsupdiag    ! matrix entries from Avv for tridiagonal preconditioning
+                                         ! Note: 1st index is j, 2nd index is i
+
     ! vectors (each of these is split into u and v components)
     real(dp), dimension(nx-1,ny-1) ::  &
-       Adiagu, Adiagv,    &! diagonal terms of matrices Auu and Avv
        ru, rv,            &! residual vector (b-Ax)
        du, dv,            &! conjugate direction vector
        zu, zv,            &! solution of Mz = r
@@ -1732,7 +1746,10 @@
        L2_rhs              ! L2 norm of rhs vector = sqrt(b,b)
                            ! solver is converged when L2_resid/L2_rhs < tolerance
 
+    integer :: ilocal, jlocal   ! number of locally owned vertices in each direction
+
     integer :: itest, jtest, rtest
+    integer :: ii, jj
 
     if (present(itest_in)) then
        itest = itest_in
@@ -1763,18 +1780,70 @@
        print*, 'tolerance, maxiters, precond =', tolerance, maxiters, precond
     endif
 
+    !WHL - debug
+    if (verbose_pcg) then
+
+    endif
+
+    ! Compute array sizes for locally owned vertices
+    ilocal = staggered_ihi - staggered_ilo + 1
+    jlocal = staggered_jhi - staggered_jlo + 1
+
     !---- Set up matrices for preconditioning
 
     call t_startf("pcg_precond_init")
-    call setup_preconditioner_2d(nx,         ny,       &
-                                 precond,    indxA,    &
-                                 Auu,        Avv,      &
-                                 Adiagu,     Adiagv)
+
+    if (precond == HO_PRECOND_DIAG) then
+
+       call setup_preconditioner_diag_2d(nx,       ny,         &
+                                         indxA,                &
+                                         Auu,      Avv,        &
+                                         Adiagu,   Adiagv)
+
+       !WHL - debug
+       print*, ' '
+       if (verbose_pcg .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, 'i, j, r =', i, j, this_rank
+          print*, 'Au diag =', Adiagu(i,j)
+          print*, 'Av diag =', Adiagv(i,j)
+       endif
+
+    elseif (precond == HO_PRECOND_TRIDIAG) then
+
+       call setup_preconditioner_tridiag_2d(nx,        ny,           &
+                                            indxA,                   &
+                                            Auu,       Avv,          &
+                                            Audiag,    Avdiag,       &
+                                            Ausubdiag, Avsubdiag,    &
+                                            Ausupdiag, Avsupdiag)
+
+       !WHL - debug
+       print*, ' '
+       if (verbose_pcg .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          ii = itest - staggered_ilo + 1
+          jj = jtest - staggered_jlo + 1
+          print*, 'i, j, r =', i, j, this_rank
+          print*, 'Au subdiag, diag, supdiag =', Ausubdiag(ii,jj), Audiag(ii,jj), Ausupdiag(ii,jj)
+          print*, 'Av subdiag, diag, supdiag =', Avsubdiag(jj,ii), Avdiag(jj,ii), Avsupdiag(jj,ii)
+       endif
+
+    else    ! no preconditioner
+
+       if (verbose_pcg .and. main_task) then
+          print*, 'Using no preconditioner'
+       endif
+
+    endif   ! precond
+
     call t_stopf("pcg_precond_init")
 
     !---- Initialize scalars and vectors
 
-    niters = maxiters 
+    niters = maxiters
     ru(:,:) = 0.d0
     rv(:,:) = 0.d0
     du(:,:) = 0.d0
@@ -1866,6 +1935,7 @@
 
     elseif (precond == 1 ) then  ! diagonal preconditioning
 
+       ! Solve Mz = r, which M is a diagonal matrix
        do j = 1, ny-1
        do i = 1, nx-1
           if (Adiagu(i,j) /= 0.d0) then
@@ -1881,7 +1951,58 @@
        enddo    ! i
        enddo    ! j
 
+       !WHL - debug
+       if (verbose_pcg .and. this_rank == rtest) then
+          i = itest
+!          print*, ' '
+!          print*, 'zv solve with diagonal precond, this_rank, i =', this_rank, i
+!          print*, 'j, active, Adiagv, rv, zv, xv:'
+          do j = staggered_jhi, staggered_jlo, -1
+!             write(6,'(i4, l4, 2f12.3, e12.3, f12.3)') j, active_vertex(i,j), Adiagv(i,j), rv(i,j), zv(i,j), xv(i,j)
+          enddo
+       endif
+
+    elseif (precond == 3 ) then  ! tridiagonal preconditioning
+
+       if (tasks == 1) then
+
+          ! Solve M*z = r, where M is a tridiagonal matrix
+          call tridiag_solver_2d(nx,           ny,         &
+                                 itest, jtest, rtest,      &
+                                 ilocal,       jlocal,     &
+                                 Audiag,       Avdiag,     &  ! entries of preconditioning matrix
+                                 Ausubdiag,    Avsubdiag,  &
+                                 Ausupdiag,    Avsupdiag,  &
+                                 ru,           rv,         &  ! right hand side
+                                 zu,           zv)            ! solution
+
+       else
+
+          call write_log('Parallel solver for tridiagonal preconditioning not yet implemented', GM_FATAL)
+          ! TODO - Write a parallel tridiagonal solver
+
+       endif
+
     endif    ! precond
+
+    if (verbose_pcg .and. this_rank == rtest) then
+!        print*, ' '
+!        print*, 'zu solution:'
+        do j = jtest+3, jtest-3, -1
+           do i = itest-3, itest+3
+!              write(6,'(e12.5)',advance='no') zu(i,j)
+           enddo
+!           write(6,*) ' '
+        enddo
+!        print*, ' '
+!        print*, 'zv solution:'
+        do j = jtest+3, jtest-3, -1
+           do i = itest-3, itest+3
+!              write(6,'(e12.5)',advance='no') zv(i,j)
+           enddo
+!           write(6,*) ' '
+        enddo
+     endif
 
     call t_stopf("pcg_precond_iter")
 
@@ -1986,6 +2107,27 @@
              endif
           enddo    ! i
           enddo    ! j
+
+       elseif (precond == 3) then   ! tridiagonal preconditioning
+
+          if (tasks == 1) then
+
+             ! Solve M*z = r, where M is a tridiagonal matrix
+             call tridiag_solver_2d(nx,           ny,         &
+                                    itest, jtest, rtest,      &
+                                    ilocal,       jlocal,     &
+                                    Audiag,       Avdiag,     &  ! entries of preconditioning matrix
+                                    Ausubdiag,    Avsubdiag,  &
+                                    Ausupdiag,    Avsupdiag,  &
+                                    ru,           rv,         &  ! right hand side
+                                    zu,           zv)            ! solution
+
+          else
+
+             call write_log('Parallel solver for tridiagonal preconditioning not yet implemented', GM_FATAL)
+             ! TODO - Write a parallel tridiagonal solver
+
+          endif
 
        endif    ! precond
 
@@ -2186,6 +2328,8 @@
     real(dp), dimension(nz,nx-1,ny-1), intent(out) ::   &
        Adiagu, Adiagv         ! matrices for diagonal preconditioning 
 
+    !TODO - Add tridiagonal option?
+
     real(dp), dimension(-1:1,nz,nx-1,ny-1), intent(out) ::   &
        Muu, Mvv               ! preconditioning matrices based on shallow-ice approximation
 
@@ -2266,67 +2410,300 @@
 
 !****************************************************************************
 
-  subroutine setup_preconditioner_2d(nx,         ny,         &
-                                     precond,    indxA_2d,   &
-                                     Auu,        Avv,      &
-                                     Adiagu,     Adiagv)
+  subroutine setup_preconditioner_diag_2d(nx,         ny,      &
+                                          indxA_2d,            &
+                                          Auu,        Avv,     &
+                                          Adiagu,     Adiagv)    ! entries of diagonal preconditioner
 
-    ! Set up preconditioning matrices for 2D SSA-type solve
+    ! Set up diagonal preconditioning matrices for 2D SSA-type solve
 
     !---------------------------------------------------------------
     ! input-output arguments
     !---------------------------------------------------------------
 
     integer, intent(in) :: &
-       nx, ny                 ! horizontal grid dimensions (for scalars)
-                              ! velocity grid has dimensions (nx-1,ny-1)
-
-    integer, intent(in)  ::   &
-       precond                ! = 0 for no preconditioning
-                              ! = 1 for diagonal preconditioning
+         nx, ny                 ! horizontal grid dimensions (for scalars)
+                                ! velocity grid has dimensions (nx-1,ny-1)
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
-       indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
+         indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
 
     real(dp), dimension(9,nx-1,ny-1), intent(in) ::   &
-       Auu, Avv               ! two out of the four components of assembled matrix
-                              ! 1st dimension = 27 (node and its nearest neighbors in x, y and z direction)
-                              ! other dimensions = (z,x,y) indices
-                              !
-                              !    Auu  | Auv
-                              !    _____|____
-                              !    Avu  | Avv
-                              !         |
+         Auu, Avv               ! two out of the four components of assembled matrix
+                                ! 1st dimension = 9 (node and its nearest neighbors in x and y direction)
+                                ! other dimensions = (z,x,y) indices
+                                !
+                                !    Auu  | Auv
+                                !    _____|____
+                                !    Avu  | Avv
+                                !         |
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::   &
-       Adiagu, Adiagv         ! matrices for diagonal preconditioning 
+         Adiagu, Adiagv         ! matrix entries for diagonal preconditioning
 
-    integer :: m
+    integer :: i, j, m
 
-    ! Initialize
+    ! Form diagonal matrix for preconditioning
 
-    Adiagu(:,:) = 0.d0
-    Adiagv(:,:) = 0.d0
+    if (verbose_pcg .and. main_task) then
+       print*, 'Using diagonal matrix for preconditioning'
+    endif  ! verbose_pcg
 
-    if (precond == HO_PRECOND_DIAG) then    ! form diagonal matrix for preconditioning
+    m = indxA_2d(0,0)
+    Adiagu(:,:) = Auu(m,:,:)
+    Adiagv(:,:) = Avv(m,:,:)
 
-       if (verbose_pcg .and. main_task) then
-          print*, 'Using diagonal matrix for preconditioning'
-       endif  ! verbose_pcg
+  end subroutine setup_preconditioner_diag_2d
 
-       m = indxA_2d(0,0)
-       Adiagu(:,:) = Auu(m,:,:)
-       Adiagv(:,:) = Avv(m,:,:)
+!****************************************************************************
 
-    else       ! no preconditioning
+  subroutine setup_preconditioner_tridiag_2d(nx,         ny,         &
+                                             indxA_2d,               &
+                                             Auu,        Avv,        &
+                                             Audiag,     Avdiag,     &  ! entries of tridiagonal preconditioner
+                                             Ausubdiag,  Avsubdiag,  &
+                                             Ausupdiag,  Avsupdiag)
 
-       if (verbose_pcg .and. main_task) then
-          print*, 'Using no preconditioner'
+    ! Set up tridiagonal preconditioning matrices for 2D SSA-type solve
+
+    !---------------------------------------------------------------
+    ! input-output arguments
+    !---------------------------------------------------------------
+
+    integer, intent(in) :: &
+         nx, ny                 ! horizontal grid dimensions (for scalars)
+                                ! velocity grid has dimensions (nx-1,ny-1)
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+         indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
+
+    real(dp), dimension(9,nx-1,ny-1), intent(in) ::   &
+         Auu, Avv               ! two out of the four components of assembled matrix
+                                ! 1st dimension = 9 (node and its nearest neighbors in x and y direction)
+                                ! other dimensions = (z,x,y) indices
+                                !
+                                !    Auu  | Auv
+                                !    _____|____
+                                !    Avu  | Avv
+                                !         |
+
+    real(dp), dimension(staggered_ihi-staggered_ilo+1,staggered_jhi-staggered_jlo+1), intent(out) :: &
+         Ausubdiag, Audiag, Ausupdiag    ! matrix entries from Auu for tridiagonal preconditioning
+
+    real(dp), dimension(staggered_jhi-staggered_jlo+1,staggered_ihi-staggered_ilo+1), intent(out) :: &
+         Avsubdiag, Avdiag, Avsupdiag    ! matrix entries from Avv for tridiagonal preconditioning
+                                         ! Note: 1st index is (ny-1), 2nd index is (nx -1)
+
+    integer :: i, j, ii, jj, m
+
+    ! Form tridiagonal matrix for preconditioning
+
+    if (verbose_pcg .and. main_task) then
+       print*, 'Using tridiagonal matrix for preconditioning'
+    endif  ! verbose_pcg
+
+    ! Extract tridiagonal elements of Auu, and put in matrix with dimensions (ilocal,jlocal)
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
+          ii = i - staggered_ilo + 1
+          jj = j - staggered_jlo + 1
+          Ausubdiag(ii,jj) = Auu(indxA_2d(-1,0),i,j)   ! subdiagonal elements
+          Audiag   (ii,jj) = Auu(indxA_2d( 0,0),i,j)   ! diagonal elements
+          Ausupdiag(ii,jj) = Auu(indxA_2d( 1,0),i,j)   ! superdiagonal elements
+       enddo
+    enddo
+
+    ! Extract tridiagonal elements of Avv, and put in matrix with dimensions (ilocal,jlocal)
+    ! Note: Swap the usual index order, putting the j index before the i index.
+    !       This reduces stride length when solving a problem over a column with i fixed and j varying.
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
+          ii = i - staggered_ilo + 1
+          jj = j - staggered_jlo + 1
+          Avsubdiag(jj,ii) = Avv(indxA_2d(0,-1),i,j)   ! subdiagonal elements
+          Avdiag   (jj,ii) = Avv(indxA_2d(0, 0),i,j)   ! diagonal elements
+          Avsupdiag(jj,ii) = Avv(indxA_2d(0, 1),i,j)   ! superdiagonal elements
+       enddo
+    enddo
+
+    ! Modify entries as needed so that the tridiagonal matrix is nonsingular.
+    ! For inactive vertices with zero diagonal entries, set diag = 1, subdiag = supdiag = 0, y = 0
+    ! (so the solution, trivially, is x = 0).
+
+    where (Audiag == 0.0d0)
+       Audiag    = 1.0d0
+       Ausubdiag = 0.0d0
+       Ausupdiag = 0.0d0
+    endwhere
+
+    where (Avdiag == 0.0d0)
+       Avdiag    = 1.0d0
+       Avsubdiag = 0.0d0
+       Avsupdiag = 0.0d0
+    endwhere
+
+  end subroutine setup_preconditioner_tridiag_2d
+
+!****************************************************************************
+
+  subroutine tridiag_solver_2d(nx,           ny,         &
+                               itest, jtest, rtest,      &
+                               ilocal,       jlocal,     &
+                               Audiag,       Avdiag,     &
+                               Ausubdiag,    Avsubdiag,  &
+                               Ausupdiag,    Avsupdiag,  &
+                               bu,           bv,         &
+                               xu,           xv)
+
+    use glimmer_utils, only: tridiag
+
+    integer, intent(in) :: &
+         nx, ny              ! horizontal grid dimensions (for scalars)
+
+    integer, intent(in) :: itest, jtest, rtest   ! diagnostic only
+
+    integer, intent(in) :: &
+         ilocal, jlocal      ! size of vectors passed to subroutine tridiag
+
+    real(dp), dimension(ilocal,jlocal), intent(in), optional :: &
+         Ausubdiag, Audiag, Ausupdiag    ! matrix entries from Auu for tridiagonal preconditioning
+
+    real(dp), dimension(jlocal,ilocal), intent(in), optional :: &
+         Avsubdiag, Avdiag, Avsupdiag    ! matrix entries from Avv for tridiagonal preconditioning
+                                         ! Note: 1st index is (ny-1), 2nd index is (nx-1)
+
+    real(dp), intent(in), dimension(nx-1,ny-1) :: &
+         bu, bv                 ! right-hand side vectors
+
+    real(dp), intent(out), dimension(nx-1,ny-1) :: &
+         xu, xv                 ! solution vectors
+
+    ! local variables
+
+!    real(dp), dimension(ilocal) :: &
+!         yu                             ! rhs for Au tridiagonal solve
+                                         ! ilocal = staggered_ihi - staggered_ilo + 1
+!    real(dp), dimension(jlocal) :: &
+!         yv                             ! rhs for Av tridiagonal solve
+                                         ! jlocal = staggered_jhi - staggered_jlo + 1
+
+    integer :: i, j, ii, jj
+
+    logical, parameter :: verbose_tridiag = .false.
+
+    !-------------------------------------------------------------------------------------
+    ! Solve a tridiagonal system of the form A*x = b.
+    ! The solution x is split into u and v components:
+    !
+    !   |Au   0 | |xu|   |bu|
+    !   |       | |  | = |  |
+    !   | 0   Av| |xv|   |bv|
+    !
+    !   In the u matrix, the subdiag entry for vertex(i,j) refers to vertex(i-1,j),
+    !    and the superdiag entry refers to vertex(i+1,j).
+    !   There is no connection between the last vertex on row (:,j-1) and the first vertex on row (:,j),
+    !    or between the last vertex on row (:,j) and the first vertex on row (:,j+1).
+    !
+    !   Similarly, in the v matrix, the subdiag entry for vertex(i,j) refers to vertex(i,j-1),
+    !    and the superdiag entry refers to vertex(i,j+1).
+    !   There is no connection between the last vertex on row (i-1,:) and the first vertex on row (i,:),
+    !    or between the last vertex on row (i,:) and the first vertex on row (i+1,:).
+    !
+    !   So we can solve a distinct tridiagonal problem Au(:,j)*xu(:,j) = bu(:,j) for each row j,
+    !    and a distinct problem Av(i,:)*xv(i,:) = bv(i,:) for each column i.
+    !-------------------------------------------------------------------------------------
+
+    !WHL - debug
+    if (verbose_tridiag .and. main_task) then
+       print*, 'In tridiag_solver_2d_serial: itest, jtest, rtest =', itest, jtest, rtest
+    endif
+
+    !-------------------------------------------------------------------------------------
+    ! Solve a tridiagonal problem Au*xu = bu for each row j, from the bottom to the top of the global domain.
+    !-------------------------------------------------------------------------------------
+
+    ! Initialize the solution vector
+    xu(:,:) = 0.0d0
+
+    ! Loop over locally owned rows
+    do j = staggered_jlo, staggered_jhi
+
+       jj = j - staggered_jlo + 1   ! jj = 1 corresponds to j = staggered_jlo
+
+       !Note: Code commented out since it seems OK not to set yv = 0 anywhere.
+       ! Initialize the rhs vector to be passed to subroutine tridiag.
+!!       yu(:) = bu(staggered_ilo:staggered_ihi, j)
+
+       ! Modify entries as needed so that the tridiagonal matrix is nonsingular.
+       ! The matrix entries were set above, so it only remains to set yu = 0 here.
+!!       where (Audiag(:,jj) == 1.0d0) yu = 0.0d0
+
+       ! Solve for x in row j
+       ! Note: Could speed up by inlining the tridiag calculation and precomputing the 'aa' array.
+       !       But probably not worth the effort for a serial problem.
+       call tridiag(Ausubdiag(:,jj), Audiag(:,jj), Ausupdiag(:,jj), &
+                    xu(staggered_ilo:staggered_ihi,j), &
+                    bu(staggered_ilo:staggered_ihi,j))
+
+    enddo  ! j
+
+    !-------------------------------------------------------------------------------------
+    ! Solve a tridiagonal problem Av*xv = bv for each column i, from the left to the right of the global domain
+    !-------------------------------------------------------------------------------------
+
+    ! Initialize the solution vector
+    xv(:,:) = 0.0d0
+
+    ! Loop over locally owned columns
+    do i = staggered_ilo, staggered_ihi
+
+       ii = i - staggered_ilo + 1   ! ii = 1 corresponds to i = staggered_ilo
+
+       !Note: Code commented out since it seems OK not to set yv = 0 anywhere.
+       ! Initialize the rhs vector to be passed to subroutine tridiag.
+!!       yv(:) = bv(i, staggered_jlo:staggered_jhi)
+
+       ! Modify entries as needed so that the tridiagonal matrix is nonsingular.
+       ! The matrix entries were set above, so it only remains to set yv = 0 here.
+!!       where (Avdiag(:,ii) == 1.0d0) yv = 0.0d0
+
+       ! Solve for x in column i
+       call tridiag(Avsubdiag(:,ii), Avdiag(:,ii), Avsupdiag(:,ii), &
+                    xv(i,staggered_jlo:staggered_jhi), &
+                    bv(i,staggered_jlo:staggered_jhi))
+
+       !WHL - debug
+       if (verbose_tridiag .and. this_rank == rtest .and. i+staggered_ilo-1 == itest) then
+          print*, ' '
+          print*, 'staggered_jlo, staggered_jhi =', staggered_jlo, staggered_jhi
+          print*, 'xv tridiag solve, this_rank, i =', this_rank, i+staggered_ilo-1
+          print*, 'j, active, sbdiag, diag, spdiag, b, x:'
+          do j = staggered_jhi, staggered_jlo, -1
+             jj = j - staggered_jlo + 1
+             write(6,'(i4, l4, 5f12.3)') &
+                  j, Avsubdiag(jj,i), Avdiag(jj,i), Avsupdiag(jj,i), bv(i,j), xv(i,j)
+          enddo
        endif
 
-    endif      ! precond
+    enddo  ! i
 
-  end subroutine setup_preconditioner_2d
+    ! Diagnostics
+    if (verbose_tridiag .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       ii = itest - staggered_ilo + 1
+       jj = jtest - staggered_jlo + 1
+       print*, ' '
+       print*, 'Done in tridiag_solver_2d_serial, i, j, r =', i, j, this_rank
+       print*, 'Au(1:3):', Ausubdiag(ii,jj), Audiag(ii,jj), Ausupdiag(ii,jj)
+       print*, 'bu:', bu(i,j)
+       print*, 'xu:', xu(i,j)
+       print*, 'Av(1:3):', Avsubdiag(jj,ii), Avdiag(jj,ii), Avsupdiag(jj,ii)
+       print*, 'bv:', bv(i,j)
+       print*, 'xv:', xv(i,j)
+    endif
+
+  end subroutine tridiag_solver_2d
 
 !****************************************************************************
 

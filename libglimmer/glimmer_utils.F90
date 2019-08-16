@@ -283,32 +283,45 @@ contains
   subroutine tridiag(a,b,c,x,y)
 
 
-    real(dp),dimension(:) :: a !< Lower diagonal; a(1) is ignored.
-    real(dp),dimension(:) :: b !< Centre diagonal
-    real(dp),dimension(:) :: c !< Upper diagonal; c(n) is ignored.
-    real(dp),dimension(:) :: x !< Unknown vector
-    real(dp),dimension(:) :: y !< Right-hand side
+    real(dp), dimension(:), intent(in)  :: a !< Lower diagonal; a(1) is ignored.
+    real(dp), dimension(:), intent(in)  :: b !< Center diagonal
+    real(dp), dimension(:), intent(in)  :: c !< Upper diagonal; c(n) is ignored.
+    real(dp), dimension(:), intent(out) :: x !< Unknown vector
+    real(dp), dimension(:), intent(in)  :: y !< Right-hand side
 
-    real(dp),dimension(size(a)) :: aa
-    real(dp),dimension(size(a)) :: bb
+    real(dp), dimension(size(a)) :: aa
+    real(dp), dimension(size(a)) :: bb
 
     integer :: n,i
 
-    n=size(a)
+    n = size(a)
+
+    !WHL - debug
+!    print*, 'In tridiag solver, n =', n
 
     aa(1) = c(1)/b(1)
     bb(1) = y(1)/b(1)
 
-    do i=2,n
-       aa(i) = c(i)/(b(i)-a(i)*aa(i-1))
-       bb(i) = (y(i)-a(i)*bb(i-1))/(b(i)-a(i)*aa(i-1))
+    do i = 2,n
+       aa(i) = c(i) / (b(i)-a(i)*aa(i-1))
+       bb(i) = (y(i)-a(i)*bb(i-1)) / (b(i)-a(i)*aa(i-1))
     end do
-    
+
+!    print*, 'After pass 1: aa, bb:'
+!    do i = 2, n
+!       print*, i, aa(i), bb(i)
+!    enddo
+
     x(n) = bb(n)
 
-    do i=n-1,1,-1
+    do i = n-1,1,-1
        x(i) = bb(i)-aa(i)*x(i+1)
     end do
+
+!    print*, 'After pass 2: x:'
+!    do i = 1, n
+!       print*, i, x(i)
+!    enddo
 
   end subroutine tridiag
 

@@ -1043,10 +1043,11 @@ contains
          'Depth-integrated L1L2 (glissade_velo_higher)     ', &
          'Depth-integrated viscosity (glissade_velo_higher)' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichprecond = (/ &
-         'No preconditioner (glissade PCG)        ', &
-         'Diagonal preconditioner (glissade PCG)  ', &
-         'SIA preconditioner (glissade PCG)       ' /)
+    character(len=*), dimension(0:3), parameter :: ho_whichprecond = (/ &
+         'No preconditioner (glissade PCG)          ', &
+         'Diagonal preconditioner (glissade PCG)    ', &
+         'SIA preconditioner (glissade PCG)         ', &
+         'Tridiagonal preconditioner (glissade PCG) ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichgradient = (/ &
          'centered gradient (glissade)             ', &
@@ -1186,6 +1187,7 @@ contains
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
           if (model%options%which_ho_precond == HO_PRECOND_SIA) then
+             !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
              model%options%which_ho_precond = HO_PRECOND_DIAG
              call write_log('Warning, cannot use SIA preconditioning for 2D solve')
              call write_log('Defaulting to diagonal preconditioner')

@@ -2589,6 +2589,9 @@
                 write(6,*) ' '
              enddo
 
+          !WHL - debug - Skip the next few fields for now
+             go to 500
+
              print*, ' '
              print*, 'ocean_mask, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
@@ -2653,7 +2656,7 @@
 
           !WHL - debug - Skip the next few fields for now
              go to 500
-
+!!
              print*, ' '
              print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
@@ -3250,6 +3253,8 @@
                                                       minval(Auu_2d(:,i,j)),   sum(Auu_2d(:,i,j))
                    write(6,'(a8, i4, 4f20.8)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), &
                                                       minval(Auv_2d(:,i,j)),   sum(Auv_2d(:,i,j))
+                   write(6,'(a8, i4, 4f20.8)') 'Avv_2d:', i, Avv_2d(m,i,j), maxval(Avv_2d(:,i,j)), &
+                                                      minval(Avv_2d(:,i,j)),   sum(Avv_2d(:,i,j))
                 enddo
 
                 i = itest
