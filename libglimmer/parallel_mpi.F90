@@ -85,9 +85,31 @@ module parallel
   integer, save :: staggered_lhalo = 2
   integer, save :: staggered_uhalo = 1
 
-  integer,save :: main_rank
-  logical,save :: main_task
-  integer,save :: comm, tasks, this_rank
+  ! integers associated with the main global communicator
+  ! (for communication among all tasks)
+  integer,save :: comm           ! integer ID for the main global communicator
+  integer,save :: tasks          ! total number of tasks
+  integer,save :: this_rank      ! integer ID for the local task
+  integer,save :: main_rank      ! integer ID for the master task
+  logical,save :: main_task      ! true if this_rank = main_rank
+
+  !WHL - added optional row-based and column-based communicators
+
+  ! integers associated with the row-based communicator
+  ! (for communication among tasks with the same value of nsrank)
+  integer,save :: comm_row       ! integer ID for the row-based communicator
+  integer,save :: tasks_row      ! total number of tasks on the local row
+  integer,save :: this_rank_row  ! integer ID for the local task in the row
+  integer,save :: main_rank_row  ! integer ID for the master task on the row
+  logical,save :: main_task_row  ! true if this_rank_row = main_rank_row
+
+  ! integers associated with the column-based communicator
+  ! (for communication among tasks with the same value of ewrank)
+  integer,save :: comm_col       ! integer ID for the column-based communicator
+  integer,save :: tasks_col      ! total number of tasks on the local column
+  integer,save :: this_rank_col  ! integer ID for the local task in the column
+  integer,save :: main_rank_col  ! integer ID for the master task on the column
+  logical,save :: main_task_col  ! true if this_rank_col = main_rank_col
 
   ! distributed grid
   integer,save :: global_ewn,global_nsn,local_ewn,local_nsn,own_ewn,own_nsn
@@ -96,6 +118,7 @@ module parallel
   integer,save :: ewlb,ewub,nslb,nsub
   integer,save :: east,north,south,west
   integer,save :: ewtasks,nstasks
+  integer,save :: ewrank,nsrank
 
   !WHL - added to handle gathers and scatters correctly when computing on active blocks only
   integer,save :: global_minval_ewlb, global_maxval_ewub
@@ -131,6 +154,8 @@ module parallel
   ! common work space
   integer,dimension(4),save :: d_gs_mybounds
   integer,dimension(:,:),allocatable,save :: d_gs_bounds
+  integer,dimension(4),save :: d_gs_mybounds_row, d_gs_mybounds_col
+  integer,dimension(:,:),allocatable,save :: d_gs_bounds_row, d_gs_bounds_col
 
   ! distributed gather flow control parameter
   integer,parameter :: max_gather_block_size = 64 ! max and default
@@ -201,6 +226,14 @@ module parallel
      module procedure distributed_gather_var_real8_3d
   end interface
 
+  interface distributed_gather_var_row
+     module procedure distributed_gather_var_row_real8_2d
+  end interface
+
+  interface distributed_gather_var_col
+     module procedure distributed_gather_var_col_real8_2d
+  end interface
+
   interface distributed_get_var
      module procedure distributed_get_var_integer_2d
      module procedure distributed_get_var_real4_1d
@@ -238,6 +271,14 @@ module parallel
      module procedure distributed_scatter_var_real4_3d
      module procedure distributed_scatter_var_real8_2d
      module procedure distributed_scatter_var_real8_3d
+  end interface
+
+  interface distributed_scatter_var_row
+     module procedure distributed_scatter_var_row_real8_2d
+  end interface
+
+  interface distributed_scatter_var_col
+     module procedure distributed_scatter_var_col_real8_2d
   end interface
 
   interface parallel_convert_haloed_to_nonhaloed
@@ -1095,6 +1136,186 @@ contains
     ! automatic deallocation
   end subroutine distributed_gather_var_real8_3d
 
+  subroutine distributed_gather_var_row_real8_2d(values, global_values)
+
+    ! Gather data along a row of tasks onto the main task for that row.
+    ! Based on distributed_gather_var_real8_2d.
+    ! Note: The first index represents a data dimension that is the same on each task,
+    !        whose size generally is less than own_ewn.
+    !       The second index represents the north-south dimension, and is assumed
+    !        to have size own_nsn (i.e., the data extend over locally owned cells only).
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which main_task_row will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+
+    integer :: i,ierror,j,k
+    integer,dimension(:),allocatable :: displs,recvcounts
+    real(dp),dimension(:),allocatable :: recvbuf
+    real(dp),dimension(:,:),allocatable :: sendbuf
+
+    if (size(values,2) /= own_nsn) then
+       ! Note: Removing this restriction would require some recoding below.
+       write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    ! first time
+    if (.not. allocated(d_gs_bounds_row)) then
+       if (main_task_row) then
+          allocate(d_gs_bounds_row(4,tasks_row))
+       else
+          allocate(d_gs_bounds_row(1,1))
+       endif
+       d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
+       d_gs_mybounds_row(2) = (this_rank_row+1)*size(values,1)
+       d_gs_mybounds_row(3) = 1
+       d_gs_mybounds_row(4) = own_nsn
+       call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
+          mpi_integer,main_rank_row,comm_row)
+    endif
+
+    if (main_task_row) then
+       if (allocated(global_values)) then
+          deallocate(global_values)
+       endif
+       allocate(global_values(size(values,1)*tasks_row, own_nsn))
+       global_values(:,:) = 0.0d0
+       allocate(displs(tasks_row+1))
+       allocate(recvcounts(tasks_row))
+       recvcounts(:) = (d_gs_bounds_row(2,:)-d_gs_bounds_row(1,:)+1)&
+                      *(d_gs_bounds_row(4,:)-d_gs_bounds_row(3,:)+1)
+       displs(1) = 0
+       do i = 1,tasks_row
+          displs(i+1) = displs(i)+recvcounts(i)
+       end do
+       allocate(recvbuf(displs(tasks_row+1)))
+    else
+       if (allocated(global_values)) then
+          deallocate(global_values)
+       endif
+       allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
+       allocate(displs(1))
+       allocate(recvcounts(1))
+       allocate(recvbuf(1))
+    end if
+
+    !Note: Would need to uncomment the following if sendbuf were not identical
+    !      to the input values array
+!!    allocate(sendbuf(d_gs_mybounds_row(1):d_gs_mybounds_row(2),&
+!!                     d_gs_mybounds_row(3):d_gs_mybounds_row(4)))
+!!    sendbuf(:,:) = values(1:size(values,1), 1:own_nsn)
+!!    call fc_gatherv_real8(sendbuf,size(sendbuf),mpi_real8,&
+!!       recvbuf,recvcounts,displs,mpi_real8,main_rank_row,comm_row)
+    call fc_gatherv_real8(values,size(values),mpi_real8,&
+       recvbuf,recvcounts,displs,mpi_real8,main_rank_row,comm_row)
+    if (main_task_row) then
+       do i = 1, tasks_row
+          global_values(d_gs_bounds_row(1,i):d_gs_bounds_row(2,i),&
+                        d_gs_bounds_row(3,i):d_gs_bounds_row(4,i)) = &
+                reshape(recvbuf(displs(i)+1:displs(i+1)), &
+                     (/d_gs_bounds_row(2,i)-d_gs_bounds_row(1,i)+1,&
+                       d_gs_bounds_row(4,i)-d_gs_bounds_row(3,i)+1/))
+       end do
+    end if
+
+    ! automatic deallocation
+  end subroutine distributed_gather_var_row_real8_2d
+
+  subroutine distributed_gather_var_col_real8_2d(values, global_values)
+
+    ! Gather data along a column of tasks onto the main task for that column.
+    ! Based on distributed_gather_var_real8_2d.
+    ! Note: The first index represents a data dimension that is the same on each task,
+    !        whose size generally is less than own_nsn.
+    !       The second index represents the east-west dimension, and is assumed
+    !        to have size own_ewn (i.e., the data extend over locally owned cells only).
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which main_task_col will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+
+    integer :: i,ierror,j,k
+    integer,dimension(:),allocatable :: displs,recvcounts
+    real(dp),dimension(:),allocatable :: recvbuf
+    real(dp),dimension(:,:),allocatable :: sendbuf
+
+    if (size(values,2) /= own_ewn) then
+       ! Note: Removing this restriction would require some recoding below.
+       write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    ! first time
+    if (.not. allocated(d_gs_bounds_col)) then
+       if (main_task_col) then
+          allocate(d_gs_bounds_col(4,tasks_col))
+       else
+          allocate(d_gs_bounds_col(1,1))
+       endif
+       d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
+       d_gs_mybounds_col(2) = (this_rank_col+1)*size(values,1)
+       d_gs_mybounds_col(3) = 1
+       d_gs_mybounds_col(4) = own_ewn
+       call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
+          mpi_integer,main_rank_col,comm_col)
+    endif
+
+    if (main_task_col) then
+       if (allocated(global_values)) then
+          deallocate(global_values)
+       endif
+       allocate(global_values(size(values,1)*tasks_col, own_ewn))
+       global_values(:,:) = 0.0d0
+       allocate(displs(tasks_col+1))
+       allocate(recvcounts(tasks_col))
+       recvcounts(:) = (d_gs_bounds_col(2,:)-d_gs_bounds_col(1,:)+1)&
+                      *(d_gs_bounds_col(4,:)-d_gs_bounds_col(3,:)+1)
+       displs(1) = 0
+       do i = 1,tasks_col
+          displs(i+1) = displs(i)+recvcounts(i)
+       end do
+       allocate(recvbuf(displs(tasks_col+1)))
+    else
+       if (allocated(global_values)) then
+          deallocate(global_values)
+       endif
+       allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
+       allocate(displs(1))
+       allocate(recvcounts(1))
+       allocate(recvbuf(1))
+    end if
+
+    !Note: Would need to uncomment the following if sendbuf were not identical
+    !      to the input values array
+!!    allocate(sendbuf(d_gs_mybounds_col(1):d_gs_mybounds_col(2),&
+!!                     d_gs_mybounds_col(3):d_gs_mybounds_col(4)))
+!!    sendbuf(:,:) = values(1:size(values,1), 1:own_ewn)
+!!    call fc_gatherv_real8(sendbuf,size(sendbuf),mpi_real8,&
+!!       recvbuf,recvcounts,displs,mpi_real8,main_rank_col,comm_col)
+    call fc_gatherv_real8(values,size(values),mpi_real8,&
+       recvbuf,recvcounts,displs,mpi_real8,main_rank_col,comm_col)
+    if (main_task_col) then
+       do i = 1, tasks_col
+          global_values(d_gs_bounds_col(1,i):d_gs_bounds_col(2,i),&
+                        d_gs_bounds_col(3,i):d_gs_bounds_col(4,i)) = &
+                reshape(recvbuf(displs(i)+1:displs(i+1)), &
+                     (/d_gs_bounds_col(2,i)-d_gs_bounds_col(1,i)+1,&
+                       d_gs_bounds_col(4,i)-d_gs_bounds_col(3,i)+1/))
+       end do
+    end if
+
+    ! automatic deallocation
+  end subroutine distributed_gather_var_col_real8_2d
+
   function distributed_get_var_integer_2d(ncid,varid,values,start)
     use mpi_mod
     implicit none
@@ -1548,7 +1769,6 @@ contains
     character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
 
     integer :: best,i,j,metric
-    integer :: ewrank,nsrank
     real(dp) :: rewtasks,rnstasks
 
     ! begin
@@ -1810,7 +2030,6 @@ contains
 
     integer :: i, j, nb, nt
     integer :: nblocks               ! number of blocks = ewtasks * nstasks
-    integer :: ewrank, nsrank
     real(dp) :: rewtasks, rnstasks
     integer :: nblocks_active        ! number of active blocks
     logical :: only_inquire          ! local version of inquire_only
@@ -1819,6 +2038,8 @@ contains
     ! arrays with dimension 'nblocks'
 
     integer, dimension(:), allocatable ::  &
+         ewrank_block,             &  ! grid column in which a block lies, increasing from W to E
+         nsrank_block,             &  ! grid row in which a block lies, increasing from S to N
          ewlb_block, ewub_block,   &  ! lower and upper bounds in E-W direction for each block, including halos
          nslb_block, nsub_block,   &  ! lower and upper bounds in N-S direction for each block, including halos
          own_ewn_block,            &  ! number of cells in E-W direction on each block   !TODO - rename?  Not "owned"
@@ -1904,6 +2125,7 @@ contains
     endif
 
     ! Allocate block variables
+    allocate(ewrank_block(0:nblocks-1))
     allocate(global_col_offset_block(0:nblocks-1))
     allocate(ewlb_block(0:nblocks-1))
     allocate(ewub_block(0:nblocks-1))
@@ -1911,6 +2133,7 @@ contains
     allocate(own_ewn_block(0:nblocks-1))
     allocate(ewn_block(0:nblocks-1))
 
+    allocate(nsrank_block(0:nblocks-1))
     allocate(global_row_offset_block(0:nblocks-1))
     allocate(nslb_block(0:nblocks-1))
     allocate(nsub_block(0:nblocks-1))
@@ -1969,7 +2192,7 @@ contains
 
        ! Set each block's grid indices, including halo offsets
 
-       ewrank = mod(nb, ewtasks)
+       ewrank_block(nb) = mod(nb, ewtasks)
        rewtasks = 1.0d0/real(ewtasks,dp)
        ewlb_block(nb) = nint( ewrank * global_ewn * rewtasks) + 1 - lhalo
        ewub_block(nb) = nint((ewrank+1) * global_ewn * rewtasks) + uhalo
@@ -1977,7 +2200,7 @@ contains
        own_ewn_block(nb) = local_ewn_block(nb) - lhalo - uhalo
        ewn_block(nb) = local_ewn_block(nb)
 
-       nsrank = nb / ewtasks
+       nsrank_block(nb) = nb / ewtasks
        rnstasks = 1.0d0/real(nstasks,dp)
        nslb_block(nb) = nint( nsrank * global_nsn * rnstasks) + 1 - lhalo
        nsub_block(nb) = nint((nsrank+1) * global_nsn * rnstasks) + uhalo
@@ -2192,6 +2415,7 @@ contains
     nt = this_rank
     nb = task_to_block(nt)
 
+    ewrank = ewrank_block(nb)
     global_col_offset = global_col_offset_block(nb)
     ewlb = ewlb_block(nb)
     ewub = ewub_block(nb)
@@ -2199,6 +2423,7 @@ contains
     local_ewn = local_ewn_block(nb)
     ewn = ewn_block(nb)
 
+    nsrank = nsrank_block(nb)
     global_row_offset = global_row_offset_block(nb)
     nslb = nslb_block(nb)
     nsub = nsub_block(nb)
@@ -2238,8 +2463,8 @@ contains
        print*, ' '
        print*, 'this_rank, nb, west(nb), east(nb), south(nb), north(nb):',  &
                 this_rank, nb, west_block(nb), east_block(nb), south_block(nb), north_block(nb)
-       print*, 'this_rank, nb, west(nt), east(nt), south(nt), north(nt):',  &
-                this_rank, nb, west, east, south, north
+       print*, 'this_rank, nt, west(nt), east(nt), south(nt), north(nt):',  &
+                this_rank, nt, west, east, south, north
     endif
 
     ! Identify blocks at the corner of the global domain.  Each such block has a locally owned
@@ -2319,6 +2544,7 @@ contains
     ! Uncomment to print grid geometry
 !    write(*,*) " "
 !    write(*,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
+!    write(*,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
 !    write(*,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
 !    write(*,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
 !    write(*,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
@@ -3551,6 +3777,165 @@ contains
     ! automatic deallocation
   end subroutine distributed_scatter_var_real8_3d
 
+  subroutine distributed_scatter_var_row_real8_2d(values, global_values)
+
+    ! Scatter data to a row of tasks from the main task for that row.
+    ! Based on distributed_scatter_var_real8_2d.
+    ! Note: The first index represents a data dimension that is the same on each task,
+    !        whose size generally is less than own_ewn.
+    !       The second index represents the north-south dimension, and is assumed
+    !        to have size own_nsn (i.e., the data extend over locally owned cells only).
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocatable array in which main_task_row holds the variable.
+    ! global_values is deallocated at the end.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task_row
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values  ! only used on main_task_row
+
+    integer :: i,ierror,j,k
+    integer,dimension(:),allocatable :: displs,sendcounts
+    real(dp),dimension(:),allocatable :: sendbuf
+    real(dp),dimension(:,:),allocatable :: recvbuf
+
+    if (size(values,2) /= own_nsn) then
+       ! Note: Removing this restriction would require some recoding below.
+       write(*,*) "ERROR: distributed_scatter_var_row requires N-S array size of own_nsn"
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    ! first time
+    if (.not. allocated(d_gs_bounds_row)) then
+       if (main_task_row) then
+          allocate(d_gs_bounds_row(4,tasks_row))
+       else
+          allocate(d_gs_bounds_row(1,1))
+       endif
+       d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
+       d_gs_mybounds_row(2) = (this_rank_row+1)*size(values,1)
+       d_gs_mybounds_row(3) = 1
+       d_gs_mybounds_row(4) = own_nsn
+       call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
+          mpi_integer,main_rank_row,comm_row)
+    endif
+
+    if (main_task_row) then
+       allocate(displs(tasks_row+1))
+       allocate(sendcounts(tasks_row))
+       sendcounts(:) = (d_gs_bounds_row(2,:)-d_gs_bounds_row(1,:)+1)&
+                      *(d_gs_bounds_row(4,:)-d_gs_bounds_row(3,:)+1)
+       displs(1) = 0
+       do i = 1,tasks_row
+          displs(i+1) = displs(i)+sendcounts(i)
+       end do
+       allocate(sendbuf(displs(tasks_row+1)))
+
+       do i = 1,tasks_row
+          sendbuf(displs(i)+1:displs(i+1)) = &
+             reshape(global_values(d_gs_bounds_row(1,i):d_gs_bounds_row(2,i),&
+                                   d_gs_bounds_row(3,i):d_gs_bounds_row(4,i)),&
+                                   (/displs(i+1)-displs(i)/))
+       end do
+    else
+       allocate(displs(1))
+       allocate(sendcounts(1))
+       allocate(sendbuf(1))
+    end if
+
+    !Note: Would need to uncomment the following if recvbuf were not identical
+    !      to the output values array
+!!    allocate(recvbuf(d_gs_mybounds_row(1):d_gs_mybounds_row(2),&
+!!                     d_gs_mybounds_row(3):d_gs_mybounds_row(4)))
+!!    call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
+!!         recvbuf,size(recvbuf),mpi_real8,main_rank_row,comm_row,ierror)
+!!    values(1+lhalo:local_ewn-uhalo,1+lhalo:local_nsn-uhalo) = recvbuf(:,:)
+    call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
+         values,size(values),mpi_real8,main_rank_row,comm_row,ierror)
+
+    ! automatic deallocation
+  end subroutine distributed_scatter_var_row_real8_2d
+
+  subroutine distributed_scatter_var_col_real8_2d(values, global_values)
+
+    ! Scatter data to a column of tasks from the main task for that column
+    ! Based on distributed_scatter_var_real8_2d.
+    ! Note: The first index represents a data dimension that is the same on each task,
+    !        whose size generally is less than own_nsn.
+    !       The second index represents the east-west dimension, and is assumed
+    !        to have size own_ewn (i.e., the data extend over locally owned cells only).
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocatable array in which main_task_col holds the variable.
+    ! global_values is deallocated at the end.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task_col
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values  ! only used on main_task_col
+
+    integer :: i,ierror,j,k
+    integer,dimension(:),allocatable :: displs,sendcounts
+    real(dp),dimension(:),allocatable :: sendbuf
+    real(dp),dimension(:,:),allocatable :: recvbuf
+
+    if (size(values,2) /= own_ewn) then
+       ! Note: Removing this restriction would require some recoding below.
+       write(*,*) "ERROR: distributed_scatter_var_col requires E-W array size of own_nsn"
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    ! first time
+    if (.not. allocated(d_gs_bounds_col)) then
+       if (main_task_col) then
+          allocate(d_gs_bounds_col(4,tasks_col))
+       else
+          allocate(d_gs_bounds_col(1,1))
+       endif
+       d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
+       d_gs_mybounds_col(2) = (this_rank_col+1)*size(values,1)
+       d_gs_mybounds_col(3) = 1
+       d_gs_mybounds_col(4) = own_ewn
+       call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
+          mpi_integer,main_rank_col,comm_col)
+    endif
+
+    if (main_task_col) then
+       allocate(displs(tasks_col+1))
+       allocate(sendcounts(tasks_col))
+       sendcounts(:) = (d_gs_bounds_col(2,:)-d_gs_bounds_col(1,:)+1)&
+                      *(d_gs_bounds_col(4,:)-d_gs_bounds_col(3,:)+1)
+       displs(1) = 0
+       do i = 1,tasks_col
+          displs(i+1) = displs(i)+sendcounts(i)
+       end do
+       allocate(sendbuf(displs(tasks_col+1)))
+
+       do i = 1,tasks_col
+          sendbuf(displs(i)+1:displs(i+1)) = &
+             reshape(global_values(d_gs_bounds_col(1,i):d_gs_bounds_col(2,i),&
+                                   d_gs_bounds_col(3,i):d_gs_bounds_col(4,i)),&
+                                   (/displs(i+1)-displs(i)/))
+       end do
+    else
+       allocate(displs(1))
+       allocate(sendcounts(1))
+       allocate(sendbuf(1))
+    end if
+
+    !Note: Would need to uncomment the following if recvbuf were not identical
+    !      to the output values array
+!!    allocate(recvbuf(d_gs_mybounds_col(1):d_gs_mybounds_col(2),&
+!!                     d_gs_mybounds_col(3):d_gs_mybounds_col(4)))
+!!    call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
+!!         recvbuf,size(recvbuf),mpi_real8,main_rank_col,comm_col,ierror)
+!!    values(1+lhalo:local_ewn-uhalo,1+lhalo:local_nsn-uhalo) = recvbuf(:,:)
+    call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
+         values,size(values),mpi_real8,main_rank_col,comm_col,ierror)
+
+    ! automatic deallocation
+  end subroutine distributed_scatter_var_col_real8_2d
+
+
   function get_bounds_info(array_ew_size) result(bounds_info)
     ! Determines information on the local & global bounds of an array
     ! This is used to distinguish between arrays on the staggered vs. unstaggered grids
@@ -3737,7 +4122,53 @@ contains
     call broadcast(parallel_create)
     call broadcast(ncid)
   end function parallel_create
-    
+
+  !WHL - Added the next two subroutines to create communicators for rows and columns of tasks.
+  !      These are useful for a tridiagonal solve in 1D along a global row or column.
+  !      Cf. parallel_initialise and parallel_set_info
+
+  subroutine parallel_create_comm_row(comm)
+    use mpi_mod
+    implicit none
+    integer, intent(in) :: comm          ! global communicator
+    integer, parameter :: my_main_rank_row = 0
+    integer :: ierror
+
+    ! Create a communicator (comm_row) that groups rows according to their value of nsrank,
+    !  and assign a main_task to each row.
+
+    call mpi_comm_split(comm, nsrank, this_rank, comm_row, ierror)
+    call mpi_comm_size(comm_row, tasks_row, ierror)
+    call mpi_comm_rank(comm_row, this_rank_row, ierror)
+    main_rank_row = my_main_rank_row
+    main_task_row = (this_rank_row==main_rank_row)
+
+    if (main_task_row) print*, 'Create comm_row: this_rank, tasks_row, this_rank_row, main_task_row =', &
+         this_rank, tasks_row, this_rank_row, main_task_row
+
+  end subroutine parallel_create_comm_row
+
+  subroutine parallel_create_comm_col(comm)
+    use mpi_mod
+    implicit none
+    integer, intent(in) :: comm          ! global communicator
+    integer, parameter :: my_main_rank_col = 0
+    integer :: ierror
+
+    ! Create a communicator (comm_col) that groups columns according to their value of nsrank,
+    !  and assign a main_task to each column.
+
+    call mpi_comm_split(comm, ewrank, this_rank, comm_col, ierror)
+    call mpi_comm_size(comm_col, tasks_col, ierror)
+    call mpi_comm_rank(comm_col, this_rank_col, ierror)
+    main_rank_col = my_main_rank_col
+    main_task_col = (this_rank_col==main_rank_col)
+
+    if (main_task_col) print*, 'Create comm_col: this_rank, tasks_col, this_rank_col, main_task_col =', &
+         this_rank, tasks_col, this_rank_col, main_task_col
+
+  end subroutine parallel_create_comm_col
+
   function parallel_def_dim(ncid,name,len,dimid)
     use netcdf
     implicit none

@@ -110,6 +110,9 @@ contains
     use glissade_grounding_line, only: glissade_grounded_fraction
     use felix_dycore_interface, only: felix_velo_init
 
+    !WHL - debug
+    use mpi_mod
+
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -142,6 +145,11 @@ contains
     integer :: itest, jtest, rtest
     integer :: status, varid
     type(glimmer_nc_input), pointer :: infile
+
+    !WHL - debug
+    integer :: ierror
+    real(dp), dimension(:,:), allocatable :: test_array
+    real(dp), dimension(:,:), allocatable :: global_test_array
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -246,6 +254,175 @@ contains
 
     ! allocate arrays
     call glide_allocarr(model)
+
+    if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG) then
+
+       !WHL - Optionally, set up row-based and column-based communicators (in addition to mpi_comm_world).
+       !      These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
+       !      For the row-based communicator, the task with the minimum rank in each row becomes main_task_row.
+       !      For the column-based communicator, the task with the minimum rank in each column becomes main_task_column.
+       call parallel_create_comm_row(comm)
+       call parallel_create_comm_col(comm)
+
+       ! Test the new communicators
+
+       ! row gather
+
+       call mpi_barrier(comm_row,ierror)
+       call mpi_barrier(comm_col,ierror)
+
+       allocate(test_array(2,own_nsn))
+
+       do j = 1, own_nsn
+          do i = 1, 2
+             test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+          enddo
+       enddo
+
+!!       if (this_rank <= 1) then
+!!       if (this_rank == 0) then
+       if (this_rank == 999) then
+          print*, ' '
+          print*, 'test_array, i = 1, this_rank =', this_rank
+          i = 1
+          do j = 1, own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+          print*, 'test_array, i = 2, this_rank =', this_rank
+          i = 2
+          do j = 1, own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       endif   ! this_rank
+
+       print*, 'gather row array, this_rank =', this_rank
+       call flush(6)
+
+       call distributed_gather_var_row(test_array, global_test_array)
+
+       if (main_task_row .and. this_rank == 0) then
+!!       if (main_task_row .and. this_rank == 2) then
+!!       if (main_task_row) then
+!!       if (0 == 1) then
+          do i = 1, 4
+             print*, 'Row global_test_array, this_rank, i =', this_rank, i
+             do j = 1, size(global_test_array,2)
+                write(6,'(f6.0)',advance='no') global_test_array(i,j)
+             enddo
+             print*, ' '
+          enddo
+          print*, ' '
+          call flush(6)
+       endif
+
+       print*, 'scatter row array, this_rank =', this_rank
+       call flush(6)
+
+       call distributed_scatter_var_row(test_array, global_test_array)
+
+!!       if (this_rank <= 1) then
+       if (this_rank == 1) then
+!!       if (this_rank == 999) then
+          print*, ' '
+          print*, 'Scattered test_array, i = 1, this_rank =', this_rank
+          i = 1
+          do j = 1, own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+          print*, 'Scattered test_array, i = 2, this_rank =', this_rank
+          i = 2
+          do j = 1, own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       endif   ! this_rank
+
+       deallocate(test_array)
+
+       ! column gather
+
+       call mpi_barrier(comm_row,ierror)
+       call mpi_barrier(comm_col,ierror)
+
+       allocate(test_array(2,own_ewn))
+
+       do j = 1, 2
+          do i = 1, own_ewn
+             test_array(j,i) = (this_rank + 2) * real(j*i, dp)
+          enddo
+       enddo
+
+!!       if (this_rank==0 .or. this_rank==2) then
+!!       if (this_rank==1 .or. this_rank==3) then
+       if (this_rank == 999) then
+          print*, ' '
+          print*, 'test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
+          j = 1
+          do i = 1, own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+          print*, 'test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
+          j = 2
+          do i = 1, own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       endif   ! this_rank
+
+       print*, 'gather col array, this_rank =', this_rank
+       call flush(6)
+
+       call distributed_gather_var_col(test_array, global_test_array)
+
+!!       print*, 'gathered col array, this_rank =', this_rank
+!!       call flush(6)
+
+       if (main_task_col .and. this_rank==1) then
+!!       if (main_task_col) then
+!!       if (0 == 1) then
+          do j = 1, 4
+             print*, 'Column global_test_array, this_rank, j =', this_rank, j
+             do i = 1, size(global_test_array,2)
+                write(6,'(f6.0)',advance='no') global_test_array(j,i)
+             enddo
+             print*, ' '
+          enddo
+          print*, ' '
+       endif
+
+       call distributed_scatter_var_col(test_array, global_test_array)
+
+       if (this_rank == 3) then
+          print*, ' '
+          print*, 'Scattered test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
+          j = 1
+          do i = 1, own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+          print*, 'Scattered test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
+          j = 2
+          do i = 1, own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       endif   ! this_rank
+
+       deallocate(test_array)
+
+    endif  ! HO_PRECOND_TRIDIAG
 
     ! set masks at global boundary for no-penetration boundary conditions
     ! this subroutine includes a halo update

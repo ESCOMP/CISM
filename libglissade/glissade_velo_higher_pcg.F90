@@ -1801,7 +1801,6 @@
                                          Adiagu,   Adiagv)
 
        !WHL - debug
-       print*, ' '
        if (verbose_pcg .and. this_rank == rtest) then
           i = itest
           j = jtest
@@ -1820,7 +1819,6 @@
                                             Ausupdiag, Avsupdiag)
 
        !WHL - debug
-       print*, ' '
        if (verbose_pcg .and. this_rank == rtest) then
           i = itest
           j = jtest
