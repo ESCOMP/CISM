@@ -41,7 +41,7 @@ module glad_main
   use glad_constants
   use glimmer_config
   use glimmer_filenames, only : process_path
-  use parallel, only: main_task
+  use parallel, only: main_task, this_rank
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   
@@ -117,6 +117,8 @@ module glad_main
 
   public :: end_glad
   
+  logical, parameter :: verbose_glad = .false.
+
   !---------------------------------------------------------------------------------------
   ! Some notes on coupling to the Community Earth System Model (CESM).  These may be applicable
   ! for coupling to other GCMs:
@@ -615,6 +617,9 @@ contains
 
     integer :: av_start_time  ! value of time from the last occasion averaging was restarted (hours)
 
+    integer :: i, j, itest, jtest, rtest
+    real(dp), dimension(:), allocatable :: zocn
+
     ! Begin subroutine code --------------------------------------------------------------------
 
     ! Reset output flag
@@ -622,13 +627,40 @@ contains
     if (present(output_flag)) output_flag = .false.
     if (present(ice_tstep))   ice_tstep = .false.
 
-       ! Accumulate input fields for later averaging
+    nzocn = get_nzocn(params%instances(instance_index)%model)
+    allocate(zocn(nzocn))
+    zocn(:) = params%instances(instance_index)%model%ocean_data%zocn(:)
+
+    if (verbose_glad) then
+
+       write(message,*) 'In glad_gcm, time (hr), valid_inputs =', time, valid_inputs
+       call write_log(trim(message))
+
+       rtest = params%instances(instance_index)%model%numerics%rdiag_local
+       itest = params%instances(instance_index)%model%numerics%idiag_local
+       jtest = params%instances(instance_index)%model%numerics%jdiag_local
+
+       write(message,*) 'itest, jtest, rtest =', itest, jtest, rtest
+       call write_log(trim(message))
+
+       if (this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, 'r, i, j, nzocn =', this_rank, i, j, nzocn
+          print*, 'k, zocn:'
+          do k = 1, nzocn
+             print*, k, zocn(k)
+          enddo
+       endif
+
+    endif   ! verbose_glad
+
+    ! Accumulate input fields for later averaging
 
     if (valid_inputs) then
 
        ewn = get_ewn(params%instances(instance_index)%model)
        nsn = get_nsn(params%instances(instance_index)%model)
-       nzocn = get_nzocn(params%instances(instance_index)%model)
 
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
@@ -641,16 +673,24 @@ contains
 
        do k = 1,nzocn
           call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:))
-          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:), tocn_haloed(k,:,:))
-       enddo
-
-       !TODO - Pass in zocn instead of hardwiring
-       do k = 1,nzocn
-          call compute_thermal_forcing_level(k, &
-               salinity_haloed(k,:,:), &                   ! g/kg
-               tocn_haloed(k,:,:) - celsius_to_kelvin, &   ! convert K to C
+          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:),     tocn_haloed(k,:,:))
+          call compute_thermal_forcing_level(&
+               zocn(k),                                &    ! m
+               salinity_haloed(k,:,:),                 &    ! g/kg
+               tocn_haloed(k,:,:) - celsius_to_kelvin, &    ! convert K to C
                thermal_forcing_haloed(k,:,:))
        enddo
+
+       if (verbose_glad .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, 'r, i, j =', this_rank, i, j
+          print*, 'k, zocn, temperature, salinity, thermal forcing:'
+          do k = 1, nzocn
+             write(6,'(i4, 4f10.3)') k, zocn(k), &
+                  tocn_haloed(k,i,j), salinity_haloed(k,i,j), thermal_forcing_haloed(k,i,j)
+          enddo
+       endif
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
             qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
@@ -676,14 +716,14 @@ contains
        
        write(message,*) 'Unexpected calling of GLAD at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
-    
+
     else if (time - av_start_time + params%time_step > params%tstep_mbal) then
 
        write(message,*) &
             'Incomplete forcing of GLAD mass-balance time-step detected at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
-       
-    else if (time - av_start_time + params%time_step == params%tstep_mbal) then  
+
+    else if (time - av_start_time + params%time_step == params%tstep_mbal) then
 
        if  (.not. valid_inputs) then
           write(message,*) &
@@ -724,6 +764,14 @@ contains
                tsfc = params%instances(instance_index)%artm, &
                thermal_forcing = params%instances(instance_index)%thermal_forcing)
 
+          if (verbose_glad .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
+             do k = 1, nzocn
+                write(6,'(i4, 2f10.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
+             enddo
+          endif
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -769,48 +817,42 @@ contains
 
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
 
+   deallocate(zocn)
+
   end subroutine glad_gcm
 
   !===================================================================
 
-  subroutine compute_thermal_forcing_level(level, salinity, tocn, thermal_forcing)
+  subroutine compute_thermal_forcing_level(zlevel, salinity, tocn, thermal_forcing)
 
     ! returns the thermal forcing applied under ice shelf.
     ! The forcing depends on the level of the POP ocean. At this point only 7 fixed level are considered.
-
     ! Freezing temperature parameters based on Beckmann, A. and Goosse (2003), equation 2.
+
     use glimmer_physcon, only: tocnfrz_const, dtocnfrz_dsal, dtocnfrz_dz
 
-    integer, intent(in)                   :: level             ! pop ocean level
+    real(dp), intent(in)                  :: zlevel            ! ocean level depth (m, negative below sea level)
     real(dp),dimension(:,:),intent(in)    :: salinity          ! input ocean salinity (g/kg)
     real(dp),dimension(:,:),intent(in)    :: tocn              ! input ocean temperature (deg C)
     real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg C)
 
-    ! local variables
-    real(dp)                              :: zlevel            ! ocean depth (m)
+    ! The following values delimit physically acceptable ranges of ocean temperature and salinity.
+    ! Values outside these ranges are assumed to be invalid.
+    ! Where valid ocean values do not exist (e.g., anywhere the ocean model treats as land),
+    !  we set tocn = salinity = unphys_val (a value CISM uses to recogize invalid data).
+    ! Valid values are later extrapolated into ice shelf cavites as needed.
+    ! Note: For bilinear mapping of ocean fields by the CESM coupler (as of Aug. 2019),
+    !       tocn and salinity in land regions are given a missing value of 9.96e31,
+    !       much greater than tocn_max and salinity_max.
 
-    if (level == 1) then
-       zlevel = -5.d0
-    else if (level == 2) then
-       zlevel = -105.d0
-    else if (level == 3) then
-       zlevel = -198.d0
-    else if (level == 4) then
-       zlevel = -305.d0
-    else if (level == 5) then
-       zlevel = -408.d0
-    else if (level == 6) then
-       zlevel = -527.d0
-    else if (level == 7) then
-       zlevel = -638.d0
-    end if 
+    real(dp), parameter :: salinity_max = 40.d0   ! (g/kg)
+    real(dp), parameter :: salinity_min = 1.0d0   ! (g/kg)
+    real(dp), parameter :: tocn_max =  30.d0      ! deg C
+    real(dp), parameter :: tocn_min = -10.d0      ! deg C
 
-    ! In POP a special value of 0 is given to salinity cells over land as a dummy value.
-    ! We need to make sure that corresponding thermal forcing cells are given a dummy
-    ! at the same locations.
-
-    where (salinity <= 0.0d0)
-       thermal_forcing = unphys_val
+    where (salinity <= salinity_min .or. salinity >= salinity_max .or. &
+               tocn <= tocn_min     .or.     tocn >= tocn_max)
+       thermal_forcing = unphys_val   ! defined in the glimmer_paramets module
     elsewhere
        ! Tf = 0.0939 - 0.057*S + 7.64e-4*z from Eq. 2, Beckmann & Goosse (2003)
        ! Note: z < 0 below sea level, so Tf decreases with increasing depth
