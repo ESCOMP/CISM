@@ -87,7 +87,7 @@ contains
 
     real(dp),dimension(:,:),pointer :: thck_temp => null() ! temporary array for volume calcs
 
-    integer :: i, il, jl
+    integer :: iter, il, jl
 
     if (GLC_DEBUG .and. main_task) then
        print*, 'In glad_i_tstep_gcm'
@@ -118,7 +118,6 @@ contains
     call glad_accumulate_input_gcm(instance%mbal_accum,   time,               &
                                    instance%acab,         instance%artm,      &
                                    instance%thermal_forcing)
-
 
     if (GLC_DEBUG .and. main_task) then
        write(stdout,*) ' '
@@ -152,10 +151,10 @@ contains
        ! Timestepping for ice sheet model
        ! ---------------------------------------------------------------------
 
-       do i = 1, instance%n_icetstep
+       do iter = 1, instance%n_icetstep
 
           if (GLC_DEBUG .and. main_task) then
-             write (stdout,*) 'Ice sheet timestep, iteration =', i
+             write (stdout,*) 'Ice sheet timestep, iteration =', iter
           end if
 
           ! Get average values of acab and artm and 7 layers of POP thermal forcings 
@@ -200,10 +199,19 @@ contains
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
 
-          ! GL:  At this point, glide_set does not work for 3D variables.
-!!          call glide_set_thermal_forcing(instance%model, instance%thermal_forcing)
-          if ( associated(instance%model%ocean_data%thermal_forcing) ) &
-             instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
+          ! Note: The ocean thermal forcing is reset only on the first ice dynamics timestep within this loop.
+          ! The reason is that CISM has the option of extrapolating thermal forcing from open ocean
+          !  (i.e., the overlap region between the ocean and ice sheet domains) into sub-shelf cavities.
+          ! It is more efficient to do this extrapolation only once within the mass_balance timestep
+          !  (with minor subsequent adjustments if CISM ice shelves retreat) than to extrapolate
+          !  from the open ocean every ice dynamics time step.
+
+          if (iter == 1) then
+             if ( associated(instance%model%ocean_data%thermal_forcing) ) then
+                ! GL: At this point, glide_set does not work for 3D variables.
+                instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
+             endif
+          endif
 
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then
@@ -216,7 +224,7 @@ contains
           end if
 
           ! Adjust glad acab for output
- 
+          !TODO - Use acab_applied for Glad output?
           where (instance%acab < -thck_temp .and. thck_temp > 0.d0)
              instance%acab = -thck_temp
           end where
