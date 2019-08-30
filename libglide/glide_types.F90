@@ -943,14 +943,8 @@ module glide_types
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
 
-    real(dp),dimension(:,:),pointer :: thck_obs => null()
-    !> Observed ice thickness, divided by \texttt{thk0}.
-
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
     !> Observed upper surface elevation, divided by \texttt{thk0}.
-
-    real(dp),dimension(:,:),pointer :: topg_obs => null()
-    !> Observed basal topography, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
     !> flotation function, > 0 for floating ice and <= 0 for grounded ice
@@ -1421,7 +1415,7 @@ module glide_types
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0      !> if thck_obs near thck_flotation, set to thck_flotation +/- thck_flotation_buffer (m)
+          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near flotation, set to thck_flotation +/- thck_flotation_buffer (m)
 
      ! parameters for weighted exponentially abated nudging
      ! The idea of this nudging is that the inversion fields (bmlt_float_inversion and powerlaw_c_inversion),
@@ -2199,9 +2193,7 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
-    !> \item \texttt{thck_obs(ewn,nsn))}
     !> \item \texttt{usrf_obs(ewn,nsn))}
-    !> \item \texttt{topg_obs(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
@@ -2406,9 +2398,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
@@ -2962,12 +2952,8 @@ contains
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
         deallocate(model%geometry%topg)
-    if (associated(model%geometry%thck_obs)) &
-        deallocate(model%geometry%thck_obs)
     if (associated(model%geometry%usrf_obs)) &
         deallocate(model%geometry%usrf_obs)
-    if (associated(model%geometry%topg_obs)) &
-        deallocate(model%geometry%topg_obs)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &

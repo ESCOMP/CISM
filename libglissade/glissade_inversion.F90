@@ -86,9 +86,9 @@ contains
          lake_mask               ! = 1 for inland lakes
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         thck_flotation          ! flotation thickness
+         thck_obs                ! observed ice thickness, derived from usrf_obs and topg
 
-    real(dp) :: h_obs, h_flotation, h_buff   ! thck_obs, thck_flotation, and thck_flotation_buffer scaled to m
+    real(dp) :: h_obs, h_flotation, h_buff   ! thck_obs, flotation thickness, and thck_flotation_buffer scaled to m
     real(dp) :: dh                           ! h_obs - f_flotation
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
@@ -129,24 +129,10 @@ contains
        endif
 
        ! Given usrf_obs and topg, compute thck_obs.
-
-       thck_flotation(:,:) = 0.0d0
-       model%geometry%thck_obs(:,:) = 0.0d0
-
-       !TODO - Write a subroutine to compute thck, given usrf, topg, and eus?
-       where (model%geometry%thck > 0.0d0)  ! ice is present
-          where (model%geometry%topg - model%climate%eus < 0.0d0)  ! marine-based ice
-             thck_flotation = -(rhoo/rhoi) * (model%geometry%topg - model%climate%eus)
-             where (model%geometry%topg + thck_flotation < model%geometry%usrf_obs)  ! grounded
-                model%geometry%thck_obs = model%geometry%usrf_obs - (model%geometry%topg - model%climate%eus)
-             elsewhere  ! floating
-                model%geometry%thck_obs = model%geometry%usrf_obs / (1.0d0 - rhoi/rhoo)
-             endwhere
-          elsewhere   ! land-based ice
-             thck_flotation = 0.0d0
-             model%geometry%thck_obs = model%geometry%usrf_obs - (model%geometry%topg - model%climate%eus)
-          endwhere
-       endwhere
+       call usrf_to_thck(model%geometry%usrf_obs,  &
+                         model%geometry%topg,      &
+                         model%climate%eus,        &
+                         thck_obs)
 
        if (model%options%is_restart == RESTART_FALSE) then
 
@@ -161,11 +147,11 @@ contains
 
           do j = 1, model%general%nsn
              do i = 1, model%general%ewn
-                if (model%geometry%thck_obs(i,j) > 0.0d0 .and.  &
-                     model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then
-                   ! convert to m (can skip the conversion when code scaling is removed)
-                   h_obs = model%geometry%thck_obs(i,j) * thk0
-                   h_flotation = thck_flotation(i,j) * thk0
+                if (thck_obs(i,j) > 0.0d0 .and.  &
+                     model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then   ! marine-based ice
+                   ! convert to meters (can skip the conversion when code scaling is removed)
+                   h_obs = thck_obs(i,j) * thk0
+                   h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus) * thk0
                    h_buff = model%inversion%thck_flotation_buffer * thk0
                    dh = h_obs - h_flotation
                    if (abs(dh) < h_buff) then
@@ -176,10 +162,10 @@ contains
                          dh_decimal = ceiling(dh) - dh
                          h_obs = h_flotation - h_buff - dh_decimal
                       endif
-                      model%geometry%thck_obs(i,j) = h_obs / thk0
+                      thck_obs(i,j) = h_obs / thk0
                    endif
                 endif
-                model%geometry%thck_obs(i,j) = max(model%geometry%thck_obs(i,j), 0.0d0)
+                thck_obs(i,j) = max(thck_obs(i,j), 0.0d0)
              enddo
           enddo
 
@@ -187,26 +173,24 @@ contains
           ! One reason to do this is to avoid restoring ice to small values at the calving front.
 
           model%inversion%thck_threshold = max(model%inversion%thck_threshold, model%numerics%thklim)
-          where (model%geometry%thck_obs <= model%inversion%thck_threshold)
-             model%geometry%thck_obs = 0.0d0
+          where (thck_obs <= model%inversion%thck_threshold)
+             thck_obs = 0.0d0
           endwhere
 
           ! Set thck to be consistent with thck_obs
-          model%geometry%thck = model%geometry%thck_obs
+          model%geometry%thck = thck_obs
 
           ! Reset usrf_obs to be consistent with thck_obs.
           ! (usrf itself will be recomputed later in glissade_initialise)
-          !TODO - Use glide_calclsrf/usrf instead
-          where (model%geometry%topg - model%climate%eus < (-rhoi/rhoo) * model%geometry%thck_obs)
-             model%geometry%usrf_obs = (1.0d0 - rhoi/rhoo) * model%geometry%thck_obs  ! floating
-          elsewhere
-             model%geometry%usrf_obs = model%geometry%topg +  model%geometry%thck_obs ! grounded
-          endwhere
+          call thck_to_usrf(thck_obs,  &
+                            model%geometry%topg,      &
+                            model%climate%eus,        &
+                            model%geometry%usrf_obs)
 
        endif   ! not a restart
 
-       call parallel_halo(model%geometry%thck_obs)
        call parallel_halo(model%geometry%usrf_obs)
+       call parallel_halo(thck_obs)
 
        if (model%options%is_restart == RESTART_FALSE) then
 
@@ -241,7 +225,7 @@ contains
           ! do nothing; powerlaw_c_save has been read in already (e.g., when restarting)
        else
 
-          where (model%geometry%thck_obs > 0.0d0)
+          where (thck_obs > 0.0d0)
              model%inversion%powerlaw_c_save = 0.5d0 * model%inversion%powerlaw_c_max
           elsewhere (land_mask == 1)
              model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_land
@@ -257,8 +241,7 @@ contains
 
     endif  ! which_ho_inversion
 
-    !WHL - debug
-    if (this_rank == rtest) then
+    if (verbose_inversion .and. this_rank == rtest) then
        i = itest
        j = jtest
        print*, ' '
@@ -273,7 +256,7 @@ contains
        print*, 'After init_inversion, thck_obs (m):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%geometry%thck_obs(i,j)*thk0
+             write(6,'(f10.3)',advance='no') thck_obs(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
@@ -315,6 +298,7 @@ contains
          bmlt_float_new,       & ! newly computed value of bmlt_float, per unit grid cell area (m/s)
          dthck_dt_inversion,   & ! newly computed value of dthck_dt (m/s)
          bmlt_weight,          & ! weighting factor that reduces bmlt_float in partly grounded cells and shallow cavities
+         thck_obs,             & ! observed ice thickness, derived from usrf_obs and topg
          thck_projected          ! projected thickness after appyling bmlt_float_save * bmlt_weight
 
     real(dp) ::  &
@@ -442,6 +426,15 @@ contains
 
           if (model%options%is_restart == RESTART_TRUE) then
              dthck_dt_inversion = (thck_projected - model%inversion%thck_save) / (model%numerics%dt * tim0)
+
+             if (verbose_inversion .and. this_rank == rtest) then
+                i = itest
+                j = jtest
+                print*, 'Compute dH/dt for inversion; restart = T'
+                print*, 'rank, i, j, H_proj, H_proj_save, dH/dt (m/yr):', &
+                     this_rank, i, j, thck_projected(i,j), model%inversion%thck_save(i,j), dthck_dt_inversion(i,j)*scyr
+                print*, 'bmlt_weight:', bmlt_weight(i,j)
+             endif
           else
              dthck_dt_inversion = 0.0d0  ! default to 0 on first step of the run
           endif
@@ -451,15 +444,23 @@ contains
           dthck_dt_inversion = (thck_projected - model%inversion%thck_save) / (model%numerics%dt * tim0)
 
           if (verbose_inversion .and. this_rank == rtest) then
-             print*, 'Compute dH/dt for inversion'
              i = itest
              j = jtest
+             print*, 'Compute dH/dt for inversion'
              print*, 'rank, i, j, H_proj, H_proj_save, dH/dt (m/yr):', &
                   this_rank, i, j, thck_projected(i,j), model%inversion%thck_save(i,j), dthck_dt_inversion(i,j)*scyr
              print*, 'bmlt_weight:', bmlt_weight(i,j)
           endif
 
        endif   ! first time
+
+       ! Given the surface elevation target, compute the thickness target.
+       ! (This can change in time if the bed topography is dynamic.)
+
+       call usrf_to_thck(model%geometry%usrf_obs,  &
+                         model%geometry%topg,      &
+                         model%climate%eus,        &
+                         thck_obs)
 
        ! Compute the new value of bmlt_float
 
@@ -469,7 +470,7 @@ contains
                                  ewn,               nsn,                        &
                                  itest,   jtest,    rtest,                      &
                                  thck_projected,                                &    ! m
-                                 model%geometry%thck_obs*thk0,                  &    ! m
+                                 thck_obs*thk0,                                 &    ! m
                                  model%geometry%topg*thk0,                      &    ! m
                                  model%climate%eus*thk0,                        &    ! m
                                  ice_mask,                                      &
@@ -518,14 +519,13 @@ contains
           model%inversion%thck_save = thck_new_unscaled  &
                                    - (model%inversion%bmlt_float_inversion * model%numerics%dt*tim0)
 
-          !WHL - debug
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
              j = jtest
              print*, ' '
              print*, 'Inverting for bmlt_float: rank, i, j =', rtest, i, j
              print*, 'thck_projected (m), thck_obs (m):', &
-                  thck_projected(i,j), model%geometry%thck_obs(i,j)*thk0
+                  thck_projected(i,j), thck_obs(i,j)*thk0
              print*, 'bmlt_float (per floating area), bmlt_float (per cell area), nudging factor:', &
                   model%inversion%bmlt_float_save(i,j)*scyr, &
                   model%inversion%bmlt_float_inversion(i,j)*scyr, nudging_factor
@@ -835,7 +835,6 @@ contains
              ! Increment bmlt_float
              bmlt_float_new(i,j) = bmlt_float_save(i,j) + dbmlt_float(i,j)
 
-             !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'Invert for bmlt_float_inversion: rank, i, j =', rtest, itest, jtest
@@ -972,18 +971,19 @@ contains
 
     !TODO - Compute these locally?
     integer, dimension(model%general%ewn, model%general%nsn), intent(in) ::   &
-       ice_mask,             & ! = 1 if thck > 0, else = 0
-       floating_mask,        & ! = 1 where ice is present and floating, else = 0
-       land_mask               ! = 1 if topg is at or above sea level, else = 0
+         ice_mask,             & ! = 1 if thck > 0, else = 0
+         floating_mask,        & ! = 1 where ice is present and floating, else = 0
+         land_mask               ! = 1 if topg is at or above sea level, else = 0
 
     ! --- Local variables ---
 
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-       powerlaw_c_new,       & ! newly computed value of powerlaw_c, Pa (m/yr)^(-1/3)
-       unstag_powerlaw_c       ! work array on the unstaggered grid
+         thck_obs,             & ! observed ice thickness, derived from usrf_obs and topg
+         powerlaw_c_new,       & ! newly computed value of powerlaw_c, Pa (m/yr)^(-1/3)
+         unstag_powerlaw_c       ! work array on the unstaggered grid
 
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-       stag_powerlaw_c         ! work array on the staggered grid
+         stag_powerlaw_c         ! work array on the staggered grid
 
     integer :: i, j
     integer :: ewn, nsn
@@ -1011,6 +1011,14 @@ contains
        if (model%inversion%wean_powerlaw_c_tend > 0.0d0 .and.  &
            model%numerics%time < model%inversion%wean_powerlaw_c_tend) then
 
+          ! Given the surface elevation target, compute the thickness target.
+          ! (This can change in time if the bed topography is dynamic.)
+
+          call usrf_to_thck(model%geometry%usrf_obs,  &
+                            model%geometry%topg,      &
+                            model%climate%eus,        &
+                            thck_obs)
+
           ! Invert for powerlaw_c
           ! Note: The parameter we invert for is called powerlaw_c_save.
           !       Before interpolating to the staggered grid, we derive a parameter called powerlaw_c_inversion,
@@ -1026,7 +1034,7 @@ contains
                                      model%options%which_ho_ground,          &
                                      model%geometry%f_ground_cell,           &
                                      model%geometry%thck*thk0,               &  ! m
-                                     model%geometry%thck_obs*thk0,           &  ! m
+                                     thck_obs*thk0,                          &  ! m
                                      model%geometry%dthck_dt,                &  ! m/s
                                      model%inversion%powerlaw_c_save)
        endif
@@ -1415,6 +1423,79 @@ contains
     endif   ! babc_space_smoothing > 0
 
   end subroutine invert_basal_friction
+
+!***********************************************************************
+
+  !TODO - Move the two following subroutines to a utility module?
+
+  subroutine usrf_to_thck(usrf, topg, eus, thck)
+
+    ! Given the bed topography and upper ice surface elevation, compute the ice thickness.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
+    !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
+    !  rhoi*H = -rhoo*(topg-eus).
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         usrf,           & ! ice upper surface elevation
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         thck              ! ice thickness
+
+    ! initialize
+    thck(:,:) = 0.0d0
+
+    where (usrf > (topg - eus))   ! ice is present, thck > 0
+       where (topg - eus < 0.0d0)   ! marine-based ice
+          where ((topg - eus) * (1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - (topg - eus)
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - (topg - eus)
+       endwhere
+    endwhere
+
+  end subroutine usrf_to_thck
+
+!***********************************************************************
+
+  subroutine thck_to_usrf(thck, topg, eus, usrf)
+
+    ! Given the bed topography and ice thickness, compute the upper surface elevation.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the ice is too thin to be grounded,
+    !  then the upper surface is chosen to satisfy rhoi*H = rhoo*(H - usrf),
+    !  or equivalently usrf = (1 - rhoi/rhoo)*H.
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         thck,           & ! ice thickness
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         usrf              ! ice upper surface elevation
+
+    where ((topg - eus) < -(rhoi/rhoo)*thck)
+       usrf = (1.0d0 - rhoi/rhoo)*thck   ! ice is floating
+    elsewhere   ! ice is grounded
+       usrf = (topg - eus) + thck
+    endwhere
+
+  end subroutine thck_to_usrf
 
 !=======================================================================
 

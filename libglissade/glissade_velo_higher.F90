@@ -722,8 +722,6 @@
        thck,                 &  ! ice thickness (m)
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
-       thck_obs,             &  ! observed ice thickness (m), for inversion
-       dthck_dt,             &  ! rate of change of ice thickness (m/s), for inversion
        bpmp,                 &  ! pressure melting point temperature (C)
        bwat,                 &  ! basal water thickness (m)
        bmlt,                 &  ! basal melt rate (m/yr)
@@ -1039,8 +1037,6 @@
      thck     => model%geometry%thck(:,:)
      usrf     => model%geometry%usrf(:,:)
      topg     => model%geometry%topg(:,:)
-     thck_obs => model%geometry%thck_obs(:,:)
-     dthck_dt => model%geometry%dthck_dt(:,:)   ! Note: dthck_dt has units of m/s; no rescaling needed
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
      f_ground_cell => model%geometry%f_ground_cell(:,:)
@@ -1116,6 +1112,11 @@
     ! (Mainly SI, except that time units in flwa, velocities,
     !  and beta are years instead of seconds)
     !--------------------------------------------------------
+
+    !TODO: Do not scale topg and eus, since we would like these fields
+    !       to remain unchanged (BFB) throughout the simulation,
+    !       unless isostasy is turned on.
+    !      In the long run, remove the scale factors.
 
 !pw call t_startf('glissade_velo_higher_scale_input')
     call glissade_velo_higher_scale_input(dx,      dy,            &
@@ -3932,7 +3933,7 @@
 
     !------------------------------------------------------------------------------
     ! After a 2D solve, fill in the full 3D velocity arrays.
-    ! This is a simple copy for SSA, but required vertical integrals for L1L2 and DIVA. 
+    ! This is a simple copy for SSA, but requires vertical integrals for L1L2 and DIVA.
     ! Note: We store redundant 3D residual info rather than creating a separate 2D residual array.
     !------------------------------------------------------------------------------
 
