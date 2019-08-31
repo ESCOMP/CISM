@@ -480,13 +480,6 @@ data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
 coordinates:   lon lat
 
-[thermal_forcing_applied]
-dimensions:    time, zocn, y1, x1
-units:         degrees K
-long_name:     applied thermal_forcing
-data:          data%ocean_data%thermal_forcing_applied(up,:,:)
-coordinates:   lon lat
-
 [thermal_forcing_lsrf]
 dimensions:    time, y1, x1
 units:         degrees K
