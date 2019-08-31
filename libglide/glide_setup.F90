@@ -451,6 +451,8 @@ contains
           call GetValue(section,'zocn',model%ocean_data%zocn, model%ocean_data%nzocn)
           do k = 2, model%ocean_data%nzocn
              if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
+                write(message,*) 'nzocn, zocn =', model%ocean_data%nzocn, model%ocean_data%zocn(:)
+                call write_log(message)
                 write(message,*) 'Must have zocn decreasing with increasing k in the [grid_ocn] section'
                 call write_log(message, GM_FATAL)
              endif

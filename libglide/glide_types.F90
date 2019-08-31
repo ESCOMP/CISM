@@ -1415,7 +1415,8 @@ module glide_types
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near flotation, set to thck_flotation +/- thck_flotation_buffer (m)
+          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
+                                             !> set to thck_flotation +/- thck_flotation_buffer (m)
 
      ! parameters for weighted exponentially abated nudging
      ! The idea of this nudging is that the inversion fields (bmlt_float_inversion and powerlaw_c_inversion),
@@ -1539,9 +1540,7 @@ module glide_types
 
      real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing_baseline => null(),     & !> baseline thermal forcing (deg C), e.g. from climatology
-          thermal_forcing => null(),              & !> 3D thermal forcing forcing (deg C) input to CISM
-          thermal_forcing_applied => null()         !> 3D thermal forcing forcing (deg C) applied in CISM;
-                                                    !>  may be based on extrapolation to shelf cavities
+          thermal_forcing => null()                 !> 3D thermal forcing forcing (deg C) input to CISM
 
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg C) applied at lower ice surface
@@ -2123,7 +2122,6 @@ contains
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
-    !> \item \texttt{thermal_forcing_applied(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
     !> \end{itemize}
 
@@ -2512,8 +2510,6 @@ contains
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_baseline)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing_applied)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
@@ -2887,8 +2883,6 @@ contains
         deallocate(model%ocean_data%thermal_forcing_baseline)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
-    if (associated(model%ocean_data%thermal_forcing_applied)) &
-        deallocate(model%ocean_data%thermal_forcing_applied)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
 

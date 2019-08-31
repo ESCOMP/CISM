@@ -769,9 +769,6 @@ contains
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
 
-    !WHL - debug
-    use glissade_inversion, only: verbose_inversion
-
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -1132,7 +1129,6 @@ contains
             ocean_mask,                        &
             model%geometry%lsrf*thk0,          & ! m
             model%geometry%topg*thk0,          & ! m
-            model%ocean_data%thermal_forcing,  & ! deg C
             model%ocean_data,                  &
             model%basal_melt%bmlt_float)
 
@@ -2294,6 +2290,7 @@ contains
     ! ------------------------------------------------------------------------ 
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
+
        call isos_compute(model)
 
        ! update topography in halo cells
@@ -2310,6 +2307,7 @@ contains
        else  ! other global BCs, including periodic
           call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
        endif
+
     end if
 
   end subroutine glissade_isostasy_solve
