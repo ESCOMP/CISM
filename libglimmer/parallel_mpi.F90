@@ -239,11 +239,6 @@ module parallel
      module procedure distributed_get_var_real8_1d
      module procedure distributed_get_var_real8_2d
      module procedure distributed_get_var_real8_3d
-
-     !TODO - Put these in the parallel_get_var interface only?
-     module procedure parallel_get_var_integer
-     module procedure parallel_get_var_real4
-     module procedure parallel_get_var_real8
   end interface
 
   interface distributed_print
@@ -4281,39 +4276,35 @@ contains
   end function parallel_get_att_real8_1d
 
   !WHL - Added parallel_get_var functions in analogy to parallel_put_var functions.
-  !      Currently included in the distributed_get_var interface.
-  !      Could put them in a parallel_get_var interface if Fortran autogen I/O routines
-  !       called parallel_get_var for real scalars.
-
-  function parallel_get_var_integer(ncid,varid,values,start)
+  !      Similar to distributed_get_var, but they lack a 'start' argument.
+  !      The scalar and 1D functions broadcast values from main_task to other tasks.
+  !      The 2D functions do not broadcast; they only bring a global array to main_task.
+  function parallel_get_var_integer(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_integer,varid
-    integer,dimension(:) :: start
     integer :: values
     ! begin
-    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values)
     call broadcast(parallel_get_var_integer)
     call broadcast(values)
   end function parallel_get_var_integer
 
-  function parallel_get_var_real4(ncid,varid,values,start)
+  function parallel_get_var_real4(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_real4,varid
-    integer,dimension(:) :: start
     real(sp) :: values
     ! begin
-    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
     call broadcast(parallel_get_var_real4)
     call broadcast(values)
   end function parallel_get_var_real4
 
-  function parallel_get_var_real8(ncid,varid,values,start)
+  function parallel_get_var_real8(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_real8,varid
-    integer,dimension(:) :: start
     real(dp) :: values
     ! begin
-    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
     call broadcast(parallel_get_var_real8)
     call broadcast(values)
   end function parallel_get_var_real8
