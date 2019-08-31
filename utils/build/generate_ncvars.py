@@ -542,8 +542,13 @@ class PrintNC_template(PrintVars):
                     spaces = ' '*3
                     self.stream.write("       do up=1,NCI%nzocn\n")
 
-                self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
-                                                                                                               spaces,var['data'], dimstring))
+                #WHL: Call parallel_get_var to get scalars; else call distributed_get_var
+                if dimstring == 'infile%current_time':   # scalar variable; no dimensions except time
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
+                                                                                                                   spaces,var['data']))
+                else:
+                    self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                                spaces,var['data'], dimstring))
                 self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
                 self.stream.write("%s       status = parallel_get_att(NCI%%id, varid,'scale_factor',scaling_factor)\n"%(spaces))
                 self.stream.write("%s       if (status.ne.NF90_NOERR) then\n"%(spaces))
