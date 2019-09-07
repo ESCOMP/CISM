@@ -129,6 +129,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
+  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
 
   integer, parameter :: BMLT_FLOAT_ISMIP6_PCT5 = 0
   integer, parameter :: BMLT_FLOAT_ISMIP6_MEDIAN = 1
@@ -460,6 +461,7 @@ module glide_types
     !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
     !> \item[1] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
     !> \item[2] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[3] ISMIP6 nonlocal quadratic parameterization with slope dependence
     !> \end{description}
 
     integer :: bmlt_float_ismip6_magnitude = 1
@@ -1504,9 +1506,6 @@ module glide_types
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
 
-     ! slope factor
-     real(dp) :: bmlt_float_slope_factor = 0.0d0      !> factor for weighting bmlt_float by slope of ice shelf base
-
   end type glide_basal_melt
 
 
@@ -1518,7 +1517,7 @@ module glide_types
      !----------------------------------
 
      ! ocean grid and basin number
-     integer  :: nbasin = 1                         !> number of basins (16 for IMBIE2?)
+     integer  :: nbasin = 0                         !> number of basins (= 16 for IMBIE2)
      integer  :: nzocn = 1                          !> number of ocean levels
      real(dp) :: dzocn = 0.d0                       !> thickness of ocean levels; nonzero value set in config file
      real(dp), dimension(:), pointer :: &
@@ -2502,10 +2501,9 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
           ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
-          if (model%ocean_data%nzocn < 1) &
+          if (model%ocean_data%nzocn < 1) then
              call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
-          if (model%ocean_data%nbasin < 1) &
-             call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
+          endif
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
@@ -2513,7 +2511,11 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
-              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
+              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+             if (model%ocean_data%nbasin < 1) then
+                call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
+             endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
