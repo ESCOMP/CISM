@@ -1120,38 +1120,18 @@ contains
           bmlt_float_mask = 0
        endwhere
 
-       call glissade_bmlt_float_thermal_forcing(&
-            model%options%bmlt_float_thermal_forcing_param, &
-            model%options%ocean_data_domain,   &
-            ewn,                nsn,           &
-            itest,     jtest,   rtest,         &
-            bmlt_float_mask,                   &
-            ocean_mask,                        &
-            model%geometry%lsrf*thk0,          & ! m
-            model%geometry%topg*thk0,          & ! m
-            model%ocean_data,                  &
-            model%basal_melt%bmlt_float)
+       if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-       ! Optionally, multiply the computed melt rate by bmlt_slope_factor * sin(theta_slope),
-       !  where bmlt_slope_factor is an empirical parameter and theta_slope is the angle
-       !  of the basal shelf slope.
-       ! This option can be used to concentrate basal melting near the grounding line,
-       !  where slopes are typically greatest, and to reduce melting near the calving front
-       !  where slopes are small.
-
-       if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
-
-          ! Compute the angle between the lower ice shelf surface and the horizontal
+          ! Compute the angle between the lower ice shelf surface and the horizontal.
+          ! This option can be used to concentrate basal melting near the grounding line,
+          !  where slopes are typically larger, and to reduce melting near the calving front
+          !  where slopes are small.
 
           call glissade_slope_angle(ewn,                      nsn,                     &
                                     model%numerics%dew*len0,  model%numerics%dns*len0, &  ! m
                                     model%geometry%lsrf*thk0,                          &  ! m
                                     theta_slope,                                       &  ! radians
                                     slope_mask_in = bmlt_float_mask)
-
-          ! Adjust the basal melt rate based on sin(theta_slope)
-          model%basal_melt%bmlt_float = &
-               model%basal_melt%bmlt_float * model%basal_melt%bmlt_float_slope_factor * sin(theta_slope)
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
@@ -1163,18 +1143,22 @@ contains
                 enddo
                 write(6,*) ' '
              enddo
-             print*, ' '
-             print*, 'bmlt_float after slope adjustment (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * scyr
-                enddo
-                write(6,*) ' '
-             enddo
           endif
 
-       endif   ! bmlt_float_slope_factor > 0
+       endif   ! ISMIP6 nonlocal slope
+
+       call glissade_bmlt_float_thermal_forcing(&
+            model%options%bmlt_float_thermal_forcing_param, &
+            model%options%ocean_data_domain,   &
+            ewn,                nsn,           &
+            itest,     jtest,   rtest,         &
+            bmlt_float_mask,                   &
+            ocean_mask,                        &
+            model%geometry%lsrf*thk0,          & ! m
+            model%geometry%topg*thk0,          & ! m
+            theta_slope,                       &
+            model%ocean_data,                  &
+            model%basal_melt%bmlt_float)
 
        ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
        ! (1) Use the value just computed, based on the current thermal_forcing.
@@ -1196,7 +1180,7 @@ contains
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
                 enddo
                 write(6,*) ' '
              enddo
@@ -1210,7 +1194,7 @@ contains
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float_baseline(i,j)*scyr
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float_baseline(i,j)*scyr
                 enddo
                 write(6,*) ' '
              enddo
@@ -1219,7 +1203,7 @@ contains
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
+                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
                 enddo
                 write(6,*) ' '
              enddo
