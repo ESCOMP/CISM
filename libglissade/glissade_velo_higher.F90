@@ -724,7 +724,6 @@
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
        bwat,                 &  ! basal water thickness (m)
-       bmlt,                 &  ! basal melt rate (m/yr)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
@@ -1095,7 +1094,6 @@
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
      bwat     => model%temper%bwat(:,:)
-     bmlt     => model%basal_melt%bmlt(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1170,7 +1168,7 @@
                                           topg,    eus,           &
                                           thklim,                 &
                                           thck_gradient_ramp,     &
-                                          bwat,    bmlt,          &
+                                          bwat,                   &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
                                           uvel,    vvel,          &
@@ -2004,15 +2002,18 @@
     !------------------------------------------------------------------------------
 
     !TODO - Use btemp_ground instead of temp(nz)?
+    !TODO - Add optional p_water argument once it is part of the basal_hydro derived type
     call calc_effective_pressure(whicheffecpress,              &
                                  nx,            ny,            &
                                  model%basal_physics,          &
                                  ice_mask,      floating_mask, &
                                  thck,          topg,          &
                                  eus,                          &
-                                 bpmp(:,:) - temp(nz,:,:),     &
-                                 bmlt,          bwat,          &
-                                 itest, jtest,  rtest)
+                                 delta_bpmp = bpmp(:,:) - temp(nz,:,:),  &
+                                 bwat  = bwat,                 &
+                                 itest = itest,                &
+                                 jtest = jtest,                &
+                                 rtest = rtest)
 
     !------------------------------------------------------------------------------
     ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
@@ -2944,20 +2945,6 @@
 
              endif  ! HO_BABC_BETA_BPMP or HO_EFFECPRESS_BPMP
 
-             if (whicheffecpress == HO_EFFECPRESS_BMLT) then
-
-                print*, ' '
-                print*, 'bmlt (m/yr), itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.5)',advance='no') bmlt(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-             endif  ! HO_EFFECPRESS_BMLT
-
              if (whichbabc == HO_BABC_YIELD_PICARD) then
                 print*, ' '
                 print*, 'mintauf field, rank =', rtest
@@ -3469,7 +3456,7 @@
              call t_startf('glissade_velo_higher_scale_outp')
              call glissade_velo_higher_scale_output(thck,    usrf,          &
                                                     topg,                   &
-                                                    bwat,    bmlt,          &
+                                                    bwat,                   &
                                                     flwa,    efvs,          &
                                                     beta_internal,          &
                                                     resid_u, resid_v,       &
@@ -4372,7 +4359,7 @@
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
                                            topg,                   &
-                                           bwat,    bmlt,          &
+                                           bwat,                   &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -4396,7 +4383,7 @@
                                               topg,    eus,           &
                                               thklim,                 &
                                               thck_gradient_ramp,     &
-                                              bwat,    bmlt,          &
+                                              bwat,                   &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
                                               uvel,    vvel,          &
@@ -4414,8 +4401,7 @@
        thck,                &  ! ice thickness
        usrf,                &  ! upper surface elevation
        topg,                &  ! elevation of topography
-       bwat,                &  ! basal water thickness
-       bmlt                    ! basal melt rate
+       bwat                    ! basal water thickness
 
     real(dp), intent(inout) ::   &
        eus,                 &  ! eustatic sea level (= 0 by default)
@@ -4446,9 +4432,6 @@
     thck_gradient_ramp = thck_gradient_ramp * thk0
     bwat = bwat * thk0
 
-    ! basal melt rate: rescale from dimensionless to m/yr
-    bmlt = bmlt * (scyr*thk0/tim0)
-
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
     flwa = flwa * (vis0*scyr)
 
@@ -4471,7 +4454,7 @@
 
   subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
                                                topg,                    &
-                                               bwat,    bmlt,           &
+                                               bwat,                    &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -4493,8 +4476,7 @@
        thck,                 &  ! ice thickness
        usrf,                 &  ! upper surface elevation
        topg,                 &  ! elevation of topography
-       bwat,                 &  ! basal water thickness
-       bmlt                     ! basal melt rate
+       bwat                    ! basal water thickness
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -4523,9 +4505,6 @@
     usrf = usrf / thk0
     topg = topg / thk0
     bwat = bwat / thk0
-
-    ! Convert basal melt rate from m/yr to dimensionless units
-    bmlt = bmlt / (scyr*thk0/tim0)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)

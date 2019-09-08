@@ -1013,7 +1013,7 @@ contains
     character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
          'reduced effecpress near pressure melting point       ', &
-         'reduced effecpress where there is melting at the bed ', &
+         'overburden pressure minus basal water pressure       ', &
          'reduced effecpress where bed is connected to ocean   ', &
          'reduced effecpress with increasing basal water       '/)
 
@@ -2414,11 +2414,6 @@ contains
        write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
        write(message,*) 'effecpress bpmp threshold (K) : ', model%basal_physics%effecpress_bpmp_threshold
-       call write_log(message)
-    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BMLT) then
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-       write(message,*) 'effecpress bmlt threshold (m) : ', model%basal_physics%effecpress_bmlt_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
        write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta

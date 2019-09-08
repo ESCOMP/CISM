@@ -706,7 +706,8 @@ contains
                                       thck,          topg,          &
                                       eus,                          &
                                       delta_bpmp,                   &
-                                      bmlt,          bwat,          &
+                                      bwat,                         &
+                                      p_water,                      &
                                       itest, jtest,  rtest)
 
     ! Calculate the effective pressure at the bed
@@ -733,6 +734,8 @@ contains
          ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
          floating_mask       ! = 1 where ice is present and floating, else = 0
  
+    !NOTE: If used, the following 2D fields (delta_bpmp, bwat, p_water, thck and topg) need to be correct in halos.
+
     real(dp), dimension(:,:), intent(in) ::  &
          thck,             & ! ice thickness (m)
          topg                ! bed topography (m)
@@ -740,19 +743,17 @@ contains
     real(dp), intent(in) ::  &
          eus                 ! eustatic sea level (m) relative to z = 0
 
-    !NOTE: If used, the following 2D fields (delta_bpmp, bmlt, bwat, thck and topg) need to be correct in halos.
-
     real(dp), dimension(:,:), intent(in), optional ::  &
          delta_bpmp          ! Tpmp - T at the bed (deg C)
                              ! used for HO_EFFECPRESS_BPMP option
 
     real(dp), dimension(:,:), intent(in), optional ::  &
-         bmlt                ! basal melt rate at the bed (m/yr)
-                             ! used for HO_EFFECPRESS_BMLT option
-
-    real(dp), dimension(:,:), intent(in), optional ::  &
          bwat                ! basal water thickness at the bed (m)
                              ! used for HO_EFFECPRESS_BWAT option
+
+    real(dp), dimension(:,:), intent(in), optional ::  &
+         p_water             ! basal water pressure (Pa)
+                             ! used for HO_EFFECPRESS_PI_PW option
 
     integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
@@ -760,7 +761,6 @@ contains
 
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
-         bmlt_factor,     &  ! factor between 0 and 1, used in linear ramp based on bmlt
          relative_bwat       ! ratio bwat/bwat_till_max, limited to range [0,1]
 
     real(dp), dimension(ewn,nsn) ::  &
@@ -814,32 +814,32 @@ contains
 
        endif   ! present(delta_bpmp)
 
-    case(HO_EFFECPRESS_BMLT)
+    case(HO_EFFECPRESS_PI_PW)
 
-       if (present(bmlt)) then
+       if (present(p_water)) then
 
-          ! Reduce N where there is melting at the bed.
-          ! The effective pressure ramps down from full overburden for bmlt = 0
-          !  to a small value for bmlt >= effecpress_bmlt_threshold.
-          ! Both bmlt and effecpress_bmlt_threshold have units of m/yr.
-          ! bmlt_factor = 0 where there is no basal melting (bmlt = 0)
-          ! bmlt_factor = 1 where there is large basal melting (bmlt >= effecpress_bmlt_threshold)
-          ! 0 < bmlt_factor < 1 where 0 < bmlt < bmlt_threshold 
+          ! Compute N as the difference between overburden pressure and basal water pressure.
+          ! Water pressure typically would be computed by a basal hydrology model.
 
           do j = 1, nsn
              do i = 1, ewn
 
-                bmlt_factor = max(0.0d0, min(1.0d0, bmlt(i,j)/basal_physics%effecpress_bmlt_threshold))
-                basal_physics%effecpress(i,j) = overburden(i,j) * &
-                     (basal_physics%effecpress_delta + (1.0d0 - bmlt_factor) * (1.0d0 - basal_physics%effecpress_delta))
+                basal_physics%effecpress(i,j) = overburden(i,j) - p_water(i,j)
 
                 ! set to zero for floating ice
                 if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
 
+                ! Note: There is code below to remove negative values of effecpress.
+                !       Might want to revisit this restriction later.
+
              enddo
           enddo
 
-       endif   ! present(bmlt)
+       else
+
+          call write_log('ERROR: Need p_water to use this effecpress option', GM_FATAL)
+
+       endif   ! present(p_water)
 
     case(HO_EFFECPRESS_BWAT)
 

@@ -265,10 +265,10 @@ module glide_types
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
 
-  !TODO - Remove option 2? Rarely used
+  !WHL - Replaced old option 2 with pi_pw option
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
-  integer, parameter :: HO_EFFECPRESS_BMLT = 2
+  integer, parameter :: HO_EFFECPRESS_PI_PW = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
   integer, parameter :: HO_EFFECPRESS_BWAT = 4
 
@@ -769,7 +769,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] N = overburden pressure, rhoi*grav*thck
     !> \item[1] N is reduced where the bed is at or near the pressure melting point
-    !> \item[2] N is reduced where there is melting at the bed
+    !> \item[2] N = overburden pressure minus basal water pressure
     !> \item[3] N is reduced due to connection of subglacial water to the ocean
     !> \item[4] N is reduced where basal water is present
     !> \end{description}
