@@ -58,6 +58,10 @@ module glimmer_physcon
   real(dp),parameter :: rhow = 1000.0d0          !< The density of fresh water (kg m<SUP>-3</SUP>)  
   real(dp),parameter :: rearth  = 6.37122d6      ! radius of earth (m)  
 
+  real(dp),parameter :: c_t = 7.5d-8             !< change in pressure melting point with temperature (K/Pa)
+  real(dp),parameter :: c_w = 4.22d3             !< heat capacity of water (J/kg/K)
+  real(dp),parameter :: nu_water = 1.787d-3      !< kinematic viscosity of water (m2/s)
+
   !NOTE: The following are not parameters because the default values can be overridden in the config file.
   !      This may be desirable for test problems such as MISMIP that specify values different from CISM's default values. 
   !      It may also be useful to set these to CESM values, for comparing CESM-coupled to standalone runs.
