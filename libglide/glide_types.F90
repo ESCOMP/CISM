@@ -264,6 +264,7 @@ module glide_types
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
+  integer, parameter :: HO_BWAT_SHAKTI = 3
 
   !WHL - Replaced old option 2 with pi_pw option
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
@@ -271,6 +272,7 @@ module glide_types
   integer, parameter :: HO_EFFECPRESS_PI_PW = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
   integer, parameter :: HO_EFFECPRESS_BWAT = 4
+  integer, parameter :: HO_EFFECPRESS_PI_PW = 5
 
   !WHL - added Picard acceleration option
   integer, parameter :: HO_NONLIN_PICARD = 0
@@ -762,6 +764,7 @@ module glide_types
     !> \item[0] Set to zero everywhere
     !> \item[1] Set to constant everywhere, to force T = Tpmp.
     !> \item[2] Local basal till model with constant drainage
+    !> \item[3] SHAKTI basal hydrology model
     !> \end{description}
 
     integer :: which_ho_effecpress = 0
@@ -772,6 +775,7 @@ module glide_types
     !> \item[2] N = overburden pressure minus basal water pressure
     !> \item[3] N is reduced due to connection of subglacial water to the ocean
     !> \item[4] N is reduced where basal water is present
+    !> \item[5] p_ice - p_water, where p_water is prognosed
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1598,6 +1602,25 @@ module glide_types
 
   end type glide_basal_melt
 
+  type glide_basal_hydro
+     !> holds variables related to the SHAKTI basal hydrology model
+   
+     real(dp), dimension(:,:), pointer :: head => null()  !>hydraulic head (m), h = p_w/(rhow*g) + z_b)
+     real(dp), dimension(:,:), pointer :: gap_height => null()  !> basal gap height (m)
+     real(dp), dimension(:,:), pointer :: p_water => null()  !> basal water pressure (Pa)
+     real(dp), dimension(:,:), pointer :: englacial_void_ratio => null()  !> englacial void ratio for storage (unitless)
+     real(dp), dimension(:,:), pointer :: meltwater_input => null()  !> distributed meltwater input to the basal system (m/s)
+     real(dp), dimension(:,:), pointer :: moulin_input => null()  !> moulin point input (m3/s)
+     
+     integer, dimension(:,:), pointer :: ice_hydro_mask => null() !> mask, = 1 where thk can be >0
+
+     real(dp) :: bump_height = 0.1  !> typical height of bed bumps (m)  
+     real(dp) :: bump_spacing = 2  !> typical spacing between bed bumps (m)  
+     real(dp) :: omega = 0.001  !> controls transition between laminar and turbulent flow (unitless)
+
+  end type glide_basal_hydro
+
+     
 
   type glide_ocean_data
 
