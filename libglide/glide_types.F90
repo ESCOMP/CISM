@@ -272,7 +272,6 @@ module glide_types
   integer, parameter :: HO_EFFECPRESS_PI_PW = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
   integer, parameter :: HO_EFFECPRESS_BWAT = 4
-  integer, parameter :: HO_EFFECPRESS_PI_PW = 5
 
   !WHL - added Picard acceleration option
   integer, parameter :: HO_NONLIN_PICARD = 0
@@ -2188,6 +2187,7 @@ module glide_types
     type(glide_prof_type):: glide_prof
     type(isostasy_type)  :: isostasy
     type(glissade_solver):: solver_data
+    type(glide_basal_hydro) :: hydrology
 !!    type(glide_basalproc):: basalproc
 !!    type(glide_phaml)    :: phaml
 
@@ -2754,6 +2754,18 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
     endif
 
+    ! SHAKTI subglacial hydrology arrays
+    if (model%options%which_ho_bwat == HO_BWAT_SHAKTI) then
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%head)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%gap_height)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%p_water)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%englacial_void_ratio)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%meltwater_input)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%moulin_input)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%ice_hydro_mask)
+    endif
+                
+
     ! The remaining arrays are not currently used
     ! phaml arrays
 !!    call coordsystem_allocate(model%general%ice_grid, model%phaml%init_phaml)
@@ -3315,6 +3327,22 @@ contains
           deallocate(model%projection%stere%area_factor)
        endif
     endif
+
+    ! SHAKTI subglacial hydrology arrays
+    if(associated(model%hydrology%head)) &
+      deallocate(model%hydrology%head)
+    if(associated(model%hydrology%gap_height)) &
+      deallocate(model%hydrology%gap_height)
+    if(associated(model%hydrology%p_water)) &
+      deallocate(model%hydrology%p_water)
+    if(associated(model%hydrology%englacial_void_ratio)) &
+      deallocate(model%hydrology%englacial_void_ratio)
+    if(associated(model%hydrology%meltwater_input)) &
+      deallocate(model%hydrology%meltwater_input)
+    if(associated(model%hydrology%moulin_input)) &
+      deallocate(model%hydrology%moulin_input)
+    if(associated(model%hydrology%ice_hydro_mask)) &
+      deallocate(model%hydrology%ice_hydro_mask)
 
     ! The remaining arrays are not currently used
     ! phaml arrays
