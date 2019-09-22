@@ -423,9 +423,7 @@ contains
        call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
        call GetValue(section,'nbasin',model%ocean_data%nbasin)
 
-       call write_log('')
-       write(message,*) 'number of ocean basins        : ',model%ocean_data%nbasin
-       call write_log(trim(message))
+       call write_log(' ')
        write(message,*) 'number of ocean levels        : ',model%ocean_data%nzocn
        call write_log(trim(message))
 
@@ -451,6 +449,8 @@ contains
           call GetValue(section,'zocn',model%ocean_data%zocn, model%ocean_data%nzocn)
           do k = 2, model%ocean_data%nzocn
              if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
+                write(message,*) 'nzocn, zocn =', model%ocean_data%nzocn, model%ocean_data%zocn(:)
+                call write_log(trim(message))
                 write(message,*) 'Must have zocn decreasing with increasing k in the [grid_ocn] section'
                 call write_log(message, GM_FATAL)
              endif
@@ -468,6 +468,14 @@ contains
           enddo
           call write_log(trim(message))
           call write_log('')
+       endif
+
+       if (model%ocean_data%nbasin >= 1) then
+          call write_log('')
+          write(message,*) 'number of ocean basins: ', model%ocean_data%nbasin
+          call write_log(trim(message))
+       else
+          call write_log('No ocean basins')
        endif
 
     else    ! no 'grid_ocn' section
@@ -841,10 +849,11 @@ contains
          'melt rate from MISOMIP T/S profile    ', &
          'melt rate from thermal forcing        ' /)
 
-    character(len=*), dimension(0:2), parameter :: bmlt_float_thermal_forcing_param = (/ &
-         'quadratic function of thermal forcing ', &
-         'ISMIP6 local quadratic                ', &
-         'ISMIP6 nonlocal quadratic             ' /)
+    character(len=*), dimension(0:3), parameter :: bmlt_float_thermal_forcing_param = (/ &
+         'quadratic function of thermal forcing     ', &
+         'ISMIP6 local quadratic                    ', &
+         'ISMIP6 nonlocal quadratic                 ', &
+         'ISMIP6 nonlocal quadratic, slope-dependent' /)
 
     character(len=*), dimension(0:2), parameter :: bmlt_float_ismip6_magnitude = (/ &
          'lowest forcing magnitude  ', &
@@ -1360,7 +1369,8 @@ contains
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
        call write_log(message)
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
           write(message,*) 'magnitude of forcing    : ', model%options%bmlt_float_ismip6_magnitude, &
                bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
           call write_log(message)
@@ -1930,9 +1940,6 @@ contains
     call GetValue(section,'gammaT',    model%plume%gammaT)
     call GetValue(section,'gammaS',    model%plume%gammaS)
 
-    ! basal slope parameter
-    call GetValue(section,'bmlt_float_slope_factor', model%basal_melt%bmlt_float_slope_factor)
-
   end subroutine handle_parameters
 
 !--------------------------------------------------------------------------------
@@ -2434,11 +2441,6 @@ contains
        call write_log(message)
     endif
 
-    if (model%basal_melt%bmlt_float_slope_factor > 0.0d0) then
-       write(message,*) 'bmlt_float_slope_factor        :  ', model%basal_melt%bmlt_float_slope_factor
-       call write_log(message)
-    endif
-
   end subroutine print_parameters
 
 !--------------------------------------------------------------------------------
@@ -2766,7 +2768,8 @@ contains
           ! If using an ISMIP6 melt parameterization (either local or nonlocal),
           !  we need basin numbers and deltaT values for the parameterization.
           if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then 
+              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
              call glide_add_to_restart_variable_list('basin_number')
              ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes.
              ! Only need one of these for restart (since param and magnitude will not change during the run).

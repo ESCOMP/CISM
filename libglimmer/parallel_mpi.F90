@@ -3036,6 +3036,7 @@ contains
     ! begin
     if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values,start)
     call broadcast(parallel_get_var_integer)
+    call broadcast(values)
   end function parallel_get_var_integer
 
   function parallel_get_var_real4(ncid,varid,values,start)
@@ -3046,6 +3047,7 @@ contains
     ! begin
     if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values,start)
     call broadcast(parallel_get_var_real4)
+    call broadcast(values)
   end function parallel_get_var_real4
 
   function parallel_get_var_real8(ncid,varid,values,start)
@@ -3056,6 +3058,7 @@ contains
     ! begin
     if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values,start)
     call broadcast(parallel_get_var_real8)
+    call broadcast(values)
   end function parallel_get_var_real8
 
   function parallel_get_att_character(ncid,varid,name,values)
