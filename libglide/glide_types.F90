@@ -129,6 +129,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
+  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
 
   integer, parameter :: BMLT_FLOAT_ISMIP6_PCT5 = 0
   integer, parameter :: BMLT_FLOAT_ISMIP6_MEDIAN = 1
@@ -460,6 +461,7 @@ module glide_types
     !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
     !> \item[1] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
     !> \item[2] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[3] ISMIP6 nonlocal quadratic parameterization with slope dependence
     !> \end{description}
 
     integer :: bmlt_float_ismip6_magnitude = 1
@@ -943,14 +945,8 @@ module glide_types
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
 
-    real(dp),dimension(:,:),pointer :: thck_obs => null()
-    !> Observed ice thickness, divided by \texttt{thk0}.
-
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
     !> Observed upper surface elevation, divided by \texttt{thk0}.
-
-    real(dp),dimension(:,:),pointer :: topg_obs => null()
-    !> Observed basal topography, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
     !> flotation function, > 0 for floating ice and <= 0 for grounded ice
@@ -1421,7 +1417,8 @@ module glide_types
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0      !> if thck_obs near thck_flotation, set to thck_flotation +/- thck_flotation_buffer (m)
+          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
+                                             !> set to thck_flotation +/- thck_flotation_buffer (m)
 
      ! parameters for weighted exponentially abated nudging
      ! The idea of this nudging is that the inversion fields (bmlt_float_inversion and powerlaw_c_inversion),
@@ -1509,9 +1506,6 @@ module glide_types
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
 
-     ! slope factor
-     real(dp) :: bmlt_float_slope_factor = 0.0d0      !> factor for weighting bmlt_float by slope of ice shelf base
-
   end type glide_basal_melt
 
 
@@ -1523,7 +1517,7 @@ module glide_types
      !----------------------------------
 
      ! ocean grid and basin number
-     integer  :: nbasin = 1                         !> number of basins (16 for IMBIE2?)
+     integer  :: nbasin = 0                         !> number of basins (= 16 for IMBIE2)
      integer  :: nzocn = 1                          !> number of ocean levels
      real(dp) :: dzocn = 0.d0                       !> thickness of ocean levels; nonzero value set in config file
      real(dp), dimension(:), pointer :: &
@@ -1545,9 +1539,7 @@ module glide_types
 
      real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing_baseline => null(),     & !> baseline thermal forcing (deg C), e.g. from climatology
-          thermal_forcing => null(),              & !> 3D thermal forcing forcing (deg C) input to CISM
-          thermal_forcing_applied => null()         !> 3D thermal forcing forcing (deg C) applied in CISM;
-                                                    !>  may be based on extrapolation to shelf cavities
+          thermal_forcing => null()                 !> 3D thermal forcing forcing (deg C) input to CISM
 
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg C) applied at lower ice surface
@@ -2129,7 +2121,6 @@ contains
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_baseline(nzocn,ewn,nsn)}
-    !> \item \texttt{thermal_forcing_applied(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
     !> \end{itemize}
 
@@ -2199,9 +2190,7 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
-    !> \item \texttt{thck_obs(ewn,nsn))}
     !> \item \texttt{usrf_obs(ewn,nsn))}
-    !> \item \texttt{topg_obs(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
@@ -2406,9 +2395,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
@@ -2514,20 +2501,21 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
           ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
-          if (model%ocean_data%nzocn < 1) &
+          if (model%ocean_data%nzocn < 1) then
              call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
-          if (model%ocean_data%nbasin < 1) &
-             call write_log('Must set nbasin >= 1 for this bmlt_float option', GM_FATAL)
+          endif
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing_baseline)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing_applied)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
           call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
-              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
+              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+             if (model%ocean_data%nbasin < 1) then
+                call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
+             endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct5)
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_median)
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin_local_pct95)
@@ -2897,8 +2885,6 @@ contains
         deallocate(model%ocean_data%thermal_forcing_baseline)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
-    if (associated(model%ocean_data%thermal_forcing_applied)) &
-        deallocate(model%ocean_data%thermal_forcing_applied)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
 
@@ -2962,12 +2948,8 @@ contains
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
         deallocate(model%geometry%topg)
-    if (associated(model%geometry%thck_obs)) &
-        deallocate(model%geometry%thck_obs)
     if (associated(model%geometry%usrf_obs)) &
         deallocate(model%geometry%usrf_obs)
-    if (associated(model%geometry%topg_obs)) &
-        deallocate(model%geometry%topg_obs)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &

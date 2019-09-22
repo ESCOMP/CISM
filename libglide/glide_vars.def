@@ -480,13 +480,6 @@ data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
 coordinates:   lon lat
 
-[thermal_forcing_applied]
-dimensions:    time, zocn, y1, x1
-units:         degrees K
-long_name:     applied thermal_forcing
-data:          data%ocean_data%thermal_forcing_applied(up,:,:)
-coordinates:   lon lat
-
 [thermal_forcing_lsrf]
 dimensions:    time, y1, x1
 units:         degrees K
@@ -673,29 +666,11 @@ standard_name: stag_land_ice_thickness
 load:          0
 coordinates:   lon lat
 
-[thck_obs]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     observed ice thickness
-data:          data%geometry%thck_obs
-factor:        thk0
-load:          1
-coordinates:   lon lat
-
 [usrf_obs]
 dimensions:    time, y1, x1
 units:         meter
 long_name:     observed surface elevation
 data:          data%geometry%usrf_obs
-factor:        thk0
-load:          1
-coordinates:   lon lat
-
-[topg_obs]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     observed bed topography
-data:          data%geometry%topg_obs
 factor:        thk0
 load:          1
 coordinates:   lon lat
