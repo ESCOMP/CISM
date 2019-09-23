@@ -2228,6 +2228,17 @@ contains
     !> \item \texttt{bmlt_float_baseline(ewn,nsn)}
     !> \end{itemize}
 
+    !> \In \texttt{model\%hydrology}:
+    !> \begin{itemize}
+    !> \item \texttt{head(ewn,nsn)}
+    !> \item \texttt{gap_height(ewn,nsn)}
+    !> \item \texttt{p_water(ewn,nsn)}
+    !> \item \texttt{englacial_void_ratio(ewn,nsn)}
+    !> \item \texttt{meltwater_input(ewn,nsn)}
+    !> \item \texttt{moulin_input(ewn,nsn)}
+    !> \item \texttt{ice_hydro_mask(ewn,nsn)}
+    !> \end{itemize}
+
     !> In \texttt{model\%ocean_data}:
     !> \begin{itemize}
     !> \item \texttt{deltaT_basin(ewn,nsn)}
