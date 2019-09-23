@@ -1607,6 +1607,7 @@ module glide_types
      real(dp), dimension(:,:), pointer :: head => null()  !>hydraulic head (m), h = p_w/(rhow*g) + z_b)
      real(dp), dimension(:,:), pointer :: gap_height => null()  !> basal gap height (m)
      real(dp), dimension(:,:), pointer :: p_water => null()  !> basal water pressure (Pa)
+     real(dp), dimension(:,:), pointer :: basal_water_flux => null()  !> depth-integrated basal water flux (m2/s)
      real(dp), dimension(:,:), pointer :: englacial_void_ratio => null()  !> englacial void ratio for storage (unitless)
      real(dp), dimension(:,:), pointer :: meltwater_input => null()  !> distributed meltwater input to the basal system (m/s)
      real(dp), dimension(:,:), pointer :: moulin_input => null()  !> moulin point input (m3/s)
@@ -2233,6 +2234,7 @@ contains
     !> \item \texttt{head(ewn,nsn)}
     !> \item \texttt{gap_height(ewn,nsn)}
     !> \item \texttt{p_water(ewn,nsn)}
+    !> \item \texttt{basal_water_flux(ewn,nsn)}
     !> \item \texttt{englacial_void_ratio(ewn,nsn)}
     !> \item \texttt{meltwater_input(ewn,nsn)}
     !> \item \texttt{moulin_input(ewn,nsn)}
@@ -2770,6 +2772,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%hydrology%head)
        call coordsystem_allocate(model%general%ice_grid, model%hydrology%gap_height)
        call coordsystem_allocate(model%general%ice_grid, model%hydrology%p_water)
+       call coordsystem_allocate(model%general%ice_grid, model%hydrology%basal_water_flux)
        call coordsystem_allocate(model%general%ice_grid, model%hydrology%englacial_void_ratio)
        call coordsystem_allocate(model%general%ice_grid, model%hydrology%meltwater_input)
        call coordsystem_allocate(model%general%ice_grid, model%hydrology%moulin_input)
@@ -3346,6 +3349,8 @@ contains
       deallocate(model%hydrology%gap_height)
     if(associated(model%hydrology%p_water)) &
       deallocate(model%hydrology%p_water)
+    if(associated(model%hydrology%basal_water_flux)) &
+      deallocate(model%hydrology%basal_water_flux)
     if(associated(model%hydrology%englacial_void_ratio)) &
       deallocate(model%hydrology%englacial_void_ratio)
     if(associated(model%hydrology%meltwater_input)) &
