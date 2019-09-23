@@ -1769,6 +1769,12 @@
 !!         use_serial_tridiag_solver = .true.  ! if true, use the serial solver when tasks = 1
          use_serial_tridiag_solver = .false.   ! if false, use the parallel solver for any number of tasks, including tasks = 1
 
+    logical, parameter :: matvec_new = .false.
+!!    logical, parameter :: matvec_new = .true.
+
+    real(dp), dimension(nx-1,ny-1,9) :: &
+         Auu_temp, Auv_temp, Avu_temp, Avv_temp    ! reordered versions of matrices for testing
+
     if (present(itest_in)) then
        itest = itest_in
     else
@@ -1966,6 +1972,38 @@
 
     !---- Compute A*x   (use z as a temp vector for A*x)
 
+    !WHL - debug
+
+   if (matvec_new) then
+
+      ! rearrange matrices
+    call t_startf("pcg_matrix_rearrange")
+    do m = 1, 9
+       do j = 1, ny-1
+          do i = 1, nx-1
+             Auu_temp(i,j,m) = Auu(m,i,j)
+             Auv_temp(i,j,m) = Auv(m,i,j)
+             Avu_temp(i,j,m) = Avu(m,i,j)
+             Avv_temp(i,j,m) = Avv(m,i,j)
+          enddo
+       enddo
+    enddo
+    call t_stopf("pcg_matrix_rearrange")
+
+    call t_startf("pcg_matmult_init")
+    call matvec_multiply_structured_2d_new(nx,        ny,            &
+                                       nhalo,                    &
+                                       indxA_2d,  active_vertex, &
+!!                                       Auu,       Auv,           &
+!!                                       Avu,       Avv,           &
+                                       Auu_temp,  Auv_temp,      &
+                                       Avu_temp,  Avv_temp,      &
+                                       xu,        xv,            &
+                                       zu,        zv)
+    call t_stopf("pcg_matmult_init")
+
+   else  ! matvec_new = F
+
     call t_startf("pcg_matmult_init")
     call matvec_multiply_structured_2d(nx,        ny,            &
                                        nhalo,                    &
@@ -1975,6 +2013,8 @@
                                        xu,        xv,            &
                                        zu,        zv)
     call t_stopf("pcg_matmult_init")
+
+   endif   ! matvec_new
 
     !---- Compute the initial residual r = b - A*x
     !---- This is correct for locally owned nodes.
@@ -2140,6 +2180,23 @@
     !---- Compute q = A*d
     !---- q is correct for locally owned nodes, provided d extends one layer into the halo
 
+
+   if (matvec_new) then
+
+    call t_startf("pcg_matmult_iter")
+    call matvec_multiply_structured_2d_new(nx,        ny,            &
+                                       nhalo,                    &
+                                       indxA_2d,  active_vertex, &
+!!                                       Auu,       Auv,           &
+!!                                       Avu,       Avv,           &
+                                       Auu_temp,  Auv_temp,      &
+                                       Avu_temp,  Avv_temp,      &
+                                       du,        dv,            &
+                                       qu,        qv)
+    call t_stopf("pcg_matmult_iter")
+
+   else   ! matvec_new = F
+
     call t_startf("pcg_matmult_iter")
     call matvec_multiply_structured_2d(nx,        ny,            &
                                        nhalo,                    &
@@ -2149,6 +2206,8 @@
                                        du,        dv,            &
                                        qu,        qv)
     call t_stopf("pcg_matmult_iter")
+
+   endif   ! matvec_new
 
     !WHL - debug
     usum = sum(qu(staggered_ilo:staggered_ihi,staggered_jlo:staggered_jhi))
@@ -2335,6 +2394,22 @@
        !---- This is the one matvec multiply required per iteration
        !---- Az is correct for locally owned nodes and needs a halo update (below)
 
+      if (matvec_new) then
+
+       call t_startf("pcg_matmult_iter")
+       call matvec_multiply_structured_2d_new(nx,        ny,            &
+                                          nhalo,                    &
+                                          indxA_2d,  active_vertex, &
+!!                                          Auu,       Auv,           &
+!!                                          Avu,       Avv,           &
+                                          Auu_temp,  Auv_temp,      &
+                                          Avu_temp,  Avv_temp,      &
+                                          zu,        zv,            &
+                                          Azu,       Azv)
+       call t_stopf("pcg_matmult_iter")
+
+      else  ! matvec_new = F
+
        call t_startf("pcg_matmult_iter")
        call matvec_multiply_structured_2d(nx,        ny,            &
                                           nhalo,                    &
@@ -2344,6 +2419,8 @@
                                           zu,        zv,            &
                                           Azu,       Azv)
        call t_stopf("pcg_matmult_iter")
+
+      endif   ! matvec_new
 
        !---- Compute intermediate results for the dot products (r,z) and (Az,z)
 
@@ -2423,6 +2500,22 @@
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
+         if (matvec_new) then
+
+          call t_startf("pcg_matmult_resid")
+          call matvec_multiply_structured_2d_new(nx,        ny,            &
+                                             nhalo,                    &
+                                             indxA_2d,  active_vertex, &
+!!                                             Auu,       Auv,           &
+!!                                             Avu,       Avv,           &
+                                             Auu_temp,  Auv_temp,      &
+                                             Avu_temp,  Avv_temp,      &
+                                             xu,        xv,            &
+                                             zu,        zv)
+          call t_stopf("pcg_matmult_resid")
+
+         else  ! matvec_new = F
+
           call t_startf("pcg_matmult_resid")
           call matvec_multiply_structured_2d(nx,        ny,            &
                                              nhalo,                    &
@@ -2432,6 +2525,8 @@
                                              xu,        xv,            &
                                              zu,        zv)
           call t_stopf("pcg_matmult_resid")
+
+         endif   ! matvec_new
 
           !---- Compute residual r = b - A*x
 
@@ -3611,9 +3706,9 @@
     !---------------------------------------------------------------
     ! Compute the matrix-vector product $y = Ax$.
     !
-    ! This subroutine is similar to subroutine matrix_vector_structured,
-    ! but modified to solve for x and y at a single horizontal level, 
-    ! as in the shallow-shelf approximation.  
+    ! This subroutine is similar to subroutine matvec_multiply_structured_3d,
+    ! but modified to solve for x and y at a single horizontal level,
+    ! as in the shallow-shelf approximation.
     !
     ! The A matrices should have complete matrix elements for all
     !  rows corresponding to locally owned vertices.
@@ -3632,14 +3727,14 @@
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
        indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
-    
+
     logical, dimension(nx-1,ny-1), intent(in) ::   &
        active_vertex          ! T for columns (i,j) where velocity is computed, else F
 
     real(dp), dimension(9,nx-1,ny-1), intent(in) ::   &
        Auu, Auv, Avu, Avv     ! four components of assembled matrix
-                              ! 1st dimension = 27 (node and its nearest neighbors in x, y and z direction)
-                              ! other dimensions = (z,x,y) indices
+                              ! 1st dimension = 9 (node and its nearest neighbors in x and y directions)
+                              ! other two dimensions = (x,y) indices
                               !
                               !    Auu  | Auv
                               !    _____|____
@@ -3659,7 +3754,7 @@
 
     integer :: i, j, m
     integer :: iA, jA
-    
+
     ! Initialize the result vector.
 
     yu(:,:) = 0.d0
@@ -3693,7 +3788,7 @@
                    yv(i,j) = yv(i,j)   &
                            + Avu(m,i,j)*xu(i+iA,j+jA)  &
                            + Avv(m,i,j)*xv(i+iA,j+jA)
- 
+
                 endif   ! i+iA, j+jA in bounds
 
              enddo   ! iA
@@ -3705,7 +3800,117 @@
     enddo   ! j
 
   end subroutine matvec_multiply_structured_2d
- 
+
+!****************************************************************************
+
+  subroutine matvec_multiply_structured_2d_new(nx,        ny,            &
+                                           nhalo,                    &
+                                           indxA_2d,  active_vertex, &
+                                           Auu,       Auv,           &
+                                           Avu,       Avv,           &
+                                           xu,        xv,            &
+                                           yu,        yv)
+
+    !---------------------------------------------------------------
+    ! Compute the matrix-vector product $y = Ax$.
+    !
+    ! This subroutine is similar to subroutine matvec_multiply_structured_3d,
+    ! but modified to solve for x and y at a single horizontal level,
+    ! as in the shallow-shelf approximation.
+    !
+    ! The A matrices should have complete matrix elements for all
+    !  rows corresponding to locally owned vertices.
+    ! The terms of x should be correct for all locally owned vertices
+    !  and also for all halo vertices adjacent to locally owned vertices.
+    ! The resulting y will then be correct for locally owned vertices.
+    !---------------------------------------------------------------
+
+    !---------------------------------------------------------------
+    ! input-output arguments
+    !---------------------------------------------------------------
+
+    integer, intent(in) :: &
+       nx, ny,             &  ! horizontal grid dimensions (for scalars)
+       nhalo                  ! number of halo layers (for scalars)
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+       indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
+
+    logical, dimension(nx-1,ny-1), intent(in) ::   &
+       active_vertex          ! T for columns (i,j) where velocity is computed, else F
+
+    real(dp), dimension(nx-1,ny-1,9), intent(in) ::   &
+       Auu, Auv, Avu, Avv     ! four components of assembled matrix
+                              ! first two dimensions = (x,y) indices
+                              ! 3rd dimension = 9 (node and its nearest neighbors in x and y directions)
+                              !
+                              !    Auu  | Auv
+                              !    _____|____
+                              !    Avu  | Avv
+                              !         |
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
+       xu, xv             ! current guess for solution
+
+
+    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
+       yu, yv             ! y = Ax
+
+    !---------------------------------------------------------------
+    ! local variables
+    !---------------------------------------------------------------
+
+    integer :: i, j, m
+    integer :: iA, jA
+
+    ! Initialize the result vector.
+
+    yu(:,:) = 0.d0
+    yv(:,:) = 0.d0
+
+    ! Compute y = Ax
+    ! Loop over locally owned vertices
+    ! Note: For periodic BC, the southern and western rows of the global domain are halo cells.
+    !          For all processors, staggered_ilo = staggered_jlo = staggered_lhalo + 1.
+    !       For outflow BC, the southern and western rows of the global domain are locally owned.
+    !          For processors owning these rows, staggered_ilo = staggered_jlo = staggered_lhalo.
+
+    do jA = -1,1
+       do iA = -1,1
+
+          ! Get the third index of the Auu and Avv matrices
+          m = indxA_2d(iA,jA)
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+
+                if (active_vertex(i,j)) then
+
+                   if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
+                                   .and.                     &
+                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+                      yu(i,j) = yu(i,j)   &
+                              + Auu(i,j,m)*xu(i+iA,j+jA)  &
+                              + Auv(i,j,m)*xv(i+iA,j+jA)
+
+                      yv(i,j) = yv(i,j)   &
+                              + Avu(i,j,m)*xu(i+iA,j+jA)  &
+                              + Avv(i,j,m)*xv(i+iA,j+jA)
+
+                   endif   ! i+iA, j+jA in bounds
+
+                endif   ! active_vertex
+
+             enddo   ! i
+          enddo   ! j
+
+       enddo   ! iA
+    enddo   ! jA
+
+
+  end subroutine matvec_multiply_structured_2d_new
+
 !****************************************************************************
 
   subroutine easy_sia_solver(nx,   ny,   nz,    &
