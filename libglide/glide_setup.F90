@@ -1005,10 +1005,11 @@ contains
          'invert for basal friction and melting fields       ', &
          'apply basal friction/melting from earlier inversion' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
+    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
          'constant basal water depth                      ', &
-         'basal water depth computed from local till model' /)
+         'basal water depth computed from local till model', &
+         'basal water depth computed from SHAKTI model    ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
@@ -2029,6 +2030,11 @@ contains
     call GetValue(section,'Sbot', model%plume%Sbot)
     call GetValue(section,'gammaT',    model%plume%gammaT)
     call GetValue(section,'gammaS',    model%plume%gammaS)
+ 
+    ! SHAKTI basal hydrology parameters
+    call GetValue(section,'shakti_omega', model%hydrology%omega)
+    call GetValue(section,'shakti_bump_height', model%hydrology%bump_height)
+    call GetValue(section,'shakti_bump_spacing', model%hydrology%bump_spacing)
 
   end subroutine handle_parameters
 
@@ -2430,6 +2436,13 @@ contains
        write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
        call write_log(message)
        write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_SHAKTI) then
+       write(message,*) 'flow parameter omega  :', model%hydrology%omega
+       call write_log(message)
+       write(message,*) 'bed bump height  :', model%hydrology%bump_height
+       call write_log(message)
+       write(message,*) 'bed bump spacing  :', model%hydrology%bump_spacing
        call write_log(message)
     endif
 
