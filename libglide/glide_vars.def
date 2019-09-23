@@ -1831,3 +1831,56 @@ dimensions:    time
 units:         years
 long_name:     diffusive CFL maximum time step
 data:          data%numerics%diff_cfl_dt
+
+# ANS: Fields related to SHAKTI hydrology model
+
+[head]
+dimensions:	time, y1, x1
+units:     	m
+long_name: 	hydraulic head
+data:      	data%basal_hydro%head
+
+[gap_height]
+dimensions:	time, y1, x1
+units:     	m
+long_name:      subglacial gap height	
+data:      	data%basal_hydro%gap_height
+
+[p_water]
+dimensions:	time, y1, x1
+units:          Pa	
+long_name:      subglacial water pressure	
+data:      	data%basal_hydro%p_water
+
+[englacial_void_ratio]
+dimensions:	time, y1, x1
+units:          unitless	
+long_name: 	englacial void ratio
+data:      	data%basal_hydro%englacial_void_ratio
+
+[meltwater_input]
+dimensions:	time, y1, x1
+units:          m/s	
+long_name: 	distributed meltwater input
+data:      	data%basal_hydro%meltwater_input
+
+[moulin_input]
+dimensions:	time, y1, x1
+units:          m3/s	
+long_name: 	moulin input
+data:      	data%basal_hydro%moulin_input
+
+[ice_hydro_mask]
+1710 dimensions:     time, y1, x1
+1711 units:          unitless 
+1712 long_name:      mask of cells with ice for subglacial hydrology 
+1713 data:           data%basal_hydro%ice_hydro_mask
+
+[head_gradient_mask_east]
+dimensions:   time, y1, x1
+units:        1
+long_name:    mask of east edges where head gradient is fixed
+data:         data%basal_hydro%head_gradient_mask_east
+type:         int
+load:         1
+
