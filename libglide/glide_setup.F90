@@ -2032,9 +2032,9 @@ contains
     call GetValue(section,'gammaS',    model%plume%gammaS)
  
     ! SHAKTI basal hydrology parameters
-    call GetValue(section,'shakti_omega', model%hydrology%omega)
-    call GetValue(section,'shakti_bump_height', model%hydrology%bump_height)
-    call GetValue(section,'shakti_bump_spacing', model%hydrology%bump_spacing)
+    call GetValue(section,'shakti_omega', model%basal_hydro%omega)
+    call GetValue(section,'shakti_bump_height', model%basal_hydro%bump_height)
+    call GetValue(section,'shakti_bump_spacing', model%basal_hydro%bump_spacing)
 
   end subroutine handle_parameters
 
@@ -2438,11 +2438,11 @@ contains
        write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
        call write_log(message)
     elseif (model%options%which_ho_bwat == HO_BWAT_SHAKTI) then
-       write(message,*) 'flow parameter omega  :', model%hydrology%omega
+       write(message,*) 'flow parameter omega  :', model%basal_hydro%omega
        call write_log(message)
-       write(message,*) 'bed bump height  :', model%hydrology%bump_height
+       write(message,*) 'bed bump height  :', model%basal_hydro%bump_height
        call write_log(message)
-       write(message,*) 'bed bump spacing  :', model%hydrology%bump_spacing
+       write(message,*) 'bed bump spacing  :', model%basal_hydro%bump_spacing
        call write_log(message)
     endif
 
