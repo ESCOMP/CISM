@@ -1852,6 +1852,12 @@ units:          Pa
 long_name:      subglacial water pressure	
 data:      	data%basal_hydro%p_water
 
+[basal_water_flux]
+dimensions:     time, y1, x1
+units:          m2/s 
+long_name:      depth-integrated basal water flux 
+data:           data%basal_hydro%basal_water_flux
+
 [englacial_void_ratio]
 dimensions:	time, y1, x1
 units:          unitless	
