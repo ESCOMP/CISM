@@ -3063,6 +3063,10 @@ contains
         select case (options%which_ho_bwat)
         case (HO_BWAT_NONE, HO_BWAT_CONSTANT)
            ! no restart variables needed
+        case (HO_BWAT_SHAKTI)
+           ! need gap height and head
+           call glide_add_to_restart_variable_list('gap_height')
+           call glide_add_to_restart_variable_list('head')
         case default
            ! restart needs to know bwat value
            call glide_add_to_restart_variable_list('bwat')
