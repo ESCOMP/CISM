@@ -430,6 +430,12 @@ contains
        if (.not.associated(model%ocean_data%zocn)) &
             allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
 
+       if ( size(model%ocean_data%zocn) /= model%ocean_data%nzocn )then
+          write(message,*) 'size of zocn : ',size(model%ocean_data%zocn)
+          call write_log(trim(message))
+          call write_log (' zocn is allocated to be too small', GM_FATAL)
+       end if
+
        ! There are two ways to get zocn levels:
        ! (1) Compute uniform levels based on dzocn.  This is done if dzocn is set to a nonzero value in the config file.
        ! (2) Load zocn levels from the config file.  This is done if dzocn = 0 (the default value).
