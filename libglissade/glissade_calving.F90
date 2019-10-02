@@ -668,15 +668,21 @@ contains
              do j = 3, ny-2
                 do i = 3, nx-2
                    ! To do this right we also need to extrapolate the velocities to
-                   ! the calving front, since there are too few points on the
-                   ! staggered grid to fully interpolate
-                   if (calving_front_mask(i,j) == 1) then
+                   ! the calving front and the grounding line, since there are too few
+                   ! points on the staggered grid to fully interpolate
+                   if (calving_front_mask(i,j) == 1 .or. (grounding_line_mask(i,j) == 1 &
+                       .and. floating_mask(i,j) == 0)) then
                       do k = 1, nz
                          ! Store the velocity directions as matrix index modulations
                          ! e.g. if uvel is positive, set ud = -1 because ice will flow
                          ! from i-1 to i
-                         ud = find_velocity_sign(uvel_unstag(k,i,j))
-                         vd = find_velocity_sign(vvel_unstag(k,i,j))
+                         if (calving_front_mask(i,j) == 1) then
+                            ud = find_velocity_sign(uvel_unstag(k,i,j),1)
+                            vd = find_velocity_sign(vvel_unstag(k,i,j),1)
+                         elseif (grounding_line_mask(i,j) == 1) then
+                            ud = find_velocity_sign(uvel_unstag(k,i,j),-1)
+                            vd = find_velocity_sign(vvel_unstag(k,i,j),-1)
+                         endif   ! calving front vs grounding line
 
                          uvel_unstag(k,i,j) = linear_extrapolation(uvel_unstag(k,i+ud,j), &
                                                                    uvel_unstag(k,i+2*ud,j))
@@ -689,7 +695,7 @@ contains
                          ! We also need to extrapolate the ice viscosity to the
                          ! calving front, by weighting the components against the
                          ! magnitudes of the horizontal velocities
-                         if (k < nz) then   ! efvs is on staglevel
+                         if (calving_front_mask(i,j) == 1 .and. k < nz) then  ! efvs is on staglevel
                             xext = linear_extrapolation(efvs(k,i+ud,j),efvs(k,i+2*ud,j))
                             yext = linear_extrapolation(efvs(k,i,j+vd),efvs(k,i,j+2*vd))
                             efvs_eff(k,i,j) = (uvel_unstag(k,i,j)*xext+vvel_unstag(k,i,j) &
@@ -747,7 +753,7 @@ contains
                       szero = rhoi*(rhoo-rhoi)*grav*thck(i,j)/(2.0d0*tau1(i,j)*rhoo)
 
                       ! Prognose damage following Bassis & Ma 2015
-                      source(:,i,j) = nstar*(1.0d0-szero)*eps_max(:,i,j)
+                      source(:,i,j) = nstar*(1.0d0-szero)*eps_max(:,i,j)-acab(i,j)/thck(i,j)
                       d_damage_dt(:,i,j) = source(:,i,j)*calving%damage(:,i,j)
 
                       ! Compute the manufactured forcing term if requested; otherwise, set it to zero
@@ -761,12 +767,9 @@ contains
                             adv_term(:,i,j) = adv_term(:,i,j)+eps_max(:,i,j)*time
                          endif
                          adv_term(:,i,j) = adv_term(:,i,j)*uvel_unstag(:,i,j)*vel_exp(:,i,j)/hgl(j)
-                         if (damage_advect) then
-                            adv_term(:,i,j) = adv_term(:,i,j)-eps_max(:,i,j)*(1.0d0+vel_exp(:,i,j))
-                         endif
 
                          ! Compute the manufactured forcing term
-                         force(:,i,j) = -0.5d0*calving%damage_init(:,i,j)*thck(i,j)*(adv_term(:,i,j) &
+                         force(:,i,j) = -0.5d0*calving%damage_init(:,i,j)*(adv_term(:,i,j) &
                                         +source(:,i,j)*(1.0d0+vel_exp(:,i,j)))
                       else
                          force(:,i,j) = 0.0d0
@@ -776,9 +779,6 @@ contains
                       calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt(:,i,j) * dt
 
                    endif   ! damage_src
-
-                   ! Convert crevasse depth back into damage
-                   calving%damage(:,i,j) = calving%damage(:,i,j)/thck(i,j)
 
                    ! Constrain damage to the specified range of values
                    if (damage_floor == ZERO_DAMAGE_FLOOR) then
@@ -810,14 +810,8 @@ contains
                 ! set to match the damage of what's already there,
                 ! which for ice tongues happens to be the zero damage along the
                 ! grounding line.
-                if (grounding_line_mask(i,j) == 1) then
+                if (grounding_line_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then
                    do k = 1, nz
-                      ! Store the velocity directions as matrix index modulations
-                      ! e.g. if uvel is positive, set ud = -1 because ice will flow
-                      ! from i-1 to i
-                      ud = find_velocity_sign(uvel_unstag(k,i,j))
-                      vd = find_velocity_sign(vvel_unstag(k,i,j))
-
                       ! If the two points downstream along either horizontal axis
                       ! are floating, then linearly extrapolate upstream to
                       ! guess the grounding line damage
@@ -2311,18 +2305,19 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  function find_velocity_sign(vel_unstag) result(d)
+  function find_velocity_sign(vel_unstag,dir) result(d)
      ! Find the direction of the velocity at a given point, and report it as a
      ! matrix index integer modulation (negative for positive velocities,
      ! positive for negative velocities)
 
      real(dp), intent(in) :: vel_unstag   ! Velocity on unstaggered grid (m/s)
+     integer, intent(in) :: dir   ! Direction of extrapolation
      integer :: d   ! Output, sign of velocity as index modulation
 
      if (vel_unstag > 0.0d0) then
-        d = -1
+        d = -dir
      elseif (vel_unstag < 0.0d0) then
-        d = 1
+        d = dir
      endif
   end function 
 

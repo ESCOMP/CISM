@@ -2055,13 +2055,6 @@ contains
     !       Pass in thck, topg, etc. with units of meters.
     ! ------------------------------------------------------------------------ 
 
-    ! Convert damage to crevasse depth
-    if (model%options%whichcalving == CALVING_DAMAGE) then
-       do k = 1, size(model%numerics%stagsigma)
-          model%calving%damage(k,:,:) = model%calving%damage(k,:,:)*model%geometry%thck_old(:,:)*thk0
-       enddo
-    endif
-
     thck_unscaled(:,:) = model%geometry%thck_old(:,:)*thk0
 
     call glissade_calve_ice(model%options%whichcalving,           &
