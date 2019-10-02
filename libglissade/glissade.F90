@@ -139,6 +139,7 @@ contains
 
     integer, dimension(:,:), allocatable :: &
          ice_domain_mask      ! = 1 where ice is potentially present and active
+
     logical, parameter :: &
          make_ice_domain_mask = .false.   ! set to .true. to create mask at initialization
 
@@ -150,6 +151,7 @@ contains
     integer :: ierror
     real(dp), dimension(:,:), allocatable :: test_array
     real(dp), dimension(:,:), allocatable :: global_test_array
+    logical, parameter :: test_comm_row_col = .false.
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -264,163 +266,168 @@ contains
        call parallel_create_comm_row(comm)
        call parallel_create_comm_col(comm)
 
-       ! Test the new communicators
+       !WHL - debug
+       if (test_comm_row_col) then
 
-       ! row gather
+          ! Test the new communicators
 
-       call mpi_barrier(comm_row,ierror)
-       call mpi_barrier(comm_col,ierror)
+          ! row gather
 
-       allocate(test_array(2,own_nsn))
+          call mpi_barrier(comm_row,ierror)
+          call mpi_barrier(comm_col,ierror)
 
-       do j = 1, own_nsn
-          do i = 1, 2
-             test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+          allocate(test_array(2,own_nsn))
+
+          do j = 1, own_nsn
+             do i = 1, 2
+                test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+             enddo
           enddo
-       enddo
 
 !!       if (this_rank <= 1) then
 !!       if (this_rank == 0) then
-       if (this_rank == 999) then
-          print*, ' '
-          print*, 'test_array, i = 1, this_rank =', this_rank
-          i = 1
-          do j = 1, own_nsn
-             write(6,'(f6.0)',advance='no') test_array(i,j)
-          enddo
-          print*, ' '
-          print*, ' '
-          print*, 'test_array, i = 2, this_rank =', this_rank
-          i = 2
-          do j = 1, own_nsn
-             write(6,'(f6.0)',advance='no') test_array(i,j)
-          enddo
-          print*, ' '
-          print*, ' '
-       endif   ! this_rank
+          if (this_rank == 999) then
+             print*, ' '
+             print*, 'test_array, i = 1, this_rank =', this_rank
+             i = 1
+             do j = 1, own_nsn
+                write(6,'(f6.0)',advance='no') test_array(i,j)
+             enddo
+             print*, ' '
+             print*, ' '
+             print*, 'test_array, i = 2, this_rank =', this_rank
+             i = 2
+             do j = 1, own_nsn
+                write(6,'(f6.0)',advance='no') test_array(i,j)
+             enddo
+             print*, ' '
+             print*, ' '
+          endif   ! this_rank
 
-       print*, 'gather row array, this_rank =', this_rank
-       call flush(6)
+!!       print*, 'gather row array, this_rank =', this_rank
+!!       call flush(6)
 
-       call distributed_gather_var_row(test_array, global_test_array)
+          call distributed_gather_var_row(test_array, global_test_array)
 
-       if (main_task_row .and. this_rank == 0) then
+          if (main_task_row .and. this_rank == 0) then
 !!       if (main_task_row .and. this_rank == 2) then
 !!       if (main_task_row) then
 !!       if (0 == 1) then
-          do i = 1, 4
-             print*, 'Row global_test_array, this_rank, i =', this_rank, i
-             do j = 1, size(global_test_array,2)
-                write(6,'(f6.0)',advance='no') global_test_array(i,j)
+             do i = 1, 4
+                print*, 'Row global_test_array, this_rank, i =', this_rank, i
+                do j = 1, size(global_test_array,2)
+                   write(6,'(f6.0)',advance='no') global_test_array(i,j)
+                enddo
+                print*, ' '
              enddo
              print*, ' '
-          enddo
-          print*, ' '
-          call flush(6)
-       endif
+             call flush(6)
+          endif
 
-       print*, 'scatter row array, this_rank =', this_rank
-       call flush(6)
+!!       print*, 'scatter row array, this_rank =', this_rank
+!!       call flush(6)
 
-       call distributed_scatter_var_row(test_array, global_test_array)
+          call distributed_scatter_var_row(test_array, global_test_array)
 
 !!       if (this_rank <= 1) then
-       if (this_rank == 1) then
+          if (this_rank == 1) then
 !!       if (this_rank == 999) then
-          print*, ' '
-          print*, 'Scattered test_array, i = 1, this_rank =', this_rank
-          i = 1
-          do j = 1, own_nsn
-             write(6,'(f6.0)',advance='no') test_array(i,j)
+             print*, ' '
+             print*, 'Scattered test_array, i = 1, this_rank =', this_rank
+             i = 1
+             do j = 1, own_nsn
+                write(6,'(f6.0)',advance='no') test_array(i,j)
+             enddo
+             print*, ' '
+             print*, ' '
+             print*, 'Scattered test_array, i = 2, this_rank =', this_rank
+             i = 2
+             do j = 1, own_nsn
+                write(6,'(f6.0)',advance='no') test_array(i,j)
+             enddo
+             print*, ' '
+             print*, ' '
+          endif   ! this_rank
+
+          deallocate(test_array)
+
+          ! column gather
+
+          call mpi_barrier(comm_row,ierror)
+          call mpi_barrier(comm_col,ierror)
+
+          allocate(test_array(2,own_ewn))
+
+          do j = 1, 2
+             do i = 1, own_ewn
+                test_array(j,i) = (this_rank + 2) * real(j*i, dp)
+             enddo
           enddo
-          print*, ' '
-          print*, ' '
-          print*, 'Scattered test_array, i = 2, this_rank =', this_rank
-          i = 2
-          do j = 1, own_nsn
-             write(6,'(f6.0)',advance='no') test_array(i,j)
-          enddo
-          print*, ' '
-          print*, ' '
-       endif   ! this_rank
-
-       deallocate(test_array)
-
-       ! column gather
-
-       call mpi_barrier(comm_row,ierror)
-       call mpi_barrier(comm_col,ierror)
-
-       allocate(test_array(2,own_ewn))
-
-       do j = 1, 2
-          do i = 1, own_ewn
-             test_array(j,i) = (this_rank + 2) * real(j*i, dp)
-          enddo
-       enddo
 
 !!       if (this_rank==0 .or. this_rank==2) then
 !!       if (this_rank==1 .or. this_rank==3) then
-       if (this_rank == 999) then
-          print*, ' '
-          print*, 'test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
-          j = 1
-          do i = 1, own_ewn
-             write(6,'(f6.0)',advance='no') test_array(j,i)
-          enddo
-          print*, ' '
-          print*, ' '
-          print*, 'test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
-          j = 2
-          do i = 1, own_ewn
-             write(6,'(f6.0)',advance='no') test_array(j,i)
-          enddo
-          print*, ' '
-          print*, ' '
-       endif   ! this_rank
+          if (this_rank == 999) then
+             print*, ' '
+             print*, 'test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
+             j = 1
+             do i = 1, own_ewn
+                write(6,'(f6.0)',advance='no') test_array(j,i)
+             enddo
+             print*, ' '
+             print*, ' '
+             print*, 'test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
+             j = 2
+             do i = 1, own_ewn
+                write(6,'(f6.0)',advance='no') test_array(j,i)
+             enddo
+             print*, ' '
+             print*, ' '
+          endif   ! this_rank
 
-       print*, 'gather col array, this_rank =', this_rank
-       call flush(6)
+!!       print*, 'gather col array, this_rank =', this_rank
+!!       call flush(6)
 
-       call distributed_gather_var_col(test_array, global_test_array)
+          call distributed_gather_var_col(test_array, global_test_array)
 
 !!       print*, 'gathered col array, this_rank =', this_rank
 !!       call flush(6)
 
-       if (main_task_col .and. this_rank==1) then
+          if (main_task_col .and. this_rank==1) then
 !!       if (main_task_col) then
 !!       if (0 == 1) then
-          do j = 1, 4
-             print*, 'Column global_test_array, this_rank, j =', this_rank, j
-             do i = 1, size(global_test_array,2)
-                write(6,'(f6.0)',advance='no') global_test_array(j,i)
+             do j = 1, 4
+                print*, 'Column global_test_array, this_rank, j =', this_rank, j
+                do i = 1, size(global_test_array,2)
+                   write(6,'(f6.0)',advance='no') global_test_array(j,i)
+                enddo
+                print*, ' '
              enddo
              print*, ' '
-          enddo
-          print*, ' '
-       endif
+          endif
 
-       call distributed_scatter_var_col(test_array, global_test_array)
+          call distributed_scatter_var_col(test_array, global_test_array)
 
-       if (this_rank == 3) then
-          print*, ' '
-          print*, 'Scattered test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
-          j = 1
-          do i = 1, own_ewn
-             write(6,'(f6.0)',advance='no') test_array(j,i)
-          enddo
-          print*, ' '
-          print*, ' '
-          print*, 'Scattered test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
-          j = 2
-          do i = 1, own_ewn
-             write(6,'(f6.0)',advance='no') test_array(j,i)
-          enddo
-          print*, ' '
-          print*, ' '
-       endif   ! this_rank
+          if (this_rank == 3) then
+             print*, ' '
+             print*, 'Scattered test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
+             j = 1
+             do i = 1, own_ewn
+                write(6,'(f6.0)',advance='no') test_array(j,i)
+             enddo
+             print*, ' '
+             print*, ' '
+             print*, 'Scattered test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
+             j = 2
+             do i = 1, own_ewn
+                write(6,'(f6.0)',advance='no') test_array(j,i)
+             enddo
+             print*, ' '
+             print*, ' '
+          endif   ! this_rank
 
-       deallocate(test_array)
+          deallocate(test_array)
+
+          endif   ! test_comm_row_col
 
     endif  ! HO_PRECOND_TRIDIAG
 

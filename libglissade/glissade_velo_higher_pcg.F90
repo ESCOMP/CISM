@@ -67,8 +67,11 @@
     ! linear solver settings
     !TODO - Pass in these solver settings as arguments?
     integer, parameter ::    &
-       maxiters = 200        ! max number of linear iterations before quitting
-!!       maxiters = 1000        ! max number of linear iterations before quitting
+       maxiters = 200          ! max number of linear iterations before quitting
+                               ! TODO - change to maxiters_default?
+    integer, parameter :: &
+       maxiters_tridiag = 100  ! reduced number appropriate for tridiagonal preconditioning,
+                               ! which generally leads to faster convergence than diagonal preconditioning
 
     real(dp), parameter ::   &
 !!       tolerance = 1.d-11    ! tolerance for linear solver (old value; more stringent than necessary)
@@ -1762,6 +1765,7 @@
 
     integer :: itest, jtest, rtest
     integer :: ii, jj
+    integer :: maxiters_chrongear  ! max number of linear iterations before quitting
 
     !WHL - debug
     real(dp) :: usum, usum_global, vsum, vsum_global
@@ -1799,12 +1803,22 @@
        verbose_pcg = .false.   ! for debugging
     endif
 
+    ! Set the maximum number of linear iterations.
+    ! Typically allow up to 200 iterations with diagonal preconditioning, but only 100
+    !  with tridiagonal, which usually converges faster.
+
+    if (precond == HO_PRECOND_TRIDIAG) then
+       maxiters_chrongear = maxiters_tridiag
+    else
+       maxiters_chrongear = maxiters
+    endif
+
     !WHL - debug
 !!    verbose_pcg = .true.
 
     if (verbose_pcg .and. main_task) then
        print*, 'Using native PCG solver (Chronopoulos-Gear)'
-       print*, 'tolerance, maxiters, precond =', tolerance, maxiters, precond
+       print*, 'tolerance, maxiters, precond =', tolerance, maxiters_chrongear, precond
     endif
 
     ! Compute array sizes for locally owned vertices
@@ -1918,7 +1932,7 @@
 
     !---- Initialize scalars and vectors
 
-    niters = maxiters
+    niters = maxiters_chrongear
     ru(:,:) = 0.d0
     rv(:,:) = 0.d0
     du(:,:) = 0.d0
@@ -2037,12 +2051,12 @@
     ! From here on, call timers with 'iter' suffix because this can be considered the first iteration
     call t_startf("pcg_precond_iter")
 
-    if (precond == 0) then      ! no preconditioning
+    if (precond == HO_PRECOND_NONE) then      ! no preconditioning
 
        zu(:,:) = ru(:,:)         ! PC(r) = r     
        zv(:,:) = rv(:,:)         ! PC(r) = r    
 
-    elseif (precond == 1 ) then  ! diagonal preconditioning
+    elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
 
        ! Solve Mz = r, which M is a diagonal matrix
        do j = 1, ny-1
@@ -2071,7 +2085,7 @@
 !          enddo
        endif
 
-    elseif (precond == 3 ) then  ! tridiagonal preconditioning
+    elseif (precond == HO_PRECOND_TRIDIAG) then  ! tridiagonal preconditioning
 
        ! Solve M*z = r, where M is a tridiagonal matrix
 
@@ -2270,19 +2284,19 @@
     ! Iterate to solution
     !---------------------------------------------------------------
 
-    iter_loop: do n = 2, maxiters  ! first iteration done above
+    iter_loop: do n = 2, maxiters_chrongear  ! first iteration done above
 
        !---- Compute PC(r) = solution z of Mz = r
        !---- z is correct in halo
 
        call t_startf("pcg_precond_iter")
 
-       if (precond == 0) then      ! no preconditioning
+       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
 
            zu(:,:) = ru(:,:)         ! PC(r) = r
            zv(:,:) = rv(:,:)         ! PC(r) = r    
 
-       elseif (precond == 1 ) then  ! diagonal preconditioning
+       elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
 
           do j = 1, ny-1
           do i = 1, nx-1
@@ -2299,7 +2313,7 @@
           enddo    ! i
           enddo    ! j
 
-       elseif (precond == 3) then   ! tridiagonal preconditioning
+       elseif (precond == HO_PRECOND_TRIDIAG) then   ! tridiagonal preconditioning
 
           if (tasks == 1 .and. use_serial_tridiag_solver) then
 
@@ -2578,9 +2592,10 @@
     if (allocated(omega_u)) deallocate(omega_u, denom_u, xuh_u, xlh_u, b_u, x_u)
     if (allocated(omega_v)) deallocate(omega_v, denom_v, xuh_v, xlh_v, b_v, x_v)
 
-    !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
+    ! Note: Without good preconditioning, convergence can be slow,
+    !       but the solution after maxiters_chrongear might be good enough.
  
-    if (niters == maxiters) then
+    if (niters == maxiters_chrongear) then
        if (verbose_pcg .and. main_task) then
           print*, 'Glissade PCG solver not converged'
           print*, 'niters, err, tolerance:', niters, err, tolerance
@@ -3057,7 +3072,6 @@
                                         xuh,          xlh,        &
                                         bu,           xu)
 
-
     use glimmer_utils, only: tridiag
 
     integer, intent(in) :: &
@@ -3086,8 +3100,9 @@
     ! local variables
 
     logical :: main_task_rc           ! either main_task_row or main_task_col
+    integer :: this_rank_rc           ! either this_rank_row or this_rank_col
     integer :: tasks_rc               ! either tasks_row or tasks_col
-    integer :: i, j, n, p, m
+    integer :: i, j, n, p, m, i1, i2
     integer :: ibase
 
     real(dp), dimension(ilocal,jlocal) :: &
@@ -3106,6 +3121,9 @@
 
     real(dp), dimension(:), allocatable :: &
          subdiag, diag, supdiag, rhs, coeffs  ! matrix entries for the triadiagonal problem solved on main_task
+
+    logical, parameter :: gather_all = .false.  ! if false, then call gather routines, solve on main task, and scatter
+!    logical, parameter :: gather_all = .true.   ! if true, then call gather_all routines and solve on all tasks
 
     !-------------------------------------------------------------------------------------
     ! Solve a tridiagonal system of the form A*x = b.
@@ -3162,9 +3180,11 @@
     if (tridiag_solver_flag == 'row') then
        tasks_rc = tasks_row
        main_task_rc = main_task_row
+       this_rank_rc = this_rank_row
     elseif (tridiag_solver_flag == 'col') then
        tasks_rc = tasks_col
        main_task_rc = main_task_col
+       this_rank_rc = this_rank_col
     endif
 
     if (verbose_tridiag .and. main_task) then
@@ -3238,18 +3258,43 @@
 
     if (tasks_rc > 1) then
 
-       ! Use the row- or column-based communicator to gather outdata_u on main_task_row.
-       ! The global array is allocated in the subroutine.
+       if (gather_all) then   ! gather global data to all tasks in each row or column, and solve on all tasks
 
-       if (tridiag_solver_flag == 'row') then
-          call distributed_gather_var_row(outdata, global_outdata)
-       elseif (tridiag_solver_flag == 'col') then
-          call distributed_gather_var_col(outdata, global_outdata)
-       endif
+          ! Use the row- or column-based communicator to gather outdata_u on all tasks in this row or column.
+          ! The global array is allocated in the subroutine.
 
-       ! On the main task of each row or column, put outdata in tridiagonal form and solve.
+          if (tridiag_solver_flag == 'row') then
+             call t_startf("pcg_tridiag_gather_row")
+             call distributed_gather_all_var_row(outdata, global_outdata)
+             call t_stopf ("pcg_tridiag_gather_row")
+          elseif (tridiag_solver_flag == 'col') then
+             call t_startf("pcg_tridiag_gather_col")
+             call distributed_gather_all_var_col(outdata, global_outdata)
+             call t_stopf ("pcg_tridiag_gather_col")
+          endif
 
-       if (main_task_rc) then
+       else   ! gather data to main task, solve on main task, and scatter solution to local tasks
+
+          ! Use the row- or column-based communicator to gather outdata_u on main_task_row or main_task_col.
+          ! The global array is allocated in the subroutine.
+
+          if (tridiag_solver_flag == 'row') then
+             call t_startf("pcg_tridiag_gather_row")
+             call distributed_gather_var_row(outdata, global_outdata)
+             call t_stopf ("pcg_tridiag_gather_row")
+          elseif (tridiag_solver_flag == 'col') then
+             call t_startf("pcg_tridiag_gather_col")
+             call distributed_gather_var_col(outdata, global_outdata)
+             call t_stopf ("pcg_tridiag_gather_col")
+          endif
+
+       endif   ! gather_all
+
+       ! Put outdata in tridiagonal form and solve.
+       ! If gather_all = F, we solve on the main task of the row or column, and then scatter to other tasks.
+       ! For gather_all = T, we solve the same problem on all tasks of a given row or column..
+
+       if (main_task_rc .or. gather_all) then
 
           allocate(global_coeffs(2*tasks_rc,jlocal))
           global_coeffs(:,:) = 0.0d0
@@ -3322,20 +3367,35 @@
 
           deallocate(diag, subdiag, supdiag, rhs, coeffs)
 
-       endif   ! main_task_rc
+       endif   ! main_task_rc or gather_all
 
-       ! Scatter the coefficients back to the local tasks.
-       ! Each task receives 2 coefficients for each value of j:
-       !  local_coeffs_u(1,:) = uh_coeff, and local_coeffs_u(2,:) = lh_coeff.
-       ! Note: uh_coeff = 0 on the westernmost task and lh_coeff = 0 on the easternmost task.
+       if (gather_all) then
 
-       local_coeffs(:,:) = 0.d0
+          ! Given the global array of coefficients, extract uh_coeff and lh_coeff for this task.
+          i1 = 2*this_rank_rc + 1
+          i2 = 2*this_rank_rc + 2
+          local_coeffs(1:2,:) = global_coeffs(i1:i2,:)
 
-       if (tridiag_solver_flag == 'row') then
-          call distributed_scatter_var_row(local_coeffs, global_coeffs)
-       elseif (tridiag_solver_flag == 'col') then
-          call distributed_scatter_var_col(local_coeffs, global_coeffs)
-       endif
+       else   ! gather_all = F
+
+          ! Scatter the coefficients to the local tasks.
+          ! Each task receives 2 coefficients for each value of j:
+          !  local_coeffs_u(1,:) = uh_coeff, and local_coeffs_u(2,:) = lh_coeff.
+          ! Note: uh_coeff = 0 on the westernmost task and lh_coeff = 0 on the easternmost task.
+
+          local_coeffs(:,:) = 0.d0
+
+          if (tridiag_solver_flag == 'row') then
+             call t_startf("pcg_tridiag_scatter_row")
+             call distributed_scatter_var_row(local_coeffs, global_coeffs)
+             call t_stopf ("pcg_tridiag_scatter_row")
+          elseif (tridiag_solver_flag == 'col') then
+             call t_startf("pcg_tridiag_scatter_col")
+             call distributed_scatter_var_col(local_coeffs, global_coeffs)
+             call t_stopf ("pcg_tridiag_scatter_col")
+          endif
+
+       endif   ! gather_all
 
        ! Use the coefficients to combine xr, xuh and xlh into the full solution xu.
        ! Note that xu has dimensions (nx-1,ny-1).
@@ -3767,6 +3827,7 @@
     !       For outflow BC, the southern and western rows of the global domain are locally owned.
     !          For processors owning these rows, staggered_ilo = staggered_jlo = staggered_lhalo.
 
+    !dir$ ivdep
     do j = staggered_jlo, staggered_jhi
     do i = staggered_ilo, staggered_ihi
 
@@ -3881,6 +3942,7 @@
           ! Get the third index of the Auu and Avv matrices
           m = indxA_2d(iA,jA)
 
+          !dir$ ivdep
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
 

@@ -228,8 +228,16 @@ module parallel
      module procedure distributed_gather_var_row_real8_2d
   end interface
 
+  interface distributed_gather_all_var_row
+     module procedure distributed_gather_all_var_row_real8_2d
+  end interface
+
   interface distributed_gather_var_col
      module procedure distributed_gather_var_col_real8_2d
+  end interface
+
+  interface distributed_gather_all_var_col
+     module procedure distributed_gather_all_var_col_real8_2d
   end interface
 
   interface distributed_get_var
@@ -1152,7 +1160,7 @@ contains
     real(dp),dimension(:,:),allocatable :: sendbuf
 
     integer,dimension(4) :: d_gs_mybounds_row
-    integer,dimension(:,:),allocatable :: d_gs_bounds_row
+    integer,dimension(:,:),allocatable,save :: d_gs_bounds_row
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -1160,20 +1168,23 @@ contains
        call parallel_stop(__FILE__, __LINE__)
     end if
 
-    if (allocated(d_gs_bounds_row)) deallocate(d_gs_bounds_row)
-    if (main_task_row) then
-       allocate(d_gs_bounds_row(4,tasks_row))
-    else
-       allocate(d_gs_bounds_row(1,1))
-    endif
-
     d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
     d_gs_mybounds_row(2) = (this_rank_row+1)*size(values,1)
     d_gs_mybounds_row(3) = 1
     d_gs_mybounds_row(4) = own_nsn
 
-    call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
-         mpi_integer,main_rank_row,comm_row)
+    if (allocated(d_gs_bounds_row)) then
+       ! do nothing; d_gs_bounds_row already computed
+    else   ! first time
+       if (main_task_row) then
+          allocate(d_gs_bounds_row(4,tasks_row))
+       else
+          allocate(d_gs_bounds_row(1,1))
+       endif
+
+       call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
+            mpi_integer,main_rank_row,comm_row)
+    endif
 
     if (main_task_row) then
        if (allocated(global_values)) deallocate(global_values)
@@ -1203,6 +1214,7 @@ contains
 !!    sendbuf(:,:) = values(1:size(values,1), 1:own_nsn)
 !!    call fc_gatherv_real8(sendbuf,size(sendbuf),mpi_real8,&
 !!       recvbuf,recvcounts,displs,mpi_real8,main_rank_row,comm_row)
+
     call fc_gatherv_real8(values,size(values),mpi_real8,&
        recvbuf,recvcounts,displs,mpi_real8,main_rank_row,comm_row)
 
@@ -1218,6 +1230,91 @@ contains
 
     ! automatic deallocation
   end subroutine distributed_gather_var_row_real8_2d
+
+
+  subroutine distributed_gather_all_var_row_real8_2d(values, global_values)
+
+    ! Gather global data along a row of tasks onto each task for that row.
+    ! Based on distributed_gather_var_real8_2d.
+    ! Note: The first index represents a data dimension that is the same on each task,
+    !        whose size generally is less than own_ewn.
+    !       The second index represents the north-south dimension, and is assumed
+    !        to have size own_nsn (i.e., the data extend over locally owned cells only).
+    ! values = local portion of distributed variable
+    ! global_values = allocatable array in which each task will store values for that row.
+    ! If global_values is allocated, then it will be deallocated and reallocated.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+
+    integer :: i,ierror,k
+    integer,dimension(:),allocatable :: displs,recvcounts
+    real(dp),dimension(:),allocatable :: recvbuf
+    real(dp),dimension(:,:),allocatable :: sendbuf
+
+    integer, dimension(4) :: d_gs_mybounds_row
+    integer, dimension(:,:), allocatable, save :: d_gs_bounds_row
+
+    if (size(values,2) /= own_nsn) then
+       ! Note: Removing this restriction would require some recoding below.
+       write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
+    d_gs_mybounds_row(2) = (this_rank_row+1)*size(values,1)
+    d_gs_mybounds_row(3) = 1
+    d_gs_mybounds_row(4) = own_nsn
+
+    if (allocated(d_gs_bounds_row)) then
+       ! d_gs_bounds_row already computed; do nothing
+    else
+       allocate(d_gs_bounds_row(4,tasks_row))
+       call mpi_allgather(d_gs_mybounds_row,4, mpi_integer,  &
+                          d_gs_bounds_row, 4, mpi_integer,  &
+                          comm_row, ierror)
+    endif
+
+    if (allocated(global_values)) deallocate(global_values)
+    allocate(global_values(size(values,1)*tasks_row, own_nsn))
+    global_values(:,:) = 0.0d0
+    allocate(displs(tasks_row+1))
+    allocate(recvcounts(tasks_row))
+    recvcounts(:) = (d_gs_bounds_row(2,:)-d_gs_bounds_row(1,:)+1)&
+                   *(d_gs_bounds_row(4,:)-d_gs_bounds_row(3,:)+1)
+    displs(1) = 0
+    do i = 1,tasks_row
+       displs(i+1) = displs(i)+recvcounts(i)
+    end do
+    allocate(recvbuf(displs(tasks_row+1)))
+
+    !Note: Would need to uncomment the following and call mpi_allgatherv
+    !      with sendbuf arguments if sendbuf were not identical
+    !      to the input values array
+!!    allocate(sendbuf(d_gs_mybounds_row(1):d_gs_mybounds_row(2),&
+!!                     d_gs_mybounds_row(3):d_gs_mybounds_row(4)))
+!!    sendbuf(:,:) = values(1:size(values,1), 1:own_nsn)
+!!    call mpi_allgatherv(sendbuf, size(sendbuf), mpi_real8, &
+!!                        recvbuf, recvcounts, displs, mpi_real8, &
+!!                        comm_row, ierror)
+
+    call mpi_allgatherv(values, size(values), mpi_real8, &
+                        recvbuf, recvcounts, displs, mpi_real8, &
+                        comm_row, ierror)
+
+    do i = 1, tasks_row
+       global_values(d_gs_bounds_row(1,i):d_gs_bounds_row(2,i),&
+                     d_gs_bounds_row(3,i):d_gs_bounds_row(4,i)) = &
+             reshape(recvbuf(displs(i)+1:displs(i+1)), &
+                   (/d_gs_bounds_row(2,i)-d_gs_bounds_row(1,i)+1,&
+                     d_gs_bounds_row(4,i)-d_gs_bounds_row(3,i)+1/))
+    end do
+
+    ! automatic deallocation
+  end subroutine distributed_gather_all_var_row_real8_2d
+
 
   subroutine distributed_gather_var_col_real8_2d(values, global_values)
 
@@ -1242,7 +1339,7 @@ contains
     real(dp),dimension(:,:),allocatable :: sendbuf
 
     integer,dimension(4) :: d_gs_mybounds_col
-    integer,dimension(:,:),allocatable :: d_gs_bounds_col
+    integer,dimension(:,:),allocatable,save :: d_gs_bounds_col
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -1250,21 +1347,23 @@ contains
        call parallel_stop(__FILE__, __LINE__)
     end if
 
-    ! first time
-    if (allocated(d_gs_bounds_col)) deallocate(d_gs_bounds_col)
-    if (main_task_col) then
-       allocate(d_gs_bounds_col(4,tasks_col))
-    else
-       allocate(d_gs_bounds_col(1,1))
-    endif
-
     d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
     d_gs_mybounds_col(2) = (this_rank_col+1)*size(values,1)
     d_gs_mybounds_col(3) = 1
     d_gs_mybounds_col(4) = own_ewn
 
-    call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
-         mpi_integer,main_rank_col,comm_col)
+    if (allocated(d_gs_bounds_col)) then
+       ! do nothing; d_gs_bounds_col already computed
+    else   ! first time
+       if (main_task_col) then
+          allocate(d_gs_bounds_col(4,tasks_col))
+       else
+          allocate(d_gs_bounds_col(1,1))
+       endif
+
+       call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
+            mpi_integer,main_rank_col,comm_col)
+    endif
 
     if (main_task_col) then
        if (allocated(global_values)) deallocate(global_values)
@@ -1294,8 +1393,11 @@ contains
 !!    sendbuf(:,:) = values(1:size(values,1), 1:own_ewn)
 !!    call fc_gatherv_real8(sendbuf,size(sendbuf),mpi_real8,&
 !!       recvbuf,recvcounts,displs,mpi_real8,main_rank_col,comm_col)
+
+    !WHL - debug
     call fc_gatherv_real8(values,size(values),mpi_real8,&
        recvbuf,recvcounts,displs,mpi_real8,main_rank_col,comm_col)
+
     if (main_task_col) then
        do i = 1, tasks_col
           global_values(d_gs_bounds_col(1,i):d_gs_bounds_col(2,i),&
@@ -1308,6 +1410,92 @@ contains
 
     ! automatic deallocation
   end subroutine distributed_gather_var_col_real8_2d
+
+  subroutine distributed_gather_all_var_col_real8_2d(values, global_values)
+
+    ! Gather global data along a column of tasks onto each task for that column.
+    ! Based on distributed_gather_var_real8_2d.
+    ! Note: The first index represents a data dimension that is the same on each task,
+    !        whose size generally is less than own_nsn.
+    !       The second index represents the east-west dimension, and is assumed
+    !        to have size own_ewn (i.e., the data extend over locally owned cells only).
+    ! values = local portion of distributed variable
+    ! global_values = allocatable array in which each task will store values for that column.
+    ! If global_values is allocated, then it will be deallocated and reallocated.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+
+    integer :: i,ierror,k
+    integer,dimension(:),allocatable :: displs,recvcounts
+    real(dp),dimension(:),allocatable :: recvbuf
+    real(dp),dimension(:,:),allocatable :: sendbuf
+
+    integer,dimension(4) :: d_gs_mybounds_col
+    integer,dimension(:,:),allocatable,save :: d_gs_bounds_col
+
+    if (size(values,2) /= own_ewn) then
+       ! Note: Removing this restriction would require some recoding below.
+       write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       call parallel_stop(__FILE__, __LINE__)
+    end if
+
+    d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
+    d_gs_mybounds_col(2) = (this_rank_col+1)*size(values,1)
+    d_gs_mybounds_col(3) = 1
+    d_gs_mybounds_col(4) = own_ewn
+
+    ! first time
+    if (allocated(d_gs_bounds_col)) then
+       ! d_gs_bounds_col already computed; do nothing
+    else
+       allocate(d_gs_bounds_col(4,tasks_col))
+       call mpi_allgather(d_gs_mybounds_col, 4, mpi_integer,  &
+                          d_gs_bounds_col, 4, mpi_integer,  &
+                          comm_col, ierror)
+    endif
+
+    if (allocated(global_values)) deallocate(global_values)
+    allocate(global_values(size(values,1)*tasks_col, own_ewn))
+    global_values(:,:) = 0.0d0
+    allocate(displs(tasks_col+1))
+    allocate(recvcounts(tasks_col))
+    recvcounts(:) = (d_gs_bounds_col(2,:)-d_gs_bounds_col(1,:)+1)&
+                   *(d_gs_bounds_col(4,:)-d_gs_bounds_col(3,:)+1)
+    displs(1) = 0
+    do i = 1,tasks_col
+       displs(i+1) = displs(i)+recvcounts(i)
+    end do
+    allocate(recvbuf(displs(tasks_col+1)))
+
+    !Note: Would need to uncomment the following and call mpi_allgatherv
+    !      with sendbuf arguments if sendbuf were not identical
+    !      to the input values array
+!!    allocate(sendbuf(d_gs_mybounds_col(1):d_gs_mybounds_col(2),&
+!!                     d_gs_mybounds_col(3):d_gs_mybounds_col(4)))
+!!    sendbuf(:,:) = values(1:size(values,1), 1:own_ewn)
+!!    call mpi_allgatherv(sendbuf,size(sendbuf),mpi_real8,&
+!!                        recvbuf, recvcounts, displs, mpi_real8, &
+!!                        comm_col, ierror)
+
+    call mpi_allgatherv(values, size(values), mpi_real8, &
+                        recvbuf, recvcounts, displs, mpi_real8, &
+                        comm_col, ierror)
+
+    do i = 1, tasks_col
+       global_values(d_gs_bounds_col(1,i):d_gs_bounds_col(2,i),&
+                     d_gs_bounds_col(3,i):d_gs_bounds_col(4,i)) = &
+             reshape(recvbuf(displs(i)+1:displs(i+1)), &
+                   (/d_gs_bounds_col(2,i)-d_gs_bounds_col(1,i)+1,&
+                     d_gs_bounds_col(4,i)-d_gs_bounds_col(3,i)+1/))
+    end do
+
+    ! automatic deallocation
+
+  end subroutine distributed_gather_all_var_col_real8_2d
+
 
   function distributed_get_var_integer_2d(ncid,varid,values,start)
     use mpi_mod
@@ -3793,7 +3981,7 @@ contains
     real(dp),dimension(:,:),allocatable :: recvbuf
 
     integer,dimension(4) :: d_gs_mybounds_row
-    integer,dimension(:,:),allocatable :: d_gs_bounds_row
+    integer,dimension(:,:),allocatable,save :: d_gs_bounds_row
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -3801,20 +3989,23 @@ contains
        call parallel_stop(__FILE__, __LINE__)
     end if
 
-    if (allocated(d_gs_bounds_row)) deallocate(d_gs_bounds_row)
-    if (main_task_row) then
-       allocate(d_gs_bounds_row(4,tasks_row))
-    else
-       allocate(d_gs_bounds_row(1,1))
-    endif
-
     d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
     d_gs_mybounds_row(2) = (this_rank_row+1)*size(values,1)
     d_gs_mybounds_row(3) = 1
     d_gs_mybounds_row(4) = own_nsn
 
-    call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
-         mpi_integer,main_rank_row,comm_row)
+    if (allocated(d_gs_bounds_row)) then
+       ! do nothing; d_gs_bounds_row already computed
+    else   ! first time
+       if (main_task_row) then
+          allocate(d_gs_bounds_row(4,tasks_row))
+       else
+          allocate(d_gs_bounds_row(1,1))
+       endif
+
+       call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
+            mpi_integer,main_rank_row,comm_row)
+    endif
 
     if (main_task_row) then
        allocate(displs(tasks_row+1))
@@ -3874,7 +4065,7 @@ contains
     real(dp),dimension(:,:),allocatable :: recvbuf
 
     integer,dimension(4) :: d_gs_mybounds_col
-    integer,dimension(:,:),allocatable :: d_gs_bounds_col
+    integer,dimension(:,:),allocatable,save :: d_gs_bounds_col
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -3882,20 +4073,23 @@ contains
        call parallel_stop(__FILE__, __LINE__)
     end if
 
-    if (allocated(d_gs_bounds_col)) deallocate(d_gs_bounds_col)
-    if (main_task_col) then
-       allocate(d_gs_bounds_col(4,tasks_col))
-    else
-       allocate(d_gs_bounds_col(1,1))
-    endif
-
     d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
     d_gs_mybounds_col(2) = (this_rank_col+1)*size(values,1)
     d_gs_mybounds_col(3) = 1
     d_gs_mybounds_col(4) = own_ewn
 
-    call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
-         mpi_integer,main_rank_col,comm_col)
+    if (allocated(d_gs_bounds_col)) then
+       ! do nothing; d_gs_bounds_col already computed
+    else   ! first time
+       if (main_task_col) then
+          allocate(d_gs_bounds_col(4,tasks_col))
+       else
+          allocate(d_gs_bounds_col(1,1))
+       endif
+
+       call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
+            mpi_integer,main_rank_col,comm_col)
+    endif
 
     if (main_task_col) then
        allocate(displs(tasks_col+1))
@@ -7642,7 +7836,7 @@ contains
 !
    subroutine fc_gatherv_real8 (sendbuf, sendcnt, sendtype, &
                                 recvbuf, recvcnts, displs, recvtype, &
-                                root, comm, flow_cntl )
+                                root, comm, flow_cntl)
 !
 ! !USES:
 !
