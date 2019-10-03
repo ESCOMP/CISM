@@ -952,8 +952,8 @@
 
     real(dp), dimension(:,:,:), allocatable ::  &
        Auu_2d, Auv_2d,   &! assembled stiffness matrix, divided into 4 parts
-       Avu_2d, Avv_2d     ! 1st dimension = 9 (node and its nearest neighbors in x and y direction) 
-                          ! other dimensions = (i,j)
+       Avu_2d, Avv_2d     ! 3rd dimension = 9 (node and its nearest neighbors in x and y direction)
+                          ! 1st and 2nd dimensions = (i,j)
 
     real(dp), dimension(:,:), allocatable ::  &
        bu_2d, bv_2d,     &! right-hand-side vector b, divided into 2 parts
@@ -1211,10 +1211,10 @@
 
     if (solve_2d) then
        ! allocate arrays needed for a 2D solve
-       allocate(Auu_2d(nNodeNeighbors_2d,nx-1,ny-1))
-       allocate(Auv_2d(nNodeNeighbors_2d,nx-1,ny-1))
-       allocate(Avu_2d(nNodeNeighbors_2d,nx-1,ny-1))
-       allocate(Avv_2d(nNodeNeighbors_2d,nx-1,ny-1))
+       allocate(Auu_2d(nx-1,ny-1,nNodeNeighbors_2d))
+       allocate(Auv_2d(nx-1,ny-1,nNodeNeighbors_2d))
+       allocate(Avu_2d(nx-1,ny-1,nNodeNeighbors_2d))
+       allocate(Avv_2d(nx-1,ny-1,nNodeNeighbors_2d))
        allocate(bu_2d(nx-1,ny-1))
        allocate(bv_2d(nx-1,ny-1))
        allocate(loadu_2d(nx-1,ny-1))
@@ -1230,10 +1230,10 @@
           allocate(dvvel_2d(nx-1,ny-1))
           allocate(uvel_2d_sav(nx-1,ny-1))
           allocate(vvel_2d_sav(nx-1,ny-1))
-          allocate(Auu_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
-          allocate(Auv_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
-          allocate(Avu_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
-          allocate(Avv_2d_sav(nNodeNeighbors_2d,nx-1,ny-1))
+          allocate(Auu_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
+          allocate(Auv_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
+          allocate(Avu_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
+          allocate(Avv_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
           allocate(beta_internal_sav(nx-1,ny-1))
        endif
     else
@@ -1883,7 +1883,7 @@
 
           allocate(active_owned_unknown_map(2*nVerticesSolve))
           allocate(velocityResult(2*nVerticesSolve))
-          allocate(Afill_2d(nNodeNeighbors_2d,nx-1,ny-1))
+          allocate(Afill_2d(nx-1,ny-1,nNodeNeighbors_2d))
 
           !----------------------------------------------------------------
           ! Compute global IDs needed to initialize the Trilinos solver
@@ -3111,7 +3111,7 @@
 
                 ! Incorporate basal sliding boundary conditions, based on beta_eff
 
-                call basal_sliding_bc(nx,                ny,              &
+                call basal_sliding_bc_2d(nx,                ny,              &
                                       nNodeNeighbors_2d, nhalo,           &
                                       dx,                dy,              &
                                       active_cell,       active_vertex,   &
@@ -3124,7 +3124,7 @@
 
                 ! Incorporate basal sliding boundary conditions, based on beta_internal
 
-                call basal_sliding_bc(nx,                ny,              &
+                call basal_sliding_bc_2d(nx,                ny,              &
                                       nNodeNeighbors_2d, nhalo,           &
                                       dx,                dy,              &
                                       active_cell,       active_vertex,   &
@@ -3173,12 +3173,14 @@
              ! Halo updates for matrices
              !---------------------------------------------------------------------------
      
-             call t_startf('glissade_halo_Axxs')
-             call staggered_parallel_halo(Auu_2d(:,:,:))
-             call staggered_parallel_halo(Auv_2d(:,:,:))
-             call staggered_parallel_halo(Avu_2d(:,:,:))
-             call staggered_parallel_halo(Avv_2d(:,:,:))
-             call t_stopf('glissade_halo_Axxs')
+             call t_startf('glissade_halo_Aijm')
+             do m = 1, nNodeNeighbors_2d
+                call staggered_parallel_halo(Auu_2d(:,:,m))
+                call staggered_parallel_halo(Auv_2d(:,:,m))
+                call staggered_parallel_halo(Avu_2d(:,:,m))
+                call staggered_parallel_halo(Avv_2d(:,:,m))
+             enddo
+             call t_stopf('glissade_halo_Aijm')
 
              !---------------------------------------------------------------------------
              ! Halo updates for rhs vectors
@@ -3213,7 +3215,6 @@
              !---------------------------------------------------------------------------
 
              call count_nonzeros_2d(nx,      ny,     &
-                                    nhalo,           &
                                     Auu_2d,  Auv_2d, &
                                     Avu_2d,  Avv_2d, &
                                     active_vertex,   &
@@ -3221,7 +3222,7 @@
 
              if (write_matrix) then
                 if (counter == 1) then    ! first outer iteration only
-                    call t_startf('glissade_wrt_mat')
+                   call t_startf('glissade_wrt_mat')
                    call write_matrix_elements_2d(nx,             ny,            &
                                                  nVerticesSolve, vertexID,      &
                                                  iVertexIndex,   jVertexIndex,  &
@@ -3237,10 +3238,10 @@
                 j = jtest
                 print*, ' '
                 print*, 'After assembly and BC, i, j =', i, j
-                print*, 'Auu_2d sum =', sum(Auu_2d(:,i,j))
-                print*, 'Auv_2d sum =', sum(Auv_2d(:,i,j))
-                print*, 'Avu_2d sum =', sum(Avu_2d(:,i,j))
-                print*, 'Avv_2d sum =', sum(Avv_2d(:,i,j))
+                print*, 'Auu_2d sum =', sum(Auu_2d(i,j,:))
+                print*, 'Auv_2d sum =', sum(Auv_2d(i,j,:))
+                print*, 'Avu_2d sum =', sum(Avu_2d(i,j,:))
+                print*, 'Avv_2d sum =', sum(Avv_2d(i,j,:))
 
                 m = indxA_2d(0,0)  ! diag entry
                 print*, ' '
@@ -3249,12 +3250,12 @@
                 print*, 'i, diag, max, min, sum:'
                 do i = itest-3, itest+3
                    print*, ' '
-                   write(6,'(a8, i4, 4f20.8)') 'Auu_2d:', i, Auu_2d(m,i,j), maxval(Auu_2d(:,i,j)), &
-                                                      minval(Auu_2d(:,i,j)),   sum(Auu_2d(:,i,j))
-                   write(6,'(a8, i4, 4f20.8)') 'Auv_2d:', i, Auv_2d(m,i,j), maxval(Auv_2d(:,i,j)), &
-                                                      minval(Auv_2d(:,i,j)),   sum(Auv_2d(:,i,j))
-                   write(6,'(a8, i4, 4f20.8)') 'Avv_2d:', i, Avv_2d(m,i,j), maxval(Avv_2d(:,i,j)), &
-                                                      minval(Avv_2d(:,i,j)),   sum(Avv_2d(:,i,j))
+                   write(6,'(a8, i4, 4f20.8)') 'Auu_2d:', i, Auu_2d(i,j,m), maxval(Auu_2d(i,j,:)), &
+                                                      minval(Auu_2d(i,j,:)),   sum(Auu_2d(i,j,:))
+                   write(6,'(a8, i4, 4f20.8)') 'Auv_2d:', i, Auv_2d(i,j,m), maxval(Auv_2d(i,j,:)), &
+                                                      minval(Auv_2d(i,j,:)),   sum(Auv_2d(i,j,:))
+                   write(6,'(a8, i4, 4f20.8)') 'Avv_2d:', i, Avv_2d(i,j,m), maxval(Avv_2d(i,j,:)), &
+                                                      minval(Avv_2d(i,j,:)),   sum(Avv_2d(i,j,:))
                 enddo
 
                 i = itest
@@ -3264,7 +3265,7 @@
                 do jA = -1, 1
                    do iA = -1, 1
                       m = indxA_2d(iA,jA)
-                      print*, iA, jA, Auu_2d(m,i,j), Auv_2d(m,i,j), Avu_2d(m,i,j), Avv_2d(m,i,j)
+                      print*, iA, jA, Auu_2d(i,j,m), Auv_2d(i,j,m), Avu_2d(i,j,m), Avv_2d(i,j,m)
                    enddo
                 enddo
                 print*, ' '
@@ -3541,7 +3542,8 @@
 
                 if (counter >= 2) then
 
-                   call evaluate_accelerated_picard_2d(L2_norm,       L2_norm_large,        &
+                   call evaluate_accelerated_picard_2d(nx,            ny,                   &
+                                                       L2_norm,       L2_norm_large,        &
                                                        L2_norm_alpha_sav,                   &
                                                        alpha_accel,   alpha_accel_max,      &
                                                        gamma_accel,   resid_reduction_threshold,  &
@@ -4352,6 +4354,7 @@
        endif
     else
        deallocate(Auu, Auv, Avu, Avv)
+       !TODO - any other arrays to deallocate here?
        if (accel_picard) then
           deallocate(uvel_old, vvel_old)
           deallocate(duvel, dvvel)
@@ -5719,7 +5722,7 @@
     real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
        efvs               ! effective viscosity (Pa yr)
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(out) ::  &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
        Avu, Avv                                    
 
@@ -8427,7 +8430,7 @@
           enddo
        enddo
 
-    else   ! Blatter-Pattyn higher-order
+    else   ! Blatter-Pattyn higher-order (or DIVA)
            ! The terms in parentheses can be derived from PGB 2012, eq. 13 and 15.
            ! The factor of 2 in front of efvs has been absorbed into the quantities in parentheses.
 
@@ -8544,7 +8547,7 @@
     real(dp), dimension(nNodesPerElement_2d,nNodesPerElement_2d), intent(in) ::  &
        Kuu, Kuv, Kvu, Kvv       ! element matrix
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(inout) ::    &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::    &
        Auu, Auv, Avu, Avv       ! assembled matrix
 
     integer :: i, j, m
@@ -8575,20 +8578,281 @@
           m = indxA_2d(iA,jA)
 
           ! Increment A
-          Auu(m,i,j) = Auu(m,i,j) + Kuu(nr,nc)
-          Auv(m,i,j) = Auv(m,i,j) + Kuv(nr,nc)
-          Avu(m,i,j) = Avu(m,i,j) + Kvu(nr,nc)
-          Avv(m,i,j) = Avv(m,i,j) + Kvv(nr,nc)
+          Auu(i,j,m) = Auu(i,j,m) + Kuu(nr,nc)
+          Auv(i,j,m) = Auv(i,j,m) + Kuv(nr,nc)
+          Avu(i,j,m) = Avu(i,j,m) + Kvu(nr,nc)
+          Avv(i,j,m) = Avv(i,j,m) + Kvv(nr,nc)
 
           if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest) then
              print*, 'Increment Auu, element i, j, nr, nc =', iElement, jElement, nr, nc
-             print*, '     i, j, m, Kuu, new Auu:', i, j, m, Kuu(nr,nc), Auu(m,i,j) 
+             print*, '     i, j, m, Kuu, new Auu:', i, j, m, Kuu(nr,nc), Auu(i,j,m)
           endif
 
        enddo     ! nc
     enddo        ! nr
 
   end subroutine element_to_global_matrix_2d
+
+!****************************************************************************
+  !TODO - Call this subroutine for both 2D and 3D solvers.
+  !       First need to switch the index order for 3D matrices.
+  subroutine basal_sliding_bc_2d(nx,               ny,              &
+                              nNeighbors,       nhalo,           &
+                              dx,               dy,              &
+                              active_cell,      active_vertex,   &
+                              beta,                              &
+                              xVertex,          yVertex,         &
+                              whichassemble_beta,                &
+                              Auu,              Avv)
+
+    !------------------------------------------------------------------------
+    ! Increment the Auu and Avv matrices with basal traction terms.
+    ! Do a surface integral over all basal faces that contain at least one node with a stress BC.
+    ! (Not Dirichlet or free-slip)
+    ! Note: Basal Dirichlet BCs are enforced after matrix assembly.
+    !
+    ! Assume a sliding law of the form:
+    !   tau_x = -beta*u
+    !   tau_y = -beta*v
+    ! where beta is defined at vertices (and beta may depend
+    ! on the velocity from a previous iteration).
+    !
+    ! Note: The input beta field should already have been weighted by f_ground. We should have
+    !       beta = 0 for floating ice (f_ground = 0). If using a GLP, then beta will
+    !       have less than its full value for partially floating ice (0 < f_ground < 1).
+    !------------------------------------------------------------------------
+
+    integer, intent(in) ::      &
+       nx, ny,                  &    ! horizontal grid dimensions
+       nNeighbors,              &    ! number of neighbors of each node (used for last dimension of Auu/Avv)
+                                     ! = 27 for 3D solve, = 9 for 2D solve
+       nhalo                         ! number of halo layers
+
+    real(dp), intent(in) ::     &
+       dx, dy                        ! grid cell length and width
+
+    logical, dimension(nx,ny), intent(in) ::  &
+       active_cell                   ! true if cell contains ice and borders a locally owned vertex
+
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       active_vertex                 ! true for vertices of active cells
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::    &
+       beta                          ! basal traction field (Pa/(m/yr)) at cell vertices
+                                     ! typically = beta_internal (beta weighted by f_ground)
+                                     ! = beta_eff for DIVA
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
+       xVertex, yVertex     ! x and y coordinates of vertices
+
+    integer, intent(in) :: &
+       whichassemble_beta   ! = 0 for standard finite element computation of basal forcing terms
+                            ! = 1 for computation that uses only the local value of beta at each node
+
+    real(dp), dimension(nx-1,ny-1,nNeighbors), intent(inout) ::  &
+       Auu, Avv             ! parts of stiffness matrix (basal layer only)
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer :: i, j, n, p, nr, nc, iA, jA, m, ii, jj
+
+    real(dp), dimension(nNodesPerElement_2d) ::   &
+       x, y,        & ! Cartesian coordinates of basal nodes
+       b              ! beta at basal nodes
+
+    !TODO - These are not currently used except as dummy arguments
+    real(dp), dimension(nNodesPerElement_2d) ::   &
+       dphi_dx_2d, dphi_dy_2d    ! derivatives of basis functions, evaluated at quad pts
+
+    real(dp) ::   &
+       beta_qp,     & ! beta evaluated at quadrature point
+       detJ           ! determinant of Jacobian for the transformation
+                      !  between the reference element and true element
+
+    real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
+       Kuu, Kvv       ! components of element matrix associated with basal sliding
+
+    if (verbose_basal .and. this_rank==rtest) then
+       print*, 'In basal_sliding_bc: itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'beta:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') beta(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
+
+       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+          m = indxA_3d(0,0,0)
+       else  ! 2D problem
+          m = indxA_2d(0,0)
+       endif
+
+       ! Sum over active vertices
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (active_vertex(i,j)) then
+                Auu(i,j,m) = Auu(i,j,m) + dx*dy/vol0 * beta(i,j)
+                Avv(i,j,m) = Avv(i,j,m) + dx*dy/vol0 * beta(i,j)
+             endif   ! active_vertex
+          enddo   ! i
+       enddo   ! j
+
+    else   ! standard assembly
+
+       ! Sum over elements in active cells
+       ! Loop over all cells that contain locally owned vertices
+       do j = nhalo+1, ny-nhalo+1
+       do i = nhalo+1, nx-nhalo+1
+
+          !TODO - Should we exclude cells that have Dirichlet basal BCs for all vertices?
+
+          if (active_cell(i,j)) then
+
+             ! Set x and y for each node
+
+             !     4-----3       y
+             !     |     |       ^
+             !     |     |       |
+             !     1-----2       ---> x
+
+             x(1) = xVertex(i-1,j-1)
+             x(2) = xVertex(i,j-1)
+             x(3) = xVertex(i,j)
+             x(4) = xVertex(i-1,j)
+
+             y(1) = yVertex(i-1,j-1)
+             y(2) = yVertex(i,j-1)
+             y(3) = yVertex(i,j)
+             y(4) = yVertex(i-1,j)
+
+             b(1) = beta(i-1,j-1)
+             b(2) = beta(i,j-1)
+             b(3) = beta(i,j)
+             b(4) = beta(i-1,j)
+
+             ! loop over quadrature points
+
+             do p = 1, nQuadPoints_2d
+
+                ! Compute basis function derivatives and det(J) for this quadrature point
+                ! For now, pass in i, j, k, p for debugging
+                !TODO - Modify this subroutine so that the output derivatives are optional?
+
+                call get_basis_function_derivatives_2d(x(:),             y(:),               &
+                                                       dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
+                                                       dphi_dx_2d(:),    dphi_dy_2d(:),      &
+                                                       detJ, i, j, p)
+
+                ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
+                beta_qp = 0.d0
+                do n = 1, nNodesPerElement_2d
+                   beta_qp = beta_qp + phi_2d(n,p) * b(n)
+                enddo
+
+                if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'Increment basal traction, i, j, p =', i, j, p
+                   print*, 'beta_qp, detJ/vol0 =', beta_qp, detJ/vol0
+                endif
+
+                ! Compute the element matrix for this quadrature point
+                ! (Note volume scaling)
+                !TODO - Replace detJ/vol0 with dx*dy?
+
+                Kuu(:,:) = 0.d0
+
+                do nc = 1, nNodesPerElement_2d      ! columns of K
+                   do nr = 1, nNodesPerElement_2d   ! rows of K
+                      Kuu(nr,nc) = Kuu(nr,nc) + beta_qp * wqp_2d(p) * detJ/vol0 * phi_2d(nr,p)*phi_2d(nc,p)
+                   enddo  ! m (rows)
+                enddo     ! n (columns)
+
+                !Note: Is this true for all sliding laws?
+                Kvv(:,:) = Kuu(:,:)
+
+                ! Insert terms of basal element matrices into global matrices Auu and Avv
+
+                do nr = 1, nNodesPerElement_2d     ! rows of K
+
+                   ! Determine (i,j) for this node
+                   ! The reason for the '3' is that node 3, in the NE corner of the cell, has horizontal indices (i,j).
+                   ! Indices for other nodes are computed relative to this node.
+
+                   ii = i + ishift(3,nr)
+                   jj = j + jshift(3,nr)
+
+                   do nc = 1, nNodesPerElement_2d ! columns of K
+
+                      iA = ishift(nr,nc)          ! iA index of A into which K(nr,nc) is summed
+                      jA = jshift(nr,nc)          ! similarly for jA
+
+                      if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+                         m = indxA_3d(iA,jA,0)
+                      else  ! 2D problem
+                         m = indxA_2d(iA,jA)
+                      endif
+
+                      Auu(ii,jj,m) = Auu(ii,jj,m) + Kuu(nr,nc)
+                      Avv(ii,jj,m) = Avv(ii,jj,m) + Kvv(nr,nc)
+
+                      if (verbose_basal .and. this_rank==rtest .and. ii==itest .and. jj==jtest .and. m==5) then
+                         ! m = 5 gives the influence of beta at vertex(i,j) on velocity at vertex(ii,jj).
+                         ! For local assembly, Auu and Avv get nonzero increments only for m = 5.
+                         print*, 'Basal increment for Auu and Avv: source (i,j), Kuu, new Auu, ii, jj, m =', &
+                              i, j, Kuu(nr,nc), Auu(ii,jj,m), ii, jj, m
+                      endif
+
+                   enddo     ! nc
+                enddo        ! nr
+
+                if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+!                  print*, ' '
+!                  print*, 'i, j =', i, j
+!                  print*, 'Kuu:'
+!                  do nr = 1, nNodesPerElement_2d
+!                     print*, nr, Kuu(nr,:)
+!                  enddo
+!                  print*, ' '
+!                  print*, 'rowsum(Kuu):'
+!                  do nr = 1, nNodesPerElement_2d
+!                     print*, nr, sum(Kuu(nr,:))
+!                  enddo
+!                  print*, ' '
+!                  print*, 'sum(Kuu):', sum(Kuu(:,:))
+                endif
+
+             enddo   ! nQuadPoints_2d
+
+          endif      ! active_cell
+
+       enddo         ! i
+       enddo         ! j
+
+    endif   ! whichassemble_beta
+
+    if (verbose_basal .and. this_rank==rtest) then
+       i = itest
+       j = jtest
+       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+          m = indxA_3d(0,0,0)
+       else
+          m = indxA_2d(0,0)
+       endif
+       print*, ' '
+       print*, 'Basal BC: i, j, diagonal index =', i, j, m
+       print*, 'New Auu diagonal:', Auu(i,j,m)
+       print*, 'New Avv diagonal:', Avv(i,j,m)
+    endif
+
+  end subroutine basal_sliding_bc_2d
 
 !****************************************************************************
 
@@ -8746,7 +9010,7 @@
                                                        dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
                                                        detJ, i, j, p)
-          
+
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
                 beta_qp = 0.d0
                 do n = 1, nNodesPerElement_2d
@@ -8784,7 +9048,7 @@
 
                    ii = i + ishift(3,nr)
                    jj = j + jshift(3,nr)
-      
+
                    do nc = 1, nNodesPerElement_2d ! columns of K
 
                       iA = ishift(nr,nc)          ! iA index of A into which K(nr,nc) is summed
@@ -9083,7 +9347,7 @@
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        uvel, vvel          ! velocity components
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(inout) ::   &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
        Auu, Auv,    &      ! assembled stiffness matrix, divided into 4 parts
        Avu, Avv                                    
 
@@ -9096,26 +9360,29 @@
     
     integer :: i, j     ! Cartesian indices of nodes
     integer :: iA, jA   ! i and j offsets of neighboring nodes 
-    integer :: m, m2
+    integer :: m, mm
 
     ! Loop over all vertices that border locally owned vertices.
     ! Locally owned vertices are (staggered_ilo:staggered_ihi, staggered_jlo_staggered_jhi).
     ! OK to skip vertices outside the global domain (i < nhalo or j < nhalo).
     ! Note: Need nhalo >= 2 so as not to step out of bounds.
 
-     do j = nhalo, ny-nhalo+1
-        do i = nhalo, nx-nhalo+1
-          if (active_vertex(i,j)) then
+    do jA = -1,1
+    do iA = -1,1
+       m  = indxA_2d(iA,jA)
+       mm = indxA_2d(-iA,-jA)
 
-             if (umask_dirichlet(i,j) == 1) then
+       do j = nhalo, ny-nhalo+1
+          do i = nhalo, nx-nhalo+1
+             if (active_vertex(i,j)) then
 
-                ! set the rhs to the prescribed velocity
-                bu(i,j) = uvel(i,j)
+                if (umask_dirichlet(i,j) == 1) then
 
-                ! loop through matrix values in the rows associated with this vertex
-                ! (Auu contains one row, Avu contains a second row)
-                do jA = -1,1
-                do iA = -1,1
+                   ! set the rhs to the prescribed velocity
+                   bu(i,j) = uvel(i,j)
+
+                   ! loop through matrix values in the rows associated with this vertex
+                   ! (Auu contains one row, Avu contains a second row)
 
                    if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
                                    .and.                     &
@@ -9126,56 +9393,45 @@
                          ! Set Auu = 1 on the main diagonal
                          ! Set Auv term = 0; this term is off-diagonal for the fully assembled matrix
                          ! Set Avu term = 0 to preserve matrix symmetry (given that Auv term = 0)
-                         m = indxA_2d(0,0)
-                         Auu(m,i,j) = 1.d0
-                         Auv(m,i,j) = 0.d0
-                         Avu(m,i,j) = 0.d0
+                         Auu(i,j,indxA_2d(0,0)) = 1.d0
+                         Auv(i,j,indxA_2d(0,0)) = 1.d0
+                         Avu(i,j,indxA_2d(0,0)) = 1.d0
 
-                         !TODO - Set bu above, outside iA/jA loop
-                         ! Set the rhs to the prescribed velocity, forcing u = prescribed uvel for this vertex
-!!                         bu(i,j) = uvel(i,j)
-                            
                       else     ! not on the diagonal
 
                          ! Zero out non-diagonal matrix terms in the row associated with this vertex
-                         m = indxA_2d(iA,jA)
-                         Auu(m, i, j) = 0.d0
-                         Auv(m, i, j) = 0.d0
+                         Auu(i,j,m) = 0.d0
+                         Auv(i,j,m) = 0.d0
 
                          ! Shift terms associated with this velocity to the rhs.
                          ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
-                         m = indxA_2d(-iA,-jA)
+                         ! Recall mm = indxA_2d(-iA,-jA)
 
                          if (umask_dirichlet(i+iA, j+jA) /= 1) then
                             ! Move (Auu term) * uvel to rhs
-                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auu(m, i+iA, j+jA) * uvel(i,j)
-                            Auu(m, i+iA, j+jA) = 0.d0
+                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auu(i+iA, j+jA, mm) * uvel(i,j)
+                            Auu(i+iA, j+jA, mm) = 0.d0
                          endif
 
                          if (vmask_dirichlet(i+iA, j+jA) /= 1) then
                             ! Move (Avu term) * uvel to rhs
-                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avu(m, i+iA, j+jA) * uvel(i,j)
-                            Avu(m, i+iA, j+jA) = 0.d0
+                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avu(i+iA, j+jA, mm) * uvel(i,j)
+                            Avu(i+iA, j+jA, mm) = 0.d0
                          endif
 
                       endif  ! on the diagonal
 
                    endif     ! i+iA and j+jA in bounds
 
-                enddo    ! iA
-                enddo    ! jA
+                endif       ! umask_dirichlet
 
-             endif       ! umask_dirichlet
+                if (vmask_dirichlet(i,j) == 1) then
 
-             if (vmask_dirichlet(i,j) == 1) then
+                   ! set the rhs to the prescribed velocity
+                   bv(i,j) = vvel(i,j)
 
-                ! set the rhs to the prescribed velocity
-                bv(i,j) = vvel(i,j)
-
-                ! loop through matrix values in the rows associated with this vertex
-                ! (Auv contains one row, Avv contains a second row)
-                do jA = -1,1
-                do iA = -1,1
+                   ! loop through matrix values in the rows associated with this vertex
+                   ! (Auv contains one row, Avv contains a second row)
 
                    if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
                                    .and.                     &
@@ -9186,50 +9442,44 @@
                          ! Set Avv = 1 on the main diagonal
                          ! Set Avu term = 0; this term is off-diagonal for the fully assembled matrix
                          ! Set Auv term = 0 to preserve matrix symmetry (given that Avu term = 0)
-                         m = indxA_2d(0,0)
-                         Auv(m,i,j) = 0.d0
-                         Avu(m,i,j) = 0.d0
-                         Avv(m,i,j) = 1.d0
+                         Auv(i,j,indxA_2d(0,0)) = 0.d0
+                         Avu(i,j,indxA_2d(0,0)) = 0.d0
+                         Avv(i,j,indxA_2d(0,0)) = 1.d0
 
-                         !TODO - Set bv above, outside iA/jA loop
-                         ! Set the rhs to the prescribed velocity, forcing v = prescribed vvel for this vertex
-!!                         bv(i,j) = vvel(i,j)
-                            
                       else     ! not on the diagonal
 
                          ! Zero out non-diagonal matrix terms in the rows associated with this vertex
-                         m = indxA_2d(iA,jA)
-                         Avu(m, i, j) = 0.d0
-                         Avv(m, i, j) = 0.d0
+                         Avu(i,j,m) = 0.d0
+                         Avv(i,j,m) = 0.d0
 
                          ! Shift terms associated with this velocity to the rhs.
                          ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
-                         m = indxA_2d(-iA,-jA)
+                         ! Recall mm = indxA_2d(-iA,-jA)
 
                          if (umask_dirichlet(i+iA, j+jA) /= 1) then
                             ! Move (Auv term) * vvel to rhs
-                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auv(m, i+iA, j+jA) * vvel(i,j)
-                            Auv(m, i+iA, j+jA) = 0.d0
+                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auv(i+iA, j+jA, mm) * vvel(i,j)
+                            Auv(i+iA, j+jA, mm) = 0.d0
                          endif
 
                          if (vmask_dirichlet(i+iA, j+jA) /= 1) then
                             ! Move (Avv term) * vvel to rhs
-                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avv(m, i+iA, j+jA) * vvel(i,j)
-                            Avv(m, i+iA, j+jA) = 0.d0                                           
+                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avv(i+iA, j+jA, mm) * vvel(i,j)
+                            Avv(i+iA, j+jA, mm) = 0.d0
                          endif
 
                       endif  ! on the diagonal
 
                    endif     ! i+iA and j+jA in bounds
 
-                enddo    ! iA
-                enddo    ! jA
+                endif       ! vmask_dirichlet
 
-             endif       ! vmask_dirichlet
+             endif          ! active_vertex
+          enddo             ! i
+       enddo                ! j
 
-          endif          ! active_vertex
-       enddo             ! i
-    enddo                ! j
+    enddo    ! iA
+    enddo    ! jA
 
   end subroutine dirichlet_boundary_conditions_2d
 
@@ -9418,10 +9668,10 @@
     logical, dimension(nx-1,ny-1), intent(in) ::   &
        active_vertex          ! T for columns (i,j) where velocity is computed, else F
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(in) ::   &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::   &
        Auu, Auv, Avu, Avv     ! four components of assembled matrix
-                              ! 1st dimension = 3 (node and its nearest neighbors in x, y and z direction)
-                              ! other dimensions = (z,x,y) indices
+                              ! 3rd dimension = 9 (node and its nearest neighbors in x and y directions)
+                              ! 1st and 2nd dimensions = (x,y) indices
                               !
                               !    Auu  | Auv
                               !    _____|____
@@ -9459,38 +9709,27 @@
     resid_v(:,:) = 0.d0
 
     ! Loop over locally owned vertices
-
-    do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
-
-       if (active_vertex(i,j)) then
-
-          do jA = -1,1
-             do iA = -1,1
-
-                if ( (i+iA >= 1 .and. i+iA <= nx-1)    &
-                             .and.                     &
-                     (j+jA >= 1 .and. j+jA <= ny-1) ) then
-
-                   m = indxA_2d(iA,jA)
-
-                   resid_u(i,j) = resid_u(i,j)                     & 
-                                + Auu(m,i,j)*uvel(i+iA,j+jA)  &
-                                + Auv(m,i,j)*vvel(i+iA,j+jA)
-
-                   resid_v(i,j) = resid_v(i,j)                     &
-                                + Avu(m,i,j)*uvel(i+iA,j+jA)  &
-                                + Avv(m,i,j)*vvel(i+iA,j+jA)
-
-                endif   ! in bounds
-
-             enddo   ! iA
-          enddo      ! jA
-
-       endif   ! active_vertex
-
-    enddo   ! i
-    enddo   ! j
+    do jA = -1,1
+       do iA = -1,1
+          m = indxA_2d(iA,jA)
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (active_vertex(i,j)) then
+                   if ( (i+iA >= 1 .and. i+iA <= nx-1)    &
+                                   .and.                     &
+                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
+                      resid_u(i,j) = resid_u(i,j)                     &
+                                   + Auu(i,j,m)*uvel(i+iA,j+jA)  &
+                                   + Auv(i,j,m)*vvel(i+iA,j+jA)
+                      resid_v(i,j) = resid_v(i,j)                     &
+                                   + Avu(i,j,m)*uvel(i+iA,j+jA)  &
+                                   + Avv(i,j,m)*vvel(i+iA,j+jA)
+                   endif   ! in bounds
+                endif   ! active_vertex
+             enddo   ! i
+          enddo   ! j
+       enddo   ! iA
+    enddo      ! jA
 
     ! Subtract b to get A*x - b
     ! Sum up squared L2 norm as we go
@@ -9707,6 +9946,7 @@
 !****************************************************************************
 
   subroutine evaluate_accelerated_picard_2d(&
+       nx,            ny,                   &
        L2_norm,       L2_norm_large,        &
        L2_norm_alpha_sav,                   &
        alpha_accel,   alpha_accel_max,      &
@@ -9722,6 +9962,9 @@
        beta_internal, beta_internal_sav,    &
        assembly_is_done)
 
+    integer, intent(in) :: &
+         nx,  ny                    ! number of grid cells in each direction
+
     real(dp), intent(in) :: &
          L2_norm,                &  ! latest value of L2 norm of residual
          L2_norm_large,          &  ! large value for re-initializing the L2 norm
@@ -9733,7 +9976,7 @@
          alpha_accel,            &  ! factor for extending the vector (duvel, dvvel) to reduce the residual
          L2_norm_alpha_sav          ! value of L2 norm of residual, given the previous alpha_accel
 
-    real(dp), dimension(:,:), intent(inout) ::  &
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
          uvel_2d,     vvel_2d,         & ! latest guess for the velocity solution
          uvel_2d_old, vvel_2d_old,     & ! velocity solution from previous nonlinear iteration
          duvel_2d,    dvvel_2d,        & ! difference between old velocity solution and latest solution
@@ -9741,7 +9984,7 @@
          beta_internal,                & ! beta_internal as a function of uvel_2d and vvel_2d
          beta_internal_sav               ! beta_internal as a function of uvel_2d_sav and vvel_2d_sav
 
-    real(dp), dimension(:,:,:), intent(inout) ::  &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::  &
          Auu_2d,      Auv_2d,          & ! latest assembled matrices as a function of uvel_2d and vvel_2d
          Avu_2d,      Avv_2d,          &
          Auu_2d_sav,  Auv_2d_sav,      & ! assembled matrices as a function of uvel_2d_sav and vvel_2d_sav
@@ -10136,7 +10379,6 @@
 !****************************************************************************
 
   subroutine count_nonzeros_2d(nx,      ny,     &
-                               nhalo,           &
                                Auu,     Auv,    &
                                Avu,     Avv,    &
                                active_vertex,   & 
@@ -10147,10 +10389,9 @@
     !----------------------------------------------------------------
 
     integer, intent(in) ::   &
-       nx,  ny,              &    ! number of grid cells in each direction
-       nhalo                      ! number of halo layers
+       nx,  ny            ! number of grid cells in each direction
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
        Avu, Avv                                    
 
@@ -10164,24 +10405,22 @@
     ! Local variables
     !----------------------------------------------------------------
 
-    integer :: i, j, iA, jA, m
+    integer :: i, j, m
 
     nNonzeros = 0
-    do j = staggered_jlo, staggered_jhi
-       do i = staggered_ilo, staggered_ihi
-          if (active_vertex(i,j)) then
-             do jA = -1, 1
-                do iA = -1, 1
-                   m = indxA_2d(iA,jA)
-                   if (Auu(m,i,j) /= 0.d0) nNonzeros = nNonzeros + 1
-                   if (Auv(m,i,j) /= 0.d0) nNonzeros = nNonzeros + 1
-                   if (Avu(m,i,j) /= 0.d0) nNonzeros = nNonzeros + 1
-                   if (Avv(m,i,j) /= 0.d0) nNonzeros = nNonzeros + 1
-                enddo 
-             enddo
-          endif     ! active_vertex
-       enddo        ! i
-    enddo           ! j
+
+    do m = 1, nNodeNeighbors_2d
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
+                if (Auu(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+                if (Auv(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+                if (Avu(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+                if (Avv(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+             endif     ! active_vertex
+          enddo        ! i
+       enddo           ! j
+    enddo              ! m
 
     nNonzeros = parallel_reduce_sum(nNonzeros)
 
@@ -10489,7 +10728,7 @@
     logical, dimension(nx-1,ny-1), intent(in) ::   &
        active_vertex            ! T for columns (i,j) where velocity is computed, else F
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(inout) ::   &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
        Auu, Auv, Avu, Avv       ! components of assembled stiffness matrix
                                 !
                                 !    Auu  | Auv
@@ -10516,99 +10755,70 @@
     ! Loop over locally owned vertices.
     ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
 
-    do j = staggered_jlo, staggered_jhi
-       do i = staggered_ilo, staggered_ihi
-          if (active_vertex(i,j)) then
+    do jA = -1, 1
+    do iA = -1, 1
+       m =  indxA_2d( iA, jA)
+       mm = indxA_2d(-iA,-jA)
 
-             ! Check Auu and Auv for symmetry
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
 
-             m = indxA_2d(0,0)
-             diag_entry = Auu(m,i,j)
-
-             do jA = -1, 1
-             do iA = -1, 1
-
-                m =  indxA_2d( iA, jA)
-                mm = indxA_2d(-iA,-jA)
+                ! Check Auu and Auv for symmetry
+                diag_entry = Auu(i,j,indxA_2d(0,0))
 
                 ! Check that Auu = Auu^T
-
-                val1 = Auu( m, i,    j   )   ! value of Auu(row,col)
-                val2 = Auu(mm, i+iA, j+jA)   ! value of Auu(col,row)
-
+                val1 = Auu(i,    j,    m )   ! value of Auu(row,col)
+                val2 = Auu(i+iA, j+jA, mm)   ! value of Auu(col,row)
                 if (val2 /= val1) then
-                          
                    if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-
                    if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
                       avg_val = 0.5d0 * (val1 + val2)
-                      Auu( m, i,   j   ) = avg_val
-                      Auu(mm, i+iA,j+jA) = avg_val
+                      Auu(i,    j,    m ) = avg_val
+                      Auu(i+iA, j+jA, mm) = avg_val
                    else
                       print*, 'WARNING: Auu is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                      stop
                    endif
-
                 endif   ! val2 /= val1
-                
+
                 ! Check that Auv = (Avu)^T
-
-                val1 = Auv( m,    i,    j)   ! value of Auv(row,col)
-                val2 = Avu(mm, i+iA, j+jA)   ! value of Avu(col,row)
-
+                val1 = Auv(i,    j,    m )   ! value of Auv(row,col)
+                val2 = Avu(i+iA, j+jA, mm)   ! value of Avu(col,row)
                 if (val2 /= val1) then
-
                    if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-
                    if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
                       avg_val = 0.5d0 * (val1 + val2)
-                      Auv( m,   i,   j) = avg_val
-                      Avu(mm,i+iA,j+jA) = avg_val
+                      Auv(i,    j,    m ) = avg_val
+                      Avu(i+iA, j+jA, mm) = avg_val
                    else
                       print*, 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
 !!                      stop
                    endif
-
                 endif  ! val2 /= val1
 
-             enddo        ! iA
-             enddo        ! jA
+                ! Now check Avu and Avv
+                diag_entry = Avv(i,j,indxA_2d(0,0))
 
-             ! Now check Avu and Avv
-
-             m = indxA_2d(0,0)
-             diag_entry = Avv(m,i,j)
-
-             ! check that Avv = (Avv)^T
-
-             do jA = -1, 1
-             do iA = -1, 1
-
-                m  = indxA_2d( iA, jA)
-                mm = indxA_2d(-iA,-jA)
-
-                val1 = Avv( m,    i,    j)   ! value of Avv(row,col)
-                val2 = Avv(mm, i+iA, j+jA)   ! value of Avv(col,row)
+                ! check that Avv = (Avv)^T
+                val1 = Avv(i,    j,    m )   ! value of Avv(row,col)
+                val2 = Avv(i+iA, j+jA, mm)   ! value of Avv(col,row)
 
                 if (val2 /= val1) then
-                          
                    if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
 
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-
                    if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
                       avg_val = 0.5d0 * (val1 + val2)
-                      Avv( m,   i,   j) = avg_val
-                      Avv(mm,i+iA,j+jA) = avg_val
+                      Avv(i,    j,    m ) = avg_val
+                      Avv(i+iA, j+jA, mm) = avg_val
                    else
                       print*, 'WARNING: Avv is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
@@ -10618,9 +10828,8 @@
                 endif   ! val2 /= val1
 
                 ! Check that Avu = (Auv)^T
-
-                val1 = Avu( m,    i,    j)   ! value of Avu(row,col)
-                val2 = Auv(mm, i+iA, j+jA)   ! value of Auv(col,row)
+                val1 = Avu(i,    j,    m )   ! value of Avu(row,col)
+                val2 = Auv(i+iA, j+jA, mm)   ! value of Auv(col,row)
 
                 if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
 
@@ -10628,11 +10837,10 @@
 
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-
                    if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
                       avg_val = 0.5d0 * (val1 + val2)
-                      Avu( m,   i,   j) = avg_val
-                      Auv(mm,i+iA,j+jA) = avg_val
+                      Avu(i,    j,    m ) = avg_val
+                      Auv(i+iA, j+jA, mm) = avg_val
                    else
                       print*, 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
@@ -10641,12 +10849,11 @@
 
                 endif  ! val2 /= val1
 
-             enddo     ! iA
-             enddo     ! jA
-
-          endif        ! active_vertex
-       enddo           ! i
-    enddo              ! j
+             endif        ! active_vertex
+          enddo           ! i
+       enddo              ! j
+    enddo     ! iA
+    enddo     ! jA
 
     if (verbose_matrix) maxdiff = parallel_reduce_max(maxdiff)
 
@@ -10666,6 +10873,9 @@
                                       Auu,         Auv,    &
                                       Avu,         Avv,    &
                                       bu,          bv)
+
+    ! Write matrix elements to text files.
+    ! Note: Does not work when running on more than one task.
 
     integer, intent(in) ::   &
        nx, ny,               &  ! horizontal grid dimensions
@@ -10695,6 +10905,10 @@
        Auu_val, Auv_val, Avu_val, Avv_val   ! dense matrices
 
     real(dp), dimension(nNodesSolve) :: nonzeros
+
+    if (tasks > 1) then
+       call write_log('Error: Cannot write matrix elements to files when tasks > 1', GM_FATAL)
+    endif
 
     Auu_val(:,:) = 0.d0
     Auv_val(:,:) = 0.d0
@@ -10805,6 +11019,9 @@
                                       Avu,            Avv,           &
                                       bu,             bv)
 
+    ! Write matrix elements to text files.
+    ! Note: Does not work when running on more than one task.
+
     integer, intent(in) ::   &
        nx, ny,               &  ! horizontal grid dimensions
        nVerticesSolve           ! number of vertices where we solve for velocity
@@ -10815,7 +11032,7 @@
     integer, dimension(:), intent(in) ::   &
        iVertexIndex, jVertexIndex   ! i and j indices of active vertices
 
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
        Avu, Avv           ! 1st dimension = vertex and its nearest neighbors in x and y direction 
                           ! other dimensions = (i,j) indices
@@ -10832,6 +11049,10 @@
        Auu_val, Auv_val, Avu_val, Avv_val   ! dense matrices
 
     real(dp), dimension(nVerticesSolve) :: nonzeros
+
+    if (tasks > 1) then
+       call write_log('Error: Cannot write matrix elements to files when tasks > 1', GM_FATAL)
+    endif
 
     Auu_val(:,:) = 0.d0
     Auv_val(:,:) = 0.d0
@@ -10853,10 +11074,10 @@
              m = indxA_2d(iA,jA)
 
              if (colA > 0) then 
-                Auu_val(rowA, colA) = Auu(m,i,j)
-                Auv_val(rowA, colA) = Auv(m,i,j)
-                Avu_val(rowA, colA) = Avu(m,i,j)
-                Avv_val(rowA, colA) = Avv(m,i,j)
+                Auu_val(rowA, colA) = Auu(i,j,m)
+                Auv_val(rowA, colA) = Auv(i,j,m)
+                Avu_val(rowA, colA) = Avu(i,j,m)
+                Avv_val(rowA, colA) = Avv(i,j,m)
              endif
 
           endif     ! i+iA and j+jA in bounds
@@ -10927,7 +11148,7 @@
   end subroutine write_matrix_elements_2d
 
 !****************************************************************************
-
+  !TODO - Either delete this subroutine, or switch the indices.  Not currently used.
   subroutine compress_3d_to_2d(nx,        ny,      nz,  &
                                Auu,       Auv,          &
                                Avu,       Avv,          &

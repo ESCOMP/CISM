@@ -331,7 +331,7 @@
        indxA             ! maps relative (x,y,z) coordinates to an index between 1 and 9  
                          ! index order is (i,j)
    
-    logical, dimension(9,nx-1,ny-1), intent(out) ::  &
+    logical, dimension(nx-1,ny-1,9), intent(out) ::  &
        Afill        ! true wherever the matrix value is potentially nonzero
                     ! and should be sent to Trilinos
 
@@ -362,7 +362,7 @@
                 if (active_vertex(i+iA,j+jA)) then
 
                    m = indxA(iA,jA)
-                   Afill(m,i,j) = .true.
+                   Afill(i,j,m) = .true.
                    
                 endif  ! active_vertex(i+iA,j+jA)
 
@@ -425,7 +425,7 @@
 
     real(dp), dimension(27,nz,nx-1,ny-1), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
+       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction
                           ! other dimensions = (k,i,j) indices
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
@@ -592,13 +592,13 @@
        indxA                 ! maps relative (x,y) coordinates to an index between 1 and 9
                              ! index order is (i,j)
 
-    logical, dimension(9,nx-1,ny-1), intent(in) ::  &
+    logical, dimension(nx-1,ny-1,9), intent(in) ::  &
        Afill              ! true for matrix values to be sent to Trilinos
 
-    real(dp), dimension(9,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1,9), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
-                          ! other dimensions = (i,j) indices
+       Avu, Avv           ! 3rd dimension = node and its nearest neighbors in x, y and z direction
+                          ! 1st and 2nd dimensions = (i,j) indices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        bu, bv             ! assembled load (rhs) vector, divided into 2 parts
@@ -644,15 +644,15 @@
 
              m = indxA(iA,jA)
 
-             if (Afill(m,i,j)) then
+             if (Afill(i,j,m)) then
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA) - 1
-                matrix_value(ncol) = Auu(m,i,j)
+                matrix_value(ncol) = Auu(i,j,m)
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA)
-                matrix_value(ncol) = Auv(m,i,j)
+                matrix_value(ncol) = Auv(i,j,m)
 
              endif
 
@@ -681,15 +681,15 @@
 
              m = indxA(iA,jA)
 
-             if (Afill(m,i,j)) then
+             if (Afill(i,j,m)) then
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA) - 1
-                matrix_value(ncol) = Avu(m,i,j)
+                matrix_value(ncol) = Avu(i,j,m)
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA)
-                matrix_value(ncol) = Avv(m,i,j)
+                matrix_value(ncol) = Avv(i,j,m)
 
              endif
 
