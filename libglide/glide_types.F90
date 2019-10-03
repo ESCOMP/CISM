@@ -971,6 +971,9 @@ module glide_types
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
 
+    integer :: linear_solve_ncheck = 5
+    !> check the linear solver for convergence every linear_solve_ncheck iterations
+
     ! The remaining options are not currently supported
 
     !integer :: which_bproc = 0

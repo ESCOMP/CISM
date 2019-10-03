@@ -55,8 +55,6 @@
               pcg_solver_chrongear_3d, pcg_solver_chrongear_2d, &
               matvec_multiply_structured_3d
     
-    logical :: verbose_pcg
-
     interface global_sum_staggered
        module procedure global_sum_staggered_3d_real8
        module procedure global_sum_staggered_3d_real8_nvar       
@@ -77,13 +75,10 @@
 !!       tolerance = 1.d-11    ! tolerance for linear solver (old value; more stringent than necessary)
        tolerance = 1.d-08    ! tolerance for linear solver
 
-    integer, parameter :: &
-       solve_ncheck = 5      ! check for convergence every solve_ncheck iterations
-
     logical, parameter :: verbose_tridiag = .false.
 !!    logical, parameter :: verbose_tridiag = .true.
 
-    !TODO - Add verbose_pcg here.
+    logical, parameter :: verbose_pcg = .false.
 
   contains
 
@@ -96,15 +91,14 @@
                                     Avu,       Avv,           &
                                     bu,        bv,            &
                                     xu,        xv,            &
-                                    precond,   err,           &
-                                    niters,                   &
-                                    itest_in,  jtest_in,  rtest_in,   &
-                                    verbose) 
+                                    precond,   linear_solve_ncheck,  &
+                                    err,       niters,        &
+                                    itest, jtest, rtest)
 
     !---------------------------------------------------------------
     !  This subroutine uses a standard preconditioned conjugate-gradient algorithm
     !  to solve the equation $Ax=b$.
-    !  Convergence is checked every {\em solve_ncheck} steps.
+    !  Convergence is checked every {\em linear_solve_ncheck} steps.
     !
     !  It is based on the barotropic solver in the POP ocean model 
     !  (author Phil Jones, LANL).  Input and output arrays are located
@@ -189,18 +183,18 @@
                          ! = 1 for diagonal preconditioning (best option for SSA-dominated flow)
                          ! = 2 for preconditioning with SIA solver (works well for SIA-dominated flow)
 
+    integer, intent(in)  :: &
+       linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
     real(dp), intent(out) ::  &
-       err                               ! error (L2 norm of residual) in final solution
+       err                          ! error (L2 norm of residual) in final solution
 
     integer, intent(out) ::   &
-       niters                            ! iterations needed to solution
+       niters                       ! iterations needed to solution
 
-    integer, intent(in), optional :: &
-       itest_in, jtest_in, rtest_in      ! point for debugging diagnostics
+    integer, intent(in) :: &
+       itest, jtest, rtest          ! point for debugging diagnostics
 
-    logical, intent(in), optional :: &
-       verbose                           ! if true, print diagnostic output
-    
     !---------------------------------------------------------------
     ! Local variables and parameters   
     !---------------------------------------------------------------
@@ -208,7 +202,7 @@
     integer ::  i, j, k      ! grid indices
     integer ::  iA, jA, kA   ! grid offsets ranging from -1 to 1
     integer ::  m            ! matrix element index
-    integer ::  n            ! iteration counter
+    integer ::  iter         ! iteration counter
 
     real(dp) ::           &
        eta0, eta1, eta2,  &! scalar inner product results
@@ -231,32 +225,6 @@
 
     real(dp), dimension(-1:1,nz,nx-1,ny-1) ::  &
        Muu, Mvv            ! simplified SIA matrices for preconditioning
-
-    integer :: itest, jtest, rtest
-
-    if (present(itest_in)) then
-       itest = itest_in
-    else
-       itest = nx/2
-    endif
-
-    if (present(itest_in)) then
-       jtest = jtest_in
-    else
-       jtest = ny/2
-    endif
-
-    if (present(itest_in)) then
-       rtest = rtest_in
-    else
-       rtest = 0
-    endif
-
-    if (present(verbose)) then
-       verbose_pcg = verbose
-    else
-       verbose_pcg = .false.   ! for debugging
-    endif
 
     if (verbose_pcg .and. main_task) then
        print*, 'Using native PCG solver (standard)'
@@ -341,7 +309,7 @@
 
     ! iterate to solution
 
-    iter_loop: do n = 1, maxiters
+    iter_loop: do iter = 1, maxiters
 
        call t_startf("pcg_precond")
 
@@ -480,10 +448,11 @@
        rv(:,:,:) = rv(:,:,:) - alpha * qv(:,:,:)
        call t_stopf("pcg_vecupdate")
 
-       ! Check for convergence every solve_ncheck iterations
+       ! Check for convergence every linear_solve_ncheck iterations.
+       ! Also check at iter = 5, to reduce iterations when the solver starts close to convergence.
        ! For convergence check, use r = b - Ax
 
-       if (mod(n,solve_ncheck) == 0) then
+       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 
           ! Halo update for x
 
@@ -533,15 +502,15 @@
 
           if (verbose_pcg .and. main_task) then
 !             print*, ' '
-!             print*, 'iter, L2_resid, error =', n, L2_resid, err
+!             print*, 'iter, L2_resid, error =', iter, L2_resid, err
           endif
 
           if (err < tolerance) then
-             niters = n
+             niters = iter
              exit iter_loop
           endif            
 
-       endif    ! solve_ncheck
+       endif    ! linear_solve_ncheck
 
     enddo iter_loop
 
@@ -565,15 +534,14 @@
                                     Avu,       Avv,           &
                                     bu,        bv,            &
                                     xu,        xv,            &
-                                    precond,   err,           &
-                                    niters,                   &
-                                    itest_in,  jtest_in,  rtest_in,   &
-                                    verbose) 
+                                    precond,   linear_solve_ncheck,  &
+                                    err,       niters,        &
+                                    itest, jtest, rtest)
 
     !---------------------------------------------------------------
     !  This subroutine uses a standard preconditioned conjugate-gradient algorithm
     !  to solve the equation $Ax=b$.
-    !  Convergence is checked every {\em solve_ncheck} steps.
+    !  Convergence is checked every {\em linear_solve_ncheck} steps.
     !
     !  It is similar to subroutine pcg_solver_standard_3d, but modified
     !  to solve for x and y at a single horizontal level, as in the
@@ -631,24 +599,24 @@
        precond           ! = 0 for no preconditioning
                          ! = 1 for diagonal preconditioning (best option for SSA-dominated flow)
 
+    integer, intent(in)  :: &
+       linear_solve_ncheck         ! number of iterations between convergence checks in the linear solver
+
     real(dp), intent(out) ::  &
-       err                               ! error (L2 norm of residual) in final solution
+       err                         ! error (L2 norm of residual) in final solution
 
     integer, intent(out) ::   &
-       niters                            ! iterations needed to solution
+       niters                      ! iterations needed to solution
 
-    integer, intent(in), optional :: &
-       itest_in, jtest_in, rtest_in      ! point for debugging diagnostics
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! point for debugging diagnostics
 
-    logical, intent(in), optional :: &
-       verbose                           ! if true, print diagnostic output
-    
     !---------------------------------------------------------------
     ! Local variables and parameters   
     !---------------------------------------------------------------
 
     integer ::  i, j         ! grid indices
-    integer ::  n            ! iteration counter
+    integer ::  iter         ! iteration counter
 
     real(dp) ::           &
        eta0, eta1, eta2,  &! scalar inner product results
@@ -668,32 +636,6 @@
        L2_resid,          &! L2 norm of residual vector Ax-b
        L2_rhs              ! L2 norm of rhs vector b
                            ! solver converges when L2_resid/L2_rhs < tolerance
-
-    integer :: itest, jtest, rtest
-
-    if (present(itest_in)) then
-       itest = itest_in
-    else
-       itest = nx/2
-    endif
-
-    if (present(itest_in)) then
-       jtest = jtest_in
-    else
-       jtest = ny/2
-    endif
-
-    if (present(itest_in)) then
-       rtest = rtest_in
-    else
-       rtest = 0
-    endif
-
-    if (present(verbose)) then
-       verbose_pcg = verbose
-    else
-       verbose_pcg = .false.   ! for debugging
-    endif
 
     if (verbose_pcg .and. main_task) then
        print*, 'Using native PCG solver (standard)'
@@ -777,7 +719,7 @@
 
     ! iterate to solution
 
-    iter_loop: do n = 1, maxiters
+    iter_loop: do iter = 1, maxiters
 
        call t_startf("pcg_precond")
 
@@ -902,10 +844,11 @@
        rv(:,:) = rv(:,:) - alpha * qv(:,:)
        call t_stopf("pcg_vecupdate")
 
-       ! Check for convergence every solve_ncheck iterations
+       ! Check for convergence every linear_solve_ncheck iterations.
+       ! Also check at iter = 5, to reduce iterations when the solver starts close to convergence.
        ! For convergence check, use r = b - Ax
 
-       if (mod(n,solve_ncheck) == 0) then
+       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 
           ! Halo update for x
 
@@ -953,11 +896,11 @@
           err = L2_resid/L2_rhs
 
           if (err < tolerance) then
-             niters = n
+             niters = iter
              exit iter_loop
           endif            
 
-       endif    ! solve_ncheck
+       endif    ! linear_solve_ncheck
 
     enddo iter_loop
 
@@ -981,10 +924,9 @@
                                      Avu,       Avv,           &
                                      bu,        bv,            &
                                      xu,        xv,            &
-                                     precond,   err,           &
-                                     niters,                   &
-                                     itest_in,  jtest_in,  rtest_in,   &
-                                     verbose) 
+                                     precond,   linear_solve_ncheck,  &
+                                     err,       niters,        &
+                                     itest, jtest, rtest)
 
     !---------------------------------------------------------------
     !  This subroutine uses a Chronopoulos-Gear preconditioned conjugate-gradient
@@ -994,7 +936,7 @@
     !  (author Frank Bryan, NCAR). It is a rearranged conjugate gradient solver 
     !  that reduces the number of global reductions per iteration from two to one 
     !  (not counting the convergence check).  Convergence is checked every 
-    !  {\em solve_ncheck} steps.
+    !  {\em linear_solve_ncheck} steps.
     !
     !     References are:
     !
@@ -1125,24 +1067,24 @@
                          ! = 1 for diagonal preconditioning (best option for SSA-dominated flow)
                          ! = 2 for preconditioning with SIA solver (works well for SIA-dominated flow)
 
+    integer, intent(in)  :: &
+       linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
     real(dp), intent(out) ::  &
-       err                               ! error (L2 norm of residual) in final solution
+       err                         ! error (L2 norm of residual) in final solution
 
     integer, intent(out) ::   &
-       niters                            ! iterations needed to solution
+       niters                      ! iterations needed to solution
 
-    integer, intent(in), optional :: &
-       itest_in, jtest_in, rtest_in      ! point for debugging diagnostics
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! point for debugging diagnostics
 
-    logical, intent(in), optional :: &
-       verbose                           ! if true, print diagnostic output
-    
     !---------------------------------------------------------------
     ! Local variables and parameters   
     !---------------------------------------------------------------
 
     integer ::  i, j, k      ! grid indices
-    integer ::  n            ! iteration counter
+    integer ::  iter         ! iteration counter
 
     real(dp) ::           &
        alpha,             &! rho/sigma = term in expression for new residual and solution
@@ -1177,32 +1119,6 @@
 
     real(dp), dimension(-1:1,nz,nx-1,ny-1) ::  &
        Muu, Mvv            ! simplified SIA matrices for preconditioning
-
-    integer :: itest, jtest, rtest
-
-    if (present(itest_in)) then
-       itest = itest_in
-    else
-       itest = nx/2
-    endif
-
-    if (present(itest_in)) then
-       jtest = jtest_in
-    else
-       jtest = ny/2
-    endif
-
-    if (present(itest_in)) then
-       rtest = rtest_in
-    else
-       rtest = 0
-    endif
-
-    if (present(verbose)) then
-       verbose_pcg = verbose
-    else
-       verbose_pcg = .false.   ! for debugging
-    endif
 
     if (verbose_pcg .and. main_task) then
        print*, 'Using native PCG solver (Chronopoulos-Gear)'
@@ -1420,7 +1336,7 @@
     ! Iterate to solution
     !---------------------------------------------------------------
 
-    iter_loop: do n = 2, maxiters  ! first iteration done above
+    iter_loop: do iter = 2, maxiters  ! first iteration done above
 
        !---- Compute PC(r) = solution z of Mz = r
        !---- z is correct in halo
@@ -1547,11 +1463,11 @@
 
        call t_stopf("pcg_vecupdate")
 
-       !---------------------------------------------------------------
-       ! Convergence check every solve_ncheck iterations
-       !---------------------------------------------------------------
+       ! Check for convergence every linear_solve_ncheck iterations.
+       ! Also check at iter = 5, to reduce iterations when the solver starts close to convergence.
+       ! For convergence check, use r = b - Ax
 
-       if (mod(n,solve_ncheck) == 0) then    ! use r = b - Ax
+       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
@@ -1595,7 +1511,7 @@
           endif
 
           if (err < tolerance) then
-             niters = n
+             niters = iter
              exit iter_loop
           endif            
 
@@ -1606,7 +1522,7 @@
           call staggered_parallel_halo(rv)
           call t_stopf("pcg_halo_resid")
 
-       endif    ! solve_ncheck
+       endif    ! linear_solve_ncheck
 
     enddo iter_loop
 
@@ -1630,10 +1546,9 @@
                                      Avu,       Avv,           &
                                      bu,        bv,            &
                                      xu,        xv,            &
-                                     precond,   err,           &
-                                     niters,                   &
-                                     itest_in,  jtest_in,  rtest_in,   &
-                                     verbose) 
+                                     precond,   linear_solve_ncheck,  &
+                                     err,       niters,        &
+                                     itest, jtest, rtest)
 
     !---------------------------------------------------------------
     !  This subroutine uses a Chronopoulos-Gear preconditioned conjugate-gradient
@@ -1694,18 +1609,17 @@
        precond           ! = 0 for no preconditioning
                          ! = 1 for diagonal preconditioning (best option for SSA-dominated flow)
 
+    integer, intent(in)  :: &
+       linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
     real(dp), intent(out) ::  &
-       err                               ! error (L2 norm of residual) in final solution
+       err                          ! error (L2 norm of residual) in final solution
 
     integer, intent(out) ::   &
-       niters                            ! iterations needed to solution
+       niters                       ! iterations needed to solution
 
-    integer, intent(in), optional :: &
-       itest_in, jtest_in, rtest_in      ! point for debugging diagnostics
-
-    logical, intent(in), optional :: &
-       verbose                           ! if true, print diagnostic output
-    
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! point for debugging diagnostics
 
     !---------------------------------------------------------------
     ! Local variables and parameters   
@@ -1713,7 +1627,7 @@
 
     integer ::  i, j         ! grid indices
     integer ::  m            ! matrix element index
-    integer ::  n            ! iteration counter
+    integer ::  iter         ! iteration counter
 
     real(dp) ::           &
        alpha,             &! rho/sigma = term in expression for new residual and solution
@@ -1764,7 +1678,6 @@
 
     integer :: ilocal, jlocal   ! number of locally owned vertices in each direction
 
-    integer :: itest, jtest, rtest
     integer :: ii, jj
     integer :: maxiters_chrongear  ! max number of linear iterations before quitting
 
@@ -1773,30 +1686,6 @@
     logical, parameter :: &
 !!         use_serial_tridiag_solver = .true.  ! if true, use the serial solver when tasks = 1
          use_serial_tridiag_solver = .false.   ! if false, use the parallel solver for any number of tasks, including tasks = 1
-
-    if (present(itest_in)) then
-       itest = itest_in
-    else
-       itest = nx/2
-    endif
-
-    if (present(itest_in)) then
-       jtest = jtest_in
-    else
-       jtest = ny/2
-    endif
-
-    if (present(itest_in)) then
-       rtest = rtest_in
-    else
-       rtest = 0
-    endif
-
-    if (present(verbose)) then
-       verbose_pcg = verbose
-    else
-       verbose_pcg = .false.   ! for debugging
-    endif
 
     ! Set the maximum number of linear iterations.
     ! Typically allow up to 200 iterations with diagonal preconditioning, but only 100
@@ -1807,9 +1696,6 @@
     else
        maxiters_chrongear = maxiters
     endif
-
-    !WHL - debug
-!!    verbose_pcg = .true.
 
     if (verbose_pcg .and. main_task) then
        print*, 'Using native PCG solver (Chronopoulos-Gear)'
@@ -2228,7 +2114,7 @@
     ! Iterate to solution
     !---------------------------------------------------------------
 
-    iter_loop: do n = 2, maxiters_chrongear  ! first iteration done above
+    iter_loop: do iter = 2, maxiters_chrongear  ! first iteration done above
 
        !---- Compute PC(r) = solution z of Mz = r
        !---- z is correct in halo
@@ -2390,7 +2276,7 @@
        call t_stopf("pcg_halo_iter")
 
        if (verbose_pcg .and. main_task) then
-          print*, 'iter, gsum(1), gsum(2) =', n, gsum(1), gsum(2)
+          print*, 'iter, gsum(1), gsum(2) =', iter, gsum(1), gsum(2)
        endif
 
        !---- Compute some scalars
@@ -2432,11 +2318,11 @@
 
        call t_stopf("pcg_vecupdate")
 
-       !---------------------------------------------------------------
-       ! Convergence check every solve_ncheck iterations
-       !---------------------------------------------------------------
+       ! Check for convergence every linear_solve_ncheck iterations.
+       ! Also check at iter = 5, to reduce iterations when the solver starts close to convergence.
+       ! For convergence check, use r = b - Ax
 
-       if (mod(n,solve_ncheck) == 0) then    ! use r = b - Ax
+       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
@@ -2474,12 +2360,11 @@
           err = L2_resid/L2_rhs        ! normalized error
 
           if (verbose_pcg .and. main_task) then
-!             print*, ' '
-!             print*, 'iter, L2_resid, error =', n, L2_resid, err
+             print*, 'iter, L2_resid, error =', iter, L2_resid, err
           endif
 
           if (err < tolerance) then
-             niters = n
+             niters = iter
              exit iter_loop
           endif            
 
@@ -2490,7 +2375,7 @@
           call staggered_parallel_halo(rv)
           call t_stopf("pcg_halo_resid")
 
-       endif    ! solve_ncheck
+       endif    ! linear_solve_ncheck
 
     enddo iter_loop
 

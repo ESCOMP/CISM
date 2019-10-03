@@ -242,8 +242,6 @@
 !    logical :: verbose_diva = .true.
     logical :: verbose_glp = .false.
 !    logical :: verbose_glp = .true.
-    logical :: verbose_pcg = .false.
-!    logical :: verbose_pcg = .true.
     logical :: verbose_picard = .false.
 !    logical :: verbose_picard = .true.
 
@@ -801,7 +799,8 @@
        whichcalving_front,  &   ! option for subgrid calving front scheme (either on or off)
        whichground,  &          ! option for computing grounded fraction of each cell
        whichflotation_function,&! option for computing flotation function at and near each vertex
-       maxiter_nonlinear        ! maximum number of nonlinear iterations
+       maxiter_nonlinear,    &  ! maximum number of nonlinear iterations
+       linear_solve_ncheck      ! number of iterations between convergence checks in the linear solver
 
     !--------------------------------------------------------
     ! Local parameters
@@ -1143,6 +1142,7 @@
      whichapprox          = model%options%which_ho_approx
      whichprecond         = model%options%which_ho_precond
      maxiter_nonlinear    = model%options%glissade_maxiter
+     linear_solve_ncheck  = model%options%linear_solve_ncheck
      whichgradient        = model%options%which_ho_gradient
      whichgradient_margin = model%options%which_ho_gradient_margin
      whichassemble_beta   = model%options%which_ho_assemble_beta
@@ -3703,9 +3703,9 @@
                                              Avu_2d,       Avv_2d,        &
                                              bu_2d,        bv_2d,         &
                                              uvel_2d,      vvel_2d,       &
-                                             whichprecond, err,           &
-                                             niters,                      &
-                                             itest, jtest, rtest, verbose_pcg)
+                                             whichprecond, linear_solve_ncheck, &
+                                             err,          niters,        &
+                                             itest, jtest, rtest)
 
              else   ! use standard PCG algorithm
              
@@ -3716,9 +3716,9 @@
                                             Avu_2d,       Avv_2d,        &
                                             bu_2d,        bv_2d,         &
                                             uvel_2d,      vvel_2d,       &
-                                            whichprecond, err,           &
-                                            niters,                      &
-                                            itest, jtest, rtest, verbose_pcg)
+                                            whichprecond, linear_solve_ncheck, &
+                                            err,          niters,        &
+                                            itest, jtest, rtest)
 
              endif  ! whichsparse
 
@@ -3742,9 +3742,9 @@
                                              Avu,          Avv,           &
                                              bu,           bv,            &
                                              uvel,         vvel,          &
-                                             whichprecond, err,           &
-                                             niters,                      &
-                                             itest, jtest, rtest, verbose_pcg)
+                                             whichprecond, linear_solve_ncheck, &
+                                             err,          niters,        &
+                                             itest, jtest, rtest)
 
              else   ! use standard PCG algorithm
              
@@ -3755,9 +3755,9 @@
                                             Avu,          Avv,           &
                                             bu,           bv,            &
                                             uvel,         vvel,          &
-                                            whichprecond, err,           &
-                                            niters,                      &
-                                            itest, jtest, rtest, verbose_pcg)
+                                            whichprecond, linear_solve_ncheck, &
+                                            err,          niters,        &
+                                            itest, jtest, rtest)
 
              endif   ! whichsparse
 
