@@ -766,6 +766,7 @@ contains
     call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
+    call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
 
   end subroutine handle_ho_options
 
@@ -1813,6 +1814,9 @@ contains
           end if
 
           write(message,*) 'glissade_maxiter        : ',model%options%glissade_maxiter
+          call write_log(message)
+
+          write(message,*) 'linear_solve_ncheck     : ',model%options%linear_solve_ncheck
           call write_log(message)
 
        end if   ! DYCORE_GLISSADE
