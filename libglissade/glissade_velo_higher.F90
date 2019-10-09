@@ -202,8 +202,8 @@
 !    logical :: verbose = .true.  
     logical :: verbose_init = .false.   
 !    logical :: verbose_init = .true.   
-    logical :: verbose_solver = .false.
-!    logical :: verbose_solver = .true.
+!    logical :: verbose_solver = .false.
+    logical :: verbose_solver = .true.
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
     logical :: verbose_residual = .false.
