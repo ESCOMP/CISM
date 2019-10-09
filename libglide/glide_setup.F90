@@ -1044,11 +1044,12 @@ contains
          'Depth-integrated L1L2 (glissade_velo_higher)     ', &
          'Depth-integrated viscosity (glissade_velo_higher)' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whichprecond = (/ &
-         'No preconditioner (glissade PCG)          ', &
-         'Diagonal preconditioner (glissade PCG)    ', &
-         'SIA preconditioner (glissade PCG)         ', &
-         'Tridiagonal preconditioner (glissade PCG) ' /)
+    character(len=*), dimension(0:4), parameter :: ho_whichprecond = (/ &
+         'No preconditioner (native PCG)                ', &
+         'Diagonal preconditioner (native PCG)          ', &
+         'SIA preconditioner (native PCG)               ', &
+         'Local tridiagonal preconditioner (native PCG) ', &
+         'Global tridiagonal preconditioner (native PCG)' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichgradient = (/ &
          'centered gradient (glissade)             ', &

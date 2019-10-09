@@ -1161,6 +1161,7 @@ contains
 
     integer,dimension(4) :: d_gs_mybounds_row
     integer,dimension(:,:),allocatable,save :: d_gs_bounds_row
+    logical :: new_bounds_row
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -1174,16 +1175,43 @@ contains
     d_gs_mybounds_row(4) = own_nsn
 
     if (allocated(d_gs_bounds_row)) then
-       ! do nothing; d_gs_bounds_row already computed
-    else   ! first time
-       if (main_task_row) then
-          allocate(d_gs_bounds_row(4,tasks_row))
+       ! d_gs_bounds_row already computed
+       ! Recompute only if there is a mismatch between d_gs_bounds_row and size(values)
+       if (d_gs_bounds_row(2,1) - d_gs_bounds_row(1,1) + 1 == size(values,1)) then
+          new_bounds_row = .false.   ! use the saved value
        else
-          allocate(d_gs_bounds_row(1,1))
+          new_bounds_row = .true.    ! recompute
+          !WHL - debug
+!          if (main_task_row) then
+!             print*, this_rank, 'Recompute d_gs_bounds_row'
+!             print*, '  current size =', (d_gs_bounds_row(2,:) - d_gs_bounds_row(1,:) + 1)
+!             print*, '  size(values,1) =', size(values,1)
+!          endif
        endif
+    else
+       new_bounds_row = .true.
+!       if (main_task_row) print*, this_rank, 'Allocate d_gs_bounds_row'
+    endif
 
-       call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
-            mpi_integer,main_rank_row,comm_row)
+    !Note: The d_gs_bounds_array is needed only on main_task_col, so memory goes unused on other tasks.
+    !      But if we saved memory by allocating an array of size(1,1) on other tasks,
+    !       then the new_bounds logic above would not work on all tasks.
+    !      The alternative would be to always compute d_gs_bounds_col using fc_gather_int,
+    !       but it is more efficient to call mpi_allgather only as needed.
+    if (new_bounds_row) then
+       if (allocated(d_gs_bounds_row)) deallocate(d_gs_bounds_row)
+
+!       if (main_task_row) then
+!          allocate(d_gs_bounds_row(4,tasks_row))
+!       else
+!          allocate(d_gs_bounds_row(1,1))
+!       endif
+!       call fc_gather_int(d_gs_mybounds_row,4,mpi_integer,d_gs_bounds_row,4,&
+!            mpi_integer,main_rank_row,comm_row)
+       allocate(d_gs_bounds_row(4,tasks_row))
+       call mpi_allgather(d_gs_mybounds_row,4, mpi_integer,  &
+                          d_gs_bounds_row, 4, mpi_integer,  &
+                          comm_row, ierror)
     endif
 
     if (main_task_row) then
@@ -1256,6 +1284,7 @@ contains
 
     integer, dimension(4) :: d_gs_mybounds_row
     integer, dimension(:,:), allocatable, save :: d_gs_bounds_row
+    logical :: new_bounds_row
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -1269,8 +1298,26 @@ contains
     d_gs_mybounds_row(4) = own_nsn
 
     if (allocated(d_gs_bounds_row)) then
-       ! d_gs_bounds_row already computed; do nothing
+       ! d_gs_bounds_row already computed
+       ! Recompute only if there is a mismatch between d_gs_bounds_row and size(values)
+       if (d_gs_bounds_row(2,1) - d_gs_bounds_row(1,1) + 1 == size(values,1)) then
+          new_bounds_row = .false.   ! use the saved value
+       else
+          new_bounds_row = .true.    ! recompute
+          !WHL - debug
+!          if (main_task_row) then
+!             print*, this_rank, 'Recompute d_gs_bounds_row'
+!             print*, '  current size =', (d_gs_bounds_row(2,:) - d_gs_bounds_row(1,:) + 1)
+!             print*, '  size(values,1) =', size(values,1)
+!          endif
+       endif
     else
+       new_bounds_row = .true.
+!       if (main_task_row) print*, this_rank, 'Allocate d_gs_bounds_row'
+    endif
+
+    if (new_bounds_row) then
+       if (allocated(d_gs_bounds_row)) deallocate(d_gs_bounds_row)
        allocate(d_gs_bounds_row(4,tasks_row))
        call mpi_allgather(d_gs_mybounds_row,4, mpi_integer,  &
                           d_gs_bounds_row, 4, mpi_integer,  &
@@ -1340,6 +1387,7 @@ contains
 
     integer,dimension(4) :: d_gs_mybounds_col
     integer,dimension(:,:),allocatable,save :: d_gs_bounds_col
+    logical :: new_bounds_col
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -1353,16 +1401,44 @@ contains
     d_gs_mybounds_col(4) = own_ewn
 
     if (allocated(d_gs_bounds_col)) then
-       ! do nothing; d_gs_bounds_col already computed
-    else   ! first time
-       if (main_task_col) then
-          allocate(d_gs_bounds_col(4,tasks_col))
+       ! d_gs_bounds_col already computed
+       ! Recompute only if there is a mismatch between d_gs_bounds_col and size(values)
+       if (d_gs_bounds_col(2,1) - d_gs_bounds_col(1,1) + 1 == size(values,1)) then
+          new_bounds_col = .false.   ! use the saved value
        else
-          allocate(d_gs_bounds_col(1,1))
+          new_bounds_col = .true.    ! recompute
+          !WHL - debug
+!          if (main_task_col) then
+!             print*, this_rank, 'Recompute d_gs_bounds_col'
+!             print*, '  current size =', (d_gs_bounds_col(2,:) - d_gs_bounds_col(1,:) + 1)
+!             print*, '  size(values,1) =', size(values,1)
+!          endif
        endif
+    else
+       new_bounds_col = .true.
+!       if (main_task_col) print*, this_rank, 'Allocate d_gs_bounds_col'
+    endif
 
-       call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
-            mpi_integer,main_rank_col,comm_col)
+    !Note: The d_gs_bounds_array is needed only on main_task_col, so memory goes unused on other tasks.
+    !      But if we saved memory by allocating an array of size(1,1) on other tasks,
+    !       then the new_bounds logic above would not work on all tasks.
+    !      The alternative would be to always compute d_gs_bounds_col using fc_gather_int,
+    !       but it is more efficient to call mpi_allgather only as needed.
+
+    if (new_bounds_col) then
+       if (allocated(d_gs_bounds_col)) deallocate(d_gs_bounds_col)
+
+!       if (main_task_col) then
+!          allocate(d_gs_bounds_col(4,tasks_col))
+!       else
+!          allocate(d_gs_bounds_col(1,1))
+!       endif
+!       call fc_gather_int(d_gs_mybounds_col,4,mpi_integer,d_gs_bounds_col,4,&
+!            mpi_integer,main_rank_col,comm_col)
+       allocate(d_gs_bounds_col(4,tasks_col))
+       call mpi_allgather(d_gs_mybounds_col,4, mpi_integer,  &
+                          d_gs_bounds_col, 4, mpi_integer,  &
+                          comm_col, ierror)
     endif
 
     if (main_task_col) then
@@ -1394,7 +1470,6 @@ contains
 !!    call fc_gatherv_real8(sendbuf,size(sendbuf),mpi_real8,&
 !!       recvbuf,recvcounts,displs,mpi_real8,main_rank_col,comm_col)
 
-    !WHL - debug
     call fc_gatherv_real8(values,size(values),mpi_real8,&
        recvbuf,recvcounts,displs,mpi_real8,main_rank_col,comm_col)
 
@@ -1435,6 +1510,7 @@ contains
 
     integer,dimension(4) :: d_gs_mybounds_col
     integer,dimension(:,:),allocatable,save :: d_gs_bounds_col
+    logical :: new_bounds_col
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
@@ -1447,12 +1523,29 @@ contains
     d_gs_mybounds_col(3) = 1
     d_gs_mybounds_col(4) = own_ewn
 
-    ! first time
     if (allocated(d_gs_bounds_col)) then
-       ! d_gs_bounds_col already computed; do nothing
+       ! d_gs_bounds_col already computed
+       ! Recompute only if there is a mismatch between d_gs_bounds_col and size(values)
+       if (d_gs_bounds_col(2,1) - d_gs_bounds_col(1,1) + 1 == size(values,1)) then
+          new_bounds_col = .false.   ! use the saved value
+       else
+          new_bounds_col = .true.    ! recompute
+          !WHL - debug
+!          if (main_task_col) then
+!             print*, this_rank, 'Recompute d_gs_bounds_col'
+!             print*, '  current size =', (d_gs_bounds_col(2,:) - d_gs_bounds_col(1,:) + 1)
+!             print*, '  size(values,1) =', size(values,1)
+!          endif
+       endif
     else
+       new_bounds_col = .true.
+!       if (main_task_col) print*, this_rank, 'Allocate d_gs_bounds_col'
+    endif
+
+    if (new_bounds_col) then
+       if (allocated(d_gs_bounds_col)) deallocate(d_gs_bounds_col)
        allocate(d_gs_bounds_col(4,tasks_col))
-       call mpi_allgather(d_gs_mybounds_col, 4, mpi_integer,  &
+       call mpi_allgather(d_gs_mybounds_col,4, mpi_integer,  &
                           d_gs_bounds_col, 4, mpi_integer,  &
                           comm_col, ierror)
     endif
