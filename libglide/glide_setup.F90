@@ -1561,18 +1561,15 @@ contains
           call write_log('Error, HO basal inversion input out of range', GM_FATAL)
        end if
 
-       ! Note: Inversion is currently supported only for Schoof sliding law
-       ! TODO - Support for Tsai law also
+       ! Note: Inversion is currently supported only for Schoof sliding law and basic power law
        if (model%options%which_ho_inversion /= 0) then
-!          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
-!              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
-          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
+          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
+              model%options%which_ho_babc == HO_BABC_POWERLAW) then
              ! inversion is supported
           else
              call write_log('Error, basal inversion is not supported for this basal BC option')
-             write(message,*) 'Inversion is supported for which_ho_babc =', &
-!                  HO_BABC_COULOMB_POWERLAW_SCHOOF, ' or ', HO_BABC_COULOMB_POWERLAW_TSAI
-                  HO_BABC_COULOMB_POWERLAW_SCHOOF
+             write(message,*) 'Inversion is supported only for these options: ', &
+                  HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_POWERLAW
              call write_log(message, GM_FATAL)
           endif
        endif
