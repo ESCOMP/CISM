@@ -387,7 +387,10 @@ def enforce_confinement(s,field,val,fieldstr,xend):
    elif fieldstr == 'uvel':
       s.uvel_extend[0] = field
    elif fieldstr == 'topg':
-      s.topg = field
+      if np.shape(s.topg) == np.shape(field):   # Restart files
+         s.topg = field
+      else:   # Otherwise
+         s.topg[0] = field
    elif fieldstr == 'damage':
       s.damage[0] = field
 

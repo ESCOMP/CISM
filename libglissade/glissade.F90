@@ -2055,7 +2055,7 @@ contains
     !       Pass in thck, topg, etc. with units of meters.
     ! ------------------------------------------------------------------------ 
 
-    thck_unscaled(:,:) = model%geometry%thck_old(:,:)*thk0
+    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
 
     call glissade_calve_ice(model%options%whichcalving,           &
                             model%options%calving_domain,         &

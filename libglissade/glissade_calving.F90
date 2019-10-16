@@ -785,7 +785,7 @@ contains
                       calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
                    elseif (damage_floor == NYE_DAMAGE_FLOOR) then
                       ! Compute the Nye zero stress value
-                      damage_nye = (2.0d0+alpha)*tau1(i,j)/(grav*(rhoo-rhoi))
+                      damage_nye = (2.0d0+alpha)*tau1(i,j)/(grav*(rhoo-rhoi)*thck(i,j))
                       calving%damage(:,i,j) = max(calving%damage(:,i,j), damage_nye)
                    endif
                    calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
