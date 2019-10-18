@@ -1448,7 +1448,7 @@ contains
     endif
 
     if (model%options%enable_acab_anomaly) then
-       call write_log('acab anomaly forcing is enabled')
+       call write_log('acab/SMB anomaly forcing is enabled')
     endif
 
     if (model%options%enable_artm_anomaly) then
@@ -2426,14 +2426,14 @@ contains
        endif
     endif
 
-    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
-       write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
-       call write_log(message)
-    endif
-
     ! parameters for artm anomaly option
     if (model%climate%artm_anomaly_timescale > 0.0d0) then
        write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
+       call write_log(message)
+    endif
+
+    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+       write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
        call write_log(message)
     endif
 
@@ -2842,6 +2842,24 @@ contains
 
     end select  ! artm_input_function
 
+    ! Add anomaly forcing variables
+
+    if (options%enable_acab_anomaly) then
+       select case (options%smb_input)
+       case (SMB_INPUT_MYR_ICE)
+          call glide_add_to_restart_variable_list('acab_anomaly')
+       case (SMB_INPUT_MMYR_WE)
+          call glide_add_to_restart_variable_list('smb_anomaly')
+       end select
+    endif
+
+    if (options%enable_artm_anomaly) then
+       call glide_add_to_restart_variable_list('artm_anomaly')
+    endif
+
+    if (options%enable_bmlt_anomaly) then
+       call glide_add_to_restart_variable_list('bmlt_float_anomaly')
+    endif
 
     select case (options%whichbmlt_float)
 
