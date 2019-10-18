@@ -527,7 +527,7 @@ module glide_types
     !> \end{description}
 
     logical :: enable_acab_anomaly = .false.
-    !> if true, then apply a prescribed anomaly to acab
+    !> if true, then apply a prescribed anomaly to smb/acab
 
     logical :: enable_artm_anomaly = .false.
     !> if true, then apply a prescribed anomaly to artm
@@ -1228,6 +1228,7 @@ module glide_types
      real(dp),dimension(:,:),pointer :: acab            => null() !> Surface mass balance (m/yr ice)
      real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Surface mass balance (time average).
      real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Surface mass balance anomaly (m/yr ice)
+     real(dp),dimension(:,:),pointer :: smb_anomaly     => null() !> Surface mass balance anomaly (mm/yr water equivalent)
      real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Surface mass balance with flux or anomaly corrections (m/yr ice)
      real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Surface mass balance applied to ice (m/yr ice)
                                                                   !>    = 0 for ice-free cells with acab < 0
@@ -1263,7 +1264,7 @@ module glide_types
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
-     real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
+     real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab/smb anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
      real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
@@ -2601,6 +2602,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
@@ -3138,6 +3140,8 @@ contains
         deallocate(model%climate%acab_applied_tavg)
     if (associated(model%climate%smb)) &
         deallocate(model%climate%smb)
+    if (associated(model%climate%smb_anomaly)) &
+        deallocate(model%climate%smb_anomaly)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%artm_anomaly)) &
