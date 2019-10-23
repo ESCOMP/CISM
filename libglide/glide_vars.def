@@ -672,6 +672,15 @@ standard_name: stag_land_ice_thickness
 load:          0
 coordinates:   lon lat
 
+[reference_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     reference ice thickness
+data:          data%geometry%reference_thck
+factor:        thk0
+load:          1
+coordinates:   lon lat
+
 [usrf_obs]
 dimensions:    time, y1, x1
 units:         meter
@@ -889,6 +898,14 @@ data:          data%geometry%ice_cap_mask
 type:          int
 coordinates:   lon lat
 
+[ice_fraction_retreat_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     real mask for forced ice retreat
+data:          data%geometry%ice_fraction_retreat_mask
+coordinates:   lon lat
+load:          1
+
 [smb]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
@@ -924,8 +941,18 @@ dimensions:    time, y1, x1
 units:         mm/year water equivalent per m
 long_name:     surface mass balance vertical gradient
 data:          data%climate%smb_gradz
-factor:        1.0
+factor:        1.0/thk0
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
+coordinates:   lon lat
+load:          1
+
+[smb_anomaly]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     accumulation, ablation rate anomaly
+data:          data%climate%smb_anomaly
+factor:        1.0
+standard_name: land_ice_surface_specific_mass_balance_anomaly
 coordinates:   lon lat
 load:          1
 
@@ -949,6 +976,16 @@ standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
 coordinates:   lon lat
 load:          1
 
+[acab_anomaly]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     accumulation, ablation rate anomaly
+data:          data%climate%acab_anomaly
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_anomaly
+coordinates:   lon lat
+load:          1
+
 [artm_ref]
 dimensions:    time, y1, x1
 units:         deg Celsius
@@ -964,6 +1001,16 @@ units:         deg Celsius per m
 long_name:     surface temperature vertical gradient
 data:          data%climate%artm_gradz
 standard_name: land_ice_surface_temperature_vertical_gradient
+factor:        1./thk0
+coordinates:   lon lat
+load:          1
+
+[artm_anomaly]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     surface temperature anomaly
+data:          data%climate%artm_anomaly
+standard_name: land_ice_surface_temperature_anomaly
 coordinates:   lon lat
 load:          1
 
@@ -1034,26 +1081,6 @@ factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_applied
 coordinates:   lon lat
 average:       1
-
-[acab_anomaly]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     accumulation, ablation rate anomaly
-data:          data%climate%acab_anomaly
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_anomaly
-coordinates:   lon lat
-load:          1
-
-[smb_anomaly]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     accumulation, ablation rate anomaly
-data:          data%climate%smb_anomaly
-factor:        1.0
-standard_name: land_ice_surface_specific_mass_balance_anomaly
-coordinates:   lon lat
-load:          1
 
 [no_advance_mask]
 dimensions:    time, y1, x1

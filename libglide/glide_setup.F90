@@ -747,6 +747,7 @@ contains
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'block_inception',             model%options%block_inception)
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
+    call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
 
@@ -1764,6 +1765,12 @@ contains
              write(message,*) 'Ice caps will be removed and added to the calving flux'
           else
              write(message,*) 'Ice caps will not be removed'
+          endif
+
+          if (model%options%force_retreat) then
+             write(message,*) 'Ice retreat will be forced using ice_fraction_retreat_mask'
+          else
+             write(message,*) 'Ice retreat will not be forced'
           endif
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
@@ -3023,6 +3030,13 @@ contains
         if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1')
            call glide_add_to_restart_variable_list('tau_eigen2')
+        endif
+
+        ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
+        !  and reference_thck (which sets up an upper thickness limit for partly retreating cells)
+        if (options%force_retreat) then
+           call glide_add_to_restart_variable_list('ice_fraction_retreat_mask')
+           call glide_add_to_restart_variable_list('reference_thck')
         endif
 
         ! other Glissade options

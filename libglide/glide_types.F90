@@ -930,6 +930,9 @@ module glide_types
     logical :: remove_ice_caps = .false.
     !> Flag that indicates whether ice caps are removed and added to the calving flux
 
+    logical :: force_retreat = .false.
+    !> Flag that indicates whether retreat is forced using ice_fraction_retreat_mask
+
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \begin{description}
@@ -1048,8 +1051,15 @@ module glide_types
     integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0
     integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0
     integer, dimension(:,:),pointer :: grounded_mask => null()   !> = 1 where ice is present and grounded, else = 0
+
+    ! masks for ice cap removal
     integer, dimension(:,:),pointer :: ice_sheet_mask => null()  !> = 1 for ice sheet cells, = 0 for ice cap cells
     integer, dimension(:,:),pointer :: ice_cap_mask => null()    !> = 1 for ice cap cells disconnected from the main ice sheet
+
+    ! fields for forced retreat, as in ISMIP6 ocean-forced retreat for Greenland
+    real(dp),dimension(:,:),pointer :: ice_fraction_retreat_mask !> = 0.0 where ice is forced to retreat, = 1.0 where ice is left intact;
+                                                                 !> ice is thinned based on reference_thck for values between 0 and 1
+    real(dp),dimension(:,:),pointer :: reference_thck            !> reference thickness giving upper limit for retreating ice
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -2250,6 +2260,8 @@ contains
     !> \item \texttt{grounded_mask(ewn,nsn))}
     !> \item \texttt{ice_sheet_mask(ewn,nsn))}
     !> \item \texttt{ice_cap_mask(ewn,nsn))}
+    !> \item \texttt{ice_fraction_retreat_mask(ewn,nsn))}
+    !> \item \texttt{reference_thck(ewn,nsn))}
     !> \item \texttt{lower_cell_loc(ewn,nsn))}
     !> \item \texttt{lower_cell_temp(ewn,nsn))}
     !> \end{itemize}
@@ -2470,6 +2482,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_sheet_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_cap_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_fraction_retreat_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%reference_thck)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
 
@@ -3077,6 +3091,10 @@ contains
        deallocate(model%geometry%ice_sheet_mask)
     if (associated(model%geometry%ice_cap_mask)) &
        deallocate(model%geometry%ice_cap_mask)
+    if (associated(model%geometry%ice_fraction_retreat_mask)) &
+       deallocate(model%geometry%ice_fraction_retreat_mask)
+    if (associated(model%geometry%reference_thck)) &
+       deallocate(model%geometry%reference_thck)
     if (associated(model%geometry%lower_cell_loc)) &
        deallocate(model%geometry%lower_cell_loc)
     if (associated(model%geometry%lower_cell_temp)) &
