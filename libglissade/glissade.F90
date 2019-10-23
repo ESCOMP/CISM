@@ -73,6 +73,8 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
+  real(dp), parameter :: eps11 = 1.0d-11  ! small number
+
 contains
 
 !=======================================================================
@@ -102,7 +104,7 @@ contains
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
-    use glissade_calving, only: glissade_calving_mask_init, glissade_calve_ice
+    use glissade_calving, only: glissade_calving_mask_init
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glimmer_paramets, only: thk0, len0, tim0
@@ -121,7 +123,7 @@ contains
 
     character(len=100) :: message
 
-    real(dp) :: var_maxval   ! max value of a given variable; = 0 if not yet read in
+    real(dp) :: local_maxval, global_maxval   ! max values of a given variable; = 0 if not yet read in
     integer :: i, j, k
     logical :: l_evolve_ice  ! local version of evolve_ice
 
@@ -414,132 +416,6 @@ contains
        call write_log(trim(message), GM_FATAL)
     endif
 
-    ! Check that an SMB field was read in, if needed.
-    ! For the default settings (smb_input_function = SMB_INPUT_FUNCTION_XY and
-    !  smb_input = SMB_INPUT_MYR_ICE), it is not expected that acab is nonzero,
-    !  since idealized tests often have SMB = 0.
-    ! For non-default settings, check that the required fields have nonzero values,
-    !  meaning they were present in the input file and were read in.
-    !
-    ! If SMB input units are mm/yr w.e., then convert to acab units of m/yr ice,
-    !  and then convert to model units.
-    ! Note: In this case the input fields should have 'smb' in their names, not 'acab'.
-    !       By convention in glide_vars.def, input SMB fields are not scaled,
-    !       so smb, smb_ref, and smb_3d have units of mm/yr w.e., and
-    !       smb_gradz has units of mm/yr w.e. per m
-
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
-
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-
-          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-          model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
-          model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
-
-          ! Check that a nonzero SMB was read in; if not, then print a warning
-          var_maxval = maxval(abs(model%climate%acab))
-          var_maxval = parallel_reduce_max(var_maxval)
-          if (var_maxval < 1.0d-11) then
-             write(message,*) 'Warning: Failed to read in a nonzero SMB field with smb_input =', SMB_INPUT_MMYR_WE
-             call write_log(trim(message), GM_WARNING)
-          endif
-
-       else  ! smb_input = SMB_INPUT_MYR_ICE; nothing to do here
-
-       endif
-
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-
-          ! Convert units of acab_ref from mm/yr w.e. to m/yr ice
-          ! Convert units of acab_gradz from (mm/yr per m) to (m/yr ice per m)
-          model%climate%acab_ref(:,:) = model%climate%smb_ref(:,:) * (rhow/rhoi) / 1000.d0
-          model%climate%acab_gradz(:,:) = model%climate%smb_gradz(:,:) * (rhow/rhoi) / 1000.d0
-
-          ! convert to model units
-          model%climate%acab_ref(:,:) = model%climate%acab_ref(:,:) / scale_acab
-          model%climate%acab_gradz(:,:) = model%climate%acab_gradz(:,:) * thk0/scale_acab
-
-       endif
-
-       ! Check that a nonzero SMB was read in (this is the SMB at the reference elevation)
-       ! Note: In general the lapse rate will be nonzero for this option, but a zero lapse rate is not fatal.
-       var_maxval = maxval(abs(model%climate%acab_ref))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval < 1.0d-11) then
-          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input_funcion =', &
-               SMB_INPUT_FUNCTION_XY_GRADZ
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-          model%climate%acab_3d(:,:,:) = model%climate%smb_3d(:,:,:) * (rhow/rhoi) / 1000.d0
-          model%climate%acab_3d(:,:,:) = model%climate%acab_3d(:,:,:) / scale_acab
-       endif
-
-       ! Check that a nonzero SMB was read in (this is the 3D SMB at various vertical levels)
-       var_maxval = maxval(abs(model%climate%acab_3d))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval < 1.0d-11) then
-          write(message,*) 'Error: Failed to read in a nonzero SMB field with smb_input_function =', &
-               SMB_INPUT_FUNCTION_XYZ
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-    endif   ! smb_input_function
-
-    ! Check that a surface temperature field was read in, if needed.
-    ! For the default setting (acab_input_function = ACAB_INPUT_FUNCTION_XY),
-    !  it is not expected that artm is nonzero, since idealized tests may have artm = 0.
-    ! For non-default settings, check that the required fields have nonzero values,
-    !  meaning they were present in the input file and were read in.
-
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
-
-       ! convert lapse rate to model units
-       model%climate%artm_gradz(:,:) = model%climate%artm_gradz(:,:) * thk0
-
-       call parallel_halo(model%climate%artm_gradz)
-
-       ! Check that a nonzero artm was read in (this is artm at the reference elevation)
-       ! Note: In general the lapse rate will be nonzero for this option, but a zero lapse rate is not fatal.
-       var_maxval = maxval(abs(model%climate%artm_ref))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval < 1.0d-11) then
-          write(message,*) 'Error: Failed to read in a nonzero artm field with artm_input_funcion =', &
-               ARTM_INPUT_FUNCTION_XY_GRADZ
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-
-       call parallel_halo(model%climate%artm_3d)
-
-       ! Check that a nonzero artm was read in (this is the 3D artm at various vertical levels)
-       var_maxval = maxval(abs(model%climate%artm_3d))
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval < 1.0d-11) then
-          write(message,*) 'Error: Failed to read in a nonzero artm field with artm_input_function =', &
-               ARTM_INPUT_FUNCTION_XYZ
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-    endif   ! artm_input_function
-
-    ! Note: Considered checking here for nonzero anomaly fields.
-    !       However, a check here will not work if the anomaly is being read from a time-dependent forcing file.
-
-!!    if (this_rank == model%numerics%rdiag_local) then
-!!       i = model%numerics%idiag_local
-!!       j = model%numerics%jdiag_local
-!!       print*, ' '
-!!       print*, 'this_rank, i, j, new acab:', this_rank, i, j, model%climate%acab(i,j) * scyr*thk0/tim0
-!!    endif
-
     ! initialize glissade components
 
     ! Set some variables in halo cells
@@ -754,7 +630,8 @@ contains
     endif
 
     ! initial calving, if desired
-    ! Note: Do this only for a cold start with evolving ice, not for a restart
+    ! TODO: Move calving-rated initialization to a separate subroutine.
+    ! Note: Do initial calving only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
          model%options%calving_init == CALVING_INIT_ON .and. &
          model%options%is_restart == RESTART_FALSE) then
@@ -792,6 +669,39 @@ contains
        call parallel_halo(model%inversion%bmlt_float_save)
 
     endif  ! which_ho_inversion
+
+    ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
+
+    if (model%options%force_retreat) then
+
+       ! Set reference_thck
+       ! This field is loaded if present in the input file.  Otherwise, reference_thck is set to the initial thickness.
+       local_maxval = maxval(model%geometry%reference_thck)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          write(message,*) 'Setting reference_thck to the initial ice thickness'
+          call write_log(trim(message))
+          model%geometry%reference_thck = model%geometry%thck
+       else
+          write(message,*) 'reference_thck was read from the input/restart file'
+          call write_log(trim(message))
+       endif
+
+       !WHL - debug
+       if (this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'reference_thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%reference_thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif   ! force_retreat
 
     ! Initialize the no-advance calving_mask, if desired
     ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
@@ -1561,7 +1471,6 @@ contains
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
 
        ! compute artm by a lapse-rate correction to the reference value
-
        model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
             (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%artm_gradz(:,:)
 
@@ -1581,6 +1490,8 @@ contains
                                           linear_extrapolate_in = .true.)
 
     endif   ! artm_input_function
+
+    call parallel_halo(model%climate%artm)
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
@@ -1734,7 +1645,11 @@ contains
     integer :: ewn, nsn, upn, nlev_smb
     integer :: itest, jtest, rtest
 
-    logical, parameter :: verbose_smb = .false.
+    !WHL - debug
+    real(dp) :: local_maxval, global_maxval
+    character(len=100) :: message
+
+    logical, parameter :: verbose_smb = .true.
 
     rtest = -999
     itest = 1
@@ -1946,15 +1861,36 @@ contains
        ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
        ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
        ! For options (1) and (2), the elevation-dependent SMB is computed here.
+       ! Note: These conversion must be done at each time step (and not just once at initialization)
+       !       if reading SMB or acab from a time-dependent forcing file.
 
-       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
 
-          ! compute SMB by a lapse-rate correction to the reference value
+          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+             ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+             model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+          endif
 
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+
+          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+             ! Convert smb_ref from mm/yr w.e. to model acab units.
+             ! Convert smb_gradz to model acab_gradz units.
+             ! Note: smb_gradz already includes a scale factor of thk0 in glide_vars.def
+             model%climate%acab_ref(:,:) = (model%climate%smb_ref(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+             model%climate%acab_gradz(:,:) = (model%climate%smb_gradz(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+          endif
+
+          ! compute acab by a lapse-rate correction to the reference value
           model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
                (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%acab_gradz(:,:)
 
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+
+          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+             ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+             model%climate%acab_3d(:,:,:) = (model%climate%smb_3d(:,:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+          endif
 
           ! downscale SMB to the local surface elevation (includes a halo update)
           ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
@@ -1968,6 +1904,22 @@ contains
                                              linear_extrapolate_in = .false.)
 
        endif   ! smb_input_function
+
+       ! For the non-default smb_input_function options, make sure the SMB is nonzer somewhere; else abort.
+       ! For the default option, do not abort, since idealized tests often have a zero SMB.
+
+       call parallel_halo(model%climate%acab)
+
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
+           model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+          local_maxval = maxval(abs(model%climate%acab))
+          global_maxval = parallel_reduce_max(local_maxval)
+          if (global_maxval < eps11) then
+             write(message,*) 'Error: acab = 0 everywhere with smb_input_function =', &
+                  model%options%smb_input_function
+             call write_log(trim(message), GM_FATAL)
+          endif
+       endif
 
        if (verbose_smb .and. this_rank == rtest) then
 
@@ -1996,7 +1948,8 @@ contains
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%climate%smb_reference_usrf(i,j)) * thk0
+                   write(6,'(f10.3)',advance='no') &
+                        (model%geometry%usrf(i,j) - model%climate%smb_reference_usrf(i,j)) * thk0
                 enddo
                 write(6,*) ' '
              enddo
@@ -2006,6 +1959,15 @@ contains
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') model%climate%acab_ref(i,j) * scale_acab
+                enddo
+                write(6,*) ' '
+             enddo
+             write(6,*) ' '
+             write(6,*) 'smb_gradz (mm/yr per m)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%smb_gradz(i,j) / thk0
                 enddo
                 write(6,*) ' '
              enddo
@@ -2053,7 +2015,7 @@ contains
 
           endif  ! smb_input_function
 
-          if (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+          if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
 
              write(6,*) ' '
              write(6,*) 'reference artm (deg C)'
@@ -2083,7 +2045,7 @@ contains
                 write(6,*) ' '
              enddo
 
-          elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+          elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
 
              write(6,*) ' '
              write(6,*) '3d artm(k) (deg C)'
@@ -2126,9 +2088,10 @@ contains
              ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units.
              !Note: If smb_anomaly is read from the input file, we could do this conversion once at initialization.
              !      But if read from a time-dependent forcing file, the conversion must be done repeatedly.
-             model%climate%acab_anomaly(:,:) = model%climate%smb_anomaly(:,:) * (rhow/rhoi) / 1000.d0
-             model%climate%acab_anomaly(:,:) = model%climate%acab_anomaly(:,:) / scale_acab
+             model%climate%acab_anomaly(:,:) = (model%climate%smb_anomaly(:,:) * (rhow/rhoi) / 1000.d0) / scale_acab
           endif
+
+          call parallel_halo(model%climate%acab_anomaly)
 
           ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
           !       This is the reason for passing the previous time to the subroutine.
@@ -2139,7 +2102,7 @@ contains
                                        model%climate%acab_anomaly_timescale,  &   ! yr
                                        previous_time)                             ! yr
 
-          if (verbose_glissade .and. this_rank==rtest) then
+          if (verbose_smb .and. this_rank==rtest) then
              i = itest
              j = jtest
              print*, 'i, j, previous_time, input acab, acab anomaly, corrected acab (m/yr):', &
@@ -2473,9 +2436,107 @@ contains
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask                  ! = 1 if topg - eus >= 0
 
+    real(dp) :: &
+         maxthck,                 & ! max thickness of retreating ice
+         dthck                      ! thickness loss for retreating ice
+
     logical :: cull_calving_front   ! true iff init_calving = T and options%cull_calving_front = T
 
     integer :: i, j
+
+    integer :: itest, jtest, rtest  ! coordinates of diagnostic point
+
+    !WHL - debug
+    real(dp) :: local_maxval, global_maxval
+    logical, parameter :: verbose_retreat = .true.
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ! Thin or remove ice where retreat is forced.
+    ! Note: This option has some similarities with calving_mask and no_advance_mask. Might want to consolidate options.
+    !       (This option is different in that the mask is a real number in the range [0,1], allowing thinning
+    !        instead of complete removal.)
+    !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
+    !       This option is applied before calling glissade_calve_ice, so that ice thinned by the retreat mask
+    !        can undergo further thinning or removal by the calving scheme.
+
+    if (model%options%force_retreat .and. .not.init_calving) then
+       if (main_task) print*, 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+
+       !WHL - debug
+       ! Check that a nonzero retreat mask has been read in. Otherwise, all ice will be removed.
+       local_maxval = maxval(model%geometry%ice_fraction_retreat_mask)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          call write_log('Error: Failed to read in a nonzero retreat mask with force_retreat = T', GM_FATAL)
+       endif
+
+       if (verbose_retreat .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'Before front retreat, thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'Apply front retreat, retreat_mask:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'maxthck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                if (model%geometry%ice_fraction_retreat_mask(i,j) < 1.0d0) then
+                   write(6,'(f10.3)',advance='no') &
+                        model%geometry%reference_thck(i,j)*thk0 * model%geometry%ice_fraction_retreat_mask(i,j)
+                else
+                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+                endif
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (model%geometry%ice_fraction_retreat_mask(i,j) < 1.0d0) then
+                maxthck = model%geometry%reference_thck(i,j) * model%geometry%ice_fraction_retreat_mask(i,j)
+                dthck = model%geometry%thck(i,j) - min(maxthck, model%geometry%thck(i,j))
+                model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
+                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+             endif
+          enddo
+       enddo
+
+       if (verbose_retreat .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          print*, ' '
+          print*, 'After front retreat, thck (m):'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif   ! force_retreat
 
     !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
@@ -2500,9 +2561,7 @@ contains
                             model%options%limit_marine_cliffs, &
                             cull_calving_front,                &
                             model%calving,                     &        ! calving object; includes calving_thck (m)
-                            model%numerics%idiag_local,        &
-                            model%numerics%jdiag_local,        &
-                            model%numerics%rdiag_local,        &
+                            itest, jtest, rtest,               &
                             model%numerics%dt*tim0,            &        ! s
                             model%numerics%dew*len0,           &        ! m
                             model%numerics%dns*len0,           &        ! m
