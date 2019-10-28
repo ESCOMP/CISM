@@ -676,6 +676,9 @@ contains
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
+    call GetValue(section,'smb_input_function',model%options%smb_input_function)
+    call GetValue(section,'artm_input_function',model%options%artm_input_function)
+    call GetValue(section,'nlev_smb',model%climate%nlev_smb)
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
@@ -744,6 +747,7 @@ contains
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'block_inception',             model%options%block_inception)
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
+    call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
 
@@ -874,6 +878,16 @@ contains
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
+
+    character(len=*), dimension(0:2), parameter :: smb_input_function = (/ &
+         'SMB input as function of (x,y)              ', &
+         'SMB and d(SMB)/dz input as function of (x,y)', &
+         'SMB input as function of (x,y,z)            ' /)
+
+    character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
+         'artm input as function of (x,y)               ', &
+         'artm and d(artm)/dz input as function of (x,y)', &
+         'artm input as function of (x,y,z)             ' /)
 
     character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
@@ -1401,11 +1415,41 @@ contains
        call write_log('Error, smb_input option out of range',GM_FATAL)
     end if
 
-    write(message,*) 'smb input               : ',model%options%smb_input,smb_input(model%options%smb_input)
+    write(message,*) 'smb input units         : ',model%options%smb_input,smb_input(model%options%smb_input)
     call write_log(message)
 
+    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
+       call write_log('Error, smb_input_function option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'smb input function      : ', &
+         model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
+    call write_log(message)
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+       write(message,*) 'number of SMB levels    : ', model%climate%nlev_smb
+       call write_log(message)
+       if (model%climate%nlev_smb < 2) then
+          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
+       endif
+    endif
+
+    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
+       call write_log('Error, artm_input_function option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'artm input function     : ', &
+         model%options%artm_input_function, artm_input_function(model%options%artm_input_function)
+    call write_log(message)
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+       write(message,*) 'number of artm levels   : ', model%climate%nlev_smb
+       call write_log(message)
+       if (model%climate%nlev_smb < 2) then
+          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
+       endif
+    endif
+
     if (model%options%enable_acab_anomaly) then
-       call write_log('acab anomaly forcing is enabled')
+       call write_log('acab/SMB anomaly forcing is enabled')
     endif
 
     if (model%options%enable_artm_anomaly) then
@@ -1518,18 +1562,15 @@ contains
           call write_log('Error, HO basal inversion input out of range', GM_FATAL)
        end if
 
-       ! Note: Inversion is currently supported only for Schoof sliding law
-       ! TODO - Support for Tsai law also
+       ! Note: Inversion is currently supported only for Schoof sliding law and basic power law
        if (model%options%which_ho_inversion /= 0) then
-!          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
-!              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
-          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
+          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
+              model%options%which_ho_babc == HO_BABC_POWERLAW) then
              ! inversion is supported
           else
              call write_log('Error, basal inversion is not supported for this basal BC option')
-             write(message,*) 'Inversion is supported for which_ho_babc =', &
-!                  HO_BABC_COULOMB_POWERLAW_SCHOOF, ' or ', HO_BABC_COULOMB_POWERLAW_TSAI
-                  HO_BABC_COULOMB_POWERLAW_SCHOOF
+             write(message,*) 'Inversion is supported only for these options: ', &
+                  HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_POWERLAW
              call write_log(message, GM_FATAL)
           endif
        endif
@@ -1724,6 +1765,12 @@ contains
              write(message,*) 'Ice caps will be removed and added to the calving flux'
           else
              write(message,*) 'Ice caps will not be removed'
+          endif
+
+          if (model%options%force_retreat) then
+             write(message,*) 'Ice retreat will be forced using ice_fraction_retreat_mask'
+          else
+             write(message,*) 'Ice retreat will not be forced'
           endif
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
@@ -2386,14 +2433,14 @@ contains
        endif
     endif
 
-    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
-       write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
-       call write_log(message)
-    endif
-
     ! parameters for artm anomaly option
     if (model%climate%artm_anomaly_timescale > 0.0d0) then
        write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
+       call write_log(message)
+    endif
+
+    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+       write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
        call write_log(message)
     endif
 
@@ -2733,19 +2780,93 @@ contains
     !        Note that bheatflx may not be an input variable but can also be assigned as a parameter in the config file!
     call glide_add_to_restart_variable_list('topg thk temp bheatflx artm')
 
-    ! add the SMB variable, based on model%options%smb_input
+    ! add the SMB variable, based on options%smb_input
+    ! Note: SMB can be input in one of several functional forms:
+    !       - SMB(x,y)
+    !       - SMB(x,y) at reference elevation, plus vertical gradient dSMB/dz(x,y)
+    !       - SMB(x,y,z), where z is defined by reference levels
     ! Note: If the SMB field is 'acab', it is assumed to have units of m/y ice
     !       If the SMB field is 'smb', it is assumed to have units of mm/y w.e.
 
-    select case (options%smb_input)
+    select case(options%smb_input_function)
 
-      case (SMB_INPUT_MYR_ICE)
-        call glide_add_to_restart_variable_list('acab')
+       case(SMB_INPUT_FUNCTION_XY)
 
-      case (SMB_INPUT_MMYR_WE)
-        call glide_add_to_restart_variable_list('smb')
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb')
+          end select  ! smb_input
 
-    end select  ! smb_input
+       case(SMB_INPUT_FUNCTION_XY_GRADZ)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab_ref')
+             call glide_add_to_restart_variable_list('acab_gradz')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb_ref')
+             call glide_add_to_restart_variable_list('smb_gradz')
+          end select
+
+          call glide_add_to_restart_variable_list('smb_reference_usrf')
+
+       case(SMB_INPUT_FUNCTION_XYZ)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab_3d')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb_3d')
+          end select
+
+          call glide_add_to_restart_variable_list('smb_levels')
+
+    end select  ! smb_input_function
+
+    ! Similarly for surface temperature (artm), based on options%artm_input
+    ! Note: These options share smb_reference_usrf and smb_levels with the SMB options above.
+
+    select case(options%artm_input_function)
+
+       case(ARTM_INPUT_FUNCTION_XY_GRADZ)
+          call glide_add_to_restart_variable_list('artm_ref')
+          call glide_add_to_restart_variable_list('artm_gradz')
+          if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+             ! smb_reference_usrf was added to restart above; nothing to do here
+          else
+             call glide_add_to_restart_variable_list('smb_reference_usrf')
+          endif
+
+       case(ARTM_INPUT_FUNCTION_XYZ)
+          call glide_add_to_restart_variable_list('artm_3d')
+          if (options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+             ! smb_levels was added to restart above; nothing to do here
+          else
+             call glide_add_to_restart_variable_list('smb_levels')
+          endif
+
+    end select  ! artm_input_function
+
+    ! Add anomaly forcing variables
+
+    if (options%enable_acab_anomaly) then
+       select case (options%smb_input)
+       case (SMB_INPUT_MYR_ICE)
+          call glide_add_to_restart_variable_list('acab_anomaly')
+       case (SMB_INPUT_MMYR_WE)
+          call glide_add_to_restart_variable_list('smb_anomaly')
+       end select
+    endif
+
+    if (options%enable_artm_anomaly) then
+       call glide_add_to_restart_variable_list('artm_anomaly')
+    endif
+
+    if (options%enable_bmlt_anomaly) then
+       call glide_add_to_restart_variable_list('bmlt_float_anomaly')
+    endif
 
     select case (options%whichbmlt_float)
 
@@ -2909,6 +3030,13 @@ contains
         if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1')
            call glide_add_to_restart_variable_list('tau_eigen2')
+        endif
+
+        ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
+        !  and reference_thck (which sets up an upper thickness limit for partly retreating cells)
+        if (options%force_retreat) then
+           call glide_add_to_restart_variable_list('ice_fraction_retreat_mask')
+           call glide_add_to_restart_variable_list('reference_thck')
         endif
 
         ! other Glissade options

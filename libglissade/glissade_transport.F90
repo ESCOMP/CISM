@@ -60,6 +60,8 @@
     logical, parameter ::     &
          conservation_check = .true. ! if true, check global conservation
 
+    real(dp), parameter :: eps08 = 1.d-8   ! small number
+
 !=======================================================================
 
   contains
@@ -1150,7 +1152,7 @@
                // trim(adjustl(dt_string)) // ' yr, limited by global position i=' &
                // trim(adjustl(xpos_string)) // ' j=' //trim(adjustl(ypos_string))
 
-          ! If the violation is egregious (defined at deltat > 10 * allowable_dt_adv), then abort.
+          ! If the violation is egregious (defined as deltat > 10 * allowable_dt_adv), then abort.
           ! Otherwise, write a warning and proceed.
           if (deltat > 10.d0 * allowable_dt_adv) then
              call write_log(trim(message),GM_FATAL)
@@ -1771,14 +1773,15 @@
     ewn = size(var2d,1)
     nsn = size(var2d,2)
 
-    ! Given the model time, compute the fraction of the anomaly to be applied now
-    ! Note: the anomaly is applied in annual step functions starting at the end of the first year.
-    !
+    ! Given the model time, compute the fraction of the anomaly to be applied now.
+    ! Note: The anomaly is applied in annual step functions starting at the end of the first year.
+    !       Add a small value to the time to avoid rounding errors when time is close to an integer value.
+
     ! GL 06-26-19: note: Do we need the restriction of annual anomaly application?
     ! WHL: The anomaly can now be applied as a smooth linear ramp (instead of yearly step changes)
     !      by uncommenting one line below, when computing anomaly_fraction..
 
-    if (time > anomaly_timescale) then
+    if (time + eps08 > anomaly_timescale .or. anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
        anomaly_fraction = 1.0d0
@@ -1786,7 +1789,7 @@
     else
 
        ! truncate the number of years and divide by the timescale
-       anomaly_fraction = floor(time,dp) / anomaly_timescale
+       anomaly_fraction = floor((time + eps08), dp) / anomaly_timescale
 
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
@@ -1834,9 +1837,11 @@
     ewn = size(var3d,2)
     nsn = size(var3d,3)
 
-    ! Given the model time, compute the fraction of the anomaly to be applied now
+    ! Given the model time, compute the fraction of the anomaly to be applied now.
+    ! Note: The anomaly is applied in annual step functions starting at the end of the first year.
+    !       Add a small value to the time to avoid rounding errors when time is close to an integer value.
 
-    if (time > anomaly_timescale) then
+    if (time + eps08 > anomaly_timescale .or. anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
        anomaly_fraction = 1.0d0
@@ -1844,7 +1849,7 @@
     else
 
        ! truncate the number of years and divide by the timescale
-       anomaly_fraction = floor(time,dp) / anomaly_timescale
+       anomaly_fraction = floor((time + eps08), dp) / anomaly_timescale
 
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
