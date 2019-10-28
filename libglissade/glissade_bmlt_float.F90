@@ -1111,6 +1111,7 @@ module glissade_bmlt_float
          bmlt_float_mask,                    &
          lake_mask,                          &
          lsrf,                               &
+         unphys_val,                         &  ! identifies unfilled cells on input
          ocean_data%thermal_forcing,         &
          ocean_data%thermal_forcing_lsrf)
 
@@ -1324,6 +1325,8 @@ module glissade_bmlt_float
 
     integer :: i, j, k, iter
     integer :: iglobal, jglobal
+    integer :: iwe, iea, iso, ino       ! longitude index in neighbor cells
+    integer :: jwe, jea, jso, jno       ! longitude index in neighbor cells
     integer :: kw, ke, ks, kn           ! ocean level in neighbor cells
     real(dp) :: phiw, phie, phin, phis  ! field value in neighbor cells
     character(len=128) :: message
@@ -1389,6 +1392,19 @@ module glissade_bmlt_float
              endif
 
           endif
+          if ( (kbot(i,j) >= 1) .and. (ktop(i,j) >= 1) )then
+             if ( kbot(i,j) == ktop(i,j) )then
+               !write(6,*) 'ktop==kbot, i, j, ktop, topg, lsrf = ', i, j, ktop(i,j), topg(i,j), lsrf(i,j)
+               !write(6,*) 'ocean_mask, bmlt_float_mask = ', ocean_mask(i,j), bmlt_float_mask(i,j)
+               !write(6,*) 'zocn = ', zocn
+               !call write_log('kbot == ktop', GM_FATAL)
+               ktop(i,j) = 0
+               kbot(i,j) = 0
+             end if
+          end if
+          if ( (kbot(i,j) > nzocn) .and. (ktop(i,j) > nzocn) )then
+             call write_log('kbot or ktop > nzocn', GM_FATAL)
+          end if
 
        enddo   ! i
     enddo   ! j
@@ -1470,6 +1486,18 @@ module glissade_bmlt_float
 
                       filled = .false.
 
+                      !
+                      ! Indices of nearbor points, making sure to not go beyond array limits
+                      !
+                      iwe = i-1
+                      if ( iwe < 1 ) iwe = 1
+                      iea = i+1
+                      if ( iea > nx ) iea = nx
+                      jso = j-1
+                      if ( jso < 1 ) jso = 1
+                      jno = j+1
+                      if ( jno > ny ) jno = ny
+
                       ! Set thermal_forcing(k,i,j) to the mean value in filled neighbors at the same level
 
                       if (k == ktop(i,j)) then
@@ -1479,43 +1507,43 @@ module glissade_bmlt_float
                          ! Note: Thermal forcing is corrected for the elevation difference,
                          !       assuming linear dependence of Tf on zocn.
 
-                         if (kbot(i-1,j) < k) then  ! kbot in west neighbor lies above k in this cell
-                            kw = kbot(i-1,j)
-                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
+                         if ( (kbot(iwe,j) > 0) .and. (kbot(iwe,j) < k) ) then  ! kbot in west neighbor lies above k in this cell
+                            kw = kbot(iwe,j)
+                            phiw = phi(kw,iwe,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
                          else
                             kw = k
-                            phiw = phi(k,i-1,j)
+                            phiw = phi(k,iwe,j)
                          endif
 
-                         if (kbot(i+1,j) < k) then  ! kbot in east neighbor lies above k in this cell
-                            ke = kbot(i+1,j)
-                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
+                         if ( (kbot(iea,j) > 0) .and. (kbot(iea,j) < k) ) then  ! kbot in east neighbor lies above k in this cell
+                            ke = kbot(iea,j)
+                            phie = phi(ke,iea,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
                          else
                             ke = k
-                            phie = phi(k,i+1,j)
+                            phie = phi(k,iea,j)
                          endif
 
-                         if (kbot(i,j-1) < k) then  ! kbot in south neighbor lies above k in this cell
-                            ks = kbot(i,j-1)
-                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
+                         if ( (kbot(i,jso) > 0) .and. (kbot(i,jso) < k) ) then  ! kbot in south neighbor lies above k in this cell
+                            ks = kbot(i,jso)
+                            phis = phi(ks,i,jso) - dtocnfrz_dz * (zocn(ks) - zocn(k))
                          else
                             ks = k
-                            phis = phi(k,i,j-1)
+                            phis = phi(k,i,jso)
                          endif
 
-                         if (kbot(i,j+1) < k) then  ! kbot in north neighbor lies above k in this cell
-                            kn = kbot(i,j+1)
-                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
+                         if ( (kbot(i,jno) > 0) .and. (kbot(i,jno) < k) ) then  ! kbot in north neighbor lies above k in this cell
+                            kn = kbot(i,jno)
+                            phin = phi(kn,i,jno) - dtocnfrz_dz * (zocn(kn) - zocn(k))
                          else
                             kn = k
-                            phin = phi(k,i,j+1)
+                            phin = phi(k,i,jno)
                          endif
 
-                         sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
+                         sum_mask = mask(kw,iwe,j) + mask(ke,iea,j) + mask(ks,i,jso) + mask(kn,i,jno)
 
                          if (sum_mask > 0) then
-                            sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
-                                    + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
+                            sum_phi = mask(kw,iwe,j)*phiw + mask(ke,iea,j)*phie &
+                                    + mask(ks,i,jso)*phis + mask(kn,i,jno)*phin
                             thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
                             filled = .true.
                          endif
@@ -1531,43 +1559,43 @@ module glissade_bmlt_float
                          ! need extra logic to allow spreading of values upward to shallower depth,
                          ! in case ktop in a neighbor cell lies below kbot in this cell
 
-                         if (ktop(i-1,j) > k) then  ! ktop in west neighbor lies below k in this cell
-                            kw = ktop(i-1,j)
-                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
+                         if (ktop(iwe,j) > k) then  ! ktop in west neighbor lies below k in this cell
+                            kw = ktop(iwe,j)
+                            phiw = phi(kw,iwe,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
                          else
                             kw = k
-                            phiw = phi(k,i-1,j)
+                            phiw = phi(k,iwe,j)
                          endif
 
-                         if (ktop(i+1,j) > k) then  ! ktop in east neighbor lies below k in this cell
-                            ke = ktop(i+1,j)
-                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
+                         if (ktop(iea,j) > k) then  ! ktop in east neighbor lies below k in this cell
+                            ke = ktop(iea,j)
+                            phie = phi(ke,iea,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
                          else
                             ke = k
-                            phie = phi(k,i+1,j)
+                            phie = phi(k,iea,j)
                          endif
 
-                         if (ktop(i,j-1) > k) then  ! ktop in south neighbor lies below k in this cell
-                            ks = ktop(i,j-1)
-                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
+                         if (ktop(i,jso) > k) then  ! ktop in south neighbor lies below k in this cell
+                            ks = ktop(i,jso)
+                            phis = phi(ks,i,jso) - dtocnfrz_dz * (zocn(ks) - zocn(k))
                          else
                             ks = k
-                            phis = phi(k,i,j-1)
+                            phis = phi(k,i,jso)
                          endif
 
-                         if (ktop(i,j+1) > k) then  ! ktop in north neighbor lies below k in this cell
-                            kn = ktop(i,j+1)
-                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
+                         if (ktop(i,jno) > k) then  ! ktop in north neighbor lies below k in this cell
+                            kn = ktop(i,jno)
+                            phin = phi(kn,i,jno) - dtocnfrz_dz * (zocn(kn) - zocn(k))
                          else
                             kn = k
-                            phin = phi(k,i,j+1)
+                            phin = phi(k,i,jno)
                          endif
 
-                         sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
+                         sum_mask = mask(kw,iwe,j) + mask(ke,iea,j) + mask(ks,i,jso) + mask(kn,i,jno)
 
                          if (sum_mask > 0) then
-                            sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
-                                    + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
+                            sum_phi = mask(kw,iwe,j)*phiw + mask(ke,iea,j)*phie &
+                                    + mask(ks,i,jso)*phis + mask(kn,i,jno)*phin
                             thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
                             filled = .true.
                          endif
@@ -1578,11 +1606,11 @@ module glissade_bmlt_float
 
                          ! simpler case; look only at neighbor levels with the same k value
 
-                         sum_mask = mask(k,i-1,j) + mask(k,i+1,j) + mask(k,i,j-1) + mask(k,i,j+1)
+                         sum_mask = mask(k,iwe,j) + mask(k,iea,j) + mask(k,i,jso) + mask(k,i,jno)
 
                          if (sum_mask > 0) then
-                            sum_phi = mask(k,i-1,j)*phi(k,i-1,j) + mask(k,i+1,j)*phi(k,i+1,j)   &
-                                    + mask(k,i,j-1)*phi(k,i,j-1) + mask(k,i,j+1)*phi(k,i,j+1)
+                            sum_phi = mask(k,iwe,j)*phi(k,iwe,j) + mask(k,iea,j)*phi(k,iea,j)   &
+                                    + mask(k,i,jso)*phi(k,i,jso) + mask(k,i,jno)*phi(k,i,jno)
                             thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
                             filled = .true.
                          endif
@@ -1642,9 +1670,11 @@ module glissade_bmlt_float
           local_count = 0
           do j = 1+nhalo, ny-nhalo
              do i = 1+nhalo,  nx-nhalo
-                do k = ktop(i,j), kbot(i,j)
-                   if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
-                enddo
+                if (ktop(i,j) >= 1 .and. kbot(i,j) >= 1) then  ! ocean or floating cell
+                   do k = ktop(i,j), kbot(i,j)
+                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
+                   enddo
+                endif
              enddo
           enddo
 
@@ -1680,16 +1710,19 @@ module glissade_bmlt_float
     do j = 1, ny
        do i = 1, nx
           if (bmlt_float_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
-             do k = ktop(i,j), kbot(i,j)
-                if (thermal_forcing(k,i,j) == unphys_val) then
-                   call parallel_globalindex(i, j, iglobal, jglobal)
-!!                   print*, 'bmlt_float_mask, lake_mask =', bmlt_float_mask(i,j), lake_mask(i,j)
-!!                   print*, 'ktop, kbot =', ktop(i,j), kbot(i,j) 
-                   write(message,*) &
-                        'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
-                   call write_log(message, GM_FATAL)
-                endif
-             enddo   ! k
+             if (ktop(i,j) >= 1 .and. kbot(i,j) >= 1) then  ! ocean or floating cell
+                do k = ktop(i,j), kbot(i,j)
+                   if (thermal_forcing(k,i,j) == unphys_val) then
+                      call parallel_globalindex(i, j, iglobal, jglobal)
+                        print*, 'bmlt_float_mask, lake_mask =', bmlt_float_mask(i,j), lake_mask(i,j)
+                        print*, 'ktop, kbot, local-i, local-j, mask =', ktop(i,j), kbot(i,j), i, j, mask(k,i,j)
+                      write(message,*) &
+                           'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
+                      call write_log(message)
+                      !call write_log(message, GM_FATAL)
+                   endif
+                enddo   ! k
+             endif
           endif   ! floating and not lake
        enddo   ! i
     enddo   ! j
@@ -1713,6 +1746,7 @@ module glissade_bmlt_float
        bmlt_float_mask,          &
        lake_mask,                &
        lsrf,                     &
+       unphys_val,               &
        thermal_forcing,          &
        thermal_forcing_lsrf)
 
@@ -1733,6 +1767,9 @@ module glissade_bmlt_float
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          lsrf                      !> ice lower surface elevation (m), negative below sea level
+
+   real(dp), intent(in) ::       &
+         unphys_val                ! unphysical value given to cells/levels not yet filled
 
     real(dp), dimension(nzocn,nx,ny), intent(in) :: &
          thermal_forcing           !> thermal forcing field at ocean levels
@@ -1758,11 +1795,15 @@ module glissade_bmlt_float
           if (bmlt_float_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
              if (lsrf(i,j) >= zocn(1)) then
                 thermal_forcing_lsrf(i,j) = thermal_forcing(1,i,j)
+                if ( thermal_forcing_lsrf(i,j) == unphys_val ) thermal_forcing_lsrf(i,j) = 0.0d0
              elseif (lsrf(i,j) < zocn(nzocn)) then
                 thermal_forcing_lsrf(i,j) = thermal_forcing(nzocn,i,j)
+                if ( thermal_forcing_lsrf(i,j) == unphys_val ) thermal_forcing_lsrf(i,j) = 0.0d0
              else
+                thermal_forcing_lsrf(i,j) = 0.0d0
                 do k = 1, nzocn-1
-                   if (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) then
+                   if ( (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) .and. &
+                      (thermal_forcing(k+1,i,j) /= unphys_val) .and. (thermal_forcing(k,i,j) /= unphys_val) )then
                       dtf = thermal_forcing(k+1,i,j) - thermal_forcing(k,i,j)
                       dzocn = zocn(k+1) - zocn(k)
                       dzice = lsrf(i,j) - zocn(k)
@@ -1784,11 +1825,11 @@ module glissade_bmlt_float
     !TODO - Remove this bug check if the ocean can realistically have TF < 0.
     do j = 1, ny
        do i = 1, nx
-          if (thermal_forcing_lsrf(i,j) < 0.0d0) then
+          if ( thermal_forcing_lsrf(i,j) < 0.0d0) then
              call parallel_globalindex(i, j, iglobal, jglobal)
              write(message,*) &
-                  'Ocean thermal forcing error: negative TF at level k, i, j, lsrf, TF =', &
-                  k, iglobal, jglobal, lsrf(i,j), thermal_forcing_lsrf(i,j)
+                  'Ocean thermal forcing error: negative TF at i, j, lsrf, TF =', &
+                  iglobal, jglobal, lsrf(i,j), thermal_forcing_lsrf(i,j)
              call write_log(message, GM_FATAL)
           endif
        enddo
@@ -2497,8 +2538,8 @@ module glissade_bmlt_float
     edge_mask_north(:,:) = 0
 
     ! loop over all edges of locally owned cells
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 1) then
              edge_mask_east(i,j) = 1
           endif
@@ -3709,8 +3750,8 @@ module glissade_bmlt_float
    
     ! Compute gradients at edges with plume cells on each side
 
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
           ! east edges
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 1) then
@@ -3727,8 +3768,8 @@ module glissade_bmlt_float
 
     ! Set gradients at edges that have a plume cell on one side and floating ice or water on the other.
     ! Extrapolate the gradient from the nearest neighbor edge.
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
           ! east edges
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 0 .and. global_bndy_east(i,j) == 0) then
@@ -3759,8 +3800,8 @@ module glissade_bmlt_float
 
     ! Average over 4 neighboring edges to estimate the y derivative on east edges and the x derivative on north edges.
 
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
           ! y derivative on east edges
           df_dy_east(i,j) = 0.25d0 * (df_dy_north(i,j)   + df_dy_north(i+1,j)  &
@@ -3930,8 +3971,8 @@ module glissade_bmlt_float
 
     !TODO - Use edge_mask_east instead?
     !       Maybe divu_mask_east is correct, since I stopped extrapolating, but should be called edge_mask_east.
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
           ! PGF on east edge
           if (divu_mask_east(i,j) == 1) then
@@ -4292,8 +4333,8 @@ module glissade_bmlt_float
 
        !TODO - Are global_bndy masks needed here? Wondering if we can avoid passing in 4 global_bndy fields.
 
-!    do j = nhalo, ny-nhalo
-!       do i = nhalo, nx-nhalo
+!    do j = nhalo+1, ny-nhalo
+!       do i = nhalo+1, nx-nhalo
 
           ! east edges
 !          if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 0 .and. global_bndy_east(i,j) == 0) then
@@ -4325,8 +4366,8 @@ module glissade_bmlt_float
 !    enddo   ! j
 
     ! Compute the plume speed at the edges (including the u_tidal term)
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
           plume_speed_east(i,j) = sqrt(u_plume_east(i,j)**2 + v_plume_east(i,j)**2 + u_tidal**2)
           plume_speed_north(i,j) = sqrt(u_plume_north(i,j)**2 + v_plume_north(i,j)**2 + u_tidal**2)
        enddo   ! i
@@ -4493,8 +4534,8 @@ module glissade_bmlt_float
     f_y(:,:) = pgf_y(:,:) + latdrag_y(:,:)
 
     ! Loop over edges of locally owned cells
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
           if (edge_mask(i,j) == 1 .and. .not.converged_velo(i,j) ) then
        
@@ -4668,8 +4709,8 @@ module glissade_bmlt_float
     ! Compute lateral drag terms
 
     ! Loop over edges of locally owned cells
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
           ! lateral drag on east edges
 
@@ -4933,8 +4974,8 @@ module glissade_bmlt_float
 
 !    entrainment_east(:,:) = 0.0d0
 
-!    do j = nhalo, ny-nhalo
-!       do i = nhalo, nx-nhalo
+!    do j = nhalo+1, ny-nhalo
+!       do i = nhalo+1, nx-nhalo
 
 !          if (divu_mask_east(i,j) == 1) then
 
@@ -4963,8 +5004,8 @@ module glissade_bmlt_float
 
 !    entrainment_north(:,:) = 0.0d0
     
-!    do j = nhalo, ny-nhalo
-!       do i = nhalo, nx-nhalo
+!    do j = nhalo+1, ny-nhalo
+!       do i = nhalo+1, nx-nhalo
 !          if (divu_mask_north(i,j) == 1) then
 
 !             slope = sqrt(dlsrf_dx_north(i,j)**2 + dlsrf_dy_north(i,j)**2)
