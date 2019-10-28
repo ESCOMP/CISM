@@ -8848,8 +8848,8 @@
     ! OK to skip vertices outside the global domain (i < nhalo or j < nhalo).
     ! Note: Need nhalo >= 2 so as not to step out of bounds.
 
-     do j = nhalo, ny-nhalo+1
-        do i = nhalo, nx-nhalo+1
+     do j = nhalo+1, ny-nhalo+1
+        do i = nhalo+1, nx-nhalo+1
           if (active_vertex(i,j)) then
 
              if (umask_dirichlet(i,j) == 1) then
