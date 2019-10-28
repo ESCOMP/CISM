@@ -1877,16 +1877,24 @@ long_name: 	moulin input
 data:      	data%basal_hydro%moulin_input
 
 [ice_hydro_mask]
-1710 dimensions:     time, y1, x1
-1711 units:          unitless 
-1712 long_name:      mask of cells with ice for subglacial hydrology 
-1713 data:           data%basal_hydro%ice_hydro_mask
+dimensions:     time, y1, x1
+units:          unitless 
+long_name:      mask of cells with ice for subglacial hydrology 
+data:           data%basal_hydro%ice_hydro_mask
 
 [head_gradient_mask_east]
 dimensions:   time, y1, x1
 units:        1
 long_name:    mask of east edges where head gradient is fixed
 data:         data%basal_hydro%head_gradient_mask_east
+type:         int
+load:         1
+
+[head_gradient_mask_north]
+dimensions:   time, y1, x1
+units:        1
+long_name:    mask of north edges where head gradient is fixed
+data:         data%basal_hydro%head_gradient_mask_north
 type:         int
 load:         1
 

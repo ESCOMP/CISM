@@ -1611,6 +1611,9 @@ module glide_types
      real(dp), dimension(:,:), pointer :: englacial_void_ratio => null()  !> englacial void ratio for storage (unitless)
      real(dp), dimension(:,:), pointer :: meltwater_input => null()  !> distributed meltwater input to the basal system (m/s)
      real(dp), dimension(:,:), pointer :: moulin_input => null()  !> moulin point input (m3/s)
+
+     real(dp), dimension(:,:), pointer :: head_gradient_mask_east => null()  !> mask on east edges set to 1 where head gradient is prescribed and 0 elsewhere
+     real(dp), dimension(:,:), pointer :: head_gradient_mask_north => null()  !> mask on north edges set to 1 where head gradient is prescribed and 0 elsewhere
      
      integer, dimension(:,:), pointer :: ice_hydro_mask => null() !> mask, = 1 where thk can be >0
 
@@ -2239,6 +2242,8 @@ contains
     !> \item \texttt{meltwater_input(ewn,nsn)}
     !> \item \texttt{moulin_input(ewn,nsn)}
     !> \item \texttt{ice_hydro_mask(ewn,nsn)}
+    !> \item \texttt{head_gradient_mask_east(ewn,nsn)}
+    !> \item \texttt{head_gradient_mask_north(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%ocean_data}:
@@ -2777,6 +2782,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_hydro%meltwater_input)
        call coordsystem_allocate(model%general%ice_grid, model%basal_hydro%moulin_input)
        call coordsystem_allocate(model%general%ice_grid, model%basal_hydro%ice_hydro_mask)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_hydro%head_gradient_mask_east)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_hydro%head_gradient_mask_north)
     endif
                 
 
@@ -3359,6 +3366,10 @@ contains
       deallocate(model%basal_hydro%moulin_input)
     if(associated(model%basal_hydro%ice_hydro_mask)) &
       deallocate(model%basal_hydro%ice_hydro_mask)
+    if(associated(model%basal_hydro%head_gradient_mask_east)) &
+      deallocate(model%basal_hydro%head_gradient_mask_east)
+    if(associated(model%basal_hydro%head_gradient_mask_north)) &
+      deallocate(model%basal_hydro%head_gradient_mask_north)
 
     ! The remaining arrays are not currently used
     ! phaml arrays
