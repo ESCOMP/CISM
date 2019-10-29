@@ -59,7 +59,7 @@ module glissade
   use glide_io
   use glide_lithot
   use glimmer_config
-  use glissade_test, only: glissade_test_halo, glissade_test_transport
+  use glissade_test, only: glissade_test_halo, glissade_test_transport, glissade_test_matrix
   use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
   implicit none
@@ -71,6 +71,7 @@ module glissade
   logical, parameter :: test_transport = .false.   ! if true, call test_transport subroutine
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
+  logical, parameter :: test_matrix = .false.      ! if true, call test_matrix subroutine
 
   real(dp), parameter :: eps11 = 1.0d-11  ! small number
 
@@ -924,6 +925,11 @@ contains
        elsewhere
           model%geometry%thck = 0.d0
        endwhere
+    endif
+
+    if (test_matrix) then
+       call glissade_test_matrix (model)
+       call parallel_finalise
     endif
 
     ! initial calving, if desired

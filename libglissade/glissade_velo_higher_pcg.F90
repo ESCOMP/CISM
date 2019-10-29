@@ -53,6 +53,7 @@
     private
     public :: pcg_solver_standard_3d,  pcg_solver_standard_2d,  &
               pcg_solver_chrongear_3d, pcg_solver_chrongear_2d, &
+              pcg_solver_standard_2d_scalar,  &
               matvec_multiply_structured_3d
     
     interface global_sum_staggered
@@ -551,7 +552,7 @@
     !
     !  Input and output arrays are located on a structured (i,j) grid 
     !  as defined in the glissade_velo_higher module.  The global matrix 
-    !  is sparse, but its nonzero element are stored in four dense matrices 
+    !  is sparse, but its nonzero elements are stored in four dense matrices
     !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential 
     !  nonzero elements per node (i,j).
     !
@@ -1568,7 +1569,7 @@
     !
     !  Input and output arrays are located on a structured (i,j) grid 
     !  as defined in the glissade_velo_higher module.  The global matrix 
-    !  is sparse, but its nonzero element are stored in four dense matrices 
+    !  is sparse, but its nonzero elements are stored in four dense matrices
     !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential 
     !  nonzero elements per node (i,j).
     !
@@ -4070,7 +4071,523 @@
        soln(k) = soln(k) - gamma(k+1)*soln(k+1)
     enddo
 
+
   end subroutine tridiag_solver
+
+!****************************************************************************
+
+  subroutine pcg_solver_standard_2d_scalar(nx,        ny,            &
+                                           nhalo,                    &
+                                           indxA,     max_nonzero,   &
+                                           active_cell,              &
+                                           Ah,        bh,            &
+                                           xh,                       &
+                                           precond,   linear_solve_ncheck,  &
+                                           err,       niters,        &
+                                           itest, jtest, rtest)
+
+    !---------------------------------------------------------------
+    !  This subroutine uses a standard preconditioned conjugate-gradient algorithm
+    !  to solve the equation $Ax=b$.
+    !  Convergence is checked every {\em linear_solve_ncheck} steps.
+    !
+    !  It is similar to subroutine pcg_solver_standard_2d, but modified
+    !  to solve for a scalar h located at cell centers, instead of velocity
+    !  components u and v at vertices.
+    !
+    !  Input and output arrays are located on a structured grid with dimensions (nx,ny).
+    !  The global matrix is sparse, but its nonzero elements are stored in a dense matrix Ah.
+    !  The matrix typically has 5 potential nonzere elements per row, corresponding
+    !   to a cell and its 4 edge neighbors.
+    !
+    !  The current preconditioning options are
+    !  (0) no preconditioning
+    !  (1) diagonal preconditioning
+    !
+    !  TODO: Add a tridiagonal preconditioning option to this subroutine,
+    !        as for subroutine pcg_solver_chrongear_2d.
+    !---------------------------------------------------------------
+
+    !---------------------------------------------------------------
+    ! input-output arguments
+    !---------------------------------------------------------------
+
+    integer, intent(in) ::   &
+         nx, ny,             &  ! horizontal grid dimensions
+         nhalo                  ! number of halo layers
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+         indxA                  ! maps relative (x,y) coordinates to an index between 1 and max_nonzero
+
+    integer, intent(in) :: &
+         max_nonzero            ! max number of nonzero entries per row of input matrix
+                                ! typically 5 or 9, depending on the stencil
+
+    logical, dimension(nx,ny), intent(in) ::   &
+         active_cell            ! T for cells (i,j) where the scalar is computed, else F
+
+    real(dp), dimension(nx,ny,max_nonzero), intent(in) ::   &
+         Ah                     ! assembled matrix
+                                ! 3rd dimension = count of node and its edge neighbors in x and y direction
+                                ! 1st and 2nd dimensions = (x,y) indices
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         bh                     ! assembled load (rhs) vector
+
+    real(dp), dimension(nx,ny), intent(inout) ::   &
+         xh                     ! solution vector
+
+    integer, intent(in)  ::   &
+         precond                ! = 0 for no preconditioning
+                                ! = 1 for diagonal preconditioning
+                                !TODO - Add tridiagonal option?
+
+    integer, intent(in)  :: &
+         linear_solve_ncheck    ! number of iterations between convergence checks in the linear solver
+
+    real(dp), intent(out) ::  &
+         err                    ! error (L2 norm of residual) in final solution
+
+    integer, intent(out) ::   &
+         niters                 ! iterations needed to solution
+
+    integer, intent(in) :: &
+         itest, jtest, rtest    ! indices of point for debugging diagnostics
+
+    !---------------------------------------------------------------
+    ! Local variables and parameters
+    !---------------------------------------------------------------
+
+    integer ::  i, j, m      ! grid indices
+    integer ::  iter         ! iteration counter
+
+    real(dp) ::           &
+         eta0, eta1, eta2,  &! scalar inner product results
+         alpha,             &! eta1/eta2 = term in expression for new residual and solution
+         beta                ! eta1/eta0 = term in expression for new direction vector
+
+    ! vectors
+    real(dp), dimension(nx,ny) ::  &
+         Ah_diag,           &! diagonal terms of matrix Ah
+         rh,                &! residual vector (b-Ax)
+         dh,                &! conjugate direction vector
+         qh,                &! A*d
+         zh,                &! solution of Mz = r (also used as a temporary vector)
+         workh               ! cg intermediate results
+
+    real(dp) ::  &
+         L2_resid,          &! L2 norm of residual vector Ax-b
+         L2_rhs              ! L2 norm of rhs vector b
+                             ! solver converges when L2_resid/L2_rhs < tolerance
+
+    if (verbose_pcg .and. main_task) then
+       print*, 'Using native PCG solver for 2D scalars'
+       print*, 'tolerance, maxiters, precond =', tolerance, maxiters, precond
+    endif
+
+    ! Set up matrix for preconditioning
+    ! For now, only diagonal preconditioning is supported
+    call t_startf("pcg_precond_init_scalar")
+    m = indxA(0,0)
+    Ah_diag(:,:) = Ah(:,:,m)
+    call t_stopf("pcg_precond_init_scalar")
+
+    ! Compute initial residual and initialize the direction vector d
+    ! Note: The matrix A must be complete for all rows corresponding to locally
+    !        owned vertices, and x must have the correct values in
+    !        halo vertices bordering the locally owned vertices.
+    !       Then y = Ax will be correct for locally owned vertices.
+
+    ! Halo update for x (initial guess for velocity solution)
+
+    call t_startf("pcg_halo_init_scalar")
+    call parallel_halo(xh)
+    call t_stopf("pcg_halo_init_scalar")
+
+    ! Compute A*x (use z as a temp vector for A*x)
+
+    call t_startf("pcg_matmult_init_scalar")
+    call matvec_multiply_structured_2d_scalar(&
+         nx,        ny,          &
+         nhalo,                  &
+         indxA,     max_nonzero, &
+         active_cell,            &
+         Ah,        xh,          &
+         zh)
+    call t_stopf("pcg_matmult_init_scalar")
+
+    ! Compute the initial residual r(0) = b - Ax(0)
+    ! This will be correct for locally owned vertices.
+
+    call t_startf("pcg_vecupdate_init_scalar")
+    rh(:,:) = bh(:,:) - zh(:,:)
+    call t_stopf("pcg_vecupdate_init_scalar")
+
+    ! Initialize scalars and vectors
+
+    niters = maxiters
+    eta0 = 1.d0
+
+    dh(:,:) = 0.d0
+    zh(:,:) = 0.d0
+
+    ! Compute the L2 norm of the RHS vectors
+    ! (Goal is to obtain L2_resid/L2_rhs < tolerance)
+
+    call t_startf("pcg_dotprod_scalar")
+    workh(:,:) = bh(:,:)*bh(:,:)    ! terms of dot product (b, b)
+    call t_stopf("pcg_dotprod_scalar")
+
+    ! find global sum of the squared L2 norm
+
+    call t_startf("pcg_glbsum_init_scalar")
+    call global_sum_scalar(&
+         nx,     ny,      &
+         nhalo,  L2_rhs,  &
+         workh)
+    call t_stopf("pcg_glbsum_init_scalar")
+
+    ! take square root
+
+    L2_rhs = sqrt(L2_rhs)       ! L2 norm of RHS
+
+    ! iterate to solution
+
+    iter_loop: do iter = 1, maxiters
+
+       call t_startf("pcg_precond_scalar")
+
+       ! Compute PC(r) = solution z of Mz = r
+
+       if (precond == 0) then      ! no preconditioning
+
+           zh(:,:) = rh(:,:)         ! PC(r) = r
+
+       elseif (precond == 1) then  ! diagonal preconditioning
+
+          do j = 1, ny
+          do i = 1, nx
+             if (Ah_diag(i,j) /= 0.d0) then
+                zh(i,j) = rh(i,j) / Ah_diag(i,j)   ! PC(r), where PC is formed from diagonal elements of A
+             else
+                zh(i,j) = 0.d0
+             endif
+             if (Ah_diag(i,j) /= 0.d0) then
+                zh(i,j) = rh(i,j) / Ah_diag(i,j)
+             else
+                zh(i,j) = 0.d0
+             endif
+          enddo    ! i
+          enddo    ! j
+
+       endif    ! precond
+
+       call t_stopf("pcg_precond_scalar")
+
+       ! Compute the dot product eta1 = (r, PC(r))
+
+       call t_startf("pcg_dotprod_scalar")
+       workh(:,:) = rh(:,:)*zh(:,:)    ! terms of dot product (r, PC(r))
+       call t_stopf("pcg_dotprod_scalar")
+
+       call t_startf("pcg_glbsum_iter_scalar")
+       call global_sum_scalar(&
+            nx,     ny,     &
+            nhalo,  eta1,   &
+            workh)
+       call t_stopf("pcg_glbsum_iter_scalar")
+
+       !WHL - If the SIA solver has failed due to singular matrices,
+       !      then eta1 will be NaN.
+
+       if (eta1 /= eta1) then  ! eta1 is NaN
+          call write_log('PCG solver has failed, eta1 = NaN', GM_FATAL)
+       endif
+
+       ! Update the conjugate direction vector d
+
+       beta = eta1/eta0
+
+       call t_startf("pcg_vecupdate_scalar")
+       dh(:,:) = zh(:,:) + beta*dh(:,:)       ! d_(i+1) = PC(r_(i+1)) + beta_(i+1)*d_i
+                                              !
+                                              !                    (r_(i+1), PC(r_(i+1)))
+                                              ! where beta_(i+1) = --------------------
+                                              !                        (r_i, PC(r_i))
+                                              ! Initially eta0 = 1
+                                              ! For n >=2, eta0 = old eta1
+       call t_stopf("pcg_vecupdate_scalar")
+
+       ! Halo update for d
+
+       call t_startf("pcg_halo_iter_scalar")
+       call parallel_halo(dh)
+       call t_stopf("pcg_halo_iter_scalar")
+
+       ! Compute q = A*d
+       ! This is the one matvec multiply required for each iteration
+
+       call t_startf("pcg_matmult_iter_scalar")
+       call matvec_multiply_structured_2d_scalar(&
+            nx,        ny,            &
+            nhalo,                    &
+            indxA,     max_nonzero,   &
+            active_cell,              &
+            Ah,        dh,            &
+            qh)
+       call t_stopf("pcg_matmult_iter_scalar")
+
+       ! Copy old eta1 = (r, PC(r)) to eta0
+
+       eta0 = eta1               ! (r_(i+1), PC(r_(i+1))) --> (r_i, PC(r_i))
+
+       ! Compute the dot product eta2 = (d, A*d)
+
+       call t_startf("pcg_dotprod_scalar")
+       workh(:,:) = dh(:,:) * qh(:,:)       ! terms of dot product (d, Ad)
+       call t_stopf("pcg_dotprod_scalar")
+
+       call t_startf("pcg_glbsum_iter_scalar")
+       call global_sum_scalar(&
+            nx,     ny,     &
+            nhalo,  eta2,   &
+            workh)
+       call t_stopf("pcg_glbsum_iter_scalar")
+
+       ! Compute alpha
+                              !          (r, PC(r))
+       alpha = eta1/eta2      ! alpha = ----------
+                              !          (d, A*d)
+
+       !WHL - If eta2 = 0 (e.g., because all matrix entries are zero), then alpha = NaN
+
+       if (alpha /= alpha) then  ! alpha is NaN
+!!          write(6,*) 'eta1, eta2, alpha:', eta1, eta2, alpha
+          call write_log('PCG solver has failed, alpha = NaN', GM_FATAL)
+       endif
+
+       ! Compute the new solution and residual
+
+       call t_startf("pcg_vecupdate_scalar")
+       xh(:,:) = xh(:,:) + alpha * dh(:,:)    ! new solution, x_(i+1) = x_i + alpha*d
+       rh(:,:) = rh(:,:) - alpha * qh(:,:)    ! new residual, r_(i+1) = r_i - alpha*(Ad)
+       call t_stopf("pcg_vecupdate_scalar")
+
+       ! Check for convergence every linear_solve_ncheck iterations.
+       ! Also check at iter = 5, to reduce iterations when the nonlinear solver is close to convergence.
+       ! TODO: Check at iter = linear_solve_ncheck/2 instead of 5?  This would be answer-changing.
+       !
+       ! For convergence check, use r = b - Ax
+
+       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
+!!       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == linear_solve_ncheck/2) then
+
+          ! Halo update for x
+
+          call t_startf("pcg_halo_resid_scalar")
+          call parallel_halo(xh)
+          call t_stopf("pcg_halo_resid_scalar")
+
+          ! Compute A*x (use z as a temp vector for A*x)
+
+          call t_startf("pcg_matmult_resid_scalar")
+          call matvec_multiply_structured_2d_scalar(&
+               nx,        ny,            &
+               nhalo,                    &
+               indxA,     max_nonzero,   &
+               active_cell,              &
+               Ah,        xh,            &
+               zh)
+          call t_stopf("pcg_matmult_resid_scalar")
+
+          ! Compute residual r = b - Ax
+
+          call t_startf("pcg_vecupdate_scalar")
+          rh(:,:) = bh(:,:) - zh(:,:)
+          call t_stopf("pcg_vecupdate_scalar")
+
+          ! Compute squared L2 norm of (r, r)
+
+          call t_startf("pcg_dotprod_scalar")
+          workh(:,:) = rh(:,:)*rh(:,:)   ! terms of dot product (r, r)
+          call t_stopf("pcg_dotprod_scalar")
+
+          call t_startf("pcg_glbsum_resid_scalar")
+          call global_sum_scalar(&
+               nx,     ny,        &
+               nhalo,  L2_resid,  &
+               workh)
+          call t_stopf("pcg_glbsum_resid_scalar")
+
+          ! take square root
+          L2_resid = sqrt(L2_resid)       ! L2 norm of residual
+
+          ! compute normalized error
+          err = L2_resid/L2_rhs
+
+          if (err < tolerance) then
+             niters = iter
+             exit iter_loop
+          endif
+
+       endif    ! linear_solve_ncheck
+
+    enddo iter_loop
+
+    !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
+    if (niters == maxiters) then
+       if (verbose_pcg .and. main_task) then
+          print*, 'Glissade PCG solver not converged'
+          print*, 'niters, err, tolerance:', niters, err, tolerance
+       endif
+    endif
+
+  end subroutine pcg_solver_standard_2d_scalar
+
+!****************************************************************************
+
+  subroutine matvec_multiply_structured_2d_scalar(&
+       nx,        ny,            &
+       nhalo,                    &
+       indxA,     max_nonzero,   &
+       active_cell,              &
+       Ah,        xh,            &
+       yh)
+
+    !---------------------------------------------------------------
+    ! Compute the matrix-vector product $y = Ax$.
+    !
+    ! This subroutine is similar to subroutine matvec_multiply_structured_2d,
+    ! but modified to solve for a scalar h.
+    !
+    ! The A matrices should have complete matrix elements for all rows
+    !  corresponding to locally owned cells.
+    ! The terms of x should be correct for all locally owned cells
+    !  and also for all halo cellss adjacent to locally owned cells.
+    ! The resulting y will then be correct for locally owned cells.
+    !---------------------------------------------------------------
+
+    !---------------------------------------------------------------
+    ! input-output arguments
+    !---------------------------------------------------------------
+
+    integer, intent(in) :: &
+         nx, ny,             &  ! horizontal grid dimensions (for scalars)
+         nhalo                  ! number of halo layers (for scalars)
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+         indxA                  ! maps relative (x,y) coordinates to an index between 1 and max_nonzero
+
+    integer, intent(in) :: &
+         max_nonzero            ! max number of nonzero entries per row of input matrix
+                                ! typically 5 or 9, depending on the stencil
+
+    logical, dimension(nx,ny), intent(in) ::   &
+         active_cell            ! T for cells (i,j) where the scalar is computed, else F
+
+    real(dp), dimension(nx,ny,max_nonzero), intent(in) ::   &
+         Ah                     ! assembled matrix
+                                ! first two dimensions = (x,y) indices
+                                ! 3rd dimension = count of node and its nearest neighbors in x and y directions
+
+    real(dp), dimension(nx,ny), intent(in) ::   &
+         xh                     ! current guess for solution
+
+    real(dp), dimension(nx,ny), intent(out) ::  &
+         yh                     ! y = Ax
+
+    !---------------------------------------------------------------
+    ! local variables
+    !---------------------------------------------------------------
+
+    integer :: i, j, m
+    integer :: iA, jA
+
+    ! Initialize the result vector.
+
+    yh(:,:) = 0.d0
+
+    ! Compute y = Ax
+    ! Loop over locally owned vertices
+
+    ! Note: m has 9 values, but only 5 are nonzero
+    do jA = -1,1
+       do iA = -1,1
+
+          ! Get the third index of the matrix
+          m = indxA(iA,jA)
+          if (m > 0 .and. m <= max_nonzero) then
+
+             !dir$ ivdep
+             do j = nhalo+1, ny-nhalo
+                do i = nhalo+1, nx-nhalo
+
+                   if (active_cell(i,j)) then
+
+                      if ( (i+iA >= 1 .and. i+iA <= nx)         &
+                                      .and.                     &
+                           (j+jA >= 1 .and. j+jA <= ny) ) then
+
+                         yh(i,j) = yh(i,j) + Ah(i,j,m)*xh(i+iA,j+jA)
+
+                      endif   ! i+iA, j+jA in bounds
+
+                   endif   ! active_cell
+
+                enddo   ! i
+             enddo   ! j
+
+          endif   ! m > 0
+
+       enddo   ! iA
+    enddo   ! jA
+
+  end subroutine matvec_multiply_structured_2d_scalar
+
+!****************************************************************************
+
+  subroutine global_sum_scalar(&
+       nx,     ny,            &
+       nhalo,  global_sum,    &
+       work1,  work2)
+
+     ! Sum one or two local arrays on the scalar grid, then take the global sum.
+
+     integer, intent(in) :: &
+       nx, ny,             &  ! horizontal grid dimensions (for scalars)
+       nhalo                  ! number of halo layers (for scalars)
+
+     real(dp), intent(out) :: global_sum   ! global sum
+
+     real(dp), intent(in), dimension(nx,ny) :: work1            ! local array
+     real(dp), intent(in), dimension(nx,ny), optional :: work2  ! local array
+
+     integer :: i, j
+     real(dp) :: local_sum
+
+     local_sum = 0.d0
+
+     ! sum over locally owned velocity points
+
+     if (present(work2)) then
+        do j = nhalo+1, ny-nhalo
+           do i = nhalo+1, nx-nhalo
+              local_sum = local_sum + work1(i,j) + work2(i,j)
+           enddo
+        enddo
+     else
+        do j = nhalo+1, ny-nhalo
+           do i = nhalo+1, nx-nhalo
+              local_sum = local_sum + work1(i,j)
+           enddo
+        enddo
+     endif
+
+     ! take the global sum
+
+     global_sum = parallel_reduce_sum(local_sum)
+
+   end subroutine global_sum_scalar
 
 !****************************************************************************
 
