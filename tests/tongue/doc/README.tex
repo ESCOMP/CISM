@@ -1,0 +1,142 @@
+\documentclass{article}
+\title{README - Ice Tongue Test Case}
+\author{Morgan Whitcomb, University of Michigan}
+\date{\today}
+
+\usepackage{natbib}
+\usepackage{booktabs}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This test case is designed to construct a one-dimensional, freely-floating ice tongue following Chapter 5.5 in \citet{van-der-Veen} for damage testing, while also providing an option to add embayment walls (making the ice tongue two-dimensional and no longer freely-floating). The script \texttt{ice\_tongue.py} feeds an input netCDF file to CISM, in which the ice tongue is constructed via a set of specified variables:
+\begin{itemize}
+   \item \texttt{thk} - Analytic ice thickness (m) with a geometry-specific grounding line value
+   \item \texttt{uvel\_extend} - Extended analytic ice velocity (m/a) with a geometry-specific grounding line value; the extended version of the variable is necessary in order to avoid boundary condition errors where the ice tongue contacts the edge of the domain
+   \item \texttt{damage} - Scalar damage field, seeded as zero or a constant value (specified by the \texttt{const\_damage} variable in the python script) depending on the value of the \texttt{damage\_floor} configuration option
+   \item \texttt{acab} - Mass balance (m/a), set as a uniform geometry-specific basal melt rate
+   \item \texttt{topg} - Elevation of the basal topography (m), set to a uniform value beneath the ice tongue that grounds the row of grid cells furthest upstream as the grounding line but causes every other grid cell to float; when the ice tongue length is specified as variable, the elevation of the topography is increased to match the grounding line thickness along the lateral margins to simulate embayment walls
+   \item \texttt{beta} - Higher-order bed stress, set to zero
+   \item \texttt{kinbcmask} - Kinetic boundary condition mask, used to enforce a constant grounding line velocity
+   \item \texttt{no\_advance\_mask} - No advance mask, used to prevent the ice tongue from flowing upstream, and from advancing if specified by the input options
+   \item \texttt{const\_thk\_mask} - Constant thickness mask, used to enforce a constant grounding line thickness
+\end{itemize}
+
+The user is also provided with a set of command-line input options that allow them to tweak some parameters of the simulation:
+Input options:
+\begin{itemize}
+   \item -c, --config : Name of the \texttt{.config} file to use for the simulation (default = \texttt{ice\_tongue.config}).
+   \item -m, --parallel : Execute the run in parallel with the specified number of processors (default = serial run).
+   \item -e, --exec : Path to the CISM executable file (default = \texttt{.\textbackslash cism\_driver})
+   \item -s, --shelf : Ice shelf geometry to use for the simulation, which determines the grounding line flux, uniform basal melt rate, and length of embayment walls (confined ice tongues only). The current supported options are \texttt{erebus}, \texttt{drygalski}, \texttt{ross} (confined), and \texttt{amery} (confined); for the specific parameter values used to define each geometry, see Table~\ref{table:geometries} (default = \texttt{erebus}).
+   \item -l, --length : Toggle for variability in the length of the ice tongue; the \texttt{const} option contrains the length, while the \texttt{var} option allows the ice tongue to advance freely (default = \texttt{var})
+   \item -r, --restart : Path to a netCDF restart file that will be used as the input file (default = none)
+\end{itemize}
+
+\begin{table}
+   \centering
+   \begin{tabular}{l c c c c}
+      \toprule
+       & \multicolumn{2}{c}{Unconfined} & \multicolumn{2}{c}{Confined} \\
+      \cmidrule(lr){2-3}
+      \cmidrule(lr){4-5}
+      Geometry-Specific Parameters & Erebus & Drygalski & Amery & Ross \\
+      \cmidrule(lr){1-1}
+      \cmidrule(lr){2-2}
+      \cmidrule(lr){3-3}
+      \cmidrule(lr){4-4}
+      \cmidrule(lr){5-5}
+      \texttt{nx} & $73$ & $391$ & $301$ & $388$ \\
+      \texttt{ny} & $50$ & $160$ & $22$ & $193$ \\
+      \texttt{dx} and \texttt{dy} (m) & $500$ & $500$ & $5000$ & $5000$ \\
+      \texttt{default\_flwa} ($10^{-17}$ Pa$^{-n}$ a$^{-1}$) & $1.294$ & $1.294$ & $1.105$ & $1.105$ \\
+      $H_0$ (m) & $340$ & $575$ & $1090$ & $660$ \\
+      $U_0$ (m/a) & $100$ & $940$ & $390$ & $340$ \\
+      \texttt{acab} (m/a) & $2.2$ & $6.8$ & Variable & Variable \\
+      Confinement length (km) & N/A & N/A & $505$ & $650$ \\
+      \bottomrule
+   \end{tabular}
+   \caption{Characteristic parameters used to define the geometries specified by the -s input option. All of the entries except for \texttt{nx}, \texttt{ny}, \texttt{dx}, \texttt{dy}, and \texttt{default\_flwa} are specified in the \texttt{ice\_tongue.py} script; the exceptions must be set manually in the configuration file. For the confined ice tongues (Amery and Ross), the melt rates can be set by editing the \texttt{amery\_melt} and \texttt{ross\_melt} variables in the python script. See Whitcomb et al. [in press] for information about where these values come from. }
+   \label{table:geometries}
+\end{table}
+
+\section{Ice Tongues}
+
+For a positive melt rate $\dot{m}$, the one-dimensional thickness $H\left(x\right)$ of the ice tongue is computed via Eq.~5.80 in \citet{van-der-Veen}:
+\begin{equation}
+   H\left(x\right) = \left\{\frac{U_0^{n+1}\left[1+\left(C/\dot{m}\right)H_0^{n+1}\right]}{\left(H_0U_0 - \dot{m}x\right)^{n+1}} - \frac{C}{\dot{m}}\right\}^{-1/\left(n+1\right)}
+   \label{eq:thickness}
+\end{equation}
+where $H_0$ and $U_0$ are the grounding line thickness and velocity, respectively, and $n=3$ is the Glen's flow law exponent. The constant $C$ is defined by Eq.~5.65 in \citet{van-der-Veen} as
+\begin{equation}
+   C = \left[\frac{\rho_ig\left(\rho_w-\rho_i\right)}{4B\rho_w}\right]^n,
+   \label{eq:C-constant}
+\end{equation}
+where $\rho_i$ is the ice density, $\rho_w$ is the density of seawater, $g$ is the acceleration due to gravity, and $B$ is the viscosity parameter in Glen's flow law.
+
+Given Eq.~\ref{eq:thickness}, the velocity $U\left(x\right)$ is computed directly from conservation of ice flux:
+\begin{equation}
+   HU = H_0U_0 - \dot{m}x
+   \label{eq:conservation-of-flux}
+\end{equation}
+
+\section{Damage}
+
+As stated above, this test case is specifically designed to verify damage $r$ as governed by Eq.~27 in \citet{Bassis-Ma}:
+\begin{equation}
+   \frac{\mathrm{d}r}{\mathrm{d}t} = \left[n^* \left(1-S_0\right) \dot{\epsilon}_{xx} + \frac{\dot{m}}{H}\right] r
+   \label{eq:bassis-ma-damage}
+\end{equation}
+where $\dot{\epsilon}_{xx}$ is the largest principal strain rate and $n^*$ is an effective flow law exponent:
+\begin{equation}
+   n^* = \frac{4n\left(1+\alpha+\alpha^2\right)}{4\left(1+\alpha+\alpha^2\right) + 3\left(n-1\right)\alpha^2}
+   \label{eq:nstar}
+\end{equation}
+The parameter $\alpha = \dot{\epsilon}_{yy}/\dot{\epsilon}_{xx}$ is the ratio of the principal strain rates, and $S_0$ is a dimensionless ratio between hydrostatic pressure and tensile stress:
+\begin{equation}
+   S_0 = \frac{\rho_i \left(\rho_w-\rho_i\right)gH}{2\tau_{xx}\rho_w}
+   \label{eq:szero}
+\end{equation}
+where $\tau_{xx}$ is the largest principal deviatoric stress.
+
+CISM solves Eq.~\ref{eq:bassis-ma-damage} by separating the equation into an advective component and an advection-less component. The former is handled by CISM's built-in incremental remapping scheme, which assumes an equation of the form
+\begin{equation}
+   \frac{\delta \left( rH \right)}{\delta t} + \nabla\cdot\left( rH\mathbf{U} \right) = 0
+   \label{eq:advection}
+\end{equation}
+
+In order to make use of this scheme, we need to reformulate the damage evolution equation in terms of the crevasse depth $\tilde{r} \equiv rH$:
+\begin{equation}
+   \frac{\mathrm{d}\tilde{r}}{\mathrm{d}t} = n^* \left(1-S_0\right) \dot{\epsilon}_{xx} \tilde{r}
+   \label{eq:bassis-ma-crevasse-depth}
+\end{equation}
+
+Eq.~\ref{eq:bassis-ma-crevasse-depth} takes in an initial damage field, evolving it in time and advecting it with the flow field. Depending on the value of the \texttt{damage\_floor} configuration option, the initial value $r_0$ is specified as either a uniform value (set as the \texttt{const\_damage} variable in the python script) or as the Nye's zero stress value, computed via \citep{Jezek,Nick-et-al,Nye}
+\begin{equation}
+   r_0 = \frac{\rho_i}{\rho_w-\rho_i} \left[\frac{\left(2+\alpha\right) \tau_{xx}}{\rho_i gH}\right].
+   \label{eq:nye-damage}
+\end{equation}
+
+Verification of the damage solution can be performed by toggling the \texttt{damage\_} \texttt{manufactured} configuration option. When activated, this option adjusts Eq.~\ref{eq:bassis-ma-damage} by adding a forcing term $f$:
+\begin{equation}
+   \frac{\mathrm{d}\tilde{r}}{\mathrm{d}t} = n^* \left(1-S_0\right) \dot{\epsilon}_{xx} \tilde{r} + f
+   \label{eq:bassis-ma-damage-forced}
+\end{equation}
+This forcing term is defined as
+\begin{equation}
+   f = -\frac{\tilde{r}_0}{2} \left\{\frac{U}{H_0} \left(1+\dot{\epsilon}_{xx}t\right) e^{-Ut/H_0} + \dot{\epsilon}_{xx} \left[ n^*\left(1-S_0\right)-1 \right] \left(1+e^{-Ut/H_0}\right)\right\},
+   \label{eq:damage-forcing}
+\end{equation}
+such that Eq.~\ref{eq:bassis-ma-damage-forced} produces a damage field given by
+\begin{equation}
+   \tilde{r} = \frac{\tilde{r}_0}{2} \left(1+e^{-Ut/H_0}\right).
+   \label{eq:manufactured-damage}
+\end{equation}
+
+\bibliographystyle{plainnat}
+\bibliography{mybib}
+
+\end{document}

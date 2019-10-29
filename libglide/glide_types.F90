@@ -170,6 +170,13 @@ module glide_types
   integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
 
+  integer, parameter :: NO_DAMAGE_SRC = 0
+  integer, parameter :: EFF_STRESS_DAMAGE_SRC = 1
+  integer, parameter :: BASSIS_MA_DAMAGE_SRC = 2
+
+  integer, parameter :: ZERO_DAMAGE_FLOOR = 0
+  integer, parameter :: NYE_DAMAGE_FLOOR = 1
+
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
 
@@ -509,6 +516,21 @@ module glide_types
     !> \item[1] Calve wherever the calving criterion is met
     !> \end{description}
 
+    integer  :: damage_src = 1
+    !> \begin{description}
+    !> \item[0] No damage source
+    !> \item[1] Effective stress damage source; damage prognosed using a simple
+    !>          scheme based on the effective tensile stress
+    !> \item[2] Bassis and Ma damage source; damage prognosed according to eq 27
+    !>          in Bassis and Ma 2015
+    !> \end{description}
+
+    integer  :: damage_floor = 0
+    !> \begin{description}
+    !> \item[0] Zero damage floor; damage cannot be reduced below zero
+    !> \item[1] Nye damage floor; damage cannot be reduced below the Nye zero stress value
+    !> \end{description}
+
     logical  :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
     !> These are connected regions with zero basal traction and no connection to grounded ice.
@@ -520,6 +542,12 @@ module glide_types
     logical  :: cull_calving_front = .false.
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
+
+    logical  :: damage_advect = .true.
+    !> if true, then damage advects as a scalar tracer
+
+    logical  :: damage_manufactured = .false.
+    !> if true, then damage is forced to produce a manufactured solution
 
     integer :: dm_dt_diag = 0
     !> \begin{description}
@@ -897,6 +925,8 @@ module glide_types
     integer, dimension(:,:),pointer :: stagmask => null()
     !> see glide_mask.f90 for possible values
 
+    integer, dimension(:,:),pointer :: const_thk_mask => null()
+
     ! mass fluxes at upper, lower and lateral boundaries
     ! TODO: Move to a flux derived type?
     ! Note: sfc_mbal_flux and basal_mbal_flux are not strictly needed, since they are equal to acab_applied and bmlt_applied
@@ -1135,6 +1165,7 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: tau_eff => null()        !> effective stress (Pa) for calving; derived from tau_eigen1, tau_eigen2
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
+     real(dp),dimension(:,:,:),pointer :: damage_init => null()    !> initial damage field (whichcalving = CALVING_DAMAGE)
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
                                                  !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
@@ -2188,6 +2219,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%const_thk_mask)
 
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagthck)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
@@ -2330,9 +2362,15 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eff)
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
+       if (model%options%damage_manufactured) then
+          call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage_init)
+       else
+          allocate(model%calving%damage_init(1,1,1))
+       endif
     else
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
+       allocate(model%calving%damage_init(1,1,1))
     endif
 
     ! matrix solver arrays
@@ -2687,6 +2725,8 @@ contains
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &
         deallocate(model%geometry%stagmask)
+    if (associated(model%geometry%const_thk_mask)) &
+        deallocate(model%geometry%const_thk_mask)
     if (associated(model%geomderv%stagthck)) &
         deallocate(model%geomderv%stagthck)
     if (associated(model%geomderv%dthckdew)) &
@@ -2821,6 +2861,8 @@ contains
         deallocate(model%calving%tau_eff)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
+    if (associated(model%calving%damage_init)) &
+        deallocate(model%calving%damage_init)
 
     ! matrix solver arrays
 
