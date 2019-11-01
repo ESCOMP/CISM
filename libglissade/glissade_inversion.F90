@@ -45,8 +45,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
-!!    logical, parameter :: verbose_inversion = .true.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
     real(dp), parameter :: eps08 = 1.0d-08  ! small number
 
@@ -114,7 +114,8 @@ contains
                             ice_mask,                                   &
                             land_mask = land_mask)
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
        ! We are inverting for usrf_obs, so check whether it has been read in already.
        ! If not, set it to the initial usrf field.
@@ -192,54 +193,72 @@ contains
        call parallel_halo(model%geometry%usrf_obs)
        call parallel_halo(thck_obs)
 
-       if (model%options%is_restart == RESTART_FALSE) then
 
-          ! At the start of the run, compute a mask that determines where bmlt_float_inversion can be applied.
-          ! This mask includes only cells with a path to the ocean through marine-based cells.
+       ! computations specific to bmlt_float inversion
 
-          ! Compute masks
-          call glissade_get_masks(ewn,                 nsn,                   &
-                                  model%geometry%thck, model%geometry%topg,   &
-                                  model%climate%eus,   model%numerics%thklim, &
-                                  ice_mask,                                   &
-                                  floating_mask = floating_mask,              &
-                                  ocean_mask = ocean_mask,                    &
-                                  land_mask = land_mask)
+       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
-          !TODO - Would need to call this subroutine repeatedly if topography is changing at runtime.
-          call glissade_marine_connection_mask(ewn,          nsn,            &
-                                               itest, jtest, rtest,          &
-                                               ocean_mask,   land_mask,      &
-                                               model%inversion%bmlt_float_inversion_mask)
+          if (model%options%is_restart == RESTART_FALSE) then
 
-       endif  ! not a restart
+             ! At the start of the run, compute a mask that determines where bmlt_float_inversion can be applied.
+             ! This mask includes only cells with a path to the ocean through marine-based cells.
 
-       call parallel_halo(model%inversion%bmlt_float_inversion_mask)
+             ! Compute masks
+             call glissade_get_masks(ewn,                 nsn,                   &
+                                     model%geometry%thck, model%geometry%topg,   &
+                                     model%climate%eus,   model%numerics%thklim, &
+                                     ice_mask,                                   &
+                                     floating_mask = floating_mask,              &
+                                     ocean_mask = ocean_mask,                    &
+                                     land_mask = land_mask)
 
-       ! Initialize powerlaw_c_save, if not already read in.
-       ! This is the value saved after each time step, which optionally can be included
-       !  in a weighted average during the following time step.
-       var_maxval = maxval(model%inversion%powerlaw_c_save)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; powerlaw_c_save has been read in already (e.g., when restarting)
-       else
+             !TODO - Would need to call this subroutine repeatedly if topography is changing at runtime.
+             call glissade_marine_connection_mask(ewn,          nsn,            &
+                                                  itest, jtest, rtest,          &
+                                                  ocean_mask,   land_mask,      &
+                                                  model%inversion%bmlt_float_inversion_mask)
 
-          where (thck_obs > 0.0d0)
-             model%inversion%powerlaw_c_save = 0.5d0 * model%inversion%powerlaw_c_max
-          elsewhere (land_mask == 1)
-             model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_land
-          elsewhere   ! ice-free ocean
-             model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_marine
-          endwhere
+          endif  ! not a restart
 
-       endif  ! var_maxval > 0
+          call parallel_halo(model%inversion%bmlt_float_inversion_mask)
 
-       ! Note: There is no initialization of bmlt_float_save.
-       ! If restarting, it should have been read in already.
-       ! If not restarting, it will have been set to zero, which is an appropriate initial value.
+          call parallel_halo(model%inversion%bmlt_float_save)
 
-    endif  ! which_ho_inversion
+       endif   ! which_ho_bmlt_inversion
+
+
+       ! computations specific to powerlaw_c (= Cp) inversion
+
+       if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
+
+          ! Initialize powerlaw_c_save, if not already read in.
+          ! This is the value saved after each time step, which optionally can be included
+          !  in a weighted average during the following time step.
+          var_maxval = maxval(model%inversion%powerlaw_c_save)
+          var_maxval = parallel_reduce_max(var_maxval)
+          if (var_maxval > 0.0d0) then
+             ! do nothing; powerlaw_c_save has been read in already (e.g., when restarting)
+          else
+
+             where (thck_obs > 0.0d0)
+                model%inversion%powerlaw_c_save = 0.5d0 * model%inversion%powerlaw_c_max
+             elsewhere (land_mask == 1)
+                model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_land
+             elsewhere   ! ice-free ocean
+                model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_marine
+             endwhere
+
+          endif  ! var_maxval > 0
+
+          ! Note: There is no initialization of bmlt_float_save.
+          ! If restarting, it should have been read in already.
+          ! If not restarting, it will have been set to zero, which is an appropriate initial value.
+
+          call parallel_halo(model%inversion%powerlaw_c_save)
+
+       endif   ! which_ho_cp_inversion
+
+    endif  ! which_ho_cp_inversion or which_ho_bmlt_inversion
 
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
@@ -350,7 +369,7 @@ contains
 
     endif
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
        ! Invert for bmlt_float, adjusting the melt rate to relax toward the observed thickness.
        ! Note: Other kinds of sub-shelf basal melting are handled in subroutine glissade_bmlt_float_solve.
@@ -575,7 +594,7 @@ contains
 
        endif   ! nudging is turned on
 
-    elseif (model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+    elseif (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
 
        if (verbose_inversion .and. main_task) print*, 'Apply saved value of bmlt_float inversion'
 
@@ -1003,7 +1022,7 @@ contains
     ewn = model%general%ewn
     nsn = model%general%nsn
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
 
        ! Note: Earlier code versions allowed for gradual relaxing of nudging, as for bmlt_float.
        !       Since inversion%babc_timescale is typically long (~500 yr or more), nudging is now all or nothing.

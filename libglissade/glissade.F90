@@ -958,14 +958,12 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
        call glissade_init_inversion(model)
 
-       call parallel_halo(model%inversion%powerlaw_c_save)
-       call parallel_halo(model%inversion%bmlt_float_save)
-
-    endif  ! which_ho_inversion
+    endif  ! which_ho_cp_inversion or which_ho_bmlt_inversion
 
     ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
 
@@ -1484,7 +1482,7 @@ contains
        !        than for cavities initially present.
        ! Note: bmlt_float is a basal melting potential; it is reduced below for partly or fully grounded ice.
 
-       if (model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
@@ -2469,8 +2467,8 @@ contains
        !        as part of the diagnostic solve, just before computing velocity.
        !-------------------------------------------------------------------------
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
-           model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
+           model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
 
           ! Compute the new ice thickness that would be computed after applying the SMB and BMB, without inversion.
           thck_new_unscaled = thck_unscaled(:,:) + (acab_unscaled - bmlt_unscaled) * model%numerics%dt*tim0
@@ -2480,7 +2478,7 @@ contains
                                              ice_mask,            &
                                              floating_mask)
 
-       endif  ! which_ho_inversion
+       endif  ! which_ho_bmlt_inversion
 
        ! ------------------------------------------------------------------------
        ! Get masks used for the mass balance calculation.
@@ -2505,8 +2503,8 @@ contains
                                thck_calving_front = thck_calving_front,    &
                                effective_areafrac = effective_areafrac)
 
-       if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
-           model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
+           model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
 
           ! Add bmlt_float_inversion to bmlt_unscaled, the melt rate passed to the mass balance driver.
           ! Both fields have units of m/s.
@@ -2537,7 +2535,7 @@ contains
              enddo
           endif
 
-       endif  ! which_ho_inversion
+       endif  ! which_ho_bmlt_inversion
 
        ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
        !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
@@ -3244,8 +3242,8 @@ contains
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
-    if ( model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or. &
-         model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+    if ( model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
+         model%options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
@@ -3260,7 +3258,7 @@ contains
                                                  land_mask)
        endif
 
-    endif   ! which_ho_inversion
+    endif   ! which_ho_cp_inversion
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -3809,7 +3807,7 @@ contains
 
     !WHL - inversion debug
     if (verbose_inversion .and.  &
-        model%options%which_ho_inversion == HO_INVERSION_COMPUTE .and.  &
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .and.  &
         model%numerics%time > model%numerics%tstart) then
 
        ! compute max diff in bmlt_applied
@@ -3960,7 +3958,8 @@ contains
     !WHL - inversion debug
     ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
     if (verbose_inversion .and.  &
-        model%options%which_ho_inversion == HO_INVERSION_COMPUTE .and.  &
+        (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE)  .and.  &
         model%numerics%time > model%numerics%tstart) then
        do j = nhalo+1, model%general%nsn-nhalo
           do i = nhalo+1, model%general%ewn-nhalo
