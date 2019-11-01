@@ -741,7 +741,9 @@ contains
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
     call GetValue(section, 'use_c_space_factor',          model%options%use_c_space_factor)
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
-    call GetValue(section, 'which_ho_inversion',          model%options%which_ho_inversion)
+    call GetValue(section, 'which_ho_cp_inversion',       model%options%which_ho_cp_inversion)
+    call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
+    call GetValue(section, 'which_ho_dtf_inversion',      model%options%which_ho_dtf_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
@@ -1000,10 +1002,20 @@ contains
          'absolute beta limit based on beta_grounded_min   ', &
          'beta is limited, then scaled by f_ground_cell    ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichinversion = (/ &
-         'no inversion for basal friction and melting fields ', &
-         'invert for basal friction and melting fields       ', &
-         'apply basal friction/melting from earlier inversion' /)
+    character(len=*), dimension(0:2), parameter :: ho_cp_whichinversion = (/ &
+         'no inversion for basal friction parameters            ', &
+         'invert for basal friction parameters                  ', &
+         'apply basal friction parameters from earlier inversion' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_bmlt_whichinversion = (/ &
+         'no inversion for basal melt rate            ', &
+         'invert for basal melt rate                  ', &
+         'apply basal melt rate from earlier inversion' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_dtf_whichinversion = (/ &
+         'no inversion for thermal forcing correction            ', &
+         'invert for thermal forcing correction                  ', &
+         'apply thermal forcing correction from earlier inversion' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -1593,22 +1605,38 @@ contains
           call write_log('Error, HO beta limit input out of range', GM_FATAL)
        end if
 
-       write(message,*) 'ho_whichinversion       : ',model%options%which_ho_inversion,  &
-                         ho_whichinversion(model%options%which_ho_inversion)
+       write(message,*) 'ho_cp_whichinversion    : ',model%options%which_ho_cp_inversion,  &
+                         ho_cp_whichinversion(model%options%which_ho_cp_inversion)
        call write_log(message)
-       if (model%options%which_ho_inversion < 0 .or. &
-           model%options%which_ho_inversion >= size(ho_whichinversion)) then
-          call write_log('Error, HO basal inversion input out of range', GM_FATAL)
+       if (model%options%which_ho_cp_inversion < 0 .or. &
+           model%options%which_ho_cp_inversion >= size(ho_cp_whichinversion)) then
+          call write_log('Error, Cp inversion input out of range', GM_FATAL)
        end if
 
-       ! Note: Inversion is currently supported only for Schoof sliding law and basic power law
-       if (model%options%which_ho_inversion /= 0) then
+       write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
+                         ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
+       call write_log(message)
+       if (model%options%which_ho_bmlt_inversion < 0 .or. &
+           model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
+          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'ho_dtf_whichinversion   : ',model%options%which_ho_dtf_inversion,  &
+                         ho_dtf_whichinversion(model%options%which_ho_dtf_inversion)
+       call write_log(message)
+       if (model%options%which_ho_dtf_inversion < 0 .or. &
+           model%options%which_ho_dtf_inversion >= size(ho_dtf_whichinversion)) then
+          call write_log('Error, thermal forcing inversion input out of range', GM_FATAL)
+       end if
+
+       ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
+       if (model%options%which_ho_cp_inversion /= 0) then
           if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
               model%options%which_ho_babc == HO_BABC_POWERLAW) then
-             ! inversion is supported
+             ! inversion for Cp is supported
           else
-             call write_log('Error, basal inversion is not supported for this basal BC option')
-             write(message,*) 'Inversion is supported only for these options: ', &
+             call write_log('Error, Cp inversion is not supported for this basal BC option')
+             write(message,*) 'Cp inversion is supported only for these options: ', &
                   HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_POWERLAW
              call write_log(message, GM_FATAL)
           endif
@@ -1972,6 +2000,9 @@ contains
 
     ! basal inversion parameters
     !TODO - Put inversion parameters in a separate section
+    call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
+    call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
+
     call GetValue(section, 'powerlaw_c_max', model%inversion%powerlaw_c_max)
     call GetValue(section, 'powerlaw_c_min', model%inversion%powerlaw_c_min)
     call GetValue(section, 'powerlaw_c_land', model%inversion%powerlaw_c_land)
@@ -1979,18 +2010,17 @@ contains
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
     call GetValue(section, 'inversion_babc_smoothing_timescale', model%inversion%babc_smoothing_timescale)
+    call GetValue(section, 'inversion_wean_powerlaw_c_tstart', model%inversion%wean_powerlaw_c_tstart)
+    call GetValue(section, 'inversion_wean_powerlaw_c_tend', model%inversion%wean_powerlaw_c_tend)
+    call GetValue(section, 'inversion_wean_powerlaw_c_timescale', model%inversion%wean_powerlaw_c_timescale)
+
     call GetValue(section, 'inversion_bmlt_timescale', model%inversion%bmlt_timescale)
     call GetValue(section, 'inversion_bmlt_max_melt', model%inversion%bmlt_max_melt)
     call GetValue(section, 'inversion_bmlt_max_freeze', model%inversion%bmlt_max_freeze)
-    call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
-    call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
     call GetValue(section, 'inversion_nudging_factor_min', model%inversion%nudging_factor_min)
     call GetValue(section, 'inversion_wean_bmlt_float_tstart', model%inversion%wean_bmlt_float_tstart)
     call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
     call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
-    call GetValue(section, 'inversion_wean_powerlaw_c_tstart', model%inversion%wean_powerlaw_c_tstart)
-    call GetValue(section, 'inversion_wean_powerlaw_c_tend', model%inversion%wean_powerlaw_c_tend)
-    call GetValue(section, 'inversion_wean_powerlaw_c_timescale', model%inversion%wean_powerlaw_c_timescale)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2321,7 +2351,17 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE) then
+    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+       write(message,*) 'inversion flotation thickness buffer (m)     : ', &
+            model%inversion%thck_flotation_buffer
+       call write_log(message)
+       write(message,*) 'inversion thickness threshold (m)            : ', &
+            model%inversion%thck_threshold
+       call write_log(message)
+    endif
+
+    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
        write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', &
             model%inversion%powerlaw_c_max
        call write_log(message)
@@ -2343,6 +2383,26 @@ contains
        write(message,*) 'inversion basal friction smoothing timescale : ', &
             model%inversion%babc_smoothing_timescale
        call write_log(message)
+       if (model%inversion%wean_powerlaw_c_tstart > 0.0d0 .and. model%inversion%wean_powerlaw_c_tend > 0.0d0) then
+          write(message,*) 'start time (yr) for powerlaw_c abated nudging: ', &
+               model%inversion%wean_powerlaw_c_tstart
+          call write_log(message)
+          write(message,*) 'end time (yr) for powerlaw_c abated nudging  : ', &
+               model%inversion%wean_powerlaw_c_tend
+          call write_log(message)
+          write(message,*) 'time scale (yr) for powerlaw_c abated nudging  : ', &
+               model%inversion%wean_powerlaw_c_timescale
+          call write_log(message)
+          if (model%inversion%wean_powerlaw_c_tend < model%inversion%wean_powerlaw_c_tstart) then
+             call write_log('Error, must have wean_powerlaw_c_tend >= wean_powerlaw_c_tstart', GM_FATAL)
+          endif
+          if (model%inversion%wean_powerlaw_c_tend == 0.0d0) then
+             call write_log('powerlaw_c will not be nudged, since wean_powerlaw_c_tend = 0')
+          endif
+       endif
+    endif   ! which_ho_cp_inversion
+
+    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
        write(message,*) 'inversion basal melting timescale (yr)       : ', &
             model%inversion%bmlt_timescale
        call write_log(message)
@@ -2352,13 +2412,6 @@ contains
        write(message,*) 'inversion max freezing rate (m/yr)           : ', &
             model%inversion%bmlt_max_freeze
        call write_log(message)
-       write(message,*) 'inversion flotation thickness buffer (m)     : ', &
-            model%inversion%thck_flotation_buffer
-       call write_log(message)
-       write(message,*) 'inversion thickness threshold (m)            : ', &
-            model%inversion%thck_threshold
-       call write_log(message)
-
        if (model%inversion%wean_bmlt_float_tstart > 0.0d0 .and. model%inversion%wean_bmlt_float_tend > 0.0d0) then
           write(message,*) 'start time (yr) for bmlt_float abated nudging  : ', &
                model%inversion%wean_bmlt_float_tstart
@@ -2379,26 +2432,7 @@ contains
              call write_log('bmlt_float will not be nudged, since wean_bmlt_float_tend = 0')
           endif
        endif
-
-       if (model%inversion%wean_powerlaw_c_tstart > 0.0d0 .and. model%inversion%wean_powerlaw_c_tend > 0.0d0) then
-          write(message,*) 'start time (yr) for powerlaw_c abated nudging: ', &
-               model%inversion%wean_powerlaw_c_tstart
-          call write_log(message)
-          write(message,*) 'end time (yr) for powerlaw_c abated nudging  : ', &
-               model%inversion%wean_powerlaw_c_tend
-          call write_log(message)
-          write(message,*) 'time scale (yr) for powerlaw_c abated nudging  : ', &
-               model%inversion%wean_powerlaw_c_timescale
-          call write_log(message)
-          if (model%inversion%wean_powerlaw_c_tend < model%inversion%wean_powerlaw_c_tstart) then
-             call write_log('Error, must have wean_powerlaw_c_tend >= wean_powerlaw_c_tstart', GM_FATAL)
-          endif
-          if (model%inversion%wean_powerlaw_c_tend == 0.0d0) then
-             call write_log('powerlaw_c will not be nudged, since wean_powerlaw_c_tend = 0')
-          endif
-       endif
-
-    endif
+    endif   ! which_ho_bmlt_inversion
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
        write(message,*) 'max ice speed (m/yr) when evaluating beta(u) : ', model%basal_physics%beta_powerlaw_umax
@@ -2923,9 +2957,9 @@ contains
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing')
 
-          ! If running with inversion, then we apply a melting anomaly to the value obtained from inversion.
+          ! If applying bmlt_float from inversion, then we may be adding an anomaly to the value obtained from inversion.
           ! In this case we need the baseline melt rate to compute the anomaly.
-          if (options%which_ho_inversion == HO_INVERSION_APPLY) then
+          if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
              call glide_add_to_restart_variable_list('bmlt_float_baseline')
           endif
 
@@ -3125,21 +3159,34 @@ contains
         call glide_add_to_restart_variable_list('beta')
     end select
 
-    ! basal inversion option
-    select case(options%which_ho_inversion)
-      case (HO_INVERSION_COMPUTE)
-         ! If computing powerlaw_c and bmlt_float by inversion, these fields are needed for restart.
-         call glide_add_to_restart_variable_list('usrf_obs')
-         call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
-         call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
-         call glide_add_to_restart_variable_list('bmlt_float_inversion_mask')
-         call glide_add_to_restart_variable_list('dthck_dt')
-         call glide_add_to_restart_variable_list('thck_inversion_save')   ! used for bmlt_float_inversion
-      case (HO_INVERSION_APPLY)
-         ! Only need powerlaw_c and bmlt_float from an earlier inversion.
-         call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
-         call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
-    end select
+    ! basal inversion options
+    ! If computing powerlaw_c and/or bmlt_float by inversion, these fields are needed for restart.
+    if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
+        options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+
+       ! Need the surface elevation target for either inversion option
+       call glide_add_to_restart_variable_list('usrf_obs')
+
+       if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
+          call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
+          call glide_add_to_restart_variable_list('dthck_dt')
+       endif
+
+       if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+          call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
+          call glide_add_to_restart_variable_list('bmlt_float_inversion_mask')
+          call glide_add_to_restart_variable_list('thck_inversion_save')
+       endif
+
+    endif
+
+    if (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
+       call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
+    endif
+
+    if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
+       call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
+    endif
 
     ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,
     !  then usrf_obs needs to be in the restart file.

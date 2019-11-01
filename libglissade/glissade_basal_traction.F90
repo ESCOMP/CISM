@@ -76,7 +76,7 @@ contains
                        beta_external,                &
                        beta,                         &
                        which_ho_beta_limit,          &
-                       which_ho_inversion,           &
+                       which_ho_cp_inversion,        &
                        stag_powerlaw_c_inversion,    &
                        itest, jtest,  rtest)
 
@@ -119,7 +119,7 @@ contains
 
   integer, intent(in)           :: which_ho_beta_limit           ! option to limit beta for grounded ice
                                                                  ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
-  integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
+  integer, intent(in), optional :: which_ho_cp_inversion         ! basal inversion option
   real(dp), intent(in), dimension(:,:), optional :: stag_powerlaw_c_inversion  ! Cp from inversion, on staggered grid
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
@@ -171,8 +171,7 @@ contains
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
   real(dp) :: numerator, denominator
 
-  ! option to invert for basal parameters
-  integer :: which_inversion ! basal inversion option
+  integer :: which_cp_inversion  ! option to invert for basal friction parameters
 
   character(len=300) :: message
 
@@ -180,11 +179,11 @@ contains
 
   logical, parameter :: verbose_beta = .false.
 
-  !TODO - Make which_ho_inversion a non-optional argument?
-  if (present(which_ho_inversion)) then
-     which_inversion = which_ho_inversion
+  !TODO - Make which_ho_cp_inversion a non-optional argument?
+  if (present(which_ho_cp_inversion)) then
+     which_cp_inversion = which_ho_cp_inversion
   else
-     which_inversion = HO_INVERSION_NONE
+     which_cp_inversion = HO_CP_INVERSION_NONE
   endif
 
   ! Compute the ice speed: used in power laws where beta = beta(u).
@@ -362,13 +361,13 @@ contains
        ! implying beta = C * ub^(1/m - 1) 
        ! m should be a positive exponent
 
-       if (which_ho_inversion == HO_INVERSION_NONE) then
+       if (which_ho_cp_inversion == HO_CP_INVERSION_NONE) then
 
           ! Set beta assuming a spatially uniform value of powerlaw_c
           beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or.   &
-               which_inversion == HO_INVERSION_APPLY) then  ! use powerlaw_c from inversion
+       elseif (which_cp_inversion == HO_CP_INVERSION_COMPUTE .or.   &
+               which_cp_inversion == HO_CP_INVERSION_APPLY) then  ! use powerlaw_c from inversion
 
           do ns = 1, nsn-1
              do ew = 1, ewn-1
@@ -385,7 +384,7 @@ contains
              enddo
           enddo
 
-       endif   ! which_ho_inversion
+       endif   ! which_ho_cp_inversion
 
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
@@ -476,7 +475,7 @@ contains
        ! (2) Use spatially varying powerlaw_c and coulomb_c fields prescribed from a previous inversion.
        ! For either (1) or (2), use the 2D fields.
 
-       if (which_inversion == HO_INVERSION_NONE) then
+       if (which_cp_inversion == HO_CP_INVERSION_NONE) then
 
           ! use constant powerlaw_c and coulomb_c
           powerlaw_c = basal_physics%powerlaw_c
@@ -502,8 +501,8 @@ contains
              enddo
           enddo
 
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or.   &
-               which_inversion == HO_INVERSION_APPLY) then   ! use powerlaw_c and coulomb_c from inversion
+       elseif (which_cp_inversion == HO_CP_INVERSION_COMPUTE .or.   &
+               which_cp_inversion == HO_CP_INVERSION_APPLY) then   ! use powerlaw_c from inversion
 
           m = basal_physics%powerlaw_m
 
@@ -531,7 +530,7 @@ contains
              enddo
           enddo
 
-       endif   ! which_inversion
+       endif   ! which_cp_inversion
 
        ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
        if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then

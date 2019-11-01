@@ -1166,6 +1166,7 @@ contains
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -1288,7 +1289,11 @@ contains
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
+       ! TODO: Do this recoding.  This subroutine currently fails with outflow BC, because
+       !       the southern and western rows of tasks have an extra locally owned vertex,
+       !       giving size(values,2) = own_nsn + 1
        write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -1392,6 +1397,7 @@ contains
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -1515,6 +1521,7 @@ contains
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
 

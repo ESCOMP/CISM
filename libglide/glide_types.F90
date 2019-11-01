@@ -257,9 +257,17 @@ module glide_types
   integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
   integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
 
-  integer, parameter :: HO_INVERSION_NONE = 0
-  integer, parameter :: HO_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_INVERSION_APPLY = 2
+  integer, parameter :: HO_CP_INVERSION_NONE = 0
+  integer, parameter :: HO_CP_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_CP_INVERSION_APPLY = 2
+
+  integer, parameter :: HO_BMLT_INVERSION_NONE = 0
+  integer, parameter :: HO_BMLT_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_BMLT_INVERSION_APPLY = 2
+
+  integer, parameter :: HO_DTF_INVERSION_NONE = 0
+  integer, parameter :: HO_DTF_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_DTF_INVERSION_APPLY = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -747,13 +755,31 @@ module glide_types
     !> \item[1] limited using beta_grounded_min, then multiplied by f_ground
     !> \end{description}
 
-    integer :: which_ho_inversion = 0
-    !> Flag for basal inversion options
-    !> Note: Inversion is currently supported for which_ho_babc = 11 only
+    integer :: which_ho_cp_inversion = 0
+    !> Flag for basal inversion options: invert for Cp = powerlaw_c
+    !> Note: Cp inversion is currently supported for which_ho_babc = 9 and 11 only
     !> \begin{description}
     !> \item[0] no inversion
-    !> \item[1] invert for basal friction parameters and subshelf melt rates
-    !> \item[2] apply basal parameters from a previous inversion
+    !> \item[1] invert for basal friction parameter Cp
+    !> \item[2] apply Cp from a previous inversion
+    !> \end{description}
+
+    integer :: which_ho_bmlt_inversion = 0
+    !> Flag for basal inversion options: invert for bmlt_float
+    !> \begin{description}
+    !> \item[0] no inversion
+    !> \item[1] invert for basal melt rate, bmlt_float
+    !> \item[2] apply bmlt_float from a previous inversion
+    !> \end{description}
+
+    integer :: which_ho_dtf_inversion = 0
+    !> Flag for basal inversion options: invert for thermal forcing correction dTF
+    !> Note: This could in principle be done in each grid cell, but currently is done
+    !>       at a basin scale (using deltaT_basin) to reduce the number of tuning parameters
+    !> \begin{description}
+    !> \item[0] no inversion
+    !> \item[1] invert for thermal forcing correction
+    !> \item[2] apply thermal forcing correction from a previous inversion
     !> \end{description}
 
     integer :: which_ho_bwat = 0
@@ -1466,6 +1492,16 @@ module glide_types
 
   type glide_inversion
 
+     !TODO - Break into different derived types for each kind of inversion?
+
+     ! parameters for initializing inversion fields
+     real(dp) :: &
+          thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
+          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
+                                             !> set to thck_flotation +/- thck_flotation_buffer (m)
+
+     ! fields and parameters for bmlt_float inversion
+
      real(dp), dimension(:,:), pointer :: &
           bmlt_float_save => null(),           & !> saved value of bmlt_float; potential melt rate (m/s)
           bmlt_float_inversion => null()         !> applied basal melt rate, computed by inversion (m/s)
@@ -1473,6 +1509,28 @@ module glide_types
      integer, dimension(:,:), pointer :: &
           bmlt_float_inversion_mask => null()    !> = 1 in cells where bmlt_float_inversion can be applied,
                                                  !> based on initial ice sheet geometry
+
+     real(dp) ::  &
+          bmlt_timescale = 0.d0,          &  !> time scale (yr) for relaxing toward observed thickness
+          bmlt_max_melt = 0.d0,           &  !> max melting rate allowed from inversion (m/yr); ignored when set to 0
+          bmlt_max_freeze = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
+
+     ! parameters for weighted nudging
+     ! The idea of this nudging is that the inversion fields (bmlt_float_inversion and powerlaw_c_inversion),
+     !  instead of being set to new values every timestep, are set to a weighted average of the saved value
+     !  and the new value, with the weight of the new value falling off exponentially over time.
+     ! Setting wean_*_tend = 0.0 (the default) is interpreted as turning off this nudging.
+     ! In this case, the saved values are set to the new values every time step.
+
+     !TODO - Remove nudging_factor_min option for Cp inversion?  Parameter currently is doing double duty.
+
+     real(dp) ::  &
+          nudging_factor_min = 0.0d0,       & !> min value of nudging factor between wean_tstart and wean_tend
+          wean_bmlt_float_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of bmlt_float
+          wean_bmlt_float_tend = 0.0d0,     & !> end time (yr) for weighted nudging of bmlt_float
+          wean_bmlt_float_timescale = 0.0d0   !> time scale for weaning of bmlt_float
+
+     ! fields and parameters for powerlaw_c inversion
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
      real(dp), dimension(:,:), pointer :: &
@@ -1497,30 +1555,6 @@ module glide_types
           babc_thck_scale = 100.d0,        & !> thickness inversion scale (m); must be > 0
           babc_smoothing_timescale = 1000.d0 !> timescale (yr) for spatial smoothing of powerlaw_c; larger => less smoothing
                                              !> set to zero to turn off smoothing; set to dt for max smoothing
-
-     ! parameters for adjusting bmlt_float_inversion
-     real(dp) ::  &
-          bmlt_timescale = 0.d0,          &  !> time scale (yr) for relaxing toward observed thickness
-          bmlt_max_melt = 0.d0,           &  !> max melting rate allowed from inversion (m/yr); ignored when set to 0
-          bmlt_max_freeze = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
-
-     ! parameters for initializing inversion fields
-     real(dp) :: &
-          thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
-                                             !> set to thck_flotation +/- thck_flotation_buffer (m)
-
-     ! parameters for weighted exponentially abated nudging
-     ! The idea of this nudging is that the inversion fields (bmlt_float_inversion and powerlaw_c_inversion),
-     !  instead of being set to new values every timestep, are set to a weighted average of the saved value
-     !  and the new value, with the weight of the new value falling off exponentially over time.
-     ! Setting wean_*_tend = 0.0 (the default) is interpreted as turning off this nudging.
-     ! In this case, the saved values are set to the new values every time step.
-     real(dp) ::  &
-          nudging_factor_min = 0.0d0,       & !> min value of nudging factor between wean_tstart and wean_tend
-          wean_bmlt_float_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of bmlt_float
-          wean_bmlt_float_tend = 0.0d0,     & !> end time (yr) for weighted nudging of bmlt_float
-          wean_bmlt_float_timescale = 0.0d0   !> time scale for weaning of bmlt_float
 
      !TODO - Do not use weaning for powerlaw_c?  May be able to run with nudging simply on or off.
      real(dp) ::  &
@@ -2632,19 +2666,24 @@ contains
     endif  ! Glissade
 
     ! inversion arrays (Glissade only)
-    if (model%options%which_ho_inversion == HO_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_inversion == HO_INVERSION_APPLY) then
+
+    ! Always allocate powerlaw_c_inversion fields so they can be passed as arguments
+    allocate(model%inversion%powerlaw_c_inversion(1,1))
+    allocate(model%inversion%stag_powerlaw_c_inversion(1,1))
+
+    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion_mask)
+    endif
+
+    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
        call coordsystem_allocate(model%general%velo_grid,model%inversion%stag_powerlaw_c_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
-    else
-       ! Always allocate powerlaw_c_inversion fields so they can be passed as arguments
-       allocate(model%inversion%powerlaw_c_inversion(1,1))
-       allocate(model%inversion%stag_powerlaw_c_inversion(1,1))
     endif
 
     ! climate arrays
@@ -3037,6 +3076,7 @@ contains
         deallocate(model%inversion%bmlt_float_inversion)
     if (associated(model%inversion%bmlt_float_inversion_mask)) &
         deallocate(model%inversion%bmlt_float_inversion_mask)
+
     if (associated(model%inversion%powerlaw_c_save)) &
         deallocate(model%inversion%powerlaw_c_save)
     if (associated(model%inversion%powerlaw_c_inversion)) &
