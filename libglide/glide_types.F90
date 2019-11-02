@@ -265,9 +265,9 @@ module glide_types
   integer, parameter :: HO_BMLT_INVERSION_COMPUTE = 1
   integer, parameter :: HO_BMLT_INVERSION_APPLY = 2
 
-  integer, parameter :: HO_DTF_INVERSION_NONE = 0
-  integer, parameter :: HO_DTF_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_DTF_INVERSION_APPLY = 2
+  integer, parameter :: HO_DTOCN_INVERSION_NONE = 0
+  integer, parameter :: HO_DTOCN_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_DTOCN_INVERSION_APPLY = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -772,8 +772,8 @@ module glide_types
     !> \item[2] apply bmlt_float from a previous inversion
     !> \end{description}
 
-    integer :: which_ho_dtf_inversion = 0
-    !> Flag for basal inversion options: invert for thermal forcing correction dTF
+    integer :: which_ho_dtocn_inversion = 0
+    !> Flag for basal inversion options: invert for ocean temperature correction
     !> Note: This could in principle be done in each grid cell, but currently is done
     !>       at a basin scale (using deltaT_basin) to reduce the number of tuning parameters
     !> \begin{description}
@@ -1561,6 +1561,15 @@ module glide_types
           wean_powerlaw_c_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of powerlaw_c
           wean_powerlaw_c_tend = 0.0d0,     & !> end time (yr) for weighted nudging of powerlaw_c
           wean_powerlaw_c_timescale = 0.0d0   !> time scale for weaning of powerlaw_c
+
+
+     ! fields and parameters for deltaT_basin inversion
+     ! Note: This is defined on the 2D (i,j) grid, even though it is uniform within a basin
+     real(dp), dimension(:,:), pointer ::  &
+          marine_grounded_area_target         !> Observational target for grounded area in each basin
+
+     real(dp) ::  &
+          dtocn_dt_scale = 1.0d0              !> scale for adjusting deltaT_basin (deg C/yr)
 
   end type glide_inversion
 
@@ -2686,6 +2695,13 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
     endif
 
+    if (model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
+       if (model%ocean_data%nbasin < 1) then
+          call write_log ('Must set nbasin >= 1 for the thermal forcing inversion option', GM_FATAL)
+       endif
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%marine_grounded_area_target)
+    endif
+
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
@@ -3085,6 +3101,8 @@ contains
         deallocate(model%inversion%stag_powerlaw_c_inversion)
     if (associated(model%inversion%thck_save)) &
         deallocate(model%inversion%thck_save)
+    if (associated(model%inversion%marine_grounded_area_target)) &
+        deallocate(model%inversion%marine_grounded_area_target)
 
     ! plume arrays
     if (associated(model%plume%T_basal)) &

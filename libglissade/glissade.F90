@@ -959,7 +959,8 @@ contains
     !  so it should be called before computing the calving mask.
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or. &
+        model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
 
        call glissade_init_inversion(model)
 
@@ -1033,6 +1034,7 @@ contains
     if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        ! update some masks
+       !TODO - Move these mask updates to the subroutine?
        call glissade_get_masks(model%general%ewn, model%general%nsn,    &
                                model%geometry%thck, model%geometry%topg,   &
                                model%climate%eus,   0.0d0,                 &  ! thklim = 0
@@ -1040,8 +1042,7 @@ contains
                                floating_mask = floating_mask,              &
                                land_mask = land_mask)
 
-       ! compute f_ground_cell, which is needed by glissade_bmlt_float_thermal_forcing_init,
-       ! and has not yet been computed within glissade_initialise
+       ! update the grounded fraction, f_ground_cell
        call glissade_grounded_fraction(model%general%ewn,             &
                                        model%general%nsn,             &
                                        itest, jtest, rtest,           &  ! diagnostic only
@@ -1062,7 +1063,6 @@ contains
 
     endif
 
-    !WHL - debug
     if (main_task) print*, 'Done in glissade_initialise'
 
   end subroutine glissade_initialise
@@ -3000,7 +3000,8 @@ contains
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
-    use glissade_inversion, only: glissade_inversion_basal_friction, verbose_inversion
+    use glissade_inversion, only: glissade_inversion_basal_friction, glissade_inversion_deltaT_basin, &
+                                  verbose_inversion
 
     implicit none
 
@@ -3238,7 +3239,7 @@ contains
        enddo
     endif
 
-    ! If inverting for basal friction, update powerlaw_c_inversion here
+    ! If inverting for Cp = powerlaw_c_inversion, then update it here
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
@@ -3259,6 +3260,38 @@ contains
        endif
 
     endif   ! which_ho_cp_inversion
+
+    ! If inverting for deltaT_basin, then update it here
+    ! Note: We do not need to update deltaT_basin if simply applying a value from a previous inversion.
+
+    if ( model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
+
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+
+          ! first call after a restart; do not update deltaT_basin
+
+       else
+
+          call glissade_inversion_deltaT_basin(model%numerics%dt * tim0,       &
+                                               model%general%ewn,              &
+                                               model%general%nsn,              &
+                                               model%numerics%dew * len0,      &  ! m
+                                               model%numerics%dns * len0,      &  ! m
+                                               itest, jtest, rtest,            &
+                                               model%ocean_data%nbasin,        &
+                                               model%ocean_data%basin_number,  &
+                                               ice_mask,                       &
+                                               floating_mask,                  &
+                                               land_mask,                      &
+                                               model%geometry%f_ground_cell,   &
+                                               model%inversion%marine_grounded_area_target, &  ! m^2
+                                               model%inversion%dtocn_dt_scale, &               ! degC/s
+                                               model%ocean_data%deltaT_basin)
+
+       endif
+
+    endif   ! which_ho_dtocn_inversion
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A

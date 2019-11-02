@@ -46,10 +46,11 @@ module glissade_bmlt_float
   
   private
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
-       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
+       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
+       basin_sum, basin_average
 
-!!    logical :: verbose_bmlt_float = .false.
-    logical :: verbose_bmlt_float = .true.
+    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -1798,15 +1799,16 @@ module glissade_bmlt_float
 
 !****************************************************
 
-  subroutine basin_average(&
+  subroutine basin_sum(&
        nx,           ny,            &
        nbasin,       basin_number,  &
        mask,                        &
        field_2d,                    &
-       field_basin)
+       field_basin_sum)
 
-    ! For a given 2D input field, compute the average over a basin.
-    ! The average is taken over grid cells with mask = 1.
+    ! For a given 2D input field, compute the sum over a basin.
+    ! The sum is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
 
     integer, intent(in) :: &
          nx, ny                    !> number of grid cells in each dimension
@@ -1825,7 +1827,65 @@ module glissade_bmlt_float
 
     ! Note: This and other basin fields are indexed from 0 to nbasin-1
     real(dp), dimension(0:nbasin-1), intent(out) :: &
-         field_basin               !> basin-average output field
+         field_basin_sum           !> basin-sum output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(0:nbasin-1) ::  &
+         sumfield_local     ! sum of field on local task
+
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (mask(i,j) == 1) then
+             sumfield_local(nb) = sumfield_local(nb) + field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
+
+  end subroutine basin_sum
+
+!****************************************************
+
+  subroutine basin_average(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       mask,                        &
+       field_2d,                    &
+       field_basin_avg)
+
+    ! For a given 2D input field, compute the average over a basin.
+    ! The average is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    integer, dimension(nx,ny), intent(in) :: &
+         mask                      !> compute basin average over cells with mask = 1
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field_2d                  !> input field to be averaged over basins
+
+    ! Note: This and other basin fields are indexed from 0 to nbasin-1
+    real(dp), dimension(0:nbasin-1), intent(out) :: &
+         field_basin_avg           !> basin-average output field
 
     ! local variables
 
@@ -1859,9 +1919,9 @@ module glissade_bmlt_float
 
     do nb = 0, nbasin-1
        if (sumcell_global(nb) > tiny(0.0d0)) then
-          field_basin(nb) = sumfield_global(nb)/sumcell_global(nb)
+          field_basin_avg(nb) = sumfield_global(nb)/sumcell_global(nb)
        else
-          field_basin(nb) = 0.0d0
+          field_basin_avg(nb) = 0.0d0
        endif
     enddo
 
