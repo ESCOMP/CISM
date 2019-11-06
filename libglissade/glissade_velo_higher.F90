@@ -2589,19 +2589,6 @@
                 write(6,*) ' '
              enddo
 
-          !WHL - debug - Skip the next few fields for now
-             go to 500
-
-             print*, ' '
-             print*, 'ocean_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') ocean_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
 !          print*, ' '
 !          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
 !!          do j = ny-1, 1, -1
@@ -2644,6 +2631,19 @@
                 write(6,*) ' '
              enddo
 
+          !WHL - debug - Skip the next few fields for now
+             go to 500
+
+             print*, ' '
+             print*, 'ocean_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') ocean_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
              print*, ' '
              print*, 'weight_ground_vertex, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
@@ -2654,9 +2654,6 @@
                 write(6,*) ' '
              enddo
 
-          !WHL - debug - Skip the next few fields for now
-             go to 500
-!!
              print*, ' '
              print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1

@@ -690,11 +690,12 @@ factor:        thk0
 load:          1
 coordinates:   lon lat
 
-[marine_grounded_area_target]
+[floating_thck_target]
 dimensions:    time, y1, x1
-units:         meter2
-long_name:     marine grounded area target per basin
-data:          data%inversion%marine_grounded_area_target
+units:         meter
+long_name:     target thickness for floating ice
+data:          data%inversion%floating_thck_target
+factor:        thk0
 load:          1
 coordinates:   lon lat
 
