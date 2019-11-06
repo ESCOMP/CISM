@@ -49,8 +49,8 @@ module glissade_bmlt_float
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
        basin_sum, basin_average
 
-    logical :: verbose_bmlt_float = .false.
-!!    logical :: verbose_bmlt_float = .true.
+!!    logical :: verbose_bmlt_float = .false.
+    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -96,8 +96,8 @@ module glissade_bmlt_float
 !!    logical, parameter :: cap_Dplume = .false.
 
     !WHL - debug 
-    integer :: kmin_diag = 1
-    integer :: kmax_diag = 7
+    integer :: kmin_diag = 10
+    integer :: kmax_diag = 10
 
   contains
 
@@ -860,6 +860,7 @@ module glissade_bmlt_float
                itest,     jtest,   rtest,                &
                bmlt_float_mask,                          &
                ocean_mask,                               &
+               model%geometry%f_ground_cell,             &
                model%geometry%lsrf*thk0,                 & ! m
                model%geometry%topg*thk0,                 & ! m
                theta_slope,                              &
@@ -893,6 +894,7 @@ module glissade_bmlt_float
        itest,     jtest,   rtest, &
        bmlt_float_mask,           &
        ocean_mask,                &
+       f_ground_cell,             &
        lsrf,                      &
        topg,                      &
        theta_slope,               &
@@ -923,6 +925,7 @@ module glissade_bmlt_float
          ocean_mask                !> = 1 for ice-free ocean, else = 0
 
     real(dp), dimension(:,:), intent(in) ::  &
+         f_ground_cell,          & !> fraction of grounded ice in each cell
          lsrf,                   & !> ice lower surface elevation (m), negative below sea level
          topg,                   & !> bed topography (m), negative below sea level
          theta_slope               !> sub-shelf slope angle (rad)
@@ -938,7 +941,7 @@ module glissade_bmlt_float
                             !> zocn = ocean levels (m)
                             !> nbasin = number of ocean basins
                             !> basin_number = integer assigned to each basin
-                            !> gamma0 = coefficient for ISMIP6 melt parameterization
+                            !> gamma0 = basal melt rate coefficient for ISMIP6 melt parameterization
                             !> deltaT_basin = temperature corrections per basin for ISMIP6 melt parameterization
 
     real(dp), dimension(:,:), intent(out) :: &
@@ -953,7 +956,8 @@ module glissade_bmlt_float
 
     ! Note: Ocean basins are indexed from 0 to nbasin-1
     real(dp), dimension(:), allocatable :: &
-         thermal_forcing_basin            ! basin average thermal forcing (K) at current time
+         thermal_forcing_basin,        &  ! basin average thermal forcing (K) at current time
+         deltaT_basin_avg                 ! basin average value of deltaT_basin
 
     if (verbose_bmlt_float .and. main_task) then
        print*, ' '
@@ -1099,6 +1103,24 @@ module glissade_bmlt_float
           enddo
        endif
 
+    else    ! ocean_data_domain = DATA_OCEAN_ICE; no need to extrapolate
+
+       if (verbose_bmlt_float .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'TF to interpolate, rank, i, j =', rtest, itest, jtest
+          do k = kmin_diag, kmax_diag
+             print*, ' '
+             print*, 'kocn =', k
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          enddo
+       endif
+
+
     endif   ! ocean_data_domain
 
     !-----------------------------------------------
@@ -1136,28 +1158,40 @@ module glissade_bmlt_float
        enddo
     endif
 
-    ! optionally, compute the average thermal forcing for the basin.
+    ! For ISMIP6 nonlocal parameterizations, compute the average thermal forcing for the basin.
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
        ! Note: By ISMIP6 data convention, basin indices run from 0 to nbasin-1
        allocate(thermal_forcing_basin(0:ocean_data%nbasin-1))
+       allocate(deltaT_basin_avg(0:ocean_data%nbasin-1))
 
        ! nonlocal parameterization
        ! Melt rate is a quadratic function of the local thermal forcing
        !  and the basin-average thermal forcing
 
        ! Compute the average thermal forcing for each basin.
-       ! The average is taken over grid cells with bmlt_float_mask = 1.
+       ! The average is taken over the floating portion of grid cells with bmlt_float_mask = 1.
 
        call basin_average(&
             nx,        ny,                   &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
-            bmlt_float_mask,                 &
+            bmlt_float_mask * (1.0d0 - f_ground_cell),   &
             ocean_data%thermal_forcing_lsrf, &
             thermal_forcing_basin)
+
+       !WHL - For diagnostics, compute the average value of deltaT_basin each basin.
+       !      Note: Each cell in the basin should have this average value.
+
+       call basin_average(&
+            nx,        ny,                   &
+            ocean_data%nbasin,               &
+            ocean_data%basin_number,         &
+            bmlt_float_mask * (1.0d0 - f_ground_cell),   &
+            ocean_data%deltaT_basin,         &
+            deltaT_basin_avg)
 
        !WHL - debug
        if (verbose_bmlt_float .and. this_rank==rtest) then
@@ -1165,6 +1199,11 @@ module glissade_bmlt_float
           print*, 'thermal_forcing_basin:'
           do k = 0, ocean_data%nbasin-1
              print*, k, thermal_forcing_basin(k)
+          enddo
+          print*, ' '
+          print*, 'deltaT_basin:'
+          do k = 0, ocean_data%nbasin-1
+             print*, k, deltaT_basin_avg(k)
           enddo
        endif
 
@@ -1214,6 +1253,7 @@ module glissade_bmlt_float
             bmlt_float)
 
        deallocate(thermal_forcing_basin)
+       deallocate(deltaT_basin_avg)
 
     endif   ! bmlt_float_thermal_forcing_param
 
@@ -1802,7 +1842,7 @@ module glissade_bmlt_float
   subroutine basin_sum(&
        nx,           ny,            &
        nbasin,       basin_number,  &
-       mask,                        &
+       rmask,                       &
        field_2d,                    &
        field_basin_sum)
 
@@ -1819,10 +1859,8 @@ module glissade_bmlt_float
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    integer, dimension(nx,ny), intent(in) :: &
-         mask                      !> compute basin average over cells with mask = 1
-
     real(dp), dimension(nx,ny), intent(in) :: &
+         rmask,                 &  !> real mask for weighting the input field
          field_2d                  !> input field to be averaged over basins
 
     ! Note: This and other basin fields are indexed from 0 to nbasin-1
@@ -1845,9 +1883,7 @@ module glissade_bmlt_float
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           nb = basin_number(i,j)
-          if (mask(i,j) == 1) then
-             sumfield_local(nb) = sumfield_local(nb) + field_2d(i,j)
-          endif
+          sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
        enddo
     enddo
 
@@ -1860,7 +1896,7 @@ module glissade_bmlt_float
   subroutine basin_average(&
        nx,           ny,            &
        nbasin,       basin_number,  &
-       mask,                        &
+       rmask,                       &
        field_2d,                    &
        field_basin_avg)
 
@@ -1877,8 +1913,8 @@ module glissade_bmlt_float
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    integer, dimension(nx,ny), intent(in) :: &
-         mask                      !> compute basin average over cells with mask = 1
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask                     !> real mask for weighting the value in each cell
 
     real(dp), dimension(nx,ny), intent(in) :: &
          field_2d                  !> input field to be averaged over basins
@@ -1895,31 +1931,29 @@ module glissade_bmlt_float
     !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
     real(dp), dimension(0:nbasin-1) ::  &
-         sumcell_local,          & ! number of cells in each basin on local task
-         sumcell_global,         & ! number of cells in each basin on full domain
+         summask_local,          & ! sum of mask in each basin on local task
+         summask_global,         & ! sum of mask in each basin on full domain
          sumfield_local,         & ! sum of field on local task
          sumfield_global           ! sum of field over full domain
 
-    sumcell_local(:) = 0.0d0
+    summask_local(:) = 0.0d0
     sumfield_local(:) = 0.0d0
 
     ! loop over locally owned cells only
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           nb = basin_number(i,j)
-          if (mask(i,j) == 1) then
-             sumcell_local(nb) = sumcell_local(nb) + 1.0d0
-             sumfield_local(nb) = sumfield_local(nb) + field_2d(i,j)
-          endif
+          summask_local(nb) = summask_local(nb) + rmask(i,j)
+          sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
        enddo
     enddo
 
-    sumcell_global(:)  =  parallel_reduce_sum(sumcell_local(:))
+    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
     sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
 
     do nb = 0, nbasin-1
-       if (sumcell_global(nb) > tiny(0.0d0)) then
-          field_basin_avg(nb) = sumfield_global(nb)/sumcell_global(nb)
+       if (summask_global(nb) > tiny(0.0d0)) then
+          field_basin_avg(nb) = sumfield_global(nb)/summask_global(nb)
        else
           field_basin_avg(nb) = 0.0d0
        endif
@@ -1956,18 +1990,17 @@ module glissade_bmlt_float
     integer, dimension(nx,ny), intent(in) :: &
          basin_number             !> ID for each basin
 
-    real(dp) ::  &
-         gamma0                   !> ice-sheet wide melt rate coefficient (m/yr)
+    real(dp), intent(in) :: &
+         gamma0                   !> basal melt rate coefficient (m/yr)
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         deltaT_basin,          & !> deltaT prescribed as a correction factor for each basin
+         deltaT_basin,          & !> thermal forcing correction factor for each basin (deg C)
          thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
          theta_slope              !> sub-shelf slope angle (rad)
 
     ! Note: Indexing starts at 0
     real(dp), dimension(0:), intent(in) :: &
          thermal_forcing_basin    !> thermal forcing averaged over each basin (K)
-
 
     real(dp), dimension(nx,ny), intent(out) :: &
          bmlt_float               !> basal melt rate (m/yr) at lower ice surface
@@ -1982,7 +2015,7 @@ module glissade_bmlt_float
     integer, dimension(nx,ny) :: &
          bmlt_mask            ! local version of bmlt_float_mask
 
-    real(dp) :: coeff         ! ice-sheet wide coefficient
+    real(dp) :: coeff         ! constant coefficient = [(rhow*cp)/(rhoi*Lf)]^2, with units deg^(-2)
 
     ! ISMIP6 prescribed parameters
     real(dp), parameter ::  &
@@ -2008,7 +2041,7 @@ module glissade_bmlt_float
        bmlt_mask = 1
     endif
 
-    coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
+    coeff = ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
@@ -2019,7 +2052,7 @@ module glissade_bmlt_float
           do i = 1, nx
              if (bmlt_mask(i,j) == 1) then
                 eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_basin(i,j))
-                bmlt_float(i,j) = coeff * eff_thermal_forcing**2
+                bmlt_float(i,j) = coeff * gamma0 * eff_thermal_forcing**2
              endif
           enddo
        enddo
@@ -2034,9 +2067,11 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (bmlt_mask(i,j) == 1) then
-                eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_basin(i,j))
+!!                eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_basin(i,j))
+                ! Note: Can have bmlt_float < 0 where deltaT_basin < |thermal_forcing_lsrf|
+                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_basin(i,j)
                 eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb) + deltaT_basin(i,j))
-                bmlt_float(i,j) = coeff * eff_thermal_forcing * eff_thermal_forcing_basin
+                bmlt_float(i,j) = coeff * gamma0 * eff_thermal_forcing * eff_thermal_forcing_basin
              endif
           enddo
        enddo

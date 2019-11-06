@@ -217,7 +217,7 @@ contains
     model%inversion%bmlt_max_freeze = model%inversion%bmlt_max_freeze / scyr  ! convert m/yr to m/s
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
-    model%inversion%dtocn_dt_scale = model%inversion%dtocn_dt_scale / scyr    ! convert degC/yr to degC/s
+    model%inversion%dtbasin_dt_scale = model%inversion%dtbasin_dt_scale / scyr    ! convert degC/yr to degC/s
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -744,7 +744,7 @@ contains
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_cp_inversion',       model%options%which_ho_cp_inversion)
     call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
-    call GetValue(section, 'which_ho_dtocn_inversion',    model%options%which_ho_dtocn_inversion)
+    call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
@@ -1013,10 +1013,10 @@ contains
          'invert for basal melt rate                  ', &
          'apply basal melt rate from earlier inversion' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_dtocn_whichinversion = (/ &
-         'no inversion for ocean temperature correction            ', &
-         'invert for ocean temperature correction                  ', &
-         'apply ocean temperature correction from earlier inversion' /)
+    character(len=*), dimension(0:2), parameter :: ho_bmlt_basin_whichinversion = (/ &
+         'no inversion for basin-based basal melting parameters      ', &
+         'invert for basin-based basal melting parameters            ', &
+         'apply basin basal melting parameters from earlier inversion' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -1622,12 +1622,12 @@ contains
           call write_log('Error, basal melt inversion input out of range', GM_FATAL)
        end if
 
-       write(message,*) 'ho_dtocn_whichinversion : ',model%options%which_ho_dtocn_inversion,  &
-                         ho_dtocn_whichinversion(model%options%which_ho_dtocn_inversion)
+       write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
+                         ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
        call write_log(message)
-       if (model%options%which_ho_dtocn_inversion < 0 .or. &
-           model%options%which_ho_dtocn_inversion >= size(ho_dtocn_whichinversion)) then
-          call write_log('Error, dtocn inversion input out of range', GM_FATAL)
+       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
+           model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
+          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
        end if
 
        ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
@@ -1643,11 +1643,10 @@ contains
           endif
        endif
 
-       ! Inversion for deltaT_basin is supported only for whichbmlt_float = BMLT_FLOAT_THERMAL_FORCING
-       if (model%options%which_ho_dtocn_inversion /= 0) then
+       if (model%options%which_ho_bmlt_basin_inversion /= HO_BMLT_BASIN_INVERSION_NONE) then
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
-             call write_log('Error, dtocn inversion is not supported for this bmlt_float option')
-             write(message,*) 'dtocn inversion is supported only for bmlt_float = ', BMLT_FLOAT_THERMAL_FORCING
+             call write_log('Error, bmlt_basin inversion is not supported for this bmlt_float option')
+             write(message,*) 'bmlt_basin inversion is supported only for bmlt_float = ', BMLT_FLOAT_THERMAL_FORCING
              call write_log(message, GM_FATAL)
           endif
        endif
@@ -2032,7 +2031,7 @@ contains
     call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
     call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
 
-    call GetValue(section, 'inversion_dtocn_dt_scale', model%inversion%dtocn_dt_scale)
+    call GetValue(section, 'inversion_dtbasin_dt_scale', model%inversion%dtbasin_dt_scale)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2446,9 +2445,8 @@ contains
        endif
     endif   ! which_ho_bmlt_inversion
 
-    if (model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
-       write(message,*) 'scale (deg C/yr) for adjusting ocean temperature : ', &
-            model%inversion%dtocn_dt_scale
+    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+       write(message,*) 'scale (deg C/yr) for adjusting deltaT_basin  : ', model%inversion%dtbasin_dt_scale
        call write_log(message)
     endif
 
@@ -3198,10 +3196,10 @@ contains
 
     endif
 
-    ! The dtocn inversion option needs a target area for grounded marine ice
+    ! The bmlt_basin inversion option needs targets for floating ice area and volume
     ! Note: deltaT_basin is added to the restart file above.
-    if (options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('marine_grounded_area_target')
+    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+       call glide_add_to_restart_variable_list('floating_thck_target')
     endif
 
     if (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then

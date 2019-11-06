@@ -960,7 +960,7 @@ contains
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or. &
-        model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
+        model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
        call glissade_init_inversion(model)
 
@@ -1464,6 +1464,7 @@ contains
             itest,     jtest,   rtest,         &
             bmlt_float_mask,                   &
             ocean_mask,                        &
+            model%geometry%f_ground_cell,      &
             model%geometry%lsrf*thk0,          & ! m
             model%geometry%topg*thk0,          & ! m
             theta_slope,                       &
@@ -3000,7 +3001,7 @@ contains
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
-    use glissade_inversion, only: glissade_inversion_basal_friction, glissade_inversion_deltaT_basin, &
+    use glissade_inversion, only: glissade_inversion_basal_friction, glissade_inversion_bmlt_basin, &
                                   verbose_inversion
 
     implicit none
@@ -3018,7 +3019,7 @@ contains
          calving_front_mask, & ! = 1 where ice is floating and borders an ocean cell, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask,          & ! = 1 where topg is at or above sea level
-         extended_ice_mask     ! = 1 where ice_mask = 1, and in nearest neighbors of cells with ice_mask = 1
+         bmlt_float_mask       ! = 1 where ice is present (thk > 0) and f_ground_cell < 1, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_calving_front      ! effective thickness of ice at the calving front
@@ -3264,34 +3265,38 @@ contains
     ! If inverting for deltaT_basin, then update it here
     ! Note: We do not need to update deltaT_basin if simply applying a value from a previous inversion.
 
-    if ( model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE) then
+    if ( model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
 
-          ! first call after a restart; do not update deltaT_basin
+          ! first call after a restart; do not update basin-scale melting parameters
 
        else
 
-          call glissade_inversion_deltaT_basin(model%numerics%dt * tim0,       &
-                                               model%general%ewn,              &
-                                               model%general%nsn,              &
-                                               model%numerics%dew * len0,      &  ! m
-                                               model%numerics%dns * len0,      &  ! m
-                                               itest, jtest, rtest,            &
-                                               model%ocean_data%nbasin,        &
-                                               model%ocean_data%basin_number,  &
-                                               ice_mask,                       &
-                                               floating_mask,                  &
-                                               land_mask,                      &
-                                               model%geometry%f_ground_cell,   &
-                                               model%inversion%marine_grounded_area_target, &  ! m^2
-                                               model%inversion%dtocn_dt_scale, &               ! degC/s
-                                               model%ocean_data%deltaT_basin)
+          where (ice_mask == 1 .and. model%geometry%f_ground_cell < 1.0d0)
+             bmlt_float_mask = 1
+          elsewhere
+             bmlt_float_mask = 0
+          endwhere
+
+          call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &
+                                             model%general%ewn,                         &
+                                             model%general%nsn,                         &
+                                             model%numerics%dew * len0,                 &  ! m
+                                             model%numerics%dns * len0,                 &  ! m
+                                             itest, jtest, rtest,                       &
+                                             model%ocean_data%nbasin,                   &
+                                             model%ocean_data%basin_number,             &
+                                             model%geometry%f_ground_cell,              &
+                                             model%geometry%thck*thk0,                  &  ! m
+                                             model%inversion%floating_thck_target*thk0, &  ! m
+                                             model%inversion%dtbasin_dt_scale,          &  ! degC/s
+                                             model%ocean_data%deltaT_basin)
 
        endif
 
-    endif   ! which_ho_dtocn_inversion
+    endif   ! which_ho_bmlt_basin_inversion
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A

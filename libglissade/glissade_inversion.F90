@@ -38,7 +38,7 @@ module glissade_inversion
   private
   public :: verbose_inversion, glissade_init_inversion, &
             glissade_inversion_bmlt_float, glissade_inversion_basal_friction, &
-            glissade_inversion_deltaT_basin
+            glissade_inversion_bmlt_basin
 
   !-----------------------------------------------------------------------------
   ! Subroutines to invert for basal fields (including basal friction beneath
@@ -46,8 +46,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
-!!    logical, parameter :: verbose_inversion = .true.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
     real(dp), parameter :: eps08 = 1.0d-08  ! small number
 
@@ -66,7 +66,6 @@ contains
     use glissade_calving, only: glissade_marine_connection_mask  !TODO - Move to mask module
     use glissade_bmlt_float, only: basin_sum
     use glissade_grounding_line, only: glissade_grounded_fraction
-    use parallel
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -85,9 +84,7 @@ contains
          ice_mask,             & ! = 1 where ice is present, else = 0
          floating_mask,        & ! = 1 where ice is present and floating, else = 0
          ocean_mask,           & ! = 1 where topg is below sea level and ice is absent
-         land_mask,            & ! = 1 where topg is at or above sea level
-         lake_mask,            & ! = 1 for inland lakes
-         grounded_marine_mask    ! = 1 for grounded marine ice
+         land_mask               ! = 1 where topg is at or above sea level
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
@@ -97,9 +94,6 @@ contains
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
     integer :: ewn, nsn
-
-    real(dp), dimension(:), allocatable ::  &
-         marine_grounded_area_basin     ! sum of area of grounded marine ice (m^2) in each basin
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -269,82 +263,36 @@ contains
     ! computations specific to inversion of deltaT_basin
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_dtocn_inversion == HO_DTOCN_INVERSION_COMPUTE .and. &
-        model%options%is_restart == RESTART_FALSE) then
+    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
-       ! Compute the initial area of grounded marine ice in each basin.
-       ! Later, deltaT_basin will be adjusted based on this target.
+       if (model%options%is_restart == RESTART_FALSE) then
 
-       allocate(marine_grounded_area_basin(0:model%ocean_data%nbasin-1))
+          ! Set floating_thck_target to the initial thickness of floating ice.
+          ! For grounded ice and ice-free ocean cells, set floating_thck_target = 0.
+          ! During runtime, we will nudge thck toward the target where floating_thck_target > 0.
 
-       ! compute mask for grounded marine ice
-       where (ice_mask == 1 .and. land_mask == 0 .and. floating_mask == 0)
-          grounded_marine_mask = 1
-       elsewhere
-          grounded_marine_mask = 0
-       endwhere
+          where (floating_mask == 1)
+             model%inversion%floating_thck_target = model%geometry%thck
+          elsewhere
+             model%inversion%floating_thck_target = 0.0d0
+          endwhere
 
-       ! update f_ground_cell, which is used to compute marine_grounded_area_basin
-       call glissade_grounded_fraction(ewn,            nsn,           &
-                                       itest, jtest, rtest,           &
-                                       model%geometry%thck*thk0,      &
-                                       model%geometry%topg*thk0,      &
-                                       model%climate%eus*thk0,        &
-                                       ice_mask,                      &
-                                       floating_mask,                 &
-                                       land_mask,                     &
-                                       model%options%which_ho_ground, &
-                                       model%options%which_ho_flotation_function, &
-                                       model%options%which_ho_fground_no_glp,     &
-                                       model%geometry%f_flotation,    &
-                                       model%geometry%f_ground,       &
-                                       model%geometry%f_ground_cell)
-
-       ! compute the target area of grounded marine ice in each basin
-       call basin_sum(ewn,             nsn,            &
-                      model%ocean_data%nbasin,         &
-                      model%ocean_data%basin_number,   &
-                      grounded_marine_mask,            &
-                      model%geometry%f_ground_cell,    &
-                      marine_grounded_area_basin)
-
-       ! Convert to units of m^2
-       marine_grounded_area_basin(:) = &
-            marine_grounded_area_basin(:) * model%numerics%dew*len0 * model%numerics%dns*len0
-
-       ! Copy to 2D array
-       do j = 1, nsn
-          do i = 1, ewn
-             nb = model%ocean_data%basin_number(i,j)
-             model%inversion%marine_grounded_area_target(i,j) = marine_grounded_area_basin(nb)
-          enddo
-       enddo
-
-       call parallel_halo(model%inversion%marine_grounded_area_target)
-
-       !TODO: Optionally, zero out deltaT_basin?  Or just remove from input file if we're not going to use it.
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Initial marine_grounded_area_target (km^2) in basins:'
-          do nb = 0, model%ocean_data%nbasin-1
-             print*, nb, marine_grounded_area_basin(nb) / 1.0d6
-          enddo
-          i = itest
-          j = jtest
-          print*, ' '
-          print*, 'After init_inversion, marine_grounded_area_target (km^2):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.0)',advance='no') model%inversion%marine_grounded_area_target(i,j) / 1.0d6
+          if (verbose_inversion .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After init_inversion, floating_thck_target (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%inversion%floating_thck_target(i,j) *thk0
+                enddo
+                write(6,*) ' '
              enddo
-             write(6,*) ' '
-          enddo
-       endif
+          endif
 
-       deallocate(marine_grounded_area_basin)
+       endif   ! not a restart
 
-    endif  ! which_ho_dtocn_inversion and not a restart
+       call parallel_halo(model%inversion%floating_thck_target)
+
+    endif  ! which_ho_bmlt_basin_inversion
 
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
@@ -375,8 +323,6 @@ contains
                                            thck_new_unscaled,   &
                                            ice_mask,            &
                                            floating_mask)
-
-    use parallel
 
     use glimmer_paramets, only: tim0, thk0
     use glimmer_physcon, only: scyr
@@ -1064,8 +1010,6 @@ contains
                                                floating_mask,  &
                                                land_mask)
 
-    use parallel
-
     use glimmer_paramets, only: tim0, thk0
     use glimmer_physcon, only: scyr
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
@@ -1531,19 +1475,17 @@ contains
 
 !***********************************************************************
 
-  subroutine glissade_inversion_deltaT_basin(dt,                          &
-                                             nx,            ny,           &
-                                             dx,            dy,           &
-                                             itest, jtest,  rtest,        &
-                                             nbasin,                      &
-                                             basin_number,                &
-                                             ice_mask,                    &
-                                             land_mask,                   &
-                                             floating_mask,               &
-                                             f_ground_cell,               &
-                                             marine_grounded_area_target, &
-                                             dtocn_dt_scale,              &
-                                             deltaT_basin)
+  subroutine glissade_inversion_bmlt_basin(dt,                          &
+                                           nx,            ny,           &
+                                           dx,            dy,           &
+                                           itest, jtest,  rtest,        &
+                                           nbasin,                      &
+                                           basin_number,                &
+                                           f_ground_cell,               &
+                                           thck,                        &
+                                           floating_thck_target,        &
+                                           dtbasin_dt_scale,            &
+                                           deltaT_basin)
 
     use glissade_bmlt_float, only: basin_sum
 
@@ -1579,132 +1521,159 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number            ! basin ID for each grid cell
 
-    integer, dimension(nx,ny), intent(in) :: &
-         ice_mask,             & ! = 1 where ice is present (thk > 0), else = 0
-         land_mask,            & ! = 1 if topg > eus, else = 0
-         floating_mask           ! = 1 where ice is present and floating, else = 0
-
     real(dp), dimension(nx,ny), intent(in) ::  &
-         f_ground_cell                   ! grounded fraction of grid cell, 0 to 1
+         f_ground_cell,        & ! grounded fraction of grid cell, 0 to 1
+         thck                    ! ice thickness (m)
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         marine_grounded_area_target     ! target marine-grounded area in each basin
-                                         ! Note: This is a 2D field even though it is uniform across a given basin
+         floating_thck_target    ! target thickness for floating ice (m)
 
-    ! Note: dtocn_dt_scale is a config parameter; converted from degC/yr to degC/s at initialization
+    ! Note: dtbasin_dt_scale is a config parameter; converted from degC/yr to degC/s at initialization
     real(dp), intent(in) :: &
-         dtocn_dt_scale                  ! !> scale for adjusting deltaT_basin (deg C/s)
+         dtbasin_dt_scale        ! scale for adjusting deltaT_basin (deg C/s)
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
-         deltaT_basin                    ! deltaT correction to thermal forcing in each basin (deg C)
-                                         ! Note: This is a 2D field, but should be uniform within each basin
+         deltaT_basin            ! deltaT correction to thermal forcing in each basin (deg C)
 
     ! local variables
 
-    integer, dimension(nx,ny) ::  &
-         grounded_marine_mask            ! = 1 for grounded marine ice, else = 0
+    real(dp), dimension(nx,ny) ::  &
+         floating_target_rmask   ! real mask, = 1.0 where floating_thck_target > 0, else = 0.0
 
     real(dp), dimension(0:nbasin-1) :: &
-         marine_grounded_area_basin      ! area of marine-grounded ice in each basin (m^2)
+         floating_volume_target_basin,  &   ! floating ice target volume in each basin
+         floating_volume_basin,         &   ! current floating ice volume in each basin
+         diff_ratio_basin                   ! (volume - volume_target)/volume_target
 
-    real(dp) ::  &
-         diff_ratio    ! (area - area_target) / area_target
+    real(dp), dimension(0:nbasin-1) :: &
+         dT_basin_max, dT_basin_min,    &   ! min and max of deltaT_basin in each basin
+         dT_basin                           ! current deltaT_basin in each basin
 
     integer :: i, j
     integer :: nb      ! basin number
 
-    !WHL - debug
+    ! Note: In some basins, the floating ice volume may be too small no matter how much we lower deltaT_basin,
+    !        since the basal melt rate drops to zero and can go no lower.
+    !       To prevent very large negative values, the deltaT_basin correction is capped at a moderate negative value.
+    !       A positive cap likely is not needed but is included for consistency.
+    real(dp), parameter :: &
+         deltaT_basin_max =  1.0d0,     &   ! max allowed value of deltaT_basin (deg C)
+         deltaT_basin_min = -1.0d0          ! min allowed value of deltaT_basin (deg C)
+
     if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
        j = jtest
        print*, ' '
-       print*, 'Before inversion, deltaT_basin, r, i,j =', rtest, itest, jtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i4)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') deltaT_basin(i,j)
-          enddo
-          write(6,*) ' '
+       print*, 'floating_thck_target (m):'
+       write(6,'(i4)',advance='no') j
+       do i = itest-3, itest+3
+          write(6,'(f10.0)',advance='no') floating_thck_target(i,j)
        enddo
+       print*, ' '
+       print*, 'thck (m):'
+       write(6,'(i4)',advance='no') j
+       do i = itest-3, itest+3
+          write(6,'(f10.0)',advance='no') thck(i,j)
+       enddo
+       print*, ' '
     endif
 
-    ! Compute the total area of marine grounded ice in each basin
+    ! Compute a mask for cells with a nonzero floating ice target
 
-    where (ice_mask == 1 .and. land_mask == 0 .and. floating_mask == 0)
-       grounded_marine_mask = 1
+    where (floating_thck_target > 0.0d0)
+       floating_target_rmask = 1.0d0
     elsewhere
-       grounded_marine_mask = 0
+       floating_target_rmask = 0.0d0
     endwhere
 
-    call basin_sum(nx,         ny,              &
-                   nbasin,     basin_number,    &
-                   grounded_marine_mask,        &
-                   f_ground_cell,               &
-                   marine_grounded_area_basin)
+    ! Compute the total ice volume and the target volume in cells with floating_target_mask = 1.
+    ! Note: We could compute floating_volume_target_basin just once and write it to restart,
+    !       but it is easy enough to recompute here.
 
-    ! Convert to units of m^2
-    marine_grounded_area_basin(:) = marine_grounded_area_basin(:) * dx * dy
+    call basin_sum(nx,         ny,                &
+                   nbasin,     basin_number,      &
+                   floating_target_rmask,         &
+                   floating_thck_target,          &
+                   floating_volume_target_basin)
 
-    ! Increase deltaT_basin where there is too much grounded ice area (diff_ratio > 0),
-    !  and decrease deltaT_basin where there is too little grounded ice area (diff_ratio < 0).
-    ! The parameter dtocn_dt_scale has units of deg C/s, and dt has units of s.
+    call basin_sum(nx,         ny,                &
+                   nbasin,     basin_number,      &
+                   floating_target_rmask,         &
+                   thck,                          &
+                   floating_volume_basin)
+
+    floating_volume_target_basin = floating_volume_target_basin * dx * dy
+    floating_volume_basin = floating_volume_basin * dx * dy
+
+    where (floating_volume_target_basin > 0.0d0)
+       diff_ratio_basin = (floating_volume_basin - floating_volume_target_basin) &
+                         / floating_volume_target_basin
+    elsewhere
+       diff_ratio_basin = 0.0d0
+    endwhere
+
+    ! Increment deltaT_basin in proportion to diff_ratio.
+    ! Warm the basin where diff_ratio > 0 (too much ice) and cool where diff_ratio < 0 (too little ice).
+    ! Note: deltaT_basin is a 2D field, but its value is uniform in each basin.
 
     do j = 1, ny
        do i = 1, nx
           nb = basin_number(i,j)
-          if (marine_grounded_area_target(i,j) > 0.0d0) then
-             diff_ratio = (marine_grounded_area_basin(nb) - marine_grounded_area_target(i,j)) / &
-                           marine_grounded_area_target(i,j)
-             deltaT_basin(i,j) = deltaT_basin(i,j) + diff_ratio * dtocn_dt_scale * dt
-          endif
+          deltaT_basin(i,j) = deltaT_basin(i,j) + diff_ratio_basin(nb) * dtbasin_dt_scale * dt
        enddo
     enddo
 
-    if (verbose_inversion .and. this_rank == rtest) then
+    ! Limit deltaT_basin to a prescribed range
+    where (deltaT_basin > deltaT_basin_max)
+       deltaT_basin = deltaT_basin_max
+    elsewhere (deltaT_basin < deltaT_basin_min)
+       deltaT_basin = deltaT_basin_min
+    endwhere
+
+    if (verbose_inversion .and. main_task) then
        print*, ' '
-       print*, 'marine_grounded_area per basin (km^2):'
+       print*, 'basin number, volume (km^3), volume target (km^3)'
        do nb = 0, nbasin-1
-          print*, nb, marine_grounded_area_basin(nb) / 1.0d6
-       enddo
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'marine_grounded_area_target (km^2), r, i,j =', rtest, itest, jtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i4)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') marine_grounded_area_target(i,j) / 1.0d6
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'deltaT correction (deg):'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i4)',advance='no') j
-          do i = itest-3, itest+3
-             nb = basin_number(i,j)
-             if (marine_grounded_area_target(i,j) > 0.0d0) then
-                diff_ratio = (marine_grounded_area_basin(nb) - marine_grounded_area_target(i,j)) / &
-                              marine_grounded_area_target(i,j)
-                write(6,'(e10.2)',advance='no') diff_ratio * dtocn_dt_scale * dt
-             else
-                write(6,'(e10.2)',advance='no') 0.0
-             endif
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New deltaT_basin (deg C):'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i4)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') deltaT_basin(i,j)
-          enddo
-          write(6,*) ' '
+          print*, nb, floating_volume_basin(nb)/1.d9, floating_volume_target_basin(nb)/1.d9
        enddo
     endif
 
-  end subroutine glissade_inversion_deltaT_basin
+    ! deltaT_basin diagnostics for each basin
+
+    if (verbose_inversion) then
+
+       dT_basin_min(:) = 0.0d0
+       dT_basin_max(:) = 0.0d0
+
+       do j = 1, ny
+          do i = 1, nx
+             nb = basin_number(i,j)
+             dT_basin_min(nb) = min(dT_basin_min(nb), deltaT_basin(i,j))
+             dT_basin_max(nb) = max(dT_basin_max(nb), deltaT_basin(i,j))
+          enddo
+       enddo
+
+       do nb = 0, nbasin-1
+          dT_basin_min(nb) = parallel_reduce_min(dT_basin_min(nb))
+          dT_basin_max(nb) = parallel_reduce_max(dT_basin_max(nb))
+       enddo
+
+       where (dT_basin_min < 0.0d0)
+          dT_basin = dT_basin_min
+       elsewhere (dT_basin_max > 0.0d0)
+          dT_basin = dT_basin_max
+       endwhere
+
+       if (main_task) then
+          print*, ' '
+          print*, 'basin number, deltaT_basin correction, new deltaT_basin (deg C):'
+          do nb = 0, nbasin-1
+             print*, nb, diff_ratio_basin(nb) * dtbasin_dt_scale * dt, dT_basin(nb)
+          enddo
+       endif
+
+    endif   ! verbose_inversion
+
+  end subroutine glissade_inversion_bmlt_basin
 
 !***********************************************************************
 

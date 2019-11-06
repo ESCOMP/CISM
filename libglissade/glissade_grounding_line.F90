@@ -70,7 +70,6 @@
                                         weight_ground_vertex)
 
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
-    use glissade_inversion, only: verbose_inversion  ! diagnostic only
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded, optionally using a grounding line parameterization (GLP).
