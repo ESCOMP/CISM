@@ -562,7 +562,7 @@
        ! Note: For this GLP option, cavity thickness is not included in weight_float_cell and weight_ground_vertex.
        !       To incorporate cavity thickness, use HO_GROUND_GLP_DELUXE
        if (present(weight_float_cell)) then
-          weight_float_cell = f_ground_cell
+          weight_float_cell = 1.0d0 - f_ground_cell
        endif
 
        if (present(weight_ground_vertex)) then

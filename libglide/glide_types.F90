@@ -1656,15 +1656,14 @@ module glide_types
  
      ! Antarctic-wide coefficients
 
-     ! Values from Asay-Davis slides, Dec. 2018
-     !TODO - Update these values?  Not sure if values on the slides are local or nonlocal.
-     real(dp) :: gamma0_local_median = 15012.d0     !> coefficient for sub-shelf melt rates; local median local (m/yr)
-     real(dp) :: gamma0_local_pct5   =  9755.d0     !> coefficient for sub-shelf melt rates; local 5th percentile (m/yr)
-     real(dp) :: gamma0_local_pct95  = 22165.d0     !> coefficient for sub-shelf melt rates; local 95th percentile (m/yr)
+     ! Values from ISMIP6 Antarctic projection protocols
+     real(dp) :: gamma0_local_pct5   =  7706.831d0  !> coefficient for sub-shelf melt rates; local 5th percentile (m/yr)
+     real(dp) :: gamma0_local_median = 11075.45d0   !> coefficient for sub-shelf melt rates; local median (m/yr)
+     real(dp) :: gamma0_local_pct95  = 15257.20d0   !> coefficient for sub-shelf melt rates; local 95th percentile (m/yr)
 
-     real(dp) :: gamma0_nonlocal_median = 15012.d0     !> coefficient for sub-shelf melt rates; nonlocal median (m/yr)
-     real(dp) :: gamma0_nonlocal_pct5   =  9755.d0     !> coefficient for sub-shelf melt rates; nonlocal 5th percentile (m/yr)
-     real(dp) :: gamma0_nonlocal_pct95  = 22165.d0     !> coefficient for sub-shelf melt rates; nonlocal 95th percentile (m/yr)
+     real(dp) :: gamma0_nonlocal_pct5   =  9618.882d0   !> coefficient for sub-shelf melt rates; nonlocal 5th percentile (m/yr)
+     real(dp) :: gamma0_nonlocal_median = 14477.34d0    !> coefficient for sub-shelf melt rates; nonlocal median local (m/yr)
+     real(dp) :: gamma0_nonlocal_pct95  = 21005.34d0    !> coefficient for sub-shelf melt rates; nonlocal 95th percentile (m/yr)
 
      ! fields read from input or forcing files
 
