@@ -2825,9 +2825,8 @@
 !!          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
           endif
 
-!!       if (verbose_beta .and. this_rank==rtest) then
-!!       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,30)==0) then
-          if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
+       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,15)==0) then
+!!          if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
              print*, ' '
              print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1

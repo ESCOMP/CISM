@@ -95,6 +95,10 @@ contains
 
     integer :: ewn, nsn
 
+    !TODO - Make this a config parameter?
+    real(dp), parameter :: &
+         thck_above_flotation_threshold = 500.d0   ! ice thickness above flotation (m) to determine inversion targets
+
     ewn = model%general%ewn
     nsn = model%general%nsn
 
@@ -146,8 +150,8 @@ contains
           !        but rather increment it up or down in integer steps until we exceed the buffer.
           !       E.g., if the buffer is 1 m, then a cavity of 0.357 m is increased to 1.357 m.
 
-          do j = 1, model%general%nsn
-             do i = 1, model%general%ewn
+          do j = 1, nsn
+             do i = 1, ewn
                 if (thck_obs(i,j) > 0.0d0 .and.  &
                      model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then   ! marine-based ice
                    ! convert to meters (can skip the conversion when code scaling is removed)
@@ -267,22 +271,66 @@ contains
 
        if (model%options%is_restart == RESTART_FALSE) then
 
-          ! Set floating_thck_target to the initial thickness of floating ice.
-          ! For grounded ice and ice-free ocean cells, set floating_thck_target = 0.
-          ! During runtime, we will nudge thck toward the target where floating_thck_target > 0.
+          ! Set floating_thck_target to the initial thickness of floating and lightly grounded ice.
+          ! Here, "lightly grounded" refers to ice that is grounded below sea level
+          !  with thck_above_flotation smaller than a prescribed threshold.
+          ! Thus we include both ice that is floating but might ground (leading to
+          !  a positive volume bias that will be corrected with ocean warming) and ice
+          !  that is grounded but might float (leading to a negative volume bias
+          !  that will be corrected with ocean cooling).
 
-          where (floating_mask == 1)
-             model%inversion%floating_thck_target = model%geometry%thck
-          elsewhere
-             model%inversion%floating_thck_target = 0.0d0
-          endwhere
+          do j = 1, nsn
+             do i = 1, ewn
+                h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0  ! m
+                if (land_mask(i,j) == 0 .and.  &
+                     model%geometry%thck(i,j)*thk0 - h_flotation < thck_above_flotation_threshold) then
+                   model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
+                else
+                   model%inversion%floating_thck_target(i,j) = 0.0d0
+                endif
+                if (i==itest .and. j==jtest .and. this_rank==rtest) then
+                   print*, ' '
+                   print*, 'i, j, r =', itest, jtest, rtest
+                   print*, 'thck, thck_flotation, thck_above_flotation =', &
+                        model%geometry%thck(i,j)*thk0, h_flotation, &
+                        model%geometry%thck(i,j)*thk0 - h_flotation
+                endif
+             enddo
+          enddo
 
           if (verbose_inversion .and. this_rank == rtest) then
+             print*, 'thck_above_flotation_threshold =', thck_above_flotation_threshold
              print*, ' '
              print*, 'After init_inversion, floating_thck_target (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%inversion%floating_thck_target(i,j) *thk0
+                   write(6,'(f10.3)',advance='no') model%inversion%floating_thck_target(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck_flotation (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') &
+                        -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck_above_flotation (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0  &
+                         + (rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0
                 enddo
                 write(6,*) ' '
              enddo
@@ -1540,12 +1588,12 @@ contains
     real(dp), dimension(nx,ny) ::  &
          floating_target_rmask   ! real mask, = 1.0 where floating_thck_target > 0, else = 0.0
 
-    real(dp), dimension(0:nbasin-1) :: &
+    real(dp), dimension(nbasin) :: &
          floating_volume_target_basin,  &   ! floating ice target volume in each basin
          floating_volume_basin,         &   ! current floating ice volume in each basin
          diff_ratio_basin                   ! (volume - volume_target)/volume_target
 
-    real(dp), dimension(0:nbasin-1) :: &
+    real(dp), dimension(nbasin) :: &
          dT_basin_max, dT_basin_min,    &   ! min and max of deltaT_basin in each basin
          dT_basin                           ! current deltaT_basin in each basin
 
@@ -1557,25 +1605,8 @@ contains
     !       To prevent very large negative values, the deltaT_basin correction is capped at a moderate negative value.
     !       A positive cap likely is not needed but is included for consistency.
     real(dp), parameter :: &
-         deltaT_basin_max =  1.0d0,     &   ! max allowed value of deltaT_basin (deg C)
-         deltaT_basin_min = -1.0d0          ! min allowed value of deltaT_basin (deg C)
-
-    if (verbose_inversion .and. this_rank == rtest) then
-       j = jtest
-       print*, ' '
-       print*, 'floating_thck_target (m):'
-       write(6,'(i4)',advance='no') j
-       do i = itest-3, itest+3
-          write(6,'(f10.0)',advance='no') floating_thck_target(i,j)
-       enddo
-       print*, ' '
-       print*, 'thck (m):'
-       write(6,'(i4)',advance='no') j
-       do i = itest-3, itest+3
-          write(6,'(f10.0)',advance='no') thck(i,j)
-       enddo
-       print*, ' '
-    endif
+         deltaT_basin_max =  2.0d0,     &   ! max allowed value of deltaT_basin (deg C)
+         deltaT_basin_min = -2.0d0          ! min allowed value of deltaT_basin (deg C)
 
     ! Compute a mask for cells with a nonzero floating ice target
 
@@ -1629,10 +1660,10 @@ contains
        deltaT_basin = deltaT_basin_min
     endwhere
 
-    if (verbose_inversion .and. main_task) then
+    if (verbose_inversion .and. this_rank == rtest) then
        print*, ' '
        print*, 'basin number, volume (km^3), volume target (km^3)'
-       do nb = 0, nbasin-1
+       do nb = 1, nbasin
           print*, nb, floating_volume_basin(nb)/1.d9, floating_volume_target_basin(nb)/1.d9
        enddo
     endif
@@ -1652,21 +1683,22 @@ contains
           enddo
        enddo
 
-       do nb = 0, nbasin-1
+       do nb = 1, nbasin
           dT_basin_min(nb) = parallel_reduce_min(dT_basin_min(nb))
           dT_basin_max(nb) = parallel_reduce_max(dT_basin_max(nb))
        enddo
 
+       dT_basin = 0.0d0
        where (dT_basin_min < 0.0d0)
           dT_basin = dT_basin_min
        elsewhere (dT_basin_max > 0.0d0)
           dT_basin = dT_basin_max
        endwhere
 
-       if (main_task) then
+       if (this_rank == rtest) then
           print*, ' '
           print*, 'basin number, deltaT_basin correction, new deltaT_basin (deg C):'
-          do nb = 0, nbasin-1
+          do nb = 1, nbasin
              print*, nb, diff_ratio_basin(nb) * dtbasin_dt_scale * dt, dT_basin(nb)
           enddo
        endif

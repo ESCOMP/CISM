@@ -1057,7 +1057,9 @@ contains
                                        model%options%which_ho_fground_no_glp,     &
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
-                                       model%geometry%f_ground_cell)
+                                       model%geometry%f_ground_cell,  &
+                                       model%geometry%bmlt_cavity_thck_scale,  &
+                                       model%geometry%weight_float_cell)
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
@@ -1339,7 +1341,6 @@ contains
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
-    use glissade_grid_operators, only: glissade_slope_angle
 
     use parallel
 
@@ -1352,7 +1353,6 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
          ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
          floating_mask,         & ! = 1 if ice is present (thck > 0) and floating
-         bmlt_float_mask,       & ! = 1 if ice is present (thck > 0) and bmlt_float is potentially nonzero, else = 0
          ocean_mask               ! = 0 if ice is absent (thck = 0) and topg < 0
 
     ! melt rate field for ISMIP6
@@ -1361,17 +1361,17 @@ contains
                                   ! take bmlt_float_transient - bmlt_float_baseline to compute anomaly
 
     real(dp) :: previous_time
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
-         theta_slope            ! slope angle (rad)
-
     integer :: i, j
     integer :: ewn, nsn
+    real(dp) :: dew, dns
     integer :: itest, jtest, rtest
 
     ! set grid dimensions
     ewn = model%general%ewn
     nsn = model%general%nsn
+
+    dew = model%numerics%dew
+    dns = model%numerics%dns
 
     ! set debug diagnostics
     rtest = model%numerics%rdiag_local
@@ -1422,52 +1422,18 @@ contains
           print*, 'Compute bmlt_float at runtime from current thermal forcing'
        endif
 
-       !WHL - Set bmlt_float_mask based on f_ground_cell.
-
-       where (ice_mask == 1 .and. model%geometry%f_ground_cell < 1.0d0)
-          bmlt_float_mask = 1
-       elsewhere
-          bmlt_float_mask = 0
-       endwhere
-
-       if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-
-          ! Compute the angle between the lower ice shelf surface and the horizontal.
-          ! This option can be used to concentrate basal melting near the grounding line,
-          !  where slopes are typically larger, and to reduce melting near the calving front
-          !  where slopes are small.
-
-          call glissade_slope_angle(ewn,                      nsn,                     &
-                                    model%numerics%dew*len0,  model%numerics%dns*len0, &  ! m
-                                    model%geometry%lsrf*thk0,                          &  ! m
-                                    theta_slope,                                       &  ! radians
-                                    slope_mask_in = bmlt_float_mask)
-
-          if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'sin(theta_slope)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') sin(theta_slope(i,j))
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif   ! ISMIP6 nonlocal slope
-
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_domain,   &
             ewn,                nsn,           &
+            dew*len0,           dns*len0,      &  ! m
             itest,     jtest,   rtest,         &
-            bmlt_float_mask,                   &
+            ice_mask,                          &
             ocean_mask,                        &
             model%geometry%f_ground_cell,      &
+            model%geometry%thck*thk0,          & ! m
             model%geometry%lsrf*thk0,          & ! m
             model%geometry%topg*thk0,          & ! m
-            theta_slope,                       &
             model%ocean_data,                  &
             model%basal_melt%bmlt_float)
 
@@ -1567,11 +1533,15 @@ contains
 
     endif
 
-    ! Zero out bmlt_float in cells that are currently ice-free ocean
-
-    where (ocean_mask == 1)
-       model%basal_melt%bmlt_float = 0.0d0
-    endwhere
+    ! Zero out bmlt_float in ice-free ocean cells.
+    ! Note: Do not do this for the thermal_forcing option, because this option allows nonzero bmlt_float
+    !       in ocean cells adjacent to floating cells.
+    ! TODO: Look at other options and decide which ones need this logic.
+    if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
+       where (ocean_mask == 1)
+          model%basal_melt%bmlt_float = 0.0d0
+       endwhere
+    endif
 
     ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
     !TODO - Write a subroutine to do this calculation (in glissade_ground or glissade_bmlt_float?)
@@ -1583,15 +1553,18 @@ contains
 
        if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
 
-          ! Where f_ground_cell > 0, multiply bmlt_float by the fraction of the cell that is floating.
+          ! Multiply bmlt_float by the fraction of the cell that is floating.
           ! Cells that are fully grounded will have bmlt_float = 0.
           ! This option ensures smooth changes in bmlt_float as the GL migrates.
           ! However, it may allow spurious melting of grounded ice near the GL.
 
-          where (model%geometry%f_ground_cell > 0.0d0)
-             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float   &
-                                         * (1.0d0 - model%geometry%f_ground_cell)
-          endwhere
+!          where (model%geometry%f_ground_cell > 0.0d0)
+!             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float   &
+!                                         * (1.0d0 - model%geometry%f_ground_cell)
+!          endwhere
+
+          ! Replaced (1 - f_ground_cell) with weight_float_cell to reduce melting in shallow cavities
+          model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * model%geometry%weight_float_cell
 
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
 
@@ -1630,8 +1603,8 @@ contains
        print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
        write(6,*) ' '
 
-       if (model%options%which_ho_ground_bmlt == HO_GROUND_GLP_DELUXE) then
-          print*, 'f_ground_cell:'
+       if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
+          print*, '1 - f_ground_cell:'
           write(6,'(a6)',advance='no') '      '
           do i = itest-3, itest+3
              write(6,'(i10)',advance='no') i
@@ -1640,9 +1613,18 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%f_ground_cell(i,j)
+                write(6,'(f10.3)',advance='no') 1.0d0 - model%geometry%f_ground_cell(i,j)
              enddo
              write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'weight_float_cell:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%weight_float_cell(i,j)
+             enddo
+             print*, ' '
           enddo
        else
           print*, ' '
@@ -2228,11 +2210,6 @@ contains
           write(6,*) 'r, i, j =', this_rank, i, j
           write(6,*) ' '
           print*, 'usrf (m)'
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') i
-          enddo
-          write(6,*) ' '
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
@@ -2584,17 +2561,6 @@ contains
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
 
-       if (this_rank == rtest .and. verbose_bmlt_float) then
-          print*, ' '
-          print*, 'bmlt_applied (m/yr):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_applied(i,j) * scyr
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
        ! convert applied mass balance from m/s back to scaled model units
        model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
        model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 * tim0
@@ -2689,7 +2655,7 @@ contains
        print*, 'After mass balance, thck (m):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%geometry%thck(i,j)*thk0
+             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
@@ -2697,7 +2663,7 @@ contains
        print*, 'bmlt_applied (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_applied(i,j)*(thk0/tim0)*scyr
+             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_applied(i,j)*(thk0/tim0)*scyr
           enddo
           write(6,*) ' '
        enddo
@@ -3018,8 +2984,7 @@ contains
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          calving_front_mask, & ! = 1 where ice is floating and borders an ocean cell, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
-         land_mask,          & ! = 1 where topg is at or above sea level
-         bmlt_float_mask       ! = 1 where ice is present (thk > 0) and f_ground_cell < 1, else = 0
+         land_mask             ! = 1 where topg is at or above sea level
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_calving_front      ! effective thickness of ice at the calving front
@@ -3273,12 +3238,6 @@ contains
           ! first call after a restart; do not update basin-scale melting parameters
 
        else
-
-          where (ice_mask == 1 .and. model%geometry%f_ground_cell < 1.0d0)
-             bmlt_float_mask = 1
-          elsewhere
-             bmlt_float_mask = 0
-          endwhere
 
           call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &
                                              model%general%ewn,                         &
@@ -4003,9 +3962,9 @@ contains
           do i = nhalo+1, model%general%ewn-nhalo
              if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
                 if (model%geometry%floating_mask(i,j) == 1) then
-                   write(6,*) 'Floating_mask flip, G to F: task, i,  j =', this_rank, i, j
+                   write(6,*) 'Floating_mask flip, G to F: task, i, j =', this_rank, i, j
                 else
-                   write(6,*) 'Floating_mask flip, F to G: task, i,  j =', this_rank, i, j
+                   write(6,*) 'Floating_mask flip, F to G: task, i, j =', this_rank, i, j
                 endif
                 call parallel_globalindex(i, j, iglobal, jglobal)
                 write(6,*) 'global i, j =', iglobal, jglobal
