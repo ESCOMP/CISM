@@ -1529,7 +1529,6 @@ contains
                                            itest, jtest,  rtest,        &
                                            nbasin,                      &
                                            basin_number,                &
-                                           f_ground_cell,               &
                                            thck,                        &
                                            floating_thck_target,        &
                                            dtbasin_dt_scale,            &
@@ -1570,7 +1569,6 @@ contains
          basin_number            ! basin ID for each grid cell
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-         f_ground_cell,        & ! grounded fraction of grid cell, 0 to 1
          thck                    ! ice thickness (m)
 
     real(dp), dimension(nx,ny), intent(in) :: &

@@ -732,7 +732,7 @@
                                 ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
        f_ground,             &  ! grounded ice fraction at vertices, 0 <= f_ground <= 1
        f_ground_cell,        &  ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
-       weight_ground_vertex     ! like f_ground, but reduced for shallow cavities based on beta_cavity_thck_scale
+       weight_ground_vertex     ! like f_ground, but increased for shallow cavities based on beta_cavity_thck_scale
 
     !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
     integer, dimension(:,:), pointer ::   &
@@ -2631,6 +2631,16 @@
                 write(6,*) ' '
              enddo
 
+             print*, ' '
+             print*, 'weight_ground_vertex, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') weight_ground_vertex(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
           !WHL - debug - Skip the next few fields for now
              go to 500
 
@@ -2640,16 +2650,6 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(i10)',advance='no') ocean_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'weight_ground_vertex, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') weight_ground_vertex(i,j)
                 enddo
                 write(6,*) ' '
              enddo

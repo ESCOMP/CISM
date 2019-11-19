@@ -3247,7 +3247,6 @@ contains
                                              itest, jtest, rtest,                       &
                                              model%ocean_data%nbasin,                   &
                                              model%ocean_data%basin_number,             &
-                                             model%geometry%f_ground_cell,              &
                                              model%geometry%thck*thk0,                  &  ! m
                                              model%inversion%floating_thck_target*thk0, &  ! m
                                              model%inversion%dtbasin_dt_scale,          &  ! degC/s
