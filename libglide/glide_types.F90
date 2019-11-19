@@ -1048,7 +1048,7 @@ module glide_types
     !> Weighting factor in range [0,1], computed for the floating part of a cell
 
     real(dp),dimension(:,:),pointer :: weight_ground_vertex => null()
-    !> Weighting factor in range [0,1], computed for the grounded part of a staggered cell (i.e., centered on a vertex
+    !> Weighting factor in range [0,1], computed for the grounded part of a staggered cell (centered on vertices)
 
     real(dp) :: bmlt_cavity_thck_scale = 0.0d0   !> thickness scale (m) for basal melting in thin cavities;
                                                  !> used to compute of weight_float_cell

@@ -49,6 +49,7 @@
     public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
 
     logical, parameter :: verbose_glp = .false.
+!!    logical, parameter :: verbose_glp = .true.
 
   contains
 
@@ -520,9 +521,7 @@
        endif  ! which_ho_no_glp_stagger
 
        if (present(weight_ground_vertex)) then
-          where (f_ground == 1)
-             weight_ground_vertex = 1.0d0
-          endwhere
+          weight_ground_vertex = f_ground
        endif
 
     elseif (which_ho_ground == HO_GROUND_GLP_BASAL_FRICTION) then
@@ -566,7 +565,7 @@
        endif
 
        if (present(weight_ground_vertex)) then
-          weight_ground_vertex = f_ground
+             weight_ground_vertex = f_ground
        endif
 
     elseif (which_ho_ground == HO_GROUND_GLP_DELUXE) then
@@ -585,7 +584,7 @@
              if (vmask(i,j) == 1) then  ! at least one neighboring cell is ice-covered or land-based
 
                 ! quadrant 1, southwest of the vertex
-                f_flotation_vector(1) =          f_flotation(i,j)
+                f_flotation_vector(1) =           f_flotation(i,j)
                 f_flotation_vector(2) = 0.50d0 * (f_flotation(i,j) + f_flotation(i+1,j))
                 f_flotation_vector(3) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
@@ -601,7 +600,7 @@
 
                 ! quadrant 2, southeast of the vertex
                 f_flotation_vector(1) = 0.50d0 * (f_flotation(i+1,j) + f_flotation(i,j))
-                f_flotation_vector(2) =          f_flotation(i+1,j)
+                f_flotation_vector(2) =           f_flotation(i+1,j)
                 f_flotation_vector(3) = 0.50d0 * (f_flotation(i+1,j) + f_flotation(i+1,j+1))
                 f_flotation_vector(4) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
@@ -617,9 +616,9 @@
                 ! quadrant 3, northeast of the vertex
                 f_flotation_vector(1) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(2) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i,j+1))
-                f_flotation_vector(3) =          f_flotation(i+1,j+1)
-                f_flotation_vector(4) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i+1,j))
+                f_flotation_vector(2) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i+1,j))
+                f_flotation_vector(3) =           f_flotation(i+1,j+1)
+                f_flotation_vector(4) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i,j+1))
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
@@ -634,7 +633,7 @@
                 f_flotation_vector(2) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
                 f_flotation_vector(3) = 0.50d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1))
-                f_flotation_vector(4) =          f_flotation(i,j+1)
+                f_flotation_vector(4) =           f_flotation(i,j+1)
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
@@ -659,43 +658,58 @@
                    print*, 'Average   :', f_ground(i,j)
                 endif
 
-                ! Optionally, compute a weighting factor that is equal to f_ground for strongly grounded ice,
-                !  but is reduced for weakly grounded ice (i.e., small negative values of f_flotation_quadrant).
-                ! Note: Only quadrants with f_flotation < 0 contribute to the sum.
+                ! Optionally, compute a weighting factor at vertices that is equal to f_ground for
+                !  fully grounded ice and 0 for deep ocean cavities, and is nonzero for shallow cavities
+                !  (i.e., small positive values of f_flotation_quadrant).
+                ! For each quadrant with f_flotation_quadrant > 0, the floating fraction is effectively
+                !  reduced, based on the idea that the ice will have some contact with the sea floor.
+                ! Then weight_ground_quadrant is set to 1 minus the sum of the floating contributions.
 
                 if (present(weight_ground_vertex)) then
 
+                   if (beta_cavity_h0 > 0.0d0) then
+
                       sum_weight = 0.0d0
 
-                      if (beta_cavity_h0 > 0.0d0) then
+                      do q = 1, 4
+                         if (f_flotation_quadrant(q,i,j) > 0.0d0) then
+                            f_float_quadrant = 1.0d0 - f_ground_quadrant(q,i,j)
+                            sum_weight = sum_weight + &
+                                 f_float_quadrant * tanh(f_flotation_quadrant(q,i,j) / beta_cavity_h0)
+                         endif
 
-                         do q = 1, 4
-                            if (f_flotation_quadrant(q,i,j) < 0.0d0) then   ! grounded quadrant; add to sum
-                               sum_weight = sum_weight +  &
-                                    f_ground_quadrant(q,i,j) * tanh(-f_flotation_quadrant(q,i,j) / beta_cavity_h0)
+                         if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                            if (f_flotation_quadrant(q,i,j) > 0.0d0) then
+                               print*, 'q, f_float_quad, tanh, weight =', q, f_float_quadrant, &
+                                    tanh(f_flotation_quadrant(q,i,j) / beta_cavity_h0),  &
+                                    f_float_quadrant * tanh(f_flotation_quadrant(q,i,j) / beta_cavity_h0)
                             endif
-                         enddo
+                         endif
 
-                         weight_ground_vertex(i,j) = 0.25d0 * sum_weight
+                      enddo   ! quadrants q
 
-                      else   ! beta_cavity_h0 = 0; let weight_ground_vertex = f_ground
+                      weight_ground_vertex(i,j) = 1.0d0 - 0.25d0 * sum_weight
 
-                         weight_ground_vertex(i,j) = f_ground(i,j)
+                   else   ! beta_cavity_h0 = 0; assign a weight of f_ground_quadrant to each quadrant.
+                          ! This is equivalent to assigning a weight of f_ground to the entire staggered cell.
 
-                      endif   ! beta_cavity_h0 > 0
+                      weight_ground_vertex(i,j) = f_ground(i,j)
 
-                      !WHL - debug
-                      if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                         print*, ' '
-                         print*, 'vertex, f_flotation_quadrant, r, i, j =', this_rank, i, j
-                         print*, 'Quadrant 1:', f_flotation_quadrant(1,i,j)
-                         print*, 'Quadrant 2:', f_flotation_quadrant(2,i,j)
-                         print*, 'Quadrant 3:', f_flotation_quadrant(3,i,j)
-                         print*, 'Quadrant 4:', f_flotation_quadrant(4,i,j)
-                         print*, 'Grounded average   :', weight_ground_vertex(i,j)
-                      endif
+                   endif   ! beta_cavity_h0 > 0
 
-                   endif   ! present(weight_ground_vertex)
+                   !WHL - debug
+                   if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                      print*, ' '
+                      print*, 'beta_cavity_h0 =', beta_cavity_h0
+                      print*, 'vertex, f_flotation_quadrant, r, i, j =', this_rank, i, j
+                      print*, 'Quadrant 1:', f_flotation_quadrant(1,i,j)
+                      print*, 'Quadrant 2:', f_flotation_quadrant(2,i,j)
+                      print*, 'Quadrant 3:', f_flotation_quadrant(3,i,j)
+                      print*, 'Quadrant 4:', f_flotation_quadrant(4,i,j)
+                      print*, 'weight_ground_vertex:', weight_ground_vertex(i,j)
+                   endif
+
+                endif  ! present(weight_ground_vertex)
 
              endif        ! vmask = 1
           enddo           ! i
@@ -744,9 +758,9 @@
 
              if (present(weight_float_cell)) then
 
-                sum_weight = 0.0d0
-
                 if (bmlt_cavity_h0 > 0.0d0) then
+
+                   sum_weight = 0.0d0
 
                    ! quadrant 3 of vertex (i-1,j-1)
                    if (vmask(i-1,j-1) == 1 .and. f_flotation_quadrant(3,i-1,j-1) > 0.0d0) then
@@ -788,6 +802,7 @@
                 !WHL - debug
                 if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                    print*, ' '
+                   print*, 'bmlt_cavity_h0 =', bmlt_cavity_h0
                    print*, 'cell, f_flotation_quadrant, r, i, j =', this_rank, i, j
                    print*, 'Quadrant 1:', f_flotation_quadrant(4,i-1,j-1)
                    print*, 'Quadrant 2:', f_flotation_quadrant(3,i,j-1)
@@ -800,7 +815,7 @@
 
              if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
-                print*, 'f_ground_vertex, r, i, j =', this_rank, i, j
+                print*, 'f_ground_cell, r, i, j =', this_rank, i, j
                 print*, 'Quadrant 1:', f_ground_quadrant(3,i-1,j-1)
                 print*, 'Quadrant 2:', f_ground_quadrant(4,i,j-1)
                 print*, 'Quadrant 3:', f_ground_quadrant(1,i,j)
@@ -818,6 +833,7 @@
 
        call parallel_halo(f_ground_cell)
        if (present(weight_float_cell)) call parallel_halo(weight_float_cell)
+       !Note: weight_ground_vertex computed for all vertices, so no halo call needed
 
        if (verbose_glp .and. this_rank == rtest .and. present(weight_ground_vertex)) then
           print*, ' '
