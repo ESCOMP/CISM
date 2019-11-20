@@ -92,7 +92,7 @@ contains
     use glimmer_ncio
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
-    use glissade_transport, only: glissade_overwrite_acab_mask
+    use glissade_transport, only: glissade_overwrite_acab_mask, glissade_add_2d_anomaly
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks
     use glimmer_scales
@@ -718,12 +718,23 @@ contains
     ! Initialize basal hydrology, if needed
     call glissade_basal_water_init(model)
 
+    ! Initialize acab, if SMB (with different units) was read in
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+       ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+    endif
+
+    ! Initialize artm_corrected.  This is equal to artm, plus any prescribed temperature anomaly.
+    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
+
+    if (model%options%enable_artm_anomaly) then
+       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
+                                    model%climate%artm_anomaly,            &   ! degC
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    model%numerics%time)                       ! yr
+    endif
+
     ! Initialize the temperature profile in each column
-    ! Note: We are passing artm (and not artm_corrected) to glissade_init_therm.
-    !       This means that artm_anomaly will not be incorporated in the initial temperature profile.
-    !       This should be OK, provided that runs with anomaly forcing either start with zero anomaly,
-    !         or else start with a spun-up temperature (read from the input or restart file)
-    !         and do not need to be initialized here.
     call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
                              model%general%ewn,          model%general%nsn,         &
                              model%general%upn,                                     &
@@ -731,7 +742,7 @@ contains
                              model%numerics%rdiag_local,                            &
                              model%numerics%sigma,       model%numerics%stagsigma,  &
                              model%geometry%thck*thk0,                              & ! m
-                             model%climate%artm,                                    & ! deg C
+                             model%climate%artm_corrected,                          & ! deg C
                              model%climate%acab*thk0/tim0,                          & ! m/s
                              model%temper%bheatflx,                                 & ! W/m^2, positive down
                              model%temper%pmp_offset,                               & ! deg C
@@ -2135,6 +2146,7 @@ contains
        ! Note: The basal mass balance has been computed in subroutine glissade_bmlt_float_solve.
        !-------------------------------------------------------------------------
 
+       !TODO - Put this SMB logic in a subroutine.
        ! Downscale acab to the current surface elevation if needed.
        ! Depending on the value of smb_input_function, the SMB (i.e., acab) might be dependent on the upper surface elevation.
        ! The options are:
@@ -2186,7 +2198,7 @@ contains
 
        endif   ! smb_input_function
 
-       ! For the non-default smb_input_function options, make sure the SMB is nonzer somewhere; else abort.
+       ! For the non-default smb_input_function options, make sure the SMB is nonzero somewhere; else abort.
        ! For the default option, do not abort, since idealized tests often have a zero SMB.
 
        call parallel_halo(model%climate%acab)
