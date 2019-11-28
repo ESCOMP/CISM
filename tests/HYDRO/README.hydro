@@ -1,0 +1,129 @@
+Instructions for setting up and running a Shakti experiments with CISM.
+
+See this paper for details on Shakti
+
+SOMMERS, Aleah, RAJARAM, Harihar, et MORLIGHEM, Mathieu. SHAKTI: 
+Subglacial Hydrology and Kinetic, Transient Interactions v1. 0.
+Geoscientific Model Development, 2018, vol. 11, no 7, p. 2955-2974.
+
+
+Reaching a stable state typically requires ~20,000 years.
+
+The files needed to run the experiment are located in directory ../tests/hydro.
+If you plan to run more than one test suite, you will likely want to keep this directory clean,
+ and make a fresh copy for each test.  For example, from ../tests/hydro:
+
+> cp -rf hydro hydro.test1
+> cp -rf hydro hydro.test2
+etc.
+
+Go to the directory where you are setting up and running the experiments:
+
+> cd hydro.test1
+
+This directory should contain several Python scripts, along with a template config file
+(hydro.config.template) with default settings for Shakti.
+
+Put a copy or link of cism_driver in your directory. For example:
+
+> ln -s ../../../builds/mac-gnu/cism_driver/cism_driver cism_driver
+
+To create the grid topography and set the appropriate config options for each test, run the Python setup script:
+
+> python hydroSetup.py [arguments]
+
+This script has the following optional arguments:
+  -c FILE, --config=FILE
+                        config file template [default: hydro.config.template]
+  -e EXECUTABLE, --exec=EXECUTABLE
+                        Path to the CISM executable [default: cism_driver]
+  -t TSTEP, --tstep=TSTEP
+                        time step (min) [default: 15]
+  -y ENDTIME, --tend=ENDTIME
+                        Length of run (day) [default: 30]
+  -r RES, --res=RES     horizontal grid resolution (m) [default: 50]
+          --b0=BEDHEIGHT
+                        Bed height at ice divide (m) [default: 100]
+          --bx=BEDSLOPE
+                        Bed slope (m/km) [default: 2]
+          --H0=THICKINIT
+                       Uniform initial ice thickness (m) [default: 500]
+          --v0=VELINIT
+                       Constant sliding velocity (m/yr) [default: -30]
+                       note: the '-' is to indicate a sliding from East to West.
+
+Notes on optional arguments:
+- The time step does not have default CISM units. In the script, there is some logic to 
+convert it into CISM default unit.
+- The end time does not have default CISM units. The script contains logic to convert it into
+CISM default unit.
+- CISM is particular about the time step and it has to divide an integer number of time into the 
+time span from initial and end time. The script contains that logic and the time step written to the
+config file might be exactly the same as tthe one requested as an option.
+- Right now the bed is set to slope down from East to West. This can be remediated by requesting 
+a negative slope at the command line. 
+
+
+
+The config template file includes sensible default values for a number of parameters 
+associated with the Stokes approximation, the basal friction law, ... Most of these configuration
+options might not matter at first as the hydro test will not run with evolving ice dynamics. 
+This might be changed later. 
+To change any of these parameters, you need to edit the template file.
+
+After setup, you should see a folder corresponding to the resolution of the run. The experiment 
+will be staged there and you should run the experiment from this location as well.
+
+To run the experiment, use the Python script hydroRun.py 
+To run the 50m experiment on 4 processors:
+
+> python hydroRun.py -x 50m -n 4
+
+Here are the optional arguments for the run script:
+  -e EXECUTABLE, --exec=EXECUTABLE
+                        Path to the CISM executable [default: ./cism_driver]
+  -x EXPT,     --expt=EXPT  hydro experiment(s) to run [default: 50m]
+  -n NUMPROCS, --parallel=NUMPROCS
+                        Number of processors: if specified then run in parallel
+
+If the run is interrupted for any reason and you need to restart it in order to finish your
+experiment, simply relaunch your experiment using the same command line used originally with
+the restart argument::
+
+> python mismip+Run.py -x 50m -n 4 --restart
+
+Note:
+here you don't need to state "True" after the '--restart' argumment. You simply need to add the 
+'--restart' argument and it will set the restart option to 1 in the config file of your experiments.
+Without the '--restart' argument at the command line, the run script makes sure that the restart option
+is set to 0. 
+
+The script will automatically read the restart file name, modify the config file and restart 
+the run from the latest time saved in the restart file.
+
+
+Continue as needed until you have completed the experiment period.
+
+Alternatively, you may want to submit a batch job on Cheyenne.  If so, do the following:
+1/ Change to the subdirectory of the experiment you want to run. For example, if you'd like
+   to submit a job for the "50m" experiment, type: "cd 50m".
+2/ Copy the script runCISM.cheyenne.template into the directory.
+3/ Modify the script:
+    a/ Adjust the number of nodes and processors.
+    b/ Adjust the time you'd like to run on HPC.
+    c/ Modify the name of the config file to reflect the one in your current directory.
+4/ launch the job from your subdirectory by typing at the command line:
+   > qsub runCISM.cheyenne.template
+
+Note:
+The runCISM.cheyenne script is setup for the Cheyenne HPC. For other HPC, consult the 
+requirement for the specific machine. If need be, ask for help to your HPC consultant or
+to Gunter Leguy: gunterl@ucar.edu
+
+
+Finally, you can create two useful summary plots in a file called hydroPlot.pdf:
+
+> python hydroPlot.py
+
+THIS SECTION NEEDS MORE WORK AND WILL BE FINALYZED ONCE WE GET A BETTER IDEA OF WHAT WOULD BE USEFUL.
+
