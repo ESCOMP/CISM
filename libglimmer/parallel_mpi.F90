@@ -566,7 +566,7 @@ contains
 
   ! WHL, July 2019:
   ! There is an issue with allocating the global_values array in the distributed_gather_var_*,
-  !  distribued_get_var_*, distributed_print_*, and distributed_put_var_* functions and subroutines
+  !  distributed_get_var_*, distributed_print_*, and distributed_put_var_* functions and subroutines
   !  when computing only on active blocks (compute_blocks = 1).
   ! This array is allocated based on the max and min of ewlb, ewub, nslb, and nsub over the global domain.
   ! Previously, this was done based on a bounds array computed in fc_gather_int, which gathers

@@ -2351,6 +2351,7 @@ module glissade_therm
 !=======================================================================
 
   !TODO - For damage-based calving, try multiplying flwa by a damage factor, (1 - damage)
+  !TODO - Pass in nx and ny, to avoid allocations within the subroutine.
 
   subroutine glissade_flow_factor(whichflwa,               whichtemp,  &
                                   stagsigma,                           &
@@ -2558,6 +2559,8 @@ module glissade_therm
        ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
        flwa(:,:,:) = flwa(:,:,:) / vis0
     endif
+
+    deallocate(enhancement_factor)
 
   end subroutine glissade_flow_factor
 

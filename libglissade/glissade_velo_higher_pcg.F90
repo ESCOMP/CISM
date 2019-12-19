@@ -76,6 +76,7 @@
        tolerance = 1.d-08    ! tolerance for linear solver
 
     logical, parameter :: verbose_pcg = .false.
+!!    logical, parameter :: verbose_pcg = .true.
     logical, parameter :: verbose_tridiag = .false.
 
   contains
@@ -647,6 +648,10 @@
 
     !TODO - Add tridiagonal option
 
+    if (verbose_pcg .and. main_task) then
+       print*, 'Using diagonal matrix for preconditioning'
+    endif  ! verbose_pcg
+
     call t_startf("pcg_precond_init")
     call setup_preconditioner_diag_2d(nx,         ny,       &
                                       indxA,                &
@@ -721,6 +726,10 @@
     ! iterate to solution
 
     iter_loop: do iter = 1, maxiters
+
+       if (verbose_pcg .and. main_task) then
+          print*, 'iter =', iter
+       endif
 
        call t_startf("pcg_precond")
 
@@ -1979,6 +1988,11 @@
 
        ! Solve M*z = r, where M is a local tridiagonal matrix (one matrix per task)
 
+       !WHL - debug
+       if (verbose_pcg .and. main_task) then
+          print*, 'call tridiag_solver_local_2d'
+       endif
+
        !TODO - Test a local solver that can compute zu and zv in the halo
        !       (to avoid the halo update below)
 
@@ -2013,6 +2027,11 @@
 
        allocate(gather_data_row(8*tasks_row,jlocal))
        gather_data_row = 0.0d0
+
+       !WHL - debug
+       if (verbose_pcg .and. this_rank == rtest) then
+          print*, '   call tridiag_solver_global_2d'
+       endif
 
        call tridiag_solver_global_2d(ilocal,       jlocal,      &
                                      tasks_row,    'row',       &  ! tridiagonal solve for each row
@@ -2174,6 +2193,10 @@
 
     iter_loop: do iter = 2, maxiters_chrongear  ! first iteration done above
 
+       if (verbose_pcg .and. main_task) then
+          print*, 'iter =', iter
+       endif
+
        !---- Compute PC(r) = solution z of Mz = r
        !---- z is correct in halo
 
@@ -2208,6 +2231,11 @@
           !TODO - Test a local solver that can compute zu and zv in the halo
           !       (to avoid the halo update below)
 
+          !WHL - debug
+          if (verbose_pcg .and. main_task) then
+             print*, '   call tridiag_solver_local_2d'
+          endif
+
           call tridiag_solver_local_2d(nx,           ny,         &
                                        itest, jtest, rtest,      &
                                        Adiag_u,      Adiag_v,    &  ! entries of preconditioning matrix
@@ -2234,6 +2262,11 @@
                 b_u(i,j) = ru(ii,jj)
              enddo
           enddo
+
+          !WHL - debug
+          if (verbose_pcg .and. main_task) then
+             print*, '   call tridiag_solver_global_2d'
+          endif
 
           call tridiag_solver_global_2d(ilocal,       jlocal,      &
                                         tasks_row,    'row',       &  ! tridiagonal solve for each row
@@ -2337,16 +2370,16 @@
                                  work2u, work2v)
        call t_stopf("pcg_glbsum_iter")
 
+!       if (verbose_pcg .and. main_task) then
+!          print*, '   gsum(1), gsum(2) =', gsum(1), gsum(2)
+!       endif
+
        !---- Halo update for Az
 
        call t_startf("pcg_halo_iter")
        call staggered_parallel_halo(Azu)
        call staggered_parallel_halo(Azv)
        call t_stopf("pcg_halo_iter")
-
-       if (verbose_pcg .and. main_task) then
-          print*, 'iter, gsum(1), gsum(2) =', iter, gsum(1), gsum(2)
-       endif
 
        !---- Compute some scalars
 
@@ -2395,6 +2428,10 @@
 
        if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 !!       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == linear_solve_ncheck/2) then
+
+          if (verbose_pcg .and. main_task) then
+             print*, '   check for convergence'
+          endif
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
@@ -2719,12 +2756,12 @@
     ! Note: denom -> 1/denom to speed up future computations
 
     do j = staggered_jlo, staggered_jhi
-       i = staggered_jlo
+       i = staggered_ilo
        omega_u(i,j) = Asupdiag_u(i,j) / Adiag_u(i,j)
-       do i = staggered_jlo+1, staggered_jhi
+       do i = staggered_ilo+1, staggered_ihi
           denom_u(i,j) = Adiag_u(i,j) - Asubdiag_u(i,j)*omega_u(i-1,j)
           if (denom_u(i,j) == 0.0d0) then
-             call write_log('ERROR: divzero in setup_preconditioner_tridiag_2d', GM_FATAL)
+             call write_log('ERROR: divzero in setup_preconditioner_tridiag_local_2d', GM_FATAL)
           else
              denom_u(i,j) = 1.0d0 / denom_u(i,j)
           endif
@@ -3663,6 +3700,7 @@
      real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
 
      integer :: i, j, n, nvar
+
      real(dp), dimension(size(global_sum)) :: local_sum
 
      nvar = size(global_sum)
@@ -3688,6 +3726,11 @@
         endif
 
      enddo   ! nvar
+
+     !WHL - debug
+!     if (verbose_pcg .and. main_task) then
+!        print*, '   Call parallel_reduce_sum'
+!     endif
 
      ! take the global sum
 

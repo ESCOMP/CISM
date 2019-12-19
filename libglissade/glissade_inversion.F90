@@ -84,7 +84,8 @@ contains
          ice_mask,             & ! = 1 where ice is present, else = 0
          floating_mask,        & ! = 1 where ice is present and floating, else = 0
          ocean_mask,           & ! = 1 where topg is below sea level and ice is absent
-         land_mask               ! = 1 where topg is at or above sea level
+         land_mask,            & ! = 1 where topg is at or above sea level
+         marine_connection_mask  ! = 1 for cells with a marine connection to the ocean
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
@@ -271,6 +272,15 @@ contains
 
        if (model%options%is_restart == RESTART_FALSE) then
 
+          ! Compute a mask that determines where thermal forcing can be applied.
+          ! This mask includes only cells with a path to the ocean through marine-based cells.
+          ! Cells without such a connection are not given a thickness target.
+
+          call glissade_marine_connection_mask(ewn,          nsn,            &
+                                               itest, jtest, rtest,          &
+                                               ocean_mask,   land_mask,      &
+                                               marine_connection_mask)
+
           ! Set floating_thck_target to the initial thickness of floating and lightly grounded ice.
           ! Here, "lightly grounded" refers to ice that is grounded below sea level
           !  with thck_above_flotation smaller than a prescribed threshold.
@@ -282,7 +292,7 @@ contains
           do j = 1, nsn
              do i = 1, ewn
                 h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0  ! m
-                if (land_mask(i,j) == 0 .and.  &
+                if (marine_connection_mask(i,j) == 1 .and.  &
                      model%geometry%thck(i,j)*thk0 - h_flotation < thck_above_flotation_threshold) then
                    model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
                 else
@@ -911,7 +921,7 @@ contains
              ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
              !  In this case the system is damped as strongly as possible without oscillating.
              ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
-             !   d2x/dt2 = -x/tau^2 - 2/tau*dx/dt
+             !   d2x/dt2 = -x/tau^2 - (2*dx/dt)/tau
              ! If we identify (H_new - H_target) with x; dH/dt with dx/dt; and d2x/dt2 with dmb/dt,
              !  we obtain the equation solved here.
 
@@ -1530,8 +1540,10 @@ contains
                                            nbasin,                      &
                                            basin_number,                &
                                            thck,                        &
+                                           dthck_dt,                    &
                                            floating_thck_target,        &
-                                           dtbasin_dt_scale,            &
+                                           dbmlt_dtemp_scale,           &
+                                           bmlt_basin_timescale,        &
                                            deltaT_basin)
 
     use glissade_bmlt_float, only: basin_sum
@@ -1569,14 +1581,13 @@ contains
          basin_number            ! basin ID for each grid cell
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-         thck                    ! ice thickness (m)
-
-    real(dp), dimension(nx,ny), intent(in) :: &
+         thck,             &     ! ice thickness (m)
+         dthck_dt,         &     ! dH/dt (m/s)
          floating_thck_target    ! target thickness for floating ice (m)
 
-    ! Note: dtbasin_dt_scale is a config parameter; converted from degC/yr to degC/s at initialization
     real(dp), intent(in) :: &
-         dtbasin_dt_scale        ! scale for adjusting deltaT_basin (deg C/s)
+         dbmlt_dtemp_scale,    & ! scale for rate of change of bmlt w/temperature, (m/s)/degC
+         bmlt_basin_timescale    ! timescale for adjusting deltaT_basin (s)
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
          deltaT_basin            ! deltaT correction to thermal forcing in each basin (deg C)
@@ -1584,27 +1595,36 @@ contains
     ! local variables
 
     real(dp), dimension(nx,ny) ::  &
-         floating_target_rmask   ! real mask, = 1.0 where floating_thck_target > 0, else = 0.0
+         floating_target_rmask, &! real mask, = 1.0 where floating_thck_target > 0, else = 0.0
+         cell_area               ! area of grid cells (m^2)
 
     real(dp), dimension(nbasin) :: &
-         floating_volume_target_basin,  &   ! floating ice target volume in each basin
-         floating_volume_basin,         &   ! current floating ice volume in each basin
-         diff_ratio_basin                   ! (volume - volume_target)/volume_target
-
-    real(dp), dimension(nbasin) :: &
-         dT_basin_max, dT_basin_min,    &   ! min and max of deltaT_basin in each basin
-         dT_basin                           ! current deltaT_basin in each basin
+         floating_area_target_basin,      &   ! floating ice area target in each basin (m^3)
+         floating_volume_target_basin,    &   ! floating ice volume target in each basin (m^3)
+         floating_thck_target_basin,      &   ! floating mean thickness target in each basin (m^3)
+         floating_volume_basin,           &   ! current floating ice volume in each basin (m^3)
+         floating_thck_basin,             &   ! current mean ice thickness in each basin (m)
+         floating_dvolume_dt_basin,       &   ! rate of change of basin volume (m^3/s)
+         floating_dthck_dt_basin,         &   ! rate of change of basin mean ice thickness (m/s)
+         dTbasin_dt,                      &   ! rate of change of deltaT_basin (degC/s)
+         basin_max, basin_min,            &   ! min and max of deltaT_basin in each basin
+                                              ! (all cells in the basin should have the same value of deltaT_basin)
+         deltaT_basin_nb                      ! same as deltaT_basin, but with dimension nbasin
 
     integer :: i, j
     integer :: nb      ! basin number
+    real(dp) :: term1, term2
 
     ! Note: In some basins, the floating ice volume may be too small no matter how much we lower deltaT_basin,
     !        since the basal melt rate drops to zero and can go no lower.
-    !       To prevent very large negative values, the deltaT_basin correction is capped at a moderate negative value.
-    !       A positive cap likely is not needed but is included for consistency.
+    !       To prevent large negative values, the deltaT_basin correction is capped at a moderate negative value.
+    !       A positive cap might not be needed but is included to be on the safe side.
+
     real(dp), parameter :: &
-         deltaT_basin_max =  2.0d0,     &   ! max allowed value of deltaT_basin (deg C)
-         deltaT_basin_min = -2.0d0          ! min allowed value of deltaT_basin (deg C)
+         deltaT_basin_maxval = 2.0d0,  &   ! max allowed magnitude of deltaT_basin (deg C)
+         dTbasin_dt_maxval = 1.0d0/scyr     ! max allowed magnitude of d(deltaT_basin)/dt (deg/yr converted to deg/s)
+
+    cell_area(:,:) = dx*dy
 
     ! Compute a mask for cells with a nonzero floating ice target
 
@@ -1614,90 +1634,143 @@ contains
        floating_target_rmask = 0.0d0
     endwhere
 
-    ! Compute the total ice volume and the target volume in cells with floating_target_mask = 1.
+    ! For each basin, compute the area of the cells with floating_target_rmask = 1.
+
+    call basin_sum(nx,         ny,                &
+                   nbasin,     basin_number,      &
+                   floating_target_rmask,         &
+                   cell_area,                     &
+                   floating_area_target_basin)
+
+    ! For each basin, compute the target total ice volume in cells with floating_target_rmask = 1.
     ! Note: We could compute floating_volume_target_basin just once and write it to restart,
     !       but it is easy enough to recompute here.
 
     call basin_sum(nx,         ny,                &
                    nbasin,     basin_number,      &
                    floating_target_rmask,         &
-                   floating_thck_target,          &
+                   floating_thck_target*dx*dy,    &
                    floating_volume_target_basin)
+
+    ! For each basin, compute the current total ice volume in cells with floating_target_rmask = 1.
 
     call basin_sum(nx,         ny,                &
                    nbasin,     basin_number,      &
                    floating_target_rmask,         &
-                   thck,                          &
+                   thck*dx*dy,                    &
                    floating_volume_basin)
 
-    floating_volume_target_basin = floating_volume_target_basin * dx * dy
-    floating_volume_basin = floating_volume_basin * dx * dy
+    ! For each basin, compute the rate of change of the current volume in cells with floating_target_rmask = 1.
 
-    where (floating_volume_target_basin > 0.0d0)
-       diff_ratio_basin = (floating_volume_basin - floating_volume_target_basin) &
-                         / floating_volume_target_basin
+    call basin_sum(nx,         ny,                &
+                   nbasin,     basin_number,      &
+                   floating_target_rmask,         &
+                   dthck_dt*dx*dy,                &
+                   floating_dvolume_dt_basin)
+
+    ! For each basin, compute the current and target mean ice thickness, and the rate of change of mean ice thickness.
+    where (floating_area_target_basin > 0.0d0)
+       floating_thck_target_basin = floating_volume_target_basin / floating_area_target_basin
+       floating_thck_basin = floating_volume_basin / floating_area_target_basin
+       floating_dthck_dt_basin = floating_dvolume_dt_basin / floating_area_target_basin
     elsewhere
-       diff_ratio_basin = 0.0d0
+       floating_thck_target_basin = 0.0d0
+       floating_thck_basin = 0.0d0
+       floating_dthck_dt_basin = 0.0d0
     endwhere
 
-    ! Increment deltaT_basin in proportion to diff_ratio.
+    ! Compute the rate of change of deltaT_basin for each basin.
     ! Warm the basin where diff_ratio > 0 (too much ice) and cool where diff_ratio < 0 (too little ice).
     ! Note: deltaT_basin is a 2D field, but its value is uniform in each basin.
 
+    do nb = 1, nbasin
+       term1 = (1.0d0/dbmlt_dtemp_scale) * &
+            (floating_thck_basin(nb) - floating_thck_target_basin(nb)) / (bmlt_basin_timescale**2)
+       term2 = (1.0d0/dbmlt_dtemp_scale) * 2.0d0 * floating_dthck_dt_basin(nb) / bmlt_basin_timescale
+       dTbasin_dt(nb) = term1 + term2
+    enddo
+
+    ! Limit the dTbasin)/dt to a prescribed range
+    ! This prevents rapid changes in basins with small volume targets, where diff_ratio_basin can be large.
+    where (dTbasin_dt > dTbasin_dt_maxval)
+       dTbasin_dt = dTbasin_dt_maxval
+    elsewhere (dTbasin_dt < -dTbasin_dt_maxval)
+       dTbasin_dt = -dTbasin_dt_maxval
+    endwhere
+
+    ! Increment deltaT_basin
     do j = 1, ny
        do i = 1, nx
           nb = basin_number(i,j)
-          deltaT_basin(i,j) = deltaT_basin(i,j) + diff_ratio_basin(nb) * dtbasin_dt_scale * dt
+          if (nb >= 1 .and. nb <= nbasin) then
+             deltaT_basin(i,j) = deltaT_basin(i,j) + dTbasin_dt(nb) * dt
+          endif
        enddo
     enddo
 
     ! Limit deltaT_basin to a prescribed range
-    where (deltaT_basin > deltaT_basin_max)
-       deltaT_basin = deltaT_basin_max
-    elsewhere (deltaT_basin < deltaT_basin_min)
-       deltaT_basin = deltaT_basin_min
+    where (deltaT_basin > deltaT_basin_maxval)
+       deltaT_basin =  deltaT_basin_maxval
+    elsewhere (deltaT_basin < -deltaT_basin_maxval)
+       deltaT_basin = -deltaT_basin_maxval
     endwhere
-
-    if (verbose_inversion .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'basin number, volume (km^3), volume target (km^3)'
-       do nb = 1, nbasin
-          print*, nb, floating_volume_basin(nb)/1.d9, floating_volume_target_basin(nb)/1.d9
-       enddo
-    endif
 
     ! deltaT_basin diagnostics for each basin
 
     if (verbose_inversion) then
 
-       dT_basin_min(:) = 0.0d0
-       dT_basin_max(:) = 0.0d0
+       !Note: Some variables are 2D fields rather than basin-only fields.
+       !      The logic below extracts the basin values from the 2D fields.
+       !      TODO: Write a subroutine to do this?
+
+       basin_min(:) = 0.0d0
+       basin_max(:) = 0.0d0
 
        do j = 1, ny
           do i = 1, nx
              nb = basin_number(i,j)
-             dT_basin_min(nb) = min(dT_basin_min(nb), deltaT_basin(i,j))
-             dT_basin_max(nb) = max(dT_basin_max(nb), deltaT_basin(i,j))
+             if (nb >= 1 .and. nb <= nbasin) then
+                basin_min(nb) = min(basin_min(nb), deltaT_basin(i,j))
+                basin_max(nb) = max(basin_max(nb), deltaT_basin(i,j))
+             endif
           enddo
        enddo
 
        do nb = 1, nbasin
-          dT_basin_min(nb) = parallel_reduce_min(dT_basin_min(nb))
-          dT_basin_max(nb) = parallel_reduce_max(dT_basin_max(nb))
+          basin_min(nb) = parallel_reduce_min(basin_min(nb))
+          basin_max(nb) = parallel_reduce_max(basin_max(nb))
        enddo
 
-       dT_basin = 0.0d0
-       where (dT_basin_min < 0.0d0)
-          dT_basin = dT_basin_min
-       elsewhere (dT_basin_max > 0.0d0)
-          dT_basin = dT_basin_max
+       deltaT_basin_nb = 0.0d0
+       where (basin_min < 0.0d0)
+          deltaT_basin_nb = basin_min
+       elsewhere (basin_max > 0.0d0)
+          deltaT_basin_nb = basin_max
        endwhere
 
        if (this_rank == rtest) then
+          print*, 'bmlt_basin_timescale (yr) =', bmlt_basin_timescale/scyr
+          print*, 'dbmlt_dtemp_scale (m/yr/degC) =', dbmlt_dtemp_scale
           print*, ' '
-          print*, 'basin number, deltaT_basin correction, new deltaT_basin (deg C):'
+          print*, 'basin number, area target (km^2), volume target (km^3), mean thickness target (m):'
           do nb = 1, nbasin
-             print*, nb, diff_ratio_basin(nb) * dtbasin_dt_scale * dt, dT_basin(nb)
+             write(6,'(i6,3f12.3)') nb, floating_area_target_basin(nb)/1.d6, &
+                  floating_volume_target_basin(nb)/1.d9, floating_thck_target_basin(nb)
+          enddo
+          print*, ' '
+          print*, 'basin number, mean thickness (m), thickness diff (m), dthck_dt (m/yr):'
+          do nb = 1, nbasin
+             write(6,'(i6,3f12.3)') nb, floating_thck_basin(nb), &
+                  (floating_thck_basin(nb) - floating_thck_target_basin(nb)), &
+                  floating_dthck_dt_basin(nb)*scyr
+          enddo
+          print*, ' '
+          print*, 'basin number, term1*dt, term2*dt, dTbasin, new deltaT_basin:'
+          do nb = 1, nbasin
+             write(6,'(i6,4f12.6)') nb, &
+                  dt/dbmlt_dtemp_scale * (floating_thck_basin(nb) - floating_thck_target_basin(nb)) / (bmlt_basin_timescale**2), &
+                  dt/dbmlt_dtemp_scale * 2.0d0 * floating_dthck_dt_basin(nb) / bmlt_basin_timescale, &
+                  dt*dTbasin_dt(nb), deltaT_basin_nb(nb)
           enddo
        endif
 

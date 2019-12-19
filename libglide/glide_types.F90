@@ -630,6 +630,9 @@ module glide_types
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
 
+    logical :: adjust_input_thickness = .false.
+    !> if true, then adjust thck to maintain usrf, instead of deriving usrf from topg and thck
+
     logical :: smooth_input_topography = .false.
     !> if true, then apply Laplacian smoothing to the topography at initialization
 
@@ -1558,7 +1561,7 @@ module glide_types
      real(dp) ::  &
           wean_powerlaw_c_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of powerlaw_c
           wean_powerlaw_c_tend = 0.0d0,     & !> end time (yr) for weighted nudging of powerlaw_c
-          wean_powerlaw_c_timescale = 0.0d0   !> time scale for weaning of powerlaw_c
+          wean_powerlaw_c_timescale = 0.0d0   !> time scale (yr) for weaning of powerlaw_c
 
 
      ! fields and parameters for deltaT_basin inversion
@@ -1567,7 +1570,8 @@ module glide_types
           floating_thck_target                !> Observational target for floating ice thickness
 
      real(dp) ::  &
-          dtbasin_dt_scale = 0.0d0            !> scale for adjusting deltaT_basin (deg C/yr)
+          dbmlt_dtemp_scale = 10.0d0,       & !> scale for rate of change of bmlt w/temperature, m/yr/degC
+          bmlt_basin_timescale = 10.0d0       !> timescale (yr) for adjusting deltaT_basin
 
   end type glide_inversion
 
@@ -1656,6 +1660,15 @@ module glide_types
  
      ! Antarctic-wide coefficients
 
+     ! fields and coefficients computed at runtime based on type of parameterization and level of forcing
+     ! Note: There are two ways to read in gamma0:
+     !   (1) Set gamma0 to a positive value in the config file.  This value will be used throughout the run.
+     !   (2) Set several potential values (gamma0_local_pct5, etc.) in the input file.
+     !       Based on the chosen ISMIP6 parameterization options, gamma0 will be set to the appropriate value at startup.
+     !       If no value is present in the config file, then the model will default to a value below.
+
+     real(dp) :: gamma0 = 0.d0                      !> default coefficient for sub-shelf melt rates (m/yr)
+
      ! Values from ISMIP6 Antarctic projection protocols
      real(dp) :: gamma0_local_pct5   =  7706.831d0  !> coefficient for sub-shelf melt rates; local 5th percentile (m/yr)
      real(dp) :: gamma0_local_median = 11075.45d0   !> coefficient for sub-shelf melt rates; local median (m/yr)
@@ -1691,9 +1704,6 @@ module glide_types
           deltaT_basin_nonlocal_pct5 => null()      !> deltaT (K) per basin; nonlocal parameterization; 5th percentile value
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin_nonlocal_pct95 => null()     !> deltaT (K) per basin; nonlocal parameterization; 95th percentile value
-
-     ! fields and coefficients computed at runtime based on type of parameterization and level of forcing
-     real(dp) :: gamma0 = 15000.d0                  !> default coefficient for sub-shelf melt rates (m/yr)
 
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin => null()                    !> deltaT in each basin (deg C) 
@@ -2541,6 +2551,9 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
+    !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup_tracers,
+    !      once we know model%geometry%ntracers
+
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagthck)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdns)
@@ -2591,7 +2604,6 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagusrf)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagtopg)
-       !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup
 
        ! Basal Physics
        !WHL - Since the number of basal BC options is proliferating, simplify the logic by allocating the following arrays
@@ -3161,9 +3173,15 @@ contains
         deallocate(model%geomderv%dusrfdew)
     if (associated(model%geomderv%dusrfdns)) &
         deallocate(model%geomderv%dusrfdns)
-
     if (associated(model%geometry%cell_area)) &
         deallocate(model%geometry%cell_area)
+
+    if (associated(model%geometry%tracers)) &
+        deallocate(model%geometry%tracers)
+    if (associated(model%geometry%tracers_usrf)) &
+        deallocate(model%geometry%tracers_usrf)
+    if (associated(model%geometry%tracers_lsrf)) &
+        deallocate(model%geometry%tracers_lsrf)
 
     if (associated(model%geometry%sfc_mbal_flux)) &
         deallocate(model%geometry%sfc_mbal_flux)
