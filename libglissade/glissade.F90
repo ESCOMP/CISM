@@ -143,6 +143,10 @@ contains
     logical, parameter :: &
          make_ice_domain_mask = .false.   ! set to .true. to create mask at initialization
 
+    real(dp) :: usrf_max    ! max value of usrf
+    real(dp) :: topg        ! model%geometry%topg - model%climate%eus
+    real(dp) :: thck_flot   ! flotation thickness
+
     integer :: itest, jtest, rtest
     integer :: status, varid
     type(glimmer_nc_input), pointer :: infile
@@ -484,6 +488,128 @@ contains
     ! Write projection info to log
     call glimmap_printproj(model%projection)
 
+    ! Optionally, check for spurious surface depressions that could arise in the following case:
+    ! (1) usrf, thck, and topg have all been read in.  (Recall that usrf is an optional input.)
+    ! (2) There are interior lakes: regions disconnected from the ocean, where (usrf - thck) > topg.
+    ! (3) The ice in these interior lake regions is too thick to float.
+    ! In this case, the default behavior is to reset usrf = topg + thck, possibly leading to
+    !  steep surface depressions and unstable flow.
+    ! The alternative is to set thck = usrf - topg in grounded regions, maintaining the observed usrf.
+    !TODO - Remove the diagnostics, or put them in a geometry diagnostic subroutine.
+
+    if (model%options%adjust_input_thickness .and. model%options%is_restart == RESTART_FALSE) then
+
+       ! Make sure ursf was read in with nonzero values
+       usrf_max = maxval(model%geometry%usrf)
+       usrf_max = parallel_reduce_max(usrf_max)
+
+       if (usrf_max > tiny(0.0d0)) then
+
+          if (verbose_glissade .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'adjust thck: itest, jtest, rank =', itest, jtest, rtest
+             print*, ' '
+             print*, 'Before thck adjustment, usrf (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'Before thck adjustment, thck (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'Before thck adjustment, topg (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'Before thck adjustment, cavity thickness (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
+                        - model%geometry%topg(i,j)) * thk0
+                enddo
+                write(6,*) ' '
+             enddo
+          endif   ! verbose
+
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                topg = model%geometry%topg(i,j) - model%climate%eus  ! shorthand for relative bed topography
+                if (model%geometry%usrf(i,j) - model%geometry%thck(i,j) > topg) then
+                   thck_flot = -(rhoo/rhoi) * topg
+                   if (model%geometry%thck(i,j) >= thck_flot) then  ! grounded
+                      ! increase thck to remove the sub-ice cavity
+                      model%geometry%thck(i,j) = model%geometry%usrf(i,j) - topg
+                   else   ! floating
+                      ! do nothing; keep the existing thickness
+                   endif
+                elseif (model%geometry%usrf(i,j) - model%geometry%thck(i,j) < topg) then
+                   ! reduce thck so that lsrf = topg
+                   model%geometry%thck(i,j) = model%geometry%usrf(i,j) - topg
+                endif
+             enddo
+          enddo
+
+          if (verbose_glissade .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'adjust thck: itest, jtest, rank =', itest, jtest, rtest
+             print*, ' '
+             print*, 'After thck adjustment, usrf (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'After thck adjustment, thck (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'After thck adjustment, topg (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'After thck adjustment, cavity thickness (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
+                        - model%geometry%topg(i,j)) * thk0
+                enddo
+                write(6,*) ' '
+             enddo
+          endif   ! verbose
+
+       else   ! usrf_max < tiny
+
+          call write_log('Error: Must read in usrf to use adjust_input_thickness option', GM_FATAL)
+
+       endif   ! usrf_max > tiny
+
+    endif   ! adjust_input_thickness
 
     ! Optionally, smooth the input topography with a 9-point Laplacian smoother.
     !TODO - This smoothing needs some more testing.  In particular, it is unclear how best to treat
@@ -677,9 +803,6 @@ contains
     ! calculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
-    ! save starting ice thickness for diagnostics
-    model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
     ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
     !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
@@ -1038,6 +1161,9 @@ contains
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
+    ! save starting ice thickness for diagnostics
+    model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
+
     ! initialize ocean forcing data, if desired
     ! Currently, this is done only when using the ISMIP6 basal melting parameterization
     ! Note: Need the current value of lsrf when calling this subroutine
@@ -1364,7 +1490,8 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
          ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
          floating_mask,         & ! = 1 if ice is present (thck > 0) and floating
-         ocean_mask               ! = 0 if ice is absent (thck = 0) and topg < 0
+         ocean_mask,            & ! = 0 if ice is absent (thck = 0) and topg < 0
+         land_mask                ! = 1 if topg - eus >= 0
 
     ! melt rate field for ISMIP6
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
@@ -1407,7 +1534,8 @@ contains
                             model%climate%eus,   0.0d0,                 &  ! thklim = 0
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
-                            ocean_mask = ocean_mask)
+                            ocean_mask = ocean_mask,                    &
+                            land_mask = land_mask)
 
     ! Compute bmlt_float depending on the whichbmlt_float option
 
@@ -1441,6 +1569,7 @@ contains
             itest,     jtest,   rtest,         &
             ice_mask,                          &
             ocean_mask,                        &
+            land_mask,                         &
             model%geometry%f_ground_cell,      &
             model%geometry%thck*thk0,          & ! m
             model%geometry%lsrf*thk0,          & ! m
@@ -3260,8 +3389,10 @@ contains
                                              model%ocean_data%nbasin,                   &
                                              model%ocean_data%basin_number,             &
                                              model%geometry%thck*thk0,                  &  ! m
+                                             model%geometry%dthck_dt,                   &  ! m/s
                                              model%inversion%floating_thck_target*thk0, &  ! m
-                                             model%inversion%dtbasin_dt_scale,          &  ! degC/s
+                                             model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
+                                             model%inversion%bmlt_basin_timescale,      &  ! s
                                              model%ocean_data%deltaT_basin)
 
        endif

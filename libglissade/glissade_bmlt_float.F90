@@ -646,7 +646,8 @@ module glissade_bmlt_float
     
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask,                   &  ! = 1 if ice is present (thck > 0)
-         ocean_mask                     ! = 1 if topg < 0 and ice is absent
+         ocean_mask,                 &  ! = 1 if topg < 0 and ice is absent
+         land_mask                      ! = 1 if topg >= 0
 
     integer :: itest, jtest, rtest      ! coordinates of diagnostic point
     integer :: i, j, k
@@ -708,34 +709,48 @@ module glissade_bmlt_float
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-          if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
+          if (ocean_data%gamma0 > 0.0d0) then
 
-             if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
-                ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct5
-                ocean_data%gamma0 = ocean_data%gamma0_local_pct5
-             elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
-                ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_median
-                ocean_data%gamma0 = ocean_data%gamma0_local_median
-             elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
-                ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct95
-                ocean_data%gamma0 = ocean_data%gamma0_local_pct95
-             endif
+             ! gamma0 aleady read from the config file; do nothing
 
-          elseif (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
+          else  ! set gamma0 based on the chosen ISMIP6 options
+
+             if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
+
+                if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
+                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct5
+                   ocean_data%gamma0 = ocean_data%gamma0_local_pct5
+                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
+                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_median
+                   ocean_data%gamma0 = ocean_data%gamma0_local_median
+                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
+                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct95
+                   ocean_data%gamma0 = ocean_data%gamma0_local_pct95
+                endif
+
+             elseif (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
                   model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-             if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
-                ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
-                ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct5
-             elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
-                ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_median
-                ocean_data%gamma0 = ocean_data%gamma0_nonlocal_median
-             elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
-                ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct95
-                ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct95
+                if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
+                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
+                   ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct5
+                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
+                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_median
+                   ocean_data%gamma0 = ocean_data%gamma0_nonlocal_median
+                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
+                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct95
+                   ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct95
+                endif
+
+             endif  ! local or nonlocal
+
+             ! Abort if gamma0 does not yet have a nonzero value.
+
+             if (ocean_data%gamma0 == 0.0d0) then
+                call write_log('Error: Must assign a nonzero value to ocean_data%gamma0', GM_FATAL)
              endif
 
-          endif  ! local or nonlocal
+          endif  ! gamma > 0
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
@@ -796,7 +811,8 @@ module glissade_bmlt_float
                model%geometry%thck, model%geometry%topg,   &
                model%climate%eus,   0.0d0,                 &  ! thklim = 0
                ice_mask,                                   &
-               ocean_mask = ocean_mask)
+               ocean_mask = ocean_mask,                    &
+               land_mask = land_mask)
 
           ! Set ocean_data%thermal_forcing = ocean_data%thermal_forcing_baseline
           ! (since the following subroutine needs ocean_data%thermal_forcing as input).
@@ -813,6 +829,7 @@ module glissade_bmlt_float
                itest,     jtest,   rtest,                &
                ice_mask,                                 &
                ocean_mask,                               &
+               land_mask,                                &
                model%geometry%f_ground_cell,             &
                model%geometry%thck*thk0,                 & ! m
                model%geometry%lsrf*thk0,                 & ! m
@@ -864,6 +881,7 @@ module glissade_bmlt_float
        itest,     jtest,   rtest, &
        ice_mask,                  &
        ocean_mask,                &
+       land_mask,                 &
        f_ground_cell,             &
        thck,                      &
        lsrf,                      &
@@ -872,8 +890,8 @@ module glissade_bmlt_float
        bmlt_float)
 
     use glimmer_paramets, only: thk0, unphys_val
-    use glissade_calving, only: glissade_lake_mask
     use glissade_grid_operators, only: glissade_slope_angle
+    use glissade_calving, only: glissade_marine_connection_mask  !TODO - Move to mask module
 
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
     !  and the current lower ice surface, using either a local or nonlocal melt parameterization.
@@ -893,7 +911,8 @@ module glissade_bmlt_float
 
     integer, dimension(nx,ny), intent(in) :: &
          ice_mask,               & !> = 1 where ice is present (H > 0) else = 0
-         ocean_mask                !> = 1 for ice-free ocean, else = 0
+         ocean_mask,             & !> = 1 for ice-free ocean, else = 0
+         land_mask                 !> = 1 where topg >= 0, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          f_ground_cell,          & !> fraction of grounded ice in each cell
@@ -927,7 +946,7 @@ module glissade_bmlt_float
     !       * thermal_forcing_mask = 1 where ice is present (thck > 0) and f_ground_cell < 1, with lakes excluded
 
     integer, dimension(nx,ny) ::  &
-         lake_mask,                     & ! = 1 for interior lakes, else = 0
+         marine_connection_mask,        & ! = 1 for cells with a marine connection to the ocean, else = 0
          thermal_forcing_mask,          & ! = 1 where thermal forcing and bmlt_float can be nonzero, else = 0
          new_mask                         ! temporary mask
 
@@ -980,20 +999,15 @@ module glissade_bmlt_float
        thermal_forcing_mask = 0
     endwhere
 
-    ! Identify lakes.
-    ! Lakes are defined as floating cells (thermal_forcing_mask = 1) that are not connected
-    !  to the ocean along a path through other floating cells.
-    ! Ocean thermal forcing will be set to zero for lakes.
+    ! Compute a mask of cells with a path to the ocean through marine-based cells.
+    ! This mask excludes isolated interior lakes where thermal forcing is not applied.
+    call glissade_marine_connection_mask(nx,           ny,             &
+                                         itest, jtest, rtest,          &
+                                         ocean_mask,   land_mask,      &
+                                         marine_connection_mask)
 
-    call glissade_lake_mask(&
-         nx,           ny,              &
-         itest, jtest, rtest,           &
-         thermal_forcing_mask,          &
-         ocean_mask,                    &
-         lake_mask)
-
-    ! Modify thermal_forcing_mask to exclude lakes
-    where (lake_mask == 1)
+    ! Modify thermal_forcing_mask to exclude cells without a marine connection
+    where (marine_connection_mask == 0)
        thermal_forcing_mask = 0
     endwhere
 
@@ -1041,10 +1055,10 @@ module glissade_bmlt_float
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'lake mask:'
+          print*, 'marine_connection_mask:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') lake_mask(i,j)
+                write(6,'(i10)',advance='no') marine_connection_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1265,25 +1279,24 @@ module glissade_bmlt_float
             ocean_data%deltaT_basin,         &
             deltaT_basin_avg)
 
+       if (verbose_bmlt_float .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'thermal_forcing_basin:'
+          do nb = 1, ocean_data%nbasin
+             print*, nb, thermal_forcing_basin(nb)
+          enddo
+          print*, ' '
+          print*, 'deltaT_basin:'
+          do nb = 1, ocean_data%nbasin
+             print*, nb, deltaT_basin_avg(nb)
+          enddo
+       endif
+
     elseif (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
        thermal_forcing_basin = 0.0d0
        deltaT_basin_avg = 0.0d0
 
-    endif
-
-    !WHL - debug
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'thermal_forcing_basin:'
-       do nb = 1, ocean_data%nbasin
-          print*, nb, thermal_forcing_basin(nb)
-       enddo
-       print*, ' '
-       print*, 'deltaT_basin:'
-       do nb = 1, ocean_data%nbasin
-          print*, nb, deltaT_basin_avg(nb)
-       enddo
     endif
 
     !-----------------------------------------------
@@ -2080,17 +2093,6 @@ module glissade_bmlt_float
           field_basin_avg(nb) = 0.0d0
        endif
     enddo
-
-    !WHL - debug
-    if (present(rtest)) then
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'nb, sum_mask, sum_field:'
-          do nb = 1, nbasin
-             print*, nb, summask_global(nb), sumfield_global(nb)
-          enddo
-       endif
-    endif
 
   end subroutine basin_average
 

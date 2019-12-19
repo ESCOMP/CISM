@@ -217,7 +217,8 @@ contains
     model%inversion%bmlt_max_freeze = model%inversion%bmlt_max_freeze / scyr  ! convert m/yr to m/s
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
-    model%inversion%dtbasin_dt_scale = model%inversion%dtbasin_dt_scale / scyr    ! convert degC/yr to degC/s
+    model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
+    model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -706,6 +707,7 @@ contains
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck',model%options%diag_minthck)
@@ -1335,6 +1337,11 @@ contains
           call write_log(message, GM_WARNING)
        endif
 
+       if (model%options%adjust_input_thickness) then
+          write(message,*) ' Will adjust input ice thickness based on input surface topography'
+          call write_log(message)
+       endif
+
        if (model%options%smooth_input_topography) then
           write(message,*) ' Input topography will be smoothed'
           call write_log(message)
@@ -1362,8 +1369,12 @@ contains
           write(message,*) 'WARNING: calving timescale option supported for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
        endif
+       if (model%options%adjust_input_thickness) then
+          write(message,*) 'WARNING: adjust_input_thickness supported for Glissade dycore only; user selection ignored'
+          call write_log(message, GM_WARNING)
+       endif
        if (model%options%smooth_input_topography) then
-          write(message,*) 'WARNING: Topography smoothing supported for Glissade dycore only; user selection ignored'
+          write(message,*) 'WARNING: smooth_input_topography supported for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
        endif
 
@@ -2007,6 +2018,9 @@ contains
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
     call GetValue(section, 'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
 
+    ! ocean data parameters
+    call GetValue(section, 'gamma0', model%ocean_data%gamma0)
+
     ! basal inversion parameters
     !TODO - Put inversion parameters in a separate section
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
@@ -2031,7 +2045,8 @@ contains
     call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
     call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
 
-    call GetValue(section, 'inversion_dtbasin_dt_scale', model%inversion%dtbasin_dt_scale)
+    call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
+    call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2446,7 +2461,9 @@ contains
     endif   ! which_ho_bmlt_inversion
 
     if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
-       write(message,*) 'scale (deg C/yr) for adjusting deltaT_basin  : ', model%inversion%dtbasin_dt_scale
+       write(message,*) 'timescale (yr) for adjusting deltaT_basin    : ', model%inversion%bmlt_basin_timescale
+       call write_log(message)
+       write(message,*) 'dbmlt/dtemp scale (m/yr/deg C)               : ', model%inversion%dbmlt_dtemp_scale
        call write_log(message)
     endif
 
@@ -2578,6 +2595,9 @@ contains
        write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
        call write_log(message)
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+       call write_log(message)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       write(message,*) 'gamma0 (nondimensional)  :  ', model%ocean_data%gamma0
        call write_log(message)
     endif
 

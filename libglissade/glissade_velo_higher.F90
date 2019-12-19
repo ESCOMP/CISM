@@ -2631,6 +2631,9 @@
                 write(6,*) ' '
              enddo
 
+             !WHL - debug - Skip the next few fields for now
+             go to 500
+
              print*, ' '
              print*, 'weight_ground_vertex, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
@@ -2640,9 +2643,6 @@
                 enddo
                 write(6,*) ' '
              enddo
-
-          !WHL - debug - Skip the next few fields for now
-             go to 500
 
              print*, ' '
              print*, 'ocean_mask, itest, jtest, rank =', itest, jtest, rtest
@@ -2814,159 +2814,16 @@
                          stag_powerlaw_c_inversion,        &
                          itest, jtest, rtest)
 
-          if (verbose_beta) then
-             maxbeta = maxval(beta_internal(:,:))
-             maxbeta = parallel_reduce_max(maxbeta)
-             minbeta = minval(beta_internal(:,:))
-             minbeta = parallel_reduce_min(minbeta)
-          endif
+!          if (verbose_beta) then
+!             maxbeta = maxval(beta_internal(:,:))
+!             maxbeta = parallel_reduce_max(maxbeta)
+!             minbeta = minval(beta_internal(:,:))
+!             minbeta = parallel_reduce_min(minbeta)
+!          endif
 
-          if (verbose_beta .and. main_task) then
-!!          print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
-          endif
-
-       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,15)==0) then
-!!          if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
-             print*, ' '
-             print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   if (beta_internal(i,j) > 0.0d0) then
-                      write(6,'(f10.5)',advance='no') log10(beta_internal(i,j))
-                   else
-                      write(6,'(f10.5)',advance='no') -99.0d0
-                   endif
-                enddo
-                write(6,*) ' '
-             enddo
-
-             if (solve_2d) then
-
-                print*, ' '
-                print*, 'Mean uvel field, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.3)',advance='no') uvel_2d(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-                print*, ' '
-                print*, 'Mean vvel field, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.3)',advance='no') vvel_2d(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-             else	 ! 3D velocity solve
-
-                print*, ' '
-                print*, 'Basal uvel field, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.2)',advance='no') uvel(nz,i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-                print*, ' '
-                print*, 'Basal vvel field, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.2)',advance='no') vvel(nz,i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-                print*, ' '
-                print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.2)',advance='no') uvel(1,i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-                print*, ' '
-                print*, 'Sfc vvel field, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.2)',advance='no') vvel(1,i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-             endif  ! solve_2d
-
-             if (whichbabc == HO_BABC_BETA_BPMP .or. whicheffecpress == HO_EFFECPRESS_BPMP) then
-
-                print*, ' '
-                print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.5)',advance='no') stagbedtemp(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-                print*, ' '
-                print*, 'staggered bed pmp, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.5)',advance='no') stagbedpmp(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-                print*, ' '
-                print*, 'bpmp_mask, itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(i10)',advance='no') model%basal_physics%bpmp_mask(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-             endif  ! HO_BABC_BETA_BPMP or HO_EFFECPRESS_BPMP
-
-             if (whicheffecpress == HO_EFFECPRESS_BMLT) then
-
-                print*, ' '
-                print*, 'bmlt (m/yr), itest, jtest, rank =', itest, jtest, rtest
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.5)',advance='no') bmlt(i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
-
-             endif  ! HO_EFFECPRESS_BMLT
-
-             if (whichbabc == HO_BABC_YIELD_PICARD) then
-                print*, ' '
-                print*, 'mintauf field, rank =', rtest
-                do j = ny-1, 1, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = 1, nx-1
-                      write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j) * tau0
-                   enddo
-                   write(6,*) ' '
-                enddo
-             endif
-
-          endif   ! verbose_beta
+!          if (verbose_beta .and. main_task) then
+!             print*, 'max, min beta (Pa/(m/yr)) =', maxbeta, minbeta
+!          endif
 
           !-------------------------------------------------------------------
           ! Assemble the linear system Ax = b
@@ -3495,7 +3352,7 @@
           !---------------------------------------------------------------------------
 
           if (verbose_residual .and. main_task) then
-             print*, 'Compute residual vector'
+             print*, 'Compute residual vector, counter =', counter
           endif
 
           if (solve_2d) then
@@ -3652,6 +3509,151 @@
           endif   ! 2D or 3D solve
 
        enddo  ! while (.not.assembly_is_done)
+
+       ! Optional diagnostics
+
+       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,12)==0) then
+!!          if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
+          print*, ' '
+          print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                if (beta_internal(i,j) > 0.0d0) then
+                   write(6,'(f10.5)',advance='no') log10(beta_internal(i,j))
+                else
+                   write(6,'(f10.5)',advance='no') -99.0d0
+                endif
+             enddo
+             write(6,*) ' '
+          enddo
+
+          if (solve_2d) then
+
+             print*, ' '
+             print*, 'Mean uvel field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') uvel_2d(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'Mean vvel field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') vvel_2d(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          else	 ! 3D velocity solve
+
+             print*, ' '
+             print*, 'Basal uvel field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') uvel(nz,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'Basal vvel field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') vvel(nz,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') uvel(1,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'Sfc vvel field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') vvel(1,i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif  ! solve_2d
+
+          if (whichbabc == HO_BABC_BETA_BPMP .or. whicheffecpress == HO_EFFECPRESS_BPMP) then
+
+             print*, ' '
+             print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') stagbedtemp(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'staggered bed pmp, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') stagbedpmp(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'bpmp_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') model%basal_physics%bpmp_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif  ! HO_BABC_BETA_BPMP or HO_EFFECPRESS_BPMP
+
+          if (whicheffecpress == HO_EFFECPRESS_BMLT) then
+
+             print*, ' '
+             print*, 'bmlt (m/yr), itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') bmlt(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif  ! HO_EFFECPRESS_BMLT
+
+          if (whichbabc == HO_BABC_YIELD_PICARD) then
+             print*, ' '
+             print*, 'mintauf field, rank =', rtest
+             do j = ny-1, 1, -1
+                write(6,'(i6)',advance='no') j
+                do i = 1, nx-1
+                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j) * tau0
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+       endif   ! verbose_beta
 
        !---------------------------------------------------------------------------
        ! Solve the 2D or 3D matrix system.
@@ -4358,6 +4360,15 @@
           deallocate(Auu_sav, Auv_sav, Avu_sav, Avv_sav)
           deallocate(beta_internal_sav)
        endif
+    endif
+
+    if (whichapprox == HO_APPROX_DIVA) then
+       deallocate(beta_eff)
+       deallocate(omega)
+       deallocate(omega_k)
+       deallocate(stag_omega)
+       deallocate(stag_omega_k)
+       deallocate(efvs_qp_3d)
     endif
 
     !------------------------------------------------------------------------------

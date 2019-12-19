@@ -49,7 +49,6 @@
     public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
 
     logical, parameter :: verbose_glp = .false.
-!!    logical, parameter :: verbose_glp = .true.
 
   contains
 
@@ -431,13 +430,13 @@
        enddo
     endif
 
-    ! initialize f_ground arrays
+    ! initialize the arrays computed below
     f_ground(:,:) = 0.0d0
     f_ground_cell(:,:) = 0.0d0
-
-    ! Initialize the optional weight arrays
-    if (present(weight_float_cell)) weight_float_cell = 0.0d0
-    if (present(weight_ground_vertex)) weight_ground_vertex = 0.0d0
+    f_ground_quadrant(:,:,:) = 0.0d0
+    f_flotation_quadrant(:,:,:) = 0.0d0
+    if (present(weight_float_cell)) weight_float_cell(:,:) = 0.0d0
+    if (present(weight_ground_vertex)) weight_ground_vertex(:,:) = 0.0d0
 
     ! Given f_flotation in all cells, we have the information needed to compute f_ground
     !  at vertices by one of several methods:
@@ -755,6 +754,11 @@
              ! Optionally, compute a weighting factor that is equal to (1 - f_ground_cell) for deep cavities,
              !  but is reduced for shallow cavities (i.e., small positive values of f_flotation_quadrant).
              ! Note: Only quadrants with f_flotation > 0 contribute to the sum.
+             !       If the adjacent vertex has vmask = 0, then it is surrounded by 4 ice-free ocean cells.
+             !       In this case we set f_float_quadrant = 1.0 and add this value to the weight,
+             !        effectively assuming that the cavity is deep compared to bmlt_cavity_h0.
+             !TODO: Compute f_flotation_quadrant for all quadrants, including those in the middle of ice-free ocean?
+             !      Then we could use the tanh function everywhere.
 
              if (present(weight_float_cell)) then
 
@@ -767,6 +771,9 @@
                       f_float_quadrant = 1.0d0 - f_ground_quadrant(3,i-1,j-1)
                       sum_weight = sum_weight + &
                            f_float_quadrant * tanh(f_flotation_quadrant(3,i-1,j-1) / bmlt_cavity_h0)
+                   elseif (vmask(i-1,j-1) == 0) then  ! vertex surrounded by ice-free ocean
+                      f_float_quadrant = 1.0d0
+                      sum_weight = sum_weight + f_float_quadrant
                    endif
 
                    ! quadrant 4 of vertex (i,j-1)
@@ -774,6 +781,9 @@
                       f_float_quadrant = 1.0d0 - f_ground_quadrant(4,i,j-1)
                       sum_weight = sum_weight + &
                            f_float_quadrant * tanh(f_flotation_quadrant(4,i,j-1) / bmlt_cavity_h0)
+                   elseif (vmask(i,j-1) == 0) then  ! vertex surrounded by ice-free ocean
+                      f_float_quadrant = 1.0d0
+                      sum_weight = sum_weight + f_float_quadrant
                    endif
 
                    ! quadrant 1 of vertex (i,j)
@@ -781,6 +791,9 @@
                       f_float_quadrant = 1.0d0 - f_ground_quadrant(1,i,j)
                       sum_weight = sum_weight + &
                            f_float_quadrant * tanh(f_flotation_quadrant(1,i,j) / bmlt_cavity_h0)
+                   elseif (vmask(i,j) == 0) then  ! vertex surrounded by ice-free ocean
+                      f_float_quadrant = 1.0d0
+                      sum_weight = sum_weight + f_float_quadrant
                    endif
 
                    ! quadrant 2 of vertex (i-1,j)
@@ -788,6 +801,9 @@
                       f_float_quadrant = 1.0d0 - f_ground_quadrant(2,i-1,j)
                       sum_weight = sum_weight + &
                            f_float_quadrant * tanh(f_flotation_quadrant(2,i-1,j) / bmlt_cavity_h0)
+                   elseif (vmask(i-1,j) == 0) then  ! vertex surrounded by ice-free ocean
+                      f_float_quadrant = 1.0d0
+                      sum_weight = sum_weight + f_float_quadrant
                    endif
 
                    weight_float_cell(i,j) = 0.25d0 * sum_weight
