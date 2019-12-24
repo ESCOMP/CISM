@@ -398,6 +398,7 @@ contains
     ! Read data from forcing files
     use glimmer_log
     use glide_types
+    use parallel, only: main_task
 
     implicit none
     type(DATATYPE) :: data
@@ -405,7 +406,7 @@ contains
 
     ! Locals
     type(glimmer_nc_input), pointer :: ic
-    integer :: t
+    integer :: t, t_prev
     real(dp) :: eps ! a tolerance to use for stepwise constant forcing
 
     ! Make eps a fraction of the time step.
@@ -415,21 +416,41 @@ contains
     ic=>model%funits%frc_first
     do while(associated(ic))
 
-       !print *, 'possible forcing times', ic%times
+!       if (main_task) print *, 'possible forcing times', ic%times
 
        ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
+
+!       if (main_task) print*, 'In glide_read_forcing, model time + eps =', model%numerics%time + eps
+
+       ! Find the time index associated with the previous model time step
+       t_prev = 0
+       do t = ic%nt, 1, -1  ! look through the time array backwards
+          if ( ic%times(t) <= model%numerics%time - model%numerics%tinc + eps) then
+             t_prev = t
+!             if (main_task) print*, 'Previous time index =', t_prev
+             exit
+          end if
+       enddo
+
        ! Find the current time in the file
        do t = ic%nt, 1, -1  ! look through the time array backwards
           if ( ic%times(t) <= model%numerics%time + eps) then
-            ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+             ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+!             if (main_task) print*, 'Largest time less than model time: t, times(t):', t, ic%times(t)
 
-            ! Set the desired time to be read
-            ic%current_time = t
-            ic%nc%just_processed = .false.  ! set this to false so file will be read.
-            !print *, 'time, forcing index, forcing time', model%numerics%time, ic%current_time, ic%times(ic%current_time)
-            exit  ! once we find the time, exit the loop
-          endif
-          end do  ! if we get to end of loop without exiting, then this file will not be read at this time.
+             ! If this time index (t) is larger than the previous index (t_prev), then read a new time slice.
+             ! Otherwise, we already have the current slice, and there is nothing new to read.
+             if (t > t_prev) then
+                ! Set the desired time to be read
+                ic%current_time = t
+                ic%nc%just_processed = .false.  ! set this to false so file will be read.
+!                if (main_task) print*, 'Read new forcing slice: t, times(t) =', t, ic%times(t)
+             endif ! t > t_prev
+
+             exit  ! once we find the time, exit the loop
+          end if   ! ic%times(t) <= model%numerics%time + eps
+
+       end do  ! if we get to end of loop without exiting, then this file will not be read at this time
 
        ! move on to the next forcing file
        ic=>ic%next
