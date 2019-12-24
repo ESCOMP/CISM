@@ -971,12 +971,16 @@
 
     ! Given nfloat, compute f_ground for each vertex
     ! First the easy cases...
+    ! Note: Cells with f_flotation = 0 are arbitrarily identified as grounded rather than floating.
+    !       This can be problematic if 1<= nfloat <= 3, but all the corners that are identified as grounded
+    !        have f_flotation = 0 (i.e., minval(f_flotation) = 0).  Then we should set f_ground = 0 (as if we had nfloat = 4).
 
     if (nfloat == 0) then
 
        f_ground = 1.0d0    ! fully grounded
 
-    elseif (nfloat == 4) then
+!!    elseif (nfloat == 4) then  ! need the extra logic in the line below
+    elseif (nfloat == 4 .or. minval(f_flotation) == 0.0d0) then
 
        f_ground = 0.0d0    ! fully floating
 
