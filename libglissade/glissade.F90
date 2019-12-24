@@ -142,6 +142,7 @@ contains
 
     logical, parameter :: &
          make_ice_domain_mask = .false.   ! set to .true. to create mask at initialization
+!!         make_ice_domain_mask = .true.   ! set to .true. to create mask at initialization
 
     real(dp) :: usrf_max    ! max value of usrf
     real(dp) :: topg        ! model%geometry%topg - model%climate%eus
@@ -915,7 +916,8 @@ contains
 
        allocate(ice_domain_mask(model%general%ewn,model%general%nsn))
 
-       do k = 1, 2
+!!       do k = 1, 2
+       do k = 1, 3
           call parallel_halo(model%general%ice_domain_mask)
           ice_domain_mask = model%general%ice_domain_mask   ! temporary copy
           do j = nhalo+1, model%general%nsn - nhalo

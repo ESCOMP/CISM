@@ -655,6 +655,8 @@ module glissade_bmlt_float
 
     integer :: basin_number_min         ! global minval of the basin_number field
 
+    real(dp) :: tf_baseline_max    ! global max value of thermal_forcing_baseline
+
     !WHL - debug
     logical :: simple_init = .false.
 
@@ -752,6 +754,21 @@ module glissade_bmlt_float
 
           endif  ! gamma > 0
 
+          ! Check whether thermal_forcing_baseline has been read in.
+          ! If so, then set thermal_forcing = thermal_forcing_baseline,
+          !  and use this field to compute bmlt_float_baseline.
+          ! If not, just use the input thermal_forcing, if present.
+
+          tf_baseline_max = maxval(model%ocean_data%thermal_forcing_baseline)
+          tf_baseline_max = parallel_reduce_max(tf_baseline_max)
+
+          if (tf_baseline_max > tiny(0.0d0)) then
+             model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_baseline
+             if (verbose_bmlt_float .and. this_rank==rtest) then
+                print*, 'Set thermal_forcing = thermal_forcing_baseline'
+             endif
+          endif
+
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
              print*, 'Initialize ISMIP6 sub-shelf melting'
@@ -782,11 +799,11 @@ module glissade_bmlt_float
              enddo
              do k = kmin_diag, kmax_diag
                 print*, ' '
-                print*, 'thermal_forcing_baseline, k =', k
+                print*, 'thermal_forcing, k =', k
                 do j = jtest+3, jtest-3, -1
                    write(6,'(i6)',advance='no') j
                    do i = itest-3, itest+3
-                      write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing_baseline(k,i,j)
+                      write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
                    enddo
                    write(6,*) ' '
                 enddo
@@ -796,7 +813,7 @@ module glissade_bmlt_float
           ! Fill halos (might not be needed)
 
           call parallel_halo(ocean_data%basin_number)
-          call parallel_halo(ocean_data%thermal_forcing_baseline)
+          call parallel_halo(ocean_data%thermal_forcing)
 
          ! Compute the melt rate associated with the baseline thermal forcing and initial lower ice surface (lsrf).
          ! This melt rate can be subtracted from the runtime melt rate to give a runtime anomaly.
@@ -813,11 +830,6 @@ module glissade_bmlt_float
                ice_mask,                                   &
                ocean_mask = ocean_mask,                    &
                land_mask = land_mask)
-
-          ! Set ocean_data%thermal_forcing = ocean_data%thermal_forcing_baseline
-          ! (since the following subroutine needs ocean_data%thermal_forcing as input).
-
-          ocean_data%thermal_forcing = ocean_data%thermal_forcing_baseline
 
           ! Compute basal melt rates, given the thermal forcing.
 

@@ -90,15 +90,12 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
 
+    real(dp) :: h_cavity                     ! cavity thickness (m); < 0 for grounded ice
     real(dp) :: h_obs, h_flotation, h_buff   ! thck_obs, flotation thickness, and thck_flotation_buffer scaled to m
     real(dp) :: dh                           ! h_obs - f_flotation
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
     integer :: ewn, nsn
-
-    !TODO - Make this a config parameter?
-    real(dp), parameter :: &
-         thck_above_flotation_threshold = 500.d0   ! ice thickness above flotation (m) to determine inversion targets
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -281,9 +278,9 @@ contains
                                                ocean_mask,   land_mask,      &
                                                marine_connection_mask)
 
-          ! Set floating_thck_target to the initial thickness of floating and lightly grounded ice.
-          ! Here, "lightly grounded" refers to ice that is grounded below sea level
-          !  with thck_above_flotation smaller than a prescribed threshold.
+          ! Set floating_thck_target to the thickness of lightly floating and lightly grounded ice.
+          ! Here, "lightly" means that the absolute value of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
+          !  is less than a prescribed threshold.
           ! Thus we include both ice that is floating but might ground (leading to
           !  a positive volume bias that will be corrected with ocean warming) and ice
           !  that is grounded but might float (leading to a negative volume bias
@@ -291,25 +288,19 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0  ! m
-                if (marine_connection_mask(i,j) == 1 .and.  &
-                     model%geometry%thck(i,j)*thk0 - h_flotation < thck_above_flotation_threshold) then
+                h_cavity = (-(model%geometry%topg(i,j) - model%climate%eus)  &
+                            - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0    ! h_cavity < 0 for grounded ice
+                if (model%geometry%thck(i,j) > 0.0d0 .and. marine_connection_mask(i,j) == 1 .and. &
+                     abs(h_cavity) < model%inversion%bmlt_basin_cavity_threshold) then
                    model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
                 else
                    model%inversion%floating_thck_target(i,j) = 0.0d0
-                endif
-                if (i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, ' '
-                   print*, 'i, j, r =', itest, jtest, rtest
-                   print*, 'thck, thck_flotation, thck_above_flotation =', &
-                        model%geometry%thck(i,j)*thk0, h_flotation, &
-                        model%geometry%thck(i,j)*thk0 - h_flotation
                 endif
              enddo
           enddo
 
           if (verbose_inversion .and. this_rank == rtest) then
-             print*, 'thck_above_flotation_threshold =', thck_above_flotation_threshold
+             print*, 'bmlt_basin_cavity_threshold =', model%inversion%bmlt_basin_cavity_threshold
              print*, ' '
              print*, 'After init_inversion, floating_thck_target (m):'
              do j = jtest+3, jtest-3, -1
@@ -327,24 +318,16 @@ contains
                 write(6,*) ' '
              enddo
              print*, ' '
-             print*, 'thck_flotation (m):'
+             print*, 'h_cavity (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') &
-                        -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0
+                        (-(model%geometry%topg(i,j) - model%climate%eus)  &
+                        - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0
                 enddo
                 write(6,*) ' '
              enddo
-             print*, ' '
-             print*, 'thck_above_flotation (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0  &
-                         + (rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
+          endif   ! verbose
 
        endif   ! not a restart
 
