@@ -2047,6 +2047,8 @@ contains
 
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
+    call GetValue(section, 'inversion_bmlt_basin_cavity_threshold', &
+         model%inversion%bmlt_basin_cavity_threshold)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2464,6 +2466,9 @@ contains
        write(message,*) 'timescale (yr) for adjusting deltaT_basin    : ', model%inversion%bmlt_basin_timescale
        call write_log(message)
        write(message,*) 'dbmlt/dtemp scale (m/yr/deg C)               : ', model%inversion%dbmlt_dtemp_scale
+       call write_log(message)
+       write(message,*) 'Cavity threshold (m) for bmlt_basin inversion: ', &
+            model%inversion%bmlt_basin_cavity_threshold
        call write_log(message)
     endif
 
@@ -3218,7 +3223,8 @@ contains
 
     ! The bmlt_basin inversion option needs targets for floating ice area and volume
     ! Note: deltaT_basin is added to the restart file above.
-    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or.  &
+        options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_APPLY) then
        call glide_add_to_restart_variable_list('floating_thck_target')
     endif
 

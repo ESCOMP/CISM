@@ -200,6 +200,7 @@ contains
          max_thck, max_thck_global,     &    ! max ice thickness (m)
          max_temp, max_temp_global,     &    ! max ice temperature (deg C)
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
+         max_bmlt, max_bmlt_global,     &    ! max basal melt rate (m/yr)
          max_spd_sfc, max_spd_sfc_global,   &    ! max surface ice speed (m/yr)
          max_spd_bas, max_spd_bas_global,   &    ! max basal ice speed (m/yr)
          spd,                           &    ! speed
@@ -762,6 +763,30 @@ contains
 
     write(message,'(a25,f24.16,3i6)') 'Min temperature, i, j, k ',   &
                     min_temp_global, imin_global, jmin_global, kmin_global
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    ! max basal melt rate
+    imax = 0
+    jmax = 0
+    max_bmlt = unphys_val
+
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (model%basal_melt%bmlt_applied(i,j) > max_bmlt) then
+             max_bmlt = model%basal_melt%bmlt_applied(i,j)
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_bmlt, xout=max_bmlt_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global)
+    call broadcast(imax_global, procnum)
+    call broadcast(jmax_global, procnum)
+
+    write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/yr), i, j    ',   &
+                    max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max surface speed

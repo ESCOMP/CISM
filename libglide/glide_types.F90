@@ -1570,8 +1570,9 @@ module glide_types
           floating_thck_target                !> Observational target for floating ice thickness
 
      real(dp) ::  &
-          dbmlt_dtemp_scale = 10.0d0,       & !> scale for rate of change of bmlt w/temperature, m/yr/degC
-          bmlt_basin_timescale = 10.0d0       !> timescale (yr) for adjusting deltaT_basin
+          dbmlt_dtemp_scale = 10.0d0,            & !> scale for rate of change of bmlt w/temperature, m/yr/degC
+          bmlt_basin_timescale = 10.0d0,         & !> timescale (yr) for adjusting deltaT_basin
+          bmlt_basin_cavity_threshold = 400.d0     !> threshold (m) for counting ice as lightly floating/grounded
 
   end type glide_inversion
 
