@@ -166,7 +166,7 @@ contains
 ! ***************************************************
 !---------------------------------------------------------------------------------
  
-  subroutine glissade_shakti(model)
+  subroutine glissade_shakti(model,dt)
 !                             which_ho_bwat,            &
 !                             basal_physics,            &
 !                             dt,                       &
@@ -187,16 +187,16 @@ contains
 !                             model,                    &
 !                             bwat)
 
-    use glimmer_physcon, only: rhoi, rhow, grav, c_t, c_w, nu_water 
+    use glimmer_physcon, only: rhoi, rhow, grav, c_t, c_w, nu_water, lhci
     use parallel
     use glissade_velo_higher_pcg, only: pcg_solver_standard_2d_scalar
     !----------------------------------------------------
     ! SHAKTI - Input/output arguments
     ! ---------------------------------------------------
-!    integer, intent(in) :: &
+    integer, intent(in) :: &
 !         ewn, nsn          & ! grid dimensions
 !         which_ho_bwat     & ! which basal option SHAKTI=3
-!         dt                & ! time step (units?)
+         dt               ! & ! time step (units?)
 !         flwa              & ! flow law Parameter (Pa^-3 s^-1, I think) - ***check the name and units ***
 !         flwn              & ! flow law exponent (unitless) -***check the name***
 
@@ -238,8 +238,6 @@ contains
     ! ----------------------------------------------
     ! SHAKTI - Local variables
     ! ----------------------------------------------
-    ! *** Right now, from here down is based on Bill's glissade_test_matrix code ***
-    ! *** Need to declare appropriate local SHAKTI variables ***
 
     integer :: nx, ny               ! grid dimensions
     integer :: itest, jtest, rtest  ! coordinates of diagnostic point
@@ -247,16 +245,157 @@ contains
     integer :: niters               ! number of iterations in solver
     integer :: i, j, m
     integer :: iglobal, jglobal
-    integer :: K                    ! constant, uniform transmissivity (***for testing only!***)
+!    integer :: K                    ! constant, uniform transmissivity (***for testing only!***)
     integer :: dx, dy               ! grid spacing
+
+    ! *** hard-coded variables for now ***
+    integer :: om                   ! parameter controlling transition between laminar and turbulent flow
+    integer :: flwa                 ! flow law parameter A (Pa-3 s-1)
+    integer :: ghf                  ! geothermal flux (W m-2)
+    integer :: bump_height          ! typical bed bump height (m)
+    integer :: bump_spacing         ! typical bed bumps spacing (m)
+    integer :: drag                 ! basal drag coefficient
+
+    real(dp), dimension(:,:), allocatable ::   beta         ! parameter controlling gap increase due to sliding 
+    real(dp), dimension(:,:), allocatable ::   gap_height   ! initial subglacial gap height (m)
+    real(dp), dimension(:,:), allocatable ::   thck         ! ice thickness (m) 
+    real(dp), dimension(:,:), allocatable ::   p_i          ! ice overburden pressure (Pa)
+    real(dp), dimension(:,:), allocatable ::   p_w          ! water pressure (Pa)
+    real(dp), dimension(:,:), allocatable ::   head         ! head (m)
+    real(dp), dimension(:,:), allocatable ::   topg         ! bed elevation (m)
+    real(dp), dimension(:,:), allocatable ::   ub           ! sliding velocity (m s-1) --*** CONSTANT FOR NOW ***
+    real(dp), dimension(:,:), allocatable ::   meltwater_input  ! distributed meltwater input (m s-1)
+    real(dp), dimension(:,:), allocatable ::   reynolds     ! reynolds number
+    real(dp), dimension(:,:), allocatable ::   qx           ! depth-integrated basal water flux in x-direction (m2 s-1)
+    real(dp), dimension(:,:), allocatable ::   qy           ! depth-integrated basal water flux in y-direction (m2 s-1)
+    real(dp), dimension(:,:), allocatable ::   dhdx         ! head gradient in x-direction
+    real(dp), dimension(:,:), allocatable ::   dhdy         ! head gradient in y-direction
+    real(dp), dimension(:,:), allocatable ::   K            ! transmissivity
+    real(dp), dimension(:,:), allocatable ::   melt_rate    ! melt rate (different than bmlt???)
+    real(dp), dimension(:,:), allocatable ::   taub         ! basal traction
 
     nx = model%general%ewn
     ny = model%general%nsn
  
-    K = 1.0d0
+    ! Constant uniform integer transmissivity for testing
+!    K = 1.0d0
  
     dx = 1.0d0
     dy = 1.0d0
+
+    ! *** hard-coded variables for now ***
+    om = 0.001d0
+    flwa = 2.5E-25
+    ghf = 0.06d0
+    bump_height = 0.05d0
+    bump_spacing = 2d0
+
+    allocate(ub(nx,ny))
+    ub(:,:) = 1E-6
+ 
+    allocate(meltwater_input(nx,ny))
+    meltwater_input(:,:) = 0.5d0 / (3600*24*365)
+
+    ! ------------------------------------------------
+    ! SHAKTI - Initial conditions
+    ! ------------------------------------------------
+
+    ! Initial gap height
+    allocate(gap_height(nx,ny))
+    gap_height(:,:) = 0.01d0
+
+    ! Parameter to control opening by sliding over bed bumps
+    allocate(beta(nx,ny))
+    beta(:,:) = 0.0d0
+    do j = 1,ny
+       do i = 1,nx
+          if (gap_height(i,j) < bump_height) then
+             beta(i,j) = (bump_height - gap_height(i,j)) / bump_spacing
+          endif
+       enddo
+     enddo
+
+    ! Ice thickness *** uniform everywhere for now, hard-coded *** 
+    allocate(thck(nx,ny))
+    thck(:,:) = 500d0
+
+    ! Bed topography *** hard-coded for now ***
+    allocate(topg(nx,ny))
+    topg(:,:) = 0.0d0
+
+    ! Calculate ice overburden pressure
+    allocate(p_i(nx,ny))
+    do j = 1,ny
+       do i = 1,nx
+          p_i(i,j) = rhoi * grav * thck(i,j)
+       enddo
+    enddo
+
+    ! Initial water pressure (50% overburden) and head
+    allocate(p_w(nx,ny))
+    allocate(head(nx,ny))
+    do j = 1,ny
+       do i = 1,nx
+          p_w(i,j) = 0.5 * p_i(i,j)
+          head(i,j) = p_w(i,j) / (rhow * grav) + topg(i,j)
+       enddo
+    enddo
+
+   
+
+    ! ------------------------------------------------
+    ! SHAKTI - Calculate Reynolds number, transmissivity, and melt rate
+    ! ------------------------------------------------
+
+    allocate(reynolds(nx,ny))
+    reynolds(:,:) = 1000d0
+
+    ! Head gradients dh/dx and dh/dy
+    allocate(dhdx(nx,ny))
+    allocate(dhdy(nx,ny))
+    do j = 1,ny-1
+       do i = 1,nx-1
+          dhdx(i,j) = (head(i+1,j) - head(i,j)) / dx
+          dhdx(nx,j) = 0.0d0
+          dhdy(i,j) = (head(i,j+1) - head(i,j)) / dy
+          dhdy(i,ny) = 0.0d0
+       enddo
+    enddo
+
+    ! Basal water flux (m2/s)
+    allocate(qx(nx,ny))
+    allocate(qy(nx,ny))
+    do j = 1,ny
+       do i = 1,nx
+          qx(i,j) = - gap_height(i,j)**3 * grav / (12*nu_water *(1+om*reynolds(i,j))) * dhdx(i,j)
+          qy(i,j) = - gap_height(i,j)**3 * grav / (12*nu_water *(1+om*reynolds(i,j))) * dhdy(i,j)
+       enddo
+    enddo
+
+    ! Transmissivity
+    allocate(K(nx,ny))
+    do j = 1,ny
+       do i = 1,nx
+          K(i,j) = gap_height(i,j)**3 * grav / (12*nu_water *(1+om*reynolds(i,j)))
+       enddo
+    enddo
+
+    ! Melt rate
+    allocate(taub(nx,ny))
+    allocate(melt_rate(nx,ny))
+    drag = 20
+    do j = 1,ny
+       do i = 1,nx
+          taub(i,j) = drag**2 * (p_i(i,j) - p_w(i,j)) * ub(i,j)
+          melt_rate(i,j) = 1/lhci * (ghf - ub(i,j)*taub(i,j) + rhow*grav*abs(qx(i,j)*dhdx(i,j) + qy(i,j)*dhdy(i,j)))
+       enddo
+    enddo
+
+    
+
+    ! ------------------------------------------------
+    ! SHAKTI - Matrix assembly and solve for head
+    ! ------------------------------------------------
 
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
@@ -302,26 +441,26 @@ contains
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
              active_cell(i,j) = .true.
-             Ah(i,j,3) = 4.0*K/dx**2d0 
+             Ah(i,j,3) = 4.0*K(i,j)/dx**2d0 
              if (i == nhalo+1) then          ! westernmost cell with nonzero x; subdiag term = 0
                 Ah(i,j,3) = 1.0d0            !     Dirichlet b.c. at outflow, h=zb 
                 bh(i,j) = 0.0d0              !     rhs should be set to bed elevation (zero just for simple test) 
              elseif (i == nx-nhalo) then     ! easternmost cell with nonzero x; supdiag term = 0
-                Ah(i,j,2) = -1.0*K/dx**2d0            !    Zero-flux Neumann b.c.
+                Ah(i,j,2) = -1.0*K(i,j)/dx**2d0            !    Zero-flux Neumann b.c.
                 bh(i,j) = 0.0d0  
              else                            ! interior cell
-                Ah(i,j,2) = -1.0*K/dx**2d0
-                Ah(i,j,4) = -1.0*K/dx**2d0
+                Ah(i,j,2) = -1.0*K(i,j)/dx**2d0
+                Ah(i,j,4) = -1.0*K(i,j)/dx**2d0
              endif
              if (j == nhalo+1) then          ! southernmost cell with nonzero x; subdiag term = 0
-                Ah(i,j,5) = -1.0*K/dy**2d0            !    Zero-flux Neumann b.c.
+                Ah(i,j,5) = -1.0*K(i,j)/dy**2d0            !    Zero-flux Neumann b.c.
                 bh(i,j) = 0.0d0 
              elseif (j == ny-nhalo) then     ! northernmost cell with nonzero x; supdiag term = 0
-                Ah(i,j,1) = -1.0*K/dy**2d0 
+                Ah(i,j,1) = -1.0*K(i,j)/dy**2d0 
                 bh(i,j) = 0.0d0 
              else                            ! interior cell
-                Ah(i,j,1) = -1.0*K/dy**2d0
-                Ah(i,j,5) = -1.0*K/dy**2d0
+                Ah(i,j,1) = -1.0*K(i,j)/dy**2d0
+                Ah(i,j,5) = -1.0*K(i,j)/dy**2d0
              endif
           enddo   ! i
        enddo   ! j
@@ -405,6 +544,40 @@ contains
     ! clean up
     deallocate(active_cell)
     deallocate(Ah, bh, xh)
+
+    ! Calculate new head gradients
+
+    ! Calculate new pressures
+
+    ! Calculate new basal water flux
+
+    ! Calculate new Reynolds number
+
+    ! Calculate new melt rate
+ 
+    ! Evolve gap height based on new head distribution
+    do j = 1,ny
+       do i = 1,nx
+          gap_height(i,j) = gap_height(i,j) + dt*(melt_rate(i,j)/rhoi - flwa*(p_i(i,j) - p_w(i,j))**3*gap_height(i,j) + beta(i,j)*ub(i,j))
+
+          ! No negative gap height allowed (limit to very small)
+          if (gap_height(i,j) < 1E-6) then
+             gap_height(i,j) = 1E-6
+          endif
+
+          ! Gap height cannot exceed ice thickness
+          if (gap_height(i,j) > thck(i,j)) then
+             gap_height(i,j) = thck(i,j)
+          endif
+
+          ! Calculate new beta (opening by sliding parameter)
+          if (gap_height(i,j) < bump_height) then
+             beta(i,j) = (bump_height - gap_height(i,j)) / bump_spacing
+          endif
+       enddo
+     enddo 
+
+
 
   end subroutine glissade_shakti
 
