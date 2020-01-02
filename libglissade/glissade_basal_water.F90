@@ -196,7 +196,7 @@ contains
     integer, intent(in) :: &
 !         ewn, nsn          & ! grid dimensions
 !         which_ho_bwat     & ! which basal option SHAKTI=3
-         dt               ! & ! time step (units?)
+         dt               ! & ! time step (CISM time step in years)
 !         flwa              & ! flow law Parameter (Pa^-3 s^-1, I think) - ***check the name and units ***
 !         flwn              & ! flow law exponent (unitless) -***check the name***
 
@@ -226,6 +226,7 @@ contains
 !    real(dp), dimension(:,:), intent(out) :: &
 !         effective pressure         &! effective pressure (Pa)
 
+!    real(dp), dimension(:,:), intent(out) :: head         ! head (m) ***test for head output***
     type(glide_global_type), intent(inout) :: model       ! model instance
 
     integer, dimension(-1:1,-1:1) :: indxA                ! indices for cell and its neighbors, from 1 to 5
@@ -271,6 +272,8 @@ contains
     real(dp), dimension(:,:), allocatable ::   dhdx         ! head gradient in x-direction
     real(dp), dimension(:,:), allocatable ::   dhdy         ! head gradient in y-direction
     real(dp), dimension(:,:), allocatable ::   K            ! transmissivity
+    real(dp), dimension(:,:), allocatable ::   K_halfx      ! transmissivity at half-nodes in x direction
+    real(dp), dimension(:,:), allocatable ::   K_halfy      ! transmissivity at half-nodes in y direction
     real(dp), dimension(:,:), allocatable ::   melt_rate    ! melt rate (different than bmlt???)
     real(dp), dimension(:,:), allocatable ::   taub         ! basal traction
 
@@ -380,6 +383,18 @@ contains
        enddo
     enddo
 
+    ! Calculate transmissivity at half-nodes
+    allocate(K_halfx(nx,ny))
+    allocate(K_halfy(nx,ny))
+    K_halfx(:,:) = 0.0d0
+    K_halfy(:,:) = 0.0d0
+    do j = 1,ny-1
+       do i = 1,nx-1
+          K_halfx(i,j) = (K(i,j) + K(i+1,j)) / 2
+          K_halfy(i,j) = (K(i,j) + K(i,j+1)) /2
+       enddo
+    enddo
+
     ! Melt rate
     allocate(taub(nx,ny))
     allocate(melt_rate(nx,ny))
@@ -441,26 +456,26 @@ contains
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
              active_cell(i,j) = .true.
-             Ah(i,j,3) = 4.0*K(i,j)/dx**2d0 
+             Ah(i,j,3) = (K_halfx(i,j) + K_halfx(i-1,j) + K_halfy(i,j) + K_halfy(i,j-1))/dx**2d0
              if (i == nhalo+1) then          ! westernmost cell with nonzero x; subdiag term = 0
                 Ah(i,j,3) = 1.0d0            !     Dirichlet b.c. at outflow, h=zb 
                 bh(i,j) = 0.0d0              !     rhs should be set to bed elevation (zero just for simple test) 
              elseif (i == nx-nhalo) then     ! easternmost cell with nonzero x; supdiag term = 0
-                Ah(i,j,2) = -1.0*K(i,j)/dx**2d0            !    Zero-flux Neumann b.c.
+                Ah(i,j,2) = -K_halfx(i-1,j)/dx**2d0        !    Zero-flux Neumann b.c.
                 bh(i,j) = 0.0d0  
              else                            ! interior cell
-                Ah(i,j,2) = -1.0*K(i,j)/dx**2d0
-                Ah(i,j,4) = -1.0*K(i,j)/dx**2d0
+                Ah(i,j,2) = -K_halfx(i-1,j)/dx**2d0
+                Ah(i,j,4) = -K_halfx(i,j)/dx**2d0
              endif
              if (j == nhalo+1) then          ! southernmost cell with nonzero x; subdiag term = 0
-                Ah(i,j,5) = -1.0*K(i,j)/dy**2d0            !    Zero-flux Neumann b.c.
+                Ah(i,j,5) = -K_halfy(i,j)/dy**2d0          !    Zero-flux Neumann b.c.
                 bh(i,j) = 0.0d0 
              elseif (j == ny-nhalo) then     ! northernmost cell with nonzero x; supdiag term = 0
-                Ah(i,j,1) = -1.0*K(i,j)/dy**2d0 
+                Ah(i,j,1) = -K_halfy(i,j-1)/dy**2d0
                 bh(i,j) = 0.0d0 
              else                            ! interior cell
-                Ah(i,j,1) = -1.0*K(i,j)/dy**2d0
-                Ah(i,j,5) = -1.0*K(i,j)/dy**2d0
+                Ah(i,j,1) = -K_halfy(i,j-1)/dy**2d0
+                Ah(i,j,5) = -K_halfy(i,j)/dy**2d0
              endif
           enddo   ! i
        enddo   ! j
@@ -540,6 +555,9 @@ contains
        enddo
        print*, 'err, niters:', err, niters
     endif
+
+    ! New hydraulic head from solution
+    head=xh
 
     ! clean up
     deallocate(active_cell)
