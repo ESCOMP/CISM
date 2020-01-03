@@ -166,26 +166,27 @@ contains
 ! ***************************************************
 !---------------------------------------------------------------------------------
  
-  subroutine glissade_shakti(model,dt)
-!                             which_ho_bwat,            &
+  subroutine glissade_shakti(model,                     &                    
+                             which_ho_bwat,            &
 !                             basal_physics,            &
-!                             dt,                       &
-!                             ewn,            nsn,      &
-!                             thck,           topg,     &
-!                             flwa,           flwn,     &
-!                             uvel,           vvel,     &
-!                             bmlt,                     &
-!                             head,                     &
-!                             gap_height,               &
-!                             effective_pressure,       &
-!                             meltwater_input,          &
-!                             moulin_input,             &
-!                             reynolds,                 &
-!                             head_gradient_mask_east,  &
-!                             head_gradient_mask_north, &
-!                             ice_mask_hydro,           &
-!                             model,                    &
-!                             bwat)
+                             dt,                       &
+                             ewn,            nsn,      &
+                             thck,           topg,     &
+                             flwa,           flwn,     &
+                             uvel,           vvel,     &
+                             bmlt,                     &
+                             head,                     &
+                             effective_pressure,       &
+                             gap_height,               &
+                             meltwater_input,          &
+                             bump_height,              &
+                             bump_spacing,             &
+                             moulin_input,             &
+                             head_gradient_mask_east,  &
+                             head_gradient_mask_north, &
+                             ice_mask_hydro,           &
+                             ghf,                      &
+                             bwat)
 
     use glimmer_physcon, only: rhoi, rhow, grav, c_t, c_w, nu_water, lhci
     use parallel
@@ -194,39 +195,37 @@ contains
     ! SHAKTI - Input/output arguments
     ! ---------------------------------------------------
     integer, intent(in) :: &
-!         ewn, nsn          & ! grid dimensions
-!         which_ho_bwat     & ! which basal option SHAKTI=3
-         dt               ! & ! time step (CISM time step in years)
-!         flwa              & ! flow law Parameter (Pa^-3 s^-1, I think) - ***check the name and units ***
-!         flwn              & ! flow law exponent (unitless) -***check the name***
+         dt,                & ! time step (CISM time step in years)
+         ewn, nsn,          & ! grid dimensions
+         which_ho_bwat,     & ! which basal option SHAKTI=3
+         bump_height,      &! typical subglacial bump height (m)
+         bump_spacing,     &! typical subglacial bump spacing (m)
+         flwa,              & ! flow law Parameter (Pa**-3 s**-1)
+         flwn               ! flow law exponent (unitless)
 
-!    real(dp), dimension(:,:), intent(in) :: &
-!         thck,            &! ice thickness (m)
-!         topg,            &! bed topography (m)
-!         meltwater_input  &! distributed meltwater input (m/s)
-!         moulin_input     &! moulin point meltwater input (m^3/s)
-!         bump_height      &! typical subglacial bump height (m)
-!         bump_spacing     &! typical subglacial bump spacing (m)
-!         uvel             &! sliding velocity (m/s?) ***only need basal velocity, also use vvel???***
-!         vvel             &! sliding velocity (m/s?)
-!         geothermal       &! geothermal heat flux (W/m2) - ***check the name of this***
+    real(dp), dimension(:,:), intent(in) :: &
+         thck,             &! ice thickness (m)
+         topg,             &! bed topography (m)
+         meltwater_input,  &! distributed meltwater input (m/s)
+         moulin_input,     &! moulin point meltwater input (m^3/s)
+         uvel,             &! sliding velocity (m/s?) ***only need basal velocity, also use vvel???***
+         vvel,             &! sliding velocity (m/s?)
+         ghf               ! geothermal heat flux (W/m2) - ***check the name of this***
 
-!    real(dp), dimension(:,:), intent(in) :: &
-!         ice_mask_hydro                &! ice mask (only use SHAKTI under ice)
-!         head_gradient_mask_east       &! mask to set head gradient b.c. on east edge
-!         head_gradient_mask_north      &! mask to set head gradient b.c. on north edge
+    real(dp), dimension(:,:), intent(in) :: &
+         ice_mask_hydro,                &! ice mask (only use SHAKTI under ice)
+         head_gradient_mask_east,       &! mask to set head gradient b.c. on east edge
+         head_gradient_mask_north      ! mask to set head gradient b.c. on north edge
 
-!    real(dp), dimension(:,:), intent(inout) :: &
-!         head             &! hydraulic head (m)
-!         gap_height       &! subglacial gap height (m)
-!         reynolds         &! Reynolds number (unitless)
-!         bmlt             &! basal melt rate (units?) - will be altered by SHAKTI
-!         bwat             &! basal water - do we need this?
+    real(dp), dimension(:,:), intent(inout) :: &
+         head,             &! hydraulic head (m)
+         gap_height,       &! subglacial gap height (m)
+         bmlt,             &! basal melt rate (units?) - will be altered by SHAKTI
+         bwat             ! basal water - do we need this?
 
-!    real(dp), dimension(:,:), intent(out) :: &
-!         effective pressure         &! effective pressure (Pa)
+    real(dp), dimension(:,:), intent(out) :: &
+         effective_pressure         ! effective pressure (Pa)
 
-!    real(dp), dimension(:,:), intent(out) :: head         ! head (m) ***test for head output***
     type(glide_global_type), intent(inout) :: model       ! model instance
 
     integer, dimension(-1:1,-1:1) :: indxA                ! indices for cell and its neighbors, from 1 to 5
@@ -246,26 +245,25 @@ contains
     integer :: niters               ! number of iterations in solver
     integer :: i, j, m
     integer :: iglobal, jglobal
-!    integer :: K                    ! constant, uniform transmissivity (***for testing only!***)
     integer :: dx, dy               ! grid spacing
 
     ! *** hard-coded variables for now ***
-    integer :: om                   ! parameter controlling transition between laminar and turbulent flow
-    integer :: flwa                 ! flow law parameter A (Pa-3 s-1)
-    integer :: ghf                  ! geothermal flux (W m-2)
-    integer :: bump_height          ! typical bed bump height (m)
-    integer :: bump_spacing         ! typical bed bumps spacing (m)
+    integer :: om                   ! omega, non-dim parameter controlling transition between laminar and turbulent flow
+!    integer :: flwa                 ! flow law parameter A (Pa-3 s-1)
+!    integer :: ghf                  ! geothermal flux (W m-2)
+!    integer :: bump_height          ! typical bed bump height (m)
+!    integer :: bump_spacing         ! typical bed bumps spacing (m)
     integer :: drag                 ! basal drag coefficient
 
     real(dp), dimension(:,:), allocatable ::   beta         ! parameter controlling gap increase due to sliding 
-    real(dp), dimension(:,:), allocatable ::   gap_height   ! initial subglacial gap height (m)
-    real(dp), dimension(:,:), allocatable ::   thck         ! ice thickness (m) 
+!    real(dp), dimension(:,:), allocatable ::   gap_height   ! initial subglacial gap height (m)
+!    real(dp), dimension(:,:), allocatable ::   thck         ! ice thickness (m) 
     real(dp), dimension(:,:), allocatable ::   p_i          ! ice overburden pressure (Pa)
     real(dp), dimension(:,:), allocatable ::   p_w          ! water pressure (Pa)
-    real(dp), dimension(:,:), allocatable ::   head         ! head (m)
-    real(dp), dimension(:,:), allocatable ::   topg         ! bed elevation (m)
+!    real(dp), dimension(:,:), allocatable ::   head         ! head (m)
+!    real(dp), dimension(:,:), allocatable ::   topg         ! bed elevation (m)
     real(dp), dimension(:,:), allocatable ::   ub           ! sliding velocity (m s-1) --*** CONSTANT FOR NOW ***
-    real(dp), dimension(:,:), allocatable ::   meltwater_input  ! distributed meltwater input (m s-1)
+!    real(dp), dimension(:,:), allocatable ::   meltwater_input  ! distributed meltwater input (m s-1)
     real(dp), dimension(:,:), allocatable ::   reynolds     ! reynolds number
     real(dp), dimension(:,:), allocatable ::   qx           ! depth-integrated basal water flux in x-direction (m2 s-1)
     real(dp), dimension(:,:), allocatable ::   qy           ! depth-integrated basal water flux in y-direction (m2 s-1)
@@ -280,32 +278,30 @@ contains
     nx = model%general%ewn
     ny = model%general%nsn
  
-    ! Constant uniform integer transmissivity for testing
-!    K = 1.0d0
- 
     dx = 1.0d0
     dy = 1.0d0
 
-    ! *** hard-coded variables for now ***
+    ! *** hard-coded variables for now - some or all of these should be input variables ***
     om = 0.001d0
-    flwa = 2.5E-25
-    ghf = 0.06d0
-    bump_height = 0.05d0
-    bump_spacing = 2d0
+!    flwa = 2.5E-25
+!    ghf = 0.06d0
+!    bump_height = 0.05d0
+!    bump_spacing = 2d0
 
-    allocate(ub(nx,ny))
+    ! This sliding velocity should be calculated from uvel,vvel
+    allocate(ub(nx,ny))    
     ub(:,:) = 1E-6
  
-    allocate(meltwater_input(nx,ny))
-    meltwater_input(:,:) = 0.5d0 / (3600*24*365)
+!    allocate(meltwater_input(nx,ny))   
+!    meltwater_input(:,:) = 0.5d0 / (3600*24*365)
 
     ! ------------------------------------------------
     ! SHAKTI - Initial conditions
     ! ------------------------------------------------
 
     ! Initial gap height
-    allocate(gap_height(nx,ny))
-    gap_height(:,:) = 0.01d0
+!    allocate(gap_height(nx,ny))
+!    gap_height(:,:) = 0.01d0
 
     ! Parameter to control opening by sliding over bed bumps
     allocate(beta(nx,ny))
@@ -319,12 +315,12 @@ contains
      enddo
 
     ! Ice thickness *** uniform everywhere for now, hard-coded *** 
-    allocate(thck(nx,ny))
-    thck(:,:) = 500d0
+!    allocate(thck(nx,ny))
+!    thck(:,:) = 500d0
 
     ! Bed topography *** hard-coded for now ***
-    allocate(topg(nx,ny))
-    topg(:,:) = 0.0d0
+!    allocate(topg(nx,ny))
+!    topg(:,:) = 0.0d0
 
     ! Calculate ice overburden pressure
     allocate(p_i(nx,ny))
@@ -336,7 +332,7 @@ contains
 
     ! Initial water pressure (50% overburden) and head
     allocate(p_w(nx,ny))
-    allocate(head(nx,ny))
+!    allocate(head(nx,ny))
     do j = 1,ny
        do i = 1,nx
           p_w(i,j) = 0.5 * p_i(i,j)
@@ -402,7 +398,7 @@ contains
     do j = 1,ny
        do i = 1,nx
           taub(i,j) = drag**2 * (p_i(i,j) - p_w(i,j)) * ub(i,j)
-          melt_rate(i,j) = 1/lhci * (ghf - ub(i,j)*taub(i,j) + rhow*grav*abs(qx(i,j)*dhdx(i,j) + qy(i,j)*dhdy(i,j)))
+          melt_rate(i,j) = 1/lhci * (ghf(i,j) - ub(i,j)*taub(i,j) + rhow*grav*abs(qx(i,j)*dhdx(i,j) + qy(i,j)*dhdy(i,j)))
        enddo
     enddo
 
@@ -480,7 +476,7 @@ contains
           enddo   ! i
        enddo   ! j
 
-    else   ! tasks > 1
+    else   ! tasks > 1 
        ! loop over locally owned cells (iglobal = 1 to global_ewn, jglobal = 1 to global_nsn)
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
