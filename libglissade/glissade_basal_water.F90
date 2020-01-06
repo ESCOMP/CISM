@@ -455,20 +455,20 @@ contains
              Ah(i,j,3) = (K_halfx(i,j) + K_halfx(i-1,j) + K_halfy(i,j) + K_halfy(i,j-1))/dx**2d0
              if (i == nhalo+1) then          ! westernmost cell with nonzero x; subdiag term = 0
                 Ah(i,j,3) = 1.0d0            !     Dirichlet b.c. at outflow, h=zb 
-                bh(i,j) = 0.0d0              !     rhs should be set to bed elevation (zero just for simple test) 
+                bh(i,j) = topg(i,j)          !     rhs should be set to bed elevation for atmospheric pressure 
              elseif (i == nx-nhalo) then     ! easternmost cell with nonzero x; supdiag term = 0
                 Ah(i,j,2) = -K_halfx(i-1,j)/dx**2d0        !    Zero-flux Neumann b.c.
-                bh(i,j) = 0.0d0  
+                bh(i,j) = melt_rate(i,j) * (1/rhow - 1/rhoi) + flwa * (p_i(i,j) - p_w(i,j))**3 * gap_height(i,j) - beta(i,j)*ub(i,j) + meltwater_input(i,j)  
              else                            ! interior cell
                 Ah(i,j,2) = -K_halfx(i-1,j)/dx**2d0
                 Ah(i,j,4) = -K_halfx(i,j)/dx**2d0
              endif
              if (j == nhalo+1) then          ! southernmost cell with nonzero x; subdiag term = 0
                 Ah(i,j,5) = -K_halfy(i,j)/dy**2d0          !    Zero-flux Neumann b.c.
-                bh(i,j) = 0.0d0 
+                bh(i,j) = melt_rate(i,j) * (1/rhow - 1/rhoi) + flwa * (p_i(i,j) - p_w(i,j))**3 * gap_height(i,j) - beta(i,j)*ub(i,j) + meltwater_input(i,j) 
              elseif (j == ny-nhalo) then     ! northernmost cell with nonzero x; supdiag term = 0
                 Ah(i,j,1) = -K_halfy(i,j-1)/dy**2d0
-                bh(i,j) = 0.0d0 
+                bh(i,j) = melt_rate(i,j) * (1/rhow - 1/rhoi) + flwa * (p_i(i,j) - p_w(i,j))**3 * gap_height(i,j) - beta(i,j)*ub(i,j) + meltwater_input(i,j) 
              else                            ! interior cell
                 Ah(i,j,1) = -K_halfy(i,j-1)/dy**2d0
                 Ah(i,j,5) = -K_halfy(i,j)/dy**2d0
