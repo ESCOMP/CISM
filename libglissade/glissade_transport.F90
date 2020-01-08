@@ -1974,9 +1974,10 @@
           
           !-----------------------------------------------------------------
           ! If thck > 0, do vertical remapping of tracers
+          ! WHL - Use tiny instead of 0.0d0 to avoid a rare divzero error.
           !-----------------------------------------------------------------
 
-          if (thck > 0.d0) then
+          if (thck > tiny(0.0d0)) then
 
              !-----------------------------------------------------------------
              ! Determine vertical coordinate z1, given input layer thicknesses.
@@ -2127,11 +2128,13 @@
              enddo
           
              ! compute new tracer values
-             ! Note: Since thck > 0, we should have hlyr > 0 for all k.
-             !       But to be safe, allow for thck very slightly > 0 (e.g., 1.e-300) and hlyr  = 0.0.
-             
+             ! WHL - Use tiny instead of 0.0d0 to avoid a rare divzero error.
+             !       Such an error occurred during a 2-km Antarctic spin-up in Dec. 2019.
+             ! Note: Since thck > tiny, we should have hlyr > tiny for all k.
+             !       To be safe, however, allow for the possibility that thck > tiny but hlyr is not.
+
              do k = 1, nlyr
-                if (hlyr(i,j,k) > 0.0d0) then
+                if (hlyr(i,j,k) > tiny(0.0d0)) then
                    trcr(i,j,:,k) = htsum(:,k) / hlyr(i,j,k)
                 else
                    trcr(i,j,:,k) = 0.0d0
