@@ -74,9 +74,6 @@ module glissade
 
   real(dp), parameter :: eps11 = 1.0d-11  ! small number
 
-  !WHL - debug
-  logical, parameter :: stagger_Cp = .true.
-
 contains
 
 !=======================================================================
@@ -3113,9 +3110,8 @@ contains
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
-    use glissade_inversion, only: glissade_inversion_basal_friction, glissade_inversion_bmlt_basin, &
-                                  verbose_inversion
-    use glissade_inversion, only: glissade_inversion_basal_friction_stag
+    use glissade_inversion, only: &
+         glissade_inversion_basal_friction, glissade_inversion_bmlt_basin, verbose_inversion
 
     implicit none
 
@@ -3366,19 +3362,7 @@ contains
 
        else
 
-        !WHL - debug - temporary switch between inversion for staggered and unstaggered Cp
-
-        if (stagger_Cp) then
-
-          call glissade_inversion_basal_friction_stag(model)
-
-        else
-
-          call glissade_inversion_basal_friction(model,          &
-                                                 ice_mask,       &
-                                                 floating_mask,  &
-                                                 land_mask)
-        endif
+          call glissade_inversion_basal_friction(model)
 
        endif
 

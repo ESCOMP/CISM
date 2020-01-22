@@ -757,7 +757,7 @@
        tau_eff                  ! effective stress (Pa)
 
     real(dp), dimension(:,:), pointer ::  &
-       stag_powerlaw_c_inversion  ! Cp (for basal friction) computed from inversion, on staggered grid
+       powerlaw_c_inversion     ! Cp (for basal friction) computed from inversion, on staggered grid
 
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
@@ -1117,7 +1117,7 @@
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
-     stag_powerlaw_c_inversion => model%inversion%stag_powerlaw_c_inversion(:,:)
+     powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
 
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
@@ -2811,7 +2811,7 @@
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
                          which_cp_inversion,               &
-                         stag_powerlaw_c_inversion,        &
+                         powerlaw_c_inversion,             &
                          itest, jtest, rtest)
 
 !          if (verbose_beta) then

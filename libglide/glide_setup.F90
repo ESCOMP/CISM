@@ -211,7 +211,6 @@ contains
     ! scale basal inversion parameters
     !TODO - Leave buffer units as meters?
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
-    model%inversion%babc_smoothing_timescale = model%inversion%babc_smoothing_timescale * scyr  ! convert yr to s
     model%inversion%bmlt_timescale = model%inversion%bmlt_timescale * scyr    ! convert yr to s
     model%inversion%bmlt_max_melt = model%inversion%bmlt_max_melt / scyr      ! convert m/yr to m/s
     model%inversion%bmlt_max_freeze = model%inversion%bmlt_max_freeze / scyr  ! convert m/yr to m/s
@@ -2028,11 +2027,8 @@ contains
 
     call GetValue(section, 'powerlaw_c_max', model%inversion%powerlaw_c_max)
     call GetValue(section, 'powerlaw_c_min', model%inversion%powerlaw_c_min)
-    call GetValue(section, 'powerlaw_c_land', model%inversion%powerlaw_c_land)
-    call GetValue(section, 'powerlaw_c_marine', model%inversion%powerlaw_c_marine)
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
-    call GetValue(section, 'inversion_babc_smoothing_timescale', model%inversion%babc_smoothing_timescale)
 
     call GetValue(section, 'inversion_bmlt_timescale', model%inversion%bmlt_timescale)
     call GetValue(section, 'inversion_bmlt_max_melt', model%inversion%bmlt_max_melt)
@@ -2393,20 +2389,11 @@ contains
        write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', &
             model%inversion%powerlaw_c_min
        call write_log(message)
-       write(message,*) 'powerlaw_c land, Pa (m/yr)^(-1/3)            : ', &
-            model%inversion%powerlaw_c_land
-       call write_log(message)
-       write(message,*) 'powerlaw_c marine, Pa (m/yr)^(-1/3)          : ', &
-            model%inversion%powerlaw_c_marine
-       call write_log(message)
        write(message,*) 'inversion basal friction timescale (yr)      : ', &
             model%inversion%babc_timescale
        call write_log(message)
        write(message,*) 'inversion thickness scale (m)                : ', &
             model%inversion%babc_thck_scale
-       call write_log(message)
-       write(message,*) 'inversion basal friction smoothing timescale : ', &
-            model%inversion%babc_smoothing_timescale
        call write_log(message)
     endif   ! which_ho_cp_inversion
 
@@ -3189,9 +3176,7 @@ contains
        call glide_add_to_restart_variable_list('usrf_obs')
 
        if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
-          !TODO - Write only one of the powerlaw_c fields to the restart file
-          call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
-          call glide_add_to_restart_variable_list('stag_powerlaw_c_inversion')
+          call glide_add_to_restart_variable_list('powerlaw_c_inversion')
           call glide_add_to_restart_variable_list('dthck_dt')
        endif
 
@@ -3211,9 +3196,7 @@ contains
     endif
 
     if (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
-       !TODO - Write only one of the powerlaw_c fields to the restart file
-       call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
-       call glide_add_to_restart_variable_list('stag_powerlaw_c_inversion')
+       call glide_add_to_restart_variable_list('powerlaw_c_inversion')
     endif
 
     if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
