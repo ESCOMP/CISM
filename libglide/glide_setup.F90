@@ -2033,9 +2033,6 @@ contains
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
     call GetValue(section, 'inversion_babc_smoothing_timescale', model%inversion%babc_smoothing_timescale)
-    call GetValue(section, 'inversion_wean_powerlaw_c_tstart', model%inversion%wean_powerlaw_c_tstart)
-    call GetValue(section, 'inversion_wean_powerlaw_c_tend', model%inversion%wean_powerlaw_c_tend)
-    call GetValue(section, 'inversion_wean_powerlaw_c_timescale', model%inversion%wean_powerlaw_c_timescale)
 
     call GetValue(section, 'inversion_bmlt_timescale', model%inversion%bmlt_timescale)
     call GetValue(section, 'inversion_bmlt_max_melt', model%inversion%bmlt_max_melt)
@@ -2411,23 +2408,6 @@ contains
        write(message,*) 'inversion basal friction smoothing timescale : ', &
             model%inversion%babc_smoothing_timescale
        call write_log(message)
-       if (model%inversion%wean_powerlaw_c_tstart > 0.0d0 .and. model%inversion%wean_powerlaw_c_tend > 0.0d0) then
-          write(message,*) 'start time (yr) for powerlaw_c abated nudging: ', &
-               model%inversion%wean_powerlaw_c_tstart
-          call write_log(message)
-          write(message,*) 'end time (yr) for powerlaw_c abated nudging  : ', &
-               model%inversion%wean_powerlaw_c_tend
-          call write_log(message)
-          write(message,*) 'time scale (yr) for powerlaw_c abated nudging  : ', &
-               model%inversion%wean_powerlaw_c_timescale
-          call write_log(message)
-          if (model%inversion%wean_powerlaw_c_tend < model%inversion%wean_powerlaw_c_tstart) then
-             call write_log('Error, must have wean_powerlaw_c_tend >= wean_powerlaw_c_tstart', GM_FATAL)
-          endif
-          if (model%inversion%wean_powerlaw_c_tend == 0.0d0) then
-             call write_log('powerlaw_c will not be nudged, since wean_powerlaw_c_tend = 0')
-          endif
-       endif
     endif   ! which_ho_cp_inversion
 
     if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
@@ -3209,7 +3189,9 @@ contains
        call glide_add_to_restart_variable_list('usrf_obs')
 
        if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
+          !TODO - Write only one of the powerlaw_c fields to the restart file
           call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
+          call glide_add_to_restart_variable_list('stag_powerlaw_c_inversion')
           call glide_add_to_restart_variable_list('dthck_dt')
        endif
 
@@ -3229,7 +3211,9 @@ contains
     endif
 
     if (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
+       !TODO - Write only one of the powerlaw_c fields to the restart file
        call glide_add_to_restart_variable_list('powerlaw_c_inversion_save')
+       call glide_add_to_restart_variable_list('stag_powerlaw_c_inversion')
     endif
 
     if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then

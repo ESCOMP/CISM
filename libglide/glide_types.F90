@@ -1534,6 +1534,7 @@ module glide_types
      ! fields and parameters for powerlaw_c inversion
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
+     !TODO: Delete unstaggered fields if we switch entirely to staggered
      real(dp), dimension(:,:), pointer :: &
           powerlaw_c_save => null(),           & !> saved powerlaw_c field
           powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field to be applied to grounded ice
@@ -1556,13 +1557,6 @@ module glide_types
           babc_thck_scale = 100.d0,        & !> thickness inversion scale (m); must be > 0
           babc_smoothing_timescale = 1000.d0 !> timescale (yr) for spatial smoothing of powerlaw_c; larger => less smoothing
                                              !> set to zero to turn off smoothing; set to dt for max smoothing
-
-     !TODO - Do not use weaning for powerlaw_c?  May be able to run with nudging simply on or off.
-     real(dp) ::  &
-          wean_powerlaw_c_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of powerlaw_c
-          wean_powerlaw_c_tend = 0.0d0,     & !> end time (yr) for weighted nudging of powerlaw_c
-          wean_powerlaw_c_timescale = 0.0d0   !> time scale (yr) for weaning of powerlaw_c
-
 
      ! fields and parameters for deltaT_basin inversion
      ! Note: This is defined on the 2D (i,j) grid, even though it is uniform within a basin
@@ -2271,7 +2265,7 @@ contains
     !> \item \texttt{bmlt_float_inversion_mask(ewn,nsn)}
     !> \item \texttt{powerlaw_c_save(ewn,nsn)}
     !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
-    !> \item \texttt{stag_powerlaw_c_inversion(ewn,nsn)}
+    !> \item \texttt{stag_powerlaw_c_inversion(ewn-1,nsn-1)}
     !> \item \texttt{thck_save(ewn,nsn)}
 
     !> In \texttt{model\%plume}:

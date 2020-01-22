@@ -1424,7 +1424,8 @@ contains
 
     endif   ! npoints
 
-    call parallel_halo(var_smooth)
+    !Note: Do not do a halo update, because it is unknown whether we should call parallel_halo or staggered_parallel_halo.
+!!    call parallel_halo(var_smooth)
 
   end subroutine glissade_laplacian_smoother
 
