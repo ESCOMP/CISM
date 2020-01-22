@@ -1517,7 +1517,7 @@ module glide_types
           bmlt_max_freeze = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
 
      ! parameters for weighted nudging
-     ! The idea of this nudging is that the inversion fields (bmlt_float_inversion and powerlaw_c_inversion),
+     ! The idea of this nudging is that the inversion fields (e.g., bmlt_float_inversion),
      !  instead of being set to new values every timestep, are set to a weighted average of the saved value
      !  and the new value, with the weight of the new value falling off exponentially over time.
      ! Setting wean_*_tend = 0.0 (the default) is interpreted as turning off this nudging.
@@ -1534,39 +1534,32 @@ module glide_types
      ! fields and parameters for powerlaw_c inversion
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
-     !TODO: Delete unstaggered fields if we switch entirely to staggered
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_save => null(),           & !> saved powerlaw_c field
-          powerlaw_c_inversion => null(),      & !> spatially varying powerlaw_c field to be applied to grounded ice
-          stag_powerlaw_c_inversion => null(), & !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
+          powerlaw_c_inversion => null(), &      !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
           thck_save => null()                    !> saved thck field (m); used to compute dthck_dt_inversion
 
      ! parameters for inversion of basal friction coefficients
      ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
-     ! Note: inversion_babc_timescale is later rescaled to SI units (s).
 
      real(dp) ::  &
           powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
-          powerlaw_c_min = 1.0d2,             &  !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
-          powerlaw_c_land = 2.0d4,            &  !> default value of powerlaw_c on land (topg >= eus)
-          powerlaw_c_marine = 1.0d2              !> default value of powerlaw_c below sea level
+          powerlaw_c_min = 1.0d2                 !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
 
      ! parameters for adjusting powerlaw_c_inversion
+     ! Note: inversion_babc_timescale is later rescaled to SI units (s).
      real(dp) ::  &
-          babc_timescale = 500.d0,         & !> inversion timescale (yr); must be > 0
-          babc_thck_scale = 100.d0,        & !> thickness inversion scale (m); must be > 0
-          babc_smoothing_timescale = 1000.d0 !> timescale (yr) for spatial smoothing of powerlaw_c; larger => less smoothing
-                                             !> set to zero to turn off smoothing; set to dt for max smoothing
+          babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
+          babc_thck_scale = 100.d0               !> thickness inversion scale (m); must be > 0
 
      ! fields and parameters for deltaT_basin inversion
      ! Note: This is defined on the 2D (i,j) grid, even though it is uniform within a basin
      real(dp), dimension(:,:), pointer ::  &
-          floating_thck_target                !> Observational target for floating ice thickness
+          floating_thck_target                   !> Observational target for floating ice thickness
 
      real(dp) ::  &
-          dbmlt_dtemp_scale = 10.0d0,            & !> scale for rate of change of bmlt w/temperature, m/yr/degC
-          bmlt_basin_timescale = 10.0d0,         & !> timescale (yr) for adjusting deltaT_basin
-          bmlt_basin_cavity_threshold = 400.d0     !> threshold (m) for counting ice as lightly floating/grounded
+          dbmlt_dtemp_scale = 10.0d0,          & !> scale for rate of change of bmlt w/temperature, m/yr/degC
+          bmlt_basin_timescale = 10.0d0,       & !> timescale (yr) for adjusting deltaT_basin
+          bmlt_basin_cavity_threshold = 400.d0   !> threshold (m) for counting ice as lightly floating/grounded
 
   end type glide_inversion
 
@@ -2263,9 +2256,7 @@ contains
     !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion_mask(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_save(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_inversion(ewn,nsn)}
-    !> \item \texttt{stag_powerlaw_c_inversion(ewn-1,nsn-1)}
+    !> \item \texttt{powerlaw_c_inversion(ewn-1,nsn-1)}
     !> \item \texttt{thck_save(ewn,nsn)}
 
     !> In \texttt{model\%plume}:
@@ -2680,9 +2671,8 @@ contains
 
     ! inversion arrays (Glissade only)
 
-    ! Always allocate powerlaw_c_inversion fields so they can be passed as arguments
+    ! Always allocate powerlaw_c_inversion so it can be passed as an argument
     allocate(model%inversion%powerlaw_c_inversion(1,1))
-    allocate(model%inversion%stag_powerlaw_c_inversion(1,1))
 
     if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
@@ -2693,9 +2683,7 @@ contains
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
         model%options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_save)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%powerlaw_c_inversion)
-       call coordsystem_allocate(model%general%velo_grid,model%inversion%stag_powerlaw_c_inversion)
+       call coordsystem_allocate(model%general%velo_grid,model%inversion%powerlaw_c_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
     endif
 
@@ -3096,13 +3084,8 @@ contains
         deallocate(model%inversion%bmlt_float_inversion)
     if (associated(model%inversion%bmlt_float_inversion_mask)) &
         deallocate(model%inversion%bmlt_float_inversion_mask)
-
-    if (associated(model%inversion%powerlaw_c_save)) &
-        deallocate(model%inversion%powerlaw_c_save)
     if (associated(model%inversion%powerlaw_c_inversion)) &
         deallocate(model%inversion%powerlaw_c_inversion)
-    if (associated(model%inversion%stag_powerlaw_c_inversion)) &
-        deallocate(model%inversion%stag_powerlaw_c_inversion)
     if (associated(model%inversion%thck_save)) &
         deallocate(model%inversion%thck_save)
     if (associated(model%inversion%floating_thck_target)) &

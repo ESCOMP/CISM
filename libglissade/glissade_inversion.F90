@@ -37,10 +37,9 @@ module glissade_inversion
 
   private
   public :: verbose_inversion, glissade_init_inversion, &
-            glissade_inversion_bmlt_float, glissade_inversion_basal_friction, &
+            glissade_inversion_bmlt_float,      &
+            glissade_inversion_basal_friction,  &
             glissade_inversion_bmlt_basin
-  !WHL - debug
-  public :: glissade_inversion_basal_friction_stag
 
   !-----------------------------------------------------------------------------
   ! Subroutines to invert for basal fields (including basal friction beneath
@@ -242,39 +241,22 @@ contains
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
 
-       ! Initialize powerlaw_c_save, if not already read in.
-       var_maxval = maxval(model%inversion%powerlaw_c_save)
+       ! initialize powerlaw_inversion, if not already read in
+       var_maxval = maxval(model%inversion%powerlaw_c_inversion)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
-          ! do nothing; powerlaw_c_save has been read in already (e.g., when restarting)
+          ! do nothing; powerlaw_c_inversion has been read in already (e.g., when restarting)
        else
-          where (thck_obs > 0.0d0)
-             model%inversion%powerlaw_c_save = 0.5d0 * model%inversion%powerlaw_c_max
-          elsewhere (land_mask == 1)
-             model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_land
-          elsewhere   ! ice-free ocean
-             model%inversion%powerlaw_c_save = model%inversion%powerlaw_c_marine
-          endwhere
-       endif  ! var_maxval > 0
-
-       call parallel_halo(model%inversion%powerlaw_c_save)
-
-       ! initialize stag_powerlaw_inversion, if not already read in
-       var_maxval = maxval(model%inversion%stag_powerlaw_c_inversion)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; stag_powerlaw_c_inversion has been read in already (e.g., when restarting)
-       else
-          ! initialize to a uniform value of model%inversion%powerlaw_c
-          model%inversion%stag_powerlaw_c_inversion(:,:) = model%basal_physics%powerlaw_c
+          ! initialize to a uniform value (which can be set in the config file)
+          model%inversion%powerlaw_c_inversion(:,:) = model%basal_physics%powerlaw_c
        endif  ! var_maxval > 0
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
-          print*, 'glissade_init_inversion: stag_powerlaw_c_inversion:'
+          print*, 'glissade_init_inversion: powerlaw_c_inversion:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.1)',advance='no') model%inversion%stag_powerlaw_c_inversion(i,j)
+                write(6,'(f10.1)',advance='no') model%inversion%powerlaw_c_inversion(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1067,144 +1049,7 @@ contains
 
 !***********************************************************************
 
-  subroutine glissade_inversion_basal_friction(model,          &
-                                               ice_mask,       &
-                                               floating_mask,  &
-                                               land_mask)
-
-    use glimmer_paramets, only: tim0, thk0
-    use glimmer_physcon, only: scyr
-    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
-
-    implicit none
-
-    type(glide_global_type), intent(inout) :: model   ! model instance
-
-    !TODO - Compute these locally?
-    integer, dimension(model%general%ewn, model%general%nsn), intent(in) ::   &
-         ice_mask,             & ! = 1 if thck > 0, else = 0
-         floating_mask,        & ! = 1 where ice is present and floating, else = 0
-         land_mask               ! = 1 if topg is at or above sea level, else = 0
-
-    ! --- Local variables ---
-
-    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-         thck_obs,             & ! observed ice thickness, derived from usrf_obs and topg
-         powerlaw_c_new,       & ! newly computed value of powerlaw_c, Pa (m/yr)^(-1/3)
-         unstag_powerlaw_c       ! work array on the unstaggered grid
-
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-         stag_powerlaw_c         ! work array on the staggered grid
-
-    integer :: i, j
-    integer :: ewn, nsn
-    integer :: itest, jtest, rtest
-
-    real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
-
-    rtest = -999
-    itest = 1
-    jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
-    endif
-
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
-
-       ! Given the surface elevation target, compute the thickness target.
-       ! (This can change in time if the bed topography is dynamic.)
-
-       call usrf_to_thck(model%geometry%usrf_obs,  &
-                         model%geometry%topg,      &
-                         model%climate%eus,        &
-                         thck_obs)
-
-       ! Invert for powerlaw_c
-       ! Note: The parameter we invert for is called powerlaw_c_save.
-       !       Before interpolating to the staggered grid, we derive a parameter called powerlaw_c_inversion,
-       !        which is nonzero only where the ice is at least partly grounded.
-
-       call invert_basal_friction(model%numerics%dt*tim0,                 &  ! s
-                                  ewn,               nsn,                 &
-                                  itest,    jtest,   rtest,               &
-                                  model%inversion,                        &
-                                  ice_mask,                               &
-                                  land_mask,                              &
-                                  floating_mask,                          &
-                                  model%options%which_ho_ground,          &
-                                  model%geometry%f_ground_cell,           &
-                                  model%geometry%thck*thk0,               &  ! m
-                                  thck_obs*thk0,                          &  ! m
-                                  model%geometry%dthck_dt,                &  ! m/s
-                                  model%inversion%powerlaw_c_save)
-
-    endif   ! which_ho_inversion
-
-    ! The rest of the subroutine is executed for either HO_INVERSION_COMPUTE or HO_INVERSION_APPLY
-
-    ! Set powerlaw_c_inversion = powerlaw_c_save where the ice is at least partly grounded.
-    ! Elsewhere, set powerlaw_c_inversion = 0.
-
-    where (land_mask == 1 .or. model%geometry%f_ground_cell > 0.0d0)
-       model%inversion%powerlaw_c_inversion = model%inversion%powerlaw_c_save
-    elsewhere
-       model%inversion%powerlaw_c_inversion = 0.0d0
-    endwhere
-
-    ! Interpolate powerlaw_c_inversion to the staggered grid.
-    ! In order to give appropriate weight to lower values, the staggering is based on log(powerlaw_c)
-    !  instead of powerlaw_c itself.
-    where (model%inversion%powerlaw_c_inversion > 0.0d0)
-       unstag_powerlaw_c = log(model%inversion%powerlaw_c_inversion)
-    elsewhere
-       unstag_powerlaw_c = 0.0d0
-    endwhere
-
-    ! For the staggered averaging, give each cell a weight of f_ground_cell,
-    !  to prevent abrupt changes in stag_powerlaw_c due to changes in lightly grounded cells.
-
-    call glissade_stagger_real_mask(ewn,            nsn,         &
-                                    unstag_powerlaw_c,           &
-                                    stag_powerlaw_c,             &
-                                    model%geometry%f_ground_cell)
-
-    !TODO - 'where' statement needed here to deal with vertices where stag_powerlaw_c = 0?
-    model%inversion%stag_powerlaw_c_inversion = exp(stag_powerlaw_c)
-
-    ! Replace zeroes with default values to avoid divzeroes
-    where (model%inversion%stag_powerlaw_c_inversion == 0.0d0)
-       model%inversion%stag_powerlaw_c_inversion = model%inversion%powerlaw_c_min
-    endwhere
-
-    if (verbose_inversion .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'f_ground_cell:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%geometry%f_ground_cell(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'stag_powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') model%inversion%stag_powerlaw_c_inversion(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-  end subroutine glissade_inversion_basal_friction
-
-!***********************************************************************
-
-  subroutine glissade_inversion_basal_friction_stag(model)
+  subroutine glissade_inversion_basal_friction(model)
 
     use glimmer_paramets, only: tim0, thk0
     use glimmer_physcon, only: scyr
@@ -1220,7 +1065,6 @@ contains
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
 
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-         stag_powerlaw_c_new,  & ! newly computed value of powerlaw_c, Pa (m/yr)^(-1/3)
          stag_thck,            & ! ice thickness on staggered grid
          stag_thck_obs,        & ! thck_obs on staggered grid
          stag_dthck_dt           ! dthck_dt on staggered grid
@@ -1245,7 +1089,7 @@ contains
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
 
-       ! Compute the new value of stag_powerlaw_c_inversion.
+       ! Compute the new value of powerlaw_c_inversion.
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -1268,396 +1112,70 @@ contains
        call glissade_stagger(ewn,                      nsn,             &
                              model%geometry%dthck_dt,  stag_dthck_dt)
 
-       ! Invert for stag_powerlaw_c_inversion
-       call invert_basal_friction_stag(model%numerics%dt*tim0,                 &  ! s
-                                       ewn,               nsn,                 &
-                                       itest,    jtest,   rtest,               &
-                                       model%inversion%babc_timescale,         &  ! s
-                                       model%inversion%babc_thck_scale,        &  ! m
-                                       model%inversion%powerlaw_c_max,         &
-                                       model%inversion%powerlaw_c_min,         &
-                                       model%geometry%f_ground,                &
-                                       stag_thck*thk0,                         &  ! m
-                                       stag_thck_obs*thk0,                     &  ! m
-                                       stag_dthck_dt,                          &  ! m/s
-                                       model%inversion%stag_powerlaw_c_inversion,    &
-                                       stag_powerlaw_c_new)
+       ! Invert for powerlaw_c_inversion
+       call invert_basal_friction(model%numerics%dt*tim0,                 &  ! s
+                                  ewn,               nsn,                 &
+                                  itest,    jtest,   rtest,               &
+                                  model%inversion%babc_timescale,         &  ! s
+                                  model%inversion%babc_thck_scale,        &  ! m
+                                  model%inversion%powerlaw_c_max,         &
+                                  model%inversion%powerlaw_c_min,         &
+                                  model%geometry%f_ground,                &
+                                  stag_thck*thk0,                         &  ! m
+                                  stag_thck_obs*thk0,                     &  ! m
+                                  stag_dthck_dt,                          &  ! m/s
+                                  model%inversion%powerlaw_c_inversion)
 
-       model%inversion%stag_powerlaw_c_inversion = stag_powerlaw_c_new
+    else
+
+       ! do not adjust powerlaw_c_inversion; just print optional diagnostics
+       if (verbose_inversion .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'f_ground at vertices:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') model%geometry%f_ground(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'powerlaw_c_inversion:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.2)',advance='no') model%inversion%powerlaw_c_inversion(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
     endif   ! which_ho_inversion
 
-    ! Replace zeroes (if any) with default values to avoid divzeroes
-    where (model%inversion%stag_powerlaw_c_inversion == 0.0d0)
-       model%inversion%stag_powerlaw_c_inversion = model%inversion%powerlaw_c_min
+    ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
+    ! Note: The current algorithm initializes Cp to a nonzero value everywhere and never sets Cp = 0;
+    !       this check is just to be on the safe side.
+
+    where (model%inversion%powerlaw_c_inversion == 0.0d0)
+       model%inversion%powerlaw_c_inversion = model%inversion%powerlaw_c_min
     endwhere
 
-    if (verbose_inversion .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'f_ground at vertices:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%geometry%f_ground(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'stag_powerlaw_c_inversion:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') model%inversion%stag_powerlaw_c_inversion(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-  end subroutine glissade_inversion_basal_friction_stag
+  end subroutine glissade_inversion_basal_friction
 
 !***********************************************************************
 
   subroutine invert_basal_friction(dt,                       &
                                    nx,            ny,        &
                                    itest, jtest,  rtest,     &
-                                   inversion,                &
-                                   ice_mask,                 &
-                                   land_mask,                &
-                                   floating_mask,            &
-                                   which_ho_ground,          &
-                                   f_ground_cell,            &
-                                   thck,                     &
-                                   thck_obs,                 &
-                                   dthck_dt,                 &
-                                   powerlaw_c_new)
-
-    use glissade_grid_operators, only: glissade_laplacian_smoother
-
-    ! Compute a spatially varying basal friction field, powerlaw_c_inversion.
-    ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
-    ! Where thck > thck_obs, powerlaw_c is reduced to increase sliding.
-    ! Where thck < thck_obs, powerlaw_c is increased to reduce sliding.
-    ! Note: powerlaw_c is constrained to lie within a prescribed range.
-    ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
-    !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
-    !        errors are greater in magnitude than errors in usrf, and we do not want to underweight the errors.
-    !       With dynamic topography, we would either invert based on usrf, or else adjust thck_obs to match usrf_obs.
-
-    real(dp), intent(in) ::  dt  ! time step (s)
-
-    integer, intent(in) :: &
-         nx, ny                  ! grid dimensions
-
-    integer, intent(in) :: &
-         itest, jtest, rtest     ! coordinates of diagnostic point
-
-    !TODO - Pass in the required inversion arguments explicitly?
-    type(glide_inversion), intent(inout) :: &
-         inversion               ! inversion object
-
-    integer, dimension(nx,ny), intent(in) :: &
-         ice_mask,             & ! = 1 where ice is present (thk > 0), else = 0
-         land_mask,            & ! = 1 if topg > eus, else = 0
-         floating_mask           ! = 1 where ice is present and floating, else = 0
-
-    integer, intent(in) :: &
-         which_ho_ground         ! ! option to use GLP for vertices and/or cells
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         f_ground_cell,        & ! grounded fraction of grid cell, 0 to 1
-         thck,                 & ! ice thickness (m)
-         thck_obs,             & ! observed ice thickness (m)
-         dthck_dt                ! rate of change of ice thickness (m/s)
-
-    real(dp), dimension(nx,ny), intent(out) ::  &
-         powerlaw_c_new          ! new value of powerlaw_c_inverison
-
-    ! local variables
-
-    integer, dimension(nx,ny) :: &
-         powerlaw_c_inversion_mask  ! = 1 where we invert for powerlaw_c, else = 0
-
-    real(dp), dimension(nx,ny) ::  &
-         powerlaw_c_inversion_real_mask   ! real version of powerlaw_c_inversion_mask, = f_ground in partly grounded cells
-
-    real(dp), dimension(nx,ny) ::  &
-         dthck,                & ! thck - thck_obs on ice grid
-         dpowerlaw_c,          & ! change in powerlaw_c
-         log_powerlaw_c_new,   & ! new value of log(powerlaw_c)
-         log_powerlaw_c_temp     ! temporary value of log(powerlaw_c_inversion) (before smoothing)
-
-    real(dp) :: term1, term2
-    integer :: i, j
-
-    ! parameters in inversion derived type:
-    ! * powerlaw_c_max        = upper bound for powerlaw_c, Pa (m/yr)^(-1/3)
-    ! * powerlaw_c_min        = lower bound for powerlaw_c, Pa (m/yr)^(-1/3)
-    ! * babc_timescale        = inversion timescale (s); must be > 0
-    ! * babc_thck_scale       = thickness inversion scale (m); must be > 0
-    ! * babc_smoothing_timescale  = timescale for spatial smoothing of powerlaw_c; larger => less smoothing
-
-    dpowerlaw_c(:,:) = 0.0d0
-
-    ! Compute difference between current and target thickness
-    dthck(:,:) = thck(:,:) - thck_obs(:,:)
-
-    ! Compute a mask of cells where we invert for powerlaw_c.
-    ! The mask includes land-based cells, as well as marine-based cells that are
-    !  fully or partly grounded based on f_ground_cell.
-    ! Note: f_ground_cell should be computed before transport, so that if a cell is grounded
-    !       before transport and fully floating afterward, powerlaw_c_inversion is computed here
-    !       rather than being set to zero.
-
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
-
-       ! Determine cells for inversion using f_ground_cell
-       where (land_mask == 1 .or. f_ground_cell > 0.0d0)
-          powerlaw_c_inversion_mask = 1
-          powerlaw_c_inversion_real_mask = f_ground_cell
-       elsewhere
-          powerlaw_c_inversion_mask = 0
-          powerlaw_c_inversion_real_mask = 0.0d0
-       endwhere
-
-    else
-
-       ! Determine cells for inversion using floating_mask
-       where (land_mask == 1 .or. (ice_mask == 1 .and. floating_mask == 0))
-          powerlaw_c_inversion_mask = 1
-          powerlaw_c_inversion_real_mask = 1.0d0
-       elsewhere
-          powerlaw_c_inversion_mask = 0
-          powerlaw_c_inversion_real_mask = 0.0d0
-       endwhere
-
-    endif   ! which_ho_ground
-
-    call parallel_halo(powerlaw_c_inversion_mask)
-
-    ! Check for newly grounded cells that have powerlaw_c = 0 (from when they were ice-free or floating).
-    ! Give these cells a sensible default value (either land or marine).
-
-    do j = 1, ny
-       do i = 1, nx
-
-          if (powerlaw_c_inversion_mask(i,j) == 1) then  ! ice is land-based and/or grounded
-
-             if (inversion%powerlaw_c_save(i,j) == 0.0d0) then
-                ! set to a sensible default
-                ! If on land, set to a typical land value
-                ! If grounded marine ice, set to a smaller value
-                if (land_mask(i,j) == 1) then
-                   inversion%powerlaw_c_save(i,j) = inversion%powerlaw_c_land
-                else
-                   inversion%powerlaw_c_save(i,j) = inversion%powerlaw_c_marine
-                endif
-             endif  ! powerlaw_c_save = 0
-
-          else  ! ice is floating or absent; zero out powerlaw_c_save
-
-             ! Note: If we were to retain a nonzero saved value in a cell that switches from grounded to floating,
-             !  then we might be left with an unrealistic value later in the run when the cell regrounds.
-             inversion%powerlaw_c_save(i,j) = 0.0d0
-
-          endif  ! powerlaw_c_inversion_mask = 1
-
-       enddo  ! i
-    enddo  ! j
-
-    call parallel_halo(inversion%powerlaw_c_save)
-
-    ! Loop over cells
-    ! Note: powerlaw_c_inversion is computed at cell centers where usrf and thck are located.
-    !       Later, it is interpolated to vertices where beta and basal velocity are located.
-
-    do j = 1, ny
-       do i = 1, nx
-
-          if (powerlaw_c_inversion_mask(i,j) == 1) then  ! ice is land-based and/or grounded
-
-             ! Compute the rate of change of powerlaw_c, based on dthck and dthck_dt.
-             ! This rate of change is proportional to the sum of two terms:
-             !     dCp/dt = -Cp * (1/tau) * (H - H_obs)/H0 + (2*tau/H0) * dH/dt
-             ! where tau = babc_timescale and H0 = babc_thck_scale.
-             ! This equation is similar to that of a damped harmonic oscillator:
-             !     m * d2x/dt2 = -k*x - c*dx/dt
-             ! where m is the mass, k is a spring constant, and c is a damping term.
-             ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
-             !  In this case the system reaches equilibrium as quickly as possible without oscillating.
-             ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
-             !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
-             ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/Cp)*dCp/dt with d2x/dt2,
-             !  we obtain the equation solved here.
-
-             term1 = -dthck(i,j) / (inversion%babc_thck_scale * inversion%babc_timescale)
-
-             term2 = -dthck_dt(i,j) * 2.0d0 / inversion%babc_thck_scale
-
-             !TODO - Remove the following limiting?  Ran for 1 ka at 8 km and had no problems with limiting removed.
-             !WHL - debug - Trying to turn off a potential unstable feedback:
-             ! (1) dH/dt < 0, so Cp increases
-             ! (2) Increased Cp results in dH/dt > 0, so Cp decreases
-             ! (3) Amplify and repeat until the model crashes
-             term2 = min(term2,  10.0d0/scyr/inversion%babc_thck_scale)  ! max dthck/dt = 5 m/yr
-             term2 = max(term2, -10.0d0/scyr/inversion%babc_thck_scale)
-
-             dpowerlaw_c(i,j) = inversion%powerlaw_c_save(i,j) * (term1 + term2) * dt
-
-             ! Limit to prevent a large relative change in one step
-             if (abs(dpowerlaw_c(i,j)) > 0.05 * inversion%powerlaw_c_save(i,j)) then
-                if (dpowerlaw_c(i,j) > 0.0d0) then
-                   dpowerlaw_c(i,j) =  0.05d0 * inversion%powerlaw_c_save(i,j)
-                else
-                   dpowerlaw_c(i,j) = -0.05d0 * inversion%powerlaw_c_save(i,j)
-                endif
-             endif
-
-             ! Update powerlaw_c
-             powerlaw_c_new(i,j) = inversion%powerlaw_c_save(i,j) + dpowerlaw_c(i,j)
-
-             ! Limit to a physically reasonable range
-             powerlaw_c_new(i,j) = min(powerlaw_c_new(i,j), inversion%powerlaw_c_max)
-             powerlaw_c_new(i,j) = max(powerlaw_c_new(i,j), inversion%powerlaw_c_min)
-
-             !WHL - debug
-             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Invert for powerlaw_c: rank, i, j =', rtest, itest, jtest
-                print*, 'thck, thck_obs, dthck, dthck_dt:', thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
-                print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
-                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), powerlaw_c_new(i,j)
-             endif
-
-          else  ! powerlaw_c_inversion_mask = 0
-
-             ! set powerlaw_c = 0
-             ! Note: Zero values are ignored when interpolating powerlaw_c to vertices,
-             !       and in forward runs where powerlaw_c is prescribed from a previous inversion.
-             ! Warning: If a cell is grounded some of the time and floating the rest of the time,
-             !           the time-averaging routine will accumulate zero values as if they are real.
-             !          Time-average fields should be used with caution.
-             !TODO - Ignore zero values only if no ice is present?  I.e., incorporate zeroes for floating ice.
-
-             powerlaw_c_new(i,j) = 0.0d0
-
-          endif  ! powerlaw_c_inversion_mask
-       enddo  ! i
-    enddo  ! j
-
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'Old powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') inversion%powerlaw_c_save(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck - thck_obs:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dthck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'dthck_dt (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') dthck_dt(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'powerlaw_c_inversion_real_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') powerlaw_c_inversion_real_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-    if (inversion%babc_smoothing_timescale > 0.0d0) then
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Before smoothing, powerlaw_c:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') powerlaw_c_new(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       where (powerlaw_c_new > 0.0d0)
-          log_powerlaw_c_new = log(powerlaw_c_new)
-       elsewhere
-          log_powerlaw_c_new = 0.0d0
-       endwhere
-
-       ! saved copy to pass to smoother
-       log_powerlaw_c_temp = log_powerlaw_c_new
-
-       ! Apply Laplacian smoothing.
-       ! Since powerlaw_c lives at cell centers but is interpolated to vertices, smoothing can damp checkerboard noise.
-
-       call glissade_laplacian_smoother(nx,              ny,    &
-                                        log_powerlaw_c_temp,    &
-                                        log_powerlaw_c_new,     &
-                                        smoother_mask = powerlaw_c_inversion_real_mask, &
-                                        npoints_stencil = 5)
-
-       call parallel_halo(log_powerlaw_c_new)
-
-       log_powerlaw_c_new(:,:) = log_powerlaw_c_temp(:,:) + &
-            (dt/inversion%babc_smoothing_timescale) * (log_powerlaw_c_new(:,:) - log_powerlaw_c_temp(:,:))
-
-       ! Recover powerlaw_c by exponentiation of the log
-       where (powerlaw_c_new > 0.0d0)
-          powerlaw_c_new = exp(log_powerlaw_c_new)
-       endwhere
-
-       call parallel_halo(powerlaw_c_new)
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          if (inversion%babc_smoothing_timescale > 0.0d0) then
-             print*, ' '
-             print*, 'After smoothing, powerlaw_c:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') powerlaw_c_new(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-       endif
-
-    endif   ! babc_space_smoothing > 0
-
-  end subroutine invert_basal_friction
-
-!***********************************************************************
-
-  subroutine invert_basal_friction_stag(dt,                       &
-                                        nx,            ny,        &
-                                        itest, jtest,  rtest,     &
-                                        babc_timescale,           &
-                                        babc_thck_scale,          &
-                                        powerlaw_c_max,           &
-                                        powerlaw_c_min,           &
-                                        f_ground,                 &
-                                        stag_thck,                &
-                                        stag_thck_obs,            &
-                                        stag_dthck_dt,            &
-                                        stag_powerlaw_c_inversion,&
-                                        stag_powerlaw_c_new)
-
-    ! Compute a spatially varying basal friction field, stag_powerlaw_c_inversion, defined at cell vertices.
+                                   babc_timescale,           &
+                                   babc_thck_scale,          &
+                                   powerlaw_c_max,           &
+                                   powerlaw_c_min,           &
+                                   f_ground,                 &
+                                   stag_thck,                &
+                                   stag_thck_obs,            &
+                                   stag_dthck_dt,            &
+                                   powerlaw_c_inversion)
+
+    ! Compute a spatially varying basal friction field, powerlaw_c_inversion, defined at cell vertices.
     ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
     ! Where stag_thck > stag_thck_obs, powerlaw_c is reduced to increase sliding.
     ! Where stag_thck < stag_thck_obs, powerlaw_c is increased to reduce sliding.
@@ -1687,11 +1205,8 @@ contains
          stag_thck_obs,        & ! observed ice thickness at vertices (m)
          stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
 
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-         stag_powerlaw_c_inversion  ! input value of stag_powerlaw_c_inverison
-
-    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
-         stag_powerlaw_c_new     ! new value of stag_powerlaw_c_inverison
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
+         powerlaw_c_inversion    ! powerlaw_c_inversion field to be adjusted
 
     ! local variables
 
@@ -1708,13 +1223,47 @@ contains
     ! Compute difference between current and target thickness
     stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
 
-    ! Compute a mask of cells where we invert for powerlaw_c.
-    ! The mask includes land-based cells, as well as marine-based cells that are
-    !  fully or partly grounded based on f_ground_cell.
-    ! Note: f_ground should be computed before transport, so that if a vertex is grounded
-    !       before transport and fully floating afterward, powerlaw_c_inversion is computed here.
+    ! optional diagnostics
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'Old powerlaw_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') powerlaw_c_inversion(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'stag_thck - stag_thck_obs:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') stag_dthck(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'stag_dthck_dt (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') stag_dthck_dt(i,j)*scyr
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
 
     ! Loop over vertices where f_ground > 0
+    ! Note: f_ground should be computed before transport, so that if a vertex is grounded
+    !       before transport and fully floating afterward, powerlaw_c_inversion is computed here.
 
     do j = 1, ny-1
        do i = 1, nx-1
@@ -1738,23 +1287,23 @@ contains
              term1 = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
              term2 = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
-             dpowerlaw_c(i,j) = stag_powerlaw_c_inversion(i,j) * (term1 + term2) * dt
+             dpowerlaw_c(i,j) = powerlaw_c_inversion(i,j) * (term1 + term2) * dt
 
              ! Limit to prevent a large relative change in one step
-             if (abs(dpowerlaw_c(i,j)) > 0.05d0 * stag_powerlaw_c_inversion(i,j)) then
+             if (abs(dpowerlaw_c(i,j)) > 0.05d0 * powerlaw_c_inversion(i,j)) then
                 if (dpowerlaw_c(i,j) > 0.0d0) then
-                   dpowerlaw_c(i,j) =  0.05d0 * stag_powerlaw_c_inversion(i,j)
+                   dpowerlaw_c(i,j) =  0.05d0 * powerlaw_c_inversion(i,j)
                 else
-                   dpowerlaw_c(i,j) = -0.05d0 * stag_powerlaw_c_inversion(i,j)
+                   dpowerlaw_c(i,j) = -0.05d0 * powerlaw_c_inversion(i,j)
                 endif
              endif
 
              ! Update powerlaw_c
-             stag_powerlaw_c_new(i,j) = stag_powerlaw_c_inversion(i,j) + dpowerlaw_c(i,j)
+             powerlaw_c_inversion(i,j) = powerlaw_c_inversion(i,j) + dpowerlaw_c(i,j)
 
              ! Limit to a physically reasonable range
-             stag_powerlaw_c_new(i,j) = min(stag_powerlaw_c_new(i,j), powerlaw_c_max)
-             stag_powerlaw_c_new(i,j) = max(stag_powerlaw_c_new(i,j), powerlaw_c_min)
+             powerlaw_c_inversion(i,j) = min(powerlaw_c_inversion(i,j), powerlaw_c_max)
+             powerlaw_c_inversion(i,j) = max(powerlaw_c_inversion(i,j), powerlaw_c_min)
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
@@ -1763,67 +1312,32 @@ contains
                 print*, 'thck, thck_obs, dthck, dthck_dt:', &
                      stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
                 print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
-                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), stag_powerlaw_c_new(i,j)
+                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), powerlaw_c_inversion(i,j)
              endif
 
           else   ! f_ground = 0
 
-             ! Keep the old value
-             stag_powerlaw_c_new(i,j) = stag_powerlaw_c_inversion(i,j)
+             ! do nothing; keep the old value
 
           endif  ! f_ground > 0
 
        enddo  ! i
     enddo  ! j
 
-    call staggered_parallel_halo(stag_powerlaw_c_new)
-
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
        j = jtest
        print*, ' '
-       print*, 'Old stag_powerlaw_c:'
+       print*, 'New powerlaw_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') stag_powerlaw_c_inversion(i,j)
+             write(6,'(f10.2)',advance='no') powerlaw_c_inversion(i,j)
           enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'stag_thck - stag_thck_obs:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_dthck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'stag_dthck_dt (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') stag_dthck_dt(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_ground(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New stag_powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') stag_powerlaw_c_new(i,j)
-          enddo
-          write(6,*) ' '
+          print*, ' '
        enddo
     endif   ! verbose_inversion
 
-  end subroutine invert_basal_friction_stag
+  end subroutine invert_basal_friction
 
 !***********************************************************************
 

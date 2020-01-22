@@ -77,7 +77,7 @@ contains
                        beta,                         &
                        which_ho_beta_limit,          &
                        which_ho_cp_inversion,        &
-                       stag_powerlaw_c_inversion,    &
+                       powerlaw_c_inversion,         &
                        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
@@ -120,7 +120,7 @@ contains
   integer, intent(in)           :: which_ho_beta_limit           ! option to limit beta for grounded ice
                                                                  ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
   integer, intent(in), optional :: which_ho_cp_inversion         ! basal inversion option
-  real(dp), intent(in), dimension(:,:), optional :: stag_powerlaw_c_inversion  ! Cp from inversion, on staggered grid
+  real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion, on staggered grid
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
@@ -371,14 +371,14 @@ contains
 
           do ns = 1, nsn-1
              do ew = 1, ewn-1
-                beta(ew,ns) = stag_powerlaw_c_inversion(ew,ns) &
+                beta(ew,ns) = powerlaw_c_inversion(ew,ns) &
                             * speed(ew,ns)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
                 !WHL - debug
                 if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                    if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
                       write(6,*) 'r, i, j, Cp, speed, beta:', &
-                           rtest, itest, jtest, stag_powerlaw_c_inversion(ew,ns), speed(ew,ns), beta(ew,ns)
+                           rtest, itest, jtest, powerlaw_c_inversion(ew,ns), speed(ew,ns), beta(ew,ns)
                    endif
                 endif
              enddo
@@ -509,9 +509,9 @@ contains
           do ns = 1, nsn-1
              do ew = 1, ewn-1
 
-                numerator = stag_powerlaw_c_inversion(ew,ns) * basal_physics%coulomb_c  &
+                numerator = powerlaw_c_inversion(ew,ns) * basal_physics%coulomb_c  &
                           * basal_physics%effecpress_stag(ew,ns)
-                denominator = ( stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns) +  &
+                denominator = (powerlaw_c_inversion(ew,ns)**m * speed(ew,ns) +  &
                      (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
                 beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
 
@@ -520,8 +520,8 @@ contains
                    if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
                       print*, ' '
                       write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
-                           rtest, ew, ns, stag_powerlaw_c_inversion(ew,ns), &
-                           (stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
+                           rtest, ew, ns, powerlaw_c_inversion(ew,ns), &
+                           (powerlaw_c_inversion(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
                            (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)), &
                            speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
                    endif
