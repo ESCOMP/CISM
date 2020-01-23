@@ -63,11 +63,8 @@
                                         which_ho_flotation_function,       &
                                         which_ho_fground_no_glp,           &
                                         f_flotation,                       &
-                                        f_ground,        f_ground_cell,    &
-                                        bmlt_cavity_thck_scale,            &
-                                        weight_float_cell,                 &
-                                        beta_cavity_thck_scale,            &
-                                        weight_ground_vertex)
+                                        f_ground,                          &
+                                        f_ground_cell)
 
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
 
@@ -157,19 +154,6 @@
     real(dp), dimension(nx,ny), intent(out) ::  &
        f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground_cell <= 1
 
-    real(dp), intent(in), optional :: &
-       bmlt_cavity_thck_scale ! thickness scale for adjusting basal melting in ocean cavities (m)
-
-    real(dp), dimension(nx,ny), intent(out), optional ::  &
-       weight_float_cell      ! weighting factor in range [0,1], computed for the floating part of a cell
-
-    real(dp), intent(in), optional :: &
-       beta_cavity_thck_scale ! thickness scale for adjusting beta in ocean cavities (m)
-
-    real(dp), dimension(nx-1,ny-1), intent(out), optional ::  &
-       weight_ground_vertex   ! weighting factor in range [0,1], computed for the grounded part of a staggered cell
-                              ! (i.e., centered on the vertex)
-
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
@@ -202,10 +186,6 @@
     logical, dimension(nx,ny) :: &
          cground            ! true if a cell is land and/or has grounded ice, else = false
 
-    real(dp) ::  &
-         bmlt_cavity_h0,  & ! local version of bmlt_cavity_thck_scale (m)
-         beta_cavity_h0     ! local version of beta_cavity_thck_scale (m)
-
     real(dp), parameter :: &
          f_flotation_land_topg_min = 10.0d0    ! min value of (topg - eus) in f_flotation expression for land cells (m)
 
@@ -217,18 +197,6 @@
     !TODO - Test sensitivity to these values
     ! These are set to large negative values, so vertices with land-based neighbors are strongly grounded.
     real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
-
-    if (present(bmlt_cavity_thck_scale)) then
-       bmlt_cavity_h0 = bmlt_cavity_thck_scale
-    else
-       bmlt_cavity_h0 = 0.0d0  ! default is to treat all cavities as thick
-    endif
-
-    if (present(beta_cavity_thck_scale)) then
-       beta_cavity_h0 = beta_cavity_thck_scale
-    else
-       beta_cavity_h0 = 0.0d0  ! default is to treat all cavities as thick
-    endif
 
     !----------------------------------------------------------------
     ! Compute ice mask at vertices (= 1 if any surrounding cells have ice or are land)
@@ -435,8 +403,6 @@
     f_ground_cell(:,:) = 0.0d0
     f_ground_quadrant(:,:,:) = 0.0d0
     f_flotation_quadrant(:,:,:) = 0.0d0
-    if (present(weight_float_cell)) weight_float_cell(:,:) = 0.0d0
-    if (present(weight_ground_vertex)) weight_ground_vertex(:,:) = 0.0d0
 
     ! Given f_flotation in all cells, we have the information needed to compute f_ground
     !  at vertices by one of several methods:
@@ -471,12 +437,6 @@
              endif
           enddo
        enddo
-
-       if (present(weight_float_cell)) then
-          where (floating_mask == 1)
-             weight_float_cell = 1.0d0
-          endwhere
-       endif
 
        ! Determine whether each vertex is grounded (f_ground = 1.0) or floating (f_ground = 0.0)
 
@@ -519,10 +479,6 @@
 
        endif  ! which_ho_no_glp_stagger
 
-       if (present(weight_ground_vertex)) then
-          weight_ground_vertex = f_ground
-       endif
-
     elseif (which_ho_ground == HO_GROUND_GLP_BASAL_FRICTION) then
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
@@ -556,16 +512,6 @@
        where (land_mask == 1)
           f_ground_cell = 1.0d0
        endwhere
-
-       ! Note: For this GLP option, cavity thickness is not included in weight_float_cell and weight_ground_vertex.
-       !       To incorporate cavity thickness, use HO_GROUND_GLP_DELUXE
-       if (present(weight_float_cell)) then
-          weight_float_cell = 1.0d0 - f_ground_cell
-       endif
-
-       if (present(weight_ground_vertex)) then
-             weight_ground_vertex = f_ground
-       endif
 
     elseif (which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
@@ -657,59 +603,6 @@
                    print*, 'Average   :', f_ground(i,j)
                 endif
 
-                ! Optionally, compute a weighting factor at vertices that is equal to f_ground for
-                !  fully grounded ice and 0 for deep ocean cavities, and is nonzero for shallow cavities
-                !  (i.e., small positive values of f_flotation_quadrant).
-                ! For each quadrant with f_flotation_quadrant > 0, the floating fraction is effectively
-                !  reduced, based on the idea that the ice will have some contact with the sea floor.
-                ! Then weight_ground_quadrant is set to 1 minus the sum of the floating contributions.
-
-                if (present(weight_ground_vertex)) then
-
-                   if (beta_cavity_h0 > 0.0d0) then
-
-                      sum_weight = 0.0d0
-
-                      do q = 1, 4
-                         if (f_flotation_quadrant(q,i,j) > 0.0d0) then
-                            f_float_quadrant = 1.0d0 - f_ground_quadrant(q,i,j)
-                            sum_weight = sum_weight + &
-                                 f_float_quadrant * tanh(f_flotation_quadrant(q,i,j) / beta_cavity_h0)
-                         endif
-
-                         if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                            if (f_flotation_quadrant(q,i,j) > 0.0d0) then
-                               print*, 'q, f_float_quad, tanh, weight =', q, f_float_quadrant, &
-                                    tanh(f_flotation_quadrant(q,i,j) / beta_cavity_h0),  &
-                                    f_float_quadrant * tanh(f_flotation_quadrant(q,i,j) / beta_cavity_h0)
-                            endif
-                         endif
-
-                      enddo   ! quadrants q
-
-                      weight_ground_vertex(i,j) = 1.0d0 - 0.25d0 * sum_weight
-
-                   else   ! beta_cavity_h0 = 0; assign a weight of f_ground_quadrant to each quadrant.
-                          ! This is equivalent to assigning a weight of f_ground to the entire staggered cell.
-
-                      weight_ground_vertex(i,j) = f_ground(i,j)
-
-                   endif   ! beta_cavity_h0 > 0
-
-                   !WHL - debug
-                   if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                      print*, ' '
-                      print*, 'beta_cavity_h0 =', beta_cavity_h0
-                      print*, 'vertex, f_flotation_quadrant, r, i, j =', this_rank, i, j
-                      print*, 'Quadrant 1:', f_flotation_quadrant(1,i,j)
-                      print*, 'Quadrant 2:', f_flotation_quadrant(2,i,j)
-                      print*, 'Quadrant 3:', f_flotation_quadrant(3,i,j)
-                      print*, 'Quadrant 4:', f_flotation_quadrant(4,i,j)
-                      print*, 'weight_ground_vertex:', weight_ground_vertex(i,j)
-                   endif
-
-                endif  ! present(weight_ground_vertex)
-
              endif        ! vmask = 1
           enddo           ! i
        enddo              ! j
@@ -751,84 +644,6 @@
              ! divide by 4 to get average value of f_ground in the cell
              f_ground_cell(i,j) = 0.25d0 * f_ground_cell(i,j)
 
-             ! Optionally, compute a weighting factor that is equal to (1 - f_ground_cell) for deep cavities,
-             !  but is reduced for shallow cavities (i.e., small positive values of f_flotation_quadrant).
-             ! Note: Only quadrants with f_flotation > 0 contribute to the sum.
-             !       If the adjacent vertex has vmask = 0, then it is surrounded by 4 ice-free ocean cells.
-             !       In this case we set f_float_quadrant = 1.0 and add this value to the weight,
-             !        effectively assuming that the cavity is deep compared to bmlt_cavity_h0.
-             !TODO: Compute f_flotation_quadrant for all quadrants, including those in the middle of ice-free ocean?
-             !      Then we could use the tanh function everywhere.
-
-             if (present(weight_float_cell)) then
-
-                if (bmlt_cavity_h0 > 0.0d0) then
-
-                   sum_weight = 0.0d0
-
-                   ! quadrant 3 of vertex (i-1,j-1)
-                   if (vmask(i-1,j-1) == 1 .and. f_flotation_quadrant(3,i-1,j-1) > 0.0d0) then
-                      f_float_quadrant = 1.0d0 - f_ground_quadrant(3,i-1,j-1)
-                      sum_weight = sum_weight + &
-                           f_float_quadrant * tanh(f_flotation_quadrant(3,i-1,j-1) / bmlt_cavity_h0)
-                   elseif (vmask(i-1,j-1) == 0) then  ! vertex surrounded by ice-free ocean
-                      f_float_quadrant = 1.0d0
-                      sum_weight = sum_weight + f_float_quadrant
-                   endif
-
-                   ! quadrant 4 of vertex (i,j-1)
-                   if (vmask(i,j-1) == 1 .and. f_flotation_quadrant(4,i,j-1) > 0.0d0) then
-                      f_float_quadrant = 1.0d0 - f_ground_quadrant(4,i,j-1)
-                      sum_weight = sum_weight + &
-                           f_float_quadrant * tanh(f_flotation_quadrant(4,i,j-1) / bmlt_cavity_h0)
-                   elseif (vmask(i,j-1) == 0) then  ! vertex surrounded by ice-free ocean
-                      f_float_quadrant = 1.0d0
-                      sum_weight = sum_weight + f_float_quadrant
-                   endif
-
-                   ! quadrant 1 of vertex (i,j)
-                   if (vmask(i,j) == 1 .and. f_flotation_quadrant(1,i,j) > 0.0d0) then
-                      f_float_quadrant = 1.0d0 - f_ground_quadrant(1,i,j)
-                      sum_weight = sum_weight + &
-                           f_float_quadrant * tanh(f_flotation_quadrant(1,i,j) / bmlt_cavity_h0)
-                   elseif (vmask(i,j) == 0) then  ! vertex surrounded by ice-free ocean
-                      f_float_quadrant = 1.0d0
-                      sum_weight = sum_weight + f_float_quadrant
-                   endif
-
-                   ! quadrant 2 of vertex (i-1,j)
-                   if (vmask(i-1,j) == 1 .and. f_flotation_quadrant(2,i-1,j) > 0.0d0) then
-                      f_float_quadrant = 1.0d0 - f_ground_quadrant(2,i-1,j)
-                      sum_weight = sum_weight + &
-                           f_float_quadrant * tanh(f_flotation_quadrant(2,i-1,j) / bmlt_cavity_h0)
-                   elseif (vmask(i-1,j) == 0) then  ! vertex surrounded by ice-free ocean
-                      f_float_quadrant = 1.0d0
-                      sum_weight = sum_weight + f_float_quadrant
-                   endif
-
-                   weight_float_cell(i,j) = 0.25d0 * sum_weight
-
-                else   ! bmlt_cavity_h0 = 0; assign a weight of (1 - f_ground_quadrant) to each floating quadrant.
-                       ! This is equivalent to assigning a weight of 1 - f_ground_cell to the entire cell.
-
-                   weight_float_cell(i,j) = 1.0d0 - f_ground_cell(i,j)
-
-                endif
-
-                !WHL - debug
-                if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'bmlt_cavity_h0 =', bmlt_cavity_h0
-                   print*, 'cell, f_flotation_quadrant, r, i, j =', this_rank, i, j
-                   print*, 'Quadrant 1:', f_flotation_quadrant(4,i-1,j-1)
-                   print*, 'Quadrant 2:', f_flotation_quadrant(3,i,j-1)
-                   print*, 'Quadrant 3:', f_flotation_quadrant(1,i,j)
-                   print*, 'Quadrant 4:', f_flotation_quadrant(2,i-1,j)
-                   print*, 'Floating average   :', weight_float_cell(i,j)
-                endif
-
-             endif  ! present(weight_float_cell)
-
              if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'f_ground_cell, r, i, j =', this_rank, i, j
@@ -848,32 +663,6 @@
        endwhere
 
        call parallel_halo(f_ground_cell)
-       if (present(weight_float_cell)) call parallel_halo(weight_float_cell)
-       !Note: weight_ground_vertex computed for all vertices, so no halo call needed
-
-       if (verbose_glp .and. this_rank == rtest .and. present(weight_ground_vertex)) then
-          print*, ' '
-          print*, 'weight_ground_vertex, rtest, itest, jtest:', rtest, itest, jtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i8)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') weight_ground_vertex(i,j)
-             enddo
-             print*, ' '
-          enddo
-       endif
-
-       if (verbose_glp .and. this_rank == rtest .and. present(weight_float_cell)) then
-          print*, ' '
-          print*, 'weight_float_cell, rtest, itest, jtest:', rtest, itest, jtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i8)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') weight_float_cell(i,j)
-             enddo
-             print*, ' '
-          enddo
-       endif
 
     endif   ! which_ho_ground
 

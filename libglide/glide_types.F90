@@ -1047,18 +1047,6 @@ module glide_types
     real(dp),dimension(:,:),pointer :: f_ground_cell => null() 
     !> The fractional area in each cell which is grounded
 
-    real(dp),dimension(:,:),pointer :: weight_float_cell => null()
-    !> Weighting factor in range [0,1], computed for the floating part of a cell
-
-    real(dp),dimension(:,:),pointer :: weight_ground_vertex => null()
-    !> Weighting factor in range [0,1], computed for the grounded part of a staggered cell (centered on vertices)
-
-    real(dp) :: bmlt_cavity_thck_scale = 0.0d0   !> thickness scale (m) for basal melting in thin cavities;
-                                                 !> used to compute of weight_float_cell
-
-    real(dp) :: beta_cavity_thck_scale = 0.0d0   !> thickness scale (m) for weighting beta in thin cavities;
-                                                 !> used to compute weight_ground_vertex
-
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
     !> Used to be called 'age', but changed to 'ice_age' for easier grepping
@@ -1592,6 +1580,9 @@ module glide_types
           bmlt_float_baseline => null()             !> baseline melt rate (subtracted to compute the ISMIP6 anomaly melt rate)
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
+
+     real(dp) :: bmlt_cavity_h0 = 0.0d0             !> scale for reducing melting in sub-shelf cavities (m)
+                                                    !> similar to bmlt_float_h0, which is used specifically for MISMIP+
 
      ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_MISMIP)
      ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
@@ -2583,8 +2574,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%weight_float_cell)
-       call coordsystem_allocate(model%general%velo_grid, model%geometry%weight_ground_vertex)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
@@ -3230,10 +3219,6 @@ contains
         deallocate(model%geometry%f_ground)
     if (associated(model%geometry%f_ground_cell)) &
         deallocate(model%geometry%f_ground_cell)
-    if (associated(model%geometry%weight_float_cell)) &
-        deallocate(model%geometry%weight_float_cell)
-    if (associated(model%geometry%weight_ground_vertex)) &
-        deallocate(model%geometry%weight_ground_vertex)
     if (associated(model%geomderv%dlsrfdew)) &
         deallocate(model%geomderv%dlsrfdew)
     if (associated(model%geomderv%dlsrfdns)) &

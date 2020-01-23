@@ -416,12 +416,8 @@ module glissade_bmlt_float
 
                 endif   ! warm_ocean_mask
 
-
-                ! As with the MISMIP scheme, reduce the melting as the cavity thickness approaches zero.
-                ! A small value of bmlt_float_h0 allows more melting in very thin cavities.
-                h_cavity = max(lsrf(i,j) - topg(i,j), 0.0d0)
-                bmlt_float(i,j) = bmlt_float(i,j) * tanh(h_cavity/basal_melt%bmlt_float_h0)
-
+                ! Note: bmlt_float will be reduced further in shallow cavities if basal_melt%bmlt_cavity_h0 > 0.
+                !       This reduction is done in subroutine glissade_bmlt_float_solve.
              endif   ! ice is present and floating
 
           enddo

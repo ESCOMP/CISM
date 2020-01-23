@@ -1196,9 +1196,7 @@ contains
                                        model%options%which_ho_fground_no_glp,     &
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
-                                       model%geometry%f_ground_cell,  &
-                                       model%geometry%bmlt_cavity_thck_scale,  &
-                                       model%geometry%weight_float_cell)
+                                       model%geometry%f_ground_cell)
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
@@ -1495,6 +1493,9 @@ contains
          ocean_mask,            & ! = 0 if ice is absent (thck = 0) and topg < 0
          land_mask                ! = 1 if topg - eus >= 0
 
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
+         h_cavity                 ! ocean cavity thickness, >= 0 (m)
+
     ! melt rate field for ISMIP6
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
          bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s);
@@ -1698,15 +1699,12 @@ contains
           ! Multiply bmlt_float by the fraction of the cell that is floating.
           ! Cells that are fully grounded will have bmlt_float = 0.
           ! This option ensures smooth changes in bmlt_float as the GL migrates.
-          ! However, it may allow spurious melting of grounded ice near the GL.
+          ! However, it might allow spurious melting of grounded ice near the GL.
 
-!          where (model%geometry%f_ground_cell > 0.0d0)
-!             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float   &
-!                                         * (1.0d0 - model%geometry%f_ground_cell)
-!          endwhere
-
-          ! Replaced (1 - f_ground_cell) with weight_float_cell to reduce melting in shallow cavities
-          model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * model%geometry%weight_float_cell
+          where (model%geometry%f_ground_cell > 0.0d0)
+             model%basal_melt%bmlt_float = model%basal_melt%bmlt_float   &
+                                         * (1.0d0 - model%geometry%f_ground_cell)
+          endwhere
 
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
 
@@ -1739,13 +1737,85 @@ contains
 
     endif
 
+    ! Reduce basal melting in shallow cavities if bmlt_cavity_h0 > 0.
+    ! The tanh function follows Asay-Davis et al. (2016), Eqs. 14 and 17.
+    ! Note: model%basal_melt%bmlt_cavity_h0 has units of m.
+    ! Note: For BMLT_FLOAT_MISMIP, this reduction is done in subroutine glissade_basal_melting_float
+    !       based on model%basal_melt%bmlt_float_h0 and should not be repeated here.
+
+    if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and.  &
+        model%options%whichbmlt_float /= BMLT_FLOAT_MISMIP) then
+
+       ! TODO: Make sure lsrf is up to date.
+
+       h_cavity = max(model%geometry%lsrf - model%geometry%topg, 0.0d0) * thk0  ! cavity thickness (m)
+
+       if (this_rank==rtest .and. verbose_bmlt_float) then
+          print*, ' '
+          print*, 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 =', &
+               model%basal_melt%bmlt_cavity_h0
+          print*, ' '
+          print*, 'original bmlt_float (m/yr):'
+          write(6,'(a6)',advance='no') '      '
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') i
+          enddo
+          print*, ' '
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+             enddo
+             print*, ' '
+          enddo
+          print*, ' '
+          print*, 'h_cavity:'
+          print*, ' '
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') h_cavity(i,j)
+             enddo
+             print*, ' '
+          enddo
+          print*, ' '
+          print*, 'Adjustment factor:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') &
+                     tanh(h_cavity(i,j)/model%basal_melt%bmlt_cavity_h0)
+             enddo
+             print*, ' '
+          enddo
+       endif   ! verbose_bmlt_float
+
+       where (h_cavity > 0.0d0)
+          model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * &
+               tanh(h_cavity/model%basal_melt%bmlt_cavity_h0)
+       endwhere
+
+       if (this_rank==rtest .and. verbose_bmlt_float) then
+          print*, ' '
+          print*, 'reduced bmlt_float (m/yr):'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
+             enddo
+             print*, ' '
+          enddo
+       endif
+
+    endif   ! bmlt_cavity_h0 > 0
+
     !WHL - debug
     if (this_rank==rtest .and. verbose_bmlt_float) then
        print*, ' '
        print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
-       write(6,*) ' '
 
        if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
+          print*, ' '
           print*, '1 - f_ground_cell:'
           write(6,'(a6)',advance='no') '      '
           do i = itest-3, itest+3
@@ -1758,15 +1828,6 @@ contains
                 write(6,'(f10.3)',advance='no') 1.0d0 - model%geometry%f_ground_cell(i,j)
              enddo
              write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'weight_float_cell:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%weight_float_cell(i,j)
-             enddo
-             print*, ' '
           enddo
        else
           print*, ' '
@@ -3287,11 +3348,7 @@ contains
                                     model%options%which_ho_fground_no_glp,     &
                                     model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
-                                    model%geometry%f_ground_cell,  &
-                                    model%geometry%bmlt_cavity_thck_scale,  &
-                                    model%geometry%weight_float_cell,       &
-                                    model%geometry%beta_cavity_thck_scale,  &
-                                    model%geometry%weight_ground_vertex)
+                                    model%geometry%f_ground_cell)
 
     !WHL - debug
     if (this_rank == rtest .and. verbose_glp) then

@@ -423,11 +423,7 @@ contains
     if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE .and.  &
         model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
 
-       ! Note: weight_float_cell = 1 - f_ground_cell in the limit H_cavity >> h0_cavity (or h0_cavity = 0)
-       !       Otherwise, weight_float_cell is reduced for shallow cavities,
-       !        to represent the difficulty for warm ocean water to enter the cavity.
-
-       bmlt_weight = model%geometry%weight_float_cell
+       bmlt_weight = 1.0d0 - model%geometry%f_ground_cell
 
     else
 
