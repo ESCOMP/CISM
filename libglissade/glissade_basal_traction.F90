@@ -620,15 +620,6 @@ contains
    ! Note: With a GLP, f_ground will have values between 0 and 1 at vertices adjacent to the GL.
    !       Without a GLP, f_ground = 0 or 1 everywhere based on a flotation criterion.
    !       By convention, f_ground = 1 for land, and f_ground = 0 for ice-free ocean.
-   ! Note: By default, f_ground is the grounded ice fraction in the bounding box around a vertex,
-   !       based on f_flotation.  It is independent of cavity depth.  For example, we can imagine
-   !       two cells that contain the grounding line, with each cell having f_ground = 0.5.
-   !       In one cell the bed slope is steep, with a deep cavity downstream of the GL and strongly grounded ice upstream.
-   !        In the other cell the bed slope is gradual, with a shallow cavity downstream and weakly grounded ice upstream.
-   !       We might want to distinguish these two cases, with weaker friction in the second case.
-   !       This is done by passing model%geometry%weight_ground_vertex to the f_ground argument of this subroutine,
-   !        with beta_cavity_thck_scale > 0 in the config file.  The default value is beta_cavity_thck_scale = 0,
-   !        in which case weight_ground_vertex = f_ground everywhere.
    !
    ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
    ! To prevent this, set beta to a minimum value beneath grounded ice.

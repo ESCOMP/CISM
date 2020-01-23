@@ -1940,8 +1940,6 @@ contains
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
-    call GetValue(section,'bmlt_cavity_thck_scale',  model%geometry%bmlt_cavity_thck_scale)
-    call GetValue(section,'beta_cavity_thck_scale',  model%geometry%beta_cavity_thck_scale)
 
     ! parameters to adjust external forcing
     call GetValue(section,'acab_factor',        model%climate%acab_factor)
@@ -2055,6 +2053,9 @@ contains
 
     ! parameters for artm anomaly option
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
+
+    ! basal melting parameters
+    call GetValue(section,'bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0)
 
     ! MISMIP+ basal melting parameters
     call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
@@ -2249,16 +2250,6 @@ contains
     if (model%options%whichdycore == DYCORE_GLISSADE) then
        write(message,*) 'max surface slope             : ', model%paramets%max_slope
        call write_log(message)
-       if (model%geometry%bmlt_cavity_thck_scale > 0.0d0) then
-          write(message,*) 'bmlt cavity thickness scale (m)    : ', &
-               model%geometry%bmlt_cavity_thck_scale
-          call write_log(message)
-       endif
-       if (model%geometry%beta_cavity_thck_scale > 0.0d0) then
-          write(message,*) 'beta cavity thickness scale (m)    : ', &
-               model%geometry%beta_cavity_thck_scale
-          call write_log(message)
-       endif
     end if       
  
     if (model%options%whichflwa == FLWA_CONST_FLWA) then
@@ -2521,6 +2512,13 @@ contains
     endif
 
     ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
+
+    if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and. &
+        model%options%whichbmlt_float /= BMLT_FLOAT_MISMIP) then
+       write(message,*) 'bmlt_cavity_h0 (m)       :  ', model%basal_melt%bmlt_cavity_h0
+       call write_log(message)
+    endif
+
     if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
        if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
           write(message,*) 'Input bmlt_float multiplied by: ', model%basal_melt%bmlt_float_factor
@@ -2552,8 +2550,6 @@ contains
        write(message,*) 'warm ocean meltmin (m/yr)      :  ', model%basal_melt%bmlt_float_depth_meltmin
        call write_log(message)
        write(message,*) 'warm ocean zmeltmin (m)        :  ', model%basal_melt%bmlt_float_depth_zmeltmin
-       call write_log(message)
-       write(message,*) 'bmlt_float_h0 (m)              :  ', model%basal_melt%bmlt_float_h0
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
        write(message,*) 'T0 (deg C)               :  ', model%plume%T0
