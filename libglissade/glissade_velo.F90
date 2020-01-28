@@ -71,7 +71,7 @@ contains
                                        model%general%upn)
                        
       else   ! standard higher-order solve
-             ! can be BP, L1L2, SSA or SIA, depending on model%options%which_ho_approx
+             ! can be BP, DIVA, SSA or SIA, depending on model%options%which_ho_approx
 
          !-------------------------------------------------------------------
          ! Compute mask for staggered grid. This is needed as an input to calcbeta

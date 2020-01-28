@@ -27,7 +27,7 @@
 ! This module contains routines for computing the ice velocity using a 
 ! variational finite-element approach.  It solves the higher-order Blatter-Pattyn
 ! approximation for Stokes flow, as well as several simpler approximations
-! (L1L2, shallow-shelf approximation, and shallow-ice approximation).
+! (depth-integrated HO approximation, shallow-shelf approximation, and shallow-ice approximation).
 !
 ! See these papers for details:
 !
@@ -45,12 +45,13 @@
 !    finite-element implementation for higher-order ice-sheet models.
 !    J. Glaciology, 58 (207), 76-88.
 !
+! W.H. Lipscomb et al., 2019: Description and evaluation of the
+!    Community Ice Sheet Model (CISM) v2.1, Geosci. Model Dev., 12,
+!    387-424, doi:10.5194/gmd-12-387-2019.
+!
 ! Author: William Lipscomb
-!         Los Alamos National Laboratory
-!         Group T-3, MS B216
-!         Los Alamos, NM 87545
-!         USA
-!         <lipscomb@lanl.gov>
+!         National Center for Atmospheric Research
+!         <lipscomb@ucar.edu>
 !
 ! +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ 
 
@@ -236,8 +237,6 @@
 !    logical :: verbose_gridop= .true.
     logical :: verbose_dirichlet = .false.
 !    logical :: verbose_dirichlet= .true.
-    logical :: verbose_L1L2 = .false.
-!    logical :: verbose_L1L2 = .true.
     logical :: verbose_diva = .false.
 !    logical :: verbose_diva = .true.
     logical :: verbose_glp = .false.
@@ -663,7 +662,8 @@
     ! The standard solver is based on the Blatter-Pattyn first-order approximation
     !  of Stokes flow (which_ho_approx = HO_APPROX_BP).
     ! There are also options to solve the shallow-ice equations (HO_APPROX_SIA),
-    !  shallow-shelf equations (HO_APPROX_SIA), or L1L2 equations (HO_APPROX_L1L2).
+    !  shallow-shelf equations (HO_APPROX_SIA), or depth-integrated higher-order
+    !  equations (HO_APPROX_DIVA).
     ! Note: The SIA solver does a full matrix solution and is much slower than
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
@@ -746,7 +746,7 @@
        bu, bv                   ! right-hand-side vector b, divided into 2 parts
 
     real(dp), dimension(:,:), pointer ::  &
-       uvel_2d, vvel_2d,       &! 2D velocity field; solution for SSA, L1L2 and DIVA 
+       uvel_2d, vvel_2d,       &! 2D velocity field; solution for SSA and DIVA
        btractx, btracty,       &! components of basal traction (Pa)
        taudx, taudy             ! components of driving stress (Pa)
 
@@ -776,7 +776,7 @@
        whichnonlinear, &        ! option for nonlinear solver
                                 ! (standard or accelerated Picard)
        whichapprox, &           ! option for which Stokes approximation to use
-                                ! 0 = SIA, 1 = SSA, 2 = Blatter-Pattyn HO, 3 = L1L2
+                                ! 0 = SIA, 1 = SSA, 2 = Blatter-Pattyn HO, 4 = DIVA
                                 ! default = 2
        whichprecond, &          ! option for which preconditioner to use with 
                                 !  structured PCG solver
@@ -933,7 +933,7 @@
        matrix_order,    & ! order of matrix = number of rows
        max_nonzeros       ! upper bound for number of nonzero entries in sparse matrix
 
-    ! The following arrays are used for a 2D matrix solve (SSA, L1L2 or DIVA)
+    ! The following arrays are used for a 2D matrix solve (SSA or DIVA)
 
     logical ::  &
        solve_2d           ! if true, solve a 2D matrix)
@@ -1185,15 +1185,13 @@
        if (verbose_solver .and. main_task) print*, 'Solving shallow-ice approximation'
     elseif (whichapprox == HO_APPROX_SSA) then  ! SSA
        if (verbose_solver .and. main_task) print*, 'Solving shallow-shelf approximation'
-    elseif (whichapprox == HO_APPROX_L1L2) then  ! L1L2
-       if (verbose_solver .and. main_task) print*, 'Solving depth-integrated L1L2 approximation'
     elseif (whichapprox == HO_APPROX_DIVA) then  ! DIVA, based on Goldberg (2011)
        if (verbose_solver .and. main_task) print*, 'Solving depth-integrated viscosity approximation'
     else   ! Blatter-Pattyn higher-order 
        if (verbose_solver .and. main_task) print*, 'Solving Blatter-Pattyn higher-order approximation'
     endif
 
-    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_DIVA) then
+    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_DIVA) then
        solve_2d = .true.
     else   ! 3D solve
        solve_2d = .false.
@@ -1276,7 +1274,7 @@
 
     if (whichapprox /= HO_APPROX_DIVA) then
        ! Set the 2D velocity to the velocity at the bed
-       ! Note: For L1L2 and SSA, this is the 2D velocity solution from the previous solve.
+       ! Note: For SSA, this is the 2D velocity solution from the previous solve.
        !       For DIVA, the velocity solution from the previous solve is typically the
        !        mean velocity, which cannot be extracted exactly from the 3D velocity field
        !        and must be stored in a separate array.
@@ -1387,7 +1385,7 @@
     ! Note: Assuming there is no vertical shear at these points, the bed velocity is the same
     !       as the velocity throughout the column.  This allows us to use the 3D umask_dirichlet
     !       and vmask_dirichlet with a 2D solver.
-    ! TODO: Support Dirichlet condition with vertical shear for L1L2 and DIVA?
+    ! TODO: Support Dirichlet condition with vertical shear for DIVA?
     !
     ! For a no-penetration global BC, set umask_dirichlet = 0 and uvel = 0.d0 along east/west global boundaries,
     !  and set vmask_dirichlet = 0 and vvel = 0.d0 along north/south global boundaries (based on umask_no_penetration
@@ -2523,7 +2521,7 @@
           ! (6) Subroutine calcbeta includes a halo update for beta_internal at the end.
           !-------------------------------------------------------------------
 
-          if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then
+          if (whichapprox == HO_APPROX_SSA) then
              ubas(:,:) = uvel_2d(:,:)
              vbas(:,:) = vvel_2d(:,:)
           else  ! 3D solve or DIVA
@@ -2852,7 +2850,6 @@
                                                efvs,                              &
                                                Auu_2d,           Auv_2d,          &
                                                Avu_2d,           Avv_2d,          &
-                                               dusrf_dx,         dusrf_dy,        &
                                                thck,                              &
                                                btractx,          btracty,         &
                                                omega_k,          omega,   &
@@ -2960,7 +2957,7 @@
                                       whichassemble_beta,                 &
                                       Auu_2d,            Avv_2d)
 
-             else    ! L1L2, SSA
+             else    ! SSA
 
                 ! Incorporate basal sliding boundary conditions, based on beta_internal
 
@@ -2973,7 +2970,7 @@
                                       whichassemble_beta,                 &
                                       Auu_2d,            Avv_2d)
 
-             endif    ! whichapprox (SSA, L1L2, DIVA)
+             endif    ! whichapprox (SSA, DIVA)
 
              call t_stopf('glissade_assemble_2d')
 
@@ -3648,14 +3645,13 @@
 
        !---------------------------------------------------------------------------
        ! First, handle a possible problem case: Set uvel_2d = vvel_2d = 0 for the case
-       !  of a Dirichlet no-slip basal BC and a 2D L1L2 solve.
+       !  of a Dirichlet no-slip basal BC and a 2D solve.
        ! It would be pointless to apply the SSA to a no-slip problem, but this case
        !  is included for completeness.
        ! Note: DIVA computes a nonzero 2D velocity with a no-slip BC.
        !---------------------------------------------------------------------------
 
-       if ((whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_SSA) .and. &
-              whichbabc==HO_BABC_NO_SLIP) then
+       if (whichapprox==HO_APPROX_SSA .and. whichbabc==HO_BABC_NO_SLIP) then
 
           ! zero out velocity and related fields
           uvel_2d(:,:) = 0.d0
@@ -4134,7 +4130,7 @@
 
     !------------------------------------------------------------------------------
     ! After a 2D solve, fill in the full 3D velocity arrays.
-    ! This is a simple copy for SSA, but requires vertical integrals for L1L2 and DIVA.
+    ! This is a simple copy for SSA, but requires vertical integrals for DIVA.
     ! Note: We store redundant 3D residual info rather than creating a separate 2D residual array.
     !------------------------------------------------------------------------------
 
@@ -4146,37 +4142,6 @@
           resid_u(k,:,:) = resid_u_2d(:,:)
           resid_v(k,:,:) = resid_v_2d(:,:)
        enddo
-
-    elseif (whichapprox == HO_APPROX_L1L2) then
-
-       if (verbose_L1L2 .and. main_task) print*, 'Compute 3D velocity, L1L2'
-
-       uvel(nz,:,:) = uvel_2d(:,:)
-       vvel(nz,:,:) = vvel_2d(:,:)
-       do k = 1, nz
-          resid_u(k,:,:) = resid_u_2d(:,:)
-          resid_v(k,:,:) = resid_v_2d(:,:)
-       enddo
-
-       call compute_3d_velocity_L1L2(nx,               ny,              &
-                                     nz,               sigma,           &
-                                     dx,               dy,              &
-                                     nhalo,                             &
-                                     ice_mask,         floating_mask,   &
-                                     active_cell,      active_vertex,   &
-                                     umask_dirichlet(nz,:,:),           &
-                                     vmask_dirichlet(nz,:,:),           &
-                                     xVertex,          yVertex,         &
-                                     thck,             stagthck,        &
-                                     usrf,                              &
-                                     dusrf_dx,         dusrf_dy,        &
-                                     flwa,             efvs,            &
-                                     whichgradient_margin,              &
-                                     max_slope,                         &
-                                     uvel,             vvel)
-
-       call staggered_parallel_halo(uvel)
-       call staggered_parallel_halo(vvel)
 
     elseif (whichapprox == HO_APPROX_DIVA) then
 
@@ -4227,7 +4192,7 @@
                                  active_cell,                  &
                                  xVertex,       yVertex,       &
                                  stagusrf,      stagthck,      &
-                                 flwafact,      efvs,          &
+                                 flwafact,                     &
                                  whichefvs,     efvs_constant, &
                                  whichapprox,                  &
                                  uvel,          vvel,          &
@@ -5657,7 +5622,6 @@
                                           efvs,                              &
                                           Auu,              Auv,             &
                                           Avu,              Avv,             &
-                                          dusrf_dx,         dusrf_dy,        &
                                           thck,                              &
                                           btractx,          btracty,         &
                                           omega_k,          omega,           &
@@ -5668,7 +5632,7 @@
     ! This subroutine is called for each nonlinear iteration if
     !  we are iterating on the effective viscosity.
     ! The matrix A can be based on the shallow-shelf approximation or 
-    !  the depth-integrated L1L2 approximation (Schoof and Hindmarsh, 2010).
+    !  a depth-integrated approximation (DIVA).
     !----------------------------------------------------------------
  
     !----------------------------------------------------------------
@@ -5707,7 +5671,7 @@
                           ! used to compute the effective viscosity
 
     integer, intent(in) ::   &
-       whichapprox,     & ! option for Stokes approximation (BP, L1L2, SSA, SIA)
+       whichapprox,     & ! option for Stokes approximation (BP, DIVA, SSA, SIA)
        whichefvs          ! option for effective viscosity calculation 
 
     real(dp), intent(in) :: &
@@ -5719,12 +5683,6 @@
     real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
        Avu, Avv                                    
-
-    ! The following optional arguments are used for the L1L2 approximation only
-
-    real(dp), dimension(nx-1,ny-1), intent(in), optional ::  &
-       dusrf_dx,       &  ! upper surface elevation gradient on staggered grid (m/m)
-       dusrf_dy           ! needed for L1L2 assembly only
 
     ! The following optional arguments are used for DIVA only
 
@@ -5786,8 +5744,7 @@
        u, v,            & ! depth-integrated mean velocity at vertices (m/yr)
        h,               & ! thickness at vertices (m)
        s,               & ! upper surface elevation at vertices (m)
-       bx, by,          & ! basal traction at vertices (Pa) (DIVA only)
-       dsdx, dsdy         ! upper surface elevation gradient at vertices (m/m) (L1L2 only)
+       bx, by             ! basal traction at vertices (Pa) (DIVA only)
 
     real(dp), dimension(nQuadPoints_2d) ::    &
        efvs_qp_vertavg    ! vertically averaged effective viscosity at a quad pt
@@ -5845,7 +5802,7 @@
           Kvv(:,:) = 0.d0
   
           ! Compute spatial coordinates, velocity, thickness and surface elevation for each vertex
-          ! Also compute surface elevation gradient (for L1L2) and basal traction (for DIVA)
+          ! Also compute basal traction (for DIVA)
           do n = 1, nNodesPerElement_2d
 
              ! Determine (i,j) for this vertex
@@ -5860,10 +5817,6 @@
              v(n) = vvel_2d(iVertex,jVertex)
              s(n) = stagusrf(iVertex,jVertex)
              h(n) = stagthck(iVertex,jVertex)
-             if (present(dusrf_dx) .and. present(dusrf_dy)) then  ! L1L2
-                dsdx(n) = dusrf_dx(iVertex,jVertex)
-                dsdy(n) = dusrf_dy(iVertex,jVertex)
-             endif
              if (present(btractx) .and. present(btracty)) then    ! DIVA
                 bx(n) = btractx(iVertex,jVertex)
                 by(n) = btracty(iVertex,jVertex)
@@ -5892,28 +5845,7 @@
                                                     detJ(p) , i, j, p)
              dphi_dz_2d(:) = 0.d0
 
-             if (whichapprox == HO_APPROX_L1L2) then
-
-                ! Compute effective viscosity for each layer at this quadrature point
-                !TODO - sigma -> stagsigma for L1L2 viscosity?
-                call compute_effective_viscosity_L1L2(whichefvs,            efvs_constant,     &
-                                                      nz,                   sigma,             &
-                                                      nNodesPerElement_2d,  phi_2d(:,p),       &
-                                                      dphi_dx_2d(:),        dphi_dy_2d(:),     &
-                                                      u(:),                 v(:),              & 
-                                                      h(:),                                    &
-                                                      dsdx(:),              dsdy(:),           &
-                                                      flwa(:,i,j),          flwafact(:,i,j),   &
-                                                      efvs_qp(:,p),                            &
-                                                      i, j, p)
-
-                ! Compute vertical average of effective viscosity
-                efvs_qp_vertavg(p) = 0.d0
-                do k = 1, nz-1
-                   efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p) * (sigma(k+1) - sigma(k))
-                enddo
-
-             elseif (whichapprox == HO_APPROX_DIVA) then
+             if (whichapprox == HO_APPROX_DIVA) then
 
                 ! Copy efvs_qp from global array to local column array
                 efvs_qp(:,:) = efvs_qp_3d(:,:,i,j)
@@ -5991,7 +5923,7 @@
           endif
 
           ! Compute average of effective viscosity over quad points.
-          ! For L1L2 and DIVA there is a different efvs in each layer.
+          ! For DIVA there is a different efvs in each layer.
           ! For SSA, simply write the vertical average value to each layer.
 
           efvs(:,i,j) = 0.d0
@@ -6296,532 +6228,6 @@
     endif
        
   end subroutine compute_3d_velocity_diva
-
-!****************************************************************************
-
-  subroutine compute_3d_velocity_L1L2(nx,               ny,              &
-                                      nz,               sigma,           &
-                                      dx,               dy,              &
-                                      nhalo,                             &
-                                      ice_mask,         land_mask,       &
-                                      active_cell,      active_vertex,   &
-                                      umask_dirichlet,  vmask_dirichlet, &
-                                      xVertex,          yVertex,         &
-                                      thck,             stagthck,        &
-                                      usrf,                              &
-                                      dusrf_dx,         dusrf_dy,        &
-                                      flwa,             efvs,            &
-                                      whichgradient_margin,              &
-                                      max_slope,                         &
-                                      uvel,             vvel)
-
-    !----------------------------------------------------------------
-    ! Given the basal velocity and the 3D profile of effective viscosity
-    !  and horizontal-plane stresses, construct the 3D stress and velocity
-    !  profiles for the L1L2 approximation.
-    !----------------------------------------------------------------
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::      &
-       nx, ny,                  &    ! horizontal grid dimensions
-       nz,                      &    ! number of vertical levels at which velocity is computed
-       nhalo                         ! number of halo layers
-
-    real(dp), intent(in) ::     &
-       dx, dy             ! grid cell length and width 
-
-    real(dp), dimension(nz), intent(in) ::    &
-       sigma              ! sigma vertical coordinate
-
-    integer, dimension(nx,ny), intent(in) ::  &
-       ice_mask,        & ! = 1 for cells where ice is present (thck > thklim), else = 0
-       land_mask          ! = 1 for cells with topg >= eus, else = 0
-
-    logical, dimension(nx,ny), intent(in) ::  &
-       active_cell        ! true if cell contains ice and borders a locally owned vertex
-
-    logical, dimension(nx-1,ny-1), intent(in) ::  &
-       active_vertex      ! true for vertices of active cells
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
-       xVertex, yVertex   ! x and y coordinates of vertices
-
-    integer, dimension(nx-1,ny-1), intent(in) ::  &
-       umask_dirichlet,  &! Dirichlet mask for u velocity, = 1 for prescribed velo, else = 0
-       vmask_dirichlet    ! Dirichlet mask for v velocity, = 1 for prescribed velo, else = 0
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-       thck,             &! ice thickness at cell centers (m)
-       usrf               ! upper surface elevation at cell centers (m)
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stagthck,       &  ! ice thickness at vertices (m)
-       dusrf_dx,       &  ! upper surface elevation gradient at cell vertices (m/m)
-       dusrf_dy
-
-    real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
-       flwa,           &  ! temperature-based flow factor A, Pa^{-n} yr^{-1}
-       efvs               ! effective viscosity, Pa yr
-
-    integer, intent(in) ::  &
-       whichgradient_margin     ! option for computing gradient at ice margin
-                                ! 0 = include all neighbor cells in gradient calculation
-                                ! 1 = include ice-covered and/or land cells
-                                ! 2 = include ice-covered cells only
-
-    real(dp), intent(in) ::  &
-       max_slope          ! maximum slope allowed for surface gradient computations (unitless)
-
-    real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
-       uvel, vvel         ! velocity components (m/yr)
-                          ! on input, only the basal component (index nz) is known
-                          ! on output, the full 3D velocity field is known
-
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-
-    integer :: iVertex, jVertex  ! indices of element vertices
-
-    real(dp), dimension(nNodesPerElement_2d) ::   &
-       x, y,                    &! x and y coordinates of element vertices 
-       u, v,                    &! basal velocity components at element vertices
-       dphi_dx_2d, dphi_dy_2d    ! derivatives of basis functions, evaluated at cell center
-
-    real(dp) ::   &
-       detJ                      ! determinant of J (never used in calculation)
-
-    real(dp), dimension(nx,ny) ::  &
-       du_dx, du_dy,            &! basal strain rate components, evaluated at cell centers
-       dv_dx, dv_dy,            &!
-       work1, work2, work3       ! work arrays for computing tau_xz and tau_yz; located at cell centers
-
-    real(dp), dimension(nz-1,nx,ny) ::   &
-       tau_parallel,            &! tau_parallel, evaluated at cell centers
-       efvs_integral_z_to_s      ! integral of effective viscosity from base of layer k
-                                 ! to the upper surface (Pa yr m)
-
-    ! Note: These L1L2 stresses are located at nodes.
-    !       The diagnostic stresses (model%stress%tau%xz, etc.) are located at cell centers.
-    real(dp), dimension(nz-1,nx-1,ny-1) ::   &
-       tau_xz, tau_yz            ! vertical shear stress components at layer midpoints for each vertex
-       
-    real(dp), dimension(nx-1,ny-1) ::   &
-       dwork1_dx, dwork1_dy,    &! derivatives of work arrays; located at vertices
-       dwork2_dx, dwork2_dy,    &!
-       dwork3_dx, dwork3_dy,    &!
-       stagtau_parallel_sq,     &! tau_parallel^2, interpolated to staggered grid
-       stagflwa                  ! flwa, interpolated to staggered grid
-
-    real(dp) ::   &
-       depth,                   &! distance from upper surface to midpoint of a given layer
-       eps_parallel,            &! parallel effective strain rate, evaluated at cell centers
-       tau_eff_sq,              &! square of effective stress (Pa^2)
-                                 ! = tau_parallel^2 + tau_perp^2 for L1L2
-       fact                      ! factor in velocity integral
-
-    real(dp), dimension(nx-1,ny) ::  &
-       dusrf_dx_edge             ! x gradient of upper surface elevation at cell edges (m/m)
-
-    real(dp), dimension(nx,ny-1) ::  &
-       dusrf_dy_edge             ! y gradient of upper surface elevation at cell edges (m/m)
-
-    integer :: i, j, k, n
-
-    !-----------------------------------------------------------------------------------------------
-    !WHL: I tried two ways to compute the 3D velocity, given tau_perp, tau_xz and tau_yz in each layer:
-    ! (1) Compute velocity at vertices using     
-    !          u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
-    !          v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
-    ! (2) Compute velocity at edges using 
-    !          uedge(z) =  (vintfact(i,j) + vintfact(i,j-1))/2.d0 * dsdx_edge 
-    !          vedge(z) =  (vintfact(i,j) + vintfact(i-1,j))/2.d0 * dsdy_edge 
-    !     where vintfact = 2*A*tau_eff^(n-1)*(rho*g*|grad(s)|
-    !     Average uedge and vedge to vertices and add to u_b to get 3D uvel and vvel.
-    !
-    ! Method 2 resembles the methods used by Glide and by the Glissade local SIA solver.
-    ! For the no-slip case, method 2 gives the same answers (within roundoff) as the local SIA solver.
-    ! However, method 2 does not include the gradient of membrane stresses in the tau_xz and tau_yz terms
-    !  (Perego et al. Eq. 27).  It does include tau_parallel in tau_eff.
-    ! For the Halfar test, method 1 is slightly more accurate but can give rise to checkerboard noise.
-    !   Checkerboard noise can be damped by using an upstream gradient for grad(s), but this
-    !   reduces the accuracy for the Halfar test. (Method 2 with centered gradients is more
-    !   accurate than method 1 with upstream gradients.)
-    !-----------------------------------------------------------------------------------------------
-
-    logical, parameter :: edge_velocity = .false.  ! if false, use method 1 as discussed above 
-                                                   ! if true, use method 2
-
-    real(dp), dimension(nx,ny) ::   &
-       uedge, vedge        ! velocity components at edges of a layer, relative to bed (m/yr)
-                           ! u on E edge, v on N edge (C grid)
-
-    real(dp), dimension(nz,nx-1,ny-1) ::   &
-       vintfact            ! vertical integration factor at vertices
-
-    ! Initialize
-    efvs_integral_z_to_s(:,:,:) = 0.d0
-    tau_parallel(:,:,:) = 0.d0
-    du_dx(:,:) = 0.d0
-    du_dy(:,:) = 0.d0
-    dv_dx(:,:) = 0.d0
-    dv_dy(:,:) = 0.d0
-
-    ! Compute viscosity integral and strain rates in elements.
-    ! Loop over all cells that border locally owned vertices.
-
-    do j = nhalo+1, ny-nhalo+1
-       do i = nhalo+1, nx-nhalo+1
-       
-          if (active_cell(i,j)) then
-
-             ! Load x and y coordinates and basal velocity at cell vertices
-
-             do n = 1, nNodesPerElement_2d
-
-                ! Determine (i,j) for this vertex
-                ! The reason for the '3' is that node 3, in the NE corner of the grid cell, has index (i,j).
-                ! Indices for other nodes are computed relative to this vertex.
-                iVertex = i + ishift(3,n)
-                jVertex = j + jshift(3,n)
-
-                x(n) = xVertex(iVertex,jVertex)
-                y(n) = yVertex(iVertex,jVertex)
-
-                u(n) = uvel(nz,iVertex,jVertex)   ! basal velocity
-                v(n) = vvel(nz,iVertex,jVertex)
-
-             enddo
-
-             ! Compute dphi_dx and dphi_dy at cell center
-
-             call get_basis_function_derivatives_2d(x(:),               y(:),               &
-                                                    dphi_dxr_2d_ctr(:), dphi_dyr_2d_ctr(:), &
-                                                    dphi_dx_2d(:),      dphi_dy_2d(:),      &
-                                                    detJ, i, j, 1)
-
-             ! Compute basal strain rate components at cell center
-             
-             do n = 1, nNodesPerElement_2d
-                du_dx(i,j) = du_dx(i,j) + dphi_dx_2d(n)*u(n)
-                du_dy(i,j) = du_dy(i,j) + dphi_dy_2d(n)*u(n)
-                
-                dv_dx(i,j) = dv_dx(i,j) + dphi_dx_2d(n)*v(n)
-                dv_dy(i,j) = dv_dy(i,j) + dphi_dy_2d(n)*v(n)
-             enddo
-
-             ! Compute effective strain rate (squared) at cell centers
-             ! See Perego et al. eq. 17: 
-             !     eps_parallel^2 = eps_xx^2 + eps_yy^2 + eps_xx*eps_yy + eps_xy^2
-
-             eps_parallel = sqrt(du_dx(i,j)**2 + dv_dy(i,j)**2 + du_dx(i,j)*dv_dy(i,j)  &
-                                 + 0.25d0*(dv_dx(i,j) + du_dy(i,j))**2)
-
-             ! For each layer k, compute tau_parallel at cell centers
-             do k = 1, nz-1
-                tau_parallel(k,i,j) = 2.d0 * efvs(k,i,j) * eps_parallel
-             enddo
-
-             ! For each layer k, compute the integral of the effective viscosity from
-             ! the base of layer k to the upper surface.
- 
-             efvs_integral_z_to_s(1,i,j) = efvs(1,i,j) * (sigma(2) - sigma(1))*thck(i,j)
-
-             do k = 2, nz-1
-                efvs_integral_z_to_s(k,i,j) = efvs_integral_z_to_s(k-1,i,j)  &
-                                            + efvs(k,i,j) * (sigma(k+1) - sigma(k))*thck(i,j)
-             enddo   ! k
-
-          endif   ! active_cell
-
-       enddo      ! i
-    enddo         ! j
-
-    !--------------------------------------------------------------------------------
-    ! For each active vertex, compute the vertical shear stresses tau_xz and tau_yz
-    ! in each layer of the column.
-    !
-    ! These stresses are given by (PGB eq. 27)
-    !
-    !   tau_xz(z) = -rhoi*grav*ds_dx*(s-z) + 2*d/dx[efvs_int(z) * (2*du_dx + dv_dy)]
-    !                                      + 2*d/dy[efvs_int(z) *   (du_dy + dv_dx)] 
-    !
-    !   tau_yz(z) = -rhoi*grav*ds_dy*(s-z) + 2*d/dx[efvs_int(z) *   (du_dy + dv_dx)] 
-    !                                      + 2*d/dy[efvs_int(z) * (2*dv_dy + du_dx)]
-    !
-    ! where efvs_int is the integral of efvs from z to s computed above;
-    ! the strain rate components of basal velocity are also as computed above.
-    !
-    ! There is not a clean way to compute these stresses using finite-element techniques,
-    ! because strain rates are discontinuous at cell edges and vertices.  Instead, we use
-    ! a standard centered finite difference method to evaluate d/dx and d/dy of the
-    ! bracketed terms.
-    !--------------------------------------------------------------------------------
-
-    tau_xz(:,:,:) = 0.d0
-    tau_yz(:,:,:) = 0.d0
-
-    do k = 1, nz-1   ! loop over layers
-
-       ! Evaluate centered finite differences of bracketed terms above.
-       ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx.
-       ! The calls to glissade_centered_gradient compute a couple of extraneous derivatives,
-       !  but these calls are simpler than inlining the gradient code.
-       ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_MARINE uses only ice-covered cells to
-       !  compute the gradient.  This is the appropriate flag for these
-       !  calls, because efvs and strain rates have no meaning in ice-free cells.
-
-       work1(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*du_dx(:,:) + dv_dy(:,:)) 
-       work2(:,:) = efvs_integral_z_to_s(k,:,:) *      (du_dy(:,:) + dv_dx(:,:))
-       work3(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*dv_dy(:,:) + du_dx(:,:)) 
-
-       ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
-       ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
-       call glissade_gradient(nx,               ny,         &
-                              dx,               dy,         &
-                              work1,                        &
-                              dwork1_dx,        dwork1_dy,  &
-                              ice_mask,                     &
-                              gradient_margin_in = 1)
-
-       call glissade_gradient(nx,               ny,         &
-                              dx,               dy,         &
-                              work2,                        &
-                              dwork2_dx,        dwork2_dy,  &
-                              ice_mask,                     &
-                              gradient_margin_in = 1)
-
-       call glissade_gradient(nx,               ny,         &
-                              dx,               dy,         &
-                              work3,                        &
-                              dwork3_dx,        dwork3_dy,  &
-                              ice_mask,                     &
-                              gradient_margin_in = 1)
-
-       ! Loop over locally owned active vertices, evaluating tau_xz and tau_yz for this layer
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             if (active_vertex(i,j)) then
-                depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)   ! depth at layer midpoint
-                tau_xz(k,i,j) = -rhoi*grav*depth*dusrf_dx(i,j)   &
-                               + 2.d0*dwork1_dx(i,j) + dwork2_dy(i,j)
-                tau_yz(k,i,j) = -rhoi*grav*depth*dusrf_dy(i,j)   &
-                               + dwork2_dx(i,j) + 2.d0*dwork3_dy(i,j)
-             endif
-          enddo   ! i
-       enddo      ! j
-
-    enddo         ! k
-      
-    if ((verbose_L1L2 .or. verbose_tau) .and. this_rank==rtest) then 
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'L1L2: k, -rho*g*(s-z)*ds/dx, -rho*g*(s-z)*ds/dy:'
-       do k = 1, nz-1
-          depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)
-          print*, k, -rhoi*grav*depth*dusrf_dx(i,j), -rhoi*grav*depth*dusrf_dy(i,j)
-       enddo
-       print*, ' '
-       print*, 'L1L2: k, tau_xz, tau_yz, tau_parallel:'
-       do k = 1, nz-1
-          print*, k, tau_xz(k,i,j), tau_yz(k,i,j), tau_parallel(k,i,j)
-       enddo
-    endif
-
-    !--------------------------------------------------------------------------------
-    ! Given the vertical shear stresses tau_xz and tau_yz for each layer k,
-    !  compute the velocity components at each level.
-    !
-    ! These are given by (PGB eq. 30)
-    ! 
-    !    u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
-    !    v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
-    ! 
-    ! where tau_eff^2 = tau_parallel^2 + tau_perp^2
-    !
-    !    tau_parallel^2 = (2 * efvs * eps_parallel)^2
-    !    tau_perp ^2 = tau_xz^2 + tau_yz^2
-    !
-    ! See comments above about method 2, with edge_velocity = .true. 
-    !--------------------------------------------------------------------------------
-
-    ! initialize uvel = vvel = 0 except at bed
-       
-    uvel(1:nz-1,:,:) = 0.d0
-    vvel(1:nz-1,:,:) = 0.d0
-    vintfact(:,:,:) = 0.d0
-
-    ! Compute surface elevation gradient on cell edges.
-    ! Setting gradient_margin_in = 0 takes the gradient over both neighboring cells,
-    !  including ice-free cells.
-    ! Setting gradient_margin_in = 1 computes a gradient if both neighbor cells are
-    !  ice-covered, or an ice-covered cell sits above ice-free land; else gradient = 0
-    ! Setting gradient_margin_in = 2 computes a gradient only if both neighbor cells
-    !  are ice-covered.
-    ! At a land margin, either 0 or 1 is appropriate, but 2 is inaccurate.
-    ! At a shelf margin, either 1 or 2 is appropriate, but 0 is inaccurate.
-    ! So HO_GRADIENT_MARGIN_HYBRID = 1 is the safest value.
-
-    if (edge_velocity) then
-
-       uedge(:,:) = 0.d0
-       vedge(:,:) = 0.d0
-
-       call glissade_gradient_at_edges(nx,               ny,                &
-                                       dx,               dy,                &
-                                       usrf,                                &
-                                       dusrf_dx_edge,    dusrf_dy_edge,     &
-                                       ice_mask,                            &
-                                       gradient_margin_in = whichgradient_margin, &
-                                       usrf = usrf,                         &
-                                       land_mask = land_mask,               &
-                                       max_slope = max_slope)
-    endif
-
-    if (verbose_L1L2 .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'i, j =', itest, jtest
-       print*, 'k, uvel, vvel:'
-    endif
-
-    do k = nz-1, 1, -1   ! loop over velocity levels above the bed
-       
-       ! Average tau_parallel and flwa to vertices
-       ! With stagger_margin_in = 1, only cells with ice are included in the average.
-
-       call glissade_stagger(nx,                   ny,                         &
-                             tau_parallel(k,:,:),  stagtau_parallel_sq(:,:),   &
-                             ice_mask,             stagger_margin_in = 1)
-       stagtau_parallel_sq(:,:) = stagtau_parallel_sq(:,:)**2
-
-       call glissade_stagger(nx,          ny,              &
-                             flwa(k,:,:), stagflwa(:,:),   &
-                             ice_mask,    stagger_margin_in = 1)
-       
-       if (edge_velocity) then  ! compute velocity at edges and interpolate to vertices
-                                ! (method 2)
-
-          ! Compute vertical integration factor at each active vertex
-          ! This is int_b_to_z{-2 * A * tau^2 * rho*g*(s-z) * dz},
-          !  similar to the factor computed in Glide and glissade_velo_sia..
-          ! Note: tau_xz ~ rho*g*(s-z)*ds_dx; ds_dx term is computed on edges below
-
-          do j = 1, ny-1
-          do i = 1, nx-1
-             if (active_vertex(i,j)) then
-
-                tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
-
-                depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)
-
-                vintfact(k,i,j) = vintfact(k+1,i,j)     &
-                     - 2.d0 * stagflwa(i,j) * tau_eff_sq * rhoi*grav*depth  &
-                                  * (sigma(k+1) - sigma(k))*stagthck(i,j)
-
-             endif
-          enddo
-          enddo
-
-          ! Need to have vintfact at halo nodes to compute uvel/vvel at locally owned nodes  
-          call staggered_parallel_halo(vintfact(k,:,:))
-
-          ! loop over cells, skipping outer halo rows
-
-          ! u at east edges
-          do j = 2, ny-1
-          do i = 1, nx-1
-             if (active_vertex(i,j) .and. active_vertex(i,j-1)) then
-                uedge(i,j) = (vintfact(k,i,j) + vintfact(k,i,j-1))/2.d0 * dusrf_dx_edge(i,j)
-             endif
-          enddo
-          enddo
-
-          ! v at north edges
-          do j = 1, ny-1
-          do i = 2, nx-1
-             if (active_vertex(i,j) .and. active_vertex(i-1,j)) then
-                vedge(i,j) = (vintfact(k,i,j) + vintfact(k,i-1,j))/2.d0 * dusrf_dy_edge(i,j)
-             endif
-          enddo
-          enddo
-
-          ! Average edge velocities to vertices and add to ubas                                                                                                   
-          ! Do this for locally owned vertices only
-          ! (Halo update is done at a higher level after returning)
-          ! Note: Currently do not support Dirichlet BC with depth-varying velocity
-          
-          do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-
-             if (umask_dirichlet(i,j) == 1) then
-                uvel(k,i,j) = uvel(nz,i,j)
-             else
-                uvel(k,i,j) = uvel(nz,i,j) + (uedge(i,j) + uedge(i,j+1)) / 2.d0
-             endif
-
-             if (vmask_dirichlet(i,j) == 1) then
-                vvel(k,i,j) = vvel(nz,i,j)
-             else
-                vvel(k,i,j) = vvel(nz,i,j) + (vedge(i,j) + vedge(i+1,j)) / 2.d0
-             endif
-
-             if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                print*, k, uvel(k,i,j), vvel(k,i,j)
-             endif
-
-          enddo
-          enddo
-
-       else   ! compute velocity at vertices (method 1)
-
-          ! loop over locally owned active vertices
-          do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-
-             if (active_vertex(i,j)) then
-
-                tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
-
-                ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
-                !       only for gn = 3 (in which case (n-1)/2 = 1).
-                fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
-
-                ! reset velocity to prescribed basal value if Dirichlet condition applies
-                ! else compute velocity at this level 
-                if (umask_dirichlet(i,j) == 1) then
-                   uvel(k,i,j) = uvel(nz,i,j)
-                else
-                   uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
-                endif
-
-                if (vmask_dirichlet(i,j) == 1) then
-                   vvel(k,i,j) = vvel(nz,i,j)
-                else
-                   vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
-                endif
-
-                if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                   print*, k, uvel(k,i,j), vvel(k,i,j)
-                endif
-
-             endif
-
-          enddo   ! i
-          enddo   ! j
-
-       endif      ! edge_velocity
-
-    enddo         ! k
-
-  end subroutine compute_3d_velocity_L1L2
 
 !****************************************************************************
 
@@ -7439,7 +6845,7 @@
                                       active_cell,                  &
                                       xVertex,       yVertex,       &
                                       stagusrf,      stagthck,      &
-                                      flwafact,      efvs,          &
+                                      flwafact,                     &
                                       whichefvs,     efvs_constant, &
                                       whichapprox,                  &
                                       uvel,          vvel,          &
@@ -7475,15 +6881,13 @@
        stagthck           ! ice thickness on staggered grid (m)
 
     integer, intent(in) ::   &
-       whichapprox,     & ! option for Stokes approximation (BP, L1L2, SSA, SIA)
+       whichapprox,     & ! option for Stokes approximation (BP, DIVA, SSA, SIA)
        whichefvs          ! option for effective viscosity calculation 
 
     real(dp), intent(in) :: &
        efvs_constant      ! constant value of effective viscosity (Pa yr)
 
     real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
-       efvs,           &  ! precomputed effective viscosity
-                          ! used for L1L2 only; efvs is recomputed at QPs for other approximations
        flwafact           ! temperature-based flow factor, 0.5 * A^(-1/n), Pa yr^(1/n)
                           ! used to compute the effective viscosity
 
@@ -7586,7 +6990,7 @@
                          dv_dy = dv_dy + dphi_dy_3d(n)*v(n)
                       enddo
 
-                   else    !  3D higher-order (BP or L1L2)
+                   else    !  BP or DIVA
  
                       do n = 1, nNodesPerElement_3d
                          du_dx = du_dx + dphi_dx_3d(n)*u(n)
@@ -7599,26 +7003,14 @@
 
                    endif  ! whichapprox
 
-                   if (whichapprox == HO_APPROX_L1L2) then
+                   ! Compute the effective viscosity at this quadrature point.
 
-                      ! efvs is computed in a complicated way for L1L2.
-                      ! Instead of recomputing it here for each QP, simply assume that the value at each QP
-                      !  is equal to the average efvs in the element. This will give a small averaging error.
-
-                      efvs_qp = efvs(k,i,j)
-
-                   else  ! other approximations (SIA, SSA, BP)
-
-                      ! Compute the effective viscosity at this quadrature point.
-
-                      call compute_effective_viscosity(whichefvs,        whichapprox,                       &
-                                                       efvs_constant,    nNodesPerElement_3d,               &
-                                                       dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
-                                                       u(:),             v(:),                              & 
-                                                       flwafact(k,i,j),  efvs_qp,                           &
-                                                       i, j, k, p)
-
-                   endif
+                   call compute_effective_viscosity(whichefvs,        whichapprox,                       &
+                                                    efvs_constant,    nNodesPerElement_3d,               &
+                                                    dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
+                                                    u(:),             v(:),                              &
+                                                    flwafact(k,i,j),  efvs_qp,                           &
+                                                    i, j, k, p)
 
                    ! Increment stresses, adding the value at this quadrature point
 
@@ -7846,246 +7238,6 @@
 
 !****************************************************************************
 
-  subroutine compute_effective_viscosity_L1L2(whichefvs,        efvs_constant,      &
-                                              nz,               sigma,              &
-                                              nNodesPerElement, phi,                &
-                                              dphi_dx,          dphi_dy,            &
-                                              uvel,             vvel,               &
-                                              stagthck,                             &
-                                              dsdx,             dsdy,               &
-                                              flwa,             flwafact,           &
-                                              efvs,                                 &
-                                              i, j, p )
-
-    ! Compute the effective viscosity at each layer of an ice column corresponding
-    !  to a particular quadrature point, based on the L1L2 formulation.
-    ! See PGB(2012), section 2.3
-
-    integer, intent(in) :: i, j, p
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) :: &
-       whichefvs          ! method for computing effective viscosity
-                          ! 0 = constant value
-                          ! 1 = proportional to flow factor
-                          ! 2 = nonlinear function of effective strain rate 
-
-    real(dp), intent(in) :: &
-       efvs_constant      ! constant value of effective viscosity (Pa yr)
-                          ! (used for option HO_EFVS_CONSTANT)
-
-    integer, intent(in) ::  &
-       nz,               &! number of vertical levels at which velocity is computed
-                          ! Note: The number of layers (or elements in a column) is nz-1
-       nNodesPerElement   ! number of nodes per element, = 4 for 2D rectangular faces
-
-    real(dp), dimension(nz), intent(in) ::    &
-       sigma              ! sigma vertical coordinate
-
-    real(dp), dimension(nNodesPerElement), intent(in) ::  &
-       phi,           &   ! basic functions at this quadrature point
-       dphi_dx, dphi_dy   ! derivatives of basis functions at this quadrature point
-
-    real(dp), dimension(nNodesPerElement), intent(in) ::  &
-       uvel, vvel,       &! current guess for basal velocity at cell vertices (m/yr)
-       dsdx, dsdy,       &! upper surface elevation gradient at vertices (m/m)
-       stagthck           ! ice thickness at vertices
-
-    real(dp), dimension(nz-1), intent(in) ::  &
-       flwa,             &! temperature-based flow factor A at each layer of this cell column
-                          ! units: Pa^{-n} yr^{-1}
-       flwafact           ! temperature-based flow factor for this element, 0.5 * A^{-1/n}
-                          ! units: Pa yr^{1/n}  (used for option HO_EFVS_FLOWFACT)
-
-    real(dp), dimension(nz-1), intent(out) ::   &
-       efvs               ! effective viscosity of each layer corresponding to this quadrature point (Pa yr)
-                          ! computed as 1 / (2*A*tau_eff^{(n-1)/2})
-                          !           = 1 / (2*A*tau_eff^2) given n = 3
-                          ! where tau_eff^2 = tau_parallel^2 + tau_perp^2
- 
-    !----------------------------------------------------------------
-    ! Local parameters
-    !----------------------------------------------------------------
-
-    real(dp), parameter ::   &
-!!       effstrain_min = 1.d-20*scyr,     &! minimum value of effective strain rate, yr^{-1}
-                                           ! GLAM uses 1.d-20 s^{-1} for minimum effective strain rate
-       effstrain_min = 1.d-8,     &! minimum value of effective strain rate, yr^{-1}
-                                   ! Mauro Perego suggests 1.d-8 yr^{-1}
-       p_effstr = (1.d0 - real(gn,dp)) / real(gn,dp)    ! exponent (1-n)/n in effective viscosity relation
-                                                               
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-
-    real(dp) ::            &
-       du_dx, du_dy,       & ! horizontal strain rate components at this quadrature point, yr^{-1}
-       dv_dx, dv_dy,       &
-       ds_dx, ds_dy,       & ! gradient of upper surface elevation at this QP (m/m)
-       thck,               & ! ice thickness (m) at this QP
-       effstrain,          & ! effective strain rate at QP, yr^{-1}
-       effstrainsq,        & ! square of effective strain rate
-       tau_parallel,       & ! norm of tau_parallel at each layer of this cell column, 
-                             !  where |tau_parallel|^2 = tau_xx^2 + tau_yy^2 + tau_xx*tau_yy + tau_xy^2
-                             !  See PGB(2012), eq. 17 and 20
-       tau_perp,           & ! norm of tau_perp at a given layer of a cell column,
-                             !  where |tau_perp|^2 = [rhoi*grav*(s-z)*|grad(s)|]^2
-       grads,              & ! norm of sfc elevation gradient at this QP, sqrt(ds_dx^2 + ds_dy^2)
-       depth                 ! distance (m) from surface to level k at this QP 
-
-    real(dp) :: a, b, c, rootA, rootB   ! terms in cubic equation
-
-    integer :: n, k
-
-    select case(whichefvs)
-
-    case(HO_EFVS_CONSTANT)
-
-       ! Steve Price recommends 10^6 to 10^7 Pa yr
-       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glide_types.F90
-       efvs(:) = efvs_constant
-
-       if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-          print*, 'Set efvs = constant (Pa yr):', efvs
-       endif
-
-    case(HO_EFVS_FLOWFACT)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
-                
-       ! Set the effective strain rate (s^{-1}) based on typical velocity and length scales
-       !
-       ! Units: flwafact has units Pa yr^{1/n}
-       !        effstrain has units yr^{-1}
-       !        p_effstr = (1-n)/n 
-       !                 = -2/3 for n=3
-       ! Thus efvs has units Pa yr
-   
-       effstrain = vel_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
-       efvs(:) = flwafact(:) * effstrain**p_effstr  
-
-       if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-          print*, 'flwafact, effstrain (yr-1), efvs (Pa yr)=', flwafact, effstrain, efvs
-       endif
-
-    case(HO_EFVS_NONLINEAR)    ! compute effective viscosity based on effective strain rate
-
-       du_dx = 0.d0
-       du_dy = 0.d0
-       dv_dx = 0.d0
-       dv_dy = 0.d0
-       ds_dx = 0.d0
-       ds_dy = 0.d0
-       thck  = 0.d0
-
-       do n = 1, nNodesPerElement
-
-          du_dx = du_dx + dphi_dx(n)*uvel(n)
-          du_dy = du_dy + dphi_dy(n)*uvel(n)
-
-          dv_dx = dv_dx + dphi_dx(n)*vvel(n)
-          dv_dy = dv_dy + dphi_dy(n)*vvel(n)
-
-          ds_dx = ds_dx + phi(n)*dsdx(n)
-          ds_dy = ds_dy + phi(n)*dsdy(n)
-
-          thck = thck + phi(n)*stagthck(n)
-
-       enddo
-
-       ! Compute effective strain rate at this quadrature point (PGB 2012, eq. 17)
-
-       effstrainsq = effstrain_min**2          &
-                   + du_dx**2 + dv_dy**2 + du_dx*dv_dy + 0.25d0*(dv_dx + du_dy)**2
-       effstrain = sqrt(effstrainsq)
-
-       if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
-          print*, ' '
-          print*, 'i, j, p, effstrain (yr-1):', i, j, p, effstrain
-          print*, 'du_dx, du_dy =', du_dx, du_dy
-          print*, 'dv_dx, dv_dy =', dv_dx, dv_dy
-          print*, 'ds_dx, ds_dy =', ds_dx, ds_dy
-!          print*, 'n, phi, dphi_dx, dphi_dy:'
-!          do n = 1, nNodesPerElement_2d
-!             print*, n, phi(n), dphi_dx(n), dphi_dy(n)
-!          enddo
-       endif
-
-       !---------------------------------------------------------------------------
-       ! Solve for tau_parallel in the relation (PGB 2012, eq. 22)
-       !
-       !     effstrain = A * (tau_parallel^2 + tau_perp^2)^{(n-1)/2} * tau_parallel
-       !
-       !     where tau_perp^2 = [(pg)*(s-z)*|grad(s)|]^2 = SIA stress
-       !              grad(s) = sqrt(ds_dx^2 + ds_dy^2)
-       !                    n = 3, so we have a cubic equation
-       !
-       ! This relation can be written as a cubic equation of the form
-       !
-       !            x^3 + a*x + b = 0,
-       !
-       ! where for this problem, x = tau_parallel > 0,
-       !                         a = tau_perp^2 >= 0,
-       !                         b = -effstrain/A < 0.
-       !
-       ! If (b^2)/4 + (a^3)/27 > 0, then there is one real root A + B, where
-       ! 
-       !     A = [-b/2 + sqrt((b^2)/4 + (a^3)/27)]^(1/3)
-       !     B = -[b/2 + sqrt((b^2)/4 + (a^3)/27)]^(1/3)
-       !  
-       ! There is also a pair of complex conjugate roots that are not of interest here.
-       !
-       ! Note: If a^3/27 << b^2/4 (as can happen if |grad(s)| is small), then the
-       !       bracketed term in B is given to a good approximation by 
-       !
-       !       b/2 + (|b|/2)*(1 + 2a^3/(27b^2)) = a^3 / (27|b|).
-       !
-       ! Hence B = -a / (3 * |b|^(1/3)).
-       !
-       ! We use the alternate expression for B when a^3/27 < 1.d-6 * b^2/4,
-       !  so as to avoid roundoff error from subtracting two large numbers of nearly
-       !  the same size. 
-       !---------------------------------------------------------------------------
-       !TODO - Code an iterative solution for tau_parallel, for n /= 3.
-       !TODO - Replace sigma with stagsigma?  Not sure if depth should be at layer midpt or base
-
-       do k = 1, nz-1   ! loop over layers
-          depth = thck * sigma(k+1)
-          grads = sqrt(ds_dx**2 + ds_dy**2)
-          tau_perp = rhoi*grav*depth*grads
-          a = tau_perp**2
-          b = -effstrain / flwa(k)
-          c = sqrt(b**2/4.d0 + a**3/27.d0)
-          rootA = (-b/2.d0 + c)**(1.d0/3.d0)
-          if (a**3/(27.d0) > 1.d-6 * (b**2/4.d0)) then
-             rootB = -(b/2.d0 + c)**(1.d0/3.d0)
-          else    ! b/2 + c is small; compute solution to first order without subtracting two large, nearly equal numbers
-             rootB = -a / (3.d0*(abs(b))**(1.d0/3.d0))
-          endif
-          tau_parallel = rootA + rootB
-          efvs(k) = 1.d0 / (2.d0 * flwa(k) * (tau_parallel**2 + tau_perp**2))  ! given n = 3
-
-          !WHL - debug
-          if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
-             print*, 'i, j, k, p =', i, j, k, p
-!             print*, 'a, b, c:', a, b, c
-!             print*, '-b/2 + c, -b/2 - c:', -b/2 + c, -b/2 - c
-!             print*, 'roots A, B:', rootA, rootB
-!             print*, 'tau_perp, tau_parallel:', tau_perp, tau_parallel
-!             print*, 'flwa:', flwa(k)
-             print*, 'flwafact, effstrain, efvs_BP, efvs:', 0.5d0*flwa(k)**(-1.d0/3.d0), effstrain,  &
-                                                            0.5d0*flwa(k)**(-1.d0/3.d0) * effstrain**(-2.d0/3.d0), efvs(k)
-          endif
-
-       enddo   ! k
-
-    end select
-
-  end subroutine compute_effective_viscosity_L1L2
-
-!****************************************************************************
-
   subroutine compute_effective_viscosity_diva(whichefvs,        efvs_constant,      &
                                               nz,               stagsigma,          &
                                               nNodesPerElement, phi,                &
@@ -8272,7 +7424,23 @@
        !       a = [(tau_x^2 + tau_y^2)*(s-z)^2 / (4*H^2*effstrainsq) >= 0
        !       b = -1/(8*A*effstrainsq) < 0
        !
-       ! See comments in compute_effective_viscosity_L1L2 for more details on the cubic solve.
+       ! If (b^2)/4 + (a^3)/27 > 0, then there is one real root A + B, where
+       !
+       !     A = [-b/2 + sqrt((b^2)/4 + (a^3)/27)]^(1/3)
+       !     B = -[b/2 + sqrt((b^2)/4 + (a^3)/27)]^(1/3)
+       !
+       ! There is also a pair of complex conjugate roots that are not of interest here.
+       !
+       ! Note: If a^3/27 << b^2/4 (as can happen if |grad(s)| is small), then the
+       !       bracketed term in B is given to a good approximation by
+       !
+       !       b/2 + (|b|/2)*(1 + 2a^3/(27b^2)) = a^3 / (27|b|).
+       !
+       ! Hence B = -a / (3 * |b|^(1/3)).
+       !
+       ! We use the alternate expression for B when a^3/27 < 1.d-6 * b^2/4,
+       !  so as to avoid roundoff error from subtracting two large numbers of nearly
+       !  the same size.
        !
        ! NOTE: This scheme does not reliably converge.
        !
