@@ -1197,8 +1197,8 @@ contains
    
     if (model%options%whichdycore == DYCORE_GLISSADE) then 
 
-       if ( (model%options%which_ho_approx == HO_APPROX_SSA    .or.  &
-             model%options%which_ho_approx == HO_APPROX_DIVA_C .or.  &
+       if ( (model%options%which_ho_approx == HO_APPROX_SSA       .or.  &
+             model%options%which_ho_approx == HO_APPROX_DIVA_EDGE .or.  &
              model%options%which_ho_approx == HO_APPROX_DIVA)    &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &

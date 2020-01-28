@@ -301,7 +301,7 @@ module glide_types
   integer, parameter :: HO_APPROX_SIA = 0
   integer, parameter :: HO_APPROX_SSA = 1
   integer, parameter :: HO_APPROX_BP = 2
-  integer, parameter :: HO_APPROX_DIVA_C = 3
+  integer, parameter :: HO_APPROX_DIVA_EDGE = 3
   integer, parameter :: HO_APPROX_DIVA = 4
 
   integer, parameter :: HO_PRECOND_NONE = 0
