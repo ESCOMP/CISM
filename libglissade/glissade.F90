@@ -108,6 +108,8 @@ contains
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glimmer_paramets, only: thk0, len0, tim0
     use glissade_grounding_line, only: glissade_grounded_fraction
+    use glissade_utils, only: &
+         glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
     use felix_dycore_interface, only: felix_velo_init
 
     !WHL - debug
@@ -489,246 +491,25 @@ contains
     ! Write projection info to log
     call glimmap_printproj(model%projection)
 
-    ! Optionally, check for spurious surface depressions that could arise in the following case:
-    ! (1) usrf, thck, and topg have all been read in.  (Recall that usrf is an optional input.)
-    ! (2) There are interior lakes: regions disconnected from the ocean, where (usrf - thck) > topg.
-    ! (3) The ice in these interior lake regions is too thick to float.
-    ! In this case, the default behavior is to reset usrf = topg + thck, possibly leading to
-    !  steep surface depressions and unstable flow.
-    ! The alternative is to set thck = usrf - topg in grounded regions, maintaining the observed usrf.
-    !TODO - Remove the diagnostics, or put them in a geometry diagnostic subroutine.
+    ! Optionally, adjust the input ice thickness is grid cells where there are interior lakes
+    !  (usrf - thck > topg), but the ice is above flotation thickness.
+    ! In these grid cells, we set thck = usrf - topg, preserving the input usrf and removing the lakes.
 
     if (model%options%adjust_input_thickness .and. model%options%is_restart == RESTART_FALSE) then
-
-       ! Make sure ursf was read in with nonzero values
-       usrf_max = maxval(model%geometry%usrf)
-       usrf_max = parallel_reduce_max(usrf_max)
-
-       if (usrf_max > tiny(0.0d0)) then
-
-          if (verbose_glissade .and. this_rank == rtest) then
-             i = itest
-             j = jtest
-             print*, ' '
-             print*, 'adjust thck: itest, jtest, rank =', itest, jtest, rtest
-             print*, ' '
-             print*, 'Before thck adjustment, usrf (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'Before thck adjustment, thck (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'Before thck adjustment, topg (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'Before thck adjustment, cavity thickness (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
-                        - model%geometry%topg(i,j)) * thk0
-                enddo
-                write(6,*) ' '
-             enddo
-          endif   ! verbose
-
-          do j = 1, model%general%nsn
-             do i = 1, model%general%ewn
-                topg = model%geometry%topg(i,j) - model%climate%eus  ! shorthand for relative bed topography
-                if (model%geometry%usrf(i,j) - model%geometry%thck(i,j) > topg) then
-                   thck_flot = -(rhoo/rhoi) * topg
-                   if (model%geometry%thck(i,j) >= thck_flot) then  ! grounded
-                      ! increase thck to remove the sub-ice cavity
-                      model%geometry%thck(i,j) = model%geometry%usrf(i,j) - topg
-                   else   ! floating
-                      ! do nothing; keep the existing thickness
-                   endif
-                elseif (model%geometry%usrf(i,j) - model%geometry%thck(i,j) < topg) then
-                   ! reduce thck so that lsrf = topg
-                   model%geometry%thck(i,j) = model%geometry%usrf(i,j) - topg
-                endif
-             enddo
-          enddo
-
-          if (verbose_glissade .and. this_rank == rtest) then
-             i = itest
-             j = jtest
-             print*, ' '
-             print*, 'adjust thck: itest, jtest, rank =', itest, jtest, rtest
-             print*, ' '
-             print*, 'After thck adjustment, usrf (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'After thck adjustment, thck (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'After thck adjustment, topg (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'After thck adjustment, cavity thickness (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
-                        - model%geometry%topg(i,j)) * thk0
-                enddo
-                write(6,*) ' '
-             enddo
-          endif   ! verbose
-
-       else   ! usrf_max < tiny
-
-          call write_log('Error: Must read in usrf to use adjust_input_thickness option', GM_FATAL)
-
-       endif   ! usrf_max > tiny
-
-    endif   ! adjust_input_thickness
+       call glissade_adjust_thickness(model)
+    endif
 
     ! Optionally, smooth the input topography with a 9-point Laplacian smoother.
-    !TODO - This smoothing needs some more testing.  In particular, it is unclear how best to treat
-    !        the ice thickness in regions that transition from grounded to floating
-    !        when the topography is smoothed. Is it better to preserve thickness, or to
-    !        increase thickness to keep the ice grounded?
 
     if (model%options%smooth_input_topography .and. model%options%is_restart == RESTART_FALSE) then
-
-       allocate(topg_smoothed(model%general%ewn,model%general%nsn))
-       allocate(thck_flotation(model%general%ewn,model%general%nsn))
-
-       ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
-       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
-       ! compute initial mask
-       call glissade_get_masks(model%general%ewn, model%general%nsn,    &
-                               model%geometry%thck, model%geometry%topg,   &
-                               model%climate%eus,   0.0d0,                 &  ! thklim = 0
-                               ice_mask,                                   &
-                               floating_mask = floating_mask)
-
-       if (verbose_glissade .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, ' '
-          print*, 'itest, jtest, rank =', itest, jtest, rtest
-          print*, ' '
-          print*, 'Before Laplacian smoother, topg (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Before Laplacian smoother, usrf (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Before Laplacian smoother, thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       call glissade_laplacian_smoother(model%general%ewn, model%general%nsn,  &
-                                        model%geometry%topg, topg_smoothed,    &
-                                        npoints_stencil = 5)
-
-       !WHL - debug - Try doing less smoothing than the smoother computes
-       model%geometry%topg = 0.50d0 * (model%geometry%topg + topg_smoothed)
-
-       ! Given the smoothed topography, adjust the input thickness such that usrf is unchanged.
-       where (model%geometry%topg - model%climate%eus < 0.0d0)  ! marine-based ice
-          thck_flotation = -(rhoo/rhoi) * (model%geometry%topg - model%climate%eus)
-          where (ice_mask == 1 .and. floating_mask == 0)
-             ! Ice was grounded before smoothing of topography; assume it is still grounded.
-             ! This means that where topg has been lowered, we should thicken the ice.
-             !TODO - Maintain the same thickness and allow the ice to float?
-             model%geometry%thck = model%geometry%usrf - model%geometry%topg
-          elsewhere
-             ! Ice was floating before smoothing of topography.
-             ! It may have grounded where topg has been raised, in which case we move lsrf up to meet the topography.
-             model%geometry%lsrf = max(model%geometry%lsrf, model%geometry%topg)
-             model%geometry%thck = model%geometry%usrf - model%geometry%lsrf
-          endwhere
-       elsewhere   ! land-based ice
-          model%geometry%thck = model%geometry%usrf - model%geometry%topg
-       endwhere
-
-       !WHL - usrf for debugging only
-       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
-       if (verbose_glissade .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, ' '
-          print*, 'itest, jtest, rank =', itest, jtest, rtest
-          print*, ' '
-          print*, 'After Laplacian smoother, topg (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'After Laplacian smoother, usrf (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'After Laplacian smoother, thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       deallocate(topg_smoothed)
-       deallocate(thck_flotation)
-
+       call glissade_smooth_topography(model)
     endif   ! smooth_input_topography
+
+    ! Optionally, adjust the input topography in a specified region
+
+    if (model%options%adjust_input_topography .and. model%options%is_restart == RESTART_FALSE) then
+       call glissade_adjust_topography(model)
+    endif
 
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first

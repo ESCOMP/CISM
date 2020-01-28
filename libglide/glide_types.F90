@@ -636,6 +636,9 @@ module glide_types
     logical :: smooth_input_topography = .false.
     !> if true, then apply Laplacian smoothing to the topography at initialization
 
+    logical :: adjust_input_topography = .false.
+    !> if true, then adjust the input topography in a selected region at initialization
+
     integer :: dm_dt_diag = 0
     !> \begin{description}
     !> \item[0] Write dmass/dt diagnostic in units of kg/s
@@ -1479,6 +1482,8 @@ module glide_types
 
   end type glide_temper
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   type glide_inversion
 
      !TODO - Break into different derived types for each kind of inversion?
@@ -1622,6 +1627,7 @@ module glide_types
 
   end type glide_basal_melt
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_ocean_data
 
@@ -2086,7 +2092,16 @@ module glide_types
     real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
                                        ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
                                        !       in regions of rough coastal topography
-            
+
+    ! parameters for the adjust_input_topography option
+    real(dp) :: adjust_topg_xmin = 0.0d0   ! min x value (m) of the region with adjusted topography
+    real(dp) :: adjust_topg_xmax = 0.0d0   ! max x value (m) of the region with adjusted topography
+    real(dp) :: adjust_topg_ymin = 0.0d0   ! min y value (m) of the region with adjusted topography
+    real(dp) :: adjust_topg_ymax = 0.0d0   ! max y value (m) of the region with adjusted topography
+    real(dp) :: adjust_topg_lo = 0.0d0     ! lower threshold (m); adjust where topg > topg_lo
+    real(dp) :: adjust_topg_hi = 0.0d0     ! upper threshold (m); apply max adjustment topg_delta where topg > topg_hi
+    real(dp) :: adjust_topg_delta = 0.0d0  ! max adjustment, applied where topg > topg_hi
+
   end type glide_paramets
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
