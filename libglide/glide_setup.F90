@@ -708,6 +708,7 @@ contains
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
+    call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck',model%options%diag_minthck)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
@@ -1337,12 +1338,17 @@ contains
        endif
 
        if (model%options%adjust_input_thickness) then
-          write(message,*) ' Will adjust input ice thickness based on input surface topography'
+          write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
           call write_log(message)
        endif
 
        if (model%options%smooth_input_topography) then
           write(message,*) ' Input topography will be smoothed'
+          call write_log(message)
+       endif
+
+       if (model%options%adjust_input_topography) then
+          write(message,*) ' Input topography in a selected region will be adjusted'
           call write_log(message)
        endif
 
@@ -1374,6 +1380,10 @@ contains
        endif
        if (model%options%smooth_input_topography) then
           write(message,*) 'WARNING: smooth_input_topography supported for Glissade dycore only; user selection ignored'
+          call write_log(message, GM_WARNING)
+       endif
+       if (model%options%adjust_input_topography) then
+          write(message,*) 'WARNING: adjust_input_topography supported for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
        endif
 
@@ -2018,6 +2028,15 @@ contains
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
 
+    ! parameters to adjust input topography
+    call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
+    call GetValue(section, 'adjust_topg_xmax', model%paramets%adjust_topg_xmax)
+    call GetValue(section, 'adjust_topg_ymin', model%paramets%adjust_topg_ymin)
+    call GetValue(section, 'adjust_topg_ymax', model%paramets%adjust_topg_ymax)
+    call GetValue(section, 'adjust_topg_lo',   model%paramets%adjust_topg_lo)
+    call GetValue(section, 'adjust_topg_hi',   model%paramets%adjust_topg_hi)
+    call GetValue(section, 'adjust_topg_delta',   model%paramets%adjust_topg_delta)
+
     ! basal inversion parameters
     !TODO - Put inversion parameters in a separate section
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
@@ -2360,6 +2379,24 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       call write_log(message)
+    endif
+
+    if (model%options%adjust_input_topography) then
+       call write_log('Input topography will be adjusted')
+       write(message,*) 'adjust_topg_xmin (m)                         : ', model%paramets%adjust_topg_xmin
+       call write_log(message)
+       write(message,*) 'adjust_topg_xmax (m)                         : ', model%paramets%adjust_topg_xmax
+       call write_log(message)
+       write(message,*) 'adjust_topg_ymin (m)                         : ', model%paramets%adjust_topg_ymin
+       call write_log(message)
+       write(message,*) 'adjust_topg_ymax (m)                         : ', model%paramets%adjust_topg_ymax
+       call write_log(message)
+       write(message,*) 'adjust_topg_lo (m)                           : ', model%paramets%adjust_topg_lo
+       call write_log(message)
+       write(message,*) 'adjust_topg_hi (m)                           : ', model%paramets%adjust_topg_hi
+       call write_log(message)
+       write(message,*) 'adjust_topg_delta (m)                        : ', model%paramets%adjust_topg_delta
        call write_log(message)
     endif
 
