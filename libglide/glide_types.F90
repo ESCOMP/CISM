@@ -139,10 +139,14 @@ module glide_types
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
 
-  integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topo and relx are separate input fields
+  integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topg and relx are separate input fields
   integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
-  integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium
-                                                  ! compute relaxed topo
+  integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topg in isostatic equilibrium
+                                                  ! compute relx
+  !HG: Adding options for forced bedrock adjustment
+  integer, parameter :: RELAXED_TOPO_TARGET = 3   ! use relx as load-independent target for topg
+  integer, parameter :: RELAXED_TOPO_FORCED = 4   ! set relx to input topg as load-independent
+                                                  ! target for topg
 
   integer, parameter :: ISOSTASY_NONE = 0
   integer, parameter :: ISOSTASY_COMPUTE = 1
