@@ -244,18 +244,39 @@ contains
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first
 
-    call init_isostasy(model)
 
     select case(model%isostasy%whichrelaxed)
 
+    case(RELAXED_TOPO_DEFAULT) ! topg and relx are separate input fields
+
+       call init_isostasy(model)
+       ! relx and topg are used as given in input
+       call write_log('topg and relx are separate input fields')
+
     case(RELAXED_TOPO_INPUT)   ! supplied input topography is relaxed
 
+       call init_isostasy(model)
        model%isostasy%relx = model%geometry%topg
+       call write_log('supplied input topography is relaxed')
 
     case(RELAXED_TOPO_COMPUTE) ! supplied topography is in equilibrium
                                !TODO - Test the case RELAXED_TOPO_COMPUTE
-
+       call init_isostasy(model)
        call isos_relaxed(model)
+       call write_log('supplied input topography is relaxed')
+
+    case(RELAXED_TOPO_TARGET)   ! use relx as load-independent target for topg
+
+       call init_isozory(model)
+       ! relx and topg are used as given in input
+       call write_log('use relx as load-independent target for topg')
+
+    case(RELAXED_TOPO_FORCED)   ! set relx to topg as load-independent target
+                                ! = no isostatic adjustemnt unless relx changes
+
+       call init_isozory(model)
+       model%isostasy%relx = model%geometry%topg
+       call write_log('set relx to topg as load-independent target')
 
     end select
 
@@ -2129,7 +2150,11 @@ contains
                 print*, 'Update lithospheric load: tstep_count, nlith =', &
                      model%numerics%tstep_count, model%isostasy%nlith
              endif
-             call isos_icewaterload(model)
+             ! load not needed in case RELAXED_TOPO_TARGET(3) and RELAXED_TOPO_FORCED(4)
+             if (model%isostasy%whichrelaxed < 3) then
+                call isos_icewaterload(model)
+             end if
+             ! model%isostasy%new_load is used by all methods
              model%isostasy%new_load = .true.
           end if
        endif  ! nlith > 0
@@ -2141,7 +2166,11 @@ contains
     ! ------------------------------------------------------------------------ 
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       call isos_compute(model)
+       if (model%isostasy%whichrelaxed < 3) then
+          call isos_compute(model)
+       else
+          call isozory_compute(model)
+       end if
 
        ! update topography in halo cells
        ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
