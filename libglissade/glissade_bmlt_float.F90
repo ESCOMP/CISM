@@ -1111,6 +1111,7 @@ module glissade_bmlt_float
          bmlt_float_mask,                    &
          lake_mask,                          &
          lsrf,                               &
+         unphys_val,                         &  ! identifies unfilled cells on input
          ocean_data%thermal_forcing,         &
          ocean_data%thermal_forcing_lsrf)
 
@@ -1389,6 +1390,20 @@ module glissade_bmlt_float
              endif
 
           endif
+          if ( (kbot(i,j) >= 1) .and. (ktop(i,j) >= 1) )then
+             if ( kbot(i,j) == ktop(i,j) )then
+               write(6,*) 'ktop==kbot, i, j, ktop, topg, lsrf = ', i, j, ktop(i,j), topg(i,j), lsrf(i,j)
+               write(6,*) 'ocean_mask, bmlt_float_mask = ', ocean_mask(i,j), bmlt_float_mask(i,j)
+               write(6,*) 'zocn = ', zocn
+               call write_log('kbot == ktop')
+               !call write_log('kbot == ktop', GM_FATAL)
+               ktop(i,j) = 0
+               kbot(i,j) = 0
+             end if
+          end if
+          if ( (kbot(i,j) > nzocn) .and. (ktop(i,j) > nzocn) )then
+             call write_log('kbot or ktop > nzocn', GM_FATAL)
+          end if
 
        enddo   ! i
     enddo   ! j
@@ -1470,6 +1485,14 @@ module glissade_bmlt_float
 
                       filled = .false.
 
+                      !
+                      ! Indices of nearbor points, making sure to not go beyond array limits
+                      !
+                      if ( i-1 < 1 )  call write_log('Extrapolation out of bounds to the west', GM_FATAL)
+                      if ( i+1 > nx ) call write_log('Extrapolation out of bounds to the east', GM_FATAL)
+                      if ( j-1 < 1 )  call write_log('Extrapolation out of bounds to the south', GM_FATAL)
+                      if ( j+1 > ny ) call write_log('Extrapolation out of bounds to the north', GM_FATAL)
+
                       ! Set thermal_forcing(k,i,j) to the mean value in filled neighbors at the same level
 
                       if (k == ktop(i,j)) then
@@ -1479,7 +1502,7 @@ module glissade_bmlt_float
                          ! Note: Thermal forcing is corrected for the elevation difference,
                          !       assuming linear dependence of Tf on zocn.
 
-                         if (kbot(i-1,j) < k) then  ! kbot in west neighbor lies above k in this cell
+                         if ( (kbot(i-1,j) > 0) .and. (kbot(i-1,j) < k) ) then  ! kbot in west neighbor lies above k in this cell
                             kw = kbot(i-1,j)
                             phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
                          else
@@ -1487,7 +1510,7 @@ module glissade_bmlt_float
                             phiw = phi(k,i-1,j)
                          endif
 
-                         if (kbot(i+1,j) < k) then  ! kbot in east neighbor lies above k in this cell
+                         if ( (kbot(i+1,j) > 0) .and. (kbot(i+1,j) < k) ) then  ! kbot in east neighbor lies above k in this cell
                             ke = kbot(i+1,j)
                             phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
                          else
@@ -1495,7 +1518,7 @@ module glissade_bmlt_float
                             phie = phi(k,i+1,j)
                          endif
 
-                         if (kbot(i,j-1) < k) then  ! kbot in south neighbor lies above k in this cell
+                         if ( (kbot(i,j-1) > 0) .and. (kbot(i,j-1) < k) ) then  ! kbot in south neighbor lies above k in this cell
                             ks = kbot(i,j-1)
                             phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
                          else
@@ -1503,7 +1526,7 @@ module glissade_bmlt_float
                             phis = phi(k,i,j-1)
                          endif
 
-                         if (kbot(i,j+1) < k) then  ! kbot in north neighbor lies above k in this cell
+                         if ( (kbot(i,j+1) > 0) .and. (kbot(i,j+1) < k) ) then  ! kbot in north neighbor lies above k in this cell
                             kn = kbot(i,j+1)
                             phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
                          else
@@ -1642,9 +1665,11 @@ module glissade_bmlt_float
           local_count = 0
           do j = 1+nhalo, ny-nhalo
              do i = 1+nhalo,  nx-nhalo
-                do k = ktop(i,j), kbot(i,j)
-                   if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
-                enddo
+                if (ktop(i,j) >= 1 .and. kbot(i,j) >= 1) then  ! ocean or floating cell
+                   do k = ktop(i,j), kbot(i,j)
+                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
+                   enddo
+                endif
              enddo
           enddo
 
@@ -1680,16 +1705,19 @@ module glissade_bmlt_float
     do j = 1, ny
        do i = 1, nx
           if (bmlt_float_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
-             do k = ktop(i,j), kbot(i,j)
-                if (thermal_forcing(k,i,j) == unphys_val) then
-                   call parallel_globalindex(i, j, iglobal, jglobal)
-!!                   print*, 'bmlt_float_mask, lake_mask =', bmlt_float_mask(i,j), lake_mask(i,j)
-!!                   print*, 'ktop, kbot =', ktop(i,j), kbot(i,j) 
-                   write(message,*) &
-                        'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
-                   call write_log(message, GM_FATAL)
-                endif
-             enddo   ! k
+             if (ktop(i,j) >= 1 .and. kbot(i,j) >= 1) then  ! ocean or floating cell
+                do k = ktop(i,j), kbot(i,j)
+                   if (thermal_forcing(k,i,j) == unphys_val) then
+                      call parallel_globalindex(i, j, iglobal, jglobal)
+                        print*, 'bmlt_float_mask, lake_mask =', bmlt_float_mask(i,j), lake_mask(i,j)
+                        print*, 'ktop, kbot, local-i, local-j, mask =', ktop(i,j), kbot(i,j), i, j, mask(k,i,j)
+                      write(message,*) &
+                           'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
+                      call write_log(message)
+                      !call write_log(message, GM_FATAL)
+                   endif
+                enddo   ! k
+             endif
           endif   ! floating and not lake
        enddo   ! i
     enddo   ! j
@@ -1713,6 +1741,7 @@ module glissade_bmlt_float
        bmlt_float_mask,          &
        lake_mask,                &
        lsrf,                     &
+       unphys_val,               &
        thermal_forcing,          &
        thermal_forcing_lsrf)
 
@@ -1733,6 +1762,9 @@ module glissade_bmlt_float
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          lsrf                      !> ice lower surface elevation (m), negative below sea level
+
+   real(dp), intent(in) ::       &
+         unphys_val                ! unphysical value given to cells/levels not yet filled
 
     real(dp), dimension(nzocn,nx,ny), intent(in) :: &
          thermal_forcing           !> thermal forcing field at ocean levels
@@ -1758,11 +1790,15 @@ module glissade_bmlt_float
           if (bmlt_float_mask(i,j) == 1 .and. lake_mask(i,j) == 0) then
              if (lsrf(i,j) >= zocn(1)) then
                 thermal_forcing_lsrf(i,j) = thermal_forcing(1,i,j)
+                if ( thermal_forcing_lsrf(i,j) == unphys_val ) thermal_forcing_lsrf(i,j) = 0.0d0
              elseif (lsrf(i,j) < zocn(nzocn)) then
                 thermal_forcing_lsrf(i,j) = thermal_forcing(nzocn,i,j)
+                if ( thermal_forcing_lsrf(i,j) == unphys_val ) thermal_forcing_lsrf(i,j) = 0.0d0
              else
+                thermal_forcing_lsrf(i,j) = 0.0d0
                 do k = 1, nzocn-1
-                   if (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) then
+                   if ( (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) .and. &
+                      (thermal_forcing(k+1,i,j) /= unphys_val) .and. (thermal_forcing(k,i,j) /= unphys_val) )then
                       dtf = thermal_forcing(k+1,i,j) - thermal_forcing(k,i,j)
                       dzocn = zocn(k+1) - zocn(k)
                       dzice = lsrf(i,j) - zocn(k)
@@ -1784,11 +1820,11 @@ module glissade_bmlt_float
     !TODO - Remove this bug check if the ocean can realistically have TF < 0.
     do j = 1, ny
        do i = 1, nx
-          if (thermal_forcing_lsrf(i,j) < 0.0d0) then
+          if ( thermal_forcing_lsrf(i,j) < 0.0d0) then
              call parallel_globalindex(i, j, iglobal, jglobal)
              write(message,*) &
-                  'Ocean thermal forcing error: negative TF at level k, i, j, lsrf, TF =', &
-                  k, iglobal, jglobal, lsrf(i,j), thermal_forcing_lsrf(i,j)
+                  'Ocean thermal forcing error: negative TF at i, j, lsrf, TF =', &
+                  iglobal, jglobal, lsrf(i,j), thermal_forcing_lsrf(i,j)
              call write_log(message, GM_FATAL)
           endif
        enddo

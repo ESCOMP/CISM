@@ -89,7 +89,7 @@ contains
 
     use parallel
     use glide_stop, only: register_model
-    use glide_setup
+    use glide_setup, only: glide_scale_params, glide_load_sigma
     use glimmer_ncio
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
@@ -1072,6 +1072,7 @@ contains
     integer :: i, j
     integer :: ewn, nsn
     integer :: itest, jtest, rtest
+    character(len=100) :: message
 
     ! set grid dimensions
     ewn = model%general%ewn
@@ -1160,6 +1161,11 @@ contains
           endif
 
        endif   ! ISMIP6 nonlocal slope
+
+       if ( nhalo < 1 )then
+          write(message,*) 'nhalo is NOT large enough to use bmlt_thermal_forcing'
+          call write_log(message,GM_FATAL)
+       end if
 
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
