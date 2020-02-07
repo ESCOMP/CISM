@@ -1394,9 +1394,10 @@ module glissade_bmlt_float
           endif
           if ( (kbot(i,j) >= 1) .and. (ktop(i,j) >= 1) )then
              if ( kbot(i,j) == ktop(i,j) )then
-               !write(6,*) 'ktop==kbot, i, j, ktop, topg, lsrf = ', i, j, ktop(i,j), topg(i,j), lsrf(i,j)
-               !write(6,*) 'ocean_mask, bmlt_float_mask = ', ocean_mask(i,j), bmlt_float_mask(i,j)
-               !write(6,*) 'zocn = ', zocn
+               write(6,*) 'ktop==kbot, i, j, ktop, topg, lsrf = ', i, j, ktop(i,j), topg(i,j), lsrf(i,j)
+               write(6,*) 'ocean_mask, bmlt_float_mask = ', ocean_mask(i,j), bmlt_float_mask(i,j)
+               write(6,*) 'zocn = ', zocn
+               call write_log('kbot == ktop')
                !call write_log('kbot == ktop', GM_FATAL)
                ktop(i,j) = 0
                kbot(i,j) = 0
@@ -1490,13 +1491,13 @@ module glissade_bmlt_float
                       ! Indices of nearbor points, making sure to not go beyond array limits
                       !
                       iwe = i-1
-                      if ( iwe < 1 ) iwe = 1
+                      if ( iwe < 1 )  call write_log('Extrapolation out of bounds to the west', GM_FATAL)
                       iea = i+1
-                      if ( iea > nx ) iea = nx
+                      if ( iea > nx ) call write_log('Extrapolation out of bounds to the east', GM_FATAL)
                       jso = j-1
-                      if ( jso < 1 ) jso = 1
+                      if ( jso < 1 )  call write_log('Extrapolation out of bounds to the south', GM_FATAL)
                       jno = j+1
-                      if ( jno > ny ) jno = ny
+                      if ( jno > ny ) call write_log('Extrapolation out of bounds to the north', GM_FATAL)
 
                       ! Set thermal_forcing(k,i,j) to the mean value in filled neighbors at the same level
 
@@ -2538,8 +2539,8 @@ module glissade_bmlt_float
     edge_mask_north(:,:) = 0
 
     ! loop over all edges of locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 1) then
              edge_mask_east(i,j) = 1
           endif
@@ -3750,8 +3751,8 @@ module glissade_bmlt_float
    
     ! Compute gradients at edges with plume cells on each side
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
 
           ! east edges
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 1) then
@@ -3768,8 +3769,8 @@ module glissade_bmlt_float
 
     ! Set gradients at edges that have a plume cell on one side and floating ice or water on the other.
     ! Extrapolate the gradient from the nearest neighbor edge.
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
 
           ! east edges
           if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 0 .and. global_bndy_east(i,j) == 0) then
@@ -3800,8 +3801,8 @@ module glissade_bmlt_float
 
     ! Average over 4 neighboring edges to estimate the y derivative on east edges and the x derivative on north edges.
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
 
           ! y derivative on east edges
           df_dy_east(i,j) = 0.25d0 * (df_dy_north(i,j)   + df_dy_north(i+1,j)  &
@@ -3971,8 +3972,8 @@ module glissade_bmlt_float
 
     !TODO - Use edge_mask_east instead?
     !       Maybe divu_mask_east is correct, since I stopped extrapolating, but should be called edge_mask_east.
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
 
           ! PGF on east edge
           if (divu_mask_east(i,j) == 1) then
@@ -4333,8 +4334,8 @@ module glissade_bmlt_float
 
        !TODO - Are global_bndy masks needed here? Wondering if we can avoid passing in 4 global_bndy fields.
 
-!    do j = nhalo+1, ny-nhalo
-!       do i = nhalo+1, nx-nhalo
+!    do j = nhalo, ny-nhalo
+!       do i = nhalo, nx-nhalo
 
           ! east edges
 !          if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 0 .and. global_bndy_east(i,j) == 0) then
@@ -4366,8 +4367,8 @@ module glissade_bmlt_float
 !    enddo   ! j
 
     ! Compute the plume speed at the edges (including the u_tidal term)
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
           plume_speed_east(i,j) = sqrt(u_plume_east(i,j)**2 + v_plume_east(i,j)**2 + u_tidal**2)
           plume_speed_north(i,j) = sqrt(u_plume_north(i,j)**2 + v_plume_north(i,j)**2 + u_tidal**2)
        enddo   ! i
@@ -4534,8 +4535,8 @@ module glissade_bmlt_float
     f_y(:,:) = pgf_y(:,:) + latdrag_y(:,:)
 
     ! Loop over edges of locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
 
           if (edge_mask(i,j) == 1 .and. .not.converged_velo(i,j) ) then
        
@@ -4709,8 +4710,8 @@ module glissade_bmlt_float
     ! Compute lateral drag terms
 
     ! Loop over edges of locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
 
           ! lateral drag on east edges
 
@@ -4974,8 +4975,8 @@ module glissade_bmlt_float
 
 !    entrainment_east(:,:) = 0.0d0
 
-!    do j = nhalo+1, ny-nhalo
-!       do i = nhalo+1, nx-nhalo
+!    do j = nhalo, ny-nhalo
+!       do i = nhalo, nx-nhalo
 
 !          if (divu_mask_east(i,j) == 1) then
 
@@ -5004,8 +5005,8 @@ module glissade_bmlt_float
 
 !    entrainment_north(:,:) = 0.0d0
     
-!    do j = nhalo+1, ny-nhalo
-!       do i = nhalo+1, nx-nhalo
+!    do j = nhalo, ny-nhalo
+!       do i = nhalo, nx-nhalo
 !          if (divu_mask_north(i,j) == 1) then
 
 !             slope = sqrt(dlsrf_dx_north(i,j)**2 + dlsrf_dy_north(i,j)**2)
