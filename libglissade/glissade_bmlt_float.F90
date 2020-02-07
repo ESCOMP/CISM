@@ -1325,8 +1325,6 @@ module glissade_bmlt_float
 
     integer :: i, j, k, iter
     integer :: iglobal, jglobal
-    integer :: iwe, iea, iso, ino       ! longitude index in neighbor cells
-    integer :: jwe, jea, jso, jno       ! longitude index in neighbor cells
     integer :: kw, ke, ks, kn           ! ocean level in neighbor cells
     real(dp) :: phiw, phie, phin, phis  ! field value in neighbor cells
     character(len=128) :: message
@@ -1490,14 +1488,10 @@ module glissade_bmlt_float
                       !
                       ! Indices of nearbor points, making sure to not go beyond array limits
                       !
-                      iwe = i-1
-                      if ( iwe < 1 )  call write_log('Extrapolation out of bounds to the west', GM_FATAL)
-                      iea = i+1
-                      if ( iea > nx ) call write_log('Extrapolation out of bounds to the east', GM_FATAL)
-                      jso = j-1
-                      if ( jso < 1 )  call write_log('Extrapolation out of bounds to the south', GM_FATAL)
-                      jno = j+1
-                      if ( jno > ny ) call write_log('Extrapolation out of bounds to the north', GM_FATAL)
+                      if ( i-1 < 1 )  call write_log('Extrapolation out of bounds to the west', GM_FATAL)
+                      if ( i+1 > nx ) call write_log('Extrapolation out of bounds to the east', GM_FATAL)
+                      if ( j-1 < 1 )  call write_log('Extrapolation out of bounds to the south', GM_FATAL)
+                      if ( j+1 > ny ) call write_log('Extrapolation out of bounds to the north', GM_FATAL)
 
                       ! Set thermal_forcing(k,i,j) to the mean value in filled neighbors at the same level
 
@@ -1508,43 +1502,43 @@ module glissade_bmlt_float
                          ! Note: Thermal forcing is corrected for the elevation difference,
                          !       assuming linear dependence of Tf on zocn.
 
-                         if ( (kbot(iwe,j) > 0) .and. (kbot(iwe,j) < k) ) then  ! kbot in west neighbor lies above k in this cell
-                            kw = kbot(iwe,j)
-                            phiw = phi(kw,iwe,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
+                         if ( (kbot(i-1,j) > 0) .and. (kbot(i-1,j) < k) ) then  ! kbot in west neighbor lies above k in this cell
+                            kw = kbot(i-1,j)
+                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
                          else
                             kw = k
-                            phiw = phi(k,iwe,j)
+                            phiw = phi(k,i-1,j)
                          endif
 
-                         if ( (kbot(iea,j) > 0) .and. (kbot(iea,j) < k) ) then  ! kbot in east neighbor lies above k in this cell
-                            ke = kbot(iea,j)
-                            phie = phi(ke,iea,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
+                         if ( (kbot(i+1,j) > 0) .and. (kbot(i+1,j) < k) ) then  ! kbot in east neighbor lies above k in this cell
+                            ke = kbot(i+1,j)
+                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
                          else
                             ke = k
-                            phie = phi(k,iea,j)
+                            phie = phi(k,i+1,j)
                          endif
 
-                         if ( (kbot(i,jso) > 0) .and. (kbot(i,jso) < k) ) then  ! kbot in south neighbor lies above k in this cell
-                            ks = kbot(i,jso)
-                            phis = phi(ks,i,jso) - dtocnfrz_dz * (zocn(ks) - zocn(k))
+                         if ( (kbot(i,j-1) > 0) .and. (kbot(i,j-1) < k) ) then  ! kbot in south neighbor lies above k in this cell
+                            ks = kbot(i,j-1)
+                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
                          else
                             ks = k
-                            phis = phi(k,i,jso)
+                            phis = phi(k,i,j-1)
                          endif
 
-                         if ( (kbot(i,jno) > 0) .and. (kbot(i,jno) < k) ) then  ! kbot in north neighbor lies above k in this cell
-                            kn = kbot(i,jno)
-                            phin = phi(kn,i,jno) - dtocnfrz_dz * (zocn(kn) - zocn(k))
+                         if ( (kbot(i,j+1) > 0) .and. (kbot(i,j+1) < k) ) then  ! kbot in north neighbor lies above k in this cell
+                            kn = kbot(i,j+1)
+                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
                          else
                             kn = k
-                            phin = phi(k,i,jno)
+                            phin = phi(k,i,j+1)
                          endif
 
-                         sum_mask = mask(kw,iwe,j) + mask(ke,iea,j) + mask(ks,i,jso) + mask(kn,i,jno)
+                         sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
 
                          if (sum_mask > 0) then
-                            sum_phi = mask(kw,iwe,j)*phiw + mask(ke,iea,j)*phie &
-                                    + mask(ks,i,jso)*phis + mask(kn,i,jno)*phin
+                            sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
+                                    + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
                             thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
                             filled = .true.
                          endif
@@ -1560,43 +1554,43 @@ module glissade_bmlt_float
                          ! need extra logic to allow spreading of values upward to shallower depth,
                          ! in case ktop in a neighbor cell lies below kbot in this cell
 
-                         if (ktop(iwe,j) > k) then  ! ktop in west neighbor lies below k in this cell
-                            kw = ktop(iwe,j)
-                            phiw = phi(kw,iwe,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
+                         if (ktop(i-1,j) > k) then  ! ktop in west neighbor lies below k in this cell
+                            kw = ktop(i-1,j)
+                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
                          else
                             kw = k
-                            phiw = phi(k,iwe,j)
+                            phiw = phi(k,i-1,j)
                          endif
 
-                         if (ktop(iea,j) > k) then  ! ktop in east neighbor lies below k in this cell
-                            ke = ktop(iea,j)
-                            phie = phi(ke,iea,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
+                         if (ktop(i+1,j) > k) then  ! ktop in east neighbor lies below k in this cell
+                            ke = ktop(i+1,j)
+                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
                          else
                             ke = k
-                            phie = phi(k,iea,j)
+                            phie = phi(k,i+1,j)
                          endif
 
-                         if (ktop(i,jso) > k) then  ! ktop in south neighbor lies below k in this cell
-                            ks = ktop(i,jso)
-                            phis = phi(ks,i,jso) - dtocnfrz_dz * (zocn(ks) - zocn(k))
+                         if (ktop(i,j-1) > k) then  ! ktop in south neighbor lies below k in this cell
+                            ks = ktop(i,j-1)
+                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
                          else
                             ks = k
-                            phis = phi(k,i,jso)
+                            phis = phi(k,i,j-1)
                          endif
 
-                         if (ktop(i,jno) > k) then  ! ktop in north neighbor lies below k in this cell
-                            kn = ktop(i,jno)
-                            phin = phi(kn,i,jno) - dtocnfrz_dz * (zocn(kn) - zocn(k))
+                         if (ktop(i,j+1) > k) then  ! ktop in north neighbor lies below k in this cell
+                            kn = ktop(i,j+1)
+                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
                          else
                             kn = k
-                            phin = phi(k,i,jno)
+                            phin = phi(k,i,j+1)
                          endif
 
-                         sum_mask = mask(kw,iwe,j) + mask(ke,iea,j) + mask(ks,i,jso) + mask(kn,i,jno)
+                         sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
 
                          if (sum_mask > 0) then
-                            sum_phi = mask(kw,iwe,j)*phiw + mask(ke,iea,j)*phie &
-                                    + mask(ks,i,jso)*phis + mask(kn,i,jno)*phin
+                            sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
+                                    + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
                             thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
                             filled = .true.
                          endif
@@ -1607,11 +1601,11 @@ module glissade_bmlt_float
 
                          ! simpler case; look only at neighbor levels with the same k value
 
-                         sum_mask = mask(k,iwe,j) + mask(k,iea,j) + mask(k,i,jso) + mask(k,i,jno)
+                         sum_mask = mask(k,i-1,j) + mask(k,i+1,j) + mask(k,i,j-1) + mask(k,i,j+1)
 
                          if (sum_mask > 0) then
-                            sum_phi = mask(k,iwe,j)*phi(k,iwe,j) + mask(k,iea,j)*phi(k,iea,j)   &
-                                    + mask(k,i,jso)*phi(k,i,jso) + mask(k,i,jno)*phi(k,i,jno)
+                            sum_phi = mask(k,i-1,j)*phi(k,i-1,j) + mask(k,i+1,j)*phi(k,i+1,j)   &
+                                    + mask(k,i,j-1)*phi(k,i,j-1) + mask(k,i,j+1)*phi(k,i,j+1)
                             thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
                             filled = .true.
                          endif
