@@ -80,23 +80,25 @@
     !----------------------------------------------------------------
     ! Here are some definitions:
     !
-    ! The horizontal mesh is composed of cells and vertices.
+    ! The horizontal mesh is composed of cells, vertices, and edges.
     ! The cells are rectangular with uniform dimensions dx and dy.
     ! Each cell can be extruded to form a column with a specified number of layers.
     ! 
-    ! An element is a layer of a cell, and a node is a corner of an element.
-    ! Elements and nodes live in 3D space, whereas cells and vertices live in
+    ! An element is a layer of a cell, and a node is a corner or edge of an element.
+    ! Elements and nodes live in 3D space, whereas cells, vertices, and edges live in
     !  the horizontal plane.
     !
     ! Locally owned cells have indices (nhalo+1:nx-nhalo, nhalo+1,ny-nhalo).
+    ! Locally owned edges have indices (nhalo+1:nx-nhalo, nhalo+1,ny-nhalo),
+    !  like locally owned cells.
     ! Locally owned vertices have indices (nhalo+1:nx-nhalo, nhalo+1,ny-nhalo),
     !  except for processors on the west and south edges of the global domain with outflow BC.
     !  For those processors, locally owned vertices have indices (nhalo:nx-nhalo, nhalo,ny-nhalo).
     ! The indices (staggered_ilo:staggered_ihi, staggered_jlo:staggered_jhi)
     !  define the limits of locally owned vertices for the given BC.
-    ! Active cells are cells that (1) contain ice and (2) border locally owned vertices.
-    ! Active vertices are all vertices of active cells.
-    ! Active nodes are all nodes in the columns associated with active vertices.
+    ! Active cells are cells that (1) contain ice and (2) border locally owned edges.
+    ! Active edges are all edges of active cells.
+    ! Active nodes are all nodes in the columns associated with active edges.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -132,12 +134,6 @@
        dphi_dyr_3d,    &    ! dphi/dy for reference hexahedral element, evaluated at quad pts
        dphi_dzr_3d          ! dphi/dy for reference hexahedral element, evaluated at quad pts
 
-    real(dp), dimension(nNodesPerElement_3d) ::   & 
-       phi_3d_ctr,         &! trilinear basis function, evaluated at cell ctr
-       dphi_dxr_3d_ctr,    &! dphi/dx for reference hexahedral element, evaluated at cell ctr
-       dphi_dyr_3d_ctr,    &! dphi/dy for reference hexahedral element, evaluated at cell ctr
-       dphi_dzr_3d_ctr      ! dphi/dz for reference hexahedral element, evaluated at cell ctr
-
     real(dp), dimension(nQuadPoints_3d) ::  &
        xqp_3d, yqp_3d, zqp_3d,  &! quad pt coordinates in reference element
        wqp_3d                    ! quad pt weights
@@ -146,11 +142,6 @@
        phi_2d,         &    ! bilinear basis function, evaluated at quad pts
        dphi_dxr_2d,    &    ! dphi/dx for reference rectangular element, evaluated at quad pts
        dphi_dyr_2d          ! dphi/dy for reference rectangular element, evaluated at quad pts
-
-    real(dp), dimension(nNodesPerElement_2d) ::   & 
-       phi_2d_ctr,         &! bilinear basis function, evaluated at cell ctr
-       dphi_dxr_2d_ctr,    &! dphi/dx for reference rectangular element, evaluated at cell ctr
-       dphi_dyr_2d_ctr      ! dphi/dy for reference rectangular element, evaluated at cell ctr
 
     real(dp), dimension(nQuadPoints_2d) ::  &
        xqp_2d, yqp_2d, &    ! quad pt coordinates in reference square
@@ -236,6 +227,18 @@
 !    logical, parameter :: write_matrix = .true.
     character(*), parameter :: matrix_label = 'label_here'  ! choose an appropriate label
 
+    !WHL - added for edges
+
+    logical, dimension(nNodesPerElement_2d), parameter ::  &
+         east_edge =  (/ .true., .false., .true., .false. /), &   ! nodes 1 and 3 are east-west edges
+         north_edge = (/ .false., .true., .false., .true. /)      ! nodes 2 and 4 are north-south edges
+
+    ! |---4---|
+    ! |       |
+    ! 1       3
+    ! |       |
+    ! |---2---|
+
     !WHL - debug for efvs
     real(dp), dimension(nNodesPerElement_3d, nQuadPoints_2d) ::   & 
        phi_3d_vav,         &! vertical avg of phi_3d
@@ -257,6 +260,7 @@
     integer :: pplus
     real(dp) :: xctr, yctr, zctr
     real(dp) :: sumx, sumy, sumz
+    real(dp) :: x, y
 
     !----------------------------------------------------------------
     ! Initialize some time-independent finite element arrays
@@ -266,7 +270,7 @@
     ! Trilinear basis set for reference hexahedron, x=(-1,1), y=(-1,1), z=(-1,1)             
     ! Indexing is counter-clockwise from SW corner, with 1-4 on lower surface
     !  and 5-8 on upper surface
-    ! The code uses "phi_3d" to denote these basis functions. 
+    ! The code uses "phi_3d" to denote these basis functions.
     !
     ! N1 = (1-x)*(1-y)*(1-z)/8             N4----N3
     ! N2 = (1+x)*(1-y)*(1-z)/8             |     |    Lower layer        
@@ -375,49 +379,6 @@
 
     enddo   ! nQuadPoints_3d
 
-    ! Evaluate trilinear basis functions and their derivatives at cell center
-    ! Full formulas are not really needed at (x,y,z) = (0,0,0), but are included for completeness
-
-    xctr = 0.d0
-    yctr = 0.d0
-    zctr = 0.d0
-
-    phi_3d_ctr(1) = (1.d0 - xctr) * (1.d0 - yctr) * (1.d0 - zctr) / 8.d0
-    phi_3d_ctr(2) = (1.d0 + xctr) * (1.d0 - yctr) * (1.d0 - zctr) / 8.d0
-    phi_3d_ctr(3) = (1.d0 + xctr) * (1.d0 + yctr) * (1.d0 - zctr) / 8.d0
-    phi_3d_ctr(4) = (1.d0 - xctr) * (1.d0 + yctr) * (1.d0 - zctr) / 8.d0
-    phi_3d_ctr(5) = (1.d0 - xctr) * (1.d0 - yctr) * (1.d0 + zctr) / 8.d0
-    phi_3d_ctr(6) = (1.d0 + xctr) * (1.d0 - yctr) * (1.d0 + zctr) / 8.d0
-    phi_3d_ctr(7) = (1.d0 + xctr) * (1.d0 + yctr) * (1.d0 + zctr) / 8.d0
-    phi_3d_ctr(8) = (1.d0 - xctr) * (1.d0 + yctr) * (1.d0 + zctr) / 8.d0
-    
-    dphi_dxr_3d_ctr(1) = -(1.d0 - yctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dxr_3d_ctr(2) =  (1.d0 - yctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dxr_3d_ctr(3) =  (1.d0 + yctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dxr_3d_ctr(4) = -(1.d0 + yctr) * (1.d0 - zctr) / 8.d0
-    dphi_dxr_3d_ctr(5) = -(1.d0 - yctr) * (1.d0 + zctr) / 8.d0 
-    dphi_dxr_3d_ctr(6) =  (1.d0 - yctr) * (1.d0 + zctr) / 8.d0 
-    dphi_dxr_3d_ctr(7) =  (1.d0 + yctr) * (1.d0 + zctr) / 8.d0 
-    dphi_dxr_3d_ctr(8) = -(1.d0 + yctr) * (1.d0 + zctr) / 8.d0
-    
-    dphi_dyr_3d_ctr(1) = -(1.d0 - xctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dyr_3d_ctr(2) = -(1.d0 + xctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dyr_3d_ctr(3) =  (1.d0 + xctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dyr_3d_ctr(4) =  (1.d0 - xctr) * (1.d0 - zctr) / 8.d0 
-    dphi_dyr_3d_ctr(5) = -(1.d0 - xctr) * (1.d0 + zctr) / 8.d0 
-    dphi_dyr_3d_ctr(6) = -(1.d0 + xctr) * (1.d0 + zctr) / 8.d0 
-    dphi_dyr_3d_ctr(7) =  (1.d0 + xctr) * (1.d0 + zctr) / 8.d0 
-    dphi_dyr_3d_ctr(8) =  (1.d0 - xctr) * (1.d0 + zctr) / 8.d0 
-    
-    dphi_dzr_3d_ctr(1) = -(1.d0 - xctr) * (1.d0 - yctr) / 8.d0 
-    dphi_dzr_3d_ctr(2) = -(1.d0 + xctr) * (1.d0 - yctr) / 8.d0 
-    dphi_dzr_3d_ctr(3) = -(1.d0 + xctr) * (1.d0 + yctr) / 8.d0 
-    dphi_dzr_3d_ctr(4) = -(1.d0 - xctr) * (1.d0 + yctr) / 8.d0 
-    dphi_dzr_3d_ctr(5) =  (1.d0 - xctr) * (1.d0 - yctr) / 8.d0 
-    dphi_dzr_3d_ctr(6) =  (1.d0 + xctr) * (1.d0 - yctr) / 8.d0 
-    dphi_dzr_3d_ctr(7) =  (1.d0 + xctr) * (1.d0 + yctr) / 8.d0 
-    dphi_dzr_3d_ctr(8) =  (1.d0 - xctr) * (1.d0 + yctr) / 8.d0 
-
     ! Identity matrix
     identity3(1,:) = (/ 1.d0, 0.d0, 0.d0 /)
     identity3(2,:) = (/ 0.d0, 1.d0, 0.d0 /)
@@ -485,17 +446,38 @@
 
     !----------------------------------------------------------------
     ! Bilinear basis set for reference square, x=(-1,1), y=(-1,1)             
-    ! Indexing is counter-clockwise from SW corner
+!!!    ! Old comment for vertex-based elements:
+!!!    ! Indexing is counter-clockwise from SW corner
+!!!    ! The code uses "phi_2d" to denote these basis functions.
+!!!    !
+!!!    ! N1 = (1-x)*(1-y)/4             N4----N3
+!!!    ! N2 = (1+x)*(1-y)/4             |     |
+!!!    ! N3 = (1+x)*(1+y)/4             |     |
+!!!    ! N4 = (1-x)*(1+y)/4             N1----N2
+
+    ! Indexing is counter-clockwise from west edge
     ! The code uses "phi_2d" to denote these basis functions. 
     !
-    ! N1 = (1-x)*(1-y)/4             N4----N3
-    ! N2 = (1+x)*(1-y)/4             |     |
-    ! N3 = (1+x)*(1+y)/4             |     |
-    ! N4 = (1-x)*(1+y)/4             N1----N2
+    !    ---N4---
+    !    |      |
+    !    N1    N3
+    !    |      |
+    !    ---N2---
+    !
+    ! N1 = 1/4 - (1/2)*x - (3/8)*[(x^2 - (5/3)*x^4) - (y^2 - (5/3)*y^4)]
+    ! N2 = 1/4 - (1/2)*y + (3/8)*[(x^2 - (5/3)*x^4) - (y^2 - (5/3)*y^4)]
+    ! N3 = 1/4 + (1/2)*x - (3/8)*[(x^2 - (5/3)*x^4) - (y^2 - (5/3)*y^4)]
+    ! N4 = 1/4 + (1/2)*y + (3/8)*[(x^2 - (5/3)*x^4) - (y^2 - (5/3)*y^4)]
+    !
+    ! Each basis function satisfies N = 1 at one edge, with N = 0 at the other three edges.
+    ! We have N = 3/4 at the two nearest vertices, N = -1/4 at the two distant vertices,
+    !  and N = 1/4 at the cell center.
     !----------------------------------------------------------------
 
     ! Set coordinates and weights of quadrature points for reference square.
     ! Numbering is counter-clockwise from southwest
+    !TODO - Is 4-point Gaussian quadrature sufficiently accurate for integrating x^4 and y^4?
+    !       We would need 9-point Gaussian quadrature to integrate quartic functions exactly.
 
     xqp_2d(1) = -rsqrt3; yqp_2d(1) = -rsqrt3
     wqp_2d(1) =  1.d0
@@ -522,24 +504,44 @@
        print*, 'sumx, sumy:', sumx, sumy
     endif
 
-    ! Evaluate bilinear basis functions and their derivatives at each quad pt
+    ! Evaluate bilinear basis functions and their derivatives at each quadrature pt
 
     do p = 1, nQuadPoints_2d
 
-       phi_2d(1,p) = (1.d0 - xqp_2d(p)) * (1.d0 - yqp_2d(p)) / 4.d0 
-       phi_2d(2,p) = (1.d0 + xqp_2d(p)) * (1.d0 - yqp_2d(p)) / 4.d0
-       phi_2d(3,p) = (1.d0 + xqp_2d(p)) * (1.d0 + yqp_2d(p)) / 4.d0 
-       phi_2d(4,p) = (1.d0 - xqp_2d(p)) * (1.d0 + yqp_2d(p)) / 4.d0
+!       phi_2d(1,p) = (1.d0 - xqp_2d(p)) * (1.d0 - yqp_2d(p)) / 4.d0
+!       phi_2d(2,p) = (1.d0 + xqp_2d(p)) * (1.d0 - yqp_2d(p)) / 4.d0
+!       phi_2d(3,p) = (1.d0 + xqp_2d(p)) * (1.d0 + yqp_2d(p)) / 4.d0
+!       phi_2d(4,p) = (1.d0 - xqp_2d(p)) * (1.d0 + yqp_2d(p)) / 4.d0
 
-       dphi_dxr_2d(1,p) = -(1.d0 - yqp_2d(p)) / 4.d0 
-       dphi_dxr_2d(2,p) =  (1.d0 - yqp_2d(p)) / 4.d0 
-       dphi_dxr_2d(3,p) =  (1.d0 + yqp_2d(p)) / 4.d0 
-       dphi_dxr_2d(4,p) = -(1.d0 + yqp_2d(p)) / 4.d0
+       x = xqp_2d(p)
+       y = yqp_2d(p)
 
-       dphi_dyr_2d(1,p) = -(1.d0 - xqp_2d(p)) / 4.d0 
-       dphi_dyr_2d(2,p) = -(1.d0 + xqp_2d(p)) / 4.d0 
-       dphi_dyr_2d(3,p) =  (1.d0 + xqp_2d(p)) / 4.d0 
-       dphi_dyr_2d(4,p) =  (1.d0 - xqp_2d(p)) / 4.d0 
+       phi_2d(1,p) = 1/4.d0 - (0.5d0)*x &
+                   - (3.d0/8.d0) * ((x**2 - (5.d0/3.d0)*x**4) - (y**2 - (5.d0/3.d0)*y**4))
+       phi_2d(2,p) = 1/4.d0 - (0.5d0)*y &
+                   + (3.d0/8.d0) * ((x**2 - (5.d0/3.d0)*x**4) - (y**2 - (5.d0/3.d0)*y**4))
+       phi_2d(3,p) = 1/4.d0 + (0.5d0)*x &
+                   - (3.d0/8.d0) * ((x**2 - (5.d0/3.d0)*x**4) - (y**2 - (5.d0/3.d0)*y**4))
+       phi_2d(4,p) = 1/4.d0 + (0.5d0)*y &
+                   + (3.d0/8.d0) * ((x**2 - (5.d0/3.d0)*x**4) - (y**2 - (5.d0/3.d0)*y**4))
+
+!       dphi_dxr_2d(1,p) = -(1.d0 - yqp_2d(p)) / 4.d0
+!       dphi_dxr_2d(2,p) =  (1.d0 - yqp_2d(p)) / 4.d0
+!       dphi_dxr_2d(3,p) =  (1.d0 + yqp_2d(p)) / 4.d0
+!       dphi_dxr_2d(4,p) = -(1.d0 + yqp_2d(p)) / 4.d0
+       dphi_dxr_2d(1,p) = -0.5d0 - 0.75d0*x + 2.5d0*x**3
+       dphi_dxr_2d(2,p) =          0.75d0*x - 2.5d0*x**3
+       dphi_dxr_2d(3,p) =  0.5d0 - 0.75d0*x + 2.5d0*x**3
+       dphi_dxr_2d(4,p) =          0.75d0*x - 2.5d0*x**3
+
+!       dphi_dyr_2d(1,p) = -(1.d0 - xqp_2d(p)) / 4.d0
+!       dphi_dyr_2d(2,p) = -(1.d0 + xqp_2d(p)) / 4.d0
+!       dphi_dyr_2d(3,p) =  (1.d0 + xqp_2d(p)) / 4.d0
+!       dphi_dyr_2d(4,p) =  (1.d0 - xqp_2d(p)) / 4.d0
+       dphi_dyr_2d(1,p) =          0.75d0*y - 2.5d0*y**3
+       dphi_dyr_2d(2,p) = -0.5d0 - 0.75d0*y + 2.5d0*y**3
+       dphi_dyr_2d(3,p) =          0.75d0*y - 2.5d0*y**3
+       dphi_dyr_2d(4,p) =  0.5d0 - 0.75d0*y + 2.5d0*y**3
 
        if (verbose_init) then
           print*, ' '
@@ -548,33 +550,12 @@
           do n = 1, 4
              print*, n, phi_2d(n,p), dphi_dxr_2d(n,p), dphi_dyr_2d(n,p)
           enddo
-          print*, 'sum(phi_2d)', sum(phi_2d(:,p))        ! verified that sum = 1
-          print*, 'sum(dphi/dx_2d)', sum(dphi_dxr_2d(:,p))  ! verified that sum = 0 (within roundoff)
-          print*, 'sum(dphi/dy_2d)', sum(dphi_dyr_2d(:,p))  ! verified that sum = 0 (within roundoff)
+          print*, 'sum(phi_2d)', sum(phi_2d(:,p))           ! verify that sum = 1
+          print*, 'sum(dphi/dx_2d)', sum(dphi_dxr_2d(:,p))  ! verify that sum = 0 (within roundoff)
+          print*, 'sum(dphi/dy_2d)', sum(dphi_dyr_2d(:,p))  ! verify that sum = 0 (within roundoff)
        endif
 
     enddo   ! nQuadPoints_2d
-
-    ! Evaluate bilinear basis functions and their derivatives at cell center
-    ! Full formulas are not really needed at (x,y) = (0,0), but are included for completeness
-
-    xctr = 0.d0
-    yctr = 0.d0
-
-    phi_2d_ctr(1) = (1.d0 - xctr) * (1.d0 - yctr) / 4.d0 
-    phi_2d_ctr(2) = (1.d0 + xctr) * (1.d0 - yctr) / 4.d0
-    phi_2d_ctr(3) = (1.d0 + xctr) * (1.d0 + yctr) / 4.d0 
-    phi_2d_ctr(4) = (1.d0 - xctr) * (1.d0 + yctr) / 4.d0
-    
-    dphi_dxr_2d_ctr(1) = -(1.d0 - yctr) / 4.d0 
-    dphi_dxr_2d_ctr(2) =  (1.d0 - yctr) / 4.d0 
-    dphi_dxr_2d_ctr(3) =  (1.d0 + yctr) / 4.d0 
-    dphi_dxr_2d_ctr(4) = -(1.d0 + yctr) / 4.d0
-
-    dphi_dyr_2d_ctr(1) = -(1.d0 - xctr) / 4.d0 
-    dphi_dyr_2d_ctr(2) = -(1.d0 + xctr) / 4.d0 
-    dphi_dyr_2d_ctr(3) =  (1.d0 + xctr) / 4.d0 
-    dphi_dyr_2d_ctr(4) =  (1.d0 - xctr) / 4.d0 
 
     !----------------------------------------------------------------
     ! Compute indxA_3d; maps displacements i,j,k = (-1,0,1) onto an index from 1 to 27
@@ -613,7 +594,7 @@
 
     !WHL - debug for efvs
 
-    ! Evaluate vertical averages of dphi_dxr_3d, dphi_dyr_3d and dphi_dzr_3d at each 2d quad pts.
+    ! Evaluate vertical averages of dphi_dxr_3d, dphi_dyr_3d and dphi_dzr_3d at 2d quad pts.
     ! Using these instead of the full 3d basis functions can result in similar accuracy with
     !  only half as many QP computations.
 
@@ -627,6 +608,9 @@
        enddo
     enddo
 
+    !WHL - debug
+    call glide_log('End of glissade_velo_edge_init', GM_FATAL)
+
   end subroutine glissade_velo_edge_init
 
 !****************************************************************************
@@ -635,7 +619,7 @@
                                       nx,     ny,     nz)
 
     !TODO - Remove nx, ny, nz from argument list?
-    !       Would then have to allocate many local arrays.
+    !       Would then have to use array dimensions of model%general%ewn, etc.
 
     !----------------------------------------------------------------
     ! Solve the ice sheet flow equations for the horizontal velocity (uvel, vvel)
@@ -731,6 +715,25 @@
        btractx, btracty,       &! components of basal traction (Pa)
        taudx, taudy             ! components of driving stress (Pa)
 
+    !WHL - new pointers for edge solve
+    real(dp), dimension(:,:,:), pointer ::  &
+         u_east, v_east,  &      ! velocity components on east edges (m/yr)
+         u_north, v_north        ! velocity components on north edges (m/yr)
+
+    real(dp), dimension(:,:), pointer ::  &
+         u_east_2d, v_east_2d,  &! 2D velocity components on east edges (m/yr)
+         u_north_2d, v_north_2d  ! 2D velocity components on north edges (m/yr)
+
+    real(dp), dimension(:,:), pointer ::  &
+         beta_east,           &  ! basal traction parameter, east edges (Pa/(m/yr))
+         beta_north,          &  ! basal traction parameter, north edges (Pa/(m/yr))
+         beta_east_internal,  &  ! beta field weighted by f_ground, east edges
+         beta_north_internal, &  ! beta field weighted by f_ground, north edges
+         btractx_east, btracty_east,  &! components of basal traction, east edges (Pa)
+         btractx_north, btracty_north  ! components of basal traction, north edges (Pa)
+
+    !WHL - end of new pointers
+
     real(dp), dimension(:,:,:), pointer ::  &
        tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
        tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
@@ -819,7 +822,7 @@
 
     real(dp), dimension(nx-1,ny-1) :: &
        stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
-       stagbedpmp             ! bed pmp temperature averaged to vertices (deg C)    
+       stagbedpmp             ! bed pmp temperature averaged to vertices (deg C)
 
     logical, dimension(nx,ny) ::     &
        active_cell            ! true for active cells (ice_mask = 1 and border locally owned vertices)
@@ -827,21 +830,83 @@
     logical, dimension(nx-1,ny-1) :: &
        active_vertex          ! true for vertices of active cells
 
+    !WHL - edge arrays
+    logical, dimension(nx,ny) :: &
+         active_edge_east,    & ! true for east-west edges of active cells
+         active_edge_north      ! true for north-south edges of active cells
+
+    logical, dimension(nx,ny) :: &
+         active_edge            ! true for edges of active cells
+
+    real(dp), dimension(nx,ny) :: &
+         bedtemp_east, bedtemp_north,  & ! bed temperature averaged to edges (deg C)
+         bedpmp_east,  bedpmp_north      ! bed pmp temperature averaged to edges (deg C)
+
+    real(dp), dimension(nx,ny) :: &
+         bpmp_mask_east, bpmp_mask_north ! mask, = 1 where btemp is close to bpmp
+
+    real(dp), dimension(nx,ny) :: &
+         taudx_east,  taudy_east,      & ! components of driving stress at east edges (Pa)
+         taudx_north, taudy_north        ! components of driving stress at north edges (Pa)
+
+    !WHL - end of edge arrays
+
     real(dp), dimension(nz-1,nx,ny) ::  &
        flwafact               ! temperature-based flow factor, 0.5 * A^(-1/n), 
                               ! used to compute effective viscosity
                               ! units: Pa yr^(1/n)
 
     real(dp), dimension(nz,nx-1,ny-1) ::   &
-       usav, vsav,                 &! previous guess for velocity solution
-       loadu, loadv                 ! assembled load vector, divided into 2 parts
-                                    ! Note: loadu and loadv are computed only once per nonlinear solve,
-                                    !       whereas bu and bv can be set each nonlinear iteration to account 
-                                    !       for inhomogeneous Dirichlet BC
+       usav, vsav,           &! previous guess for velocity solution
+       loadu, loadv           ! assembled load vector, divided into 2 parts
+                              ! Note: loadu and loadv are computed only once per nonlinear solve,
+                              !       whereas bu and bv can be set each nonlinear iteration to account
+                              !       for inhomogeneous Dirichlet BC
   
     integer, dimension(nz,nx-1,ny-1) ::    &
        umask_dirichlet,     & ! Dirichlet mask for u component of velocity, = 1 for prescribed velo, else = 0
        vmask_dirichlet        ! Dirichlet mask for v component of velocity, = 1 for prescribed velo, else = 0
+
+
+    !WHL - arrays for edge solve
+    real(dp), dimension(nx,ny) ::   &
+         x_east, y_east,                  & ! horizontal coordinates of east edges
+         x_north, y_north,                & ! horizontal coordinates of north edges
+         dusrf_dx_east, dusrf_dy_east,    & ! surface elevation gradient on east edges
+         dusrf_dx_north, dusrf_dy_north,  & ! surface elevation gradient on north edges
+         thck_east, thck_north,           & ! ice thickness (m), east and north edges
+         usrf_east, usrf_north              ! surface elevation (m), east and north edges
+
+    real(dp), dimension(nx,ny) ::   &
+         u_east_sav_2d, v_east_sav_2d,    & ! previous guess for velocity solution
+         u_north_sav_2d, v_north_sav_2d     ! previous guess for velocity solution
+
+    real(dp), dimension(nz,nx,ny) ::   &
+         loadu_east, loadv_east,          & ! assembled load vector, divided into 2 parts
+         loadu_north, loadv_north           ! assembled load vector, divided into 2 parts
+
+    integer, dimension(nz,nx,ny) ::    &
+         umask_dirichlet_east,  & ! Dirichlet mask for u component on east edges, = 1 for prescribed velo, else = 0
+         vmask_dirichlet_east,  & ! Dirichlet mask for v component on east edges, = 1 for prescribed velo, else = 0
+         umask_dirichlet_north, & ! Dirichlet mask for u component on north edges, = 1 for prescribed velo, else = 0
+         vmask_dirichlet_north    ! Dirichlet mask for v component on north edges, = 1 for prescribed velo, else = 0
+
+    !WHL - Leaving off the '2D' suffix, with the idea that 2D may be the default
+    real(dp), dimension(nx,ny) :: &
+         bu_east, bv_east,            & ! right-hand-side vector b
+         bu_north, bv_north,          & ! right-hand-side vector b
+         residu_east, residv_east,    & ! residual of velocity solution, east edges
+         residu_north, residv_north     ! residual of velocity solution, east edges
+
+    real(dp), dimension(nx,ny,3) :: &
+         Aue_ue, Aue_ve, Aun_un, Aun_vn, &    ! component matrices of global stiffness matrix
+         Ave_ue, Ave_ve, Avn_un, Avn_vn
+
+    real(dp), dimension(nx,ny,4) :: &
+         Aue_un, Aue_vn, Aun_ue, Aun_ve, &
+         Ave_un, Ave_vn, Avn_ue, Avn_ve
+    !WHL - end of edge solve arrays
+
 
     real(dp) :: &
        resid_velo,          & ! quantity related to velocity convergence
@@ -879,10 +944,13 @@
                           ! For periodic BCs (as in ISMIP-HOM), halo node IDs will be copied
                           !  from the other side of the grid
 
+    !WHL - for edges
+    integer, dimension(nz,nx,ny) ::  &
+       nodeID_east,    &  ! local ID for each east node where we solve for velocity
+       nodeID_north       ! local ID for each north node where we solve for velocity
+
     integer, dimension((nx-1)*(ny-1)*nz) ::   &
        iNodeIndex, jNodeIndex, kNodeIndex   ! i, j and k indices of nodes
-
-    ! The following are used for the SLAP solver only
 
     type(sparse_matrix_type) ::  &
        matrix             ! sparse matrix for SLAP solver, defined in glimmer_sparse_types
@@ -911,6 +979,18 @@
     
     integer, dimension((nx-1)*(ny-1)) ::   &
        iVertexIndex, jVertexIndex   ! i and j indices of vertices
+
+    !WHL - for edges
+    integer ::            &
+       nEdgesSolve        ! number of edges where we solve for velocity
+
+    integer, dimension(nx-1,ny-1) ::  &
+       edgeID_east,     & ! local ID for each east edge where we solve for velocity (in 2d)
+       edgeID_north       ! local ID for each north edge where we solve for velocity (in 2d)
+
+    integer, dimension((nx-1)*(ny-1)) ::   &
+       iEdgeIndex, jEdgeIndex   ! i and j indices of edges
+    !WHL - end of edge arrays
 
     real(dp), dimension(:,:,:), allocatable ::  &
        Auu_2d, Auv_2d,   &! assembled stiffness matrix, divided into 4 parts
@@ -1068,6 +1148,26 @@
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
+     !WHL - for edge solve
+     u_east   => model%velocity%u_east
+     v_east   => model%velocity%v_east
+     u_north  => model%velocity%u_north
+     v_north  => model%velocity%v_north
+     u_east_2d   => model%velocity%u_east_2d
+     v_east_2d   => model%velocity%v_east_2d
+     u_north_2d  => model%velocity%u_north_2d
+     v_north_2d  => model%velocity%v_north_2d
+     beta_east   => model%velocity%beta_east
+     beta_north  => model%velocity%beta_north
+     beta_east_internal  => model%velocity%beta_east_internal
+     beta_north_internal => model%velocity%beta_north_internal
+     btractx_east  => model%stress%btractx_east
+     btracty_east  => model%stress%btracty_east
+     btractx_north => model%stress%btractx_north
+     btracty_north => model%stress%btracty_north
+     !WHL TODO - Add powerlaw_c_inversion_east and _north
+     !WHL TODO - Add umask_no_penetration_east and _north
+
      powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
 
      kinbcmask => model%velocity%kinbcmask(:,:)
@@ -1124,8 +1224,12 @@
                                           bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
-                                          uvel,    vvel,          &
-                                          uvel_2d, vvel_2d)
+!                                          uvel,    vvel,          &
+!                                          uvel, vvel_2d)
+                                          u_east,     v_east,     &
+                                          u_north,    v_north,    &
+                                          u_east_2d,  v_east_2d,  &
+                                          u_north_2d, v_north_2d)
 !pw call t_stopf('glissade_velo_higher_scale_input')
 
     ! Set volume scale
@@ -1158,6 +1262,7 @@
        if ((verbose_solver .or. verbose_picard) .and. main_task) print*, 'Running standard Picard'
     endif
 
+    !WHL TODO - Allocate these arrays above, all the time?
     if (solve_2d) then
        ! allocate arrays needed for a 2D solve
        allocate(Auu_2d(nx-1,ny-1,nNodeNeighbors_2d))
@@ -1205,6 +1310,8 @@
        endif
     endif
 
+    !WHL TODO - Allocate edge versions of these arrays for DIVA
+
     if (whichapprox == HO_APPROX_DIVA) then
 !!       call parallel_halo(efvs)   ! efvs halo update is in glissade_diagnostic_variable_solve
        allocate(beta_eff(nx-1,ny-1))
@@ -1231,8 +1338,12 @@
        !       For DIVA, the velocity solution from the previous solve is typically the
        !        mean velocity, which cannot be extracted exactly from the 3D velocity field
        !        and must be stored in a separate array.
-       uvel_2d(:,:) = uvel(nz,:,:)
-       vvel_2d(:,:) = vvel(nz,:,:)
+!!       uvel_2d(:,:) = uvel(nz,:,:)
+!!       vvel_2d(:,:) = vvel(nz,:,:)
+       u_east_2d(:,:) = u_east(nz,:,:)
+       v_east_2d(:,:) = v_east(nz,:,:)
+       u_north_2d(:,:) = u_north(nz,:,:)
+       v_north_2d(:,:) = v_north(nz,:,:)
     endif
 
     if (test_matrix) then
@@ -1322,16 +1433,24 @@
     !------------------------------------------------------------------------------
 
     ! initialize
-    umask_dirichlet(:,:,:) = 0 
-    vmask_dirichlet(:,:,:) = 0   
+!!    umask_dirichlet(:,:,:) = 0
+!!    vmask_dirichlet(:,:,:) = 0
+    umask_dirichlet_east(:,:,:) = 0
+    vmask_dirichlet_east(:,:,:) = 0
+    umask_dirichlet_north(:,:,:) = 0
+    vmask_dirichlet_north(:,:,:) = 0
 
     ! Set the Dirichlet mask at the bed for no-slip BCs.
     if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_DIVA) then
        ! Impose zero sliding everywhere at the bed
        ! Note: For the DIVA case, this BC is handled by setting beta_eff = 1/omega
        !TODO - Allow application of no-slip BC at selected basal nodes instead of all nodes?
-       umask_dirichlet(nz,:,:) = 1    ! u = v = 0 at bed
-       vmask_dirichlet(nz,:,:) = 1
+!!       umask_dirichlet(nz,:,:) = 1    ! u = v = 0 at bed
+!!       vmask_dirichlet(nz,:,:) = 1
+       umask_dirichlet_east(nz,:,:) = 1    ! u = v = 0 at bed
+       vmask_dirichlet_east(nz,:,:) = 1
+       umask_dirichlet_north(nz,:,:) = 1    ! u = v = 0 at bed
+       vmask_dirichlet_north(nz,:,:) = 1
     endif
        
     ! Set mask in columns identified in kinbcmask, typically read from file at initialization.
@@ -1346,6 +1465,7 @@
     !
     ! For a 2D solve, initialize uvel_2d and vvel_2d at Dirichlet points to the bed velocity.
 
+    !WHL TODO - Define kinbcmask_east and _north
     do j = 1, ny-1
        do i = 1, nx-1
 
@@ -1565,17 +1685,27 @@
        enddo
     enddo
 
-    call glissade_stagger(nx,            ny,         &
-!!                          thck,         stagthck,   &
-                          thck_adjusted, stagthck,   &
-                          ice_plus_land_mask,   &
-                          stagger_margin_in = 1)
+!    call glissade_stagger(nx,            ny,         &
+!                          thck_adjusted, stagthck,   &
+!                          ice_plus_land_mask,   &
+!                          stagger_margin_in = 1)
 
-    call glissade_stagger(nx,            ny,         &
-!!                          usrf,         stagusrf,   &
-                          usrf_adjusted, stagusrf,   &
-                          ice_plus_land_mask,   &
-                          stagger_margin_in = 1)
+!    call glissade_stagger(nx,            ny,         &
+!                          usrf_adjusted, stagusrf,   &
+!                          ice_plus_land_mask,   &
+!                          stagger_margin_in = 1)
+
+    ! Interpolate thck and usrf to cell edges
+
+    call glissade_stagger_edge(nx,            ny,         &
+                               thck_adjusted,             &
+                               thck_east,     thck_north, &
+                               ice_plus_land_mask)
+
+    call glissade_stagger_edge(nx,            ny,         &
+                               usrf_adjusted,             &
+                               usrf_east,     usrf_north, &
+                               ice_plus_land_mask)
 
     if (verbose_gridop .and. this_rank == rtest) then
        print*, ' '
@@ -1588,18 +1718,27 @@
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'stagthck, itest, jtest, rank =', itest, jtest, rtest
+       print*, 'thck_east, itest, jtest, rank =', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stagthck(i,j)
+             write(6,'(f10.3)',advance='no') thck_east(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck_north, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck_north(i,j)
           enddo
           write(6,*) ' '
        enddo
     endif
 
     !------------------------------------------------------------------------------
-    ! Compute the surface elevation gradient on the staggered grid
+    ! Compute the surface elevation gradient at cell edges
     ! (requires that usrf is up to date in halo cells)
     !
     ! Possible settings for whichgradient_margin:
@@ -1607,8 +1746,8 @@
     !   HO_GRADIENT_MARGIN_HYBRID = 1
     !   HO_GRADIENT_MARGIN_MARINE = 2
     !
-    ! gradient_margin = 0 computes gradients at all edges, even if one cell
-    !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
+    ! gradient_margin = 0 computes gradients at all edges, even if one cell is ice-free.
+    !  This is what Glide does, but is not appropriate if we have ice-covered
     !  marine-based cells lying above ice-free ocean cells, because the gradient is too big.
     ! gradient_margin_in = 1 computes gradients at edges with
     !  (1) ice-covered cells on either side, or
@@ -1624,31 +1763,38 @@
     !  in regions of steep coastal topography. Some input Greenland data sets have
     !  slopes of up to ~0.3 between adjacent grid cells, leading to very large velocities
     !  even with a no-slip basal boundary condition. 
-    !
-    ! There are three options for whichgradient:
-    ! (0) centered
-    ! (1) first-order upstream
-    ! (2) second-order upstream.
-    ! Centered gradients are the default, but an upstream gradient may be preferred
-    !  to damp checkerboard noise.
     !------------------------------------------------------------------------------
 
 !pw call t_startf('glissade_gradient')
 
-    call glissade_surface_elevation_gradient(nx,           ny,          &
-                                             dx,           dy,          &
-                                             itest, jtest, rtest,       &
-                                             active_ice_mask,           &
-                                             land_mask,                 &
-                                             usrf,         thck,        &
-                                             topg,         eus,         &
-                                             thklim,                    &
-                                             thck_gradient_ramp,        &
-                                             dusrf_dx,     dusrf_dy,    &
-                                             whichgradient,             &
-                                             whichgradient_margin,      &
-                                             max_slope = max_slope)
+!    call glissade_surface_elevation_gradient(nx,           ny,          &
+!                                             dx,           dy,          &
+!                                             itest, jtest, rtest,       &
+!                                             active_ice_mask,           &
+!                                             land_mask,                 &
+!                                             usrf,         thck,        &
+!                                             topg,         eus,         &
+!                                             thklim,                    &
+!                                             thck_gradient_ramp,        &
+!                                             dusrf_dx,     dusrf_dy,    &
+!                                             whichgradient,             &
+!                                             whichgradient_margin,      &
+!                                             max_slope = max_slope)
 
+    call glissade_surface_elevation_gradient_edges(&
+       nx,             ny,             &
+       dx,             dy,             &
+       itest,  jtest,  rtest,          &
+       active_ice_mask,                &
+       land_mask,                      &
+       usrf,           thck,           &
+       topg,           eus,            &
+       thklim,                         &
+       thck_gradient_ramp,             &
+       dusrf_dx_east,  dusrf_dy_east,  &
+       dusrf_dx_north, dusrf_dy_north, &
+       whichgradient_margin,           &
+       max_slope)
 !pw call t_stopf('glissade_gradient')
 
     if (verbose_glp .and. this_rank==rtest) then
@@ -1765,18 +1911,23 @@
     !  unique local ID to each such node.
     !------------------------------------------------------------------------------
 
-!pw call t_startf('glissade_get_vertex_geom')
-    call get_vertex_geometry(nx,           ny,              &   
-                             nz,           nhalo,           &
-                             dx,           dy,              &
-                             active_ice_mask,               &
-                             xVertex,      yVertex,         &
-                             active_cell,  active_vertex,   &
-                             nNodesSolve,  nVerticesSolve,  &
-                             nodeID,       vertexID,        &
-                             iNodeIndex,   jNodeIndex,  kNodeIndex, &
-                             iVertexIndex, jVertexIndex)
-!pw call t_stopf('glissade_get_vertex_geom')
+!!    call get_vertex_geometry(nx,           ny,              &
+    call get_edge_geometry(nx,               ny,              &
+                           nz,               nhalo,           &
+                           dx,               dy,              &
+                           active_ice_mask,  active_cell,          &
+!!                                 xVertex,      yVertex,              &
+                           x_east,           y_east,               &
+                           x_north,          y_north,              &
+!!                                 active_vertex,        &
+                           active_edge_east, active_edge_north,    &
+!!                           nNodesSolve,  nVerticesSolve,  &
+                           nNodesSolve,      nEdgesSolve,  &
+!!                           nodeID,       vertexID,        &
+                           nodeID_east,      nodeID_north,         &
+                           edgeID_east,      edgeID_north,         &
+                           iNodeIndex,       jNodeIndex,  kNodeIndex, &
+                           iVertexIndex,     jVertexIndex)
 
     ! Zero out the velocity for inactive vertices
     do j = staggered_jlo, staggered_jhi    ! locally owned vertices only
@@ -1791,6 +1942,8 @@
           endif
        enddo
     enddo
+
+    !WHL - Not sure these are needed for native PCG solvers?
 
     ! Assign the appropriate local ID to vertices and nodes in the halo.
     ! NOTE: This works for single-processor runs with periodic BCs
@@ -1853,31 +2006,63 @@
                                  itest, jtest,  rtest)
 
     !------------------------------------------------------------------------------
-    ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
+    ! For the HO_BABC_BETA_BPMP option, compute a mask of edges where the bed is at
     ! the pressure melting point, resulting in lower traction.
     !------------------------------------------------------------------------------
 
     ! initialize to 0 everywhere
-    model%basal_physics%bpmp_mask(:,:) = 0
+    !WHL TODO - Remove bpmp_mask from the derived type?
+!!    model%basal_physics%bpmp_mask(:,:) = 0
   
+    !WHL - Interpolated to edges
+
     if (whichbabc == HO_BABC_BETA_BPMP) then
 
        ! interpolate bed temperature to vertices
        ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation
-       call glissade_stagger(nx,           ny,           &
-                             temp(nz,:,:), stagbedtemp,  &
-                             ice_mask,     stagger_margin_in = 1)
+!       call glissade_stagger(nx,           ny,           &
+!                             temp(nz,:,:), stagbedtemp,  &
+!                             ice_mask,     stagger_margin_in = 1)
        
        ! interpolate bed pmp temperature to vertices
-       call glissade_stagger(nx,           ny,           &
-                             bpmp(:,:),    stagbedpmp(:,:), &
-                             ice_mask,     stagger_margin_in = 1)
+!       call glissade_stagger(nx,           ny,           &
+!                             bpmp(:,:),    stagbedpmp(:,:), &
+!                             ice_mask,     stagger_margin_in = 1)
 
        ! compute a bed pmp mask at vertices; this mask is passed to calcbeta below
        ! Note: The bed is considered thawed if the interpolated bed temperature is
        !       within pmp_threshold of the interpolated pmp temperature.
-       where (stagbedtemp >= stagbedpmp - pmp_threshold .and. active_vertex)
-          model%basal_physics%bpmp_mask = 1
+!       where (stagbedtemp >= stagbedpmp - pmp_threshold .and. active_vertex)
+!          model%basal_physics%bpmp_mask = 1
+!       endwhere
+
+       ! Interpolate bed temperature and pmp to edges
+       ! Note: Only ice-covered cells are included in the interpolation.
+       call glissade_stagger_edge(&
+            nx,           ny,            &
+            temp(nz,:,:),                &
+            bedtemp_east, bedtemp_north, &
+            ice_mask)
+
+       call glissade_stagger_edge(&
+            nx,           ny,            &
+            bpmp(:,:),                   &
+            bedpmp_east,  bedpmp_north,  &
+            ice_mask)
+
+       ! compute a bed pmp mask at edges; this mask is passed to calcbeta below
+       ! Note: The bed is considered thawed if the interpolated bed temperature is
+       !       within pmp_threshold of the interpolated pmp temperature.
+       where (bedtemp_east >= bedpmp_east - pmp_threshold .and. active_edge_east)
+          bpmp_mask_east = 1
+       elsewhere
+          bpmp_mask_east = 0
+       endwhere
+
+       where (bedtemp_north >= bedpmp_north - pmp_threshold .and. active_edge_north)
+          bpmp_mask_north = 1
+       elsewhere
+          bpmp_mask_north = 0
        endwhere
 
     endif   ! HO_BABC_BETA_BPMP
@@ -1924,7 +2109,7 @@
     endif
 
     !------------------------------------------------------------------------------
-    ! If using SLAP solver, then allocate space for the sparse matrix (A), rhs (b), 
+    ! If using the SLAP solver, then allocate space for the sparse matrix (A), rhs (b),
     !  answer (x), and residual vector (Ax-b).
     !------------------------------------------------------------------------------
 
@@ -1988,6 +2173,8 @@
     outer_it_criterion = 1.0d10   ! guarantees at least one loop
     outer_it_target    = 1.0d-12
 
+    !WHL - TODO - Later, implement the accelerated Picard option for the edge solver.
+
     ! Set initial values for the accelerated Picard solver
 
     if (accel_picard) then
@@ -2021,33 +2208,66 @@
 
     call t_startf('glissade_load_vector_gravity')
 
-    call load_vector_gravity(nx,               ny,              &
-                             nz,               nhalo,           &
-                             sigma,            stagwbndsigma,   &
-                             dx,               dy,              &
-                             active_cell,                       &
-                             active_vertex,                     &
-                             xVertex,          yVertex,         &
-                             stagusrf,         stagthck,        &
-                             dusrf_dx,         dusrf_dy,        &
-                             whichassemble_taud,                &
-                             loadu,            loadv)
+!    call load_vector_gravity(nx,               ny,              &
+!                             nz,               nhalo,           &
+!                             sigma,            stagwbndsigma,   &
+!                             dx,               dy,              &
+!                             active_cell,                       &
+!                             active_vertex,                     &
+!                             xVertex,          yVertex,         &
+!                             stagusrf,         stagthck,        &
+!                             dusrf_dx,         dusrf_dy,        &
+!                             whichassemble_taud,                &
+!                             loadu,            loadv)
        
+    call load_vector_gravity_edges(&
+         nx,               ny,                &
+         nz,               nhalo,             &
+         sigma,            stagwbndsigma,     &
+         dx,               dy,                &
+         active_cell,                         &
+         active_edge_east, active_edge_north, &
+         thck_east,        thck_north,        &
+         dusrf_dx_east,    dusrf_dy_east,     &
+         dusrf_dx_north,   dusrf_dy_north,    &
+         loadu_east,       loadv_east,        &
+         loadu_north,      loadv_north)
+
     call t_stopf('glissade_load_vector_gravity')
 
     ! Compute components of gravitational driving stress
-    taudx(:,:) = 0.d0
-    taudy(:,:) = 0.d0
-    do j = 1, ny-1
-       do i = 1, nx-1
+!    taudx(:,:) = 0.d0
+!    taudy(:,:) = 0.d0
+!    do j = 1, ny-1
+!       do i = 1, nx-1
+!          do k = 1, nz
+!             taudx(i,j) = taudx(i,j) + loadu(k,i,j)
+!             taudy(i,j) = taudy(i,j) + loadv(k,i,j)
+!          enddo
+!       enddo
+!    enddo
+!    taudx(:,:) = taudx(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
+!    taudy(:,:) = taudy(:,:) * vol0/(dx*dy)
+
+    taudx_east(:,:) = 0.d0
+    taudy_east(:,:) = 0.d0
+    taudx_north(:,:) = 0.d0
+    taudy_north(:,:) = 0.d0
+
+    do j = 1, ny
+       do i = 1, nx
           do k = 1, nz
-             taudx(i,j) = taudx(i,j) + loadu(k,i,j)
-             taudy(i,j) = taudy(i,j) + loadv(k,i,j)
+             taudx_east(i,j)  = taudx_east(i,j) + loadu_east(k,i,j)
+             taudy_east(i,j)  = taudy_east(i,j) + loadv_east(k,i,j)
+             taudx_north(i,j) = taudx_north(i,j) + loadu_north(k,i,j)
+             taudy_north(i,j) = taudy_north(i,j) + loadv_north(k,i,j)
           enddo
        enddo
     enddo
-    taudx(:,:) = taudx(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
-    taudy(:,:) = taudy(:,:) * vol0/(dx*dy)
+    taudx_east(:,:)  = taudx_east(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
+    taudy_east(:,:)  = taudy_east(:,:) * vol0/(dx*dy)
+    taudx_north(:,:) = taudx_north(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
+    taudy_north(:,:) = taudy_north(:,:) * vol0/(dx*dy)
 
     if (verbose_load .and. this_rank==rtest) then
        ! Note: The first of these quantities is the load vector on the rhs of the matrix.
@@ -2057,29 +2277,29 @@
        !       If which_ho_assemble_taud = HO_ASSEMBLE_TAUD_STANDARD, they can differ substantially.
 
        print*, ' '
-       print*, 'vert sum of grav load vector, rank =', rtest
+       print*, 'vert sum of grav load vector, taudx_east, rank =', rtest
        do j = jtest+1, jtest-1, -1
           write(6,'(a5)',advance='no') '    '
           do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') taudx(i,j)
+             write(6,'(f10.0)',advance='no') taudx_east(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
-       print*, 'rho*g*H*ds/dx, rank =', rtest
+       print*, 'rho*g*H*ds_dx_east, rank =', rtest
        do j = jtest+1, jtest-1, -1
           write(6,'(a5)',advance='no') '    '
           do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') -rhoi*grav*stagthck(i,j)*dusrf_dx(i,j)
+             write(6,'(f10.0)',advance='no') -rhoi*grav*stagthck(i,j)*dusrf_dx_east(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
-       print*, 'Starting uvel_2d, rank =', rtest
+       print*, 'Starting u_east_2d, rank =', rtest
        do j = jtest+1, jtest-1, -1
           write(6,'(a5)',advance='no') '    '
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') uvel_2d(i,j)
+             write(6,'(f10.2)',advance='no') u_east_2d(i,j)
           enddo
           print*, ' '
        enddo       
@@ -2089,6 +2309,8 @@
     ! Lateral pressure at vertical ice edge.
     ! Inactive cells with calving_front_mask = 1 are treated as if they were ice-free ocean.
     !------------------------------------------------------------------------------
+
+    !WHL  TODO - Write an edge version of this subroutine (for the confined shelf problem)
 
     call t_startf('glissade_load_vector_lateral_bc')
     call load_vector_lateral_bc(nx,               ny,              &
@@ -2112,6 +2334,8 @@
     !       using custom 2D subroutines. However, this would require extra code and would
     !       save little work, since the load vector is computed only once per timestep.
     !------------------------------------------------------------------------------
+
+    !WHL TODO - Sum over edge arrays.
 
     if (solve_2d) then
 
@@ -2288,6 +2512,8 @@
                    ! Note: The updated quantities needed for Picard acceleration are ubas and vbas (for calcbeta)
                    !       along with btractx and btracty (for effective viscosity).
                    !       We do not need velocity at all levels, but it is simplest just to call compute_3d_velocity_diva.
+
+                   !WHL TODO - Write an edge version of this subroutine
 
                    call compute_3d_velocity_diva(nx,              ny,                   &
                                                  nz,              sigma,                &
@@ -2623,6 +2849,8 @@
 
           endif  ! verbose_beta
 
+          !WHL TODO - Write an edge version of calcbeta. Start with large beta, no slip.
+
           call calcbeta (whichbabc,                        &
                          dx,            dy,                &
                          nx,            ny,                &
@@ -2678,26 +2906,42 @@
 
              ! Assemble the matrix
 
+             !WHL - Wrote an edge version of matrix assembly
+
              call assemble_stiffness_matrix_2d(nx,               ny,              &
                                                nz,                                &
                                                sigma,            stagsigma,       &
                                                nhalo,                             &
                                                active_cell,                       &
-                                               xVertex,          yVertex,         &
-                                               uvel_2d,          vvel_2d,         &
-                                               stagusrf,         stagthck,        &
+!!                                               xVertex,          yVertex,         &
+                                               x_north,           y_east,          &
+                                               x_north,          y_north,         &
+!!                                               uvel_2d,          vvel_2d,         &
+                                               u_east_2d,        v_east_2d,       &
+                                               u_north_2d,       v_north_2d,      &
+!!                                               stagusrf,         stagthck,        &
+                                               usrf_east,        thck_east,       &
+                                               usrf_north,       thck_north,      &
                                                flwa,             flwafact,        &
                                                whichapprox,                       &
                                                whichefvs,        efvs_constant,   &
                                                efvs,                              &
-                                               Auu_2d,           Auv_2d,          &
-                                               Avu_2d,           Avv_2d,          &
+!!                                               Auu,              Auv,             &
+!!                                               Avu,              Avv,             &
+                                               Aue_ue,  Aue_un,  Aue_ve,  Aue_vn, &
+                                               Aun_ue,  Aun_un,  Aun_ve,  Aun_vn, &
+                                               Ave_ue,  Ave_un,  Ave_ve,  Ave_vn, &
+                                               Avn_ue,  Avn_un,  Avn_ve,  Avn_vn, &
                                                thck,                              &
-                                               btractx,          btracty,         &
+!!                                               btractx,          btracty,         &
+                                               btractx_east,     btracty_east,    &
+                                               btractx_north,    btracty_north,   &
                                                omega_k,          omega,   &
                                                efvs_qp_3d)
 
              if (whichapprox == HO_APPROX_DIVA) then
+
+                !WHL TODO - Do these computations at cell edges
 
                 ! Halo update for omega
                 ! This is needed so that beta_eff, computed below, will be correct in halos
@@ -2788,6 +3032,8 @@
                    enddo
                 endif
 
+                !WHL TODO - Rewrite for cell edges
+
                 ! Incorporate basal sliding boundary conditions, based on beta_eff
 
                 call basal_sliding_bc_2d(nx,                ny,              &
@@ -2802,6 +3048,8 @@
              else    ! SSA
 
                 ! Incorporate basal sliding boundary conditions, based on beta_internal
+
+                !WHL TODO - Rewrite for cell edges
 
                 call basal_sliding_bc_2d(nx,                ny,              &
                                       nNodeNeighbors_2d, nhalo,           &
@@ -2837,6 +3085,8 @@
                 print*, 'Call Dirichlet_bc'
              endif
 
+             !WHL TODO - Rewrite dirichlet routine for cell edges
+
              call t_startf('glissade_dirichlet_2d')
              call dirichlet_boundary_conditions_2d(nx,                       ny,                      &
                                                    nhalo,                                             &
@@ -2852,6 +3102,8 @@
              ! Halo updates for matrices
              !---------------------------------------------------------------------------
      
+             !WHL TODO - Do halo updates for a larger set of matrices and vectors
+
              call t_startf('glissade_halo_Aijm')
              do m = 1, nNodeNeighbors_2d
                 call staggered_parallel_halo(Auu_2d(:,:,m))
@@ -2879,6 +3131,8 @@
              !  that should be symmetric.  Otherwise the code aborts.
              !---------------------------------------------------------------------------
 
+             !WHL TODO - Rewrite for the new set of matrices
+
              if (check_symmetry) then
                 call t_startf('glissade_chk_symmetry')
                 call check_symmetry_assembled_matrix_2d(nx,          ny,      &
@@ -2893,6 +3147,7 @@
              ! Count the total number of nonzero entries on all processors.
              !---------------------------------------------------------------------------
 
+             !WHL TODO - Halo updates for a larger set of matrices
              call count_nonzeros_2d(nx,      ny,     &
                                     Auu_2d,  Auv_2d, &
                                     Avu_2d,  Avv_2d, &
@@ -3145,6 +3400,8 @@
              uvel(:,:,:) = 0.d0
              vvel(:,:,:) = 0.d0
 
+             !WHL TODO - Pass other edge-based fields, including beta_internal.
+             !           Maybe not bu and bv?
              call t_startf('glissade_velo_higher_scale_outp')
              call glissade_velo_higher_scale_output(thck,    usrf,          &
                                                     topg,                   &
@@ -3153,8 +3410,12 @@
                                                     beta_internal,          &
                                                     resid_u, resid_v,       &
                                                     bu,      bv,            &
-                                                    uvel,    vvel,          &
-                                                    uvel_2d, vvel_2d,       &
+!!                                                    uvel,    vvel,          &
+!!                                                    uvel_2d, vvel_2d,       &
+                                                    u_east,     v_east,     &
+                                                    u_north,    v_north,    &
+                                                    u_east_2d,  v_east_2d,  &
+                                                    u_north_2d, v_north_2d, &
                                                     btractx, btracty,       &
                                                     taudx,   taudy,         &
                                                     tau_xz,  tau_yz,        &
@@ -3182,6 +3443,8 @@
           endif
 
           if (solve_2d) then
+
+             !WHL TODO - Rewrite for the edge-based residual vector
 
              call t_startf('glissade_resid_vec')
              call compute_residual_vector_2d(nx,          ny,            &
@@ -3220,6 +3483,8 @@
                 endif
 
                 if (counter >= 2) then
+
+                   !WHL TODO - Rewrite for edge solve
 
                    call evaluate_accelerated_picard_2d(nx,            ny,                   &
                                                        L2_norm,       L2_norm_large,        &
@@ -3517,6 +3782,8 @@
 
              call t_startf('glissade_pcg_slv_struct')
 
+             !WHL TODO - Write an edge version
+
              if (whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
                                                                 ! (better scaling for large problems)
                 call pcg_solver_chrongear_2d(nx,           ny,            &
@@ -3532,6 +3799,8 @@
 
              else   ! use standard PCG algorithm
              
+                !WHL TODO - Write an edge version (do this first, before chrongear version?)
+
                 call pcg_solver_standard_2d(nx,           ny,            &
                                             nhalo,                       &
                                             indxA_2d,     active_vertex, &
@@ -3692,6 +3961,8 @@
 
        if (solve_2d) then
 
+          !WHL TODO: Add updates here
+
           !------------------------------------------------------------------------
           ! Halo updates for uvel and vvel
           !------------------------------------------------------------------------
@@ -3750,6 +4021,8 @@
           ! Do some calculations specific to the DIVA scheme.
           ! Given the new 2D velocity, compute the new basal traction and 3D velocity.
           !---------------------------------------------------------------------------
+
+          !WHL TODO - Adapt to edge solve
 
           if (whichapprox == HO_APPROX_DIVA) then
 
@@ -3875,6 +4148,8 @@
     ! Note: We store redundant 3D residual info rather than creating a separate 2D residual array.
     !------------------------------------------------------------------------------
 
+    !WHL TODO - Adapt to edge solve
+
     if (whichapprox == HO_APPROX_SSA) then ! fill the 3D velocity and residual arrays with the 2D values
 
        do k = 1, nz
@@ -3891,27 +4166,6 @@
           resid_v(k,:,:) = resid_v_2d(:,:)
        enddo
 
-       !WHL - Commented out because the 3D velocity is now computed after each iteration.
-
-!       ! Interpolate omega_k to the staggered grid
-
-!       do k = 1, nz
-!          call glissade_stagger(nx,              ny,                           &
-!                                omega_k(k,:,:),  stag_omega_k(k,:,:),  &
-!                                ice_mask,        stagger_margin_in = 1)
-!       enddo
-
-!       call compute_3d_velocity_diva(nx,              ny,                   &
-!                                     nz,              sigma,                &
-!                                     active_vertex,   diva_level_index,     &
-!                                     stag_omega_k,    stag_omega,           &
-!                                     btractx,         btracty,              &
-!                                     uvel_2d,         vvel_2d,              &
-!                                     uvel,            vvel)
-
-!       call staggered_parallel_halo(uvel)
-!       call staggered_parallel_halo(vvel)
-
        if (verbose_diva .and. this_rank==rtest) then
           print*, 'Computed 3D velocity, DIVA'
           i = itest
@@ -3926,6 +4180,8 @@
     ! Compute the components of the 3D stress tensor.
     ! These are diagnostic, except that tau_eff is used in the temperature calculation.
     !------------------------------------------------------------------------------
+
+    !WHL TODO - Adapt to edge solve
 
     call compute_internal_stress(nx,            ny,            &
                                  nz,            sigma,         &
@@ -3944,6 +4200,8 @@
     !------------------------------------------------------------------------------
     ! Compute the heat flux due to basal friction for each grid cell.
     !------------------------------------------------------------------------------
+
+    !WHL TODO - Adapt to edge solve
 
     call compute_basal_friction_heatflx(nx,            ny,            &
                                         nhalo,                        &
@@ -3969,6 +4227,8 @@
     !------------------------------------------------------------------------------
     ! Compute the components of basal traction.
     !------------------------------------------------------------------------------
+
+    !WHL TODO - Adapt to edge solve
 
     btractx(:,:) = beta_internal(:,:) * uvel(nz,:,:)
     btracty(:,:) = beta_internal(:,:) * vvel(nz,:,:)
@@ -4011,6 +4271,8 @@
     !------------------------------------------------------------------------------
     ! Clean up
     !------------------------------------------------------------------------------
+
+    !WHL TODO - Clean up edge solve
 
     call t_startf('glissade_vhs_cleanup')
     if (whichsparse <= HO_SPARSE_GMRES) then  ! using SLAP solver
@@ -4057,6 +4319,8 @@
     ! Note: bfricflx already has the desired units (W/m^2).
     !------------------------------------------------------------------------------
 
+    !WHL TODO - Rescale for edge solve
+
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
                                            topg,                   &
@@ -4065,8 +4329,12 @@
                                            beta_internal,          &
                                            resid_u, resid_v,       &
                                            bu,      bv,            &
-                                           uvel,    vvel,          &
-                                           uvel_2d, vvel_2d,       &
+!!                                           uvel,    vvel,          &
+!!                                           uvel_2d, vvel_2d,       &
+                                           u_east,     v_east,     &
+                                           u_north,    v_north,    &
+                                           u_east_2d,  v_east_2d,  &
+                                           u_north_2d, v_north_2d, &
                                            btractx, btracty,       &
                                            taudx,   taudy,         &
                                            tau_xz,  tau_yz,        &
@@ -4087,8 +4355,12 @@
                                               bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
-                                              uvel,    vvel,          &
-                                              uvel_2d, vvel_2d)
+!!                                              uvel,    vvel,          &
+!!                                              uvel_2d, vvel_2d)
+                                              u_east,     v_east,     &
+                                              u_north,    v_north,    &
+                                              u_east_2d,  v_east_2d,  &
+                                              u_north_2d, v_north_2d)
 
     !--------------------------------------------------------
     ! Convert input variables (generally dimensionless)
@@ -4116,10 +4388,14 @@
 
     real(dp), dimension(:,:), intent(inout)  ::  &
        btractx, btracty,  &    ! components of basal traction (Pa)
-       uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
+!!       uvel_2d, vvel_2d       ! components of 2D velocity (m/yr)
+       u_east_2d,  v_east_2d, & ! components of 2D velocity (m/yr)
+       u_north_2d, v_north_2d   ! components of 2D velocity (m/yr)
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
-       uvel, vvel              ! components of 3D velocity (m/yr)
+!!       uvel, vvel             ! components of 3D velocity (m/yr)
+       u_east,  v_east,      &  ! components of 3D velocity (m/yr)
+       u_north, v_north         ! components of 3D velocity (m/yr)
 
     ! grid cell dimensions: rescale from dimensionless to m
     dx = dx * len0
@@ -4146,12 +4422,21 @@
     ! basal traction: rescale from dimensionless to Pa
     btractx = btractx * tau0
     btracty = btracty * tau0
+    !WHL TODO - Scale btract east and north?
 
     ! ice velocity: rescale from dimensionless to m/yr
-    uvel = uvel * (vel0*scyr)
-    vvel = vvel * (vel0*scyr)
-    uvel_2d = uvel_2d * (vel0*scyr)
-    vvel_2d = vvel_2d * (vel0*scyr)
+!!    uvel = uvel * (vel0*scyr)
+!!    vvel = vvel * (vel0*scyr)
+!!    uvel_2d = uvel_2d * (vel0*scyr)
+!!    vvel_2d = vvel_2d * (vel0*scyr)
+    u_east  = u_east * (vel0*scyr)
+    v_east  = v_east * (vel0*scyr)
+    u_north = u_north * (vel0*scyr)
+    v_north = v_north * (vel0*scyr)
+    u_east_2d  = u_east_2d * (vel0*scyr)
+    v_east_2d  = v_east_2d * (vel0*scyr)
+    u_north_2d = u_north_2d * (vel0*scyr)
+    v_north_2d = v_north_2d * (vel0*scyr)
 
   end subroutine glissade_velo_higher_scale_input
 
@@ -4164,8 +4449,12 @@
                                                beta_internal,           &
                                                resid_u, resid_v,        &
                                                bu,      bv,             &
-                                               uvel,    vvel,           &
-                                               uvel_2d, vvel_2d,        &
+!!                                               uvel,    vvel,           &
+!!                                               uvel_2d, vvel_2d,        &
+                                               u_east,     v_east,      &
+                                               u_north,    v_north,     &
+                                               u_east_2d,  v_east_2d,   &
+                                               u_north_2d, v_north_2d,  &
                                                btractx, btracty,        &
                                                taudx,   taudy,          &
                                                tau_xz,  tau_yz,         &
@@ -4192,12 +4481,16 @@
        beta_internal            ! basal traction parameter (Pa/(m/yr))
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
-       uvel, vvel,    &         ! components of 3D velocity (m/yr)
+!!       uvel, vvel,    &         ! components of 3D velocity (m/yr)
+       u_east, v_east,    &     ! components of 3D velocity, east edges (m/yr)
+       u_north, v_north,  &     ! components of 3D velocity, north edges (m/yr)
        resid_u, resid_v,  &     ! components of residual Ax - b (Pa/m)
        bu, bv                   ! components of b in Ax = b (Pa/m)
 
     real(dp), dimension(:,:), intent(inout) ::  &
-       uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
+!!       uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
+       u_east_2d, v_east_2d,   &! components of 2D velocity, east edges (m/yr)
+       u_north_2d, v_north_2d, &! components of 2D velocity, north edges (m/yr)
        btractx, btracty,       &! components of basal traction (Pa)
        taudx,   taudy           ! components of driving stress (Pa)
 
@@ -4225,10 +4518,18 @@
     beta_internal = beta_internal / (tau0/(vel0*scyr))
 
     ! Convert velocity from m/yr to dimensionless units
-    uvel = uvel / (vel0*scyr)
-    vvel = vvel / (vel0*scyr)
-    uvel_2d = uvel_2d / (vel0*scyr)
-    vvel_2d = vvel_2d / (vel0*scyr)
+!!    uvel = uvel / (vel0*scyr)
+!!    vvel = vvel / (vel0*scyr)
+!!    uvel_2d = uvel_2d / (vel0*scyr)
+!!    vvel_2d = vvel_2d / (vel0*scyr)
+    u_east = u_east / (vel0*scyr)
+    v_east = v_east / (vel0*scyr)
+    u_north = u_north / (vel0*scyr)
+    v_north = v_north / (vel0*scyr)
+    u_east_2d = u_east_2d / (vel0*scyr)
+    v_east_2d = v_east_2d / (vel0*scyr)
+    u_north_2d = u_north_2d / (vel0*scyr)
+    v_north_2d = v_north_2d / (vel0*scyr)
 
     ! Convert residual and rhs from Pa/m to dimensionless units
     resid_u = resid_u / (tau0/len0)
@@ -4252,16 +4553,24 @@
 
 !****************************************************************************
 
-  subroutine get_vertex_geometry(nx,           ny,                   &   
-                                 nz,           nhalo,                &
-                                 dx,           dy,                   &
-                                 active_ice_mask,                    &
-                                 xVertex,      yVertex,              &
-                                 active_cell,  active_vertex,        &
-                                 nNodesSolve,  nVerticesSolve,       &
-                                 nodeID,       vertexID,             & 
-                                 iNodeIndex,   jNodeIndex,  kNodeIndex, &
-                                 iVertexIndex, jVertexIndex)
+!!  subroutine get_vertex_geometry(nx,               ny,                   &
+  subroutine get_edge_geometry(nx,               ny,                   &
+                               nz,               nhalo,                &
+                               dx,               dy,                   &
+                               active_ice_mask,  active_cell,          &
+!!                                 xVertex,      yVertex,              &
+                               x_east,           y_east,               &
+                               x_north,          y_north,              &
+!!                                 active_vertex,        &
+                               active_edge_east, active_edge_north,    &
+!!                               nNodesSolve,      nVerticesSolve,       &
+                               nNodesSolve,      nEdgesSolve,       &
+!!                               nodeID,           vertexID,           &
+                               nodeID_east,      nodeID_north,         &
+                               edgeID_east,      edgeID_north,         &
+                               iNodeIndex,       jNodeIndex,  kNodeIndex, &
+!!                               iVertexIndex,     jVertexIndex)
+                               iEdgeIndex,       jEdgeIndex)
                             
     !----------------------------------------------------------------
     ! Compute coordinates for each vertex.
@@ -4289,56 +4598,82 @@
     integer, dimension(nx,ny), intent(in) ::  &
        active_ice_mask        ! = 1 for cells with active ice, else = 0
 
-    real(dp), dimension(nx-1,ny-1), intent(out) :: &
-       xVertex, yVertex       ! x and y coordinates of each vertex
-
     logical, dimension(nx,ny), intent(out) :: &
        active_cell            ! true for active cells 
-                              ! (thck > thklim, bordering a locally owned vertex)
+                              ! (thck > thklim, bordering a locally owned edge)
 
-    logical, dimension(nx-1,ny-1), intent(out) :: &
-       active_vertex          ! true for vertices of active cells
+    real(dp), dimension(nx,ny), intent(out) :: &
+!!       xVertex, yVertex       ! x and y coordinates of each vertex
+         x_east, y_east,    & ! x and y coordinates of east edges
+         x_north, y_north     ! x and y coordinates of north edges
+
+    logical, dimension(nx,ny), intent(out) :: &
+!!       active_vertex          ! true for vertices of active cells
+       active_edge_east,    & ! true for east-west edges of active cells
+       active_edge_north      ! true for north-south edges of active cells
 
     ! The remaining input/output arguments are for the SLAP solvers
 
     integer, intent(out) :: &
        nNodesSolve,         & ! number of locally owned nodes where we solve for velocity
-       nVerticesSolve         ! number of locally owned vertices where we solve for velocity
+!!       nVerticesSolve         ! number of locally owned vertices where we solve for velocity
+       nEdgesSolve            ! number of locally owned edges where we solve for velocity
 
-    integer, dimension(nz,nx-1,ny-1), intent(out) ::  &
-       nodeID                 ! local ID for each node where we solve for velocity
+    integer, dimension(nz,nx,ny), intent(out) ::  &
+!!       nodeID                 ! local ID for each node where we solve for velocity
+       nodeID_east,         & ! local ID for each east node where we solve for velocity
+       nodeID_north           ! local ID for each north node where we solve for velocity
 
     integer, dimension(nx-1,ny-1), intent(out) ::  &
-       vertexID               ! local ID for each vertex where we solve for velocity
+!!       vertexID               ! local ID for each vertex where we solve for velocity
+       edgeID_east,         & ! local ID for each east node where we solve for velocity
+       edgeID_north           ! local ID for each north node where we solve for velocity
 
     integer, dimension((nx-1)*(ny-1)*nz), intent(out) ::   &
        iNodeIndex, jNodeIndex, kNodeIndex   ! i, j and k indices of nodes
 
     integer, dimension((nx-1)*(ny-1)), intent(out) ::   &
-       iVertexIndex, jVertexIndex   ! i and j indices of vertices
+!!       iVertexIndex, jVertexIndex   ! i and j indices of vertices
+       iEdgeIndex, jEdgeIndex   ! i and j indices of edges
 
     !---------------------------------------------------------
     ! Local variables
     !---------------------------------------------------------
 
     integer :: i, j, k
+    real(dp) :: ir, jr
 
     !----------------------------------------------------------------
-    ! Compute the x and y coordinates of each vertex.
-    ! By convention, vertex (i,j) lies at the NE corner of cell(i,j).
+!!    ! Compute the x and y coordinates of each vertex.
+!!    ! By convention, vertex (i,j) lies at the NE corner of cell(i,j).
+    ! Compute the x and y coordinates of each east and north cell edge.
     !----------------------------------------------------------------
 
-    xVertex(:,:) = 0.d0
-    yVertex(:,:) = 0.d0
-    do j = 1, ny-1
-    do i = 1, nx-1
-       xVertex(i,j) = dx * i
-       yVertex(i,j) = dy * j
-    enddo
+!    xVertex(:,:) = 0.d0
+!    yVertex(:,:) = 0.d0
+!    do j = 1, ny-1
+!    do i = 1, nx-1
+!       xVertex(i,j) = dx * i
+!       yVertex(i,j) = dy * j
+!    enddo
+!    enddo
+
+    x_east(:,:) = 0.d0
+    y_east(:,:) = 0.d0
+    do j = 1, ny
+       do i = 1, nx
+          ir = real(i,dp)
+          jr = real(j,dp)
+          x_east(i,j)  = dx * ir
+          y_east(i,j)  = dy * (jr - 0.5d0)
+          x_north(i,j) = dx * (ir - 0.5d0)
+          y_north(i,j) = dy * jr
+       enddo
     enddo
 
     ! Identify the active cells.
-    ! Include all cells that border locally owned vertices and contain active ice.
+!!    ! Include all cells that border locally owned vertices and contain active ice.
+    ! Include all cells that border locally owned edges and contain active ice.
 
     active_cell(:,:) = .false.
 
@@ -4350,17 +4685,32 @@
     enddo
     enddo
 
-    ! Identify the active vertices
-    ! Include all vertices of active cells
+!    ! Identify the active vertices
+!    ! Include all vertices of active cells
 
-    active_vertex(:,:) = .false.
+!    active_vertex(:,:) = .false.
+
+!    do j = nhalo+1, ny-nhalo+1
+!    do i = nhalo+1, nx-nhalo+1
+!       if (active_cell(i,j)) then
+!          active_vertex(i-1:i, j-1:j) = .true.  ! all vertices of this cell
+!       endif
+!    enddo
+!    enddo
+
+    ! Identify the active edges
+    ! Include all edges of active cells
+
+    active_edge_east(:,:) = .false.
+    active_edge_north(:,:) = .false.
 
     do j = nhalo+1, ny-nhalo+1
-    do i = nhalo+1, nx-nhalo+1
-       if (active_cell(i,j)) then
-          active_vertex(i-1:i, j-1:j) = .true.  ! all vertices of this cell
-       endif
-    enddo
+       do i = nhalo+1, nx-nhalo+1
+          if (active_cell(i,j)) then
+             active_edge_east (i-1:i, j) = .true.  ! east and west edges of this cell
+             active_edge_north(i, j-1:j) = .true.  ! north and south edges of this cell
+          endif
+       enddo
     enddo
 
     ! Identify and count the nodes where we must solve for the velocity.
@@ -4368,47 +4718,69 @@
     !  when we call the SLAP solver (one processor only).
     ! It is not required by the native PCG solver.
 
-    nVerticesSolve  = 0
-    vertexID(:,:)   = 0
-    iVertexIndex(:) = 0
-    jVertexIndex(:) = 0
+!    nVerticesSolve  = 0
+!    vertexID(:,:)   = 0
+!    iVertexIndex(:) = 0
+!    jVertexIndex(:) = 0
+    nEdgesSolve  = 0
+    edgeID_east(:,:)   = 0
+    edgeID_north(:,:)   = 0
+    iEdgeIndex(:) = 0
+    jEdgeIndex(:) = 0
 
     nNodesSolve   = 0
-    nodeID(:,:,:) = 0
+    nodeID_east(:,:,:) = 0
+    nodeID_north(:,:,:) = 0
     iNodeIndex(:) = 0
     jNodeIndex(:) = 0
     kNodeIndex(:) = 0
 
-    do j = staggered_jlo, staggered_jhi    ! locally owned vertices only
-    do i = staggered_ilo, staggered_ihi
-       if (active_vertex(i,j)) then   ! all nodes in ice column are active
-          nVerticesSolve = nVerticesSolve + 1
-          vertexID(i,j) = nVerticesSolve     ! unique local index for each vertex
-          iVertexIndex(nVerticesSolve) = i
-          jVertexIndex(nVerticesSolve) = j
-          do k = 1, nz               
-             nNodesSolve = nNodesSolve + 1   
-             nodeID(k,i,j) = nNodesSolve     ! unique local index for each node
-             iNodeIndex(nNodesSolve) = i
-             jNodeIndex(nNodesSolve) = j
-             kNodeIndex(nNodesSolve) = k
-           enddo   ! k
-        endif      ! active vertex
-    enddo          ! i
-    enddo          ! j
+!!    do j = staggered_jlo, staggered_jhi    ! locally owned vertices only
+!!    do i = staggered_ilo, staggered_ihi
+!!       if (active_vertex(i,j)) then   ! all nodes in ice column are active
+    do j = nhalo+1, ny-nhalo    ! locally owned edges only
+       do i = nhalo+1, nx-nhalo
+          if (active_edge_east(i,j)) then   ! all nodes in the column are active
+             nEdgesSolve = nEdgesSolve + 1
+             edgeID_east(i,j) = nEdgesSolve     ! unique local index for each vertex
+             iEdgeIndex(nEdgesSolve) = i
+             jEdgeIndex(nEdgesSolve) = j
+             do k = 1, nz
+                nNodesSolve = nNodesSolve + 1
+                nodeID_east(k,i,j) = nNodesSolve     ! unique local index for each node
+                iNodeIndex(nNodesSolve) = i
+                jNodeIndex(nNodesSolve) = j
+                kNodeIndex(nNodesSolve) = k
+             enddo   ! k
+          endif      ! active_edge_east
+          if (active_edge_north(i,j)) then   ! all nodes in the column are active
+             nEdgesSolve = nEdgesSolve + 1
+             edgeID_north(i,j) = nEdgesSolve    ! unique local index for each vertex
+             iEdgeIndex(nEdgesSolve) = i
+             jEdgeIndex(nEdgesSolve) = j
+             do k = 1, nz
+                nNodesSolve = nNodesSolve + 1
+                nodeID_north(k,i,j) = nNodesSolve     ! unique local index for each node
+                iNodeIndex(nNodesSolve) = i
+                jNodeIndex(nNodesSolve) = j
+                kNodeIndex(nNodesSolve) = k
+             enddo   ! k
+          endif      ! active_edge_north
+       enddo         ! i
+    enddo            ! j
 
     if (verbose .and. this_rank==rtest) then
        print*, ' '
-       print*, 'nVerticesSolve, nNodesSolve =', nVerticesSolve, nNodesSolve
+       print*, 'nEdgesSolve, nNodesSolve =', nEdgesSolve, nNodesSolve
     endif
 
-  end subroutine get_vertex_geometry
+  end subroutine get_edge_geometry
 
 !****************************************************************************
 
   subroutine load_vector_gravity(nx,               ny,              &
                                  nz,               nhalo,           &
-                                 sigma,            stagwbndsigma,   & 
+                                 sigma,            stagwbndsigma,   &
                                  dx,               dy,              &
                                  active_cell,                       &
                                  active_vertex,                     &
@@ -4431,7 +4803,7 @@
        stagwbndsigma                 ! stagsigma augmented by sigma = 0 and 1 at upper and lower surfaces
 
     real(dp), intent(in) ::     &
-       dx, dy                        ! grid cell length and width 
+       dx, dy                        ! grid cell length and width
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice and borders a locally owned vertex
@@ -4485,7 +4857,7 @@
        print*, ' '
        print*, 'In load_vector_gravity: itest, jtest, ktest, rtest =', itest, jtest, ktest, rtest
     endif
-                
+
     if (whichassemble_taud == HO_ASSEMBLE_TAUD_LOCAL) then
 
        ! Sum over active vertices
@@ -4622,6 +4994,124 @@
     endif   ! whichasssemble_taud
 
   end subroutine load_vector_gravity
+
+!****************************************************************************
+
+  subroutine load_vector_gravity_edges(&
+       nx,               ny,                &
+       nz,               nhalo,             &
+       sigma,            stagwbndsigma,     &
+       dx,               dy,                &
+       active_cell,                         &
+       active_edge_east, active_edge_north, &
+       thck_east,        thck_north,        &
+       dusrf_dx_east,    dusrf_dy_east,     &
+       dusrf_dx_north,   dusrf_dy_north,    &
+       loadu_east,       loadv_east,        &
+       loadu_north,      loadv_north)
+
+    integer, intent(in) ::      &
+         nx, ny,                &   ! horizontal grid dimensions
+         nz,                    &   ! number of vertical levels at which velocity is computed
+                                    ! Note: the number of elements per column is nz-1
+         nhalo                      ! number of halo layers
+
+    real(dp), dimension(nz), intent(in) ::    &
+         sigma                      ! sigma vertical coordinate
+
+    real(dp), dimension(0:nz), intent(in) ::    &
+         stagwbndsigma              ! stagsigma augmented by sigma = 0 and 1 at upper and lower surfaces
+
+    real(dp), intent(in) ::     &
+         dx, dy                     ! grid cell length and width
+
+    logical, dimension(nx,ny), intent(in) ::  &
+         active_cell                ! true if cell contains ice and borders a locally owned edge
+
+    logical, dimension(nx,ny), intent(in) ::  &
+         active_edge_east,        & ! true for east edges of active cells
+         active_edge_north          ! true for north edges of active cells
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck_east,               & ! ice thickness at east edges (m)
+         thck_north                 ! icethickness at north edges (m)
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         dusrf_dx_east,  dusrf_dy_east, & ! upper surface elevation gradient at east edges (m/m)
+         dusrf_dx_north, dusrf_dy_north   ! upper surface elevation gradient at north edges (m/m)
+
+    real(dp), dimension(nz,nx,ny), intent(inout) ::  &
+         loadu_east,  loadv_east, & ! load vector divided into u and v components, east edges
+         loadu_north, loadv_north   ! load vector divided into u and v components, north edges
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    real(dp)  ::   &
+       dz                 ! element height
+
+    integer :: i, j, k
+
+    if (verbose_load .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'In load_vector_gravity: itest, jtest, ktest, rtest =', itest, jtest, ktest, rtest
+    endif
+
+    ! Note: At least for now, only local assembly is supported.
+    !       That is, the load vector for a given edge depends on the surface gradient at that edge only,
+    !        without using finite-element techniques to average in values from nearby edges.
+
+    ! Sum over active edges
+    do j = 1, ny
+       do i = 1, nx
+
+          if (active_edge_east(i,j)) then
+             if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                print*, 'i, j, dsdx_east, dsdy_east:', i, j, dusrf_dx_east(i,j), dusrf_dy_east(i,j)
+             endif
+
+             do k = 1, nz      ! loop over vertices in this column
+                               ! assume k increases from upper surface to bed
+                dz = thck_east(i,j) * (stagwbndsigma(k) - stagwbndsigma(k-1))
+
+                ! Add the ds/dx and ds/dy terms to the load vector for this node
+                loadu_east(k,i,j) = loadu_east(k,i,j) - rhoi*grav * dx*dy*dz/vol0 * dusrf_dx_east(i,j)
+                loadv_east(k,i,j) = loadv_east(k,i,j) - rhoi*grav * dx*dy*dz/vol0 * dusrf_dy_east(i,j)
+
+                if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, 'k, dz, delta(loadu), delta(loadv):', k, dz, -rhoi*grav*dx*dy*dz/vol0 * dusrf_dx_east(i,j), &
+                                                                        -rhoi*grav*dx*dy*dz/vol0 * dusrf_dy_east(i,j)
+                endif
+             enddo   ! k
+
+          endif   ! active_edge_east
+
+          if (active_edge_north(i,j)) then
+             if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                print*, 'i, j, dsdx_north, dsdy_north:', i, j, dusrf_dx_north(i,j), dusrf_dy_north(i,j)
+             endif
+
+             do k = 1, nz      ! loop over vertices in this column
+                               ! assume k increases from upper surface to bed
+                dz = thck_north(i,j) * (stagwbndsigma(k) - stagwbndsigma(k-1))
+
+                ! Add the ds/dx and ds/dy terms to the load vector for this node
+                loadu_north(k,i,j) = loadu_north(k,i,j) - rhoi*grav * dx*dy*dz/vol0 * dusrf_dx_north(i,j)
+                loadv_north(k,i,j) = loadv_north(k,i,j) - rhoi*grav * dx*dy*dz/vol0 * dusrf_dy_north(i,j)
+
+                if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, 'k, dz, delta(loadu), delta(loadv):', k, dz, -rhoi*grav*dx*dy*dz/vol0 * dusrf_dx_north(i,j), &
+                                                                        -rhoi*grav*dx*dy*dz/vol0 * dusrf_dy_north(i,j)
+                endif
+             enddo   ! k
+
+          endif   ! active_edge_north
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine load_vector_gravity_edges
 
 !****************************************************************************
 
@@ -5145,7 +5635,7 @@
 
     real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
+       Avu, Avv
 
     !---------------------------------------------------------
     ! Local variables
@@ -5341,17 +5831,29 @@
                                           sigma,            stagsigma,       &
                                           nhalo,                             &
                                           active_cell,                       &
-                                          xVertex,          yVertex,         &
-                                          uvel_2d,          vvel_2d,         &
-                                          stagusrf,         stagthck,        &
+!!                                          xVertex,          yVertex,         &
+                                          x_east,           y_east,          &
+                                          x_north,          y_north,         &
+!!                                          uvel_2d,          vvel_2d,         &
+                                          u_east_2d,        v_east_2d,       &
+                                          u_north_2d,       v_north_2d,      &
+!!                                          stagusrf,         stagthck,        &
+                                          usrf_east,        thck_east,       &
+                                          usrf_north,       thck_north,      &
                                           flwa,             flwafact,        &
                                           whichapprox,                       &
                                           whichefvs,        efvs_constant,   &
                                           efvs,                              &
-                                          Auu,              Auv,             &
-                                          Avu,              Avv,             &
+!!                                          Auu,              Auv,             &
+!!                                          Avu,              Avv,             &
+                                          Aue_ue,  Aue_un,  Aue_ve,  Aue_vn, &
+                                          Aun_ue,  Aun_un,  Aun_ve,  Aun_vn, &
+                                          Ave_ue,  Ave_un,  Ave_ve,  Ave_vn, &
+                                          Avn_ue,  Avn_un,  Avn_ve,  Avn_vn, &
                                           thck,                              &
-                                          btractx,          btracty,         &
+!!                                          btractx,          btracty,         &
+                                          btractx_east,     btracty_east,    &
+                                          btractx_north,    btracty_north,   &
                                           omega_k,          omega,           &
                                           efvs_qp_3d)
   
@@ -5382,15 +5884,23 @@
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
 
-    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
-       xVertex, yVertex   ! x and y coordinates of vertices
+    real(dp), dimension(nx,ny), intent(in) ::   &
+!!       xVertex, yVertex   ! x and y coordinates of vertices
+         x_east, y_east,   &  ! x and y coordinates of east edges
+         x_north, y_north     ! x and y coordinates of north edges
 
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       uvel_2d, vvel_2d   ! 2D velocity components (m/yr)
+    real(dp), dimension(nx,ny), intent(in) ::  &
+!!       uvel_2d, vvel_2d   ! 2D velocity components (m/yr)
+         u_east_2d, v_east_2d, & ! 2D velocity components, east edges (m/yr)
+         u_north_2d, v_north_2d  ! 2D velocity components, north edges (m/yr)
 
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stagusrf,       &  ! upper surface elevation on staggered grid (m)
-       stagthck           ! ice thickness on staggered grid (m)
+    real(dp), dimension(nx,ny), intent(in) ::  &
+!!       stagusrf,       &  ! upper surface elevation on staggered grid (m)
+!!       stagthck           ! ice thickness on staggered grid (m)
+         usrf_east,       &  ! upper surface elevation on east edges (m)
+         thck_east,       &  ! ice thickness on east edges (m)
+         usrf_north,      &  ! upper surface elevation on north edges (m)
+         thck_north          ! ice thickness on north edges (m)
 
     !TODO - Pass in flwa only, and compute flwafact here?
     real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
@@ -5408,9 +5918,15 @@
     real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
        efvs               ! effective viscosity (Pa yr)
 
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(out) ::  &
-       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
+!!    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(out) ::  &
+!!       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
+!!       Avu, Avv                                    
+
+    real(dp), dimension(nx,ny,nNodeNeighbors_2d), intent(out) ::  &
+         Aue_ue, Aue_un, Aue_ve, Aue_vn, & ! assembled stiffness matrix, divided into 16 parts
+         Aun_ue, Aun_un, Aun_ve, Aun_vn, &
+         Ave_ue, Ave_un, Ave_ve, Ave_vn, &
+         Avn_ue, Avn_un, Avn_ve, Avn_vn
 
     ! The following optional arguments are used for DIVA only
 
@@ -5418,7 +5934,9 @@
        thck               ! ice thickness (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in), optional ::   &
-       btractx, btracty         ! components of basal traction (Pa)
+!!       btractx, btracty         ! components of basal traction (Pa)
+         btractx_east, btracty_east,   & ! components of basal traction, east edges (Pa)
+         btractx_north, btracty_north    ! components of basal traction, north edges (Pa)
 
     real(dp), dimension(nz,nx,ny), intent(out), optional :: &
        omega_k            ! single integral, defined by Goldberg (2011) eq. 32
@@ -5466,6 +5984,19 @@
                           !         
                           ! Kvu may not be needed if matrix is symmetric, but is included for now
 
+    !WHL TODO - Remove
+!    real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &   !
+!       Kue_ue, Kue_un, Kue_ve, Kue_vn,   & ! element stiffness matrix, divided into 16 parts as shown below
+!       Kun_ue, Kun_un, Kun_ve, Kun_vn,   & !
+!       Kve_ue, Kve_un, Kve_ve, Kve_vn,   & !  Kue_ue   Kue_un  |  Kue_ve   Kue_vn
+!       Kvn_ue, Kvn_un, Kvn_ve, Kvn_vn      !                   |
+                                           !  Kun_ue   Kun_un  |  Kun_ve   Kun_vn
+                                           ! __________________|__________________
+                                           !                   |
+                                           !  Kve_ue   Kve_un  |  Kve_ve   Kve_vn
+                                           !                   |
+                                           !  Kvn_ue   Kvn_un  |  Kvn_ve   Kvn_vn
+
     real(dp), dimension(nNodesPerElement_2d) ::     &
        x, y,            & ! Cartesian coordinates of vertices
        u, v,            & ! depth-integrated mean velocity at vertices (m/yr)
@@ -5490,6 +6021,7 @@
        flwafact_2d        ! vertically averaged flow factor
 
     integer :: i, j, k, n, p
+    integer :: ie, je     ! edge indices
     integer :: iVertex, jVertex
 
     if (verbose_matrix .and. main_task) then
@@ -5501,11 +6033,16 @@
     efvs(:,:,:) = 0.d0
 
     ! Initialize global stiffness matrix
+!    Auu(:,:,:) = 0.d0
+!    Auv(:,:,:) = 0.d0
+!    Avu(:,:,:) = 0.d0
+!    Avv(:,:,:) = 0.d0
 
-    Auu(:,:,:) = 0.d0
-    Auv(:,:,:) = 0.d0
-    Avu(:,:,:) = 0.d0
-    Avv(:,:,:) = 0.d0
+    !WHL - for edges
+    Aue_ue(:,:,:) = 0.d0; Aue_un(:,:,:) = 0.d0; Aue_ve(:,:,:) = 0.d0; Aue_vn(:,:,:) = 0.d0
+    Aun_ue(:,:,:) = 0.d0; Aun_un(:,:,:) = 0.d0; Aun_ve(:,:,:) = 0.d0; Aun_vn(:,:,:) = 0.d0
+    Ave_ue(:,:,:) = 0.d0; Ave_un(:,:,:) = 0.d0; Ave_ve(:,:,:) = 0.d0; Ave_vn(:,:,:) = 0.d0
+    Avn_ue(:,:,:) = 0.d0; Avn_un(:,:,:) = 0.d0; Avn_ve(:,:,:) = 0.d0; Avn_vn(:,:,:) = 0.d0
 
     ! Compute vertical average of flow factor (SSA only)
     if (whichapprox == HO_APPROX_SSA) then
@@ -5515,7 +6052,7 @@
     endif
 
     ! Sum over elements in active cells 
-    ! Loop over all cells that border locally owned vertices.
+    ! Loop over all cells that border locally owned edges.
 
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
@@ -5527,33 +6064,77 @@
           Kuv(:,:) = 0.d0
           Kvu(:,:) = 0.d0
           Kvv(:,:) = 0.d0
-  
+
           ! Compute spatial coordinates, velocity, thickness and surface elevation for each vertex
           ! Also compute basal traction (for DIVA)
           do n = 1, nNodesPerElement_2d
 
-             ! Determine (i,j) for this vertex
-             ! The reason for the '3' is that node 3, in the NE corner of the grid cell, has index (i,j).
-             ! Indices for other nodes are computed relative to this vertex.
-             iVertex = i + ishift(3,n)
-             jVertex = j + jshift(3,n)
+             ! Edge nodes of an element are numbered from 1 to 4, starting at the west edge:
+             !
+             !   ----4----
+             !   |       |
+             !   1       3
+             !   |       |
+             !   ----2---
 
-             x(n) = xVertex(iVertex,jVertex)
-             y(n) = yVertex(iVertex,jVertex)
-             u(n) = uvel_2d(iVertex,jVertex)
-             v(n) = vvel_2d(iVertex,jVertex)
-             s(n) = stagusrf(iVertex,jVertex)
-             h(n) = stagthck(iVertex,jVertex)
-             if (present(btractx) .and. present(btracty)) then    ! DIVA
-                bx(n) = btractx(iVertex,jVertex)
-                by(n) = btracty(iVertex,jVertex)
+!!             ! Determine (i,j) for this vertex
+!!             ! The reason for the '3' is that node 3, in the NE corner of the grid cell, has index (i,j).
+!!             ! Indices for other nodes are computed relative to this vertex.
+
+!!             iVertex = i + ishift(3,n)
+!!             jVertex = j + jshift(3,n)
+
+             ! Determine (i,j) for this edge node
+             ! The reason for the '3' is that the east edge of the grid cell has index (i,j).
+             ! Indices for other edges are computed relative to this edge.
+
+             if (east_edge(n)) then
+                if (n == 1) then
+                   ie = i-1
+                elseif (n==3) then
+                   ie = i
+                endif
+                je = j
+                x(n) = x_east(ie,je)
+                y(n) = y_east(ie,je)
+                u(n) = u_east_2d(ie,je)
+                v(n) = v_east_2d(ie,je)
+                s(n) = usrf_east(ie,je)
+                h(n) = thck_east(ie,je)
+                if (present(btractx_east) .and. present(btracty_east)) then   ! DIVA
+                   bx(n) = btractx_east(ie,je)
+                   by(n) = btracty_east(ie,je)
+                endif
+             elseif (north_edge(n)) then
+                ie = i
+                if (n == 2) then
+                   je = j - 1
+                elseif (n ==4) then
+                   je = j
+                endif
+                x(n) = x_north(ie,je)
+                y(n) = y_north(ie,je)
+                u(n) = u_north_2d(ie,je)
+                v(n) = v_north_2d(ie,je)
+                s(n) = usrf_north(ie,je)
+                h(n) = thck_north(ie,je)
+                if (present(btractx_north) .and. present(btracty_north)) then   ! DIVA
+                   bx(n) = btractx_north(ie,je)
+                   by(n) = btracty_north(ie,je)
+                endif
              endif
+
+!!             x(n) = xVertex(iVertex,jVertex)
+!!             y(n) = yVertex(iVertex,jVertex)
 
              if (verbose_matrix .and. this_rank==rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
-                print*, 'i, j, n, x, y:', i, j, n, x(n), y(n)
+                print*, 'i, j, n, x, y, i, j, n, x(n), y(n)'
                 print*, 's, h, u, v:', s(n), h(n), u(n), v(n)
-                if (present(btractx) .and. present(btracty)) print*, 'bx, by:', bx(n), by(n)
+                if (present(btractx_east)  .and. present(btracty_east) .and. &
+                    present(btractx_north) .and. present(btracty_north)) then
+                   print*, 'bx, by:', bx(n), by(n)
+                endif
              endif
 
           enddo   ! vertices per element
@@ -5566,6 +6147,7 @@
 
              !WHL - Pass in i, j and p to the following subroutines for debugging
 
+             !WHL - Should work as is for edges
              call get_basis_function_derivatives_2d(x(:),             y(:),          &
                                                     dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
@@ -5579,6 +6161,7 @@
 
                 ! Compute effective viscosity for each layer at this quadrature point
                 ! Note: efvs_qp_3d is intent(inout); old value is used to compute new value
+
                 call compute_effective_viscosity_diva(whichefvs,            efvs_constant,     &
                                                       nz,                   stagsigma,         &
                                                       nNodesPerElement_2d,  phi_2d(:,p),       &
@@ -5605,6 +6188,8 @@
 
              else     ! SSA
 
+                !WHL - Should work as is for edges
+
                 ! Compute vertically averaged effective viscosity at this quadrature point
                 call compute_effective_viscosity(whichefvs,        whichapprox,                       &
                                                  efvs_constant,    nNodesPerElement_2d,               &
@@ -5629,6 +6214,8 @@
              ! Note: The effective viscosity is multiplied by thickness since the equation to be solved
              !       is vertically integrated.
 
+             !WHL - Should work as is for edges
+
              call compute_element_matrix(whichapprox,     nNodesPerElement_2d,               & 
                                          wqp_2d(p),       detJ(p),                           &
                                          h_qp*efvs_qp_vertavg(p),                            &
@@ -5642,6 +6229,8 @@
           if (whichapprox == HO_APPROX_DIVA) then
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
+             !WHL TODO - Adapt to edge solve
+
              call compute_integrals_diva(nz,               sigma,                &
                                          thck(i,j),        efvs_qp(:,:),         &
                                          omega_k(:,i,j),   omega(i,j),           &
@@ -5667,13 +6256,17 @@
           endif
 
           ! Sum the terms of element matrix K into the dense assembled matrix A
+          !WHL - Adapted to edge solve
 
-          call element_to_global_matrix_2d(nx,           ny,        &
-                                           i,            j,         &
-                                           Kuu,          Kuv,       &
-                                           Kvu,          Kvv,       &
-                                           Auu,          Auv,       &
-                                           Avu,          Avv)
+          call element_to_global_matrix_2d_edge(nx,             ny,        &
+                                           i,              j,         &
+                                           Kuu,    Kuv,    Kvu,    Kvv,    &
+!!                                           Auu,          Auv,       &
+!!                                           Avu,          Avv
+                                           Aue_ue, Aue_un, Aue_ve, Aue_vn, &
+                                           Aun_ue, Aun_un, Aun_ve, Aun_vn, &
+                                           Ave_ue, Ave_un, Ave_ve, Ave_vn, &
+                                           Avn_ue, Avn_un, Avn_ve, Avn_vn)
 
           if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
              print*, ' '
@@ -7483,6 +8076,286 @@
   end subroutine element_to_global_matrix_2d
 
 !****************************************************************************
+
+  subroutine element_to_global_matrix_2d_edge(nx,           ny,        &
+                                         iElement,     jElement,  &
+!                                         Kue_ue, Kue_un, Kue_ve, Kue_vn, &
+!                                         Kun_ue, Kun_un, Kun_ve, Kun_vn, &
+!                                         Kve_ue, Kve_un, Kve_ve, Kve_vn, &
+!                                         Kvn_ue, Kvn_un, Kvn_ve, Kvn_vn, &
+                                         Kuu,    Kuv,    Kvu,    Kvv,    &
+                                         Aue_ue, Aue_un, Aue_ve, Aue_vn, &
+                                         Aun_ue, Aun_un, Aun_ve, Aun_vn, &
+                                         Ave_ue, Ave_un, Ave_ve, Ave_vn, &
+                                         Avn_ue, Avn_un, Avn_ve, Avn_vn)
+
+    ! Sum terms of element matrix K into dense assembled matrix A
+    ! K is partitioned into Kuu, Kuv, Kvu, and Kvv, and similarly for A.
+
+    integer, intent(in) ::   &
+         nx, ny                   ! horizontal grid dimensions
+
+    integer, intent(in) ::   &
+         iElement, jElement       ! i and j indices for this element
+
+    real(dp), dimension(nNodesPerElement_2d,nNodesPerElement_2d), intent(in) ::  &
+         Kuu, Kuv, Kvu, Kvv               ! element stiffness matrix, divided into 4 parts as shown below
+                                          !
+                                          !  Kuu  |  Kuv
+                                          ! ______|______
+                                          !       |
+                                          !  Kvu  |  Kvv
+
+!       Kue_ue, Kue_un, Kue_ve, Kue_vn,   & ! element stiffness matrix, divided into 16 parts as shown below
+!       Kun_ue, Kun_un, Kun_ve, Kun_vn,   & !
+!       Kve_ue, Kve_un, Kve_ve, Kve_vn,   & !  Kue_ue   Kue_un  |  Kue_ve   Kue_vn
+!       Kvn_ue, Kvn_un, Kvn_ve, Kvn_vn      !                   |
+!                                           !  Kun_ue   Kun_un  |  Kun_ve   Kun_vn
+!                                           ! __________________|__________________
+!                                           !                   |
+!                                           !  Kve_ue   Kve_un  |  Kve_ve   Kve_vn
+!                                           !                   |
+!                                           !  Kvn_ue   Kvn_un  |  Kvn_ve   Kvn_vn
+
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::    &
+         Aue_ue, Aue_un, Aue_ve, Aue_vn, & ! assembled stiffness matrix, divided into 16 parts
+         Aun_ue, Aun_un, Aun_ve, Aun_vn, &
+         Ave_ue, Ave_un, Ave_ve, Ave_vn, &
+         Avn_ue, Avn_un, Avn_ve, Avn_vn
+
+    !WHL TODO - Remove
+!    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d) ::  &
+!         Auu, Auv, Avu, Avv
+
+    ! local variables
+    real(dp), dimension(nNodesPerElement_2d,nNodesPerElement_2d) ::  &
+         KtoA   ! matrix used to map entries of K matrices, dimension (4,4)
+                ! to entries of A matrices, dimension (nx,ny,3) or (nx,ny,4)
+
+    integer :: i, j, m
+!!    integer :: iA, jA
+    integer :: n, nr, nc
+
+    !WHL TODO - Note sure these arrays are needed
+
+    real(dp), dimension(nNodesPerElement_2d,nNodesPerElement_2d) ::  &
+         ishift_edge, jshift_edge
+
+    integer, dimension(-1:1,-1:1) :: &
+         indxA_ee, indxA_en, indxA_ne, indxA_nn
+
+    ! initialize
+    indxA_ee(:,:) = 0
+    indxA_en(:,:) = 0
+    indxA_ne(:,:) = 0
+    indxA_nn(:,:) = 0
+
+    ! Fill the nonzero values in the indxA arrays
+    ! The idea is to assign a number between 1 and 3 (for the E-E and N-N combinations),
+    !  or between 1 and 4 (for the E-N and N-E combinations) asssociated with
+    !  the i and j offsets of adjacent nodes.
+    ! Consider, for example, a row of Aue_ue, where we are solving for the u component on an east edge.
+    !  There can be up to 3 nonzero terms, corresponding to the edge itself and its 2 nearest east neighbors.
+    !  These nonzero values are stored with index m = 1:3 in Aue_ue.
+    ! For a row of Aue_un, there can be up to 4 nonzero ters, corresponding to the 4 north/south edges
+    !  of the 2 adjacent elements.
+
+
+    indxA_ee(-1,0) = 1       !   |--3en--|--4en--|
+    indxA_ee( 0,0) = 2       !   |       |       |
+    indxA_ee( 1,0) = 3       !  1ee     2ee     3ee
+                             !   |       |       |
+    indxA_en(0,-1) = 1       !   ---1en--|--2en--
+    indxA_en(1,-1) = 2
+    indxA_en(0, 0) = 3
+    indxA_en(1, 0) = 4
+
+    indxA_nn(0,-1) = 1       !   |--3nn--|
+    indxA_nn(0, 0) = 2       !   |       |
+    indxA_nn(0, 1) = 3       !  2ne     4ne
+                             !   |       |
+    indxA_ne(-1,0) = 1       !   |--2nn--|
+    indxA_ne(-1,1) = 2       !   |       |
+    indxA_ne( 0,0) = 3       !  1ne     3ne
+    indxA_ne( 0,1) = 4       !   |       |
+                             !   |--1nn--|
+
+    ! The ishift matrix describes how the i indices of the 8 nodes are related to one another.
+    ! E.g, if ishift (1,2) = 1, this means that node 2 has an i index
+    ! one greater than the i index of node 1.
+    !
+    !   |---4---|
+    !   |       |
+    !   1       3
+    !   |       |
+    !   |---2---|
+
+    ishift_edge(1,:) = (/ 0,  1,  1,  1/)
+    ishift_edge(2,:) = (/-1,  0,  0,  0/)
+    ishift_edge(3,:) = (/-1,  0,  0,  0/)
+    ishift_edge(4,:) = (/-1,  0,  0,  0/)
+
+    ! The jshift matrix describes how the j indices of the 8 nodes are related to one another.
+    ! E.g, if jshift (1,4) = 1, this means that node 4 has a j index
+    ! one greater than the j index of node 1.
+
+    jshift_edge(1,:) = (/ 0, -1,  0,  0/)
+    jshift_edge(2,:) = (/ 1,  0,  1,  1/)
+    jshift_edge(3,:) = (/ 0, -1,  0,  0/)
+    jshift_edge(4,:) = (/ 0, -1,  0,  0/)
+
+    if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest) then
+       print*, 'Element i, j:', iElement, jElement
+       print*, 'Rows of Kuu:'
+       do n = 1, nNodesPerElement_2d
+          write(6, '(8e12.4)') Kuu(n,:)
+       enddo
+    endif
+
+    ! Fill an array called KtoA.
+    ! This array has 16 entries, corresponding to the 4 rows and columns of the K matrices.
+    ! It maps (nr,nc) in K to a column of an A matrix (Aue_ue, Aue_un, ...)
+    ! The matrices A*e_*e and A*n_*n (where * = u or v) have at most 3 nonzero entries per row.
+    ! The matrices A*e_*n and A*n_*e (where * = u or v) have at most 4 nonzero entries per row.
+    ! The ordering from 1:3 and 1:4 is arbitrary, so long as we are consistent.
+    !
+    ! Recall that edge nodes are numbered as follows:
+
+    ! |---4---|
+    ! |       |
+    ! 1       3
+    ! |       |
+    ! |---2---|
+
+    ! The indexing of A matrices is defined as follows for rows corresponding to east edges:
+    ! Here, 'ee' denotes A*e_*e, and 'en' denotes A*e_*n, where * = u or v.
+    ! The central edge (denoted 2ee) is where we are solving for velocity.
+    ! The matrix A*e_*e has up to 3 nonzero entries, and A*e_*n has up to 4.
+
+    !  |--3en--|--4en--|
+    !  |       |       |
+    ! 1ee     2ee     3ee
+    !  |       |       |
+    !  |--1en--|--2en--|
+
+    ! Similarly for the rows of A matrices corresponding to north edges:
+    ! Here, 'ne' denotes A*n_*e, and 'nn' denotes A*n_*n, where * = u or v.
+    ! The central edge (denoted 2nn) is where we are solving for velocity.
+    ! The matrix A*n_*n has up to 3 nonzero entries, and A*n_*e has up to 4.
+
+    !  |--3nn--|
+    !  |       |
+    ! 2ne     4ne
+    !  |       |
+    !  |--2nn--|
+    !  |       |
+    ! 1ne     3ne
+    !  |       |
+    !  |--1nn--|
+
+
+    ! east to east (odd to odd)
+    KtoA(3,1) = 1
+    KtoA(1,1) = 2
+    KtoA(3,3) = 2
+    KtoA(1,3) = 3
+
+    ! east to north (odd to even)
+    KtoA(3,2) = 1
+    KtoA(1,2) = 2
+    KtoA(3,4) = 3
+    KtoA(1,4) = 4
+
+    ! north to east (even to odd)
+    KtoA(4,1) = 1
+    KtoA(2,1) = 2
+    KtoA(4,3) = 3
+    KtoA(2,3) = 4
+
+    ! north to north (even to even)
+    KtoA(4,2) = 1
+    KtoA(2,2) = 2
+    KtoA(4,4) = 2
+    KtoA(2,4) = 3
+
+    do nr = 1, nNodesPerElement_2d       ! rows of K
+
+!!       ! Determine row of A to be incremented by finding (i,j) for this node
+!!       ! The reason for the '3' is that node 3, in the NE corner of this gridcell, has index (i,j).
+!!       ! Indices for other nodes are computed relative to this node.
+!!       i = iElement + ishift(3,nr)
+!!       j = jElement + jshift(3,nr)
+
+       ! Determine the row of A to be incremented by finding (i,j) for this edge node
+       if (nr == 1) then  ! west edge
+          i = iElement - 1
+       else
+          i = iElement
+       endif
+
+       if (nr == 2) then  ! south edge
+          j = jElement - 1
+       else
+          j = jElement
+       endif
+
+       do nc = 1, nNodesPerElement_2d    ! columns of K
+
+          ! Determine the column of A to be incremented
+!!          iA = ishift(nr,nc)           ! similarly for i and j indices
+!!          jA = jshift(nr,nc)           ! these indices can take values -1, 0 and 1
+!!          m = indxA_2d(iA,jA)
+
+          ! Increment A
+!!          Auu(i,j,m) = Auu(i,j,m) + Kuu(nr,nc)
+!!          Auv(i,j,m) = Auv(i,j,m) + Kuv(nr,nc)
+!!          Avu(i,j,m) = Avu(i,j,m) + Kvu(nr,nc)
+!!          Avv(i,j,m) = Avv(i,j,m) + Kvv(nr,nc)
+
+          ! Compute the index for the third dimension of the A matrices
+          m = KtoA(nr,nc)
+
+          if (east_edge(nr)) then   ! east row
+
+             if (east_edge(nc)) then  ! east column
+                Aue_ue(i,j,m) = Aue_ue(i,j,m) + Kuu(nr,nc)
+                Aue_ve(i,j,m) = Aue_ve(i,j,m) + Kuv(nr,nc)
+                Ave_ue(i,j,m) = Ave_ue(i,j,m) + Kvu(nr,nc)
+                Ave_ve(i,j,m) = Ave_ve(i,j,m) + Kvv(nr,nc)
+             elseif (north_edge(nc)) then  ! north column
+                Aue_un(i,j,m) = Aue_un(i,j,m) + Kuu(nr,nc)
+                Aue_vn(i,j,m) = Aue_vn(i,j,m) + Kuv(nr,nc)
+                Ave_un(i,j,m) = Ave_un(i,j,m) + Kvu(nr,nc)
+                Ave_vn(i,j,m) = Ave_vn(i,j,m) + Kvv(nr,nc)
+             endif
+
+          elseif (north_edge(nr)) then  ! north row
+
+             if (east_edge(nc)) then  ! east column
+                Aun_ue(i,j,m) = Aun_ue(i,j,m) + Kuu(nr,nc)
+                Aun_ve(i,j,m) = Aun_ve(i,j,m) + Kuv(nr,nc)
+                Avn_ue(i,j,m) = Avn_ue(i,j,m) + Kvu(nr,nc)
+                Avn_ve(i,j,m) = Avn_ve(i,j,m) + Kvv(nr,nc)
+             elseif (north_edge(nc)) then  ! north column
+                Aun_un(i,j,m) = Aun_un(i,j,m) + Kuu(nr,nc)
+                Aun_vn(i,j,m) = Aun_vn(i,j,m) + Kuv(nr,nc)
+                Avn_un(i,j,m) = Avn_un(i,j,m) + Kvu(nr,nc)
+                Avn_vn(i,j,m) = Avn_vn(i,j,m) + Kvv(nr,nc)
+             endif
+
+          endif
+
+          if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest) then
+             print*, 'Increment Aue_ue, element i, j, nr, nc =', iElement, jElement, nr, nc
+             print*, '     i, j, m, Kuu, new Aue_ue:', i, j, m, Kuu(nr,nc), Aue_ue(i,j,m)
+          endif
+
+       enddo     ! nc
+    enddo        ! nr
+
+  end subroutine element_to_global_matrix_2d_edge
+
+!****************************************************************************
   !TODO - Call this subroutine for both 2D and 3D solvers.
   !       First need to switch the index order for 3D matrices.
   subroutine basal_sliding_bc_2d(nx,               ny,              &
@@ -8042,7 +8915,7 @@
 
     real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(inout) ::   &
        Auu, Auv,    &      ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
+       Avu, Avv
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::   &
        bu, bv              ! assembled load vector, divided into 2 parts
@@ -8238,7 +9111,7 @@
 
     real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
        Auu, Auv,    &      ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
+       Avu, Avv
 
     real(dp), dimension(nx-1,ny-1), intent(inout) ::   &
        bu, bv              ! assembled load vector, divided into 2 parts

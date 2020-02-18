@@ -47,6 +47,7 @@ module glissade_grid_operators
 
     private
     public :: glissade_stagger, glissade_unstagger, glissade_stagger_real_mask, &
+              glissade_stagger_edge,                &
               glissade_gradient, glissade_gradient_at_edges, &
               glissade_surface_elevation_gradient,  &
               glissade_slope_angle,                 &
@@ -297,6 +298,78 @@ contains
     call parallel_halo(unstagvar)
 
   end subroutine glissade_unstagger
+
+!----------------------------------------------------------------------------
+
+  subroutine glissade_stagger_edge(nx,           ny,        &
+                                   var,                     &
+                                   var_east,     var_north, &
+                                   stagger_mask)
+
+    !----------------------------------------------------------------
+    ! Given a variable on the unstaggered grid (dimension nx, ny), interpolate
+    !  to find values at east and north cell edges.
+    ! If a mask is present, then cells with mask = 0 are ignored in the average.
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::   &
+         nx, ny                 ! horizontal grid dimensions
+
+    real(dp), dimension(nx,ny), intent(in) ::    &
+         var                    ! unstaggered field, defined at cell centers
+
+    real(dp), dimension(nx,ny), intent(out) ::    &
+         var_east,            & ! field interpolated to east edges
+         var_north              ! field interpolated to north edges
+
+    integer, dimension(nx,ny), intent(in), optional ::        &
+       stagger_mask            ! integer mask that determines how to weight cells in the interpolation
+                               ! 1 => full weight, 0 => no weight
+
+    !--------------------------------------------------------
+    ! Local variables
+    !--------------------------------------------------------
+
+    integer :: i, j
+    integer, dimension(nx,ny) :: mask   ! mask for weighting
+    real(dp) :: sumvar, summask
+
+    if (present(stagger_mask)) then
+       mask = stagger_mask
+    else
+       mask = 1   ! default is full weighting of all cells
+    endif
+
+    ! initialize
+    var_east(:,:) = 0.0d0
+    var_north(:,:) = 0.0d0
+
+    ! east edges
+    do j = 1, ny
+       do i = 1, nx-1
+          sumvar = mask(i,j)*var(i,j) + mask(i+1,j)*var(i+1,j)
+          summask = mask(i,j) + mask(i+1,j)
+          if (summask > 0.0d0) var_east(i,j) = sumvar / summask
+       enddo
+    enddo
+
+    ! north edges
+    do j = 1, ny-1
+       do i = 1, nx
+          sumvar = mask(i,j)*var(i,j) + mask(i,j+1)*var(i,j+1)
+          summask = mask(i,j) + mask(i,j+1)
+          if (summask > 0.0d0) var_north(i,j) = sumvar / summask
+       enddo
+    enddo
+
+    call parallel_halo(var_east)
+    call parallel_halo(var_north)
+
+  end subroutine glissade_stagger_edge
 
 !****************************************************************************
 
@@ -800,6 +873,333 @@ contains
     enddo
 
   end subroutine glissade_edgemask_gradient_margin_hybrid
+
+!****************************************************************************
+
+  subroutine glissade_surface_elevation_gradient_edges(&
+       nx,           ny,          &
+       dx,           dy,          &
+       itest, jtest, rtest,       &
+       active_ice_mask,           &
+       land_mask,                 &
+       usrf,         thck,        &
+       topg,         eus,         &
+       thklim,                    &
+       thck_gradient_ramp,        &
+       ds_dx_east,   ds_dy_east,  &
+       ds_dx_north,  ds_dy_north, &
+       ho_gradient_margin,        &
+       max_slope)
+
+    !----------------------------------------------------------------
+    ! Compute surface elevation gradients at east and north cell edges
+    !  for different ho_gradient_margin options.
+    !
+    ! The ds/dx gradient at east edges and the ds_dy gradients at north edges
+    !  are computed in the standard way, by taking the difference of the values
+    !  in two adjacent cells and dividing by the distance.
+    ! The dx_dx gradient at north edges is found by averaging ds_dx from nearby east edges,
+    !  and ds_dy at east edges is found by averaging ds_dy from nearby north edges.
+    !
+    ! At the ice margin, where one or both cells adjacent to a given edge may be ice-free,
+    !  edge gradients may be masked in the following ways:
+    !
+    ! HO_GRADIENT_MARGIN_LAND = 0: Values in both adjacent cells are used to compute the gradient,
+    !  including values in ice-free cells.  In other words, there is no masking of edges.
+    !  This convention is used by Glide. It works well at land-terminating margins, but performs poorly
+    !  for ice shelves with a sharp drop in ice thickness and surface elevation at the margin.
+    !
+    ! HO_GRADIENT_MARGIN_HYBRID = 1: The gradient is computed at edges where either
+    ! (1) Both adjacent cells are ice-covered.
+    ! (2) One cell is ice-covered (land or marine-based) and lies above ice-free land.
+    !
+    ! This method sets the gradient to zero at edges where
+    ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
+    !     Note: Inactive calving-front cells are treated as ice-free ocean.
+    ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
+
+    ! The aim is to give a reasonable gradient at both land-terminating and marine-terminating margins.
+    ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
+    !  margins the gradient is zero.
+    !
+    ! HO_GRADIENT_MARGIN_MARINE = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
+    !  are used to compute gradients.  If one or both adjacent cells is ice-free, the edge is masked out.
+    !  This option works well at shelf margins but less well for land margins (e.g., the Halfar test case).
+    !
+    ! The HO_GRADIENT option is not used.  All gradients are centered; none are upstream-biased.
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+         nx, ny                   ! horizontal grid dimensions
+
+    real(dp), intent(in) ::     &
+         dx, dy                   ! horizontal grid size
+
+    integer, intent(in) ::      &
+         itest, jtest, rtest      ! coordinates of diagnostic point
+
+    integer, dimension(nx,ny), intent(in) ::        &
+         active_ice_mask,       & ! = 1 where active ice is present, else = 0
+         land_mask                ! = 1 for land cells, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) ::       &
+         thck,                  & ! ice thickness
+         usrf,                  & ! ice surface elevation
+         topg                     ! bed elevation
+
+    real(dp), intent(in) ::       &
+         eus,                   & ! eustatic sea level
+         thklim,                & ! minimum thickness for active ice
+         thck_gradient_ramp
+
+    real(dp), dimension(nx,ny), intent(out) ::    &
+         ds_dx_east,  ds_dy_east,  & ! ds/dx at east edges
+         ds_dx_north, ds_dy_north    ! ds/dx at north edges
+
+    integer, intent(in) ::      &
+         ho_gradient_margin       ! option for computing gradients at ice sheet margin
+                                  ! see comments above
+
+    real(dp), intent(in), optional ::       &
+         max_slope                ! maximum slope allowed for surface gradient computations (unitless)
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer :: i, j
+    integer :: iu, il, ju, jl     ! indices of cells with higher and lower elevations
+
+    real(dp) ::  &
+         edge_thck_upper,       & ! thickness of higher-elevation cell
+         edge_thck_lower,       & ! thickness of lower-elevation cell
+         edge_factor,           & ! gradient-weighting factor in range [0,1]
+         sign_factor              ! sign factor, +1 or -1
+
+    ! initialize
+
+    ds_dx_east(:,:) = 0.0d0
+    ds_dy_east(:,:) = 0.0d0
+
+    ds_dx_north(:,:) = 0.0d0
+    ds_dy_north(:,:) = 0.0d0
+
+    if (ho_gradient_margin == HO_GRADIENT_MARGIN_LAND) then
+
+       ! Compute ds_dx and ds_dy on all edges, whether or not adjacent cells are ice-covered
+       do j = 1, ny
+          do i = 1, nx-1
+             ds_dx_east(i,j) = (usrf(i+1,j) - usrf(i,j)) / dx
+          enddo
+       enddo
+
+       do j = 1, ny-1
+          do i = 1, nx
+             ds_dy_north(i,j) = (usrf(i,j+1) - usrf(i,j)) / dy
+          enddo
+       enddo
+
+    elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
+
+       ! Compute ds_dx and ds_dy only on edges with active ice in each adjacent cell
+       do j = 1, ny
+          do i = 1, nx-1
+             if (active_ice_mask(i,j) == 1 .and. active_ice_mask(i+1,j) == 1) then
+                ds_dx_east(i,j) = (usrf(i+1,j) - usrf(i,j)) / dx
+             endif
+          enddo
+       enddo
+
+       do j = 1, ny-1
+          do i = 1, nx
+             if (active_ice_mask(i,j) == 1 .and. active_ice_mask(i,j+1) == 1) then
+                ds_dy_east(i,j) = (usrf(i,j+1) - usrf(i,j)) / dy
+             endif
+          enddo
+       enddo
+
+    elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
+
+       ! compute ds_dx on east edges
+       do j = 1, ny
+          do i = 1, nx-1
+
+             ! determine which cell is upper and which is lower
+             if (usrf(i,j) > usrf(i+1,j)) then
+                iu = i
+                il = i+1
+                sign_factor = -1.0d0
+             else
+                iu = i+1
+                il = i
+                sign_factor = 1.0d0
+             endif
+
+             if (land_mask(iu,j) == 1) then
+                ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
+                ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
+                edge_thck_upper = thck(iu,j)
+                edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
+                edge_factor = max(edge_factor, 0.0d0)
+             else
+                edge_factor = 1.0d0
+             endif
+
+             if (active_ice_mask(iu,j) == 1 .and. active_ice_mask(il,j) == 1) then  ! both cells have active ice
+
+                ! compute the gradient
+                ds_dx_east(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
+
+             elseif (active_ice_mask(iu,j) == 1 .and. land_mask(il,j) == 1) then
+
+                ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ds_dx_east(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
+
+             endif
+
+          enddo   ! i
+       enddo   ! j
+
+       ! compute ds_dy on north edges
+       do j = 1, ny-1
+          do i = 1, nx
+
+             ! determine which cell is upper and which is lower
+             if (usrf(i,j) > usrf(i,j+1)) then
+                ju = j
+                jl = j+1
+                sign_factor = -1.0d0
+             else
+                ju = j+1
+                jl = j
+                sign_factor = 1.0d0
+             endif
+
+             if (land_mask(i,ju) == 1) then
+                ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
+                ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
+                edge_thck_upper = thck(i,ju)
+                edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
+                edge_factor = max(edge_factor, 0.0d0)
+             else
+                edge_factor = 1.0d0
+             endif
+
+             if (active_ice_mask(i,ju)==1 .and. active_ice_mask(i,jl)==1) then  ! both cells have ice
+
+                ! compute the gradient
+                ds_dy_north(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
+
+             elseif (active_ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
+
+                ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ds_dy_north(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
+
+             endif  ! both cells have ice
+
+          enddo  ! i
+       enddo   ! j
+
+    endif   ! ho_gradient_margin
+
+    ! halo updates
+    call parallel_halo(ds_dx_east)
+    call parallel_halo(ds_dy_north)
+
+    ! Optionally, limit ds_dx_east and ds_dy_north
+
+    if (present(max_slope)) then
+
+       do j = 1, ny
+          do i = 1, nx
+             if (ds_dx_east(i,j) > 0.0d0) then
+                ds_dx_east(i,j) = min(ds_dx_east(i,j), max_slope)
+             else
+                ds_dx_east(i,j) = max(ds_dx_east(i,j), -max_slope)
+             endif
+          enddo
+       enddo
+
+       do j = 1, ny
+          do i = 1, nx
+             if (ds_dy_north(i,j) > 0.0d0) then
+                ds_dy_north(i,j) = min(ds_dy_north(i,j), max_slope)
+             else
+                ds_dy_north(i,j) = max(ds_dy_north(i,j), -max_slope)
+             endif
+          enddo
+       enddo
+
+    endif   ! present(max_slope)
+
+    ! Average ds_dx to north edges
+    do j = 1, ny-1
+       do i = 2, nx
+          ds_dx_north(i,j) = 0.25d0 * &
+               (ds_dx_east(i-1,j) + ds_dx_east(i,j) + ds_dx_east(i-1,j+1) + ds_dx_east(i,j+1))
+       enddo
+    enddo
+
+    ! Average ds_dy to east edges
+    do j = 2, ny
+       do i = 1, nx-1
+          ds_dy_east(i,j) = 0.25d0 * &
+               (ds_dy_north(i,j-1) + ds_dy_north(i,j) + ds_dy_north(i+1,j-1) + ds_dy_north(i+1,j))
+       enddo
+    enddo
+
+
+    ! halo updates
+    call parallel_halo(ds_dx_north)
+    call parallel_halo(ds_dy_east)
+
+
+    if (verbose_gradient .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Gradients, i, j, task =', itest, jtest, rtest
+       print*, ' '
+       print*, 'ds_dx_east:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f9.6)',advance='no') ds_dx_east(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'ds_dx_north:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f9.6)',advance='no') ds_dx_north(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'ds_dy_north:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f9.6)',advance='no') ds_dy_north(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'ds_dy_east:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f9.6)',advance='no') ds_dy_east(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
+
+  end subroutine glissade_surface_elevation_gradient_edges
 
 !****************************************************************************
 

@@ -1188,7 +1188,7 @@ module glide_types
 
   type glide_velocity
 
-    !> Holds the velocity fields in 2D and 3D. At least some of these fields
+    !> Holds the velocity fields in 2D and 3D
     real(dp),dimension(:,:,:),pointer :: uvel  => null()   !> 3D $x$-velocity.
     real(dp),dimension(:,:,:),pointer :: vvel  => null()   !> 3D $y$-velocity.
     real(dp),dimension(:,:,:),pointer :: velnorm => null() ! horizontal ice speed
@@ -1208,6 +1208,26 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: vbas  => null()      !> basal $y$-velocity
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
+
+    ! velocity components defined at cell edges
+    real(dp),dimension(:,:,:),pointer :: u_east   => null()      !> 3D $x$-velocity on east cell edges
+    real(dp),dimension(:,:,:),pointer :: v_east   => null()      !> 3D $y$-velocity on east cell edges
+    real(dp),dimension(:,:,:),pointer :: u_north  => null()      !> 3D $x$-velocity on north cell edges
+    real(dp),dimension(:,:,:),pointer :: v_north  => null()      !> 3D $y$-velocity on north cell edges
+    real(dp),dimension(:,:)  ,pointer :: u_east_2d  => null()    !> 2D $x$-velocity on east cell edges; typically the vertical average
+    real(dp),dimension(:,:)  ,pointer :: v_east_2d  => null()    !> 2D $y$-velocity on east cell edges; typically the vertical average
+    real(dp),dimension(:,:)  ,pointer :: u_north_2d  => null()   !> 2D $x$-velocity on north cell edges; typically the vertical average
+    real(dp),dimension(:,:)  ,pointer :: v_north_2d  => null()   !> 2D $y$-velocity on north cell edges; typically the vertical average
+    real(dp),dimension(:,:)  ,pointer :: u_east_mean  => null()  !> vertical mean $x$-velocity on east cell edges
+    real(dp),dimension(:,:)  ,pointer :: v_east_mean  => null()  !> vertical mean $y$-velocity on east cell edges
+    real(dp),dimension(:,:)  ,pointer :: u_north_mean  => null() !> vertical mean $x$-velocity on east cell edges
+    real(dp),dimension(:,:)  ,pointer :: v_north_mean  => null() !> vertical mean $y$-velocity on east cell edges
+
+    ! other fields defined at cell edges
+    real(dp),dimension(:,:)  ,pointer :: beta_east  => null()          !> basal shear coefficient on east edges (Pa yr/m)
+    real(dp),dimension(:,:)  ,pointer :: beta_north => null()          !> basal shear coefficient on north edges (Pa yr/m)
+    real(dp),dimension(:,:)  ,pointer :: beta_east_internal => null()  !> beta_east weighted by f_ground or otherwise adjusted
+    real(dp),dimension(:,:)  ,pointer :: beta_north_internal => null() !> beta_north weighted by f_ground or otherwise adjusted
 
     ! Note: uvel_extend and vvel_extend can be used for input and output of uvel, vvel on a staggered grid 
     !       that is the same size as the unstaggered grid. This is required for exact restart if velocities
@@ -1258,6 +1278,13 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: btractx => null() !> basal traction (Pa), x comp
     real(dp),dimension(:,:),  pointer :: btracty => null() !> basal traction (Pa), y comp
     real(dp),dimension(:,:),  pointer :: btract => null()  !> basal traction (Pa), magnitude = sqrt(btractx^2 + btracty^2)
+
+    !WHL - added to edge solver
+    real(dp),dimension(:,:),  pointer :: btractx_east => null() !> basal traction (Pa), x comp, east edges
+    real(dp),dimension(:,:),  pointer :: btracty_east => null() !> basal traction (Pa), y comp, east edges
+    real(dp),dimension(:,:),  pointer :: btractx_north => null() !> basal traction (Pa), x comp, north edges
+    real(dp),dimension(:,:),  pointer :: btracty_north => null() !> basal traction (Pa), y comp, north edges
+
     !WHL - The extended versions are needed for exact restart if using DIVA solver for a problem with nonzero traction at global boundaries
     real(dp),dimension(:,:),  pointer :: btractx_extend => null() !> basal traction (Pa), x comp, on extended staggered grid
     real(dp),dimension(:,:),  pointer :: btracty_extend => null() !> basal traction (Pa), y comp, on extended staggered grid
@@ -2484,6 +2511,25 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%velocity%uvel_2d_extend)
     call coordsystem_allocate(model%general%ice_grid,  model%velocity%vvel_2d_extend)
 
+    ! velocity arrays on cell edges; same size as the ice grid
+    !TODO - Allocate only for the option with velocity on cell edges; turn off allocation of vertex arrays
+    call coordsystem_allocate(model%general%ice_grid, upn, model%velocity%u_east)
+    call coordsystem_allocate(model%general%ice_grid, upn, model%velocity%v_east)
+    call coordsystem_allocate(model%general%ice_grid, upn, model%velocity%u_north)
+    call coordsystem_allocate(model%general%ice_grid, upn, model%velocity%v_north)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%u_east_2d)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%v_east_2d)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%u_north_2d)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%v_north_2d)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%u_east_mean)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%v_east_mean)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%u_north_mean)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%v_north_mean)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%beta_east)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%beta_north)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%beta_east_internal)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%beta_north_internal)
+
     if (model%options%whichdycore == DYCORE_GLIDE) then
        call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wgrd)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu)
@@ -2526,6 +2572,13 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
        call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
+
+       !WHL - added for edge solver
+       call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_east)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_east)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_north)
+       call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_north)
+
        call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
        call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_extend)
        call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_extend)
@@ -2971,6 +3024,40 @@ contains
     if (associated(model%velocity%divu)) &
         deallocate(model%velocity%divu)
 
+    ! velocity arrays on cell edges
+    if (associated(model%velocity%u_east)) &
+        deallocate(model%velocity%u_east)
+    if (associated(model%velocity%v_east)) &
+        deallocate(model%velocity%v_east)
+    if (associated(model%velocity%u_north)) &
+        deallocate(model%velocity%u_north)
+    if (associated(model%velocity%v_north)) &
+        deallocate(model%velocity%v_north)
+    if (associated(model%velocity%u_east_2d)) &
+        deallocate(model%velocity%u_east_2d)
+    if (associated(model%velocity%v_east_2d)) &
+        deallocate(model%velocity%v_east_2d)
+    if (associated(model%velocity%u_north_2d)) &
+        deallocate(model%velocity%u_north_2d)
+    if (associated(model%velocity%v_north_2d)) &
+        deallocate(model%velocity%v_north_2d)
+    if (associated(model%velocity%u_east_mean)) &
+        deallocate(model%velocity%u_east_mean)
+    if (associated(model%velocity%v_east_mean)) &
+        deallocate(model%velocity%v_east_mean)
+    if (associated(model%velocity%u_north_mean)) &
+        deallocate(model%velocity%u_north_mean)
+    if (associated(model%velocity%v_north_mean)) &
+        deallocate(model%velocity%v_north_mean)
+    if (associated(model%velocity%beta_east)) &
+        deallocate(model%velocity%beta_east)
+    if (associated(model%velocity%beta_north)) &
+        deallocate(model%velocity%beta_north)
+    if (associated(model%velocity%beta_east_internal)) &
+        deallocate(model%velocity%beta_east_internal)
+    if (associated(model%velocity%beta_north_internal)) &
+        deallocate(model%velocity%beta_north_internal)
+
     ! higher-order stress arrays
 
     if (associated(model%stress%efvs)) &
@@ -3005,6 +3092,17 @@ contains
         deallocate(model%stress%btractx)
     if (associated(model%stress%btracty)) &
         deallocate(model%stress%btracty)
+
+    !WHL - added for edge solver
+    if (associated(model%stress%btractx_east)) &
+        deallocate(model%stress%btractx_east)
+    if (associated(model%stress%btracty_east)) &
+        deallocate(model%stress%btracty_east)
+    if (associated(model%stress%btractx_north)) &
+        deallocate(model%stress%btractx_north)
+    if (associated(model%stress%btracty_north)) &
+        deallocate(model%stress%btracty_north)
+
     if (associated(model%stress%btract)) &
         deallocate(model%stress%btract)
     if (associated(model%stress%btractx_extend)) &
