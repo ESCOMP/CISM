@@ -1,4 +1,4 @@
-module load intel/17.0.1
+module load intel/18.0.5
 module load git
 module loat python
 

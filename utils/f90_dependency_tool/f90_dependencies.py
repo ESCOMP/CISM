@@ -146,15 +146,15 @@ def print_makefile(out,files,modules,obj_ext):
 
 def usage():
     "short help message"
-    print 'Usage: f90_dependencies [OPTIONS] f90files'
-    print 'extract module dependencies from set of f90/95 files'
-    print ''
-    print '  -h, --help\n\tthis message'
-    print '  -d, --dot\n\tchange output format to dot (default is Makefile dependencies)'
-    print '  -p file, --process=file\n\tonly processes dependencies for file (more than one can be specified)'
-    print '  -m, --mod\n\tonly process modules (only honour when producing dot)'
-    print '  -l, --libtool\n\tproduce output to be used by libtool'
-    print '  -o file, --output=file\n\twrite to file (default: stdout'
+    print( 'Usage: f90_dependencies [OPTIONS] f90files')
+    print( 'extract module dependencies from set of f90/95 files')
+    print( '')
+    print( '  -h, --help\n\tthis message')
+    print( '  -d, --dot\n\tchange output format to dot (default is Makefile dependencies)')
+    print( '  -p file, --process=file\n\tonly processes dependencies for file (more than one can be specified)')
+    print( '  -m, --mod\n\tonly process modules (only honour when producing dot)')
+    print( '  -l, --libtool\n\tproduce output to be used by libtool')
+    print( '  -o file, --output=file\n\twrite to file (default: stdout')
 
 if __name__ == '__main__':
 

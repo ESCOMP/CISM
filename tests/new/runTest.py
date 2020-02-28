@@ -20,7 +20,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
