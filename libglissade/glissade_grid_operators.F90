@@ -1296,7 +1296,7 @@ contains
     ! Compute the x and y components of the surface gradient
     ! Note: With gradient_margin_in = 1, edge gradients are computed only for edges
     !        with slope_mask = 1 on either side.
-    !       For instance, if slope_mask = 1 for floating cells only, then dz_dz = dz_dy = 0
+    !       For instance, if slope_mask = 1 for floating cells only, then dz_dx = dz_dy = 0
     !        for grounded regions.
 
     call glissade_gradient(nx,         ny,          &

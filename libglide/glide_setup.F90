@@ -1357,6 +1357,9 @@ contains
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
        endif
+       if (model%options%whichcalving == CALVING_THCK_THRESHOLD_2D) then
+          call write_log('Error, calving thickness threshold 2D option is supported for Glissade dycore only', GM_FATAL)
+       endif
        if (model%options%whichcalving == EIGENCALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
        endif
@@ -2057,8 +2060,12 @@ contains
 
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
-    call GetValue(section, 'inversion_bmlt_basin_cavity_threshold', &
-         model%inversion%bmlt_basin_cavity_threshold)
+    call GetValue(section, 'inversion_bmlt_basin_flotation_threshold', &
+         model%inversion%bmlt_basin_flotation_threshold)
+    call GetValue(section, 'inversion_bmlt_basin_mass_correction', &
+         model%inversion%bmlt_basin_mass_correction)
+    call GetValue(section, 'inversion_bmlt_basin_number_mass_correction', &
+         model%inversion%bmlt_basin_number_mass_correction)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2462,9 +2469,18 @@ contains
        call write_log(message)
        write(message,*) 'dbmlt/dtemp scale (m/yr/deg C)               : ', model%inversion%dbmlt_dtemp_scale
        call write_log(message)
-       write(message,*) 'Cavity threshold (m) for bmlt_basin inversion: ', &
-            model%inversion%bmlt_basin_cavity_threshold
+       write(message,*) 'Flotation threshold (m) for bmlt_basin inversion: ', &
+            model%inversion%bmlt_basin_flotation_threshold
        call write_log(message)
+       if (abs(model%inversion%bmlt_basin_mass_correction) > 0.0d0 .and. &
+            model%inversion%bmlt_basin_number_mass_correction > 0) then
+          write(message,*) 'Inversion mass correction applied to basin # :', &
+               model%inversion%bmlt_basin_number_mass_correction
+          call write_log(message)
+          write(message,*) 'Mass correction (Gt)                         :', &
+               model%inversion%bmlt_basin_mass_correction
+          call write_log(message)
+       endif
     endif
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
@@ -3139,6 +3155,10 @@ contains
 
         if (options%whichcalving == CALVING_GRID_MASK) then
            call glide_add_to_restart_variable_list('calving_mask')
+        endif
+
+        if (options%whichcalving == CALVING_THCK_THRESHOLD_2D) then
+           call glide_add_to_restart_variable_list('calving_threshold_thck')
         endif
 
         ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,

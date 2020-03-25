@@ -724,6 +724,14 @@ load:          1
 type:          int
 coordinates:   lon lat
 
+[calving_threshold_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     thickness threshold for calving ice
+data:          data%calving%calving_threshold_thck
+factor:        thk0
+coordinates:   lon lat
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year

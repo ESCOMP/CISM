@@ -1384,7 +1384,7 @@ module glissade_bmlt_float
                                     dew,      dns,    &  ! m
                                     lsrf,             &  ! m
                                     theta_slope,      &  ! radians
-                                    slope_mask_in = thermal_forcing_mask)
+                                    slope_mask_in = ice_mask)
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
