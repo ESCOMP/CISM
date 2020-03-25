@@ -91,9 +91,9 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
 
-    real(dp) :: h_cavity                     ! cavity thickness (m); < 0 for grounded ice
+    real(dp) :: f_flotation                  ! flotation function (m); < 0 for grounded ice, > 0 for floating ice
     real(dp) :: h_obs, h_flotation, h_buff   ! thck_obs, flotation thickness, and thck_flotation_buffer scaled to m
-    real(dp) :: dh                           ! h_obs - f_flotation
+    real(dp) :: dh                           ! h_obs - h_flotation
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
     integer :: ewn, nsn
@@ -291,10 +291,10 @@ contains
 
           do j = 1, nsn
              do i = 1, ewn
-                h_cavity = (-(model%geometry%topg(i,j) - model%climate%eus)  &
-                            - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0    ! h_cavity < 0 for grounded ice
+                f_flotation = (-(model%geometry%topg(i,j) - model%climate%eus)  &
+                              - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0    ! f_flotation < 0 for grounded ice
                 if (model%geometry%thck(i,j) > 0.0d0 .and. marine_connection_mask(i,j) == 1 .and. &
-                     abs(h_cavity) < model%inversion%bmlt_basin_cavity_threshold) then
+                     abs(f_flotation) < model%inversion%bmlt_basin_flotation_threshold) then
                    model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
                 else
                    model%inversion%floating_thck_target(i,j) = 0.0d0
@@ -303,7 +303,7 @@ contains
           enddo
 
           if (verbose_inversion .and. this_rank == rtest) then
-             print*, 'bmlt_basin_cavity_threshold =', model%inversion%bmlt_basin_cavity_threshold
+             print*, 'bmlt_basin_flotation_threshold =', model%inversion%bmlt_basin_flotation_threshold
              print*, ' '
              print*, 'After init_inversion, floating_thck_target (m):'
              do j = jtest+3, jtest-3, -1
@@ -321,7 +321,7 @@ contains
                 write(6,*) ' '
              enddo
              print*, ' '
-             print*, 'h_cavity (m):'
+             print*, 'f_flotation (m):'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') &
@@ -1049,7 +1049,7 @@ contains
 
     use glimmer_paramets, only: tim0, thk0
     use glimmer_physcon, only: scyr
-    use glissade_grid_operators, only: glissade_stagger
+    use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
 
     implicit none
 
@@ -1065,11 +1065,25 @@ contains
          stag_thck_obs,        & ! thck_obs on staggered grid
          stag_dthck_dt           ! dthck_dt on staggered grid
 
+    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+         stag_smoothed          ! work array to hold a smoothed field
+
     integer :: i, j
     integer :: ewn, nsn
     integer :: itest, jtest, rtest
 
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
+
+    !WHL
+    ! Note: The reason to smooth stag_thck, stag_thck_obs, and stag_dthck_dt is to allow floating ice near
+    !        the GL to have a nonzero influence on Cp for grounded ice at and slightly upstream of the GL.
+    !       For example, when the GL retreats, ice just downstream of the GL is usually biased thin.
+    !       Extending the stencil by one cell tends to reduce stag_thck, promoting an increase in Cp
+    !        for grounded vertices upstream.
+    !       This variable could be made a config parameter, but for now is hardwired to be true.
+    logical :: &
+         smooth_stag_thck = .true. ! If true, then apply a Laplacian smoother to stag_thck and related fields
+                                   ! when inverting for powerlaw_c
 
     rtest = -999
     itest = 1
@@ -1107,6 +1121,58 @@ contains
        ! Interpolate dthck_dt to the staggered grid
        call glissade_stagger(ewn,                      nsn,             &
                              model%geometry%dthck_dt,  stag_dthck_dt)
+
+       if (verbose_inversion .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'stag_thck at vertices:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') stag_thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       if (smooth_stag_thck) then
+
+          ! Smooth these fields, using a 9-point Laplacian smoother.
+          ! The main purpose of smoothing is to extend the influence of cells downstream of the grounding line.
+          ! If these cells have thin ice, we would like them to induce greater friction in the grounded region upstream.
+
+          call glissade_laplacian_smoother(ewn-1,          nsn-1,          &
+                                           stag_thck_obs,  stag_smoothed,  &
+                                           npoints_stencil = 9)
+
+          stag_thck_obs = stag_smoothed
+
+          call glissade_laplacian_smoother(ewn-1,          nsn-1,          &
+                                           stag_thck,      stag_smoothed,  &
+                                           npoints_stencil = 9)
+
+          stag_thck = stag_smoothed
+
+          call glissade_laplacian_smoother(ewn-1,          nsn-1,          &
+                                           stag_dthck_dt,  stag_smoothed,  &
+                                           npoints_stencil = 9)
+
+          stag_dthck_dt = stag_smoothed
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'smoothed stag_thck at vertices:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.4)',advance='no') stag_thck(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          call staggered_parallel_halo(stag_thck_obs)
+          call staggered_parallel_halo(stag_thck)
+          call staggered_parallel_halo(stag_dthck_dt)
+
+       endif  ! smooth_stag_thck
 
        ! Invert for powerlaw_c_inversion
        call invert_basal_friction(model%numerics%dt*tim0,                 &  ! s
@@ -1348,7 +1414,9 @@ contains
                                            floating_thck_target,        &
                                            dbmlt_dtemp_scale,           &
                                            bmlt_basin_timescale,        &
-                                           deltaT_basin)
+                                           deltaT_basin,                &
+                                           bmlt_basin_mass_correction,  &
+                                           bmlt_basin_number_mass_correction)
 
     use glissade_bmlt_float, only: basin_sum
 
@@ -1395,6 +1463,12 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
          deltaT_basin            ! deltaT correction to thermal forcing in each basin (deg C)
+
+    real(dp), intent(in), optional :: &
+         bmlt_basin_mass_correction   ! optional mass correction (Gt) for a selected basin
+
+    integer, intent(in), optional :: &
+         bmlt_basin_number_mass_correction ! integer ID for the basin receiving the correction
 
     ! local variables
 
@@ -1472,6 +1546,26 @@ contains
                    dthck_dt*dx*dy,                &
                    floating_dvolume_dt_basin)
 
+    ! Optionally, apply a correction to the ice volume target in a selected basin.
+    ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
+    !       In practice, this basin is likely to be the Amundsen Sea Embayment (ISMIP6 basin #9).
+
+    if (present(bmlt_basin_mass_correction) .and. present(bmlt_basin_number_mass_correction)) then
+       if (abs(bmlt_basin_mass_correction) > 0.0d0 .and. bmlt_basin_number_mass_correction > 0) then
+
+          nb = bmlt_basin_number_mass_correction
+          floating_volume_target_basin(nb) = floating_volume_target_basin(nb) + &
+               bmlt_basin_mass_correction * (1.0d12/rhoi)   ! Gt converted to m^3
+          if (verbose_inversion .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'Basin with mass correction:', bmlt_basin_number_mass_correction
+             print*, 'mass correction (Gt) =', bmlt_basin_mass_correction
+             print*, 'volume correction (km^3) =', bmlt_basin_mass_correction * (1.0d3/rhoi)
+             print*, 'New volume target (km^3) =', floating_volume_target_basin(nb) / 1.0d9
+          endif
+       endif
+    endif   ! present(bmlt_basin_mass_correction)
+
     ! For each basin, compute the current and target mean ice thickness, and the rate of change of mean ice thickness.
     where (floating_area_target_basin > 0.0d0)
        floating_thck_target_basin = floating_volume_target_basin / floating_area_target_basin
@@ -1482,6 +1576,15 @@ contains
        floating_thck_basin = 0.0d0
        floating_dthck_dt_basin = 0.0d0
     endwhere
+
+    if (verbose_inversion .and. this_rank == rtest) then
+       if (present(bmlt_basin_mass_correction) .and. present(bmlt_basin_number_mass_correction)) then
+          if (abs(bmlt_basin_mass_correction) > 0.0d0 .and. bmlt_basin_number_mass_correction > 0) then
+             nb = bmlt_basin_number_mass_correction
+             print*, 'New basin thickness target =', floating_thck_target_basin(nb)
+          endif
+       endif
+    endif
 
     ! Compute the rate of change of deltaT_basin for each basin.
     ! Warm the basin where diff_ratio > 0 (too much ice) and cool where diff_ratio < 0 (too little ice).
@@ -1552,7 +1655,7 @@ contains
           deltaT_basin_nb = basin_max
        endwhere
 
-       if (this_rank == rtest) then
+       if (verbose_inversion .and. this_rank == rtest) then
           print*, 'bmlt_basin_timescale (yr) =', bmlt_basin_timescale/scyr
           print*, 'dbmlt_dtemp_scale (m/yr/degC) =', dbmlt_dtemp_scale
           print*, ' '

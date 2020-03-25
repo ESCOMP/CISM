@@ -1574,6 +1574,8 @@ contains
        where (h_cavity > 0.0d0)
           model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * &
                tanh(h_cavity/model%basal_melt%bmlt_cavity_h0)
+       elsewhere
+          model%basal_melt%bmlt_float = 0.0d0
        endwhere
 
        if (this_rank==rtest .and. verbose_bmlt_float) then
@@ -3178,12 +3180,14 @@ contains
        ! first call after a restart; do not compute dthck_dt
 
     else
+
        do j = 1, model%general%nsn
           do i = 1, model%general%ewn
-             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j))*thk0 &
+             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) * thk0 &
                                           / (model%numerics%dt * tim0)
           enddo
        enddo
+
     endif
 
     ! If inverting for Cp = powerlaw_c_inversion, then update it here
@@ -3231,9 +3235,11 @@ contains
                                              model%inversion%floating_thck_target*thk0, &  ! m
                                              model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
                                              model%inversion%bmlt_basin_timescale,      &  ! s
-                                             model%ocean_data%deltaT_basin)
+                                             model%ocean_data%deltaT_basin,             &
+                                             model%inversion%bmlt_basin_mass_correction,&
+                                             model%inversion%bmlt_basin_number_mass_correction)
 
-       endif
+       endif  ! first call after a restart
 
     endif   ! which_ho_bmlt_basin_inversion
 
