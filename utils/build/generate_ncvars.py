@@ -408,6 +408,9 @@ class PrintNC_template(PrintVars):
                 #*MJH* added to deal w/ writing of vars associated w/ stag vert coord w/bnd
                 elif dims[i] == 'stagwbndlevel':
                     dimstring = dimstring + 'up+1'  # goes to index up+1
+                #*HG* added to deal w/ writing of vars associated w/ nn coord 
+                elif dims[i] == 'nn':
+                    dimstring = dimstring + 'up'  # goes to index up
                 else:
                     dimstring = dimstring + '1'
                 
@@ -428,11 +431,24 @@ class PrintNC_template(PrintVars):
                 spaces = ' '*3
                 self.stream.write("       do up=0,NCO%nstagwbndlevel\n")  # starts with index 0
 
+            #*HG* added to handle writing of vars associated w/ nn coord 
+            if  'nn' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%nnn\n")  
+                
             data = var['data']
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
-            self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+
+            #*HG* added to handle aribtrary array sizes
+            if  'bn' in dims:
+                self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,data, dimstring))
+            else:
+                self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data, dimstring))
+
             self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
 
             if  'level' in dims:
@@ -444,6 +460,10 @@ class PrintNC_template(PrintVars):
 
             #*MJH* added to handle writing of vars associated w/ stag vert coord w/ bnd
             if  'stagwbndlevel' in dims:
+                self.stream.write("       end do\n")
+
+            #*HG* added to handle writing of vars associated w/ nn coord 
+            if  'nn' in dims:
                 self.stream.write("       end do\n")
 
             # remove self since it's not time dependent
@@ -480,6 +500,9 @@ class PrintNC_template(PrintVars):
                     #*MJH* added to deal w/ writing of vars associated w/ stag vert coord w/ bnd
                     elif dims[i] == 'stagwbndlevel':
                         dimstring = dimstring + 'up+1'   # goes to index up+1
+                    #*HG* added to deal w/ writing of vars associated w/ nn coord 
+                    elif dims[i] == 'nn':
+                        dimstring = dimstring + 'up'   
                     else:
                         dimstring = dimstring + '1'
 
@@ -500,7 +523,18 @@ class PrintNC_template(PrintVars):
                     spaces = ' '*3
                     self.stream.write("       do up=0,NCI%nstagwbndlevel\n")  # starts at index 0
 
-                self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                #*HG* added to handle writing of vars associated w/ nn coord 
+                if  'nn' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%nnn\n")  
+
+                #*HG* added to handle aribtrary array sizes
+                if  'bn' in dims:
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,var['data'], dimstring))
+                else:
+                    self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,var['data'], dimstring))
                 self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
                 self.stream.write("%s       status = parallel_get_att(NCI%%id, varid,'scale_factor',scaling_factor)\n"%(spaces))
@@ -528,6 +562,10 @@ class PrintNC_template(PrintVars):
 
                 #*MJH* added to handle writing of vars associated w/ stag vert coord w/ bnd
                 if  'stagwbndlevel' in dims:
+                    self.stream.write("       end do\n")
+
+                #*HG* added to handle writing of vars associated w/ nn coord
+                if  'nn' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13

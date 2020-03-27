@@ -1162,7 +1162,8 @@ contains
                                   glissade_transport_setup_tracers, &
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
-                                  glissade_add_mbal_anomaly
+                                  glissade_add_mbal_anomaly, &
+                                  glissade_asmb_remapping
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: verbose_inversion
 
@@ -1417,6 +1418,19 @@ contains
           model%climate%acab_corrected(:,:) = model%climate%acab_corrected(:,:) * model%climate%acab_factor
        endif
 
+       ! calculate anomaly by remapping
+       ! TODO: optionize
+       !if (model%options%enable_asmbremapping) then
+       
+       call glissade_asmb_remapping(ewn, nsn,                       &
+                                    model%climate%aSMBltbl,         &
+                                    model%climate%basinIDs,         &
+                                    model%climate%basinWGTs,        &
+                                    model%geometry%usrf*thk0,       & ! unscaled elevation
+                                    model%climate%acab_anomaly)     
+
+       !endif
+       
        if (model%options%enable_acab_anomaly) then
 
           ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.

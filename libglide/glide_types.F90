@@ -1110,6 +1110,11 @@ module glide_types
                                                                   !> (any ice reaching these locations is eliminated)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
+     integer, dimension(:,:,:),pointer :: basinIDs => null()      !> Basin indicies for SMB remapping
+     real(dp),dimension(:,:,:),pointer :: basinWGTs => null()     !> Basin weights for SMB remapping
+     real(dp),dimension(:,:),pointer :: aSMBltbl => null()        !> aSMB lookup table
+     real(dp),dimension(:,:),pointer :: dSMBdzltbl => null()      !> dSMBdz lookup table
+     
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab anomaly is phased in linearly
@@ -2319,6 +2324,11 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
+    call coordsystem_allocate(model%general%ice_grid, 7, model%climate%basinIDs)
+    call coordsystem_allocate(model%general%ice_grid, 7, model%climate%basinWGTs)
+    allocate(model%climate%aSMBltbl(1:36,1:25))
+    allocate(model%climate%dSMBdzltbl(1:36,1:25))
+
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
@@ -2802,6 +2812,15 @@ contains
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
 
+    if (associated(model%climate%basinIDs)) &
+        deallocate(model%climate%basinIDs)
+    if (associated(model%climate%basinWGTs)) &
+        deallocate(model%climate%basinWGTs)
+    if (associated(model%climate%aSMBltbl)) &
+        deallocate(model%climate%aSMBltbl)
+    if (associated(model%climate%dSMBdzltbl)) &
+        deallocate(model%climate%dSMBdzltbl)
+    
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
         deallocate(model%calving%calving_thck)

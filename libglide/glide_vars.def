@@ -73,6 +73,27 @@ standard_name: land_ice_stag_sigma_coordinate_with_bnd
 positive:      down
 dimlen:        model%general%upn+1
 
+[nn]
+dimensions:    nn
+units:         1
+long_name:     counter 
+standard_name: counter
+dimlen:        7
+
+[bn]
+dimensions:    bn
+units:         1
+long_name:     bcounter 
+standard_name: bcounter
+dimlen:        25
+
+[zn]
+dimensions:    zn
+units:         meter
+long_name:     zlevel
+standard_name: zlevel
+dimlen:        36
+
 [lithoz]
 dimensions:    lithoz
 units:         meter
@@ -781,6 +802,40 @@ data:          data%climate%acab_anomaly
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_anomaly
 coordinates:   lon lat
+load:          1
+
+[basinIDs]
+dimensions:    time, nn, y1, x1
+units:         1
+long_name:     basin IDs for SMB remapping
+data:          data%climate%basinIDs(up,:,:)
+factor:        1.0
+coordinates:   lon lat
+load:          1
+
+[basinWGTs]
+dimensions:    time, nn, y1, x1
+units:         1
+long_name:     basin weights for SMB remapping
+data:          data%climate%basinWGTs(up,:,:)
+factor:        1.0
+coordinates:   lon lat
+load:          1
+
+[aSMB_ltbl]
+dimensions:    time, bn, zn
+units:	       meter/year         
+long_name:     aSMB lookup table
+data:          data%climate%aSMBltbl(1:36,1:25)
+factor:        1.0
+load:          1
+
+[dSMBdz_ltbl]
+dimensions:    time, bn, zn
+units:	       meter/year/meter         
+long_name:     dSMBdz lookup table
+data:          data%climate%dSMBdzltbl(1:36,1:25)
+factor:        1.0
 load:          1
 
 [no_advance_mask]

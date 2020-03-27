@@ -196,6 +196,7 @@ contains
     NCO%nlevel = model%general%upn
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
+    NCO%nnn = 7 ! HG
 
   end subroutine glimmer_nc_openappend
 
@@ -329,6 +330,7 @@ contains
     NCO%nlevel = model%general%upn
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
+    NCO%nnn = 7 ! HG
 
   end subroutine glimmer_nc_createfile
 
@@ -564,6 +566,7 @@ contains
     NCI%nlevel = model%general%upn
     NCI%nstaglevel = model%general%upn-1
     NCI%nstagwbndlevel = model%general%upn !MJH This is the max index, not size
+    NCI%nnn = 7 !HG
 
     ! checking if dimensions and grid spacing are the same as in the configuration file
     ! x1

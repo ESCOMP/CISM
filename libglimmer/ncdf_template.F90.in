@@ -45,7 +45,7 @@ module NAME_io
   implicit none
 
   private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
-       is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
+       is_enabled_2dint, is_enabled_3dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
 
   character(glimmer_nc_vars_len), save :: restart_variable_list=''    ! list of variables needed for a restart
 
@@ -53,6 +53,7 @@ module NAME_io
     module procedure is_enabled_0dint
     module procedure is_enabled_1dint
     module procedure is_enabled_2dint
+    module procedure is_enabled_3dint
     module procedure is_enabled_0dreal
     module procedure is_enabled_1dreal
     module procedure is_enabled_2dreal
@@ -314,6 +315,17 @@ contains
     endif
     return
   end function is_enabled_2dint
+
+  function is_enabled_3dint(var)
+    integer, dimension(:,:,:), pointer, intent(in) :: var
+    logical :: is_enabled_3dint
+    if (associated(var)) then
+      is_enabled_3dint = .true.
+    else
+      is_enabled_3dint = .false.
+    endif
+    return
+  end function is_enabled_3dint
 
   function is_enabled_0dreal(var)
     real(dp), intent(in) :: var
