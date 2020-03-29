@@ -225,6 +225,7 @@ module parallel
      module procedure parallel_get_var_real4_1d
      module procedure parallel_get_var_real8_1d
      module procedure parallel_get_var_integer_2d
+     module procedure parallel_get_var_real4_2d
      module procedure parallel_get_var_real8_2d
   end interface
 
@@ -267,6 +268,8 @@ module parallel
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
+     module procedure parallel_put_var_real4_2d
+     module procedure parallel_put_var_real8_2d
   end interface
 
   interface parallel_reduce_sum
@@ -1653,13 +1656,26 @@ contains
          nf90_get_var(ncid,varid,values)
   end function parallel_get_var_integer_2d
 
-  function parallel_get_var_real8_2d(ncid,varid,values)
+  !*HG* added to read 2d variables 
+  function parallel_get_var_real4_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real4_2d,varid
+    integer,dimension(:) :: start
+    real(sp),dimension(:,:) :: values
+    ! begin
+    if (main_task) parallel_get_var_real4_2d = &
+         nf90_get_var(ncid,varid,values,start)
+  end function parallel_get_var_real4_2d
+
+  !*HG* added to read 2d variables 
+  function parallel_get_var_real8_2d(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
+    integer,dimension(:) :: start
     real(dp),dimension(:,:) :: values
     ! begin
     if (main_task) parallel_get_var_real8_2d = &
-         nf90_get_var(ncid,varid,values)
+         nf90_get_var(ncid,varid,values,start)
   end function parallel_get_var_real8_2d
 
   !TODO - Is function parallel_globalID still needed?
@@ -2486,6 +2502,40 @@ contains
     end if
     call broadcast(parallel_put_var_real8_1d)
   end function parallel_put_var_real8_1d
+
+  !*HG* added to read 2d variables
+  function parallel_put_var_real4_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_real4_2d,varid
+    integer,dimension(:),optional :: start
+    real(sp),dimension(:,:) :: values
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real4_2d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real4_2d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_real4_2d)
+  end function parallel_put_var_real4_2d
+
+  !*HG* added to read 2d variables
+  function parallel_put_var_real8_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_real8_2d,varid
+    integer,dimension(:),optional :: start
+    real(dp),dimension(:,:) :: values
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real8_2d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real8_2d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_real8_2d)
+  end function parallel_put_var_real8_2d
 
   function parallel_redef(ncid)
     implicit none

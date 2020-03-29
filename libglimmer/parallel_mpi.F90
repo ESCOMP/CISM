@@ -374,6 +374,7 @@ module parallel
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
+     module procedure parallel_put_var_real8_2d
   end interface
 
   interface parallel_reduce_max
@@ -6245,6 +6246,22 @@ contains
     end if
     call broadcast(parallel_put_var_real8_1d)
   end function parallel_put_var_real8_1d
+
+  function parallel_put_var_real8_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_real8_2d,varid
+    integer,dimension(:),optional :: start
+    real(dp),dimension(:,:) :: values
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real8_2d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real8_2d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_real8_2d)
+  end function parallel_put_var_real8_2d
 
   function parallel_redef(ncid)
     implicit none

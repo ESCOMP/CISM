@@ -83,7 +83,8 @@ module glimmer_ncdf
      integer :: nstagwbndlevel = 0
      !WHL - added to handle ocean vertical coordinate
      integer :: nzocn = 0
-
+     !*HG* - added to handle additional coordinate
+     integer :: nnn = 0
      !> size of vertical and stag vertical coordinate
 
      integer timedim
@@ -350,6 +351,7 @@ contains
     print*,'nstaglevel:      ',stat%nstaglevel
     print*,'nstagwbndlevel:  ',stat%nstagwbndlevel
     print*,'nzocn:           ',stat%nzocn
+    print*,'nnn:             ',stat%nnn
     print*,'timedim:         ',stat%timedim
     print*,'internal_timevar:',stat%internal_timevar
     print*,'timevar:         ',stat%timevar
