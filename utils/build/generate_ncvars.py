@@ -574,8 +574,8 @@ class PrintNC_template(PrintVars):
                                                                                                                    spaces,var['data']))
                 #*HG* added to handle aribtrary array sizes
                 elif  'bn' in dims:
-                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
-                                                                                                                   spaces,var['data']))
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,var['data'], dimstring))
                 else:
                     self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                 spaces,var['data'], dimstring))

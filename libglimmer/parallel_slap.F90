@@ -1733,11 +1733,16 @@ contains
   function parallel_get_var_real8_2d(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(dp),dimension(:,:) :: values
     ! begin
-    if (main_task) parallel_get_var_real8_2d = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values)
+       end if
+    endif
   end function parallel_get_var_real8_2d
 
   !TODO - Is function parallel_globalID still needed?
