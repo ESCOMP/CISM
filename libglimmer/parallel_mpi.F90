@@ -249,6 +249,7 @@ module parallel
      module procedure parallel_get_var_integer_1d
      module procedure parallel_get_var_real4_1d
      module procedure parallel_get_var_real8_1d
+     module procedure parallel_get_var_real8_2d
   end interface
 
   interface parallel_halo
@@ -308,6 +309,7 @@ module parallel
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
+     module procedure parallel_put_var_real8_2d
   end interface
 
   interface parallel_reduce_max
@@ -3104,6 +3106,17 @@ contains
     call broadcast(values)
   end function parallel_get_var_real8_1d
 
+  !*HG* added to read 2d variables with arbitrary array sizes
+  function parallel_get_var_real8_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real8_2d,varid
+    integer,dimension(:) :: start
+    real(dp),dimension(:,:) :: values
+    ! begin
+    if (main_task) parallel_get_var_real8_2d = &
+         nf90_get_var(ncid,varid,values,start)
+  end function parallel_get_var_real8_2d
+
   !TODO - Is function parallel_globalID still needed?  No longer called except from glissade_test_halo.
 
   function parallel_globalID(locns, locew, upstride)
@@ -4359,6 +4372,23 @@ contains
     call broadcast(parallel_put_var_real8_1d)
   end function parallel_put_var_real8_1d
 
+  !*HG* added to read 2d variables with arbitrary array sizes
+  function parallel_put_var_real8_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_real8_2d,varid
+    integer,dimension(:),optional :: start
+    real(dp),dimension(:,:) :: values
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real8_2d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real8_2d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_real8_2d)
+  end function parallel_put_var_real8_2d
+  
   function parallel_redef(ncid)
     implicit none
     integer :: ncid,parallel_redef
