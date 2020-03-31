@@ -425,6 +425,9 @@ class PrintNC_template(PrintVars):
                 #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
                 elif dims[i] == 'zocn':
                     dimstring = dimstring + 'up'
+                #*HG* added to deal w/ writing of vars associated w/ nn coord 
+                elif dims[i] == 'nn':
+                    dimstring = dimstring + 'up'  # goes to index up
                 else:
                     dimstring = dimstring + '1'
                 
@@ -451,12 +454,22 @@ class PrintNC_template(PrintVars):
                 spaces = ' '*3
                 self.stream.write("       do up=1,NCO%nzocn\n")
 
+            #*HG* added to handle writing of vars associated w/ nn coord 
+            if  'nn' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%nnn\n")  
+                
             data = var['data']
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
 
             #WHL: Call parallel_put_var to write scalars; else call distributed_put_var
             if dimstring == 'outfile%timecounter':   # scalar variable; no dimensions except time
+                self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
+            #*HG* added to handle aribtrary array sizes
+            elif  'bn' in dims:
                 self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,data,dimstring))
             else:
@@ -477,6 +490,10 @@ class PrintNC_template(PrintVars):
 
             #*WHL* added to handle writing of vars associated w/ ocean vert coord
             if  'zocn' in dims:
+                self.stream.write("       end do\n")
+
+            #*HG* added to handle writing of vars associated w/ nn coord 
+            if  'nn' in dims:
                 self.stream.write("       end do\n")
 
             # remove self since it's not time dependent
@@ -516,6 +533,9 @@ class PrintNC_template(PrintVars):
                     #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
                     elif dims[i] == 'zocn':
                         dimstring = dimstring + 'up'
+                    #*HG* added to deal w/ writing of vars associated w/ nn coord 
+                    elif dims[i] == 'nn':
+                        dimstring = dimstring + 'up'   
                     else:
                         dimstring = dimstring + '1'
 
@@ -542,8 +562,18 @@ class PrintNC_template(PrintVars):
                     spaces = ' '*3
                     self.stream.write("       do up=1,NCI%nzocn\n")
 
+                #*HG* added to handle writing of vars associated w/ nn coord 
+                if  'nn' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%nnn\n")  
+
                 #WHL: Call parallel_get_var to get scalars; else call distributed_get_var
                 if dimstring == 'infile%current_time':   # scalar variable; no dimensions except time
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
+                                                                                                                   spaces,var['data']))
+                #*HG* added to handle aribtrary array sizes
+                elif  'bn' in dims:
                     self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
                                                                                                                    spaces,var['data']))
                 else:
@@ -593,6 +623,10 @@ class PrintNC_template(PrintVars):
 
                 #*WHL* added to handle writing of vars associated w/ ocean vert coord
                 if  'zocn' in dims:
+                    self.stream.write("       end do\n")
+
+                #*HG* added to handle writing of vars associated w/ nn coord
+                if  'nn' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13

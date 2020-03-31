@@ -16,17 +16,15 @@ else
 fi
 
 echo CISM: "${cism_top}"
-
-
 module purge
-module load ncarenv/1.2
-module load intel/17.0.1
-module load mkl/2017.0.1
-module load mpt/2.15f
-module load netcdf-mpi/4.4.1.1
-module load ncarcompilers/0.4.1
-module load pnetcdf/1.8.0
-module load cmake/3.7.2
+module load ncarenv
+module load intel/18.0.5
+module load mkl/2018.0.5
+module load mpt/2.19
+module load netcdf-mpi/4.6.3
+module load ncarcompilers/0.5.0
+module load pnetcdf/1.11.0
+module load cmake/3.14.4
 module load python/2.7.13
 module load numpy/1.12.0
 module load netcdf4-python/1.2.7
