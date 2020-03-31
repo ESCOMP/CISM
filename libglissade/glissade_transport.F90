@@ -2236,6 +2236,8 @@
          end do
       end do
 
+      write(*,*) 'Remapping called'
+
     end subroutine glissade_asmb_remapping
     
 

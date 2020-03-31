@@ -1117,16 +1117,6 @@ standard_name: land_ice_surface_specific_mass_balance_applied
 coordinates:   lon lat
 average:       1
 
-[acab_anomaly]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     accumulation, ablation rate anomaly
-data:          data%climate%acab_anomaly
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_anomaly
-coordinates:   lon lat
-load:          1
-
 [basinIDs]
 dimensions:    time, nn, y1, x1
 units:         1
@@ -1149,7 +1139,7 @@ load:          1
 dimensions:    time, bn, zn
 units:	       meter/year         
 long_name:     aSMB lookup table
-data:          data%climate%asmbltbl(1:36,1:25)
+data:          data%climate%aSMBltbl(1:36,1:25)
 factor:        1.0
 load:          1
 
@@ -1157,7 +1147,7 @@ load:          1
 dimensions:    time, bn, zn
 units:	       meter/year/meter         
 long_name:     dSMBdz lookup table
-data:          data%climate%dsmbdzltbl(1:36,1:25)
+data:          data%climate%dSMBdzltbl(1:36,1:25)
 factor:        1.0
 load:          1
 

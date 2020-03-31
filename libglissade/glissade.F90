@@ -2511,7 +2511,7 @@ contains
                                     model%climate%basinIDs,         &
                                     model%climate%basinWGTs,        &
                                     model%geometry%usrf*thk0,       & ! unscaled elevation
-                                    model%climate%acab_anomaly)     
+                                    model%climate%smb_anomaly)     
 
        !endif
        
