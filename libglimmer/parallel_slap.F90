@@ -56,6 +56,24 @@ module parallel
   integer,parameter :: tasks = 1
 #endif
 
+!*HG* added to accomodate WHL work in glissade_velo_higher_pcg.F90
+  ! integers associated with the row-based communicator
+  ! (for communication among tasks with the same value of nsrank)
+  integer,save :: comm_row       ! integer ID for the row-based communicator
+  integer,save :: tasks_row      ! total number of tasks on the local row
+  integer,save :: this_rank_row  ! integer ID for the local task in the row
+  integer,save :: main_rank_row  ! integer ID for the master task on the row
+  logical,save :: main_task_row  ! true if this_rank_row = main_rank_row
+
+  ! integers associated with the column-based communicator
+  ! (for communication among tasks with the same value of ewrank)
+  integer,save :: comm_col       ! integer ID for the column-based communicator
+  integer,save :: tasks_col      ! total number of tasks on the local column
+  integer,save :: this_rank_col  ! integer ID for the local task in the column
+  integer,save :: main_rank_col  ! integer ID for the master task on the column
+  logical,save :: main_task_col  ! true if this_rank_col = main_rank_col
+!*HG-
+  
   ! distributed grid
   integer,save :: global_ewn,global_nsn,local_ewn,local_nsn,own_ewn,own_nsn
   integer,save :: global_col_offset, global_row_offset
@@ -144,6 +162,16 @@ module parallel
      module procedure distributed_gather_var_real8_2d
      module procedure distributed_gather_var_real8_3d
   end interface
+
+!*HG+ added to accomodate WHL work in glissade_velo_higher_pcg.F90
+  interface distributed_gather_all_var_row
+     module procedure distributed_gather_all_var_row_real8_2d
+  end interface
+
+  interface distributed_gather_all_var_col
+     module procedure distributed_gather_all_var_col_real8_2d
+  end interface
+!*HG-
 
   interface distributed_get_var
      module procedure distributed_get_var_integer_2d
@@ -580,14 +608,17 @@ contains
   end function distributed_get_var_real8_3d
 
 
+!*HG* modified to accomodate WHL work in glissade_velo_higher_pcg.F90
   subroutine distributed_grid(ewn,      nsn,  &
-                              nhalo_in, outflow_bc_in)
+                              nhalo_in, global_bc_in)
 
     implicit none
 
     integer, intent(inout) :: ewn, nsn          ! global grid dimensions
     integer, intent(in), optional :: nhalo_in   ! number of rows of halo cells
-    logical, intent(in), optional :: outflow_bc_in  ! true for outflow global BCs
+    character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
+
+!    logical, intent(in), optional :: global_bc_in  ! true for outflow global BCs
                                                     ! (scalars in global halo set to zero)
            
     integer :: ewrank,nsrank
@@ -595,16 +626,20 @@ contains
     ! set the boundary conditions (periodic by default) 
     ! Note: The no-penetration BC is treated as periodic. This BC may need some more work.
 
-    if (present(outflow_bc_in)) then
-       outflow_bc = outflow_bc_in
-    else
-       outflow_bc = .false.
-    endif
-
-    if (outflow_bc) then
-       periodic_bc = .false.
-    else
+    if (present(global_bc_in)) then
+       if (trim(global_bc_in) == 'periodic') then
+          periodic_bc = .true.
+          outflow_bc = .false.
+          write(*,*) 'Setting periodic boundary conditions'
+       elseif (trim(global_bc_in) == 'outflow') then
+          periodic_bc = .false.
+          outflow_bc = .true.
+          write(*,*) 'Setting outflow boundary conditions'
+       endif
+    else   ! default to periodic
        periodic_bc = .true.
+       outflow_bc = .false.
+       write(*,*) 'Setting periodic boundary conditions'
     endif
 
     ! Optionally, change the halo values
@@ -901,6 +936,36 @@ contains
 
   end subroutine distributed_gather_var_real8_3d
 
+!*HG+ added to accomodate WHL work in glissade_velo_higher_pcg.F90
+  subroutine distributed_gather_all_var_row_real8_2d(values, global_values)
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+
+    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
+    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+  end subroutine distributed_gather_all_var_row_real8_2d
+
+  subroutine distributed_gather_all_var_col_real8_2d(values, global_values)
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+
+    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
+    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+  end subroutine distributed_gather_all_var_col_real8_2d
+!*HG-  
+  
   function distributed_isparallel()
      implicit none
      logical :: distributed_isparallel
@@ -1587,34 +1652,31 @@ contains
          nf90_get_att(ncid,varid,name,values)
   end function parallel_get_att_real8_1d
 
-  function parallel_get_var_integer(ncid,varid,values,start)
+!*HG* modified to match parallel_MPI
+  function parallel_get_var_integer(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_integer,varid
-    integer,dimension(:) :: start
     integer :: values
     ! begin
-    if (main_task) parallel_get_var_integer = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values)
   end function parallel_get_var_integer
 
-  function parallel_get_var_real4(ncid,varid,values,start)
+!*HG* modified to match parallel_MPI
+  function parallel_get_var_real4(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_real4,varid
-    integer,dimension(:) :: start
     real(sp) :: values
     ! begin
-    if (main_task) parallel_get_var_real4 = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
   end function parallel_get_var_real4
 
-  function parallel_get_var_real8(ncid,varid,values,start)
+!*HG* modified to match parallel_MPI
+  function parallel_get_var_real8(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_real8,varid
-    integer,dimension(:) :: start
     real(dp) :: values
     ! begin
-    if (main_task) parallel_get_var_real8 = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
   end function parallel_get_var_real8
 
   function parallel_get_var_integer_1d(ncid,varid,values)
