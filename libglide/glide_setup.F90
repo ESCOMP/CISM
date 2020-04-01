@@ -699,6 +699,13 @@ contains
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
+    !*HG*
+    call GetValue(section,'enable_acab_anomaly_remapping',model%options%enable_acab_anomaly_remapping)
+    call GetValue(section,'asmb_remapping_surface',model%options%asmb_remapping_surface)
+    call GetValue(section,'dsmbdz_remapping_surface',model%options%dsmbdz_remapping_surface)
+    !call GetValue(section,'nlev_smb',model%climate%nlev_smb) ! also used for SMB_INPUT_FUNCTION_XYZ
+    call GetValue(section,'nbas_smb',model%climate%nbas_smb)
+    !*HG-
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -906,15 +913,24 @@ contains
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
 
-    character(len=*), dimension(0:2), parameter :: smb_input_function = (/ &
+    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
          'SMB input as function of (x,y)              ', &
          'SMB and d(SMB)/dz input as function of (x,y)', &
-         'SMB input as function of (x,y,z)            ' /)
+         'SMB input as function of (x,y,z)            ', &
+         'SMB (x,y); d(SMB)/dz(b,z); aSMB(b,z)        '/)
 
     character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
          'artm and d(artm)/dz input as function of (x,y)', &
          'artm input as function of (x,y,z)             ' /)
+    !*HG* add remapping
+    character(len=*), dimension(0:1), parameter :: asmb_remapping_surface = (/ &
+         'aSMB remapped to reference surface = 0      ', &
+         'aSMB remapped to model surface = 1          ' /)
+
+    character(len=*), dimension(0:1), parameter :: dsmbdz_remapping_surface = (/ &
+         'dSMBdz remapped to reference surface = 0    ', &
+         'dSMBdz remapped to model surface = 1        ' /)
 
     character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
@@ -1482,6 +1498,46 @@ contains
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
     endif
+    !*HG*
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
+       write(message,*) 'number of basins        : ', model%climate%nbas_smb
+       call write_log(message)
+       write(message,*) 'number of height levels : ', model%climate%nlev_smb
+       call write_log(message)
+       if (model%climate%nlev_smb < 2) then
+          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
+       endif
+       if (model%climate%nlev_smb < 1) then
+          call write_log('Error, must have nbas_smb >= 1 for this input function', GM_FATAL)
+       endif
+       if (model%options%dsmbdz_remapping_surface == DSMBDZ_REMAPPING_SURFACE_REFERENCE) then
+          call write_log('remapping dSMBdz to reference surface')
+       elseif (model%options%asmb_remapping_surface == DSMBDZ_REMAPPING_SURFACE_MODEL) then
+          call write_log('remapping dSMBdz to model surface')
+       else
+          call write_log('Error, option enable_acab_anomaly_remapping requires dsmbdz_remapping_surface = [0,1]',GM_FATAL)
+       endif
+       !write(message,*) 'dSMBdz remapping surface: ', model%options%dsmbdz_remapping_surface
+       !call write_log(message)
+
+       if(model%options%enable_acab_anomaly_remapping) then
+          call write_log('aSMB remapping is enabled')
+          if (model%options%asmb_remapping_surface == ASMB_REMAPPING_SURFACE_REFERENCE) then
+             call write_log('remapping aSMB to reference surface')
+          elseif (model%options%asmb_remapping_surface == ASMB_REMAPPING_SURFACE_MODEL) then
+             call write_log('remapping aSMB to model surface')
+          else
+             call write_log('Error, option enable_acab_anomaly_remapping requires asmb_remapping_surface = [0,1]',GM_FATAL)
+          endif
+          !write(message,*) 'aSMB remapping surface  : ', model%options%asmb_remapping_surface
+          !call write_log(message)
+       end if
+    endif
+
+    !*HG* added aSMB remapping
+    if (model%options%enable_acab_anomaly_remapping) then
+    endif
+    !*HG-
 
     if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
        call write_log('Error, artm_input_function option out of range',GM_FATAL)
@@ -2934,6 +2990,20 @@ contains
           end select
 
           call glide_add_to_restart_variable_list('smb_levels')
+
+       case(SMB_INPUT_FUNCTION_BZ)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb')
+          end select  ! smb_input
+          call glide_add_to_restart_variable_list('basinIDs')
+          call glide_add_to_restart_variable_list('basinWGTs')
+          call glide_add_to_restart_variable_list('aSMB_ltbl')
+          call glide_add_to_restart_variable_list('dSMBdz_ltbl')
+          call glide_add_to_restart_variable_list('smb_reference_usrf')
 
     end select  ! smb_input_function
 

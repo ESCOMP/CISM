@@ -2016,7 +2016,8 @@ contains
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
                                   glissade_add_2d_anomaly, &
-                                  glissade_asmb_remapping
+                                  glissade_asmb_remapping, &
+                                  glissade_dsmbdz_remapping
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
@@ -2288,7 +2289,8 @@ contains
        ! (0) SMB(x,y); no dependence on surface elevation
        ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
        ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
-       ! For options (1) and (2), the elevation-dependent SMB is computed here.
+       ! (3) SMB(x,y) + aSMB(b,z) + dSMB/dz(b,z) * dz; where aSMB and dSMB/dz are remapped
+       ! For options (1) and (2) and (3), the elevation-dependent SMB is computed here.
        ! Note: These conversion must be done at each time step (and not just once at initialization)
        !       if reading SMB or acab from a time-dependent forcing file.
 
@@ -2330,6 +2332,54 @@ contains
                                              model%climate%acab_3d,                &
                                              model%climate%acab,                   &
                                              linear_extrapolate_in = .false.)
+       !*HG* added aSMB remapping
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
+
+          ! acab_anomaly is caluclated and added further below
+
+          ! Remap dSMBdz
+          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+             ! Convert smb_ref from mm/yr w.e. to model acab units.
+             ! Convert dSMBdzltbl to model acab units.
+             model%climate%acab_ref(:,:) = (model%climate%smb_ref(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+             model%climate%dSMBdzltbl(:,:) = (model%climate%dSMBdzltbl(:,:) * (rhow/rhoi)/1000.d0) ! / scale_acab
+          endif
+
+          write(*,*) 'dSMBdz call ', DSMBDZ_REMAPPING_SURFACE_REFERENCE, DSMBDZ_REMAPPING_SURFACE_MODEL, model%options%dsmbdz_remapping_surface
+
+          if (model%options%dsmbdz_remapping_surface == DSMBDZ_REMAPPING_SURFACE_REFERENCE) then
+             call glissade_dsmbdz_remapping(ewn, nsn,                        &
+                                    model%climate%dSMBdzltbl,                &
+                                    model%climate%basinIDs,                  &
+                                    model%climate%basinWGTs,                 &
+                                    model%climate%smb_reference_usrf*thk0,   & ! unscaled elevation
+                                    model%climate%acab_gradz)
+
+          elseif (model%options%dsmbdz_remapping_surface == DSMBDZ_REMAPPING_SURFACE_MODEL) then
+             call glissade_dsmbdz_remapping(ewn, nsn,            &
+                                    model%climate%dSMBdzltbl,    &
+                                    model%climate%basinIDs,      &
+                                    model%climate%basinWGTs,     &
+                                    model%geometry%usrf*thk0,    & ! unscaled elevation
+                                    model%climate%acab_gradz)
+          endif
+
+          ! compute acab by a lapse-rate correction to the reference value
+          model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
+               (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%acab_gradz(:,:)
+
+!          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+!             ! Convert smb_ref from mm/yr w.e. to model acab units.
+!             ! Convert smb_gradz to model acab_gradz units.
+!             ! Note: smb_gradz already includes a scale factor of thk0 in glide_vars.def
+!             model%climate%acab_ref(:,:) = (model%climate%smb_ref(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+!             model%climate%acab_gradz(:,:) = (model%climate%smb_gradz(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+!          endif
+!
+!          ! compute acab by a lapse-rate correction to the reference value
+!          model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
+!               (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%acab_gradz(:,:)
+
 
        endif   ! smb_input_function
 
@@ -2505,19 +2555,6 @@ contains
           model%climate%acab_corrected(:,:) = model%climate%acab_corrected(:,:) * model%climate%acab_factor
        endif
 
-       ! calculate anomaly by remapping
-       ! TODO: optionize
-       !if (model%options%enable_asmbremapping) then
-       
-       call glissade_asmb_remapping(ewn, nsn,                       &
-                                    model%climate%aSMBltbl,         &
-                                    model%climate%basinIDs,         &
-                                    model%climate%basinWGTs,        &
-                                    model%geometry%usrf*thk0,       & ! unscaled elevation
-                                    model%climate%smb_anomaly)     
-
-       !endif
-       
        if (model%options%enable_acab_anomaly) then
 
           if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
@@ -2526,6 +2563,35 @@ contains
              !      But if read from a time-dependent forcing file, the conversion must be done repeatedly.
              model%climate%acab_anomaly(:,:) = (model%climate%smb_anomaly(:,:) * (rhow/rhoi) / 1000.d0) / scale_acab
           endif
+
+          !*HG* aSMB remapping. Set acab_anomaly by remapping
+          !if (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
+          ! using separate swith for aSMB remapping
+          if (model%options%enable_acab_anomaly_remapping) then
+
+             if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+                ! Convert aSMBltbl from mm/yr w.e. to model acab units.
+                model%climate%aSMBltbl(:,:) = (model%climate%aSMBltbl(:,:) * (rhow/rhoi)/1000.d0) ! / scale_acab
+             endif
+
+             if (model%options%asmb_remapping_surface == ASMB_REMAPPING_SURFACE_REFERENCE) then
+                call glissade_asmb_remapping(ewn, nsn,                       &
+                                    model%climate%aSMBltbl,                  &
+                                    model%climate%basinIDs,                  &
+                                    model%climate%basinWGTs,                 &
+                                    model%climate%smb_reference_usrf*thk0,   & ! unscaled elevation
+                                    model%climate%acab_anomaly)
+
+             elseif (model%options%asmb_remapping_surface == ASMB_REMAPPING_SURFACE_MODEL) then
+                call glissade_asmb_remapping(ewn, nsn,              &
+                                    model%climate%aSMBltbl,         &
+                                    model%climate%basinIDs,         &
+                                    model%climate%basinWGTs,        &
+                                    model%geometry%usrf*thk0,       & ! unscaled elevation
+                                    model%climate%acab_anomaly)
+             endif
+
+          endif ! enable_acab_anomaly_remapping
 
           call parallel_halo(model%climate%acab_anomaly)
 
@@ -2547,7 +2613,7 @@ contains
                   model%climate%acab_corrected(i,j)*thk0*scyr/tim0
           endif
 
-       endif
+       endif ! enable_acab_anomaly
 
        ! Note: If enable_artm_anomaly = T, then artm_anomaly is computed above, before calling glissade_therm_driver.
 
