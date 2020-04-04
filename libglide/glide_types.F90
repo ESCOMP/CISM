@@ -2783,8 +2783,6 @@ contains
        allocate(model%climate%smb_levels(model%climate%nlev_smb))
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
        !*HG* SMB remapping
-       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
        call coordsystem_allocate(model%general%ice_grid, model%climate%nnei_smb, model%climate%basinIDs)
        call coordsystem_allocate(model%general%ice_grid, model%climate%nnei_smb, model%climate%basinWGTs)

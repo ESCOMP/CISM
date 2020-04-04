@@ -2332,7 +2332,48 @@ contains
                                              model%climate%acab,                   &
                                              linear_extrapolate_in = .false.)
        !*HG* added remapping
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
+          ! Remapping of full SMB
+          if (model%options%enable_smb_remapping) then
+
+             if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+                ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+                model%climate%acab_ltbl(:,:) = (model%climate%smb_ltbl(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+             endif
+
+             if (model%options%smb_remapping_surface == SMB_REMAPPING_SURFACE_REFERENCE) then
+                call glissade_smb_remapping(ewn, nsn,                        &
+                                    model%climate%nnei_smb,                  &
+                                    model%climate%nbas_smb,                  &
+                                    model%climate%nlev_smb,                  &
+                                    0.d0, 100.d0, 3500.d0,   &
+                                    model%climate%acab_ltbl,           &
+                                    model%climate%basinIDs,                  &
+                                    model%climate%basinWGTs,                 &
+                                    model%climate%smb_reference_usrf*thk0,   & ! unscaled elevation
+                                    model%climate%acab)
+
+             elseif (model%options%smb_remapping_surface == SMB_REMAPPING_SURFACE_MODEL) then
+                call glissade_smb_remapping(ewn, nsn,            &
+                                    model%climate%nnei_smb,                  &
+                                    model%climate%nbas_smb,                  &
+                                    model%climate%nlev_smb,                  &
+                                    0.d0, 100.d0, 3500.d0,   &
+                                    model%climate%acab_ltbl,    &
+                                    model%climate%basinIDs,      &
+                                    model%climate%basinWGTs,     &
+                                    model%geometry%usrf*thk0,    & ! unscaled elevation
+                                    model%climate%acab)
+             endif
+
+          else
+             ! no real fall-back strategy
+             model%climate%acab(:,:) = 0.d0
+
+          endif   ! smb_remapping
+
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_ABZ) then
+          ! Remapping of dSMBdz
 
           ! Convert smb_ref from mm/yr w.e. to model acab units.
           model%climate%acab_ref(:,:) = (model%climate%smb_ref(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
