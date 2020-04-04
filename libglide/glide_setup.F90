@@ -700,12 +700,18 @@ contains
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     !*HG*
+    call GetValue(section,'enable_smb_remapping',model%options%enable_smb_remapping)
+    call GetValue(section,'smb_remapping_surface',model%options%smb_remapping_surface)
     call GetValue(section,'enable_smb_anomaly_remapping',model%options%enable_smb_anomaly_remapping)
     call GetValue(section,'smb_anomaly_remapping_surface',model%options%smb_anomaly_remapping_surface)
     call GetValue(section,'enable_smb_gradz_remapping',model%options%enable_smb_gradz_remapping)
     call GetValue(section,'smb_gradz_remapping_surface',model%options%smb_gradz_remapping_surface)
-    !call GetValue(section,'nlev_smb',model%climate%nlev_smb) ! also used for SMB_INPUT_FUNCTION_XYZ
+    call GetValue(section,'nnei_smb',model%climate%nnei_smb)
     call GetValue(section,'nbas_smb',model%climate%nbas_smb)
+    !call GetValue(section,'nlev_smb',model%climate%nlev_smb) ! also used for SMB_INPUT_FUNCTION_XYZ
+    call GetValue(section,'smb_lev_min',model%climate%smb_lev_min)
+    call GetValue(section,'smb_lev_step',model%climate%smb_lev_step)
+    call GetValue(section,'smb_lev_max',model%climate%smb_lev_max)
     !*HG-
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
@@ -914,24 +920,30 @@ contains
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
 
-    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
+    character(len=*), dimension(0:4), parameter :: smb_input_function = (/ &
          'SMB input as function of (x,y)              ', &
          'SMB and d(SMB)/dz input as function of (x,y)', &
          'SMB input as function of (x,y,z)            ', &
+         'SMB remapped from input (b,z)               ', &
          'SMB (x,y); d(SMB)/dz(b,z); SMB_anomaly(b,z) '/)
 
     character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
          'artm and d(artm)/dz input as function of (x,y)', &
          'artm input as function of (x,y,z)             ' /)
-    !*HG* add remapping
+    !*HG* add SMB remapping
+    character(len=*), dimension(0:1), parameter :: smb_remapping_surface = (/ &
+         'smb remapped to reference surface = 0', &
+         'smb remapped to model surface = 1    ' /)
+
     character(len=*), dimension(0:1), parameter :: smb_anomaly_remapping_surface = (/ &
          'smb anomaly remapped to reference surface = 0', &
-         'smb anomaly to model surface = 1             ' /)
+         'smb anomaly remapped to model surface = 1    ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_gradz_remapping_surface = (/ &
          'smb gradz remapped to reference surface = 0    ', &
          'smb gradz remapped to model surface = 1        ' /)
+    !*HG-
 
     character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
@@ -1499,19 +1511,45 @@ contains
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
     endif
-    !*HG*
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
+    !*HG* SMB remapping
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ .or. model%options%smb_input_function == SMB_INPUT_FUNCTION_ABZ) then
+       write(message,*) 'number of neighbors     : ', model%climate%nnei_smb
+       call write_log(message)
        write(message,*) 'number of basins        : ', model%climate%nbas_smb
        call write_log(message)
        write(message,*) 'number of height levels : ', model%climate%nlev_smb
        call write_log(message)
+       write(message,*) 'lowest height level     : ', model%climate%smb_lev_min
+       call write_log(message)
+       write(message,*) 'height level step       : ', model%climate%smb_lev_step
+       call write_log(message)
+       write(message,*) 'highest height level    : ', model%climate%smb_lev_max
+       call write_log(message)
+       if (model%climate%nnei_smb < 1) then
+          call write_log('Error, must have nnei_smb >= 1 for this input function', GM_FATAL)
+       endif
+       if (model%climate%nbas_smb < 1) then
+          call write_log('Error, must have nbas_smb >= 1 for this input function', GM_FATAL)
+       endif
        if (model%climate%nlev_smb < 2) then
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
-       if (model%climate%nlev_smb < 1) then
-          call write_log('Error, must have nbas_smb >= 1 for this input function', GM_FATAL)
-       endif
-
+    endif
+    ! SMB remapping
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
+       if(model%options%enable_smb_remapping) then
+          call write_log('SMB remapping is enabled')
+          if (model%options%smb_remapping_surface == SMB_REMAPPING_SURFACE_REFERENCE) then
+             call write_log('remapping SMB to reference surface')
+          elseif (model%options%smb_remapping_surface == SMB_REMAPPING_SURFACE_MODEL) then
+             call write_log('remapping SMB to model surface')
+          else
+             call write_log('Error, option enable_smb_remapping requires smb_remapping_surface = [0,1]',GM_FATAL)
+          endif
+       end if
+    endif
+    ! SMB anomaly remapping
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_ABZ) then
        if(model%options%enable_smb_gradz_remapping) then
           if (model%options%smb_gradz_remapping_surface == SMB_GRADZ_REMAPPING_SURFACE_REFERENCE) then
              call write_log('remapping SMB gradz to reference surface')
@@ -1532,7 +1570,7 @@ contains
           endif
        end if
     endif
-
+    !*HG-
 
     if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
        call write_log('Error, artm_input_function option out of range',GM_FATAL)
@@ -2987,6 +3025,19 @@ contains
           call glide_add_to_restart_variable_list('smb_levels')
 
        case(SMB_INPUT_FUNCTION_BZ)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acab')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('smb')
+          end select  ! smb_input
+          call glide_add_to_restart_variable_list('basinIDs')
+          call glide_add_to_restart_variable_list('basinWGTs')
+          call glide_add_to_restart_variable_list('smb_ltbl')
+          call glide_add_to_restart_variable_list('smb_reference_usrf')
+
+       case(SMB_INPUT_FUNCTION_ABZ)
 
           select case (options%smb_input)
           case (SMB_INPUT_MYR_ICE)

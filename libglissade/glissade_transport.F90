@@ -2170,39 +2170,42 @@
 !=======================================================================
 !*HG* added to apply SMB remapping: Goelzer et al. (2020) doi:10.5194/tc-2019-188
     subroutine glissade_smb_remapping(nx, ny,        &
-                                      smb_lookup,    &
+                                      nn, nb, nh,    &
+                                      z0, dz, zmax,  &
+                                      lookup_table,  &
                                       dsmb_basins,   &
                                       dsmb_weights,  &
                                       usurf,         &
-                                      acab_anomaly)
+                                      field)
 
-      ! get SMB anomaly by remapping from lookup table to given surface elevation
+      ! get field by remapping from lookup table to given surface elevation
 
       implicit none
 
       ! input variables:
       integer,                      intent(in)  :: nx, ny           ! number of cells in EW and NS directions
-      real(dp), dimension(36,25  ), intent(in)  :: smb_lookup       ! smb lookup tables (nlevels,nbasins)
-      integer , dimension(7,nx,ny), intent(in)  :: dsmb_basins      ! basin ids for smb remapping
-      real(dp), dimension(7,nx,ny), intent(in)  :: dsmb_weights     ! weights for smb remapping
-      real(dp), dimension(nx,ny  ), intent(in)  :: usurf            ! surface height
+      ! lookup table specific settings
+      integer,                       intent(in)  :: nn               ! number of nearest neighbors [7]
+      integer,                       intent(in)  :: nb               ! number of basins [25]
+      integer,                       intent(in)  :: nh               ! number of elevation classes [36]
+      real(dp),                      intent(in)  :: z0               ! minimum elevation [0]
+      real(dp),                      intent(in)  :: dz               ! elevation step stize [100]
+      real(dp),                      intent(in)  :: zmax             ! maximum elevation [3500]
+      real(dp), dimension(nh,nb  ),  intent(in)  :: lookup_table     ! smb lookup tables (nlevels,nbasins)
+      integer , dimension(nn,nx,ny), intent(in)  :: dsmb_basins      ! basin ids for smb remapping
+      real(dp), dimension(nn,nx,ny), intent(in)  :: dsmb_weights     ! weights for smb remapping
+      real(dp), dimension(nx,ny  ),  intent(in)  :: usurf            ! surface height
 
       ! output variables:
-      real(dp), dimension(nx,ny  ), intent(out) :: acab_anomaly     ! SMB anomaly [m i.e. yr-1]
+      real(dp), dimension(nx,ny  ), intent(out) :: field     ! SMB anomaly [m i.e. yr-1]
 
       ! local variables:
-      integer                :: i,j,k
-      integer, dimension(7)  :: basins
-      real(dp), dimension(7) :: weights
-      real(dp)               :: usurf_loc, usurf_rix, usurf_rel, smb_bas, smb_loc
-      integer                :: usurf_ix
+      integer                 :: i,j,k
+      integer, dimension(nn)  :: basins
+      real(dp), dimension(nn) :: weights
+      real(dp)                :: usurf_loc, usurf_rix, usurf_rel, smb_bas, smb_loc
+      integer                 :: usurf_ix
 
-      ! lookup table specific settings
-      integer, parameter     :: nb = 25
-      integer, parameter     :: nh = 36
-      real(dp), parameter    :: z0 = 0
-      real(dp), parameter    :: dz = 100
-      real(dp), parameter    :: zmax = 3500
 
       ! apply remapping method
       do j = 1, ny
@@ -2223,13 +2226,13 @@
             usurf_rel = usurf_rix - (real(usurf_ix-1))
             ! linear interpolation using lookup table
             smb_loc = 0.0_dp
-            do k = 1, 7
-               smb_bas = smb_lookup(usurf_ix,basins(k)) + usurf_rel*(smb_lookup(usurf_ix+1,basins(k))-smb_lookup(usurf_ix,basins(k)))
+            do k = 1, nn
+               smb_bas = lookup_table(usurf_ix,basins(k)) + usurf_rel*(lookup_table(usurf_ix+1,basins(k))-lookup_table(usurf_ix,basins(k)))
                ! combine with weights
                smb_loc = smb_loc + smb_bas * weights(k)
                !if (i==35 .and. j==65) write(*,*) k, smb_bas
             end do
-            acab_anomaly(i,j) = smb_loc
+            field(i,j) = smb_loc
             !if (i==35 .and. j==65) write(*,*) basins
             !if (i==35 .and. j==65) write(*,*) weights
             !if (i==35 .and. j==65) write(*,*) usurf_loc, usurf_rix, usurf_ix, usurf_rel, smb_loc

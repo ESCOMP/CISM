@@ -426,7 +426,7 @@ class PrintNC_template(PrintVars):
                 elif dims[i] == 'zocn':
                     dimstring = dimstring + 'up'
                 #*HG* added to deal w/ writing of vars associated w/ nn coord 
-                elif dims[i] == 'nn':
+                elif dims[i] == 'nnei_smb':
                     dimstring = dimstring + 'up'  # goes to index up
                 else:
                     dimstring = dimstring + '1'
@@ -455,7 +455,7 @@ class PrintNC_template(PrintVars):
                 self.stream.write("       do up=1,NCO%nzocn\n")
 
             #*HG* added to handle writing of vars associated w/ nn coord 
-            if  'nn' in dims:
+            if  'nnei_smb' in dims:
                 # handle 3D fields
                 spaces = ' '*3
                 self.stream.write("       do up=1,NCO%nnn\n")  
@@ -469,7 +469,7 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,data,dimstring))
             #*HG* added to handle aribtrary array sizes
-            elif  'bn' in dims:
+            elif  'nbas_smb' in dims:
                 self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,data,dimstring))
             else:
@@ -493,7 +493,7 @@ class PrintNC_template(PrintVars):
                 self.stream.write("       end do\n")
 
             #*HG* added to handle writing of vars associated w/ nn coord 
-            if  'nn' in dims:
+            if  'nnei_smb' in dims:
                 self.stream.write("       end do\n")
 
             # remove self since it's not time dependent
@@ -534,7 +534,7 @@ class PrintNC_template(PrintVars):
                     elif dims[i] == 'zocn':
                         dimstring = dimstring + 'up'
                     #*HG* added to deal w/ writing of vars associated w/ nn coord 
-                    elif dims[i] == 'nn':
+                    elif dims[i] == 'nnei_smb':
                         dimstring = dimstring + 'up'   
                     else:
                         dimstring = dimstring + '1'
@@ -563,7 +563,7 @@ class PrintNC_template(PrintVars):
                     self.stream.write("       do up=1,NCI%nzocn\n")
 
                 #*HG* added to handle writing of vars associated w/ nn coord 
-                if  'nn' in dims:
+                if  'nnei_smb' in dims:
                     # handle 3D fields
                     spaces = ' '*3
                     self.stream.write("       do up=1,NCI%nnn\n")  
@@ -573,7 +573,7 @@ class PrintNC_template(PrintVars):
                     self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
                                                                                                                    spaces,var['data']))
                 #*HG* added to handle aribtrary array sizes
-                elif  'bn' in dims:
+                elif  'nbas_smb' in dims:
                     self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,var['data'], dimstring))
                 else:
@@ -626,7 +626,7 @@ class PrintNC_template(PrintVars):
                     self.stream.write("       end do\n")
 
                 #*HG* added to handle writing of vars associated w/ nn coord
-                if  'nn' in dims:
+                if  'nnei_smb' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13

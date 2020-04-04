@@ -87,24 +87,24 @@ units:         1
 long_name:     vertical level for SMB forcing
 dimlen:        model%climate%nlev_smb
 
-#*HG* added for remapping
-[nn]
-dimensions:    nn
+#*HG* added for SMB remapping
+[nnei_smb]
+dimensions:    nnei_smb
 units:         1
-long_name:     counter 
-dimlen:        7
+long_name:     number of basin neighbors
+dimlen:        model%climate%nnei_smb
 
-[bn]
-dimensions:    bn
+[nbas_smb]
+dimensions:    nbas_smb
 units:         1
-long_name:     bcounter 
+long_name:     basins for SMB remapping
 dimlen:        model%climate%nbas_smb
 
-[zn]
-dimensions:    zn
-units:         meter
-long_name:     zlevel
-dimlen:        model%climate%nlev_smb
+# using existing nlev_smb
+#[nlev_smb]
+#dimensions:    nlev_smb
+#units:         meter
+#dimlen:        model%climate%nlev_smb
 #*HG-
 
 [lithoz]
@@ -1121,7 +1121,7 @@ average:       1
 
 #*HG* added for SMB remapping
 [basinIDs]
-dimensions:    time, nn, y1, x1
+dimensions:    time, nnei_smb, y1, x1
 units:         1
 long_name:     basin IDs for SMB remapping
 data:          data%climate%basinIDs(up,:,:)
@@ -1130,7 +1130,7 @@ coordinates:   lon lat
 load:          1
 
 [basinWGTs]
-dimensions:    time, nn, y1, x1
+dimensions:    time, nnei_smb, y1, x1
 units:         1
 long_name:     basin weights for SMB remapping
 data:          data%climate%basinWGTs(up,:,:)
@@ -1139,35 +1139,51 @@ coordinates:   lon lat
 load:          1
 
 [smb_anomaly_ltbl]
-dimensions:    time, bn, zn
+dimensions:    time, nbas_smb, nlev_smb
 units:         mm/year water equivalent
 long_name:     smb_anomaly lookup table
 data:          data%climate%smb_anomaly_ltbl(1:36,1:25)
 factor:        1.0
 load:          1
 
+[acab_anomaly_ltbl]
+dimensions:    time, nbas_smb, nlev_smb
+units:         meter/year ice
+long_name:     smb_anomaly lookup table
+data:          data%climate%acab_anomaly_ltbl(1:36,1:25)
+factor:        scale_acab
+load:          1
+
 [smb_gradz_ltbl]
-dimensions:    time, bn, zn
+dimensions:    time, nbas_smb, nlev_smb
 units:         mm/year water equivalent per m
 long_name:     smb_gradz lookup table
 data:          data%climate%smb_gradz_ltbl(1:36,1:25)
 factor:        1.0/thk0
 load:          1
 
-[acab_anomaly_ltbl]
-dimensions:    time, bn, zn
-units:         mm/year water equivalent
-long_name:     smb_anomaly lookup table
-data:          data%climate%acab_anomaly_ltbl(1:36,1:25)
+[acab_gradz_ltbl]
+dimensions:    time, nbas_smb, nlev_smb
+units:         meter/year ice
+long_name:     smb_gradz lookup table
+data:          data%climate%acab_gradz_ltbl(1:36,1:25)
+factor:        scale_acab/thk0
+load:          1
+
+[smb_ltbl]
+dimensions:    time, nbas_smb, nlev_smb
+units:         mm/year water equivalent per m
+long_name:     smb lookup table
+data:          data%climate%smb_ltbl(1:36,1:25)
 factor:        1.0
 load:          1
 
-[acab_gradz_ltbl]
-dimensions:    time, bn, zn
-units:         mm/year water equivalent per m
-long_name:     smb_gradz lookup table
-data:          data%climate%acab_gradz_ltbl(1:36,1:25)
-factor:        1.0/thk0
+[acab_ltbl]
+dimensions:    time, nbas_smb, nlev_smb
+units:         meter/year ice
+long_name:     smb lookup table
+data:          data%climate%acab_ltbl(1:36,1:25)
+factor:        scale_acab
 load:          1
 #*HG-
 

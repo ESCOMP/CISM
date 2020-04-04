@@ -146,11 +146,12 @@ module glide_types
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
-  !*HG* add SMB remapping
+  !*HG* add 3+4 for SMB remapping
   integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: SMB_INPUT_FUNCTION_BZ = 3
+  integer, parameter :: SMB_INPUT_FUNCTION_ABZ = 4
 
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
@@ -160,6 +161,8 @@ module glide_types
   integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
   integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
 !  !*HG* SMB remapping
+  integer, parameter :: SMB_REMAPPING_SURFACE_REFERENCE = 0
+  integer, parameter :: SMB_REMAPPING_SURFACE_MODEL = 1
   integer, parameter :: SMB_ANOMALY_REMAPPING_SURFACE_REFERENCE = 0
   integer, parameter :: SMB_ANOMALY_REMAPPING_SURFACE_MODEL = 1
   integer, parameter :: SMB_GRADZ_REMAPPING_SURFACE_REFERENCE = 0
@@ -551,7 +554,8 @@ module glide_types
     !> \item[0] SMB(x,y); input as a function of horizontal location only
     !> \item[1] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
     !> \item[2] SMB(x,y,z); input SMB at multiple elevations
-    !> \item[3] SMB_ref(x,y) + aSMB(b,z) + dSMB/dz(b,z) * dz; input aSMB and dSMBdz as lookup tables
+    !> \item[3] SMB(b,z); input SMB as lookup table
+    !> \item[4] SMB_ref(x,y) + aSMB(b,z) + dSMB/dz(b,z) * dz; input aSMB and dSMBdz as lookup tables
     !> \end{description}
 
     integer :: artm_input_function = 0
@@ -577,16 +581,18 @@ module glide_types
     !> \item[2] Overwrite acab where input thickness <= threshold value
     !> \end{description}
 
-    !*HG* add remapping
+    !*HG* add SMB remapping
+    logical :: enable_smb_remapping = .false.
     logical :: enable_smb_anomaly_remapping = .false.
     logical :: enable_smb_gradz_remapping = .false.
-    !> if true, then apply remapping of SMB to set anomaly to smb/acab
+    !> if true, then apply remapping of SMB 
+    integer :: smb_remapping_surface = 0
     integer :: smb_anomaly_remapping_surface = 0
     integer :: smb_gradz_remapping_surface = 0
     !> select surface elevation to remap to
     !> \begin{description}
-    !> \item[0] remap aSMB/dSMBdz to reference elevation
-    !> \item[1] remap aSMB/dSMBdz to model elevation
+    !> \item[0] remap SMB/aSMB/dSMBdz to reference elevation
+    !> \item[1] remap SMB/aSMB/dSMBdz to model elevation
     !> \end{description}
 
 
@@ -1353,16 +1359,22 @@ module glide_types
      integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided
      real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
 
-     !*HG* add remapping
-     ! Next several fields used for SMB remapping, option SMB_INPUT_FUNCTION_BZ
+     !*HG* add SMB remapping
+     ! Next several fields used for SMB remapping, option SMB_INPUT_FUNCTION_BZ, SMB_INPUT_FUNCTION_ABZ
      integer, dimension(:,:,:),pointer :: basinIDs => null()       !> Basin indicies for SMB remapping
      real(dp),dimension(:,:,:),pointer :: basinWGTs => null()      !> Basin weights for SMB remapping
+     real(dp),dimension(:,:),pointer :: smb_ltbl => null()         !> SMB lookup table
+     real(dp),dimension(:,:),pointer :: acab_ltbl => null()        !> SMB lookup table
      real(dp),dimension(:,:),pointer :: smb_anomaly_ltbl => null() !> SMB anomaly lookup table
-     real(dp),dimension(:,:),pointer :: smb_gradz_ltbl => null()   !> SMB gradz lookup table
      real(dp),dimension(:,:),pointer :: acab_anomaly_ltbl => null()!> SMB anomaly lookup table
+     real(dp),dimension(:,:),pointer :: smb_gradz_ltbl => null()   !> SMB gradz lookup table
      real(dp),dimension(:,:),pointer :: acab_gradz_ltbl => null()  !> SMB gradz lookup table
-     !integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided, used also for SMB_INPUT_FUNCTION_XYZ
-     integer :: nbas_smb = 1                                       !> number of basins in which SMB is provided
+     integer :: nnei_smb = 7                                       !> number of basin neighbors
+     integer :: nbas_smb = 25                                      !> number of basins in which SMB is provided
+     !integer :: nlev_smb = 36                                     !> number of vertical levels at which SMB is provided, used also for SMB_INPUT_FUNCTION_XYZ
+     real(dp) :: smb_lev_min = 0.d0                                !> lowest elevation level for SMB remapping
+     real(dp) :: smb_lev_step = 100.d0                             !> elevation level step for SMB remapping
+     real(dp) :: smb_lev_max = 3500.d0                             !> highest elevation level for SMB remapping
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
@@ -2771,24 +2783,35 @@ contains
        allocate(model%climate%smb_levels(model%climate%nlev_smb))
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_BZ) then
        !*HG* SMB remapping
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%acab_ref)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_gradz)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nnei_smb, model%climate%basinIDs)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nnei_smb, model%climate%basinWGTs)
+       allocate(model%climate%smb_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
+       model%climate%smb_ltbl = 0.d0
+       allocate(model%climate%acab_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
+       model%climate%acab_ltbl = 0.d0
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_ABZ) then
+       !*HG* SMB anomaly remapping
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_gradz)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_gradz)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
-       call coordsystem_allocate(model%general%ice_grid, 7, model%climate%basinIDs)
-       call coordsystem_allocate(model%general%ice_grid, 7, model%climate%basinWGTs)
-       allocate(model%climate%smb_anomaly_ltbl(1:36,1:25))
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nnei_smb, model%climate%basinIDs)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nnei_smb, model%climate%basinWGTs)
+       allocate(model%climate%smb_anomaly_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
        model%climate%smb_anomaly_ltbl = 0.d0
-       allocate(model%climate%smb_gradz_ltbl(1:36,1:25))
+       allocate(model%climate%smb_gradz_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
        model%climate%smb_gradz_ltbl = 0.d0
-       allocate(model%climate%acab_anomaly_ltbl(1:36,1:25))
+       allocate(model%climate%acab_anomaly_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
        model%climate%acab_anomaly_ltbl = 0.d0
-       allocate(model%climate%acab_gradz_ltbl(1:36,1:25))
+       allocate(model%climate%acab_gradz_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
        model%climate%acab_gradz_ltbl = 0.d0
     endif
 
-    ! Note: Typically, smb_input_function and acab_input_function will have the same value.
+    ! Note: Typically, smb_input_function and artm_input_function will have the same value.
     !       If both use a lapse rate, they will share the array smb_reference_usrf.
     !       If both are 3d, they will shard the array smb_levels.
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
@@ -3370,12 +3393,16 @@ contains
         deallocate(model%climate%basinIDs)
     if (associated(model%climate%basinWGTs)) &
         deallocate(model%climate%basinWGTs)
+    if (associated(model%climate%smb_ltbl)) &
+        deallocate(model%climate%smb_ltbl)
+    if (associated(model%climate%acab_ltbl)) &
+        deallocate(model%climate%acab_ltbl)
     if (associated(model%climate%smb_anomaly_ltbl)) &
         deallocate(model%climate%smb_anomaly_ltbl)
-    if (associated(model%climate%smb_gradz_ltbl)) &
-        deallocate(model%climate%smb_gradz_ltbl)
     if (associated(model%climate%acab_anomaly_ltbl)) &
         deallocate(model%climate%acab_anomaly_ltbl)
+    if (associated(model%climate%smb_gradz_ltbl)) &
+        deallocate(model%climate%smb_gradz_ltbl)
     if (associated(model%climate%acab_gradz_ltbl)) &
         deallocate(model%climate%acab_gradz_ltbl)
     
