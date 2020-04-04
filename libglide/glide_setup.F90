@@ -700,9 +700,10 @@ contains
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     !*HG*
-    call GetValue(section,'enable_acab_anomaly_remapping',model%options%enable_acab_anomaly_remapping)
-    call GetValue(section,'asmb_remapping_surface',model%options%asmb_remapping_surface)
-    call GetValue(section,'dsmbdz_remapping_surface',model%options%dsmbdz_remapping_surface)
+    call GetValue(section,'enable_smb_anomaly_remapping',model%options%enable_smb_anomaly_remapping)
+    call GetValue(section,'smb_anomaly_remapping_surface',model%options%smb_anomaly_remapping_surface)
+    call GetValue(section,'enable_smb_gradz_remapping',model%options%enable_smb_gradz_remapping)
+    call GetValue(section,'smb_gradz_remapping_surface',model%options%smb_gradz_remapping_surface)
     !call GetValue(section,'nlev_smb',model%climate%nlev_smb) ! also used for SMB_INPUT_FUNCTION_XYZ
     call GetValue(section,'nbas_smb',model%climate%nbas_smb)
     !*HG-
@@ -917,20 +918,20 @@ contains
          'SMB input as function of (x,y)              ', &
          'SMB and d(SMB)/dz input as function of (x,y)', &
          'SMB input as function of (x,y,z)            ', &
-         'SMB (x,y); d(SMB)/dz(b,z); aSMB(b,z)        '/)
+         'SMB (x,y); d(SMB)/dz(b,z); SMB_anomaly(b,z) '/)
 
     character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
          'artm and d(artm)/dz input as function of (x,y)', &
          'artm input as function of (x,y,z)             ' /)
     !*HG* add remapping
-    character(len=*), dimension(0:1), parameter :: asmb_remapping_surface = (/ &
-         'aSMB remapped to reference surface = 0      ', &
-         'aSMB remapped to model surface = 1          ' /)
+    character(len=*), dimension(0:1), parameter :: smb_anomaly_remapping_surface = (/ &
+         'smb anomaly remapped to reference surface = 0', &
+         'smb anomaly to model surface = 1             ' /)
 
-    character(len=*), dimension(0:1), parameter :: dsmbdz_remapping_surface = (/ &
-         'dSMBdz remapped to reference surface = 0    ', &
-         'dSMBdz remapped to model surface = 1        ' /)
+    character(len=*), dimension(0:1), parameter :: smb_gradz_remapping_surface = (/ &
+         'smb gradz remapped to reference surface = 0    ', &
+         'smb gradz remapped to model surface = 1        ' /)
 
     character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
@@ -1510,34 +1511,28 @@ contains
        if (model%climate%nlev_smb < 1) then
           call write_log('Error, must have nbas_smb >= 1 for this input function', GM_FATAL)
        endif
-       if (model%options%dsmbdz_remapping_surface == DSMBDZ_REMAPPING_SURFACE_REFERENCE) then
-          call write_log('remapping dSMBdz to reference surface')
-       elseif (model%options%asmb_remapping_surface == DSMBDZ_REMAPPING_SURFACE_MODEL) then
-          call write_log('remapping dSMBdz to model surface')
-       else
-          call write_log('Error, option enable_acab_anomaly_remapping requires dsmbdz_remapping_surface = [0,1]',GM_FATAL)
-       endif
-       !write(message,*) 'dSMBdz remapping surface: ', model%options%dsmbdz_remapping_surface
-       !call write_log(message)
 
-       if(model%options%enable_acab_anomaly_remapping) then
-          call write_log('aSMB remapping is enabled')
-          if (model%options%asmb_remapping_surface == ASMB_REMAPPING_SURFACE_REFERENCE) then
-             call write_log('remapping aSMB to reference surface')
-          elseif (model%options%asmb_remapping_surface == ASMB_REMAPPING_SURFACE_MODEL) then
-             call write_log('remapping aSMB to model surface')
+       if(model%options%enable_smb_gradz_remapping) then
+          if (model%options%smb_gradz_remapping_surface == SMB_GRADZ_REMAPPING_SURFACE_REFERENCE) then
+             call write_log('remapping SMB gradz to reference surface')
+          elseif (model%options%smb_gradz_remapping_surface == SMB_GRADZ_REMAPPING_SURFACE_MODEL) then
+             call write_log('remapping SMB gradz to model surface')
           else
-             call write_log('Error, option enable_acab_anomaly_remapping requires asmb_remapping_surface = [0,1]',GM_FATAL)
+             call write_log('Error, option enable_smb_gradz_remapping requires smb_gradz_remapping_surface = [0,1]',GM_FATAL)
           endif
-          !write(message,*) 'aSMB remapping surface  : ', model%options%asmb_remapping_surface
-          !call write_log(message)
+       endif
+       if(model%options%enable_smb_anomaly_remapping) then
+          call write_log('SMB anomaly remapping is enabled')
+          if (model%options%smb_anomaly_remapping_surface == SMB_ANOMALY_REMAPPING_SURFACE_REFERENCE) then
+             call write_log('remapping SMB anomaly to reference surface')
+          elseif (model%options%smb_anomaly_remapping_surface == SMB_ANOMALY_REMAPPING_SURFACE_MODEL) then
+             call write_log('remapping SMB anomaly to model surface')
+          else
+             call write_log('Error, option enable_smb_anomaly_remapping requires smb_anomaly_remapping_surface = [0,1]',GM_FATAL)
+          endif
        end if
     endif
 
-    !*HG* added aSMB remapping
-    if (model%options%enable_acab_anomaly_remapping) then
-    endif
-    !*HG-
 
     if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
        call write_log('Error, artm_input_function option out of range',GM_FATAL)
@@ -3001,8 +2996,8 @@ contains
           end select  ! smb_input
           call glide_add_to_restart_variable_list('basinIDs')
           call glide_add_to_restart_variable_list('basinWGTs')
-          call glide_add_to_restart_variable_list('aSMB_ltbl')
-          call glide_add_to_restart_variable_list('dSMBdz_ltbl')
+          call glide_add_to_restart_variable_list('smb_anomaly_ltbl')
+          call glide_add_to_restart_variable_list('smb_gradz_ltbl')
           call glide_add_to_restart_variable_list('smb_reference_usrf')
 
     end select  ! smb_input_function

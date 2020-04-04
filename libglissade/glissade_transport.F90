@@ -53,7 +53,7 @@
               glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
               glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
               glissade_add_2d_anomaly, glissade_add_3d_anomaly, &
-              glissade_asmb_remapping, glissade_dsmbdz_remapping
+              glissade_smb_remapping
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -2168,13 +2168,13 @@
     end subroutine glissade_vertical_remap
 
 !=======================================================================
-!*HG* added to apply aSMB remapping: Goelzer et al. (2020) doi:10.5194/tc-2019-188
-    subroutine glissade_asmb_remapping(nx, ny,        &
-                                       asmb_lookup,   &
-                                       dsmb_basins,   &
-                                       dsmb_weights,  &
-                                       usurf,         &
-                                       acab_anomaly)
+!*HG* added to apply SMB remapping: Goelzer et al. (2020) doi:10.5194/tc-2019-188
+    subroutine glissade_smb_remapping(nx, ny,        &
+                                      smb_lookup,    &
+                                      dsmb_basins,   &
+                                      dsmb_weights,  &
+                                      usurf,         &
+                                      acab_anomaly)
 
       ! get SMB anomaly by remapping from lookup table to given surface elevation
 
@@ -2182,9 +2182,9 @@
 
       ! input variables:
       integer,                      intent(in)  :: nx, ny           ! number of cells in EW and NS directions
-      real(dp), dimension(36,25  ), intent(in)  :: asmb_lookup      ! asmb lookup tables (nlevels,nbasins)
-      integer , dimension(7,nx,ny), intent(in)  :: dsmb_basins      ! basin ids for asmb remapping
-      real(dp), dimension(7,nx,ny), intent(in)  :: dsmb_weights     ! weights for asmb remapping
+      real(dp), dimension(36,25  ), intent(in)  :: smb_lookup       ! smb lookup tables (nlevels,nbasins)
+      integer , dimension(7,nx,ny), intent(in)  :: dsmb_basins      ! basin ids for smb remapping
+      real(dp), dimension(7,nx,ny), intent(in)  :: dsmb_weights     ! weights for smb remapping
       real(dp), dimension(nx,ny  ), intent(in)  :: usurf            ! surface height
 
       ! output variables:
@@ -2194,7 +2194,7 @@
       integer                :: i,j,k
       integer, dimension(7)  :: basins
       real(dp), dimension(7) :: weights
-      real(dp)               :: usurf_loc, usurf_rix, usurf_rel, asmb_bas, asmb_loc
+      real(dp)               :: usurf_loc, usurf_rix, usurf_rel, smb_bas, smb_loc
       integer                :: usurf_ix
 
       ! lookup table specific settings
@@ -2222,96 +2222,24 @@
             ! real index relative to usurf_ix in interval [0,1]
             usurf_rel = usurf_rix - (real(usurf_ix-1))
             ! linear interpolation using lookup table
-            asmb_loc = 0.0_dp
+            smb_loc = 0.0_dp
             do k = 1, 7
-               asmb_bas = asmb_lookup(usurf_ix,basins(k)) + usurf_rel*(asmb_lookup(usurf_ix+1,basins(k))-asmb_lookup(usurf_ix,basins(k)))
+               smb_bas = smb_lookup(usurf_ix,basins(k)) + usurf_rel*(smb_lookup(usurf_ix+1,basins(k))-smb_lookup(usurf_ix,basins(k)))
                ! combine with weights
-               asmb_loc = asmb_loc + asmb_bas * weights(k)
-               !if (i==35 .and. j==65) write(*,*) k, asmb_bas
+               smb_loc = smb_loc + smb_bas * weights(k)
+               !if (i==35 .and. j==65) write(*,*) k, smb_bas
             end do
-            acab_anomaly(i,j) = asmb_loc
+            acab_anomaly(i,j) = smb_loc
             !if (i==35 .and. j==65) write(*,*) basins
             !if (i==35 .and. j==65) write(*,*) weights
-            !if (i==35 .and. j==65) write(*,*) usurf_loc, usurf_rix, usurf_ix, usurf_rel, asmb_loc
+            !if (i==35 .and. j==65) write(*,*) usurf_loc, usurf_rix, usurf_ix, usurf_rel, smb_loc
          end do
       end do
 
-      write(*,*) 'Remapping called'
+      write(*,*) 'SMB remapping called'
 
-    end subroutine glissade_asmb_remapping
+    end subroutine glissade_smb_remapping
 
-!*HG* added to apply dSMBdz remapping: Goelzer et al. (2020) doi:10.5194/tc-2019-188
-    subroutine glissade_dsmbdz_remapping(nx, ny,        &
-                                       dsmbdz_lookup,   &
-                                       dsmb_basins,   &
-                                       dsmb_weights,  &
-                                       usurf,         &
-                                       acab_gradz)
-
-      ! get height related dSMBdz by remapping from lookup table to specified surface elevation
-      
-      implicit none
-
-      ! input variables: 
-      integer,                      intent(in)  :: nx, ny           ! number of cells in EW and NS directions
-      real(dp), dimension(36,25  ), intent(in)  :: dsmbdz_lookup    ! dSMBdz lookup tables (nlevels,nbasins)
-      integer , dimension(7,nx,ny), intent(in)  :: dsmb_basins      ! basin ids for dsmbdz remapping
-      real(dp), dimension(7,nx,ny), intent(in)  :: dsmb_weights     ! weights for dsmbdz remapping
-      real(dp), dimension(nx,ny  ), intent(in)  :: usurf            ! surface height
-
-      ! output variables:         
-      real(dp), dimension(nx,ny  ), intent(out) :: acab_gradz       ! dSMB/dz [m i.e. yr-1 m-1]
-
-      ! local variables:
-      integer                :: i,j,k
-      integer, dimension(7)  :: basins
-      real(dp), dimension(7) :: weights
-      real(dp)               :: usurf_loc, usurf_rix, usurf_rel, dsmbdz_bas, dsmbdz_loc
-      integer                :: usurf_ix
-
-      ! lookup table specific settings
-      integer, parameter     :: nb = 25
-      integer, parameter     :: nh = 36
-      real(dp), parameter    :: z0 = 0
-      real(dp), parameter    :: dz = 100
-      real(dp), parameter    :: zmax = 3500
-
-      ! apply remapping method
-      do j = 1, ny
-         do i = 1, nx
-            ! find basins and weights at location
-            ! find basins and weights at location
-            basins = dsmb_basins(:,i,j)
-            weights = dsmb_weights(:,i,j)
-            ! elevation at location, limited to allowed range
-            usurf_loc = min(max(z0,usurf(i,j)),zmax)
-            ! real index
-            usurf_rix = (usurf_loc - z0) / dz
-            ! lower integer index, elevation 0 is at index 1
-            usurf_ix = floor(usurf_rix) + 1
-            ! limit to allowed range < nh
-            usurf_ix = min(max(1,usurf_ix),nh-1)
-            ! real index relative to usurf_ix in interval [0,1]
-            usurf_rel = usurf_rix - (real(usurf_ix-1)) 
-            ! linear interpolation using lookup table
-            dsmbdz_loc = 0.0_dp
-            do k = 1, 7
-               dsmbdz_bas = dsmbdz_lookup(usurf_ix,basins(k)) + usurf_rel*(dsmbdz_lookup(usurf_ix+1,basins(k))-dsmbdz_lookup(usurf_ix,basins(k)))
-               ! combine with weights
-               dsmbdz_loc = dsmbdz_loc + dsmbdz_bas * weights(k)
-               !if (i==35 .and. j==65) write(*,*) k, dsmbdz_bas
-            end do
-            acab_gradz(i,j) = dsmbdz_loc
-            !if (i==35 .and. j==65) write(*,*) basins
-            !if (i==35 .and. j==65) write(*,*) weights
-            !if (i==35 .and. j==65) write(*,*) usurf_loc, usurf_rix, usurf_ix, usurf_rel, dsmbdz_loc
-         end do
-      end do
-
-      write(*,*) 'dSMBdz remapping called'
-
-    end subroutine glissade_dsmbdz_remapping
-    
 
     subroutine upwind_field (nx,       ny,         &
                              ilo, ihi, jlo, jhi,   &

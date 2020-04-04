@@ -87,6 +87,7 @@ units:         1
 long_name:     vertical level for SMB forcing
 dimlen:        model%climate%nlev_smb
 
+#*HG* added for remapping
 [nn]
 dimensions:    nn
 units:         1
@@ -97,13 +98,14 @@ dimlen:        7
 dimensions:    bn
 units:         1
 long_name:     bcounter 
-dimlen:        25
+dimlen:        model%climate%nbas_smb
 
 [zn]
 dimensions:    zn
 units:         meter
 long_name:     zlevel
-dimlen:        36
+dimlen:        model%climate%nlev_smb
+#*HG-
 
 [lithoz]
 dimensions:    lithoz
@@ -1117,6 +1119,7 @@ standard_name: land_ice_surface_specific_mass_balance_applied
 coordinates:   lon lat
 average:       1
 
+#*HG* added for SMB remapping
 [basinIDs]
 dimensions:    time, nn, y1, x1
 units:         1
@@ -1135,21 +1138,38 @@ factor:        1.0
 coordinates:   lon lat
 load:          1
 
-[aSMB_ltbl]
+[smb_anomaly_ltbl]
 dimensions:    time, bn, zn
-units:	       meter/year         
-long_name:     aSMB lookup table
-data:          data%climate%aSMBltbl(1:36,1:25)
+units:         mm/year water equivalent
+long_name:     smb_anomaly lookup table
+data:          data%climate%smb_anomaly_ltbl(1:36,1:25)
 factor:        1.0
 load:          1
 
-[dSMBdz_ltbl]
+[smb_gradz_ltbl]
 dimensions:    time, bn, zn
-units:	       meter/year/meter         
-long_name:     dSMBdz lookup table
-data:          data%climate%dSMBdzltbl(1:36,1:25)
+units:         mm/year water equivalent per m
+long_name:     smb_gradz lookup table
+data:          data%climate%smb_gradz_ltbl(1:36,1:25)
+factor:        1.0/thk0
+load:          1
+
+[acab_anomaly_ltbl]
+dimensions:    time, bn, zn
+units:         mm/year water equivalent
+long_name:     smb_anomaly lookup table
+data:          data%climate%acab_anomaly_ltbl(1:36,1:25)
 factor:        1.0
 load:          1
+
+[acab_gradz_ltbl]
+dimensions:    time, bn, zn
+units:         mm/year water equivalent per m
+long_name:     smb_gradz lookup table
+data:          data%climate%acab_gradz_ltbl(1:36,1:25)
+factor:        1.0/thk0
+load:          1
+#*HG-
 
 [no_advance_mask]
 dimensions:    time, y1, x1
