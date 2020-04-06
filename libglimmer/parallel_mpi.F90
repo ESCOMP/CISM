@@ -4648,15 +4648,20 @@ contains
 !!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
   end function parallel_get_var_integer_2d
 
-  function parallel_get_var_real8_2d(ncid,varid,values)
+  function parallel_get_var_real8_2d(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
+    integer,dimension(:),optional :: start
     real(dp),dimension(:,:) :: values
     ! begin
-    if (main_task) parallel_get_var_real8_2d = &
-         nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real8_2d)
-!!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values)
+       end if
+       call broadcast(parallel_get_var_real8_2d)
+    endif
   end function parallel_get_var_real8_2d
 
   !TODO - Is function parallel_globalID still needed?  No longer called except from glissade_test_halo.
