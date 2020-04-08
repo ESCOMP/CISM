@@ -146,12 +146,14 @@ module glide_types
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
-  !*HG* add 3+4 for SMB remapping
+  !*HG* add 3+4 for SMB remapping, 5 for PDD
   integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: SMB_INPUT_FUNCTION_BZ = 3
   integer, parameter :: SMB_INPUT_FUNCTION_ABZ = 4
+  integer, parameter :: SMB_INPUT_FUNCTION_PDD = 5
+  integer, parameter :: SMB_INPUT_FUNCTION_APDD = 6
 
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
@@ -167,6 +169,9 @@ module glide_types
   integer, parameter :: SMB_ANOMALY_REMAPPING_SURFACE_MODEL = 1
   integer, parameter :: SMB_GRADZ_REMAPPING_SURFACE_REFERENCE = 0
   integer, parameter :: SMB_GRADZ_REMAPPING_SURFACE_MODEL = 1
+  !*HG* PDD model
+  integer, parameter :: PDD_SURFACE_REFERENCE = 0
+  integer, parameter :: PDD_SURFACE_MODEL = 1
 
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
@@ -556,6 +561,8 @@ module glide_types
     !> \item[2] SMB(x,y,z); input SMB at multiple elevations
     !> \item[3] SMB(b,z); input SMB as lookup table
     !> \item[4] SMB_ref(x,y) + aSMB(b,z) + dSMB/dz(b,z) * dz; input aSMB and dSMBdz as lookup tables
+    !> \item[5] PDD model
+    !> \item[6] SMB_ref(x,y) + PDD anomaly 
     !> \end{description}
 
     integer :: artm_input_function = 0
@@ -594,6 +601,10 @@ module glide_types
     !> \item[0] remap SMB/aSMB/dSMBdz to reference elevation
     !> \item[1] remap SMB/aSMB/dSMBdz to model elevation
     !> \end{description}
+
+    !*HG* add PDD and PDD anomaly model
+    logical :: enable_pdd_anomaly = .false.
+    integer :: pdd_surface = 0
 
 
     integer :: gthf = 0
@@ -1376,6 +1387,18 @@ module glide_types
      real(dp) :: smb_lev_step = 100.d0                             !> elevation level step for SMB remapping
      real(dp) :: smb_lev_max = 3500.d0                             !> highest elevation level for SMB remapping
 
+     !*HG* add HDW PDD model
+     ! Next several fields used for PDD gmodel, option SMB_INPUT_FUNCTION_PDD, SMB_INPUT_FUNCTION_APDD
+     real(dp),dimension(:,:),pointer :: precip          => null() !> total precipitation (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: acc             => null() !> accumulation (m/yr ice)
+     real(dp),dimension(:,:),pointer :: lat             => null() !> latitude
+     !real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC), already defined 
+     !real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Surface mass balance anomaly (m/yr ice), alread defined
+     real(dp) :: ddfactor_snow = 0.003                            !> Degree-day factor snow
+     real(dp) :: ddfactor_ice = 0.008                             !> Degree-day factor ice
+     real(dp) :: lapse_rate_annual = 0.007992                     !> Annual lapse rate for PDD model
+     real(dp) :: lapse_rate_summer = 0.006277                     !> Summer lapse rate for PDD model
+     
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab/smb anomaly is phased in linearly
@@ -2807,6 +2830,20 @@ contains
        model%climate%acab_anomaly_ltbl = 0.d0
        allocate(model%climate%acab_gradz_ltbl(1:model%climate%nlev_smb,1:model%climate%nbas_smb))
        model%climate%acab_gradz_ltbl = 0.d0
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       !*HG* HDW PDD model
+       call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acc)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%lat)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_APDD) then
+       !*HG* HDW PDD anomaly model
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%acc)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%lat)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
     endif
 
     ! Note: Typically, smb_input_function and artm_input_function will have the same value.
@@ -3403,6 +3440,13 @@ contains
         deallocate(model%climate%smb_gradz_ltbl)
     if (associated(model%climate%acab_gradz_ltbl)) &
         deallocate(model%climate%acab_gradz_ltbl)
+
+    if (associated(model%climate%precip)) &
+        deallocate(model%climate%precip)
+    if (associated(model%climate%acc)) &
+        deallocate(model%climate%acc)
+    if (associated(model%climate%lat)) &
+        deallocate(model%climate%lat)
     
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

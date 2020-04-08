@@ -699,7 +699,7 @@ contains
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
-    !*HG*
+    !*HG* SMB remapping
     call GetValue(section,'enable_smb_remapping',model%options%enable_smb_remapping)
     call GetValue(section,'smb_remapping_surface',model%options%smb_remapping_surface)
     call GetValue(section,'enable_smb_anomaly_remapping',model%options%enable_smb_anomaly_remapping)
@@ -712,6 +712,13 @@ contains
     call GetValue(section,'smb_lev_min',model%climate%smb_lev_min)
     call GetValue(section,'smb_lev_step',model%climate%smb_lev_step)
     call GetValue(section,'smb_lev_max',model%climate%smb_lev_max)
+    ! PDD model
+    call GetValue(section,'enable_pdd_anomaly',model%options%enable_pdd_anomaly)
+    call GetValue(section,'pdd_surface',model%options%pdd_surface)
+    call GetValue(section,'ddfactor_snow',model%climate%ddfactor_snow)
+    call GetValue(section,'ddfactor_ice',model%climate%ddfactor_ice)
+    call GetValue(section,'lapse_rate_annual',model%climate%lapse_rate_annual)
+    call GetValue(section,'lapse_rate_summer',model%climate%lapse_rate_summer)
     !*HG-
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
@@ -920,12 +927,14 @@ contains
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
 
-    character(len=*), dimension(0:4), parameter :: smb_input_function = (/ &
+    character(len=*), dimension(0:6), parameter :: smb_input_function = (/ &
          'SMB input as function of (x,y)              ', &
          'SMB and d(SMB)/dz input as function of (x,y)', &
          'SMB input as function of (x,y,z)            ', &
          'SMB remapped from input (b,z)               ', &
-         'SMB (x,y); d(SMB)/dz(b,z); SMB_anomaly(b,z) '/)
+         'SMB (x,y); d(SMB)/dz(b,z); SMB_anomaly(b,z) ', &
+         'SMB from PDD model                          ', &
+         'SMB (x,y) + PDD anomaly                     '/)
 
     character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
@@ -1570,6 +1579,29 @@ contains
           endif
        end if
     endif
+    !*HG* PDD model
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       if (model%options%pdd_surface == PDD_SURFACE_REFERENCE) then
+          call write_log('run PDD on reference surface')
+       elseif (model%options%pdd_surface == PDD_SURFACE_MODEL) then
+          call write_log('run PDD on model surface')
+       else
+          call write_log('Error, PDD model requires pdd_surface = [0,1]',GM_FATAL)
+       end if
+    end if
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_APDD) then
+       if(model%options%enable_pdd_anomaly) then
+          call write_log('PDD anomaly is enabled')
+          if (model%options%pdd_surface == PDD_SURFACE_REFERENCE) then
+             call write_log('run PDD anomaly on reference surface')
+          elseif (model%options%pdd_surface == PDD_SURFACE_MODEL) then
+             call write_log('run PDD anomaly on model surface')
+          else
+             call write_log('Error, PDD anomaly model requires pdd_surface = [0,1]',GM_FATAL)
+          end if
+       end if
+    end if
+    ! TODO: add PDD parameters
     !*HG-
 
     if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
@@ -3051,6 +3083,31 @@ contains
           call glide_add_to_restart_variable_list('smb_gradz_ltbl')
           call glide_add_to_restart_variable_list('smb_reference_usrf')
 
+       case(SMB_INPUT_FUNCTION_PDD)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acc')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('precip')
+          end select  ! smb_input
+          call glide_add_to_restart_variable_list('lat')
+          call glide_add_to_restart_variable_list('artm_anomaly')
+          call glide_add_to_restart_variable_list('smb_reference_usrf')
+
+       case(SMB_INPUT_FUNCTION_APDD)
+
+          select case (options%smb_input)
+          case (SMB_INPUT_MYR_ICE)
+             call glide_add_to_restart_variable_list('acc')
+             call glide_add_to_restart_variable_list('acab_ref')
+          case (SMB_INPUT_MMYR_WE)
+             call glide_add_to_restart_variable_list('precip')
+             call glide_add_to_restart_variable_list('smb_ref')
+          end select  ! smb_input
+          call glide_add_to_restart_variable_list('lat')
+          call glide_add_to_restart_variable_list('artm_anomaly')
+          call glide_add_to_restart_variable_list('smb_reference_usrf')
     end select  ! smb_input_function
 
     ! Similarly for surface temperature (artm), based on options%artm_input

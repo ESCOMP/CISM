@@ -1185,6 +1185,33 @@ long_name:     smb lookup table
 data:          data%climate%acab_ltbl(1:36,1:25)
 factor:        scale_acab
 load:          1
+
+[precip]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     total precipitation
+data:          data%climate%precip
+factor:        1.0
+coordinates:   lon lat
+load:          1
+
+[acc]
+dimensions:    time, y1, x1
+units:         meter/year ice
+long_name:     accumulation rate
+data:          data%climate%acc
+factor:        scale_acab
+coordinates:   lon lat
+load:          1
+
+[lat]
+dimensions:    time, y1, x1
+units:         degree
+long_name:     latitude
+data:          data%climate%lat
+factor:        1.0
+coordinates:   lon lat
+load:          1
 #*HG-
 
 [no_advance_mask]

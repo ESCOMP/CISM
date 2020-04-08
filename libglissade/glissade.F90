@@ -2016,7 +2016,8 @@ contains
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
                                   glissade_add_2d_anomaly, &
-                                  glissade_smb_remapping
+                                  glissade_smb_remapping, &
+                                  massbalance_hdw_pdd_model_greenland, massbalance_hdw_pdd_anomaly_model_greenland
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
@@ -2289,6 +2290,9 @@ contains
        ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
        ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
        ! (3) SMB(x,y) + aSMB(b,z) + dSMB/dz(b,z) * dz; where aSMB and dSMB/dz are remapped
+       ! (4) SMB(b,z); SMB remapped
+       ! (5) SMB(artm, lat); SMB from pdd model
+       ! (6) SMB(x,y) + pdd anomaly(artm, lat)
        ! For options (1) and (2) and (3), the elevation-dependent SMB is computed here.
        ! Note: These conversion must be done at each time step (and not just once at initialization)
        !       if reading SMB or acab from a time-dependent forcing file.
@@ -2422,6 +2426,37 @@ contains
              
           endif   ! gradz_remapping
 
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+
+          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+             ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+             model%climate%acc(:,:) = (model%climate%precip(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+          endif
+
+          ! SMB from pdd model
+          if (model%options%pdd_surface == pdd_SURFACE_REFERENCE) then
+             call massbalance_hdw_pdd_model_greenland(ewn, nsn,          & 
+                                  model%climate%lat,                     & ! lat [degree +]
+                                  model%climate%smb_reference_usrf*thk0, & ! unscaled surface elevation [m]
+                                  model%climate%acc*scale_acab,          & ! unscaled acc [m/yr ice] 
+                                  model%climate%artm_anomaly,            & ! temperature anomaly [degree C]
+                                  model%climate%ddfactor_snow,           & ! Degree-day factor snow  
+                                  model%climate%ddfactor_ice,            & ! Degree-day factor ice  
+                                  model%climate%lapse_rate_annual,       & !> Annual lapse rate for PDD model
+                                  model%climate%lapse_rate_summer,       & !> Summer lapse rate for PDD model
+                                  model%climate%acab)                    
+          elseif (model%options%pdd_surface == pdd_SURFACE_MODEL) then
+             call massbalance_hdw_pdd_model_greenland(ewn, nsn,          & 
+                                  model%climate%lat,                     & ! lat [degree +]
+                                  model%geometry%usrf*thk0,              & ! unscaled surface elevation [m]
+                                  model%climate%acc*scale_acab,          & ! unscaled acc [m/yr ice] 
+                                  model%climate%artm_anomaly,            & ! temperature anomaly [degree C]
+                                  model%climate%ddfactor_snow,           & ! Degree-day factor snow  
+                                  model%climate%ddfactor_ice,            & ! Degree-day factor ice  
+                                  model%climate%lapse_rate_annual,       & !> Annual lapse rate for PDD model
+                                  model%climate%lapse_rate_summer,       & !> Summer lapse rate for PDD model
+                                  model%climate%acab)                    
+          end if
        endif   ! smb_input_function
 
        ! For the non-default smb_input_function options, make sure the SMB is nonzero somewhere; else abort.
@@ -2642,6 +2677,42 @@ contains
 
           endif ! enable_smb_anomaly_remapping
 
+          if (model%options%enable_pdd_anomaly) then
+
+             if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+                ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+                model%climate%acc(:,:) = (model%climate%precip(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+             endif
+
+             ! SMB from pdd model
+             if (model%options%pdd_surface == pdd_SURFACE_REFERENCE) then
+                call massbalance_hdw_pdd_anomaly_model_greenland(ewn, nsn, & 
+                     model%climate%lat,                                    & ! lat [degree +]
+                     model%climate%smb_reference_usrf*thk0,                & ! unscaled reference surface elevation [m]
+                     model%climate%smb_reference_usrf*thk0,                & ! unscaled surface elevation [m]
+                     model%climate%acc*scale_acab,                         & ! unscaled acc [m/yr ice] 
+                     model%climate%artm_anomaly,                           & ! temperature anomaly [degree C]
+                     model%climate%ddfactor_snow,                          & ! Degree-day factor snow  
+                     model%climate%ddfactor_ice,                           & ! Degree-day factor ice  
+                     model%climate%lapse_rate_annual,                      & !> Annual lapse rate for PDD model
+                     model%climate%lapse_rate_summer,                      & !> Summer lapse rate for PDD model
+                     model%climate%acab_anomaly)                    
+             elseif (model%options%pdd_surface == pdd_SURFACE_MODEL) then
+                call massbalance_hdw_pdd_anomaly_model_greenland(ewn, nsn, & 
+                     model%climate%lat,                                    & ! lat [degree +]
+                     model%climate%smb_reference_usrf*thk0,                & ! unscaled reference surface elevation [m]
+                     model%geometry%usrf*thk0,                             & ! unscaled surface elevation [m]
+                     model%climate%acc*scale_acab,                         & ! unscaled acc [m/yr ice] 
+                     model%climate%artm_anomaly,                           & ! temperature anomaly [degree C]
+                     model%climate%ddfactor_snow,                          & ! Degree-day factor snow  
+                     model%climate%ddfactor_ice,                           & ! Degree-day factor ice  
+                     model%climate%lapse_rate_annual,                      & !> Annual lapse rate for PDD model
+                     model%climate%lapse_rate_summer,                      & !> Summer lapse rate for PDD model
+                     model%climate%acab_anomaly)                    
+             end if
+          endif ! enable_pdd_anomaly
+
+          
           call parallel_halo(model%climate%acab_anomaly)
 
           ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.

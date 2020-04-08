@@ -53,7 +53,8 @@
               glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
               glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
               glissade_add_2d_anomaly, glissade_add_3d_anomaly, &
-              glissade_smb_remapping
+              glissade_smb_remapping, &
+              massbalance_hdw_pdd_model_greenland, massbalance_hdw_pdd_anomaly_model_greenland
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -2244,7 +2245,437 @@
     end subroutine glissade_smb_remapping
 
 
-    subroutine upwind_field (nx,       ny,         &
+    subroutine massbalance_hdw_pdd_model_greenland(nx, ny, &
+         lat, hs, acc_pd, t_anomaly, &
+         ddfactorsnow, ddfactorice, &
+         lapse_rate_annual, lapse_rate_summer, &
+         acab)
+      ! positive degree day model, added by Heiko Goelzer, Apr 2020
+      ! Implements greenland pdd model of Huybrechts and de Wolde 1999
+
+      use glimmer_scales
+
+      implicit none
+
+      ! -----------------------------------------------------------------------------
+      ! declaration of global variables
+      ! -----------------------------------------------------------------------------
+
+      ! input variables:
+      integer,                    intent(in)  :: nx, ny         ! number of cells in EW and NS directions
+      real(dp), dimension(nx,ny), intent(in)  :: lat            ! latitude (deg+)
+      real(dp), dimension(nx,ny), intent(in)  :: hs             ! surface elevation (m)
+      real(dp), dimension(nx,ny), intent(in)  :: acc_pd         ! reference accumulation (m/yr)
+      real(dp), dimension(nx,ny), intent(in)  :: t_anomaly      ! temperature anomaly w.r.t. pd (deg)
+      real(dp), intent(in)                    :: ddfactorsnow
+      real(dp), intent(in)                    :: ddfactorice
+      real(dp), intent(in)                    :: lapse_rate_annual
+      real(dp), intent(in)                    :: lapse_rate_summer
+
+      ! output variables: 
+      real(dp), dimension(nx,ny), intent(out) :: acab           ! surface mass balance (m/yr)
+
+      ! local variables
+      real(dp), dimension(nx,ny)              :: tma
+      real(dp), dimension(nx,ny)              :: snow
+      real(dp), dimension(nx,ny)              :: rain
+      real(dp), dimension(nx,ny)              :: sir
+      real(dp), dimension(nx,ny)              :: acc
+      
+      real(dp), dimension(nx,ny)              :: abl           ! runoff (m/yr)
+      real(dp), dimension(nx,ny)              :: tmj, pdd, rfr, s_prec
+      real(dp)                                :: pdds, ablv, sifm
+      
+      real(dp), parameter                     :: pmax = 0.3 ! see update in janssens and huybrechts 2000
+      
+      real(dp), dimension(nx,ny)              :: h_inv
+      integer                                 :: i, j
+
+
+      ! Determining reference annual temperature 
+      h_inv=20.*(abs(lat)-65.) 
+      where (hs<h_inv)
+         tma=49.13-lapse_rate_annual*h_inv-0.7576*abs(lat)
+      elsewhere
+         tma=49.13-lapse_rate_annual*hs-0.7576*abs(lat)
+      end where
+      
+      ! Global temperature perturbation
+      tma = tma + t_anomaly
+
+      ! Calculate summer temperatures
+      tmj=30.78-lapse_rate_summer*hs-0.3262*abs(lat)+t_anomaly  
+      
+      ! Calculate precipitation
+      ! See equation (c13) and (c14) in huybrechts and de wolde 1999
+      where (t_anomaly>=0.) 
+         s_prec=0.05
+      elsewhere (t_anomaly<=0. .and. t_anomaly>=-10.)
+         s_prec=0.05 - 0.005*t_anomaly
+      elsewhere
+         s_prec=0.1
+      end where
+      acc = acc_pd * (1.+s_prec)**t_anomaly
+      
+      ! Determine number of positive degree days per year and rain fraction
+      call calculate_hdw_pdd_monthly(nx, ny, tma, tmj, pdd, rfr)
+      
+      ! Distinguish rain and snow according to rain fraction
+      rain = acc * rfr
+      snow = acc - rain
+      
+      ! Melt calculation
+      do j=1,nx
+         do i=1,ny
+            
+            ! pdd needed for snow melting
+            pdds = snow(j,i)/ddfactorsnow
+            ! potential for refreezing 
+            sifm = pmax*snow(j,i)
+            ! limit potential by total precipitation (acc)
+            if(sifm.gt.acc(j,i)) sifm=acc(j,i)
+            
+            ! estimate available melt 
+            if(pdds.le.pdd(j,i)) then
+               ! remainig energy (pdd) used for ice melt
+               ablv = (pdd(j,i)-pdds)*ddfactorice+snow(j,i)
+            else
+               ! all energy (pdd) used for snow melt
+               ablv = pdd(j,i)*ddfactorsnow
+            endif
+            
+            ! calculate refreezing
+            if(ablv.gt.acc(j,i)+sifm) then
+               ! entire snowpack melted, no refreezing
+               sir(j,i) = 0.
+            elseif(ablv.gt.acc(j,i)) then
+               sir(j,i) = acc(j,i)+sifm-ablv
+            elseif(ablv.gt.sifm) then
+               sir(j,i) = sifm
+            else
+               sir(j,i) = ablv
+            endif
+            abl(j,i) = ablv - sifm
+            ! sanity check
+            if(abl(j,i).lt.0) abl(j,i)=0
+            
+         end do
+      end do
+      
+      ! No melt where insuffient energy
+      where (pdd.le.0) 
+         sir = 0
+         abl = 0
+      end where
+      
+      ! acab = (snow - abl) 
+      acab = (acc - abl - rain) / scale_acab
+      
+    end subroutine massbalance_hdw_pdd_model_greenland
+    
+    
+    subroutine massbalance_hdw_pdd_anomaly_model_greenland(nx, ny,             &
+                                         lat, hs0, hs, acc0, t_anomaly,        &
+                                         ddfactorsnow, ddfactorice,            &
+                                         lapse_rate_annual, lapse_rate_summer, &
+                                         acab_anomaly)
+
+      ! Positive degree day anomaly model, added by Heiko Goelzer, Apr 2020
+      ! Implements greenland pdd model of Huybrechts and de Wolde 1999 in anomaly mode
+      ! Calculates SMB anomalies relative to t_anomaly = 0
+      
+      use glimmer_scales
+
+      implicit none
+
+      ! -----------------------------------------------------------------------------
+      ! declaration of global variables
+      ! -----------------------------------------------------------------------------
+
+      ! input variables:
+      integer,                    intent(in)  :: nx, ny         ! number of cells in EW and NS directions
+      real(dp), dimension(nx,ny), intent(in)  :: lat            ! latitude (deg+)
+      real(dp), dimension(nx,ny), intent(in)  :: hs0            ! reference surface elevation (m)
+      real(dp), dimension(nx,ny), intent(in)  :: hs             ! surface elevation (m)
+      real(dp), dimension(nx,ny), intent(in)  :: acc0           ! reference accumulation (m/yr)
+      real(dp), dimension(nx,ny), intent(in)  :: t_anomaly      ! temperature anomaly w.r.t. pd (deg)
+      real(dp), intent(in)                    :: ddfactorsnow
+      real(dp), intent(in)                    :: ddfactorice
+      real(dp), intent(in)                    :: lapse_rate_annual
+      real(dp), intent(in)                    :: lapse_rate_summer
+
+      ! output variables: 
+      real(dp), dimension(nx,ny), intent(out) :: acab_anomaly   ! surface mass balance anomaly (m/yr ice)
+
+      ! local variables
+      real(dp), dimension(nx,ny)              :: tma
+      real(dp), dimension(nx,ny)              :: snow
+      real(dp), dimension(nx,ny)              :: rain
+      real(dp), dimension(nx,ny)              :: sir
+      real(dp), dimension(nx,ny)              :: acc
+      
+      real(dp), dimension(nx,ny)              :: abl           ! runoff (m/yr)
+      real(dp), dimension(nx,ny)              :: tmj, pdd, rfr, s_prec
+      real(dp)                                :: pdds, ablv, sifm
+      
+      real(dp), parameter                     :: pmax = 0.3 ! see update in janssens and huybrechts 2000
+      
+      real(dp), dimension(nx,ny)              :: h_inv
+      integer                                 :: i, j
+      ! Reference for anomaly calculation
+      logical, save                               :: first_call = .true.
+      real(dp), save, dimension(:,:), allocatable :: acab0 ! reference SMB (m/yr ice)
+
+      ! Determining reference values once on first call
+      ! -------------------------------------------------------------------------------
+      if(first_call) then
+         ! allocate to remember acab0 for later calls
+         if (.not.allocated(acab0)) then
+            allocate(acab0(nx,ny), source=0._dp)
+         end if
+
+         ! Determining reference annual temperature 
+         h_inv = 20.*(abs(lat)-65.) 
+         where (hs0<h_inv)
+            tma = 49.13-lapse_rate_annual*h_inv-0.7576*abs(lat)
+         elsewhere
+            tma = 49.13-lapse_rate_annual*hs0-0.7576*abs(lat)
+         end where         
+         ! Reference summer temperature
+         tmj = 30.78-lapse_rate_summer*hs0-0.3262*abs(lat)  
+
+         ! Determine number of positive degree days per year and rain fraction
+         call calculate_hdw_pdd_monthly(nx, ny, tma, tmj, pdd, rfr)
+
+         ! Distinguish rain and snow according to rain fraction
+         rain = acc0 * rfr
+         snow = acc0 - rain
+      
+         ! Melt calculation
+         do j=1,nx
+            do i=1,ny
+            
+               ! pdd needed for snow melting
+               pdds = snow(j,i)/ddfactorsnow
+               ! potential for refreezing 
+               sifm = pmax*snow(j,i)
+               ! limit potential by total precipitation (acc)
+               if(sifm.gt.acc0(j,i)) sifm=acc0(j,i)
+               
+               ! estimate available melt 
+               if(pdds.le.pdd(j,i)) then
+                  ! remainig energy (pdd) used for ice melt
+                  ablv = (pdd(j,i)-pdds)*ddfactorice+snow(j,i)
+               else
+                  ! all energy (pdd) used for snow melt
+                  ablv = pdd(j,i)*ddfactorsnow
+               endif
+               
+               ! calculate refreezing
+               if(ablv.gt.acc0(j,i)+sifm) then
+                  ! entire snowpack melted, no refreezing
+                  sir(j,i) = 0.
+               elseif(ablv.gt.acc0(j,i)) then
+                  sir(j,i) = acc0(j,i)+sifm-ablv
+               elseif(ablv.gt.sifm) then
+                  sir(j,i) = sifm
+               else
+                  sir(j,i) = ablv
+               endif
+               abl(j,i) = ablv - sifm
+               ! sanity check
+               if(abl(j,i).lt.0) abl(j,i)=0
+               
+            end do
+         end do
+         
+         ! No melt where insuffient energy
+         where (pdd.le.0) 
+            sir = 0
+            abl = 0
+         end where
+         
+         ! acab = (snow - abl) 
+         acab0 = (acc0 - abl - rain) 
+
+         ! close reference calucaltion in first call
+         first_call = .false.
+      end if
+      
+      ! Determining annual temperature 
+      h_inv = 20.*(abs(lat)-65.) 
+      where (hs<h_inv)
+         tma = 49.13-lapse_rate_annual*h_inv-0.7576*abs(lat)
+      elsewhere
+         tma = 49.13-lapse_rate_annual*hs-0.7576*abs(lat)
+      end where
+
+      ! Global temperature perturbation
+      tma = tma + t_anomaly
+
+      ! Calculate summer temperatures
+      tmj = 30.78-lapse_rate_summer*hs-0.3262*abs(lat)+t_anomaly  
+      
+      ! Calculate precipitation
+      ! See equation (c13) and (c14) in huybrechts and de wolde 1999
+      where (t_anomaly>=0.) 
+         s_prec=0.05
+      elsewhere (t_anomaly<=0. .and. t_anomaly>=-10.)
+         s_prec=0.05 - 0.005*t_anomaly
+      elsewhere
+         s_prec=0.1
+      end where
+      acc = acc0 * (1.+s_prec)**t_anomaly
+
+      ! Determine number of positive degree days per year and rain fraction
+      call calculate_hdw_pdd_monthly(nx, ny, tma, tmj, pdd, rfr)
+
+      ! Distinguish rain and snow according to rain fraction
+      rain = acc * rfr
+      snow = acc - rain
+      
+      ! Melt calculation
+      do j=1,nx
+         do i=1,ny
+            
+            ! pdd needed for snow melting
+            pdds = snow(j,i)/ddfactorsnow
+            ! potential for refreezing 
+            sifm = pmax*snow(j,i)
+            ! limit potential by total precipitation (acc)
+            if(sifm.gt.acc(j,i)) sifm=acc(j,i)
+            
+            ! estimate available melt 
+            if(pdds.le.pdd(j,i)) then
+               ! remainig energy (pdd) used for ice melt
+               ablv = (pdd(j,i)-pdds)*ddfactorice+snow(j,i)
+            else
+               ! all energy (pdd) used for snow melt
+               ablv = pdd(j,i)*ddfactorsnow
+            endif
+            
+            ! calculate refreezing
+            if(ablv.gt.acc(j,i)+sifm) then
+               ! entire snowpack melted, no refreezing
+               sir(j,i) = 0.
+            elseif(ablv.gt.acc(j,i)) then
+               sir(j,i) = acc(j,i)+sifm-ablv
+            elseif(ablv.gt.sifm) then
+               sir(j,i) = sifm
+            else
+               sir(j,i) = ablv
+            endif
+            abl(j,i) = ablv - sifm
+            ! sanity check
+            if(abl(j,i).lt.0) abl(j,i)=0
+            
+         end do
+      end do
+      
+      ! No melt where insuffient energy
+      where (pdd.le.0) 
+         sir = 0
+         abl = 0
+      end where
+      
+      ! acab = (snow - abl)
+      ! Subtract reference acab0 to get acab anomalies
+      acab_anomaly = (acc - abl - rain - acab0) / scale_acab
+      
+    end subroutine massbalance_hdw_pdd_anomaly_model_greenland
+
+
+    subroutine calculate_hdw_pdd_monthly(nx, ny, tma, tmj, pdd, rfr)
+      ! Positive degree day model, added by Heiko Goelzer, April 2020
+      ! pdd model from Huybrechts and de Wolde 1999 
+      
+      use glimmer_physcon, only: pi
+      implicit none
+      
+      ! input variables: 
+      integer,                    intent(in)   :: nx, ny         ! number of cells in EW and NS directions
+      real(dp), dimension(nx,ny), intent(in)   :: tma, tmj
+      
+      ! output variables: 
+      real(dp), dimension(nx,ny), intent(out)  :: pdd, rfr
+      
+      ! local variables:
+      logical, save                                :: first_call = .true.
+      integer                                      :: i, j, k
+      real(dp), parameter                          :: sigma = 4.5 
+      real(dp), parameter                          :: rainlimit = 1.0
+      real(dp), parameter                          :: valmax = 6.0
+      integer,  parameter                          :: nintx=1200
+      real(dp), dimension(12,nx,ny)                :: pdd12, rfr12
+      real(dp)                                     :: help1, help2, help3, ampl, tempnorm, fac2, ntemp12
+      
+      ! pdd
+      real(dp), save                               :: taberf(-nintx:nintx),tabepdd(-nintx:nintx)
+      real(dp)                                     :: deltax,sq2pi,fac1,fdx,help,xi,xj,yi,yj
+      
+      
+      ! -------------------------------------------------------------------------------
+      ! calculate lookup tables for error function and expected pdd once on first call
+      ! huybrechts and de wolde 1999 (c10), (c15)
+      
+      if(first_call) then
+         taberf(0)=0.0
+         deltax=valmax/nintx
+         sq2pi=(2*pi)**(0.5)
+         fac1=deltax/(2*sq2pi)
+         tabepdd(0)=1./sq2pi
+         xj=0.
+         yj=1.
+         do i=1,nintx
+            xi=xj
+            yi=yj
+            xj=xj+deltax
+            yj=exp(-0.5*xj*xj)
+            fdx=(yi+yj)*fac1
+            taberf(i) =taberf(i-1)+fdx
+            taberf(-i)=-taberf(i)
+            help=yj/sq2pi+xj*taberf(i)
+            tabepdd(i) =help+xj*0.5
+            tabepdd(-i)=help-xj*0.5
+         end do
+         first_call = .false.
+      end if
+      
+      ! ------------------------------------------------------------------------------
+      
+      ! calculate rain fraction and number of pdds 
+      ! huybrechts and de wolde 1999 (c10), (c15)
+      help1=sigma*360./12.
+      fac2=pi/6. 
+      do j=1,nx
+         do i=1,ny
+            pdd(j,i)=0.0
+            rfr(j,i)=0.0
+            ! seosonal amplitude
+            ampl=abs(tmj(j,i)-tma(j,i))
+            do k=1,12
+               ! current temperature
+               ntemp12=tma(j,i)+ampl*cos(fac2*(k-1))
+               ntemp12=ntemp12/sigma
+               help2=nintx*ntemp12/amax1(abs(ntemp12),valmax)
+               ! monthly pdds
+               pdd12(k,j,i)=help1*amax1(tabepdd(nint(help2)),ntemp12)
+               ! annual pdds
+               pdd(j,i)=pdd(j,i)+pdd12(k,j,i)  
+               tempnorm=ntemp12-rainlimit/sigma
+               help3=nintx*tempnorm/amax1(abs(tempnorm),valmax)  
+               ! monthly rain fraction
+               rfr12(k,j,i)=taberf(nint(help3))+0.5
+               ! annual rain fraction
+               rfr(j,i)=rfr(j,i)+rfr12(k,j,i)/12.  
+            end do
+         end do
+      end do
+      
+    end subroutine calculate_hdw_pdd_monthly
+    
+    
+  subroutine upwind_field (nx,       ny,         &
                              ilo, ihi, jlo, jhi,   &
                              dx,       dy,         &
                              dt,       phi,        &
