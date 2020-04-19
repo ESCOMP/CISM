@@ -78,6 +78,7 @@ module glimmer_ncdf
      integer id
      !> id of netCDF file
 
+     !> size of vertical and stag vertical coordinate
      integer :: nlevel = 0
      integer :: nstaglevel = 0
      integer :: nstagwbndlevel = 0
@@ -85,7 +86,6 @@ module glimmer_ncdf
      integer :: nzocn = 0
      !*HG* - added to handle additional coordinate
      integer :: nnn = 0
-     !> size of vertical and stag vertical coordinate
 
      integer timedim
      !> id of time dimension

@@ -207,12 +207,16 @@ module parallel
      module procedure broadcast_character
      module procedure broadcast_integer
      module procedure broadcast_integer_1d
+     module procedure broadcast_integer_2d
      module procedure broadcast_logical
      module procedure broadcast_logical_1d
+     module procedure broadcast_logical_2d
      module procedure broadcast_real4
      module procedure broadcast_real4_1d
+     module procedure broadcast_real4_2d
      module procedure broadcast_real8     
      module procedure broadcast_real8_1d
+     module procedure broadcast_real8_2d
   end interface
 
   interface distributed_gather_var
@@ -228,12 +232,12 @@ module parallel
      module procedure distributed_gather_var_row_real8_2d
   end interface
 
-  interface distributed_gather_all_var_row
-     module procedure distributed_gather_all_var_row_real8_2d
-  end interface
-
   interface distributed_gather_var_col
      module procedure distributed_gather_var_col_real8_2d
+  end interface
+
+  interface distributed_gather_all_var_row
+     module procedure distributed_gather_all_var_row_real8_2d
   end interface
 
   interface distributed_gather_all_var_col
@@ -307,12 +311,13 @@ module parallel
 
   interface parallel_get_var
      module procedure parallel_get_var_integer
-     module procedure parallel_get_var_real4
-     module procedure parallel_get_var_real8
      module procedure parallel_get_var_integer_1d
-     module procedure parallel_get_var_real4_1d
-     module procedure parallel_get_var_real8_1d
      module procedure parallel_get_var_integer_2d
+     module procedure parallel_get_var_real4
+     module procedure parallel_get_var_real4_1d
+     module procedure parallel_get_var_real4_2d
+     module procedure parallel_get_var_real8
+     module procedure parallel_get_var_real8_1d
      module procedure parallel_get_var_real8_2d
   end interface
 
@@ -322,6 +327,11 @@ module parallel
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
      module procedure parallel_halo_real8_3d
+  end interface
+
+  interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_integer_2d
+     module procedure parallel_halo_extrapolate_real8_2d
   end interface
 
   interface parallel_halo_tracers
@@ -335,26 +345,7 @@ module parallel
      module procedure parallel_halo_verify_real8_3d
   end interface
 
-  interface staggered_parallel_halo
-     module procedure staggered_parallel_halo_integer_2d
-     module procedure staggered_parallel_halo_integer_3d
-     module procedure staggered_parallel_halo_real8_2d
-     module procedure staggered_parallel_halo_real8_3d
-     module procedure staggered_parallel_halo_real8_4d
-  end interface
-
-  interface parallel_halo_extrapolate
-     module procedure parallel_halo_extrapolate_integer_2d
-     module procedure parallel_halo_extrapolate_real8_2d
-  end interface
-
-  interface staggered_parallel_halo_extrapolate
-     module procedure staggered_parallel_halo_extrapolate_integer_2d
-     module procedure staggered_parallel_halo_extrapolate_real8_2d
-  end interface
-
   interface parallel_print
-     ! Writes a parallel (same on all processors) variable to file by just writing from main_task
      module procedure parallel_print_integer_2d
      module procedure parallel_print_real8_2d
      module procedure parallel_print_real8_3d
@@ -371,7 +362,11 @@ module parallel
 
   interface parallel_put_var
      module procedure parallel_put_var_integer
+     module procedure parallel_put_var_integer_1d
+     module procedure parallel_put_var_integer_2d
      module procedure parallel_put_var_real4
+     module procedure parallel_put_var_real4_1d
+     module procedure parallel_put_var_real4_2d
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
      module procedure parallel_put_var_real8_2d
@@ -383,10 +378,24 @@ module parallel
      module procedure parallel_reduce_max_real8
   end interface
 
+  ! This reduce interface determines the global max value and the processor on which it occurs
+  interface parallel_reduce_maxloc
+     module procedure parallel_reduce_maxloc_integer
+     module procedure parallel_reduce_maxloc_real4
+     module procedure parallel_reduce_maxloc_real8
+  end interface
+
   interface parallel_reduce_min
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+  end interface
+
+  ! This reduce interface determines the global min value and the processor on which it occurs
+  interface parallel_reduce_minloc
+     module procedure parallel_reduce_minloc_integer
+     module procedure parallel_reduce_minloc_real4
+     module procedure parallel_reduce_minloc_real8
   end interface
 
   interface parallel_reduce_sum
@@ -397,18 +406,17 @@ module parallel
      module procedure parallel_reduce_sum_real8_nvar
   end interface
 
-  ! This reduce interface determines the global max value and the processor on which it occurs
-  interface parallel_reduce_maxloc
-     module procedure parallel_reduce_maxloc_integer
-     module procedure parallel_reduce_maxloc_real4
-     module procedure parallel_reduce_maxloc_real8
+  interface staggered_parallel_halo
+     module procedure staggered_parallel_halo_integer_2d
+     module procedure staggered_parallel_halo_integer_3d
+     module procedure staggered_parallel_halo_real8_2d
+     module procedure staggered_parallel_halo_real8_3d
+     module procedure staggered_parallel_halo_real8_4d
   end interface
 
-  ! This reduce interface determines the global min value and the processor on which it occurs
-  interface parallel_reduce_minloc
-     module procedure parallel_reduce_minloc_integer
-     module procedure parallel_reduce_minloc_real4
-     module procedure parallel_reduce_minloc_real8
+  interface staggered_parallel_halo_extrapolate
+     module procedure staggered_parallel_halo_extrapolate_integer_2d
+     module procedure staggered_parallel_halo_extrapolate_real8_2d
   end interface
 
 contains
@@ -461,6 +469,22 @@ contains
     call mpi_bcast(a,size(a),mpi_integer,source,comm,ierror)
   end subroutine broadcast_integer_1d
 
+  subroutine broadcast_integer_2d(a, proc)
+    use mpi_mod
+    implicit none
+    integer,dimension(:,:) :: a
+    integer :: ierror
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
+    integer :: source ! local variable indicating which processor to broadcast from
+    ! begin
+    if (present(proc)) then
+       source = proc
+    else
+       source = main_rank
+    endif
+    call mpi_bcast(a,size(a),mpi_integer,source,comm,ierror)
+  end subroutine broadcast_integer_2d
+
   subroutine broadcast_logical(l, proc)
     use mpi_mod
     implicit none
@@ -492,6 +516,22 @@ contains
     endif
     call mpi_bcast(l,size(l),mpi_logical,source,comm,ierror)
   end subroutine broadcast_logical_1d
+
+  subroutine broadcast_logical_2d(l, proc)
+    use mpi_mod
+    implicit none
+    logical,dimension(:,:) :: l
+    integer :: ierror
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
+    integer :: source ! local variable indicating which processor to broadcast from
+    ! begin
+    if (present(proc)) then
+       source = proc
+    else
+       source = main_rank
+    endif
+    call mpi_bcast(l,size(l),mpi_logical,source,comm,ierror)
+  end subroutine broadcast_logical_2d
 
   subroutine broadcast_real4(r, proc)
     use mpi_mod
@@ -525,6 +565,22 @@ contains
     call mpi_bcast(a,size(a),mpi_real4,source,comm,ierror)
   end subroutine broadcast_real4_1d
 
+  subroutine broadcast_real4_2d(a, proc)
+    use mpi_mod
+    implicit none
+    real(sp),dimension(:,:) :: a
+    integer :: ierror
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
+    integer :: source ! local variable indicating which processor to broadcast from
+    ! begin
+    if (present(proc)) then
+       source = proc
+    else
+       source = main_rank
+    endif
+    call mpi_bcast(a,size(a),mpi_real4,source,comm,ierror)
+  end subroutine broadcast_real4_2d
+
   subroutine broadcast_real8(r, proc)
     use mpi_mod
     implicit none
@@ -556,6 +612,22 @@ contains
     endif
     call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
   end subroutine broadcast_real8_1d
+
+  subroutine broadcast_real8_2d(a, proc)
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:) :: a
+    integer :: ierror
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
+    integer :: source ! local variable indicating which processor to broadcast from
+    ! begin
+    if (present(proc)) then
+       source = proc
+    else
+       source = main_rank
+    endif
+    call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
+  end subroutine broadcast_real8_2d
 
   function distributed_execution()
      ! Returns if running distributed or not.
@@ -1812,7 +1884,6 @@ contains
     !automatic deallocation
   end function distributed_get_var_real4_2d
 
-  !WHL - added this function
   function distributed_get_var_real8_1d(ncid,varid,values,start)
     use mpi_mod
     use netcdf
@@ -2030,13 +2101,6 @@ contains
     values(:,:,:) = recvbuf(:size(values,1),:size(values,2),:)
     !automatic deallocation
   end function distributed_get_var_real8_3d
-
-  function distributed_isparallel()
-     implicit none
-     logical :: distributed_isparallel
-
-     distributed_isparallel = .true.
-  end function distributed_isparallel
 
 
   subroutine distributed_grid(ewn,      nsn,        &
@@ -2842,6 +2906,14 @@ contains
   end subroutine distributed_grid_active_blocks
 
 
+  function distributed_isparallel()
+     implicit none
+     logical :: distributed_isparallel
+
+     distributed_isparallel = .true.
+  end function distributed_isparallel
+
+
   function distributed_owner(ew,ewn,ns,nsn)
     implicit none
     logical :: distributed_owner
@@ -3157,6 +3229,7 @@ contains
     ! automatic deallocation
   end subroutine distributed_print_real8_3d
 
+
   function distributed_put_var_integer_2d(ncid,varid,values,start)
     use mpi_mod
     implicit none
@@ -3390,7 +3463,6 @@ contains
     !automatic deallocation
   end function distributed_put_var_real4_2d
 
-  !WHL - added this function
   function distributed_put_var_real8_1d(ncid,varid,values,start)
     use mpi_mod
     use netcdf
@@ -3555,6 +3627,8 @@ contains
     !automatic deallocation
   end function distributed_put_var_real8_2d
 
+  !TODO - Should we assume that ewn is the first index?
+  !       Typically it is the 2nd index.
   function distributed_put_var_real8_3d(ncid,varid,values,start)
     use mpi_mod
     implicit none
@@ -4571,9 +4645,7 @@ contains
   end function parallel_get_att_real8_1d
 
   !WHL - Added parallel_get_var functions in analogy to parallel_put_var functions.
-  !      Similar to distributed_get_var, but they lack a 'start' argument.
-  !      The scalar and 1D functions broadcast values from main_task to other tasks.
-  !      The 2D functions do not broadcast; they only bring a global array to main_task.
+  !      Similar to distributed_get_var, but (except for the 2D functions) they lack a 'start' argument.
   function parallel_get_var_integer(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_integer,varid
@@ -4583,26 +4655,6 @@ contains
     call broadcast(parallel_get_var_integer)
     call broadcast(values)
   end function parallel_get_var_integer
-
-  function parallel_get_var_real4(ncid,varid,values)
-    implicit none
-    integer :: ncid,parallel_get_var_real4,varid
-    real(sp) :: values
-    ! begin
-    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real4)
-    call broadcast(values)
-  end function parallel_get_var_real4
-
-  function parallel_get_var_real8(ncid,varid,values)
-    implicit none
-    integer :: ncid,parallel_get_var_real8,varid
-    real(dp) :: values
-    ! begin
-    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real8)
-    call broadcast(values)
-  end function parallel_get_var_real8
 
   function parallel_get_var_integer_1d(ncid,varid,values)
     implicit none
@@ -4615,6 +4667,33 @@ contains
     call broadcast(values)
   end function parallel_get_var_integer_1d
 
+  function parallel_get_var_integer_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_integer_2d,varid
+    integer,dimension(:,:) :: values
+    integer,dimension(:),optional :: start
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values)
+       end if
+    endif   ! main_task
+    call broadcast(parallel_get_var_integer_2d)
+    call broadcast(values)
+  end function parallel_get_var_integer_2d
+
+  function parallel_get_var_real4(ncid,varid,values)
+    implicit none
+    integer :: ncid,parallel_get_var_real4,varid
+    real(sp) :: values
+    ! begin
+    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
+    call broadcast(parallel_get_var_real4)
+    call broadcast(values)
+  end function parallel_get_var_real4
+
   function parallel_get_var_real4_1d(ncid,varid,values)
     implicit none
     integer :: ncid,parallel_get_var_real4_1d,varid
@@ -4625,6 +4704,33 @@ contains
     call broadcast(parallel_get_var_real4_1d)
     call broadcast(values)
   end function parallel_get_var_real4_1d
+
+  function parallel_get_var_real4_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_get_var_real4_2d,varid
+    real(sp),dimension(:,:) :: values
+    integer,dimension(:),optional :: start
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real4_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real4_2d = nf90_get_var(ncid,varid,values)
+       end if
+    endif   ! main_task
+    call broadcast(parallel_get_var_real4_2d)
+    call broadcast(values)
+  end function parallel_get_var_real4_2d
+
+  function parallel_get_var_real8(ncid,varid,values)
+    implicit none
+    integer :: ncid,parallel_get_var_real8,varid
+    real(dp) :: values
+    ! begin
+    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
+    call broadcast(parallel_get_var_real8)
+    call broadcast(values)
+  end function parallel_get_var_real8
 
   function parallel_get_var_real8_1d(ncid,varid,values)
     implicit none
@@ -4637,22 +4743,11 @@ contains
     call broadcast(values)
   end function parallel_get_var_real8_1d
 
-  function parallel_get_var_integer_2d(ncid,varid,values)
-    implicit none
-    integer :: ncid,parallel_get_var_integer_2d,varid
-    integer,dimension(:,:) :: values
-    ! begin
-    if (main_task) parallel_get_var_integer_2d = &
-         nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_integer_2d)
-!!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
-  end function parallel_get_var_integer_2d
-
   function parallel_get_var_real8_2d(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
-    integer,dimension(:),optional :: start
     real(dp),dimension(:,:) :: values
+    integer,dimension(:),optional :: start
     ! begin
     if (main_task) then
        if (present(start)) then
@@ -4660,8 +4755,9 @@ contains
        else
           parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values)
        end if
-       call broadcast(parallel_get_var_real8_2d)
-    endif
+    endif   ! main_task
+    call broadcast(parallel_get_var_real8_2d)
+    call broadcast(values)
   end function parallel_get_var_real8_2d
 
   !TODO - Is function parallel_globalID still needed?  No longer called except from glissade_test_halo.
@@ -6191,8 +6287,8 @@ contains
   function parallel_put_var_integer(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_integer,varid
-    integer,dimension(:),optional :: start
     integer :: values
+    integer,dimension(:),optional :: start
     ! begin
     if (main_task) then
        if (present(start)) then
@@ -6204,11 +6300,43 @@ contains
     call broadcast(parallel_put_var_integer)
   end function parallel_put_var_integer
 
+  function parallel_put_var_integer_1d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_integer_1d,varid
+    integer,dimension(:) :: values
+    integer,dimension(:),optional :: start
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_integer_1d)
+  end function parallel_put_var_integer_1d
+
+  function parallel_put_var_integer_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_integer_2d,varid
+    integer,dimension(:,:) :: values
+    integer,dimension(:),optional :: start
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_2d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_2d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_integer_2d)
+  end function parallel_put_var_integer_2d
+
   function parallel_put_var_real4(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_real4,varid
-    integer,dimension(:),optional :: start
     real(sp) :: values
+    integer,dimension(:),optional :: start
     ! begin
     if (main_task) then
        if (present(start)) then
@@ -6220,11 +6348,43 @@ contains
     call broadcast(parallel_put_var_real4)
   end function parallel_put_var_real4
 
+  function parallel_put_var_real4_1d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_real4_1d,varid
+    real(sp),dimension(:) :: values
+    integer,dimension(:),optional :: start
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real4_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real4_1d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_real4_1d)
+  end function parallel_put_var_real4_1d
+
+  function parallel_put_var_real4_2d(ncid,varid,values,start)
+    implicit none
+    integer :: ncid,parallel_put_var_real4_2d,varid
+    real(sp),dimension(:,:) :: values
+    integer,dimension(:),optional :: start
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_real4_2d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_real4_2d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_real4_2d)
+  end function parallel_put_var_real4_2d
+
   function parallel_put_var_real8(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_real8,varid
-    integer,dimension(:),optional :: start
     real(dp) :: values
+    integer,dimension(:),optional :: start
     ! begin
     if (main_task) then
        if (present(start)) then
@@ -6239,8 +6399,8 @@ contains
   function parallel_put_var_real8_1d(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_real8_1d,varid
-    integer,dimension(:),optional :: start
     real(dp),dimension(:) :: values
+    integer,dimension(:),optional :: start
     ! begin
     if (main_task) then
        if (present(start)) then
@@ -6255,8 +6415,8 @@ contains
   function parallel_put_var_real8_2d(ncid,varid,values,start)
     implicit none
     integer :: ncid,parallel_put_var_real8_2d,varid
-    integer,dimension(:),optional :: start
     real(dp),dimension(:,:) :: values
+    integer,dimension(:),optional :: start
     ! begin
     if (main_task) then
        if (present(start)) then
