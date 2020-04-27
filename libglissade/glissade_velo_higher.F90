@@ -832,9 +832,7 @@
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
 
     real(dp), dimension(nx,ny) ::     &
-       thck_calving_front,  & ! effective thickness of ice at the calving front
-       thck_adjusted,       & ! adjusted thck field; set to thck_calving_front in inactive CF cells
-       usrf_adjusted          ! adjusted usrf field; based on thck_calving_front in inactive CF cells
+       thck_calving_front     ! effective thickness of ice at the calving front
 
     real(dp), dimension(nx-1,ny-1) :: &
        stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
@@ -1554,9 +1552,8 @@
     ! (4) land mask = 1 in cells where topography is at or above sea level
     ! (5) active_ice_mask = 1 for dynamically active cells, else = 0
     ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0.
-    !     With subgrid calving front scheme option 1, all cells with ice_mask = 1 are active,
-    !      except for calving-front cells with thck < thck_calving_front.
-    !      (Here, thck_calving_front is defined by adjacent cells not on the calving front.)
+    !     With subgrid calving front scheme option 1, cells on the calving front are inactive
+    !      unless thck > thck_calving_front.
     !
     ! Note: There is a subtle difference between the active_ice_mask and active_cell array,
     !       aside from the fortran type (integer v. logical).
@@ -1576,55 +1573,25 @@
                             calving_front_mask = calving_front_mask,     &
                             thck_calving_front = thck_calving_front)
 
+    ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
+    where (ice_mask == 1 .or. land_mask == 1)
+       ice_plus_land_mask = 1
+    elsewhere
+       ice_plus_land_mask = 0
+    endwhere
+
     !------------------------------------------------------------------------------
     ! Compute the ice thickness and upper surface elevation on the staggered grid.
     ! (requires that thck and usrf are up to date in all cells that border locally owned vertices).
-    ! For stagger_margin_in = 0, all cells (including ice-free) are included in interpolation.
-    ! For stagger_margin_in = 1, only masked cells (*_mask = 1) are included.
-    ! Note: There can be cells at the land margin which are not currently active,
-    !        but receive ice from upstream and could activate at the next time step
-    !        (if the inflow exceeds the SMB loss).
-    !       Including their small or zero thickness (thck <= thklim) in the gradient
-    !        prevents abrupt changes in stagthck when these cells activate.
+    ! All cells (including ice-free and inactive CF cells) are included in the interpolation.
     !------------------------------------------------------------------------------
 
-    ! Make a temporary array in which thck is replaced by thck_calving_front in inactive CF cells.
-    ! This will give a more accurate ice thickness and flotation function in CF cells.
+    call glissade_stagger(nx,           ny,         &
+                          thck,         stagthck)
 
-    thck_adjusted = thck
-    usrf_adjusted = usrf
+    call glissade_stagger(nx,           ny,         &
+                          usrf,         stagusrf)
 
-    if (whichcalving_front == HO_CALVING_FRONT_SUBGRID) then
-       where (calving_front_mask == 1 .and. active_ice_mask == 0)
-          thck_adjusted = thck_calving_front
-          usrf_adjusted = (1.0d0 - rhoi/rhoo) * thck_adjusted  ! CF cells are always floating 
-       endwhere
-    endif
-
-    ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
-    ! This mask identifies all cells where thck and usrf should be included in staggered averages.
-    ! Note: Inactive CF cells are included in the mask, with thck and usrf derived from upstream cells.
-    do j = 1, ny
-       do i = 1, nx
-          if (ice_mask(i,j) == 1 .or. land_mask(i,j) == 1) then
-             ice_plus_land_mask(i,j) = 1
-          else
-             ice_plus_land_mask(i,j) = 0
-          endif
-       enddo
-    enddo
-
-    call glissade_stagger(nx,            ny,         &
-!!                          thck,         stagthck,   &
-                          thck_adjusted, stagthck,   &
-                          ice_plus_land_mask,   &
-                          stagger_margin_in = 1)
-
-    call glissade_stagger(nx,            ny,         &
-!!                          usrf,         stagusrf,   &
-                          usrf_adjusted, stagusrf,   &
-                          ice_plus_land_mask,   &
-                          stagger_margin_in = 1)
 
     if (verbose_gridop .and. this_rank == rtest) then
        print*, ' '
@@ -2587,17 +2554,15 @@
                 write(6,*) ' '
              enddo
 
-!          print*, ' '
-!          print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-!          do j = jtest+3, jtest-3, -1
-!             write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-!             do i = itest-3, itest+3
-!                write(6,'(i10)',advance='no') active_ice_mask(i,j)
-!             enddo
-!             write(6,*) ' '
-!          enddo
+             print*, ' '
+             print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') active_ice_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
 
              print*, ' '
              print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
@@ -2682,9 +2647,6 @@
                 write(6,*) ' '
              enddo
 
-          !WHL - debug - Skip the next few fields for now
-!!          go to 500
-
              print*, ' '
              print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
@@ -2755,26 +2717,6 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.0)',advance='no') model%basal_physics%effecpress_stag(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') thck_calving_front(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -5168,7 +5110,8 @@
 
     integer :: k, n, p
 
-    if (verbose_shelf .and. iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
+    if ((verbose_shelf .or. verbose_load) .and. &
+         iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
        print*, 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
        print*, 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif
@@ -5257,15 +5200,24 @@
     x(3) = x(2)
     x(4) = x(1)
 
-    s(1) = stagusrf(iNode(1), jNode(1))
-    s(2) = stagusrf(iNode(2), jNode(2))
-    s(3) = s(2)
-    s(4) = s(1)
+    if (whichassemble_lateral == HO_ASSEMBLE_LATERAL_LOCAL) then  ! use thck and usrf of the cell that owns the marine edge
 
-    h(1) = stagthck(iNode(1), jNode(1))
-    h(2) = stagthck(iNode(2), jNode(2))
-    h(3) = h(2)
-    h(4) = h(1)
+       s(1:4) = usrf(iCell,jCell)
+       h(1:4) = thck(iCell,jCell)
+
+    else  ! use stagthck and stagusrf at vertices
+
+       s(1) = stagusrf(iNode(1), jNode(1))
+       s(2) = stagusrf(iNode(2), jNode(2))
+       s(3) = s(2)
+       s(4) = s(1)
+
+       h(1) = stagthck(iNode(1), jNode(1))
+       h(2) = stagthck(iNode(2), jNode(2))
+       h(3) = h(2)
+       h(4) = h(1)
+
+    endif
 
     ! loop over element faces in column
     ! assume k increases from upper surface to bottom 
