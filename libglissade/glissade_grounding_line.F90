@@ -187,7 +187,7 @@
          cground            ! true if a cell is land and/or has grounded ice, else = false
 
     real(dp), parameter :: &
-         f_flotation_land_topg_min = 10.0d0    ! min value of (topg - eus) in f_flotation expression for land cells (m)
+         f_flotation_land_topg_min = 50.0d0    ! min value of (topg - eus) in f_flotation expression for land cells (m)
 
     real(dp), parameter :: &
          f_flotation_marine_min = 1.0d-4       ! min magnitude (m) of f_flotation for marine based cells (topg < 0)
