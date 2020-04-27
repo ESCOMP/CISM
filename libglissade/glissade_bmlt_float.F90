@@ -899,7 +899,7 @@ module glissade_bmlt_float
 
     use glimmer_paramets, only: thk0, unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
-    use glissade_calving, only: glissade_marine_connection_mask  !TODO - Move to mask module
+    use glissade_masks, only: glissade_marine_connection_mask
 
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
     !  and the current lower ice surface, using either a local or nonlocal melt parameterization.

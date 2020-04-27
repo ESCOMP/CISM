@@ -37,7 +37,7 @@ module glissade_utils
   implicit none
 
   private
-  public :: glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
+  public ::  glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
 
 contains
 
