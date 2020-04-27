@@ -185,8 +185,7 @@ module glide_types
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
   integer, parameter :: EIGENCALVING = 7
   integer, parameter :: CALVING_DAMAGE = 8
-  integer, parameter :: CALVING_THCK_THRESHOLD_2D = 9
-  integer, parameter :: CALVING_HUYBRECHTS = 10
+  integer, parameter :: CALVING_HUYBRECHTS = 9
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -196,6 +195,9 @@ module glide_types
 
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
+
+  integer, parameter :: DT_IN_YEARS = 0
+  integer, parameter :: DT_STEPS_PER_YEAR = 1
 
   integer, parameter :: DM_DT_DIAG_KG_S = 0
   integer, parameter :: DM_DT_DIAG_GT_Y = 1
@@ -639,6 +641,12 @@ module glide_types
 
     logical :: adjust_input_topography = .false.
     !> if true, then adjust the input topography in a selected region at initialization
+
+    integer :: dt_option = 0
+    !> \begin{description}
+    !> \item[0] Input dt in years
+    !> \item[1] Input dt in steps per year
+    !> \end{description}
 
     integer :: dm_dt_diag = 0
     !> \begin{description}
@@ -1344,12 +1352,14 @@ module glide_types
                                                                    !> scaled by thk0 like mass balance, thickness, etc.
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
-     integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice wherever the mask = 1 (whichcalving = CALVING_GRID_MASK)
-     real(dp),dimension(:,:),  pointer :: calving_threshold_thck => null()  !> calve floating ice that is thinner than a threshold defined for each cell (m)
+     integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: thck_calving_threshold => null() !> ice in the calving domain calves when thinner than this value (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
                                                                    !> (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
      real(dp),dimension(:,:),  pointer :: tau_eigen1 => null()     !> first eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
+     real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: tau_eff => null()        !> effective stress (Pa) for calving; derived from tau_eigen1, tau_eigen2
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
   
@@ -1360,8 +1370,9 @@ module glide_types
                                                  !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*max(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
-     real(dp) :: minthck = 100.d0                !> minimum thickness (m) of floating ice at marine edge before it calves
-                                                 !> (whichcalving = CALVING_THCK_THRESHOLD or EIGENCALVING)
+     real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
+                                                 !> if used, must be set to a nonzero value in the config file
+                                                 !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
      real(dp) :: eigencalving_constant = 0.01d0  !> eigencalving constant, lateral calving rate (m/yr) per unit stress (Pa)
                                                  !> (whichcalving = EIGENCALVING)
      real(dp) :: eigen2_weight = 1.0d0           !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
@@ -1971,6 +1982,7 @@ module glide_types
     real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
     real(dp) :: dt     =     0.d0     !> ice dynamics timestep
     real(dp) :: dttem  =     0.d0     !> temperature timestep
+    integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_option = STEPS_PER_YEAR)
     real(dp) :: dt_transport = 0.d0   !> timestep for subcycling transport within the dynamics timestep dt
     real(dp) :: nshlf  =     0.d0          !TODO - not currently used; remove?
     integer  :: subcyc =     1
@@ -2758,11 +2770,13 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_threshold_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_calving_threshold)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eff)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
     else
@@ -3316,8 +3330,8 @@ contains
         deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
-    if (associated(model%calving%calving_threshold_thck)) &
-        deallocate(model%calving%calving_threshold_thck)
+    if (associated(model%calving%thck_calving_threshold)) &
+        deallocate(model%calving%thck_calving_threshold)
     if (associated(model%calving%lateral_rate)) &
         deallocate(model%calving%lateral_rate)
     if (associated(model%calving%tau_eigen1)) &
@@ -3326,6 +3340,10 @@ contains
         deallocate(model%calving%tau_eigen2)
     if (associated(model%calving%tau_eff)) &
         deallocate(model%calving%tau_eff)
+    if (associated(model%calving%eps_eigen1)) &
+        deallocate(model%calving%eps_eigen1)
+    if (associated(model%calving%eps_eigen2)) &
+        deallocate(model%calving%eps_eigen2)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
 

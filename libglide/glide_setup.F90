@@ -591,19 +591,22 @@ contains
     use glimmer_config
     use glide_types
     implicit none
+
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-!TODO - Make the ice dynamic timestep more flexible.
-!       To handle timesteps both greater and less than one year, we may want to
-!        define ice_dt_option and ice_dt_count in place of the current dt.
-!       For instance, ice_dt_option could be either 'nyears' or 'steps_per_year'.
-!       For timesteps < 1 year, we would use ice_dt_option = 'steps_per_year'.
-!       This would ensure that the ice sheet dynamic timestep divides evenly
-!        into the mass balance timestep (= 1 year) when running with Glint or Glad.
+!       Set dt_option to specify whether the dynamic timestep (model%numerics%tinc)
+!        is based on dt (the timestep in years) or nsteps_per_year in the config file.
+!       The default (dt_option = DT_IN_YEARS) is to read dt directly,
+!        but the nsteps_per_year option allows more flexibility.
+!       Typically, we want an integral number of timesteps per year,
+!        e.g., if running coupled with the mass balance timestep of 1 year,
+!        or if writing output at annual intervals.
     call GetValue(section,'tstart',model%numerics%tstart)
     call GetValue(section,'tend',model%numerics%tend)
+    call GetValue(section,'dt_option',model%options%dt_option)
     call GetValue(section,'dt',model%numerics%tinc)
+    call GetValue(section,'nsteps_per_year',model%numerics%nsteps_per_year)
     call GetValue(section,'subcyc',model%numerics%subcyc)
     call GetValue(section,'adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold)
     call GetValue(section,'ntem',model%numerics%ntem)
@@ -616,6 +619,22 @@ contains
     !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
     call GetValue(section,'dt_diag',model%numerics%dt_diag)
     call GetValue(section,'ndiag',model%numerics%ndiag)
+
+    ! If the time step was entered in number of steps per year, then set the timestep in years.
+    ! If the time step was entered in years, then set nsteps_per_year.
+    if (model%options%dt_option == DT_STEPS_PER_YEAR) then
+       if (model%numerics%nsteps_per_year > 0) then
+          model%numerics%tinc = 1.d0 / real(model%numerics%nsteps_per_year, dp)
+       else
+          call write_log('Must set nsteps_per_year > 0 with this dt option', GM_FATAL)
+       endif
+    else   ! input dt (in years) directly
+       if (model%numerics%tinc > 0.0d0) then
+          model%numerics%nsteps_per_year = nint(1.d0/model%numerics%tinc)
+       else
+          call write_log('Must set dt > 0.0 with this dt option', GM_FATAL)
+       endif
+    endif   ! dt_option
 
   end subroutine handle_time
   
@@ -636,6 +655,10 @@ contains
     call write_log(message)
     write(message,*) 'time step (yr)      : ',model%numerics%tinc
     call write_log(message)
+    if (model%numerics%nsteps_per_year > 0) then
+       write(message,*) 'nsteps per year     : ',model%numerics%nsteps_per_year
+       call write_log(message)
+    endif
     write(message,*) 'thermal dt factor   : ',model%numerics%ntem
     call write_log(message)
     if ( (model%numerics%ntem < 1.0d0) .or. & 
@@ -1356,9 +1379,6 @@ contains
 
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CALVING_THCK_THRESHOLD_2D) then
-          call write_log('Error, calving thickness threshold 2D option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == EIGENCALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
@@ -2173,29 +2193,9 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
-        model%options%whichcalving == EIGENCALVING .or.  &
-        model%options%whichcalving == CALVING_DAMAGE) then
-       write(message,*) 'calving thickness limit (m)   : ', model%calving%minthck
-       call write_log(message)
-    endif
-
-    if (model%options%whichcalving == EIGENCALVING) then
-       write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
-       call write_log(message)
-       write(message,*) 'weight of eigenvalue 2 (unitless)    : ', model%calving%eigen2_weight
-       call write_log(message)
-    elseif (model%options%whichcalving == CALVING_DAMAGE) then
-       write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
-       call write_log(message)
-       write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
-       call write_log(message)
-       write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
-       call write_log(message)
-    endif
-
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-        model%options%whichcalving == EIGENCALVING) then
+        model%options%whichcalving == EIGENCALVING           .or. &
+        model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
           write(message,*) &
@@ -2208,7 +2208,42 @@ contains
           call write_log(message, GM_FATAL)
        endif
 
-    endif
+       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+          if (model%calving%minthck > 0.0d0) then
+             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
+             call write_log(message)
+          else
+             write(message,*) 'Will use a 2D calving thickness threshold field'
+             call write_log(message)
+          endif
+       elseif (model%options%whichcalving == EIGENCALVING) then
+          if (model%calving%minthck == 0.0d0) then
+             write(message,*) 'Error: Eigencalving requires minthck > 0'
+             call write_log(message, GM_FATAL)
+          else
+             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
+             call write_log(message)
+          endif
+          write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
+          call write_log(message)
+          write(message,*) 'eigenvalue 2 weight (unitless)       : ', model%calving%eigen2_weight
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_DAMAGE) then
+          if (model%calving%minthck == 0.0d0) then
+             write(message,*) 'Error: Damage-based calving requires minthck > 0'
+             call write_log(message, GM_FATAL)
+          else
+             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
+             call write_log(message)
+          endif
+          write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
+          call write_log(message)
+          write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+          call write_log(message)
+          write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
+          call write_log(message)
+       endif
+    endif   ! CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (.not.model%options%remove_icebergs) then
@@ -3157,8 +3192,8 @@ contains
            call glide_add_to_restart_variable_list('calving_mask')
         endif
 
-        if (options%whichcalving == CALVING_THCK_THRESHOLD_2D) then
-           call glide_add_to_restart_variable_list('calving_threshold_thck')
+        if (options%whichcalving == CALVING_THCK_THRESHOLD) then
+           call glide_add_to_restart_variable_list('thck_calving_threshold')
         endif
 
         ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,

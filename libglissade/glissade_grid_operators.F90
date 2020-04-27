@@ -52,7 +52,8 @@ module glissade_grid_operators
               glissade_slope_angle,                 &
               glissade_laplacian_smoother,          &
               glissade_vertical_average,            &
-              glissade_vertical_interpolate
+              glissade_vertical_interpolate,        &
+              glissade_scalar_extrapolate
 
     logical, parameter :: verbose_gradient = .false.
 
@@ -1340,8 +1341,8 @@ contains
 
     real(dp), dimension(nx,ny), intent(out) :: var_smooth     ! output field, after smoothing
 
-    real(dp), dimension(nx,ny), intent(in), optional :: &
-         smoother_mask                                        ! real mask to weight the cells included in the smoothing
+    integer, dimension(nx,ny), intent(in), optional :: &
+         smoother_mask                                        ! mask to identify the cells included in the smoothing
 
     integer, intent(in), optional :: &
          npoints_stencil                                      ! number of points in stencil, either 5 or 9
@@ -1350,16 +1351,16 @@ contains
     ! Local variables
     !----------------------------------------------------------------
 
-    real(dp), dimension(nx,ny) :: rmask   ! real mask set to the optional smoother_mask, else = 1 everywhere
+    integer, dimension(nx,ny) :: rmask   ! real mask set to the optional smoother_mask, else = 1.0 everywhere
 
     real(dp) :: sum_mask   ! sum of mask values in the cell and its neighbors, converted to real(dp)
 
-    integer :: npoints  ! set equal to npoints_stencil, else defaults to 5
+    integer :: npoints  ! set equal to npoints_stencil, else defaults to 9
 
     integer :: i, j
 
     if (present(smoother_mask)) then
-       rmask = smoother_mask
+       rmask = real(smoother_mask, dp)
     else
        rmask = 1.0d0
     endif
@@ -1370,7 +1371,7 @@ contains
           call write_log('ERROR, glissade_laplacian_smoother: Must choose 5 or 9 points for the stencil', GM_FATAL)
        endif
     else
-       npoints = 5
+       npoints = 9
     endif
 
     sum_mask = 0.0d0
@@ -1379,48 +1380,48 @@ contains
 
        do j = 2, ny-1
           do i = 2, nx-1
+             if (rmask(i,j) > 0.0d0) then
 
-             sum_mask =  4.0d0 *  rmask(i,j)  &
-                       + 1.0d0 * (rmask(i-1,j) + rmask(i+1,j) + rmask(i,j-1) + rmask(i,j+1))
+                sum_mask =  4.0d0 *  rmask(i,j)  &
+                          + 1.0d0 * (rmask(i-1,j) + rmask(i+1,j) + rmask(i,j-1) + rmask(i,j+1))
 
-             if (sum_mask > 0.0d0) then
+                if (sum_mask > 0.0d0) then
+                   var_smooth(i,j) = (1.0d0/sum_mask) *  &
+                                    ( 4.0d0 *  rmask(i,j)*var(i,j)  &
+                                    + 1.0d0 * (rmask(i-1,j)*var(i-1,j) + rmask(i+1,j)*var(i+1,j)   &
+                                             + rmask(i,j-1)*var(i,j-1) + rmask(i,j+1)*var(i,j+1)) )
+                else
+                   var_smooth(i,j) = var(i,j)
+                endif
 
-                var_smooth(i,j) = (1.0d0/sum_mask) *  &
-                                 ( 4.0d0 *  rmask(i,j)*var(i,j)  &
-                                 + 1.0d0 * (rmask(i-1,j)*var(i-1,j) + rmask(i+1,j)*var(i+1,j)   &
-                                          + rmask(i,j-1)*var(i,j-1) + rmask(i,j+1)*var(i,j+1)) )
-             else
-                var_smooth(i,j) = var(i,j)
-             endif
-
-          enddo
-       enddo
+             endif   ! rmask > 0
+          enddo   ! i
+       enddo   ! j
 
     elseif (npoints == 9) then
 
-       call write_log('Apply Laplacian smoother with 9-point stencil')
-
        do j = 2, ny-1
           do i = 2, nx-1
+             if (rmask(i,j) > 0.0d0) then
 
-             sum_mask =  4.0d0 *  rmask(i,j)  &
-                       + 2.0d0 * (rmask(i-1,j) + rmask(i+1,j) + rmask(i,j-1) + rmask(i,j+1))  &
-                       + 1.0d0 * (rmask(i-1,j+1) + rmask(i+1,j+1) + rmask(i-1,j-1) + rmask(i+1,j-1))
+                sum_mask =  4.0d0 *  rmask(i,j)  &
+                          + 2.0d0 * (rmask(i-1,j) + rmask(i+1,j) + rmask(i,j-1) + rmask(i,j+1))  &
+                          + 1.0d0 * (rmask(i-1,j+1) + rmask(i+1,j+1) + rmask(i-1,j-1) + rmask(i+1,j-1))
 
-             if (sum_mask > 0.0d0) then
+                if (sum_mask > 0.0d0) then
+                   var_smooth(i,j) = (1.0d0/sum_mask) *  &
+                                    ( 4.0d0 *  rmask(i,j)*var(i,j) &
+                                    + 2.0d0 * (rmask(i-1,j)*var(i-1,j) + rmask(i+1,j)*var(i+1,j)   &
+                                             + rmask(i,j-1)*var(i,j-1) + rmask(i,j+1)*var(i,j+1))  &
+                                    + 1.0d0 * (rmask(i-1,j+1)*var(i-1,j+1) + rmask(i+1,j+1)*var(i+1,j+1)   &
+                                             + rmask(i-1,j-1)*var(i-1,j-1) + rmask(i+1,j-1)*var(i+1,j-1)) )
+                else
+                   var_smooth(i,j) = var(i,j)
+                endif
 
-                var_smooth(i,j) = (1.0d0/sum_mask) *  &
-                                 ( 4.0d0 *  rmask(i,j)*var(i,j) &
-                                 + 2.0d0 * (rmask(i-1,j)*var(i-1,j) + rmask(i+1,j)*var(i+1,j)   &
-                                          + rmask(i,j-1)*var(i,j-1) + rmask(i,j+1)*var(i,j+1))  &
-                                 + 1.0d0 * (rmask(i-1,j+1)*var(i-1,j+1) + rmask(i+1,j+1)*var(i+1,j+1)   &
-                                          + rmask(i-1,j-1)*var(i-1,j-1) + rmask(i+1,j-1)*var(i+1,j-1)) )
-             else
-                var_smooth(i,j) = var(i,j)
-             endif
-
-          enddo
-       enddo
+             endif   ! rmask > 0
+          enddo   ! i
+       enddo   ! j
 
     endif   ! npoints
 
@@ -1577,6 +1578,282 @@ contains
     call parallel_halo(field)
 
   end subroutine glissade_vertical_interpolate
+
+!-------------------------------------------------------------------------------
+
+  subroutine glissade_scalar_extrapolate(nx,    ny,             &
+                                         input_mask,            &
+                                         phi_in,                &
+                                         output_mask,           &
+                                         phi_out,               &
+                                         npoints_stencil,       &
+                                         apply_smoother,        &
+                                         unfilled_value,        &
+                                         itest, jtest, rtest)
+
+    ! Extrapolate an input field phi_in (e.g., ice thickness) from cells with input_mask = 1,
+    !  obtaining the filled phi_out in cells with output_mask = 1.
+    ! Set phi = phi_unfilled in cells where extrapolation is not possible.
+    !
+    ! The extrapolation works as follows:
+    ! (1) Initialize phi = phi_in where input_mask = 1, and phi = phi_unfilled elsewhere.
+    ! (2) For each cell with output_mask = 1 and phi = phi_unfilled, obtain phi as the average value
+    !     of neighbors with  phi /= phi_unfilled.
+    ! (3) Repeat until no more cells can be filled with extrapolated values.
+
+    use parallel
+
+    ! Input/output arguments
+
+    integer, intent(in) :: nx, ny                                !> horizontal grid dimensions
+
+    integer, dimension(nx,ny), intent(in) :: &
+         input_mask,            & !> = 1 for cells where phi_out is initially set to phi_in
+         output_mask              !> = 1 for cells to which phi_in is extrapolated; should form a connected region
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         phi_in                   !> input field to be extrapolated
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         phi_out                  !> extrapolated output field
+
+    integer, intent(in), optional :: &
+         npoints_stencil          !> number of points in extrapolation stencil, either 5 or 9
+
+    logical, intent(in), optional :: &
+         apply_smoother           !> if true, then appply a Laplacian smoother after each extrapolation step
+
+    real(dp), intent(in), optional :: &
+         unfilled_value           !> value of phi in unfilled cells, to be replaced where possible by an extrapolated value
+
+    integer, intent(in), optional :: &
+         itest, jtest, rtest                   !> coordinates of diagnostic point
+
+    ! Local arguments
+
+    integer :: i, j, iglobal, jglobal, iter
+
+    real(dp), dimension(nx,ny) :: &
+         phi                     ! temporary value of phi_out
+
+    integer, dimension(nx,ny) :: &
+         filled_mask             ! = 1 for cells that have been filled, else = 0
+
+    integer :: &
+         sum_mask                ! sum of filled_mask over neighbor cells
+
+    real(dp) ::  &
+         sum_phi                 ! sum of mask*phi over neighbor cells at a given level
+
+    integer :: &
+         max_iter,             & ! max(nx,ny) * max(ewtasks, nxtasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
+
+    integer :: npoints           ! set to npoints_stencil, else defaults to 5
+
+    logical :: smoother          ! set to apply_smoother, else defaults to false
+
+    real(dp) :: &
+         phi_unfilled            ! set to unfilled_value, else defaults to 0.0
+
+    character(len=100) :: message
+
+!    logical, parameter :: verbose_extrapolate = .false.
+    logical, parameter :: verbose_extrapolate = .true.
+
+    ! Initialize
+    if (present(npoints_stencil)) then
+       npoints = npoints_stencil
+       if (.not.(npoints == 5 .or. npoints == 9)) then
+          call write_log('ERROR, glissade_scalar_extrapolate: Must choose 5 or 9 points for the stencil', GM_FATAL)
+       endif
+    else
+       npoints = 9   ! with 9 points, we typically have less horizontal and vertical striping than with 5 points
+    endif
+
+    if (present(apply_smoother)) then
+       smoother = apply_smoother
+    else
+       smoother = .false.
+    endif
+
+    if (present(unfilled_value)) then
+       phi_unfilled = unfilled_value
+    else
+       phi_unfilled = 0.0d0
+    endif
+
+    where (input_mask == 1)
+       phi_out = phi_in
+       filled_mask = 1
+    elsewhere
+       phi_out = phi_unfilled
+       filled_mask = 0
+    endwhere
+
+    ! Count the number of filled cells
+
+    local_count = 0
+    do j = 1+nhalo, ny-nhalo
+       do i = 1+nhalo,  nx-nhalo
+          local_count = local_count + filled_mask(i,j)
+       enddo
+    enddo
+
+    global_count_save = parallel_reduce_sum(local_count)
+
+    ! Estimate the max number of iterations
+    ! In a worst case, we would start with a few filled cells in one corner of the global domain
+    !  and have to extrapolate to the opposite corner
+
+    max_iter = (ewtasks + nstasks) * (nx + ny)
+
+    ! Extrapolate the input field horizontally
+
+    do iter = 1, max_iter
+
+       if (present(rtest)) then
+          if (verbose_extrapolate .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'glissade_scalar_extrapolate, iteration =', iter
+             print*, 'Current phi_out (m):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') phi_out(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+       endif
+
+       ! Make a copy of the current output field
+       phi(:,:) = phi_out(:,:)
+
+       ! Loop through all locally owned cells, extrapolating phi to cells with one or more
+       !  edge neighbors that have been filled.
+       ! In the end, all cells with output_mask = 1 should be filled.
+
+       if (npoints == 5) then
+
+          do j = 1+nhalo, ny-nhalo
+             do i = 1+nhalo,  nx-nhalo
+                if (output_mask(i,j) == 1 .and. filled_mask(i,j) == 0) then   ! not yet filled
+
+                   ! Assign to this cell the average value in edge neighbors that are already filled
+                   sum_mask = filled_mask(i-1,j) + filled_mask(i+1,j) + filled_mask(i,j-1) + filled_mask(i,j+1)
+
+                   if (sum_mask > 0) then
+                      sum_phi = filled_mask(i-1,j)*phi(i-1,j) + filled_mask(i+1,j)*phi(i+1,j)  &
+                              + filled_mask(i,j-1)*phi(i,j-1) + filled_mask(i,j+1)*phi(i,j+1)
+                      phi_out(i,j) = sum_phi/sum_mask
+                   endif
+
+                endif   ! output_mask = 1 and filled_mask = 0
+             enddo   ! i
+          enddo   ! j
+
+       else   ! npoints = 9
+
+          do j = 1+nhalo, ny-nhalo
+             do i = 1+nhalo,  nx-nhalo
+                if (output_mask(i,j) == 1 .and. filled_mask(i,j) == 0) then   ! not yet filled
+
+                   ! Assign to this cell the average value in edge neighbors that are already filled
+
+                   sum_mask = filled_mask(i-1,j+1) + filled_mask(i,j+1) + filled_mask(i+1,j+1) &
+                            + filled_mask(i-1,j)   + filled_mask(i,j)   + filled_mask(i+1,j) &
+                            + filled_mask(i-1,j-1) + filled_mask(i,j-1) + filled_mask(i+1,j-1)
+
+                   if (sum_mask > 0) then
+                      sum_phi = filled_mask(i-1,j+1) * phi(i-1,j+1)  &
+                              + filled_mask(i,  j+1) * phi(i,  j+1)  &
+                              + filled_mask(i+1,j+1) * phi(i+1,j+1)  &
+                              + filled_mask(i-1,j)   * phi(i-1,j)    &
+                              + filled_mask(i,  j)   * phi(i,  j)    &
+                              + filled_mask(i+1,j)   * phi(i+1,j)    &
+                              + filled_mask(i-1,j-1) * phi(i-1,j-1)  &
+                              + filled_mask(i,  j-1) * phi(i,  j-1)  &
+                              + filled_mask(i+1,j-1) * phi(i+1,j-1)
+                      phi_out(i,j) = sum_phi/sum_mask
+                   endif
+
+                endif   ! output_mask = 1 and filled_mask = 0
+             enddo   ! i
+          enddo   ! j
+
+       endif  ! npoints
+
+       call parallel_halo(phi_out)
+
+       ! Update the filled mask
+       where (phi_out == phi_unfilled)
+          filled_mask = 0
+       elsewhere
+          filled_mask = 1
+       endwhere
+
+       ! Optionally, apply a Laplacian smoother to the new phi_out
+       if (smoother) then
+          phi(:,:) = phi_out(:,:)
+          call glissade_laplacian_smoother(nx,         ny,         &
+                                           phi,        phi_out,    &
+                                           filled_mask,            &
+                                           npoints_stencil = npoints)
+          call parallel_halo(phi_out)
+       endif
+
+       ! Every several iterations, count the number of filled cells.
+       ! Exit the do loop when this number is no longer increasing.
+
+       if (iter == 2 .or. iter == 5 .or. mod(iter, 10) == 0) then
+
+          local_count = 0
+          do j = 1+nhalo, ny-nhalo
+             do i = 1+nhalo,  nx-nhalo
+                local_count = local_count + filled_mask(i,j)
+             enddo
+          enddo
+
+          global_count = parallel_reduce_sum(local_count)
+
+          if (global_count == global_count_save) then
+             if (verbose_extrapolate .and. main_task) &
+                  print*, 'Extrapolation converged: iter, global_count =', iter, global_count
+             exit
+          else
+             if (verbose_extrapolate .and. main_task) &
+                  print*, 'Extrapolation convergence check: iter, global_count =', iter, global_count
+             global_count_save = global_count
+          endif
+
+       endif   ! time for a convergence check
+
+       if (iter == max_iter) then
+          print*, 'iter = max_iter:', max_iter
+          call write_log('Extrapolation error; number of filled cells has not plateaued', GM_FATAL)
+       endif
+
+    enddo   ! max_iter
+
+    ! Bug check: Check whether all cells with output_mask = 1 have been filled
+    ! TODO: Make the warning optional?
+    do j = 1, ny
+       do i = 1, nx
+          if (output_mask(i,j) == 1 .and. filled_mask(i,j) == 0) then
+             call parallel_globalindex(i, j, iglobal, jglobal)
+!!             print*, 'i, j, iglobal, jglobal:', i, j, iglobal, jglobal
+             write(message,*) &
+                  'Extrapolation warning: did not fill cell i, j =', iglobal, jglobal
+!!             call write_log(message, GM_FATAL)
+             call write_log(message)
+          endif
+       enddo
+    enddo
+
+
+  end subroutine glissade_scalar_extrapolate
 
 !****************************************************************************
 
