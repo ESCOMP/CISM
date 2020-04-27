@@ -64,7 +64,7 @@ contains
     ! Should be called after usrf and thck have been input and (possibly) modified by initial calving
 
     use glissade_masks, only: glissade_get_masks
-    use glissade_calving, only: glissade_marine_connection_mask  !TODO - Move to mask module
+    use glissade_masks, only: glissade_marine_connection_mask
     use glissade_bmlt_float, only: basin_sum
     use glissade_grounding_line, only: glissade_grounded_fraction
 
