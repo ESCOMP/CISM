@@ -1476,6 +1476,8 @@ module glissade_bmlt_float
     ! Note: The input thermal_forcing should be set to unphys_val for cells and levels without valid data.
     ! Note: Cells are filled only if they have a connection to the ocean through floating cells.
     !       Interior lakes are not filled.
+    ! The algorithm is similar to that of subroutine glissade_scalar_extrapolate but more complex;
+    !  there are multiple levels, and data can be extrapolated from a given level to levels above or below.
 
     integer, intent(in) ::  &
          nx, ny,               & ! grid dimensions

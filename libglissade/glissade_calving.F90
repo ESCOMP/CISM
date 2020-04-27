@@ -39,7 +39,8 @@ module glissade_calving
   implicit none
 
   private
-  public :: glissade_calving_mask_init, glissade_calve_ice
+  public :: glissade_calving_mask_init, glissade_thck_calving_threshold_init
+  public :: glissade_calve_ice
   public :: glissade_lake_mask, glissade_marine_connection_mask
   public :: verbose_calving
 
@@ -49,8 +50,8 @@ module glissade_calving
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   logical, parameter :: verbose_calving = .false.
-!!  logical, parameter :: verbose_calving = .true.
-  
+!  logical, parameter :: verbose_calving = .true.
+
 contains
 
 !-------------------------------------------------------------------------------
@@ -198,6 +199,266 @@ contains
 
 !-------------------------------------------------------------------------------
 
+  subroutine glissade_thck_calving_threshold_init(&
+       nx,      ny,               &
+       itest,   jtest,   rtest,   &
+       thck,    topg,             &
+       eus,     thklim,           &
+       calving_minthck,           &
+       thck_calving_threshold)
+
+    ! Given the input ice thickness, identify calving-front cells and compute the CF thickness.
+    ! This subroutine is called at initialization when whichcalving = CALVING_THCK_THRESHOLD.
+    !
+    ! There are two options:
+    ! (1) Set thck_calving_threshold to a uniform value of calving_minthck.
+    ! (2) Set thck_calving_threshold to thck_calving_front, as computed from the input ice thickness.
+    ! Note: This subroutine uses SI units.
+
+    use glissade_masks, only: glissade_get_masks
+    use glissade_grid_operators, only: glissade_scalar_extrapolate
+
+    !---------------------------------------------------------------------
+    ! Subroutine arguments
+    !---------------------------------------------------------------------
+
+    integer, intent(in) :: nx, ny                              !> horizontal grid dimensions
+    integer, intent(in) :: itest, jtest, rtest                 !> coordinates of diagnostic point
+    real(dp), dimension(nx,ny), intent(in) :: thck             !> ice thickness (m)
+    real(dp), dimension(nx,ny), intent(in) :: topg             !> present bedrock topography (m)
+    real(dp), intent(in)                   :: eus              !> eustatic sea level (m)
+    real(dp), intent(in)                   :: thklim           !> minimum thickness for dynamically active grounded ice (m)
+
+    ! Note: calving_minthck = 0 by default.
+    !       If calving_minthck > 0 is specified in the config file, then we set thck_calving_threshold = calving_minthck.
+    !       Otherwise, we set thck_calving_threshold to the input ice thickness (thck)
+
+    real(dp), intent(in)                   :: calving_minthck  !> uniform thickness threshold for calving ice (m)
+    real(dp), dimension(nx,ny), intent(out) ::  &
+         thck_calving_threshold                 !> ice in the calving domain will calve when thinner than this value (m)
+
+    ! Local variables
+
+    integer :: i, j, n
+
+    integer, dimension(nx,ny) :: &
+         ice_mask,                  & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,             & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask,                & ! = 1 where topg is below sea level and ice is absent, else = 0
+         land_mask,                 & ! = 1 where topg is at or above sea level, else = 0
+         active_ice_mask,           & ! = 1 for cells that are dynamically active, else = 0
+         grounded_mask,             & ! = 1 where ice is present and grounded, else = 0
+         calving_front_mask,        & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+         marine_cliff_mask,         & ! = 1 if ice is grounded and marine-based and borders at least one ocean
+                                      !     or inactive calving_front cell, else = 0
+         marine_connection_mask       ! = 1 for ocean cells, and cells connected to the ocean through marine-based ice
+
+    real(dp), dimension(nx,ny) :: &
+         thck_calving_front,             & ! effective ice thickness at the calving front
+         thck_calving_threshold_smoothed   ! smoothed version of thck_calving_threshold
+
+    real(dp), parameter :: eps08 = 1.0d-8   ! small number
+
+    !TODO - Make the calving thresholds config parameters?
+    real(dp), parameter :: &
+         ocean_topg_threshold = -2000.d0, &! topg threshold value for marine_connection_mask;
+                                           ! must be connected to ice-free cells with topg < ocean_topg_threshold
+         calving_threshold_min = 100.d0,  &! min allowed value (m) of thck_calving_threshold
+         calving_threshold_max = 500.d0    ! max allowed value (m) of thck_calving_threshold
+
+    if (calving_minthck > eps08) then
+
+       ! Set thck_calving_threshold to a uniform value
+       thck_calving_threshold(:,:) = calving_minthck
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'Set thck_calving_threshold to calving_minthck (m):', calving_minthck
+       endif
+
+    else
+
+       ! Set thck_calving_threshold based on the input ice thickness and calving front location
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'Set thck_calving_threshold based on the input ice thickness and calving front location'
+       endif
+
+       ! Get masks
+       ! Here, thck_calving_front is the effective ice thickness at the calving front,
+       !  equal to the mean thickness of floating interior neighbors.
+       ! We pass in which_ho_calving_front = HO_CALVING_FRONT_SUBGRID so the subroutine will compute calving_front_mask
+       !  and thck_calving_front, which are needed for calving options with a thickness threshold.
+       ! The actual value for the run might be HO_CALVING_FRONT_NO_SUBGRID, with thck_calving_front needed
+       !  only to compute the thck_calving_threshold field.
+
+       call glissade_get_masks(nx,            ny,             &
+                               thck,          topg,           &
+                               eus,           thklim,         &
+                               ice_mask,                      &
+                               floating_mask = floating_mask, &
+                               ocean_mask = ocean_mask,       &
+                               land_mask = land_mask,         &
+                               active_ice_mask = active_ice_mask,       &
+                               which_ho_calving_front = HO_CALVING_FRONT_SUBGRID, &
+                               calving_front_mask = calving_front_mask, &
+                               thck_calving_front = thck_calving_front, &
+                               marine_cliff_mask = marine_cliff_mask)
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'After glissade_get_mask:'
+          print*, ' '
+          print*, 'thck (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'topg (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') topg(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ice_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') ice_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') floating_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') calving_front_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       ! Limit thck_calving_front to lie within a prescribed range.
+       where (calving_front_mask == 1)
+          thck_calving_front = max(thck_calving_front, calving_threshold_min)
+          thck_calving_front = min(thck_calving_front, calving_threshold_max)
+       endwhere
+
+       ! Identify cells with a marine connection to the ocean.
+       ! These are cells where thck_calving_threshold will be computed.
+       ! TODO - Change the input arguments; pass in ice_mask, topg, eus, and ocean_topg_threshold.
+
+       call glissade_marine_connection_mask(nx,           ny,             &
+                                            itest, jtest, rtest,          &
+                                            ocean_mask,                   &
+                                            land_mask,                    &
+                                            marine_connection_mask,       &
+                                            topg = topg,                  &
+                                            ocean_topg_threshold = ocean_topg_threshold)
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'After corrections:'
+          print*, ' '
+          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') calving_front_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'marine_connection_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') marine_connection_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       ! Extrapolate the CF thickness from cells with calving_front_mask = 1
+       !  to all cells with marine_connection_mask = 1
+       ! Apply a Laplacian smoother during the extrapolation.
+
+       call glissade_scalar_extrapolate(nx,    ny,                 &
+                                        calving_front_mask,        &
+                                        thck_calving_front,        &
+                                        marine_connection_mask,    &
+                                        thck_calving_threshold,    &
+                                        npoints_stencil = 9,       &
+                                        apply_smoother = .true.,   &
+                                        itest = itest, jtest = jtest, rtest = rtest)
+
+       call parallel_halo(thck_calving_threshold)
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'Extrapolated thck_calving_front to interior marine-based cells'
+          print*, ' '
+          print*, 'thck_calving_threshold (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck_calving_threshold(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif  ! calving_minthck > eps08
+
+  end subroutine glissade_thck_calving_threshold_init
+
+!-------------------------------------------------------------------------------
+
   subroutine glissade_calve_ice(which_calving,           &
                                 calving_domain,          &
                                 which_ho_calving_front,  &
@@ -245,9 +506,9 @@ contains
                                                                      !> used with CALVING_FLOAT_FRACTION
 !    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * max(dt/timescale, 1)
                                                                      !> if timescale = 0, then calving_thck = thck
-!    real(dp), intent(in)                     :: minthck             !> min thickness (m) of floating ice before it calves;
-                                                                     !> used with CALVING_THCK_THRESHOLD, EIGENCALVING and CALVING_DAMAGE
-!    real(dp), intent(in)                     :: eigencalving_constant !> eigencalving constant; m/s (lateral calving rate) per Pa (tensile stress)
+!    real(dp), intent(in)                     :: thck_calving_threshold  !> calve ice in the calving domain if thck < thck_calving_threshold (m);
+                                                                         !> used with CALVING_THCK_THRESHOLD, EIGENCALVING and CALVING_DAMAGE
+!    real(dp), intent(in)                     :: eigencalving_constant   !> eigencalving constant; m/s (lateral calving rate) per Pa (tensile stress)
 !    real(dp), intent(in)                     :: eigen2_weight       !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen1          !> first eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen2          !> second eigenvalue of 2D horizontal stress tensor (Pa)
@@ -328,6 +589,7 @@ contains
          thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
          factor                  ! factor in quadratic formula
 
+    !TODO - Remove thinning_limit?
     real(dp), parameter :: &
          thinning_limit = 0.99d0  ! When ice not originally on the calving front is allowed to thin,
                                   ! the resulting thickness must be at least thinning_limit*thck_init
@@ -336,7 +598,7 @@ contains
    
     ! initialize
 
-    calving%calving_thck(:,:) = 0.d0
+!!!    calving%calving_thck(:,:) = 0.d0   ! might be nonzero as a result of previous operations
 
     nx = size(thck,1)
     ny = size(thck,2)
@@ -438,6 +700,7 @@ contains
        ! Save the initial thickness, which is used below to identify upstream interior cells.
        thck_init(:,:) = thck(:,:)
 
+       !TODO - which_ho_calving_front = HO_CALVING_FRONT_SUBGRID always?
        ! Get masks
        ! Need a calving_front_mask; calving/thinning is applied only to cells at the calving front.
        ! Here, thck_calving_front is the effective thickness at the calving front, equal to
@@ -452,8 +715,9 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-                               which_ho_calving_front = which_ho_calving_front, &
-                               calving_front_mask = calving_front_mask, &
+!!                               which_ho_calving_front = which_ho_calving_front, &
+                               which_ho_calving_front = HO_CALVING_FRONT_SUBGRID, &
+                               calving_front_mask = calving_front_mask,           &
                                thck_calving_front = thck_calving_front)
 
        !WHL - Debug
@@ -514,33 +778,13 @@ contains
        call parallel_halo(tau1)
        call parallel_halo(tau2)
 
-       ! In inactive calving-front cells where both eigenvalues are zero (because a cell is dynamically inactive),
-       !  extrapolate nonzero values in upstream cells.
-       ! Note: A similar extrapolation is done in glissade_diagnostic_variable_solve, but an extra one
-       !       may be useful here for cells where ice was just advected from upstream.
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (calving_front_mask(i,j) == 1) then
-                if (tau1(i,j) == 0.0d0 .and. tau2(i,j) == 0) then
-                   do jj = j-1, j+1
-                      do ii = i-1, i+1
-                         if (thck_calving_front(i,j) > 0.0d0 .and. thck_init(ii,jj) == thck_calving_front(i,j)) then
-                            tau1(i,j) = tau1(ii,jj)
-                            tau2(i,j) = tau2(ii,jj)
-                         endif
-                      enddo
-                   enddo
-                endif  ! tau1 = tau2 = 0
-             endif   ! calving_front_mask
-          enddo   ! i
-       enddo   ! j
-
        ! Compute the effective stress.
        ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
        !       This may be useful in calving unbuttressed shelves that are spreading in both directions.
 
        calving%tau_eff(:,:) = sqrt(tau1(:,:)**2 + (calving%eigen2_weight * tau2(:,:))**2)
+       !WHL -  Uncomment the next line if assuming dependence on tau2 alone
+!       calving%tau_eff(:,:) = calving%eigen2_weight * tau2(:,:)
 
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
@@ -673,8 +917,6 @@ contains
           do i = 2, nx-1
              if (calving%lateral_rate(i,j) >  0.0d0) then
 
-!!                thinning_rate = calving%lateral_rate(i,j) * thck_calving_front(i,j)*thk0 / sqrt(dx*dy)  ! m/yr
-!!                dthck = thinning_rate * (tim0/scyr)/thk0  * dt  ! convert to model units
                 thinning_rate = calving%lateral_rate(i,j) * thck_calving_front(i,j) / sqrt(dx*dy)  ! m/s
                 dthck = thinning_rate * dt  ! m
 
@@ -687,32 +929,9 @@ contains
                 endif
 
                 ! Compute the new ice thickness
-                ! If the column calves completely, then apply the remaining calving to the upstream cell.
-
                 if (dthck > thck(i,j)) then
-                   calving_frac = thck(i,j)/dthck
-                   upstream_lateral_rate = calving%lateral_rate(i,j) * (1.0d0 - calving_frac)  ! remaining for upstream cell
                    calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
                    thck(i,j) = 0.0d0
-
-                   ! Apply some calving to the upstream cell with thck_init = thck_calving_front(i,j).
-                   ! The thinned upstream cell will usually be inactive during the upcoming velocity solve.
-
-                   do jj = j-1, j+1
-                      do ii = i-1, i+1
-                         if (thck_init(ii,jj) > 0.0d0 .and. thck_init(ii,jj) == thck_calving_front(i,j)) then
-!!                            thinning_rate = upstream_lateral_rate * thck_calving_front(i,j)*thk0 / sqrt(dx*dy)  ! m/yr
-!!                            dthck = thinning_rate * (tim0/scyr)/thk0  * dt  ! convert to model units
-                            thinning_rate = upstream_lateral_rate * thck_calving_front(i,j) / sqrt(dx*dy)  ! m/s
-                            dthck = thinning_rate * dt
-                            dthck = min(dthck, thck(ii,jj))
-
-                            thck(ii,jj) = thck(ii,jj) - dthck
-                            calving%calving_thck(ii,jj) = calving%calving_thck(ii,jj) + dthck
-                         endif
-                      enddo   ! ii
-                   enddo   ! jj
-
                 else   ! dthck <= thck
                    thck(i,j) = thck(i,j) - dthck
                    calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
@@ -769,6 +988,7 @@ contains
        ! Save the initial thickness, which is used below to identify upstream interior cells.
        thck_init(:,:) = thck(:,:)
 
+       ! Note: We compute thck_calving_front based on a subgrid CF scheme, whatever the value of which_ho_calving_front.
        ! Get masks
        ! For eigencalving, masks were computed above, but should be recomputed before doing more calving
 
@@ -778,7 +998,7 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-                               which_ho_calving_front = which_ho_calving_front, &
+                               which_ho_calving_front = HO_CALVING_FRONT_SUBGRID,  &
                                calving_front_mask = calving_front_mask, &
                                thck_calving_front = thck_calving_front)
 
@@ -797,7 +1017,6 @@ contains
              enddo
              write(6,*) ' '
           enddo
-
           print*, ' '
           print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
@@ -807,7 +1026,15 @@ contains
              enddo
              write(6,*) ' '
           enddo
-
+          print*, ' '
+          print*, 'thck_calving_threshold (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') calving%thck_calving_threshold(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
           print*, ' '
           print*, 'thck (m), itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
@@ -817,11 +1044,10 @@ contains
              enddo
              write(6,*) ' '
           enddo
-
        endif
 
-       ! Apply thinning in calving-front cells whose effective thickness H_e (thck_calving_front) is less than
-       !  a prescribed minimum value Hc_min (calving%minthck).
+       ! Apply thinning in calving-front cells whose effective thickness (H_e = thck_calving_front) is less than
+       !  a prescribed minimum value (Hc_min = thck_calving_threshold).
        !
        ! The effective thinning rate is given by
        !
@@ -844,15 +1070,17 @@ contains
        do j = 2, ny-1
           do i = 2, nx-1
              if (calving_front_mask(i,j) == 1 .and. &
-                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%minthck) then
+                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%thck_calving_threshold(i,j)) then
                 
 !!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
 !!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
 
                 ! calving%timescale has units of s
-                thinning_rate = (calving%minthck - thck_calving_front(i,j)) / calving%timescale
-                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
-                dthck = areafrac*thinning_rate * dt
+                thinning_rate = (calving%thck_calving_threshold(i,j) - thck_calving_front(i,j)) / calving%timescale
+                !WHL - Do not weight by areafrac
+!!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
+!!                dthck = areafrac*thinning_rate * dt
+                dthck = thinning_rate * dt
 
                 !WHL - debug
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
@@ -860,8 +1088,7 @@ contains
                    print*, 'Thinning: r, i, j =', rtest, itest, jtest
                    print*, 'thck:', thck(i,j)
                    print*, 'thck_calving_front (m) =', thck_calving_front(i,j)
-                   print*, 'calving%minthck (m) =', calving%minthck
-                   print*, 'areafrac =', areafrac
+                   print*, 'thck_calving_threshold (m) =', calving%thck_calving_threshold(i,j)
                    print*, 'thinning rate (m/yr) =', thinning_rate * scyr
                    print*, 'dthck (m) =', dthck
                 endif
@@ -869,32 +1096,12 @@ contains
                 if (dthck > thck(i,j)) then
                    calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
                    thck(i,j) = 0.0d0
-
-                   ! Apply a little bit of thinning to the upstream cell with thck_init = thck_calving_front(i,j)
-                   !  (if the upstream cell is floating).
-                   ! However, do not allow the upstream cell to end up thinner than thinning_limit*thck_init,
-                   !  where thinning_limit is a scalar slightly less than 1.
-                   ! The thinned upstream cell will usually be inactive during the next velocity solve.
-
-                   do jj = j-1, j+1
-                      do ii = i-1, i+1
-                         if (thck_init(ii,jj) > 0.0d0 .and. thck_init(ii,jj) == thck_calving_front(i,j) &
-                              .and. floating_mask(ii,jj) == 1) then
-                            thinning_rate = (calving%minthck - thck_calving_front(i,j)) / calving%timescale
-                            dthck = max(thinning_rate*dt, 0.0d0)
-                            dthck = min(dthck, thck(ii,jj) - thinning_limit*thck_init(ii,jj))
-                            thck(ii,jj) = thck(ii,jj) - dthck
-                            calving%calving_thck(ii,jj) = calving%calving_thck(ii,jj) + dthck
-                         endif
-                      enddo   ! ii
-                   enddo   ! jj
-
                 else
                    thck(i,j) = thck(i,j) - dthck
                    calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
                 endif
 
-             endif   ! thck_calving_front < calving%minthck in calving_front cell
+             endif   ! thck_calving_front < thck_calving_threshold in calving_front cell
           enddo   ! i
        enddo   ! j
 
@@ -923,74 +1130,6 @@ contains
           enddo
 
        endif  ! verbose
-
-       ! Following eigencalving and/or thickness-based calving, clean up the calving front.
-       ! Note: A cell at an advancing calving front can have thck > thck_calving_front.
-       !  Such a cell will be active during the next velocity calculation. 
-       !  In order to prevent unrealistic thicknesses at the calving front 
-       !   (i.e., calving_front cells thicker than adjacent interior cells), we reset 
-       !   the thickness to thck_calving_front (just enough to make the cell active) 
-       !   and add the excess ice to the calving_thck field.
-
-       calving_thck_init(:,:) = calving%calving_thck(:,:)
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (calving_front_mask(i,j) == 1 .and. &
-                  thck_calving_front(i,j) > 0.0d0 .and. thck(i,j) > thck_calving_front(i,j)) then
-                dthck = thck(i,j) - thck_calving_front(i,j)
-                calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
-                thck(i,j) = thck_calving_front(i,j)
-             endif
-          enddo   ! j
-       enddo   ! i
-
-       if (verbose_calving .and. this_rank == rtest) then
-
-          print*, ' '
-          print*, 'Limited ice thickness at the calving front, task =', this_rank
-
-          print*, ' '
-          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-
-          print*, ' '
-          print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'calving_thck (m) from limiting, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') (calving%calving_thck(i,j) - calving_thck_init(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-       endif
 
     elseif (which_calving == CALVING_GRID_MASK) then
 
@@ -1255,6 +1394,8 @@ contains
     if (limit_marine_cliffs) then
 
        ! Update masks, including the marine_cliff mask
+       ! Note: We do not use calving_front_mask or thck_calving_front directly.
+       !       But to identify marine cliffs, we use active_ice_mask, which depends on whether there is a subgrid calving front.
 
        call glissade_get_masks(nx,            ny,                 &
                                thck,          topg,               &
@@ -1412,8 +1553,8 @@ contains
     ! (3) Recursively fill all cells that are connected to filled cells by a path
     !     that passes through active cells only.
     ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
-    ! (5) Once the fill is done, any cells that still have the initial color and
-    !     are not on land are considered to be icebergs. They are removed.
+    ! (5) Once the fill is done, any floating cells that still have the initial color
+    !     are considered to be icebergs and are removed.
     !
     ! Notes:
     ! (1) The recursive fill applies to edge neighbors, not corner neighbors.
@@ -1421,7 +1562,6 @@ contains
     ! (2) Inactive cells can be filled (if adjacent to active cells), but
     !     do not further spread the fill.
     ! (3) Grounded cells that still have the initial color are not removed.
-    !     They are considered harmless.
 
     use glissade_masks
 
@@ -1545,6 +1685,7 @@ contains
 
        do n = 1, ncull_calving_front
 
+          !TODO - Remove this computation, if we always compute the CF mask above?
           ! compute a calving front mask
           ! Note: This computation is redundant when running with the subgrid CF scheme, in which case
           !        we already have the correct CF mask from glissade_get_masks.
@@ -1659,7 +1800,7 @@ contains
 
     maxcount_fill = max(ewtasks,nstasks)
 
-    if (verbose_calving .and. main_task) then
+    if (verbose_calving .and. this_rank == rtest) then
        print*, 'maxcount_fill =', maxcount_fill
     endif
 
@@ -1750,7 +1891,7 @@ contains
        !WHL - If running a large problem, may want to reduce the frequency of this global sum
        sum_fill_global = parallel_reduce_sum(sum_fill_local)
 
-       if (verbose_calving .and. main_task) then
+       if (verbose_calving .and. this_rank == rtest) then
 !!          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
        endif
 
@@ -1759,34 +1900,13 @@ contains
     ! Icebergs are cells that still have the initial color and are not on land.
     ! Remove ice in these cells, adding it to the calving field.
     ! Note: Inactive land-based cells are not considered to be icebergs.
-    ! Note: Another exception is that we do not remove cells that are
-    !       (1) adjacent to at least one ice-covered cell (sharing an edge), and
-    !       (2) connected diagonally to active cells with the fill color.
-    !       Such cells are considered part of the inactive calving front and are
-    !        allowed to continue filling instead of calving.
 
     do j = 2, ny-1
        do i = 2, nx-1
           if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
-             if (  ( color(i-1,j+1)==fill_color .and. active_ice_mask(i-1,j+1)==1 .and. &
-                       (ice_mask(i-1,j)==1 .or. ice_mask(i,j+1)==1) ) &
-              .or. ( color(i+1,j+1)==fill_color .and. active_ice_mask(i+1,j+1)==1 .and. &
-                       (ice_mask(i+1,j)==1 .or. ice_mask(i,j+1)==1) ) &
-              .or. ( color(i-1,j-1)==fill_color .and. active_ice_mask(i-1,j-1)==1 .and. &
-                       (ice_mask(i-1,j)==1 .or. ice_mask(i,j-1)==1) ) &
-              .or. ( color(i+1,j-1)==fill_color .and. active_ice_mask(i+1,j-1)==1 .and. &
-                       (ice_mask(i+1,j)==1 .or. ice_mask(i,j-1)==1) ) ) then
-                ! do nothing; this cell is part of the inactive calving front
-             else  ! not part of the inactive calving front; calve as an iceberg
-                !WHL - debug
-!!                if (verbose_calving .and. thck(i,j) > 0.0 .and. this_rank == rtest) then
-!!                   print*, 'Remove iceberg: task, i, j, thck =', this_rank, i, j, thck(i,j)
-!!                endif
-                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
-                thck(i,j) = 0.0d0
-                !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
-             endif
-
+             calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+             thck(i,j) = 0.0d0
+             !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
           endif
        enddo
     enddo
@@ -2080,10 +2200,15 @@ contains
                                              itest, jtest, rtest,          &
                                              ocean_mask,                   &
                                              land_mask,                    &
-                                             marine_connection_mask)
+                                             marine_connection_mask,       &
+                                             topg,                         &
+                                             ocean_topg_threshold)
 
   ! Identify cells that have a marine path to the ocean.
   ! The path can include grounded marine-based ice.
+  ! TODO - Pass in ice_mask, topg, and eus instead of ocean_mask and land_mask?
+  !        Then compute ocean_mask as cells with topg - eus < ocean_topg_threshold and ice_mask = 0.
+  !        Compute marine_mask as cells with topg - eus < 0.
 
   !TODO - Move this subroutine to glissade_masks?
   !       The only connection to calving is the use of glissade_fill.
@@ -2098,11 +2223,18 @@ contains
          land_mask                 !> = 1 for topg - eus is at or above sea level
 
     integer, dimension(nx,ny), intent(out) ::  &
-         marine_connection_mask     !> = 1 for ocean cells, and cells connected to the ocean through marine-based ice
+         marine_connection_mask    !> = 1 for ocean cells, and cells connected to the ocean through marine-based ice
+
+    real(dp), dimension(nx,ny), intent(in), optional ::  &
+         topg                      !> bed topography
+
+    real(dp), intent(in), optional ::  &
+         ocean_topg_threshold      !> ocean cells with topg > ocean_topg_threshold (i.e., shallow ocean) cannot seed the fill
 
     ! local variables
 
     integer, dimension(nx,ny) ::  &
+         ocean_mask_seed,         &  ! = 1 where ocean_mask = 1 and topg < ocean_topg_threshold, else = 0
          color,                   &  ! integer 'color' mask to mark filled cells
          marine_mask                 ! marine-based cells; complement of land_mask
 
@@ -2112,6 +2244,17 @@ contains
     logical, parameter :: verbose_marine_connection = .false.
 
     real(dp) :: sum_fill_local, sum_fill_global
+
+    ! If topg and ocean_topg_threshold were passed in, then only cells with topg < min_ocean_mask can seed the fill.
+    ! Otherwise, use the input ocean_mask to seed the fill.
+
+    ocean_mask_seed = ocean_mask
+
+    if (present(topg) .and. present(ocean_topg_threshold)) then
+       where (topg > ocean_topg_threshold)
+          ocean_mask_seed = 0
+       endwhere
+    endif
 
     ! initialize
     ! Compute a marine mask; = 1 for all cells that are not land-based.
@@ -2155,8 +2298,8 @@ contains
           do j = 2, ny-1
              do i = 2, nx-1
                 if (marine_mask(i,j) == 1) then
-                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or.   &
-                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                   if (ocean_mask_seed(i-1,j) == 1 .or. ocean_mask_seed(i+1,j) == 1 .or.   &
+                       ocean_mask_seed(i,j-1) == 1 .or. ocean_mask_seed(i,j+1) == 1) then
 
                       if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
 
@@ -2240,14 +2383,14 @@ contains
     call parallel_halo(color)
 
     ! Identify marine-based cells connected to the ocean.  This includes:
-    ! (1) cells that are already ocean.
+    ! (1) cells that are already ocean
     ! (2) cells with the fill color, meaning they are marine-based cells connected to the ocean
 
     marine_connection_mask(:,:) = 0
 
     do j = 1, ny
        do i = 1, nx
-          if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
+          if (ocean_mask_seed(i,j) == 1 .or. color(i,j) == fill_color) then
              marine_connection_mask(i,j) = 1
           endif
        enddo

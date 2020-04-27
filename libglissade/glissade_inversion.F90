@@ -1075,12 +1075,16 @@ contains
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
 
     !WHL
-    ! Note: The reason to smooth stag_thck, stag_thck_obs, and stag_dthck_dt is to allow floating ice near
+    ! Note: A reason to smooth stag_thck, stag_thck_obs, and stag_dthck_dt is to allow floating ice near
     !        the GL to have a nonzero influence on Cp for grounded ice at and slightly upstream of the GL.
     !       For example, when the GL retreats, ice just downstream of the GL is usually biased thin.
     !       Extending the stencil by one cell tends to reduce stag_thck, promoting an increase in Cp
     !        for grounded vertices upstream.
-    !       This variable could be made a config parameter, but for now is hardwired to be true.
+    !       This variable could be made a config parameter, but for now is hardwired.
+    !       Note: 8-km Antarctic runs have a somewhat larger stable time step without this extra smoothing.
+    !        (In test runs, the max stable time step is 1/5 year without smoothing, but 1/6 year with smoothing.)
+    !        Decided this was an acceptable tradeoff for improved GL behavior.
+
     logical :: &
          smooth_stag_thck = .true. ! If true, then apply a Laplacian smoother to stag_thck and related fields
                                    ! when inverting for powerlaw_c

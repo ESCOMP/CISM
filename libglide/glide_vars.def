@@ -724,12 +724,12 @@ load:          1
 type:          int
 coordinates:   lon lat
 
-[calving_threshold_thck]
+[thck_calving_threshold]
 dimensions:    time, y1, x1
 units:         meter
 long_name:     thickness threshold for calving ice
-data:          data%calving%calving_threshold_thck
-factor:        thk0
+data:          data%calving%thck_calving_threshold
+load:          1
 coordinates:   lon lat
 
 [calving_lateral]
@@ -1488,6 +1488,20 @@ dimensions: time, staglevel, y1, x1
 units:      1/year
 long_name:  xy component of strain rate tensor
 data:       data%velocity%strain_rate%xy(up,:,:)
+factor:     scyr
+
+[eps_eigen1]
+dimensions: time, y1, x1
+units:      1/year
+long_name:  first eigenvalue of horizontal strain rate tensor
+data:       data%calving%eps_eigen1
+factor:     scyr
+
+[eps_eigen2]
+dimensions: time, y1, x1
+units:      1/year
+long_name:  second eigenvalue of horizontal strain rate tensor
+data:       data%calving%eps_eigen2
 factor:     scyr
 
 [tau_eff]
