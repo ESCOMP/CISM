@@ -1883,7 +1883,8 @@ contains
                                   glissade_transport_finish_tracers, &
                                   glissade_overwrite_acab,  &
                                   glissade_add_2d_anomaly
-    use glissade_masks, only: glissade_get_masks, glissade_extend_mask
+    use glissade_masks, only: glissade_get_masks, glissade_extend_mask, &
+                              glissade_calving_front_mask
     use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
@@ -1994,19 +1995,30 @@ contains
        ! Compute some masks prior to horizontal transport.
        ! ------------------------------------------------------------------------
 
-       call glissade_get_masks(ewn,                      nsn,              &
-                               model%geometry%thck*thk0,                   &   ! m
-                               model%geometry%topg*thk0,                   &   ! m
-                               model%climate%eus*thk0,                     &   ! m
-                               0.0d0,                                      &   ! thklim = 0
-                               ice_mask,                                   &
-                               floating_mask = floating_mask,              &
-                               ocean_mask = ocean_mask,                    &
-                               land_mask = land_mask,                      &
-                               active_ice_mask = active_ice_mask,          &
-                               which_ho_calving_front = model%options%which_ho_calving_front, &
-                               calving_front_mask = calving_front_mask,    &
-                               thck_calving_front = thck_calving_front)
+       call glissade_get_masks(ewn,              nsn,              &
+                               model%geometry%thck*thk0,           &   ! m
+                               model%geometry%topg*thk0,           &   ! m
+                               model%climate%eus*thk0,             &   ! m
+                               0.0d0,                              &   ! thklim = 0
+                               ice_mask,                           &
+                               floating_mask = floating_mask,      &
+                               ocean_mask = ocean_mask,            &
+                               land_mask = land_mask,              &
+                               active_ice_mask = active_ice_mask)
+
+       ! If using a subgrid calving-front scheme, then recompute active_ice_mask.
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+          call glissade_calving_front_mask(ewn,                    nsn,              &
+                                           model%options%which_ho_calving_front,     &
+                                           model%geometry%thck*thk0,                 &   ! m
+                                           model%geometry%topg*thk0,                 &   ! m
+                                           model%climate%eus*thk0,                   &   ! m
+                                           ice_mask,               floating_mask,    &
+                                           ocean_mask,             land_mask,        &
+                                           calving_front_mask,     thck_calving_front, &
+                                           active_ice_mask = active_ice_mask)
+       endif
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
@@ -2554,19 +2566,26 @@ contains
        !        Note that this value is used to identify CF cells where the mass balance is corrected.
        ! ------------------------------------------------------------------------
 
-       call glissade_get_masks(ewn,                      nsn,              &
-                               thck_unscaled,                              &   ! m
-                               topg_unscaled,                              &   ! m
-                               model%climate%eus*thk0,                     &   ! m
-                               0.0d0,                                      &   ! thklim = 0
-                               ice_mask,                                   &
-                               floating_mask = floating_mask,              &
-                               land_mask = land_mask,                      &
-                               ocean_mask = ocean_mask,                    &
-                               which_ho_calving_front = model%options%which_ho_calving_front, &
-                               calving_front_mask = calving_front_mask,    &
-                               thck_calving_front = thck_calving_front,    &
-                               effective_areafrac = effective_areafrac)
+       call glissade_get_masks(ewn,              nsn,              &
+                               thck_unscaled,                      &   ! m
+                               topg_unscaled,                      &   ! m
+                               model%climate%eus*thk0,             &   ! m
+                               0.0d0,                              &   ! thklim = 0
+                               ice_mask,                           &
+                               floating_mask = floating_mask,      &
+                               ocean_mask = ocean_mask,            &
+                               land_mask = land_mask)
+
+       ! Compute effective_areafrac for SMB purposes.
+
+       call glissade_calving_front_mask(ewn,                    nsn,                &
+                                        model%options%which_ho_calving_front,       &
+                                        thck_unscaled,          topg_unscaled,      &   ! m
+                                        model%climate%eus*thk0,                     &   ! m
+                                        ice_mask,               floating_mask,      &
+                                        ocean_mask,             land_mask,          &
+                                        calving_front_mask,     thck_calving_front, &
+                                        effective_areafrac = effective_areafrac)
 
        if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
            model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
@@ -3064,7 +3083,7 @@ contains
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
-    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
@@ -3210,17 +3229,22 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                            model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   model%numerics%thklim, &
-                            ice_mask,                                   &
-                            floating_mask = floating_mask,              &
-                            ocean_mask = ocean_mask,                    &
-                            land_mask = land_mask,                      &
-                            which_ho_calving_front = model%options%which_ho_calving_front, &
-                            calving_front_mask = calving_front_mask,    &
-                            marine_interior_mask = marine_interior_mask,&
-                            thck_calving_front = thck_calving_front)
+       call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                               model%geometry%thck, model%geometry%topg,   &
+                               model%climate%eus,   model%numerics%thklim, &
+                               ice_mask,                                   &
+                               floating_mask = floating_mask,              &
+                               ocean_mask = ocean_mask,                    &
+                               land_mask = land_mask)
+
+       call glissade_calving_front_mask(model%general%ewn,   model%general%nsn,     &
+                                        model%options%which_ho_calving_front,       &
+                                        model%geometry%thck, model%geometry%topg,   &
+                                        model%climate%eus,                          &
+                                        ice_mask,            floating_mask,         &
+                                        ocean_mask,          land_mask,             &
+                                        calving_front_mask,  thck_calving_front,    &
+                                        marine_interior_mask = marine_interior_mask)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.
