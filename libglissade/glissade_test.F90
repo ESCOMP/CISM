@@ -617,7 +617,6 @@ contains
     use parallel
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
-    use glissade_masks, only: glissade_get_masks
     use glimmer_paramets, only: len0, thk0, tim0
     use glimmer_physcon, only: pi, scyr
 

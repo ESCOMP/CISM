@@ -64,7 +64,7 @@
     use glimmer_sparse_type
     use glimmer_sparse
     use glissade_grid_operators
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
 
     use glide_types
 
@@ -1561,17 +1561,32 @@
     !       (2) the cell borders a locally owned vertex (so outer halo cells are excluded).
     !------------------------------------------------------------------------------
 
-    call glissade_get_masks(nx,          ny,                    &
-                            thck,        topg,                  &
-                            eus,         thklim,                &
+    call glissade_get_masks(nx,               ny,               &
+                            thck,             topg,             &
+                            eus,              thklim,           &
                             ice_mask,                           &
                             floating_mask = floating_mask,      &
                             ocean_mask = ocean_mask,            &
                             land_mask = land_mask,              &
-                            active_ice_mask = active_ice_mask,  &
-                            which_ho_calving_front = whichcalving_front, &
-                            calving_front_mask = calving_front_mask,     &
-                            thck_calving_front = thck_calving_front)
+                            active_ice_mask = active_ice_mask)
+
+    ! If using a subgrid calving-front scheme, then compute calving_front_mask
+    ! and recompute active_ice_mask.
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+       call glissade_calving_front_mask(nx,                 ny,                 &
+                                        whichcalving_front,                     &
+                                        thck,               topg,               &
+                                        eus,                                    &
+                                        ice_mask,           floating_mask,      &
+                                        ocean_mask,         land_mask,          &
+                                        calving_front_mask, thck_calving_front, &
+                                        active_ice_mask = active_ice_mask)
+
+    else
+       calving_front_mask(:,:) = 0
+    endif
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
     where (ice_mask == 1 .or. land_mask == 1)
@@ -6192,6 +6207,7 @@
     btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
 
     ! Interpolate omega_k to the staggered grid
+    !TODO - Remove ice_plus_land_mask and do a standard staggering?
     do k = 1, nz
        call glissade_stagger(nx,              ny,                   &
                              omega_k(k,:,:),  stag_omega_k(k,:,:),  &

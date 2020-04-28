@@ -48,8 +48,12 @@ module glissade_calving
   integer, parameter :: fill_color = 1      ! fill color, represented by integer
   integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
-  logical, parameter :: verbose_calving = .false.
-!  logical, parameter :: verbose_calving = .true.
+!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
+
+  !WHL - debug
+!!  logical, parameter :: old_mask = .true.
+  logical, parameter :: old_mask = .false.
 
 contains
 
@@ -214,7 +218,8 @@ contains
     ! (2) Set thck_calving_threshold to thck_calving_front, as computed from the input ice thickness.
     ! Note: This subroutine uses SI units.
 
-    use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask, &
+         glissade_marine_connection_mask
     use glissade_grid_operators, only: glissade_scalar_extrapolate
 
     !---------------------------------------------------------------------
@@ -248,8 +253,6 @@ contains
          active_ice_mask,           & ! = 1 for cells that are dynamically active, else = 0
          grounded_mask,             & ! = 1 where ice is present and grounded, else = 0
          calving_front_mask,        & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-         marine_cliff_mask,         & ! = 1 if ice is grounded and marine-based and borders at least one ocean
-                                      !     or inactive calving_front cell, else = 0
          marine_connection_mask       ! = 1 for ocean cells, and cells connected to the ocean through marine-based ice
 
     real(dp), dimension(nx,ny) :: &
@@ -285,12 +288,6 @@ contains
        endif
 
        ! Get masks
-       ! Here, thck_calving_front is the effective ice thickness at the calving front,
-       !  equal to the mean thickness of floating interior neighbors.
-       ! We pass in which_ho_calving_front = HO_CALVING_FRONT_SUBGRID so the subroutine will compute calving_front_mask
-       !  and thck_calving_front, which are needed for calving options with a thickness threshold.
-       ! The actual value for the run might be HO_CALVING_FRONT_NO_SUBGRID, with thck_calving_front needed
-       !  only to compute the thck_calving_threshold field.
 
        call glissade_get_masks(nx,            ny,             &
                                thck,          topg,           &
@@ -299,11 +296,25 @@ contains
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
                                land_mask = land_mask,         &
-                               active_ice_mask = active_ice_mask,       &
-                               which_ho_calving_front = HO_CALVING_FRONT_SUBGRID, &
-                               calving_front_mask = calving_front_mask, &
-                               thck_calving_front = thck_calving_front, &
-                               marine_cliff_mask = marine_cliff_mask)
+                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+
+       ! Here, thck_calving_front is the effective ice thickness at the calving front,
+       !  equal to the mean thickness of marine interior neighbors.
+       ! We pass in which_ho_calving_front = HO_CALVING_FRONT_SUBGRID so the subroutine will compute calving_front_mask
+       !  and thck_calving_front, which are needed for calving options with a thickness threshold.
+       ! The actual value for the run might be HO_CALVING_FRONT_NO_SUBGRID, with thck_calving_front needed
+       !  only to compute the thck_calving_threshold field.
+
+       call glissade_calving_front_mask(nx,            ny,                 &
+!!                                        which_ho_calving_front,          &
+                                        HO_CALVING_FRONT_SUBGRID,          &
+                                        thck,          topg,               &
+                                        eus,                               &
+                                        ice_mask,      floating_mask,      &
+                                        ocean_mask,    land_mask,          &
+                                        calving_front_mask,                &
+                                        thck_calving_front,                &
+                                        active_ice_mask = active_ice_mask)
 
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
@@ -359,15 +370,6 @@ contains
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -699,7 +701,6 @@ contains
        ! Save the initial thickness, which is used below to identify upstream interior cells.
        thck_init(:,:) = thck(:,:)
 
-       !TODO - which_ho_calving_front = HO_CALVING_FRONT_SUBGRID always?
        ! Get masks
        ! Need a calving_front_mask; calving/thinning is applied only to cells at the calving front.
        ! Here, thck_calving_front is the effective thickness at the calving front, equal to
@@ -707,6 +708,10 @@ contains
        ! Note: Cells with calving_front_mask = 1 are dynamically inactive unless thck >= thck_calving_front.
        !       For calving purposes, all calving_front cells are treated identically, whether or not
        !        dynamically active. Inactive cells receive eigenvalues by extrapolation from active cells.
+       ! We pass in which_ho_calving_front = HO_CALVING_FRONT_SUBGRID so the subroutine will compute calving_front_mask
+       !  and thck_calving_front, which are needed for calving options with a thickness threshold.
+       ! The actual value for the run might be HO_CALVING_FRONT_NO_SUBGRID, with thck_calving_front needed
+       !  only to compute the thck_calving_threshold field.
 
        call glissade_get_masks(nx,            ny,             &
                                thck,          topg,           &
@@ -714,10 +719,18 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-!!                               which_ho_calving_front = which_ho_calving_front, &
-                               which_ho_calving_front = HO_CALVING_FRONT_SUBGRID, &
-                               calving_front_mask = calving_front_mask,           &
-                               thck_calving_front = thck_calving_front)
+                               land_mask = land_mask,         &
+                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+
+       call glissade_calving_front_mask(nx,            ny,              &
+!!                                        which_ho_calving_front,       &
+                                        HO_CALVING_FRONT_SUBGRID,       &
+                                        thck,          topg,            &
+                                        eus,                            &
+                                        ice_mask,      floating_mask,   &
+                                        ocean_mask,    land_mask,       &
+                                        calving_front_mask,             &
+                                        thck_calving_front)
 
        !WHL - Debug
        if (verbose_calving .and. this_rank == rtest) then
@@ -997,9 +1010,19 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-                               which_ho_calving_front = HO_CALVING_FRONT_SUBGRID,  &
-                               calving_front_mask = calving_front_mask, &
-                               thck_calving_front = thck_calving_front)
+                               land_mask = land_mask,         &
+                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+
+       call glissade_calving_front_mask(&
+                               nx,            ny,                 &
+!!                               which_ho_calving_front,          &
+                               HO_CALVING_FRONT_SUBGRID,          &
+                               thck,          topg,               &
+                               eus,                               &
+                               ice_mask,      floating_mask,      &
+                               ocean_mask,    land_mask,          &
+                               calving_front_mask,                &
+                               thck_calving_front)
 
        !WHL - debug
        if (verbose_calving .and. this_rank == rtest) then
@@ -1127,7 +1150,6 @@ contains
              enddo
              write(6,*) ' '
           enddo
-
        endif  ! verbose
 
     elseif (which_calving == CALVING_GRID_MASK) then
@@ -1396,18 +1418,30 @@ contains
        ! Note: We do not use calving_front_mask or thck_calving_front directly.
        !       But to identify marine cliffs, we use active_ice_mask, which depends on whether there is a subgrid calving front.
 
-       call glissade_get_masks(nx,            ny,                 &
+       call glissade_get_masks(nx,            ny,             &
+                               thck,          topg,           &
+                               eus,           thklim,         &
+                               ice_mask,                      &
+                               floating_mask = floating_mask, &
+                               ocean_mask = ocean_mask,       &
+                               land_mask = land_mask,         &
+                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+
+       call glissade_calving_front_mask(&
+                               nx,            ny,                 &
+                               which_ho_calving_front,          &
                                thck,          topg,               &
-                               eus,           thklim,             &
-                               ice_mask,                          &
-                               floating_mask = floating_mask,     &
-                               ocean_mask = ocean_mask,           &
-                               land_mask = land_mask,             &
-                               active_ice_mask = active_ice_mask, &
-                               which_ho_calving_front = which_ho_calving_front, &
-                               calving_front_mask = calving_front_mask, &
-                               thck_calving_front = thck_calving_front, &
-                               marine_cliff_mask = marine_cliff_mask)
+                               eus,                               &
+                               ice_mask,      floating_mask,      &
+                               ocean_mask,    land_mask,          &
+                               calving_front_mask,                &
+                               thck_calving_front,                &
+                               active_ice_mask = active_ice_mask)
+
+       call glissade_marine_cliff_mask(nx,            ny,                &
+                                       ice_mask,      floating_mask,     &
+                                       land_mask,     active_ice_mask,   &
+                                       marine_cliff_mask)
 
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
@@ -1531,7 +1565,7 @@ contains
 
 !---------------------------------------------------------------------------
 
-  !TODO - Rename to glissade_iceberg_mask and move to mask module?
+  !TODO - Call from the main calving solver, and identify lightly grounded cells.
 
   subroutine glissade_remove_icebergs(&
        itest,   jtest,   rtest,     &
@@ -1617,17 +1651,24 @@ contains
     !       Then the algorithm can fail to identify floating regions that should be removed
     !       (since they are separated from any active cells).
 
-    call glissade_get_masks(nx,            ny,                  &
-                            thck,          topg,                &
-                            eus,           thklim,              &
-                            ice_mask,                           &
-                            floating_mask = floating_mask,      &
-                            ocean_mask = ocean_mask,            &
-                            land_mask = land_mask,              &
-                            active_ice_mask = active_ice_mask,  &
-                            which_ho_calving_front = which_ho_calving_front, &
-                            calving_front_mask = calving_front_mask,         &
-                            thck_calving_front = thck_calving_front)
+    call glissade_get_masks(nx,            ny,             &
+                            thck,          topg,           &
+                            eus,           thklim,         &
+                            ice_mask,                      &
+                            floating_mask = floating_mask, &
+                            ocean_mask = ocean_mask,       &
+                            land_mask = land_mask,         &
+                            active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+
+    call glissade_calving_front_mask(nx,            ny,                 &
+                                     which_ho_calving_front,            &
+                                     thck,          topg,               &
+                                     eus,                               &
+                                     ice_mask,      floating_mask,      &
+                                     ocean_mask,    land_mask,          &
+                                     calving_front_mask,                &
+                                     thck_calving_front,                &
+                                     active_ice_mask = active_ice_mask)
 
     !WHL - debug
     if (verbose_calving .and. this_rank == rtest) then
@@ -1679,6 +1720,8 @@ contains
     ! With one round of culling, peninsulas up to four cells thick will be removed (two outer layers
     !  during the preliminary step, followed by two inner layers on the remove_iceberg step).
     ! If necessary, culling can be repeated to remove peninsulas with a thickness of 6 layers, 8 layers, etc.
+
+    !TODO - Put this logic in a separate subroutine, called at initialization only.
 
     if (cull_calving_front) then
 
@@ -1761,23 +1804,30 @@ contains
           !       These will not be removed if they are adjacent to active cells with a path to grounded ice,
           !        but will be removed if they form peninsulas one or two cells thick.
 
-          call glissade_get_masks(nx,            ny,                  &
-                                  thck,          topg,                &
-                                  eus,           thklim,              &
-                                  ice_mask,                           &
-                                  floating_mask = floating_mask,      &
-                                  ocean_mask = ocean_mask,            &
-                                  land_mask = land_mask,              &
-                                  active_ice_mask = active_ice_mask,  &
-                                  which_ho_calving_front = which_ho_calving_front, &
-                                  calving_front_mask = calving_front_mask,         &
-                                  thck_calving_front = thck_calving_front)
+          call glissade_get_masks(nx,            ny,             &
+                                  thck,          topg,           &
+                                  eus,           thklim,         &
+                                  ice_mask,                      &
+                                  floating_mask = floating_mask, &
+                                  ocean_mask = ocean_mask,       &
+                                  land_mask = land_mask,         &
+                                  active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+
+          call glissade_calving_front_mask(nx,            ny,               &
+                                           which_ho_calving_front,          &
+                                           thck,          topg,             &
+                                           eus,                             &
+                                           ice_mask,      floating_mask,    &
+                                           ocean_mask,    land_mask,        &
+                                           calving_front_mask,              &
+                                           thck_calving_front,              &
+                                           active_ice_mask = active_ice_mask)
 
        enddo  ! ncull_calving_front
 
     endif  ! cull_calving_front
 
-    ! initialize
+    ! initialize iceberg removal
     ! Note: Any cell with ice, active or inactive, receives the initial color.
     !       Inactive cells can later receive the fill color (if adjacent to active cells)
     !        but cannot further spread the fill color.
