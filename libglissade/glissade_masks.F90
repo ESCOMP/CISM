@@ -51,6 +51,7 @@
               glissade_marine_cliff_mask, glissade_ice_sheet_mask,  &
               glissade_marine_connection_mask, glissade_lake_mask,  &
               glissade_extend_mask, glissade_fill, glissade_fill_with_buffer
+    public :: initial_color, fill_color, boundary_color
 
     ! colors for fill subroutines
     integer, parameter :: initial_color = 0   ! initial color, represented by integer
@@ -478,7 +479,7 @@
        endif
 
        if (present(active_ice_mask)) then
-          active_ice_mask(i,j) = ice_mask(i,j)
+          active_ice_mask(:,:) = ice_mask(:,:)
        endif
 
     endif  ! which_ho_calving_front
