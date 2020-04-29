@@ -2788,8 +2788,8 @@ contains
     use parallel
 
     use glimmer_paramets, only: thk0, tim0, len0
-    use glissade_calving, only: glissade_calve_ice
-    use glide_mask, only: glide_set_mask
+    use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
+         glissade_remove_icebergs, glissade_limit_cliffs, verbose_calving
 
     implicit none
 
@@ -2815,11 +2815,15 @@ contains
 
     integer :: i, j
 
+    integer :: nx, ny               ! horizontal grid dimensions
     integer :: itest, jtest, rtest  ! coordinates of diagnostic point
 
     !WHL - debug
     real(dp) :: local_maxval, global_maxval
     logical, parameter :: verbose_retreat = .true.
+
+    nx = model%general%ewn
+    ny = model%general%nsn
 
     rtest = -999
     itest = 1
@@ -2927,29 +2931,22 @@ contains
 
     !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
-    ! Determine whether the calving front should be culled
-    if (init_calving .and. model%options%cull_calving_front) then
-       cull_calving_front = .true.
-    else
-       cull_calving_front = .false.
-    endif
+    ! Set thickness to SI units (m)
+    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
+    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:) * thk0
 
     ! ------------------------------------------------------------------------ 
     ! Calve ice, based on the value of whichcalving 
     !       Pass in thck, topg, etc. with units of meters.
     ! TODO: Pass in individual fields with SI units, instead of the calving derived type?
-    !       Put iceberg removal and cliff limiting in separate subroutines.
+    ! TODO: Separate logic for the no_advance/calving mask?
+    !       Either option 5, or no_advance_mask is nonzero.
     ! ------------------------------------------------------------------------ 
 
-    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
-    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:) * thk0
-
-    call glissade_calve_ice(model%options%whichcalving,        &
+    call glissade_calve_ice(nx,           ny,                  &
+                            model%options%whichcalving,        &
                             model%options%calving_domain,      &
                             model%options%which_ho_calving_front, &     !TODO - Is this needed for the calving itself?
-                            model%options%remove_icebergs,     &
-                            model%options%limit_marine_cliffs, &
-                            cull_calving_front,                &
                             model%calving,                     &        ! calving object; includes calving_thck (m)
                             itest, jtest, rtest,               &
                             model%numerics%dt*tim0,            &        ! s
@@ -2961,7 +2958,58 @@ contains
                             model%isostasy%relx*thk0,          &        ! m
                             model%geometry%topg*thk0,          &        ! m
                             model%climate%eus*thk0)                     ! m
+
+    if (init_calving .and. model%options%cull_calving_front) then
+
+       call glissade_cull_calving_front(nx,           ny,              &
+                                        itest, jtest, rtest,           &
+                                        thck_unscaled,                 &  ! m
+                                        model%geometry%topg*thk0,      &  ! m
+                                        model%climate%eus*thk0,        &  ! m
+                                        model%numerics%thklim*thk0,    &  ! m
+                                        model%options%which_ho_calving_front, &
+                                        model%calving%ncull_calving_front,    &
+                                        model%calving%calving_thck)       ! m
+
+    endif
+
+    ! ------------------------------------------------------------------------
+    ! Remove any icebergs.
+    ! For the velocity solver to be robust, we require that any floating cell
+    !  is connected to grounded ice along a path consisting only of active cells.
+    ! Floating cells without such a connection are calved as icebergs.
+    ! ------------------------------------------------------------------------
+
+    if (model%options%remove_icebergs) then
+
+       call glissade_remove_icebergs(nx,           ny,                     &
+                                     itest, jtest, rtest,                  &
+                                     thck_unscaled,                        &  ! m
+                                     model%geometry%topg*thk0,             &  ! m
+                                     model%climate%eus*thk0,               &  ! m
+                                     model%numerics%thklim*thk0,           &  ! m
+                                     model%options%which_ho_calving_front, &
+                                     model%calving%calving_thck)              ! m
+    endif
     
+    ! Optionally, impose a thickness limit on marine ice cliffs.
+    ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
+
+    if (model%options%limit_marine_cliffs) then   ! Impose a thickness limit on marine ice cliffs
+
+       call glissade_limit_cliffs(nx,             ny,            &
+                                  itest,  jtest,  rtest,         &
+                                  model%numerics%dt*tim0,        &     ! s
+                                  model%options%which_ho_calving_front, &
+                                  model%calving%taumax_cliff,    &     ! Pa
+                                  model%calving%cliff_timescale, &     ! s
+                                  thck_unscaled,              &        ! m
+                                  model%geometry%topg*thk0,   &        ! m
+                                  model%climate%eus*thk0,     &        ! m
+                                  model%numerics%thklim*thk0, &        ! m
+                                  model%calving%calving_thck)          ! m
+    endif
+
     ! Convert geometry%thck and calving%calving_thck to scaled model units
     model%geometry%thck(:,:) = thck_unscaled(:,:)/thk0
     model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:)/thk0
@@ -2983,6 +3031,27 @@ contains
           endif
        enddo
     enddo
+
+    if (verbose_calving .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'Final calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%calving%calving_thck(i,j) * thk0
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'Final thck (m):'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j) * thk0
+          enddo
+          write(6,*) ' '
+       enddo
+    endif  ! verbose_calving
 
     ! update the upper and lower surfaces
 
@@ -3150,7 +3219,7 @@ contains
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
     ! 1. First part of diagnostic solve: 
-    !    Now that advection is done, update geometry- and temperature-related 
+    !    Now that advection and calving are done, update geometry- and temperature-related
     !    diagnostic fields that are needed for the velocity solve.
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -3190,6 +3259,7 @@ contains
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns)
 
     ! ------------------------------------------------------------------------
+    !TODO - Move this calculation to the calving solver?  Apply to a different flux, instead of calving?
     ! Compute masks for the ice sheet and ice caps.
     ! Ice caps are defined as ice-covered cells disconnected from the main ice sheet.
     ! Optionally, the ice sheet mask can be used to block inception outside the existing ice sheet.

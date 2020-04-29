@@ -39,14 +39,10 @@ module glissade_calving
   implicit none
 
   private
-  public :: glissade_calving_mask_init, glissade_thck_calving_threshold_init
-  public :: glissade_calve_ice
+  public :: glissade_calving_mask_init, glissade_thck_calving_threshold_init, &
+            glissade_calve_ice, glissade_cull_calving_front, &
+            glissade_remove_icebergs, glissade_limit_cliffs
   public :: verbose_calving
-
-  ! colors for fill subroutines
-  integer, parameter :: initial_color = 0   ! initial color, represented by integer
-  integer, parameter :: fill_color = 1      ! fill color, represented by integer
-  integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
 !  logical, parameter :: verbose_calving = .false.
   logical, parameter :: verbose_calving = .true.
@@ -250,8 +246,6 @@ contains
          floating_mask,             & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,                & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,                 & ! = 1 where topg is at or above sea level, else = 0
-         active_ice_mask,           & ! = 1 for cells that are dynamically active, else = 0
-         grounded_mask,             & ! = 1 where ice is present and grounded, else = 0
          calving_front_mask,        & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
          marine_connection_mask       ! = 1 for ocean cells, and cells connected to the ocean through marine-based ice
 
@@ -295,8 +289,7 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-                               land_mask = land_mask,         &
-                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+                               land_mask = land_mask)
 
        ! Here, thck_calving_front is the effective ice thickness at the calving front,
        !  equal to the mean thickness of marine interior neighbors.
@@ -313,8 +306,7 @@ contains
                                         ice_mask,      floating_mask,      &
                                         ocean_mask,    land_mask,          &
                                         calving_front_mask,                &
-                                        thck_calving_front,                &
-                                        active_ice_mask = active_ice_mask)
+                                        thck_calving_front)
 
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
@@ -460,12 +452,10 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_calve_ice(which_calving,           &
+  subroutine glissade_calve_ice(nx,               ny,    &
+                                which_calving,           &
                                 calving_domain,          &
                                 which_ho_calving_front,  &
-                                remove_icebergs,         &
-                                limit_marine_cliffs,     &
-                                cull_calving_front,      &
                                 calving,                 &  ! calving derived type
                                 itest,   jtest,   rtest, &
                                 dt,                      &  ! s
@@ -478,13 +468,15 @@ contains
     ! Calve ice according to one of several methods.
     ! Note: This subroutine uses SI units.
 
-    use glissade_masks
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
 
     implicit none
 
     !---------------------------------------------------------------------
     ! Subroutine arguments
     !---------------------------------------------------------------------
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 
     integer, intent(in) :: which_calving           !> option for calving law
     integer, intent(in) :: calving_domain          !> option for where calving can occur
@@ -493,10 +485,6 @@ contains
                                                    !> = 2 if calving occurs where criterion is met and there is a connected path
                                                    !>     to the ocean through other cells where the criterion is met
     integer, intent(in) :: which_ho_calving_front  !> = 1 for subgrid calving-front scheme, else = 0
-    logical, intent(in) :: remove_icebergs         !> if true, then remove icebergs after calving
-    logical, intent(in) :: limit_marine_cliffs     !> if true, then limit the thickness of marine-based ice cliffs
-    logical, intent(in) :: cull_calving_front      !> if true, then cull calving_front cells to improve model stability;
-                                                   !> generally applied only at initialization
 
     type(glide_calving), intent(inout) :: calving !> calving object
 
@@ -514,11 +502,6 @@ contains
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen1          !> first eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen2          !> second eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(inout)  :: tau_eff             !> effective stress (Pa) for calving; derived from tau_eigen1/2
-
-!    integer, intent(in)                      :: ncull_calving_front !> number of times to cull calving_front cells at initialization
-!    real(dp), intent(in)                     :: taumax_cliff        !> yield stress (Pa) for marine-based ice cliffs
-                                                                     !> used with limit_marine_cliffs option
-!    real(dp), intent(in)                     :: cliff_timescale     !> timescale (s) for limiting marine cliff thickness
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
@@ -529,51 +512,43 @@ contains
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
     integer, intent(in) :: itest, jtest, rtest                   !> coordinates of diagnostic point
-    real(dp), intent(in)                    :: dt                !> model timestep (s)
-    real(dp), intent(in)                    :: dx, dy            !> grid cell size in x and y directions (m)
-    real(dp), dimension(:), intent(in)      :: sigma             !> vertical sigma coordinate
-    real(dp), intent(in)                    :: thklim            !> minimum thickness for dynamically active grounded ice (m)
-    real(dp), dimension(:,:), intent(inout) :: thck              !> ice thickness (m)
-    real(dp), dimension(:,:), intent(in)    :: relx              !> relaxed bedrock topography (m)
-    real(dp), dimension(:,:), intent(in)    :: topg              !> present bedrock topography (m)
-    real(dp), intent(in)                    :: eus               !> eustatic sea level (m)
+    real(dp), intent(in)                      :: dt                !> model timestep (s)
+    real(dp), intent(in)                      :: dx, dy            !> grid cell size in x and y directions (m)
+    real(dp), dimension(:), intent(in)        :: sigma             !> vertical sigma coordinate
+    real(dp), intent(in)                      :: thklim            !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), dimension(nx,ny), intent(inout) :: thck              !> ice thickness (m)
+    real(dp), dimension(nx,ny), intent(in)    :: relx              !> relaxed bedrock topography (m)
+    real(dp), dimension(nx,ny), intent(in)    :: topg              !> present bedrock topography (m)
+    real(dp), intent(in)                      :: eus               !> eustatic sea level (m)
 
     ! local variables
 
-    integer :: nx, ny      ! horizontal grid dimensions
     integer :: nz          ! number of vertical levels
                            ! Note: number of ice layers = nz-1
     integer :: i, j, k, n
     integer :: ii, jj
 
-    real(dp), dimension(:,:), allocatable ::  &
+    real(dp), dimension(nx,ny) ::  &
          thck_calving_front,     & ! effective ice thickness at the calving front
          thck_init,              & ! value of thck before calving
          tau1, tau2,             & ! tau_eigen1 and tau_eigen2 (Pa), modified for calving
          damage_column             ! 2D vertically integrated scalar damage parameter
 
-    real(dp), dimension(:,:), allocatable ::  &
-         calving_thck_init         ! debug diagnostic
-
     ! basic masks
-    integer, dimension(:,:), allocatable   ::  &
+    integer, dimension(nx,ny)  ::  &
          ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,              & ! = 1 where topg is at or above sea level, else = 0
-         active_ice_mask,        & ! = 1 for cells that are dynamically active, else = 0 
-         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-         marine_cliff_mask         ! = 1 where ice is grounded and marine-based and borders at least
-                                   !  one ocean or calving_front cell, else = 0
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
 
     ! Note: Calving occurs in a cell if and only if (1) the calving law permits calving, 
     !       and (2) the cell is in the calving domain, as specified by the calving_domain option.
     !       The calving domain by default is limited to the ocean edge (CALVING_DOMAIN_OCEAN_EDGE), 
     !       but can be extended to include all ice-covered cells (CALVING_DOMAIN_EVERYWHERE).
-    ! TODO: Change the default to calving_domain_everywhere?
 
     !TODO - Make these integer masks like the ones above?
-    logical, dimension(:,:), allocatable   ::  &
+    logical, dimension(nx,ny) ::  &
          calving_law_mask,    & ! = T where the calving law permits calving, else = F
          calving_domain_mask    ! = T in the domain where calving is allowed to occur (e.g., at ocean edge), else = F
 
@@ -587,13 +562,7 @@ contains
          areafrac,             & ! fractional ice-covered area in a calving_front cell
          dthck,                & ! thickness change (m)
          d_damage_dt,          & ! rate of change of damage scalar (1/s)
-         thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
          factor                  ! factor in quadratic formula
-
-    !TODO - Remove thinning_limit?
-    real(dp), parameter :: &
-         thinning_limit = 0.99d0  ! When ice not originally on the calving front is allowed to thin,
-                                  ! the resulting thickness must be at least thinning_limit*thck_init
 
     character(len=100) :: message
    
@@ -601,64 +570,16 @@ contains
 
 !!!    calving%calving_thck(:,:) = 0.d0   ! might be nonzero as a result of previous operations
 
-    nx = size(thck,1)
-    ny = size(thck,2)
     nz = size(sigma)
 
-
-    if (which_calving == CALVING_NONE) then
-
-       ! remove icebergs (if desired) and return
-
-       if (remove_icebergs) then
-
-          if (verbose_calving .and. main_task) then
-             print*, 'Remove icebergs'
-          endif
-
-          ! Set the thickness thresholds for cells to be counted as active.
-          ! Floating regions will be identified as icebergs unless they are connected to grounded ice
-          !  along a path consisting of active cells.
-
-          call glissade_remove_icebergs(&
-               itest,   jtest,   rtest, &
-               thck,                    &
-               topg,          eus,      &
-               thklim,                  &
-               which_ho_calving_front,  &
-               calving%calving_thck,    &
-               cull_calving_front,      &
-               calving%ncull_calving_front)
-
-       endif
-
+    if (which_calving == CALVING_NONE) then   ! do nothing
        return
-
     endif
-
-    ! allocate masks
-    ! Not all of these are needed for all calving options, but it is simplest just to allocate them all
-    allocate (calving_law_mask(nx,ny))
-    allocate (calving_domain_mask(nx,ny))
-    allocate (ice_mask(nx,ny))
-    allocate (floating_mask(nx,ny))
-    allocate (ocean_mask(nx,ny))
-    allocate (land_mask(nx,ny))
-    allocate (active_ice_mask(nx,ny))
-    allocate (calving_front_mask(nx,ny))
-    allocate (thck_calving_front(nx,ny))
-    allocate (thck_init(nx,ny))
-    allocate (marine_cliff_mask(nx,ny))
-
-    !WHL - debug
-    allocate(calving_thck_init(nx,ny))
-    calving_thck_init(:,:) = thck(:,:)
 
     !WHL - debug
     if (verbose_calving .and. main_task) then
        print*, ' '
-       print*, 'In glissade_calve_ice'
-       print*, 'which_calving =', which_calving
+       print*, 'In glissade_calve_ice, which_calving =', which_calving
        print*, 'calving_domain =', calving_domain
     endif
 
@@ -719,8 +640,7 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-                               land_mask = land_mask,         &
-                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+                               land_mask = land_mask)
 
        call glissade_calving_front_mask(nx,            ny,              &
 !!                                        which_ho_calving_front,       &
@@ -773,11 +693,8 @@ contains
        endif   ! verbose_calving
 
        ! For each floating cell, compute an effective stress based on eigenvalues of the stress tensor.
-
-       allocate(tau1(nx,ny))
-       allocate(tau2(nx,ny))
-
        ! Ignore negative eigenvalues corresponding to compressive stresses
+
        tau1 = max(calving%tau_eigen1, 0.0d0)
        tau2 = max(calving%tau_eigen2, 0.0d0)
 
@@ -867,7 +784,6 @@ contains
           enddo
 
           ! Compute the vertically integrated damage in each column.
-          allocate(damage_column(nx,ny))
           damage_column(:,:) = 0.0d0
 
           do j = 1, ny
@@ -994,9 +910,6 @@ contains
        ! Note: Eigencalving or damage-based calving, if done above, is followed by thickness-based calving.
        !       This helps get rid of thin ice near the CF where stress eigenvalues might be small.
 
-       !WHL - debug
-       calving_thck_init(:,:) = calving%calving_thck(:,:)
-
        ! Save the initial thickness, which is used below to identify upstream interior cells.
        thck_init(:,:) = thck(:,:)
 
@@ -1010,8 +923,7 @@ contains
                                ice_mask,                      &
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
-                               land_mask = land_mask,         &
-                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
+                               land_mask = land_mask)
 
        call glissade_calving_front_mask(&
                                nx,            ny,                 &
@@ -1131,17 +1043,8 @@ contains
        if (verbose_calving .and. this_rank == rtest) then
 
           print*, ' '
-          print*, 'Did thickness-based calving, task =', this_rank
-          print*, ' '
-          print*, 'Thickness-based calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') (calving%calving_thck(i,j) - calving_thck_init(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
+          print*, 'Did thickness-based calving, task =', this_rank 
+         print*, ' '
           print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
@@ -1189,28 +1092,6 @@ contains
              endif
           enddo
        enddo
-
-       if (verbose_calving .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'calving_thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving%calving_thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'new thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-       endif
 
     else   ! other calving options
 
@@ -1346,183 +1227,11 @@ contains
           enddo
        enddo
 
-       !WHL - debug
-       if (verbose_calving .and. this_rank==rtest) then
-!          print*, ' '
-!          print*, 'calving_law_mask: itest, jtest, rank =', itest, jtest, rtest
-!          do j = jtest+3, jtest-3, -1
-!             write(6,'(i6)',advance='no') j
-!             do i = itest-3, itest+3
-!                write(6,'(l10)',advance='no') calving_law_mask(i,j)
-!             enddo
-!             write(6,*) ' '
-!          enddo
-          print*, ' '
-          print*, 'calving_domain_mask: itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(l10)',advance='no') calving_domain_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'After calving, new thck: itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-       endif
-
     endif   ! which_calving
 
-    ! Remove any icebergs.
-    ! Typically these will be removed by the calving scheme above, but if not,
-    !  then they need to be removed before calling the velocity solver,
-    !  which will have problems in regions without any grounded ice.
-
-    if (remove_icebergs) then
-
-       if (verbose_calving .and. main_task) then
-          print*, 'Remove icebergs'
-       endif
-
-       ! Set the thickness thresholds for cells to be counted as active.
-       ! Floating regions will be identified as icebergs unless they are connected to grounded ice
-       !  along a path consisting only of active cells.
-       ! Note: A limit of 0.0 does not work because it erroneously counts very thin floating cells as active.
-       !       Then the algorithm can fail to identify floating regions that should be removed.
-
-       call glissade_remove_icebergs(&
-            itest,   jtest,   rtest, &
-            thck,                    &
-            topg,          eus,      &
-            thklim,                  &
-            which_ho_calving_front,  &
-            calving%calving_thck,    &
-            cull_calving_front,      &
-            calving%ncull_calving_front)
-
-    endif
-
-    ! Optionally, impose a thickness limit on marine ice cliffs.
-    ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
-
-    if (limit_marine_cliffs) then
-
-       ! Update masks, including the marine_cliff mask
-       ! Note: We do not use calving_front_mask or thck_calving_front directly.
-       !       But to identify marine cliffs, we use active_ice_mask, which depends on whether there is a subgrid calving front.
-
-       call glissade_get_masks(nx,            ny,             &
-                               thck,          topg,           &
-                               eus,           thklim,         &
-                               ice_mask,                      &
-                               floating_mask = floating_mask, &
-                               ocean_mask = ocean_mask,       &
-                               land_mask = land_mask,         &
-                               active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
-
-       call glissade_calving_front_mask(&
-                               nx,            ny,                 &
-                               which_ho_calving_front,          &
-                               thck,          topg,               &
-                               eus,                               &
-                               ice_mask,      floating_mask,      &
-                               ocean_mask,    land_mask,          &
-                               calving_front_mask,                &
-                               thck_calving_front,                &
-                               active_ice_mask = active_ice_mask)
-
-       call glissade_marine_cliff_mask(nx,            ny,                &
-                                       ice_mask,      floating_mask,     &
-                                       land_mask,     active_ice_mask,   &
-                                       marine_cliff_mask)
-
-       if (verbose_calving .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-       endif
-
-       if (verbose_calving .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'thckmax_cliff, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                factor = calving%taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
-                thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m 
-                write(6,'(f10.3)',advance='no') thckmax_cliff
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-       endif
-
-       do j = 2, ny-1
-          do i = 1, nx-1
-             if (marine_cliff_mask(i,j) == 1) then
-
-                ! Compute the max stable ice thickness in the cliff cell.
-                ! This is eq. 2.10 in Bassis & Walker (2012)
-                factor = calving%taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
-                thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m 
-
-                !WHL - debug
-                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, ' '
-                   print*, 'Cliff thinning: r, i, j =', rtest, itest, jtest
-                   print*, 'thck, thckmax_cliff (m) =', thck(i,j), thckmax_cliff
-                endif
-
-                ! If thicker than the max stable thickness, then remove some ice and add it to the calving field
-                ! Note: By default, cliff_timescale = 0, which means thck is reset to thckmax_cliff each timestep.
-                !       Might want to try other values when looking at marine ice cliff instability.
-                if (thck(i,j) > thckmax_cliff) then
-
-                   if (calving%cliff_timescale > 0.0d0) then
-                      thinning_rate = (thck(i,j) - thckmax_cliff) / calving%cliff_timescale
-                      dthck = min(thck(i,j) - thckmax_cliff, thinning_rate*dt)
-                   else
-                      dthck = thck(i,j) - thckmax_cliff
-                   endif
-
-                   !WHL - debug
-                   if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-!!                      print*, ' '
-!!                      print*, 'r, i, j, thck, thckmax_cliff:', &
-!!                           this_rank, i, j, thck(i,j), thckmax_cliff 
-                      print*, 'thinning rate (m/yr) =', thinning_rate * scyr
-                      print*, 'dthck (m) =', dthck
-                   endif
-
-                   thck(i,j) = thck(i,j) - dthck
-                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
-
-                endif  ! thck > thckmax_cliff
-
-             endif  ! marine_cliff cell
-          enddo   ! i
-       enddo   ! j
-
-    endif   ! limit_marine_cliffs
-
-    if (verbose_calving .and. this_rank == rtest) then
-
+    if (verbose_calving .and. this_rank==rtest) then
        print*, ' '
-       print*, 'Final calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
+       print*, 'calving_thck, itest, jtest, rank =', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -1530,9 +1239,8 @@ contains
           enddo
           write(6,*) ' '
        enddo
-
        print*, ' '
-       print*, 'Final thck (m), itest, jtest, rank =', itest, jtest, rtest
+       print*, 'After calving, new thck:'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -1540,42 +1248,171 @@ contains
           enddo
           write(6,*) ' '
        enddo
-
-    endif  ! verbose_calving
-
-    ! cleanup
-    deallocate (calving_law_mask)
-    deallocate (calving_domain_mask)
-    deallocate (ice_mask)
-    deallocate (floating_mask)
-    deallocate (ocean_mask)
-    deallocate (land_mask)
-    deallocate (active_ice_mask)
-    deallocate (calving_front_mask)
-    deallocate (thck_calving_front)
-    deallocate (thck_init)
-    deallocate (marine_cliff_mask)
-
-    if (allocated(calving_thck_init)) deallocate(calving_thck_init)
-    if (allocated(damage_column)) deallocate(damage_column)
-    if (allocated(tau1)) deallocate(tau1)
-    if (allocated(tau2)) deallocate(tau2)
+       print*, ' '
+    endif
 
   end subroutine glissade_calve_ice
 
 !---------------------------------------------------------------------------
 
-  !TODO - Call from the main calving solver, and identify lightly grounded cells.
+  subroutine glissade_cull_calving_front(&
+       nx,           ny,          &
+       itest, jtest, rtest,       &
+       thck,         topg,        &
+       eus,          thklim,      &
+       which_ho_calving_front,    &
+       ncull_calving_front,       &
+       calving_thck)
+
+    ! Optionally, remove all cells currently at the calving front are removed.
+    ! This subroutine would typically be called at initialization, if at all.
+    ! Culling can removed long, skinny floating peninsulas that can be dynamically unstable.
+    !  Without this step, peninsulas up to two cells thick (with calving-front cells on each side)
+    !  will typically be removed as icebergs (because there is no path back to grounded ice through active cells).
+    ! With one round of culling, peninsulas up to four cells thick will be removed (two outer layers
+    !  during the preliminary step, followed by two inner layers on the remove_iceberg step).
+    ! If necessary, culling can be repeated to remove peninsulas with a thickness of 6 layers, 8 layers, etc.
+
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+
+    integer, intent(in) :: nx, ny                       !> horizontal grid dimensions
+    integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
+
+    real(dp), dimension(nx,ny), intent(inout) :: thck     !> ice thickness
+    real(dp), dimension(nx,ny), intent(in)    :: topg     !> present bedrock topography
+    real(dp), intent(in)    :: eus                      !> eustatic sea level
+    real(dp), intent(in)    :: thklim                   !> minimum thickness for dynamically active grounded ice
+    integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
+    integer, intent(in) :: &
+         ncull_calving_front           !> number of times to cull calving_front cells at initialization
+
+    real(dp), dimension(nx,ny), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
+                                                              !> on output, includes ice that is culled here
+    ! local variables
+
+    integer :: i, j, n
+
+    integer,  dimension(nx,ny) ::  &
+         ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
+         land_mask,          & ! = 1 where topg is at or above sea level, else = 0
+         calving_front_mask    ! = 1 where ice is floating and borders the ocean, else = 0
+
+    real(dp),  dimension(nx,ny) ::  &
+         thck_calving_front    ! effective ice thickness at the calving front
+
+    do n = 1, ncull_calving_front
+
+       ! calculate masks
+       ! Note: Passing in thklim = 0.0 does not work because it erroneously counts thin floating cells as active.
+       !       Then the algorithm can fail to identify floating regions that should be removed
+       !       (since they are separated from any active cells).
+
+       call glissade_get_masks(nx,            ny,             &
+                               thck,          topg,           &
+                               eus,           thklim,         &
+                               ice_mask,                      &
+                               floating_mask = floating_mask, &
+                               ocean_mask = ocean_mask,       &
+                               land_mask = land_mask)
+
+       call glissade_calving_front_mask(nx,            ny,                 &
+                                        which_ho_calving_front,            &
+                                        thck,          topg,               &
+                                        eus,                               &
+                                        ice_mask,      floating_mask,      &
+                                        ocean_mask,    land_mask,          &
+                                        calving_front_mask,                &
+                                        thck_calving_front)
+
+       !TODO - Remove this computation, if we always compute the CF mask above?
+       ! compute a calving front mask
+       ! Note: This computation is redundant when running with the subgrid CF scheme, in which case
+       !        we already have the correct CF mask from glissade_get_masks.
+       !       But if we are running without the subgrid CF scheme (as we typically do for inversion),
+       !        then glissade_get_masks sets calving_front_mask = 0 everywhere, which is not what we want here.
+       !       TODO: Allow calving_front_mask = 1 in glissade_get_masks without the subgrid CF scheme?
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (floating_mask(i,j) == 1) then
+                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                   calving_front_mask(i,j) = 1
+                endif
+             endif
+          enddo
+       enddo
+
+       call parallel_halo(calving_front_mask)
+
+       if (main_task) then
+          call write_log ('cull_calving_front: Removing ice from calving_front cells')
+          print*, 'cull_calving_front: Removing ice from calving_front cells'
+       endif
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'calving_front_mask for culling, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') calving_front_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'cull_calving_front: Before removing CF cells, n =', n
+          print*, ' '
+          print*, 'thck:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       do j = 1, ny
+          do i = 1, nx
+             if (calving_front_mask(i,j) == 1) then
+                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                thck(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'cull_calving_front: After removing CF cells, n =', n
+          print*, ' '
+          print*, 'thck:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    enddo  ! ncull_calving_front
+
+  end subroutine glissade_cull_calving_front
+
+!---------------------------------------------------------------------------
+
+  !TODO - Identify lightly grounded cells.
 
   subroutine glissade_remove_icebergs(&
-       itest,   jtest,   rtest,     &
-       thck,                        &
-       topg,          eus,          &
-       thklim,                      &
+       nx,           ny,            &
+       itest, jtest, rtest,         &
+       thck,         topg,          &
+       eus,          thklim,        &
        which_ho_calving_front,      &
-       calving_thck,                &
-       cull_calving_front,          &
-       ncull_calving_front)
+       calving_thck)
 
     ! Remove any icebergs. 
         
@@ -1594,32 +1431,30 @@ contains
     !     The path back to grounded ice must go through edges, not corners.
     ! (2) Inactive cells can be filled (if adjacent to active cells), but
     !     do not further spread the fill.
-    ! (3) Grounded cells that still have the initial color are not removed.
+    ! (3) Should have thklim > 0.  With a limit of 0.0, very thin floating cells
+    !     can be wrongly counted as active, and icebergs can be missed.
+    ! (4) Grounded cells that still have the initial color are not removed.
 
-    use glissade_masks
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask, &
+         glissade_fill_with_buffer, initial_color, fill_color, boundary_color
 
+    integer :: nx, ny                                   !> horizontal grid dimensions
     integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
 
-    real(dp), dimension(:,:), intent(inout) :: thck     !> ice thickness
-    real(dp), dimension(:,:), intent(in)    :: topg     !> present bedrock topography
-    real(dp), intent(in)    :: eus                      !> eustatic sea level
-    real(dp), intent(in)    :: thklim                   !> minimum thickness for dynamically active grounded ice
-    integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
-    real(dp), dimension(:,:), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
+    real(dp), dimension(nx,ny), intent(inout) :: thck     !> ice thickness
+    real(dp), dimension(nx,ny), intent(in)    :: topg     !> present bedrock topography
+    real(dp), intent(in)    :: eus                        !> eustatic sea level
+    real(dp), intent(in)    :: thklim                     !> minimum thickness for dynamically active grounded ice
+    integer, intent(in)     :: which_ho_calving_front     !> = 1 for subgrid calving-front scheme, else = 0
+    real(dp), dimension(nx,ny), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
                                                               !> on output, includes ice in icebergs
-    logical, intent(in) :: &
-         cull_calving_front            !> if true, remove peninsulas by first removing a layer of calving_front cells
-    integer, intent(in) :: &
-         ncull_calving_front           !> number of times to cull calving_front cells at initialization
 
     ! local variables
-
-    integer :: nx, ny                ! horizontal grid dimensions
 
     integer :: i, j, n
     integer :: count, maxcount_fill  ! loop counters
 
-    integer,  dimension(:,:), allocatable   ::  &
+    integer,  dimension(nx,ny) ::  &
          ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
          floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
@@ -1628,7 +1463,7 @@ contains
          active_ice_mask,    & ! = 1 for dynamically active cells
          color                 ! integer 'color' for identifying icebergs
 
-    real(dp),  dimension(:,:), allocatable   ::  &
+    real(dp),  dimension(nx,ny) ::  &
          thck_calving_front    ! effective ice thickness at the calving front
 
     !WHL - debug
@@ -1637,19 +1472,7 @@ contains
     nx = size(thck,1)
     ny = size(thck,2)
 
-    allocate (ice_mask(nx,ny))
-    allocate (floating_mask(nx,ny))
-    allocate (ocean_mask(nx,ny))
-    allocate (land_mask(nx,ny))
-    allocate (calving_front_mask(nx,ny))
-    allocate (thck_calving_front(nx,ny))
-    allocate (active_ice_mask(nx,ny))
-    allocate (color(nx,ny))
-
-    ! calculate masks
-    ! Note: Passing in thklim = 0.0 does not work because it erroneously counts thin floating cells as active.
-    !       Then the algorithm can fail to identify floating regions that should be removed
-    !       (since they are separated from any active cells).
+    ! Calculate masks
 
     call glissade_get_masks(nx,            ny,             &
                             thck,          topg,           &
@@ -1660,14 +1483,14 @@ contains
                             land_mask = land_mask,         &
                             active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
 
-    call glissade_calving_front_mask(nx,            ny,                 &
-                                     which_ho_calving_front,            &
-                                     thck,          topg,               &
-                                     eus,                               &
-                                     ice_mask,      floating_mask,      &
-                                     ocean_mask,    land_mask,          &
-                                     calving_front_mask,                &
-                                     thck_calving_front,                &
+    call glissade_calving_front_mask(nx,            ny,               &
+                                     which_ho_calving_front,          &
+                                     thck,          topg,             &
+                                     eus,                             &
+                                     ice_mask,      floating_mask,    &
+                                     ocean_mask,    land_mask,        &
+                                     calving_front_mask,              &
+                                     thck_calving_front,              &
                                      active_ice_mask = active_ice_mask)
 
     !WHL - debug
@@ -1684,7 +1507,7 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+       print*, 'calving_front_mask:'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -1693,7 +1516,7 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'thck_calving_front, itest, jtest, rank =', itest, jtest, rtest
+       print*, 'thck_calving_front:'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -1702,7 +1525,7 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+       print*, 'active_ice_mask:'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
@@ -1712,122 +1535,7 @@ contains
        enddo
     endif
     
-    ! Optionally, do a preliminary step where all cells currently at the calving front are removed.
-    ! Then recompute the masks.
-    ! Culling can removed long, skinny floating peninsulas that can be dynamically unstable.
-    !  Without this step, peninsulas up to two cells thick (with calving-front cells on each side)
-    !  will typically be removed as icebergs (because there is no path back to grounded ice through active cells).
-    ! With one round of culling, peninsulas up to four cells thick will be removed (two outer layers
-    !  during the preliminary step, followed by two inner layers on the remove_iceberg step).
-    ! If necessary, culling can be repeated to remove peninsulas with a thickness of 6 layers, 8 layers, etc.
-
-    !TODO - Put this logic in a separate subroutine, called at initialization only.
-
-    if (cull_calving_front) then
-
-       do n = 1, ncull_calving_front
-
-          !TODO - Remove this computation, if we always compute the CF mask above?
-          ! compute a calving front mask
-          ! Note: This computation is redundant when running with the subgrid CF scheme, in which case
-          !        we already have the correct CF mask from glissade_get_masks.
-          !       But if we are running without the subgrid CF scheme (as we typically do for inversion),
-          !        then glissade_get_masks sets calving_front_mask = 0 everywhere, which is not what we want here.
-          !       TODO: Allow calving_front_mask = 1 in glissade_get_masks without the subgrid CF scheme?
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (floating_mask(i,j) == 1) then
-                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
-                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
-                      calving_front_mask(i,j) = 1
-                   endif
-                endif
-             enddo
-          enddo
-
-          call parallel_halo(calving_front_mask)
-
-          if (main_task) then
-             call write_log ('cull_calving_front: Removing ice from calving_front cells')
-             print*, 'cull_calving_front: Removing ice from calving_front cells'
-          endif
-
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'calving_front_mask for culling, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'cull_calving_front: Before removing CF cells, n =', n
-             print*, ' '
-             print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-          do j = 1, ny
-             do i = 1, nx
-                if (calving_front_mask(i,j) == 1) then
-                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j) 
-                   thck(i,j) = 0.0d0
-                endif
-             enddo
-          enddo
-
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'cull_calving_front: After removing CF cells, n =', n
-             print*, ' '
-             print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-          ! update the masks
-          ! Note: Some floating cells that were previously active interior cells are now calving_front cells.
-          !       These will not be removed if they are adjacent to active cells with a path to grounded ice,
-          !        but will be removed if they form peninsulas one or two cells thick.
-
-          call glissade_get_masks(nx,            ny,             &
-                                  thck,          topg,           &
-                                  eus,           thklim,         &
-                                  ice_mask,                      &
-                                  floating_mask = floating_mask, &
-                                  ocean_mask = ocean_mask,       &
-                                  land_mask = land_mask,         &
-                                  active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
-
-          call glissade_calving_front_mask(nx,            ny,               &
-                                           which_ho_calving_front,          &
-                                           thck,          topg,             &
-                                           eus,                             &
-                                           ice_mask,      floating_mask,    &
-                                           ocean_mask,    land_mask,        &
-                                           calving_front_mask,              &
-                                           thck_calving_front,              &
-                                           active_ice_mask = active_ice_mask)
-
-       enddo  ! ncull_calving_front
-
-    endif  ! cull_calving_front
-
-    ! initialize iceberg removal
+    ! Initialize iceberg removal
     ! Note: Any cell with ice, active or inactive, receives the initial color.
     !       Inactive cells can later receive the fill color (if adjacent to active cells)
     !        but cannot further spread the fill color.
@@ -1960,16 +1668,6 @@ contains
        enddo
     enddo
 
-    ! cleanup
-    deallocate (ice_mask)
-    deallocate (floating_mask)
-    deallocate (ocean_mask)
-    deallocate (land_mask)
-    deallocate (calving_front_mask)
-    deallocate (thck_calving_front)
-    deallocate (active_ice_mask)
-    deallocate (color)
-
     if (verbose_calving .and. this_rank == rtest) then
        print*, ' '
        print*, 'Done in glissade_remove_icebergs'
@@ -1985,6 +1683,160 @@ contains
     endif
 
   end subroutine glissade_remove_icebergs
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_limit_cliffs(&
+       nx,             ny,              &
+       itest,  jtest,  rtest,           &
+       dt,                              &
+       which_ho_calving_front,          &
+       taumax_cliff,   cliff_timescale, &
+       thck,           topg,         &
+       eus,            thklim,       &
+       calving_thck)
+
+    ! Impose a thickness limit on marine ice cliffs.
+    ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
+    ! Ice removed from cliffs is added to the calving flux.
+
+    use glissade_masks
+
+    integer, intent(in)  :: nx, ny                      !> horizontal grid dimensions
+    integer, intent(in)  :: itest, jtest, rtest         !> coordinates of diagnostic point
+    real(dp), intent(in) :: dt                          !> model timestep (s)
+
+    integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
+    real(dp), intent(in)    :: taumax_cliff             !> yield stress (Pa) for marine-based ice cliffs
+    real(dp), intent(in)    :: cliff_timescale          !> timescale (s) for limiting marine cliff thickness
+    real(dp), dimension(nx,ny), intent(inout) :: thck   !> ice thickness (m)
+    real(dp), dimension(nx,ny), intent(in)    :: topg   !> present bedrock topography (m)
+    real(dp), intent(in)    :: eus                      !> eustatic sea level (m)
+    real(dp), intent(in)    :: thklim                   !> minimum thickness for dynamically active grounded ice (m)
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         calving_thck             !> thickness (m) lost due to calving; on output, includes ice calved at marine cliffs
+
+    ! local variables
+
+    integer :: i, j
+
+    integer, dimension(nx,ny) ::  &
+         ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
+         land_mask,          & ! = 1 where topg is at or above sea level, else = 0
+         calving_front_mask, & ! = 1 where ice is floating and borders the ocean, else = 0
+         active_ice_mask,    & ! = 1 for dynamically active cells
+         marine_cliff_mask     ! = 1 where ice is grounded and marine-based and borders at least one
+                               !     ocean or inactive calving_front cell, else = 0
+
+    real(dp), dimension(nx,ny) ::  &
+         thck_calving_front    ! effective ice thickness at the calving front
+
+    real(dp) :: &
+         thinning_rate,        & ! vertical thinning rate (m/s)
+         dthck,                & ! thickness change (m)
+         thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
+         factor
+
+    ! Update masks, including the marine_cliff mask.
+    ! Note: We do not use calving_front_mask or thck_calving_front directly.
+    !       But to identify marine cliffs, we use active_ice_mask, which depends on whether there is a subgrid calving front.
+
+    call glissade_get_masks(nx,            ny,             &
+                            thck,          topg,           &
+                            eus,           thklim,         &
+                            ice_mask,                      &
+                            floating_mask = floating_mask, &
+                            ocean_mask = ocean_mask,       &
+                            land_mask = land_mask)
+
+    call glissade_calving_front_mask(nx,            ny,           &
+                                     which_ho_calving_front,      &
+                                     thck,          topg,               &
+                                     eus,                               &
+                                     ice_mask,      floating_mask,      &
+                                     ocean_mask,    land_mask,          &
+                                     calving_front_mask,                &
+                                     thck_calving_front,                &
+                                     active_ice_mask = active_ice_mask)
+
+    call glissade_marine_cliff_mask(nx,            ny,                &
+                                    ice_mask,      floating_mask,     &
+                                    land_mask,     active_ice_mask,   &
+                                    marine_cliff_mask)
+
+    if (verbose_calving .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'In glissade_limit_cliffs'
+       print*, ' '
+       print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thckmax_cliff, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
+             thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m
+             write(6,'(f10.3)',advance='no') thckmax_cliff
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+    endif
+
+    do j = 2, ny-1
+       do i = 1, nx-1
+          if (marine_cliff_mask(i,j) == 1) then
+
+             ! Compute the max stable ice thickness in the cliff cell.
+             ! This is eq. 2.10 in Bassis & Walker (2012)
+             factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
+             thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m
+
+             !WHL - debug
+             if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                print*, ' '
+                print*, 'Cliff thinning: r, i, j =', rtest, itest, jtest
+                print*, 'thck, thckmax_cliff (m) =', thck(i,j), thckmax_cliff
+             endif
+
+             ! If thicker than the max stable thickness, then remove some ice and add it to the calving field
+             ! Note: By default, cliff_timescale = 0, which means thck is reset to thckmax_cliff each timestep.
+             !       Might want to try other values when looking at marine ice cliff instability.
+             if (thck(i,j) > thckmax_cliff) then
+
+                if (cliff_timescale > 0.0d0) then
+                   thinning_rate = (thck(i,j) - thckmax_cliff) / cliff_timescale
+                   dthck = min(thck(i,j) - thckmax_cliff, thinning_rate*dt)
+                else
+                   dthck = thck(i,j) - thckmax_cliff
+                endif
+
+                !WHL - debug
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   print*, 'thinning rate (m/yr) =', thinning_rate * scyr
+                   print*, 'dthck (m) =', dthck
+                endif
+
+                thck(i,j) = thck(i,j) - dthck
+                calving_thck(i,j) = calving_thck(i,j) + dthck
+
+             endif  ! thck > thckmax_cliff
+
+          endif  ! marine_cliff cell
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_limit_cliffs
 
 !---------------------------------------------------------------------------
 
