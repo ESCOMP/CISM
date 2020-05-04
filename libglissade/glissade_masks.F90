@@ -584,12 +584,18 @@
 
     ! local variables
 
-    integer :: i, j, n
-    integer :: count, maxcount_fill  ! loop counters
-    real(dp) :: sum_fill_local, sum_fill_global
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
 
     integer, dimension(nx,ny) ::  &
          color                  !> color variable for the fill
+
+    logical, parameter :: verbose_ice_sheet_mask = .false.
 
     ! initialize
     ! Note: Ice-covered cells receive the initial color, and ice-free cells receive the boundary color.
@@ -609,11 +615,12 @@
     ! Fill these cells and then recursively fill ice-covered neighbors.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
-    maxcount_fill = max(ewtasks,nstasks)
+    max_iter = max(ewtasks,nstasks)
+    global_count_save = 0
 
-    do count = 1, maxcount_fill
+    do iter = 1, max_iter
 
-       if (count == 1) then   ! identify ice sheet cells that can seed the fill
+       if (iter == 1) then   ! identify ice sheet cells that can seed the fill
 
           do j = 1, ny
              do i = 1, nx
@@ -626,7 +633,7 @@
              enddo
           enddo
 
-       else  ! count > 1
+       else  ! iter > 1
 
           ! Check for halo cells that were just filled on neighbor processors
           ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
@@ -673,19 +680,30 @@
              endif
           enddo
 
-       endif  ! count = 1
+       endif  ! iter = 1
 
-       sum_fill_local = 0
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
-             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+             if (color(i,j) == fill_color) local_count = local_count + 1
           enddo
        enddo
 
-       !WHL - If running a large problem, may want to reduce the frequency of this global sum
-       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+       global_count = parallel_reduce_sum(local_count)
 
-    enddo  ! count
+       if (global_count == global_count_save) then
+          if (verbose_ice_sheet_mask .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_ice_sheet_mask .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
+       endif
+
+    enddo  ! max_iter
 
     ! Any cells with the fill color are considered to be part of the land-based ice sheet.
     ! Any cells with the initial color are deemed to be ice caps.
@@ -711,71 +729,95 @@
 
   subroutine glissade_marine_connection_mask(nx,           ny,             &
                                              itest, jtest, rtest,          &
-                                             ocean_mask,                   &
-                                             land_mask,                    &
-                                             marine_connection_mask,       &
-                                             topg,                         &
-                                             ocean_topg_threshold)
+                                             thck,          topg,          &
+                                             eus,           thklim,        &
+                                             marine_connection_mask)
 
   ! Identify cells that have a marine path to the ocean.
   ! The path can include grounded marine-based ice.
-  ! TODO - Pass in ice_mask, topg, and eus instead of ocean_mask and land_mask?
-  !        Then compute ocean_mask as cells with topg - eus < ocean_topg_threshold and ice_mask = 0.
-  !        Compute marine_mask as cells with topg - eus < 0.
+  ! The ocean is identified as ice-free cells with bed elevation below sea level,
+  !  or optionally with bed elevation below some threshold value.
+
+    ! subroutine arguments
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
-    ! Note: Each input mask needs to be correct in halo cells
-    integer, dimension(nx,ny), intent(in) ::  &
-         ocean_mask,             & !> = 1 where topg - eus is below sea level and ice is absent, else = 0
-         land_mask                 !> = 1 for topg - eus is at or above sea level
+    ! Note: Input thck and topg need to be correct in halo cells
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck,                   & !> ice thickness (m)
+         topg                      !> elevation of topography (m)
+
+    real(dp), intent(in) :: &
+         eus,                    & !> eustatic sea level (m), = 0. by default
+         thklim                    !> minimum ice thickness for active cells (m)
 
     integer, dimension(nx,ny), intent(out) ::  &
-         marine_connection_mask    !> = 1 for ocean cells, and cells connected to the ocean through marine-based ice
-
-    real(dp), dimension(nx,ny), intent(in), optional ::  &
-         topg                      !> bed topography
-
-    real(dp), intent(in), optional ::  &
-         ocean_topg_threshold      !> ocean cells with topg > ocean_topg_threshold (i.e., shallow ocean) cannot seed the fill
+         marine_connection_mask    !> = 1 for ocean cells and cells connected to the ocean through marine-based ice
 
     ! local variables
 
     integer, dimension(nx,ny) ::  &
-         ocean_mask_seed,         &  ! = 1 where ocean_mask = 1 and topg < ocean_topg_threshold, else = 0
-         color,                   &  ! integer 'color' mask to mark filled cells
-         marine_mask                 ! marine-based cells; complement of land_mask
+         ocean_mask,          &  !> = 1 where topg - eus is below sea level and ice is absent, else = 0
+         ocean_mask_temp,     &  !> temporary version of ocean_mask
+         marine_mask,         &  !> marine-based cells; topg - eus < 0
+         color                   ! integer 'color' mask to mark filled cells
 
-    integer :: i, j
-    integer :: count, maxcount_fill  ! loop counters
+    integer :: i, j, iter
 
-    logical, parameter :: verbose_marine_connection = .false.
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
 
-    real(dp) :: sum_fill_local, sum_fill_global
+    !Note: could make this a config parameter if different values are desired for different grids
+    real(dp), parameter :: &
+         ocean_topg_threshold = -500.d0   !> ocean threshold elevation (m) to seed the fill; negative below sea level
 
-    ! If topg and ocean_topg_threshold were passed in, then only cells with topg < min_ocean_mask can seed the fill.
-    ! Otherwise, use the input ocean_mask to seed the fill.
+    logical, parameter :: verbose_marine_connection = .true.
 
-    ocean_mask_seed = ocean_mask
+    ! Compute ocean_mask, which is used to seed the fill.
+    ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
+    !  with topg - eus < ocean_topg_threshold.
 
-    if (present(topg) .and. present(ocean_topg_threshold)) then
-       where (topg > ocean_topg_threshold)
-          ocean_mask_seed = 0
-       endwhere
-    endif
+    where (thck <= thklim .and. topg - eus < ocean_topg_threshold)
+       ocean_mask = 1
+    elsewhere
+       ocean_mask = 0
+    endwhere
+
+    ! Occasionally, e.g. in Greenland fjords, a cell could be marked as ice-free ocean even though it is landlocked.
+    ! To make this less likely, set ocean_mask = 0 for any cells with non-ocean neighbors.
+    ! This logic could be iterated if needed.
+
+    ocean_mask_temp = ocean_mask
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ocean_mask_temp(i-1,j) == 0 .or. ocean_mask_temp(i+1,j) == 0 .or.  &
+              ocean_mask_temp(i,j-1) == 0 .or. ocean_mask_temp(i,j+1) == 0) then
+             ocean_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(ocean_mask)
 
     ! initialize
-    ! Compute a marine mask; = 1 for all cells that are not land-based.
+    ! Compute a marine mask; = 1 for all cells with topg - eus < 0.
     ! Marine-based cells receive the initial color; land cells receive the boundary color.
+    ! Seed the fill with ocean cells.
 
-    where (land_mask == 1)
-       marine_mask = 0
-       color = boundary_color
-    elsewhere
+    where (ocean_mask == 1)
+       marine_mask = 1
+       color = fill_color
+    elsewhere (topg - eus < 0.0d0)  ! marine-based cells
        marine_mask = 1
        color = initial_color
+    elsewhere   ! land cells
+       marine_mask = 0
+       color = boundary_color
     endwhere
 
     if (verbose_marine_connection .and. this_rank == rtest) then
@@ -795,21 +837,20 @@
     ! Loop through cells, identifying marine-based cells that border the ocean.
     ! Fill each such cell, and then recursively fill marine-based neighbor cells.
     ! We may have to do this several times to incorporate connections between neighboring processors.
-    ! The result is a mask that identifies (with the fill color) all marine-based cells connected to the ocean.
+    ! The result is a mask that all marine-based cells connected to the ocean are filled.
 
-    maxcount_fill = max(ewtasks,nstasks)
+    max_iter = max(ewtasks,nstasks)
+    global_count_save = 0
 
-    if (verbose_marine_connection .and. main_task) print*, 'maxcount_fill =', maxcount_fill
+    do iter = 1, max_iter
 
-    do count = 1, maxcount_fill
-
-       if (count == 1) then   ! identify marine-based cells adjacent to ocean cells, which can seed the fill
+       if (iter == 1) then   ! identify marine-based cells adjacent to ocean cells, which can seed the fill
 
           do j = 2, ny-1
              do i = 2, nx-1
                 if (marine_mask(i,j) == 1) then
-                   if (ocean_mask_seed(i-1,j) == 1 .or. ocean_mask_seed(i+1,j) == 1 .or.   &
-                       ocean_mask_seed(i,j-1) == 1 .or. ocean_mask_seed(i,j+1) == 1) then
+                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or.   &
+                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
 
                       if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
 
@@ -823,7 +864,7 @@
              enddo  ! i
           enddo  ! j
 
-       else  ! count > 1
+       else  ! iter > 1
 
           ! Check for halo cells that were just filled on neighbor processors
           ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
@@ -871,28 +912,34 @@
              endif
           enddo
 
-       endif  ! count = 1
+       endif  ! iter = 1
 
-       sum_fill_local = 0
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
-             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+             if (color(i,j) == fill_color) local_count = local_count + 1
           enddo
        enddo
 
-       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+       global_count = parallel_reduce_sum(local_count)
 
-       if (verbose_marine_connection .and. main_task) then
-          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+       if (global_count == global_count_save) then
+          if (verbose_marine_connection .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_marine_connection .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
        endif
 
-       !TODO - Exit when sum_fill_global is no longer increasing
-
-    enddo  ! count
+    enddo  ! max_iter
 
     call parallel_halo(color)
 
-    ! Identify marine-based cells connected to the ocean.  This includes:
+    ! Set the marine connection mask.  This includes:
     ! (1) cells that are already ocean
     ! (2) cells with the fill color, meaning they are marine-based cells connected to the ocean
 
@@ -900,7 +947,7 @@
 
     do j = 1, ny
        do i = 1, nx
-          if (ocean_mask_seed(i,j) == 1 .or. color(i,j) == fill_color) then
+          if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
              marine_connection_mask(i,j) = 1
           endif
        enddo
@@ -940,6 +987,9 @@
                                 lake_mask,                    &
                                 ocean_connection_mask)
 
+  ! TODO - Rewrite this subroutine with marine_connection_mask as an input.
+  !        Lake cells are floating cells without a marine connection.
+
   ! Identify interior lake cells: cells that are floating but are not connected
   !  to the ocean along a path through other floating cells.
   ! Optionally, identify cells with an ocean connection: either ice-free ocean,
@@ -970,13 +1020,16 @@
          color,                  & ! integer 'color' mask to mark filled cells
          border_mask               ! = 1 for grounded marine ice adjacent to ocean-connected cells
 
-    integer :: i, j
-    integer :: count, maxcount_fill  ! loop counters
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
 
     logical, parameter :: verbose_lake = .false.
 
-    !WHL - debug
-    real(dp) :: sum_fill_local, sum_fill_global
     integer :: ig, jg
 
     if (verbose_lake .and. this_rank == rtest) then
@@ -1012,13 +1065,12 @@
     ! We may have to do this several times to incorporate connections between neighboring processors.
     ! The result is a mask that identifies (with the fill color) all floating cells connected to the ocean.
 
-    maxcount_fill = max(ewtasks,nstasks)
+    max_iter = max(ewtasks,nstasks)
+    global_count_save = 0
 
-    if (verbose_lake .and. main_task) print*, 'maxcount_fill =', maxcount_fill
+    do iter = 1, max_iter
 
-    do count = 1, maxcount_fill
-
-       if (count == 1) then   ! identify floating cells adjacent to ocean cells, which can seed the fill
+       if (iter == 1) then   ! identify floating cells adjacent to ocean cells, which can seed the fill
 
           do j = 2, ny-1
              do i = 2, nx-1
@@ -1086,23 +1138,30 @@
              endif
           enddo
 
-       endif  ! count = 1
+       endif  ! iter = 1
 
-       sum_fill_local = 0
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
-             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+             if (color(i,j) == fill_color) local_count = local_count + 1
           enddo
        enddo
 
-       !WHL - If running a large problem, may want to reduce the frequency of this global sum
-       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+       global_count = parallel_reduce_sum(local_count)
 
-       if (verbose_lake .and. main_task) then
-!!          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+       if (global_count == global_count_save) then
+          if (verbose_lake .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_lake .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
        endif
 
-    enddo  ! count
+    enddo  ! max_iter
 
     call parallel_halo(color)
 

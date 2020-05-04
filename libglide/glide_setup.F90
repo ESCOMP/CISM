@@ -3270,7 +3270,6 @@ contains
 
        if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
           call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
-          call glide_add_to_restart_variable_list('bmlt_float_inversion_mask')
           call glide_add_to_restart_variable_list('thck_inversion_save')
        endif
 

@@ -94,7 +94,7 @@ contains
     use glissade_therm, only: glissade_init_therm
     use glissade_transport, only: glissade_overwrite_acab_mask, glissade_add_2d_anomaly
     use glissade_basal_water, only: glissade_basal_water_init
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
     use glide_mask
     use isostasy
@@ -111,7 +111,6 @@ contains
     use glissade_utils, only: &
          glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
     use felix_dycore_interface, only: felix_velo_init
-
     !WHL - debug
     use mpi_mod
 
@@ -466,6 +465,7 @@ contains
     allocate(ice_mask(model%general%ewn, model%general%nsn))
     allocate(floating_mask(model%general%ewn, model%general%nsn))
     allocate(land_mask(model%general%ewn, model%general%nsn))
+    allocate(ocean_mask(model%general%ewn, model%general%nsn))
 
     ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
@@ -843,6 +843,22 @@ contains
        endwhere
     endif
 
+    ! Compute a mask to identify cells with a marine path to ice-free ocean.
+    ! Currently used for some basal melting options, to identify cells where bmlt_float can be nonzero.
+    ! Note: This mask needs to be recomputed at runtime if topg or eus changes.
+    !       It is currently updated at the end of glissade_isostasy_solve.
+    !       Although thck is passed in, it is used only to identify ocean cells that can seed the fill.
+    !       The mask should not depend on ice thickness, unless there are land-locked regions with
+    !        deep topography that are alternately ice-covered and ice-free.
+
+    call glissade_marine_connection_mask(&
+         model%general%ewn,          model%general%nsn,          &
+         model%numerics%idiag_local, model%numerics%jdiag_local, &
+         model%numerics%rdiag_local,                             &
+         model%geometry%thck * thk0, model%geometry%topg * thk0, &
+         model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+         model%geometry%marine_connection_mask)
+
     ! TODO: Move calving-related initialization to a separate subroutine.
 
     ! initial calving, if desired
@@ -936,6 +952,7 @@ contains
             itest,   jtest,    rtest,                                &
             model%geometry%thck*thk0,  model%geometry%topg*thk0,     &
             model%climate%eus*thk0,    model%numerics%thklim*thk0,   &
+            model%geometry%marine_connection_mask,                   &
             model%calving%minthck,                                   &
             model%calving%thck_calving_threshold)
 
@@ -1008,6 +1025,12 @@ contains
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
     endif
+
+    ! clean up
+    deallocate(ice_mask)
+    deallocate(floating_mask)
+    deallocate(land_mask)
+    deallocate(ocean_mask)
 
     if (main_task) print*, 'Done in glissade_initialise'
 
@@ -1373,18 +1396,18 @@ contains
 
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
-            model%options%ocean_data_domain,   &
-            ewn,                nsn,           &
-            dew*len0,           dns*len0,      &  ! m
-            itest,     jtest,   rtest,         &
-            ice_mask,                          &
-            ocean_mask,                        &
-            land_mask,                         &
-            model%geometry%f_ground_cell,      &
-            model%geometry%thck*thk0,          & ! m
-            model%geometry%lsrf*thk0,          & ! m
-            model%geometry%topg*thk0,          & ! m
-            model%ocean_data,                  &
+            model%options%ocean_data_domain,       &
+            ewn,                nsn,               &
+            dew*len0,           dns*len0,          &  ! m
+            itest,     jtest,   rtest,             &
+            ice_mask,                              &
+            ocean_mask,                            &
+            model%geometry%marine_connection_mask, &
+            model%geometry%f_ground_cell,          &
+            model%geometry%thck*thk0,              & ! m
+            model%geometry%lsrf*thk0,              & ! m
+            model%geometry%topg*thk0,              & ! m
+            model%ocean_data,                      &
             model%basal_melt%bmlt_float)
 
        ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
@@ -3071,6 +3094,8 @@ contains
 
     use parallel
     use isostasy
+    use glimmer_paramets, only: thk0
+    use glissade_masks, only: glissade_marine_connection_mask
 
     implicit none
 
@@ -3131,6 +3156,16 @@ contains
        else  ! other global BCs, including periodic
           call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
        endif
+
+       ! update the marine connection mask, which depends on topg
+
+       call glissade_marine_connection_mask(&
+            model%general%ewn,          model%general%nsn,          &
+            model%numerics%idiag_local, model%numerics%jdiag_local, &
+            model%numerics%rdiag_local,                             &
+            model%geometry%thck * thk0, model%geometry%topg * thk0, &
+            model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+            model%geometry%marine_connection_mask)
 
     end if
 
@@ -3299,22 +3334,22 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-       call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
-                               model%geometry%thck, model%geometry%topg,   &
-                               model%climate%eus,   model%numerics%thklim, &
-                               ice_mask,                                   &
-                               floating_mask = floating_mask,              &
-                               ocean_mask = ocean_mask,                    &
-                               land_mask = land_mask)
+    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   model%numerics%thklim, &
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask,                    &
+                            land_mask = land_mask)
 
-       call glissade_calving_front_mask(model%general%ewn,   model%general%nsn,     &
-                                        model%options%which_ho_calving_front,       &
-                                        model%geometry%thck, model%geometry%topg,   &
-                                        model%climate%eus,                          &
-                                        ice_mask,            floating_mask,         &
-                                        ocean_mask,          land_mask,             &
-                                        calving_front_mask,  thck_calving_front,    &
-                                        marine_interior_mask = marine_interior_mask)
+    call glissade_calving_front_mask(model%general%ewn,   model%general%nsn,     &
+                                     model%options%which_ho_calving_front,       &
+                                     model%geometry%thck, model%geometry%topg,   &
+                                     model%climate%eus,                          &
+                                     ice_mask,            floating_mask,         &
+                                     ocean_mask,          land_mask,             &
+                                     calving_front_mask,  thck_calving_front,    &
+                                     marine_interior_mask = marine_interior_mask)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.
@@ -4226,7 +4261,6 @@ contains
 
     ! save old floating mask for diagnostics
     floating_mask_old = model%geometry%floating_mask
-
 
     ! set integer masks in the geometry derived type
 

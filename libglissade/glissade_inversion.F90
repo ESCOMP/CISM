@@ -64,7 +64,6 @@ contains
     ! Should be called after usrf and thck have been input and (possibly) modified by initial calving
 
     use glissade_masks, only: glissade_get_masks
-    use glissade_masks, only: glissade_marine_connection_mask
     use glissade_bmlt_float, only: basin_sum
     use glissade_grounding_line, only: glissade_grounded_fraction
 
@@ -85,8 +84,7 @@ contains
          ice_mask,             & ! = 1 where ice is present, else = 0
          floating_mask,        & ! = 1 where ice is present and floating, else = 0
          ocean_mask,           & ! = 1 where topg is below sea level and ice is absent
-         land_mask,            & ! = 1 where topg is at or above sea level
-         marine_connection_mask  ! = 1 for cells with a marine connection to the ocean
+         land_mask               ! = 1 where topg is at or above sea level
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
@@ -215,14 +213,11 @@ contains
 
        if (model%options%is_restart == RESTART_FALSE) then
 
-          ! At the start of the run, compute a mask that determines where bmlt_float_inversion can be applied.
-          ! This mask includes only cells with a path to the ocean through marine-based cells.
-
-          !TODO - Would need to call this subroutine repeatedly if topography is changing at runtime.
-          call glissade_marine_connection_mask(ewn,          nsn,            &
-                                               itest, jtest, rtest,          &
-                                               ocean_mask,   land_mask,      &
-                                               model%inversion%bmlt_float_inversion_mask)
+          ! Note: Previously, marine_connection_mask was computed here at model startup.
+          !        It was then written to and loaded from the restart file.
+          !       Now, marine_connection_mask is always computed in glissade_initialise,
+          !        so it is not needed in the restart file..
+          !       We might need to recompute marine_connnection_mask at runtime if topg or eus is changing.
 
        endif  ! not a restart
 
@@ -230,7 +225,7 @@ contains
        ! If restarting, it should have been read in already.
        ! If not restarting, it will have been set to zero, which is an appropriate initial value.
 
-       call parallel_halo(model%inversion%bmlt_float_inversion_mask)
+       call parallel_halo(model%geometry%marine_connection_mask)
        call parallel_halo(model%inversion%bmlt_float_save)
 
     endif   ! which_ho_bmlt_inversion
@@ -272,15 +267,6 @@ contains
 
        if (model%options%is_restart == RESTART_FALSE) then
 
-          ! Compute a mask that determines where thermal forcing can be applied.
-          ! This mask includes only cells with a path to the ocean through marine-based cells.
-          ! Cells without such a connection are not given a thickness target.
-
-          call glissade_marine_connection_mask(ewn,          nsn,            &
-                                               itest, jtest, rtest,          &
-                                               ocean_mask,   land_mask,      &
-                                               marine_connection_mask)
-
           ! Set floating_thck_target to the thickness of lightly floating and lightly grounded ice.
           ! Here, "lightly" means that the absolute value of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
           !  is less than a prescribed threshold.
@@ -293,8 +279,11 @@ contains
              do i = 1, ewn
                 f_flotation = (-(model%geometry%topg(i,j) - model%climate%eus)  &
                               - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0    ! f_flotation < 0 for grounded ice
-                if (model%geometry%thck(i,j) > 0.0d0 .and. marine_connection_mask(i,j) == 1 .and. &
-                     abs(f_flotation) < model%inversion%bmlt_basin_flotation_threshold) then
+
+
+                if (model%geometry%thck(i,j) > 0.0d0 .and. &
+                    model%geometry%marine_connection_mask(i,j) == 1 .and. &
+                    abs(f_flotation) < model%inversion%bmlt_basin_flotation_threshold) then
                    model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
                 else
                    model%inversion%floating_thck_target(i,j) = 0.0d0
@@ -566,7 +555,7 @@ contains
                                  model%climate%eus*thk0,                        &    ! m
                                  ice_mask,                                      &
                                  dthck_dt_inversion,                            &    ! m/s
-                                 model%inversion%bmlt_float_inversion_mask,     &
+                                 model%geometry%marine_connection_mask,         &
                                  model%inversion%thck_flotation_buffer*thk0,    &    ! m
                                  model%inversion%bmlt_timescale/nudging_factor, &    ! s
                                  model%inversion%bmlt_float_save,               &    ! m/s
@@ -762,7 +751,7 @@ contains
                                eus,                          &
                                ice_mask,                     &
                                dthck_dt,                     &
-                               bmlt_float_inversion_mask,    &
+                               marine_connection_mask,       &
                                thck_flotation_buffer,        &
                                bmlt_timescale,               &
                                bmlt_float_save,              &
@@ -794,9 +783,9 @@ contains
 
    ! Note: When this subroutine is called, ice_mask = 1 where thck > 0, not thck > thklim.
     integer, dimension(nx,ny), intent(in) ::  &
-         bmlt_float_inversion_mask, & ! = 1 for cells where bmlt_float is potentially computed and applied, else = 0;
-                                      ! computed at startup based on bed topography; must have a marine connection to ocean
-         ice_mask                     ! = 1 where ice is present, else = 0
+         marine_connection_mask, & ! = 1 for cells where bmlt_float is potentially computed and applied, else = 0;
+                                   ! computed at startup based on bed topography; must have a marine connection to ocean
+         ice_mask                  ! = 1 where ice is present, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          dthck_dt                ! rate of change of ice thickness (m/s) in previous timestep
@@ -854,11 +843,11 @@ contains
     dbmlt_float(:,:) = 0.0d0
     bmlt_float_new(:,:) = 0.0d0
 
-    ! Note: bmlt_float_inversion_mask is based on the initial geometry.
+    ! Note: marine_connection_mask is based on the initial geometry.
     !       Where this mask = 0, we never invert for bmlt_float.
     !       Where this mask = 1, we invert for bmlt_float in cells that satisfy the floating criterion.
 
-    bmlt_float_mask = bmlt_float_inversion_mask
+    bmlt_float_mask = marine_connection_mask
 
     ! Eliminate ice-free cells and fully grounded cells (based on bmlt_weight)
     where (ice_mask == 0 .or. bmlt_weight < tiny(0.0d0))

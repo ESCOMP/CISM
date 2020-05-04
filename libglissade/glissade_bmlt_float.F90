@@ -824,8 +824,7 @@ module glissade_bmlt_float
                model%geometry%thck, model%geometry%topg,   &
                model%climate%eus,   0.0d0,                 &  ! thklim = 0
                ice_mask,                                   &
-               ocean_mask = ocean_mask,                    &
-               land_mask = land_mask)
+               ocean_mask = ocean_mask)
 
           ! Compute basal melt rates, given the thermal forcing.
 
@@ -837,7 +836,7 @@ module glissade_bmlt_float
                itest,     jtest,   rtest,                &
                ice_mask,                                 &
                ocean_mask,                               &
-               land_mask,                                &
+               model%geometry%marine_connection_mask,    &
                model%geometry%f_ground_cell,             &
                model%geometry%thck*thk0,                 & ! m
                model%geometry%lsrf*thk0,                 & ! m
@@ -889,7 +888,7 @@ module glissade_bmlt_float
        itest,     jtest,   rtest, &
        ice_mask,                  &
        ocean_mask,                &
-       land_mask,                 &
+       marine_connection_mask,    &
        f_ground_cell,             &
        thck,                      &
        lsrf,                      &
@@ -899,7 +898,6 @@ module glissade_bmlt_float
 
     use glimmer_paramets, only: thk0, unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
-    use glissade_masks, only: glissade_marine_connection_mask
 
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
     !  and the current lower ice surface, using either a local or nonlocal melt parameterization.
@@ -919,7 +917,7 @@ module glissade_bmlt_float
 
     integer, dimension(nx,ny), intent(in) :: &
          ice_mask,               & !> = 1 where ice is present (H > 0) else = 0
-         land_mask                 !> = 1 where topg >= 0, else = 0
+         marine_connection_mask    !> = 1 for cells with a marine connection to the ocean, else = 0
 
     integer, dimension(nx,ny), intent(inout) :: &
          ocean_mask                !> = 1 for ice-free ocean, else = 0;
@@ -957,7 +955,6 @@ module glissade_bmlt_float
     !       * thermal_forcing_mask = 1 where ice is present (thck > 0) and f_ground_cell < 1, with lakes excluded
 
     integer, dimension(nx,ny) ::  &
-         marine_connection_mask,        & ! = 1 for cells with a marine connection to the ocean, else = 0
          thermal_forcing_mask,          & ! = 1 where thermal forcing and bmlt_float can be nonzero, else = 0
          new_mask                         ! temporary mask
 
@@ -987,23 +984,28 @@ module glissade_bmlt_float
     ! Make sure thermal_forcing is up to date in halo cells.
     call parallel_halo(ocean_data%thermal_forcing)
 
-    if (ocean_data_domain == DATA_OCEAN_ONLY) then
+    !WHL - Commented out the code below because this subroutine no longer uses ocean_mask to compute marine_connection_mask.
+    !      If CISM mis-identifies landlocked fjord cells as marine-connected, when there is no
+    !       marine-connected path to these cells from cells with valid data, the code will fail.
+    !      One possible fix is to increase the magnitude of ocean_topg_threshold in glissade_masks;
+    !       another is to prevent cells with non-ocean neighbors (or neighbors of neighbors) from seeding the fill.
+
+!    if (ocean_data_domain == DATA_OCEAN_ONLY) then
        ! When coupling to POP or another ocean model, TF is received at each coupling interval,
        !  with unphys_val assigned to CISM cells that are outside the POP domain.
        ! Some CISM cells (e.g., in fjords) may be identified as ocean (ocean_mask = 1),
        !  but not have valid TF data.  We do not want to count these cells as ocean cells
        !  when computing marine_connection_mask, because then cells can be identified as
        !  marine-connected without having a path to valid data.
-       ! Assume that if level k = 1 has valid data, there is valid data through the ocean column.
-       if (main_task .and. verbose_bmlt_float) print*, 'Set ocean_mask = 0 where valid data is missing'
-       do j = 1, ny
-          do i = 1, nx
-             if (ocean_data%thermal_forcing(1,i,j) == unphys_val) then
-                ocean_mask(i,j) = 0
-             endif
-          enddo
-       enddo
-    endif
+       ! Assume that if level k = 1 has valid data, there is valid data through the column.
+!       do j = 1, ny
+!          do i = 1, nx
+!             if (ocean_data%thermal_forcing(1,i,j) == unphys_val) then
+!                ocean_mask(i,j) = 0
+!             endif
+!          enddo
+!       enddo
+!    endif
 
     if (ocean_data_domain == DATA_CISM_OCEAN_MASK) then
        ! Set the thermal forcing to have unphysical values in cells where ocean_mask = 0.
@@ -1020,21 +1022,9 @@ module glissade_bmlt_float
 
     ! Set thermal_forcing_mask
     ! This mask identifies cells where we could have basal melting and need valid TF data.
-    where (ice_mask == 1 .and. f_ground_cell < 1.0d0)
+    where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
        thermal_forcing_mask = 1
     elsewhere
-       thermal_forcing_mask = 0
-    endwhere
-
-    ! Compute a mask of cells with a path to the ocean through marine-based cells.
-    ! This mask excludes isolated interior lakes where thermal forcing is not applied.
-    call glissade_marine_connection_mask(nx,           ny,             &
-                                         itest, jtest, rtest,          &
-                                         ocean_mask,   land_mask,      &
-                                         marine_connection_mask)
-
-    ! Modify thermal_forcing_mask to exclude cells without a marine connection.
-    where (marine_connection_mask == 0)
        thermal_forcing_mask = 0
     endwhere
 
