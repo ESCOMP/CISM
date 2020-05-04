@@ -203,6 +203,7 @@ contains
        itest,   jtest,   rtest,   &
        thck,    topg,             &
        eus,     thklim,           &
+       marine_connection_mask,    &
        calving_minthck,           &
        thck_calving_threshold)
 
@@ -214,8 +215,7 @@ contains
     ! (2) Set thck_calving_threshold to thck_calving_front, as computed from the input ice thickness.
     ! Note: This subroutine uses SI units.
 
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask, &
-         glissade_marine_connection_mask
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_grid_operators, only: glissade_scalar_extrapolate
 
     !---------------------------------------------------------------------
@@ -228,6 +228,7 @@ contains
     real(dp), dimension(nx,ny), intent(in) :: topg             !> present bedrock topography (m)
     real(dp), intent(in)                   :: eus              !> eustatic sea level (m)
     real(dp), intent(in)                   :: thklim           !> minimum thickness for dynamically active grounded ice (m)
+    integer,  dimension(nx,ny), intent(in) :: marine_connection_mask  !> = 1 for cells with a marine connection to the ocean
 
     ! Note: calving_minthck = 0 by default.
     !       If calving_minthck > 0 is specified in the config file, then we set thck_calving_threshold = calving_minthck.
@@ -246,8 +247,7 @@ contains
          floating_mask,             & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,                & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,                 & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask,        & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-         marine_connection_mask       ! = 1 for ocean cells, and cells connected to the ocean through marine-based ice
+         calving_front_mask           ! = 1 where ice is floating and borders at least one ocean cell, else = 0
 
     real(dp), dimension(nx,ny) :: &
          thck_calving_front,             & ! effective ice thickness at the calving front
@@ -257,8 +257,6 @@ contains
 
     !TODO - Make the calving thresholds config parameters?
     real(dp), parameter :: &
-         ocean_topg_threshold = -2000.d0, &! topg threshold value for marine_connection_mask;
-                                           ! must be connected to ice-free cells with topg < ocean_topg_threshold
          calving_threshold_min = 100.d0,  &! min allowed value (m) of thck_calving_threshold
          calving_threshold_max = 500.d0    ! max allowed value (m) of thck_calving_threshold
 
@@ -373,18 +371,6 @@ contains
           thck_calving_front = min(thck_calving_front, calving_threshold_max)
        endwhere
 
-       ! Identify cells with a marine connection to the ocean.
-       ! These are cells where thck_calving_threshold will be computed.
-       ! TODO - Change the input arguments; pass in ice_mask, topg, eus, and ocean_topg_threshold.
-
-       call glissade_marine_connection_mask(nx,           ny,             &
-                                            itest, jtest, rtest,          &
-                                            ocean_mask,                   &
-                                            land_mask,                    &
-                                            marine_connection_mask,       &
-                                            topg = topg,                  &
-                                            ocean_topg_threshold = ocean_topg_threshold)
-
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
           print*, 'After corrections:'
@@ -418,7 +404,7 @@ contains
        endif
 
        ! Extrapolate the CF thickness from cells with calving_front_mask = 1
-       !  to all cells with marine_connection_mask = 1
+       !  to all cells with marine_connection_mask = 1.
        ! Apply a Laplacian smoother during the extrapolation.
 
        call glissade_scalar_extrapolate(nx,    ny,                 &
@@ -1451,8 +1437,13 @@ contains
 
     ! local variables
 
-    integer :: i, j, n
-    integer :: count, maxcount_fill  ! loop counters
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
 
     integer,  dimension(nx,ny) ::  &
          ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
@@ -1465,9 +1456,6 @@ contains
 
     real(dp),  dimension(nx,ny) ::  &
          thck_calving_front    ! effective ice thickness at the calving front
-
-    !WHL - debug
-    real(dp) :: sum_fill_local, sum_fill_global
 
     nx = size(thck,1)
     ny = size(thck,2)
@@ -1555,15 +1543,12 @@ contains
     ! Fill each grounded cell and then recursively fill active neighbor cells, whether grounded or not.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
-    maxcount_fill = max(ewtasks,nstasks)
+    max_iter = max(ewtasks,nstasks)
+    global_count_save = 0
 
-    if (verbose_calving .and. this_rank == rtest) then
-       print*, 'maxcount_fill =', maxcount_fill
-    endif
+    do iter = 1, max_iter
 
-    do count = 1, maxcount_fill
-
-       if (count == 1) then   ! identify grounded cells that can seed the fill
+       if (iter == 1) then   ! identify grounded cells that can seed the fill
 
           do j = 1, ny
              do i = 1, nx
@@ -1638,18 +1623,24 @@ contains
 
        endif  ! count = 1
 
-       sum_fill_local = 0
+       local_count = 0
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
-             if (color(i,j) == fill_color) sum_fill_local = sum_fill_local + 1
+             if (color(i,j) == fill_color) local_count = local_count + 1
           enddo
        enddo
 
        !WHL - If running a large problem, may want to reduce the frequency of this global sum
-       sum_fill_global = parallel_reduce_sum(sum_fill_local)
+       global_count = parallel_reduce_sum(local_count)
 
-       if (verbose_calving .and. this_rank == rtest) then
-!!          print*, 'this_rank, sum_fill_local, sum_fill_global:', this_rank, sum_fill_local, sum_fill_global
+       if (global_count == global_count_save) then
+          if (verbose_calving .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_calving .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
        endif
 
     enddo  ! count

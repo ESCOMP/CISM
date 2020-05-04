@@ -1102,6 +1102,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
     real(dp),dimension(:,:),  pointer :: gl_flux_tavg =>null()         !> mass flux at grounding line, cell-based (kg m^-1 s^-1, time average)
 
+    !TODO - Move masks to a mask derived type?
     !* (DFM ----------------- The following fields were added for BISICLES interface --------------)
     !*SFP: These fields need to be passed to POP for ice ocean coupling
     ! WHL: When Dan added the masks, he made them real-valued. They are now integers, which might break the POP coupling.
@@ -1111,6 +1112,9 @@ module glide_types
     integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0
     integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0
     integer, dimension(:,:),pointer :: grounded_mask => null()   !> = 1 where ice is present and grounded, else = 0
+
+    ! marine connection mask
+    integer, dimension(:,:),pointer :: marine_connection_mask => null()   !> = 1 for cells with a marine connection to the ocean, else = 0
 
     ! masks for ice cap removal
     integer, dimension(:,:),pointer :: ice_sheet_mask => null()  !> = 1 for ice sheet cells, = 0 for ice cap cells
@@ -1512,10 +1516,6 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           bmlt_float_save => null(),           & !> saved value of bmlt_float; potential melt rate (m/s)
           bmlt_float_inversion => null()         !> applied basal melt rate, computed by inversion (m/s)
-
-     integer, dimension(:,:), pointer :: &
-          bmlt_float_inversion_mask => null()    !> = 1 in cells where bmlt_float_inversion can be applied,
-                                                 !> based on initial ice sheet geometry
 
      real(dp) ::  &
           bmlt_timescale = 0.d0,          &  !> time scale (yr) for relaxing toward observed thickness
@@ -2285,7 +2285,6 @@ contains
     !> In \texttt{model\%inversion}:
     !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
-    !> \item \texttt{bmlt_float_inversion_mask(ewn,nsn)}
     !> \item \texttt{powerlaw_c_inversion(ewn-1,nsn-1)}
     !> \item \texttt{thck_save(ewn,nsn)}
 
@@ -2357,6 +2356,7 @@ contains
     !> \item \texttt{ice_mask(ewn,nsn))}
     !> \item \texttt{floating_mask(ewn,nsn))}
     !> \item \texttt{grounded_mask(ewn,nsn))}
+    !> \item \texttt{marine_connection_mask(ewn,nsn))}
     !> \item \texttt{ice_sheet_mask(ewn,nsn))}
     !> \item \texttt{ice_cap_mask(ewn,nsn))}
     !> \item \texttt{ice_fraction_retreat_mask(ewn,nsn))}
@@ -2591,6 +2591,7 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%marine_connection_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_sheet_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_cap_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_fraction_retreat_mask)
@@ -2706,7 +2707,6 @@ contains
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion_mask)
     endif
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
@@ -3113,8 +3113,6 @@ contains
         deallocate(model%inversion%bmlt_float_save)
     if (associated(model%inversion%bmlt_float_inversion)) &
         deallocate(model%inversion%bmlt_float_inversion)
-    if (associated(model%inversion%bmlt_float_inversion_mask)) &
-        deallocate(model%inversion%bmlt_float_inversion_mask)
     if (associated(model%inversion%powerlaw_c_inversion)) &
         deallocate(model%inversion%powerlaw_c_inversion)
     if (associated(model%inversion%thck_save)) &
@@ -3221,6 +3219,8 @@ contains
        deallocate(model%geometry%floating_mask)
     if (associated(model%geometry%grounded_mask)) &
        deallocate(model%geometry%grounded_mask)
+    if (associated(model%geometry%marine_connection_mask)) &
+       deallocate(model%geometry%marine_connection_mask)
     if (associated(model%geometry%ice_sheet_mask)) &
        deallocate(model%geometry%ice_sheet_mask)
     if (associated(model%geometry%ice_cap_mask)) &

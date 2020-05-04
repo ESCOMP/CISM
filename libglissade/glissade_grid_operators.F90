@@ -1646,7 +1646,7 @@ contains
          sum_phi                 ! sum of mask*phi over neighbor cells at a given level
 
     integer :: &
-         max_iter,             & ! max(nx,ny) * max(ewtasks, nxtasks)
+         max_iter,             & ! max(nx,ny) * max(ewtasks, nstasks)
          local_count,          & ! local counter for filled values
          global_count,         & ! global counter for filled values
          global_count_save       ! globalcounter for filled values from previous iteration
