@@ -2813,7 +2813,8 @@ contains
     use glimmer_paramets, only: thk0, tim0, len0
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
          glissade_remove_icebergs, glissade_limit_cliffs, verbose_calving
-
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -2823,12 +2824,16 @@ contains
     ! --- Local variables ---
 
     real(dp), dimension(model%general%ewn, model%general%nsn) :: &
-         thck_unscaled              ! model%geometry%thck converted to m
+         thck_unscaled,           & ! model%geometry%thck converted to m
+         thck_calving_front         ! effective ice thickness at calving front (m)
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
-         land_mask                  ! = 1 if topg - eus >= 0
+         land_mask,               & ! = 1 if topg - eus >= 0
+         ocean_mask,              & ! = 1 if ice is absent and topg - eus < 0
+         active_ice_mask,         & ! = 1 if ice is present and dynamically active
+         calving_front_mask         ! = 1 for calving-front cells
 
     real(dp) :: &
          maxthck,                 & ! max thickness of retreating ice
@@ -3005,13 +3010,56 @@ contains
 
     if (model%options%remove_icebergs) then
 
+       ! Update the basic masks
+
+       call glissade_get_masks(nx,                     ny,                            &
+                               thck_unscaled,          model%geometry%topg*thk0,      &
+                               model%climate%eus*thk0, model%numerics%thklim*thk0,    &
+                               ice_mask,               floating_mask = floating_mask, &
+                               land_mask = land_mask,  ocean_mask = ocean_mask,       &
+                               active_ice_mask = active_ice_mask)
+
+       ! If using a subgrid CF scheme, then recompute the active ice mask
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+          call glissade_calving_front_mask(nx,                     ny,                 &
+                                           model%options%which_ho_calving_front,       &
+                                           thck_unscaled,                              &
+                                           model%geometry%topg*thk0,                   &
+                                           model%climate%eus*thk0,                     &
+                                           ice_mask,               floating_mask,      &
+                                           ocean_mask,             land_mask,          &
+                                           calving_front_mask,     thck_calving_front, &
+                                           active_ice_mask = active_ice_mask)
+       endif
+
+       ! Compute the grounded ice fraction in each grid cell
+
+       call glissade_grounded_fraction(nx,          ny,               &
+                                       itest, jtest, rtest,           &  ! diagnostic only
+                                       thck_unscaled,                 &
+                                       model%geometry%topg*thk0,      &
+                                       model%climate%eus*thk0,        &
+                                       ice_mask,                      &
+                                       floating_mask,                 &
+                                       land_mask,                     &
+                                       model%options%which_ho_ground, &
+                                       model%options%which_ho_flotation_function, &
+                                       model%options%which_ho_fground_no_glp,     &
+                                       model%geometry%f_flotation,    &
+                                       model%geometry%f_ground,       &
+                                       model%geometry%f_ground_cell)
+
+       ! Remove icebergs.
+       ! Icebergs are defined as floating cells that do not have a path through active cells
+       !  to grounded cells (i.e., cells where f_ground_cell exceeds a threshold value).
+
        call glissade_remove_icebergs(nx,           ny,                     &
                                      itest, jtest, rtest,                  &
                                      thck_unscaled,                        &  ! m
-                                     model%geometry%topg*thk0,             &  ! m
-                                     model%climate%eus*thk0,               &  ! m
-                                     model%numerics%thklim*thk0,           &  ! m
-                                     model%options%which_ho_calving_front, &
+                                     model%geometry%f_ground_cell,         &
+                                     land_mask,                            &
+                                     active_ice_mask,                      &
                                      model%calving%calving_thck)              ! m
     endif
     

@@ -47,10 +47,6 @@ module glissade_calving
 !  logical, parameter :: verbose_calving = .false.
   logical, parameter :: verbose_calving = .true.
 
-  !WHL - debug
-!!  logical, parameter :: old_mask = .true.
-  logical, parameter :: old_mask = .false.
-
 contains
 
 !-------------------------------------------------------------------------------
@@ -1390,14 +1386,13 @@ contains
 
 !---------------------------------------------------------------------------
 
-  !TODO - Identify lightly grounded cells.
-
   subroutine glissade_remove_icebergs(&
        nx,           ny,            &
        itest, jtest, rtest,         &
-       thck,         topg,          &
-       eus,          thklim,        &
-       which_ho_calving_front,      &
+       thck,                        &
+       f_ground_cell,               &
+       land_mask,                   &
+       active_ice_mask,             &
        calving_thck)
 
     ! Remove any icebergs. 
@@ -1405,7 +1400,7 @@ contains
     ! The algorithm is as follows:
     ! (1) Mark all cells with ice (either active or inactive) with the initial color.
     !     Mark other cells with the boundary color.
-    ! (2) Seed the fill by giving all active grounded cells the fill color.
+    ! (2) Seed the fill by giving active grounded cells the fill color.
     ! (3) Recursively fill all cells that are connected to filled cells by a path
     !     that passes through active cells only.
     ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
@@ -1413,28 +1408,26 @@ contains
     !     are considered to be icebergs and are removed.
     !
     ! Notes:
-    ! (1) The recursive fill applies to edge neighbors, not corner neighbors.
+    ! (1) Grounded cells must have f_ground_cell > f_ground_threshold to seed the fill.
+    ! (2) The recursive fill applies to edge neighbors, not corner neighbors.
     !     The path back to grounded ice must go through edges, not corners.
-    ! (2) Inactive cells can be filled (if adjacent to active cells), but
+    ! (3) Inactive cells can be filled (if adjacent to active cells), but
     !     do not further spread the fill.
-    ! (3) Should have thklim > 0.  With a limit of 0.0, very thin floating cells
+    ! (4) Should have thklim > 0.  With a limit of 0.0, very thin floating cells
     !     can be wrongly counted as active, and icebergs can be missed.
-    ! (4) Grounded cells that still have the initial color are not removed.
+    ! (5) Land-based cells that still have the initial color are not marked as icebergs.
 
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask, &
-         glissade_fill_with_buffer, initial_color, fill_color, boundary_color
+    use glissade_masks, only: glissade_fill_with_buffer, initial_color, fill_color, boundary_color
 
     integer :: nx, ny                                   !> horizontal grid dimensions
     integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
 
-    real(dp), dimension(nx,ny), intent(inout) :: thck     !> ice thickness
-    real(dp), dimension(nx,ny), intent(in)    :: topg     !> present bedrock topography
-    real(dp), intent(in)    :: eus                        !> eustatic sea level
-    real(dp), intent(in)    :: thklim                     !> minimum thickness for dynamically active grounded ice
-    integer, intent(in)     :: which_ho_calving_front     !> = 1 for subgrid calving-front scheme, else = 0
-    real(dp), dimension(nx,ny), intent(inout) :: calving_thck   !> thickness lost due to calving in each grid cell;
-                                                              !> on output, includes ice in icebergs
-
+    real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness
+    real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
+    integer,  dimension(nx,ny), intent(in)    :: land_mask       !> = 1 where topg - eus >= 0, else = 0
+    integer,  dimension(nx,ny), intent(in)    :: active_ice_mask !> = 1 for dynamically active cells
+    real(dp), dimension(nx,ny), intent(inout) :: calving_thck    !> thickness lost due to calving in each grid cell;
+                                                                 !> on output, includes ice in icebergs
     ! local variables
 
     integer :: i, j, iter
@@ -1446,42 +1439,14 @@ contains
          global_count_save       ! globalcounter for filled values from previous iteration
 
     integer,  dimension(nx,ny) ::  &
-         ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
-         ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
-         land_mask,          & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask, & ! = 1 where ice is floating and borders the ocean, else = 0
-         active_ice_mask,    & ! = 1 for dynamically active cells
          color                 ! integer 'color' for identifying icebergs
 
     real(dp),  dimension(nx,ny) ::  &
          thck_calving_front    ! effective ice thickness at the calving front
 
-    nx = size(thck,1)
-    ny = size(thck,2)
+    real(dp), parameter :: &   ! threshold for counting cells as grounded
+         f_ground_threshold = 0.10d0
 
-    ! Calculate masks
-
-    call glissade_get_masks(nx,            ny,             &
-                            thck,          topg,           &
-                            eus,           thklim,         &
-                            ice_mask,                      &
-                            floating_mask = floating_mask, &
-                            ocean_mask = ocean_mask,       &
-                            land_mask = land_mask,         &
-                            active_ice_mask = active_ice_mask)  ! active_ice_mask not needed?
-
-    call glissade_calving_front_mask(nx,            ny,               &
-                                     which_ho_calving_front,          &
-                                     thck,          topg,             &
-                                     eus,                             &
-                                     ice_mask,      floating_mask,    &
-                                     ocean_mask,    land_mask,        &
-                                     calving_front_mask,              &
-                                     thck_calving_front,              &
-                                     active_ice_mask = active_ice_mask)
-
-    !WHL - debug
     if (verbose_calving .and. this_rank == rtest) then
        print*, ' '
        print*, 'In glissade_remove_icebergs'
@@ -1495,29 +1460,20 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'calving_front_mask:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') calving_front_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck_calving_front:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
        print*, 'active_ice_mask:'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
              write(6,'(i10)',advance='no') active_ice_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground_cell:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') f_ground_cell(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -1554,11 +1510,11 @@ contains
              do i = 1, nx
 
                 ! Active cells that are firmly grounded can seed the fill.
-                ! It is somewhat arbitrary how to define "firmly grounded", but one way is to
-                ! required that f_ground_cell exceed a modest threshold, defined above as a parameter.
-                ! TODO - Add this criterion; floating_mask may not be robust on its own.
+                ! It is somewhat arbitrary how to define "firmly grounded", but here we require
+                !  that f_ground_cell exceeds a threshold value defined above.
+                ! Note: If running without a GLP, then f_ground_cell is binary, either 0 or 1.
 
-                if (active_ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then  ! grounded ice
+                if (active_ice_mask(i,j) == 1 .and. f_ground_cell(i,j) > f_ground_threshold) then  ! grounded ice
 
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
 
@@ -1683,8 +1639,8 @@ contains
        dt,                              &
        which_ho_calving_front,          &
        taumax_cliff,   cliff_timescale, &
-       thck,           topg,         &
-       eus,            thklim,       &
+       thck,           topg,            &
+       eus,            thklim,          &
        calving_thck)
 
     ! Impose a thickness limit on marine ice cliffs.
