@@ -1038,7 +1038,7 @@ contains
 
     use glimmer_paramets, only: tim0, thk0
     use glimmer_physcon, only: scyr
-    use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
+    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
 
     implicit none
 
@@ -1063,20 +1063,10 @@ contains
 
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
 
-    !WHL
-    ! Note: A reason to smooth stag_thck, stag_thck_obs, and stag_dthck_dt is to allow floating ice near
-    !        the GL to have a nonzero influence on Cp for grounded ice at and slightly upstream of the GL.
-    !       For example, when the GL retreats, ice just downstream of the GL is usually biased thin.
-    !       Extending the stencil by one cell tends to reduce stag_thck, promoting an increase in Cp
-    !        for grounded vertices upstream.
-    !       This variable could be made a config parameter, but for now is hardwired.
-    !       Note: 8-km Antarctic runs have a somewhat larger stable time step without this extra smoothing.
-    !        (In test runs, the max stable time step is 1/5 year without smoothing, but 1/6 year with smoothing.)
-    !        Decided this was an acceptable tradeoff for improved GL behavior.
-
     logical :: &
-         smooth_stag_thck = .true. ! If true, then apply a Laplacian smoother to stag_thck and related fields
-                                   ! when inverting for powerlaw_c
+         f_ground_weight = .true.   ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
+                                    ! Found that unweighted staggering can lead to low-frequency thickness oscillations
+                                    !  in Antarctic runs, because of large dH/dt in floating cells
 
     rtest = -999
     itest = 1
@@ -1101,19 +1091,47 @@ contains
                          model%climate%eus,        &
                          thck_obs)
 
-       ! Interpolate thck_obs to the staggered grid
-       ! Note: For this and the following fields, the interpolation will use values in all four neighbor cells,
-       !       including ice-free cells.
-       call glissade_stagger(ewn,         nsn,              &
-                             thck_obs,    stag_thck_obs)
+       if (f_ground_weight) then
+          ! Interpolation will give a greater weight to cells that are fully grounded.
 
-       ! Interpolate thck to the staggered grid
-       call glissade_stagger(ewn,                  nsn,             &
-                             model%geometry%thck,  stag_thck)
+          ! Interpolate thck_obs to the staggered grid
+          call glissade_stagger_real_mask(&
+               ewn,         nsn,               &
+               thck_obs,    stag_thck_obs,     &
+               model%geometry%f_ground_cell)
 
-       ! Interpolate dthck_dt to the staggered grid
-       call glissade_stagger(ewn,                      nsn,             &
-                             model%geometry%dthck_dt,  stag_dthck_dt)
+          ! Interpolate thck to the staggered grid
+          call glissade_stagger_real_mask(&
+               ewn,                  nsn,       &
+               model%geometry%thck,  stag_thck, &
+               model%geometry%f_ground_cell)
+
+          ! Interpolate dthck_dt to the staggered grid
+          call glissade_stagger_real_mask(&
+               ewn,                      nsn,           &
+               model%geometry%dthck_dt,  stag_dthck_dt, &
+               model%geometry%f_ground_cell)
+
+       else
+          ! Interpolation will equally weight the values in all four neighbor cells, including ice-free cells.
+
+          ! Interpolate thck_obs to the staggered grid
+          call glissade_stagger(ewn,         nsn,              &
+                                thck_obs,    stag_thck_obs)
+
+          ! Interpolate thck to the staggered grid
+          call glissade_stagger(ewn,                  nsn,             &
+                                model%geometry%thck,  stag_thck)
+
+          ! Interpolate dthck_dt to the staggered grid
+          call glissade_stagger(ewn,                      nsn,             &
+                                model%geometry%dthck_dt,  stag_dthck_dt)
+
+       endif   ! f_ground_weight
+
+       call staggered_parallel_halo(stag_thck_obs)
+       call staggered_parallel_halo(stag_thck)
+       call staggered_parallel_halo(stag_dthck_dt)
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
@@ -1125,47 +1143,6 @@ contains
              write(6,*) ' '
           enddo
        endif
-
-       if (smooth_stag_thck) then
-
-          ! Smooth these fields, using a 9-point Laplacian smoother.
-          ! The main purpose of smoothing is to extend the influence of cells downstream of the grounding line.
-          ! If these cells have thin ice, we would like them to induce greater friction in the grounded region upstream.
-
-          call glissade_laplacian_smoother(ewn-1,          nsn-1,          &
-                                           stag_thck_obs,  stag_smoothed,  &
-                                           npoints_stencil = 9)
-
-          stag_thck_obs = stag_smoothed
-
-          call glissade_laplacian_smoother(ewn-1,          nsn-1,          &
-                                           stag_thck,      stag_smoothed,  &
-                                           npoints_stencil = 9)
-
-          stag_thck = stag_smoothed
-
-          call glissade_laplacian_smoother(ewn-1,          nsn-1,          &
-                                           stag_dthck_dt,  stag_smoothed,  &
-                                           npoints_stencil = 9)
-
-          stag_dthck_dt = stag_smoothed
-
-          if (verbose_inversion .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'smoothed stag_thck at vertices:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') stag_thck(i,j)*thk0
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-          call staggered_parallel_halo(stag_thck_obs)
-          call staggered_parallel_halo(stag_thck)
-          call staggered_parallel_halo(stag_dthck_dt)
-
-       endif  ! smooth_stag_thck
 
        ! Invert for powerlaw_c_inversion
        call invert_basal_friction(model%numerics%dt*tim0,                 &  ! s
