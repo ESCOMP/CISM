@@ -354,6 +354,7 @@ module glide_types
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEARB = 3
+  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR_STDEV = 4
 
   integer, parameter :: HO_ICE_AGE_NONE = 0 
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
@@ -990,7 +991,8 @@ module glide_types
     !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
-    !> \item[3] Modified version of 2, without extrapolation to ice-free ocean
+    !> \item[3] Modified version of (2), without extrapolation to ice-free ocean
+    !> \item[4] Like (3), but with stdev correction for topg
     !> \end{description}
 
     logical :: block_inception = .false.
@@ -1046,6 +1048,9 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
+
+    real(dp),dimension(:,:),pointer :: topg_stdev => null()
+    !> Standard deviation of the topography, divided by \texttt{thk0}.
 
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
     !> Observed upper surface elevation, divided by \texttt{thk0}.
@@ -2345,6 +2350,7 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
+    !> \item \texttt{topg_stdev(ewn,nsn))}
     !> \item \texttt{usrf_obs(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
@@ -2562,6 +2568,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_stdev)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
@@ -3164,6 +3171,8 @@ contains
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
         deallocate(model%geometry%topg)
+    if (associated(model%geometry%topg_stdev)) &
+        deallocate(model%geometry%topg_stdev)
     if (associated(model%geometry%usrf_obs)) &
         deallocate(model%geometry%usrf_obs)
     if (associated(model%geometry%thkmask)) &

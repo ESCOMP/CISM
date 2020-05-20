@@ -1137,11 +1137,12 @@ contains
          'weigh bmlt_float by floating fraction of cell', &
          'set bmlt_float = 0 in partly grounded cells  ' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whichflotation_function = (/ &
+    character(len=*), dimension(0:4), parameter :: ho_whichflotation_function = (/ &
          'f_pattyn = (-rhoo*b)/(rhoi*H)       ', &
          '1/fpattyn = (rhoi*H)/(-rhoo*b)      ', &
          'linear = -b - (rhoi/rhoo)*H         ', &
-         'modified linear = -b - (rhoi/rhoo)*H' /)
+         'modified linear = -b - (rhoi/rhoo)*H', &
+         'modified linear; topg stdev addition'/)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -3185,6 +3186,12 @@ contains
            ! restart needs to know bwat value
            call glide_add_to_restart_variable_list('bwat')
         end select
+
+        ! grounding-line option for Glissade
+        if (options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_STDEV) then
+           ! This option uses a correction based on topg_stdev to compute the flotation function.
+           call glide_add_to_restart_variable_list('topg_stdev')
+        endif
 
         ! calving options for Glissade
 

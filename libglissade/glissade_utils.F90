@@ -37,7 +37,10 @@ module glissade_utils
   implicit none
 
   private
-  public ::  glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
+  public :: glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
+  public :: glissade_stdev, verbose_stdev
+
+  logical, parameter :: verbose_stdev = .true.
 
 contains
 
@@ -545,6 +548,113 @@ contains
     endif
 
   end subroutine glissade_adjust_topography
+
+!****************************************************************************
+
+  subroutine glissade_stdev(&
+        nx,        ny,             &
+        grid_ratio,                &
+        idiag,     jdiag,          &
+        phi,       stdev)
+
+    use parallel, only: main_task
+
+    integer, intent(in) :: nx, ny                    ! number of cells in x and y direction on input grid (global)
+    integer, intent(in) :: grid_ratio                ! nx/nx_coarse = ny/ny_coarse = ratio of fine to coarse grid
+    integer, intent(in) :: idiag, jdiag              ! global coordinates of diagnostic cell
+    real(dp), dimension(nx,ny), intent(in) :: phi    ! input field
+    real(dp), dimension(nx,ny), intent(out) :: stdev ! standard deviation of input field, on the coarse grid
+
+    integer :: i, j, ic, jc, ilo, ihi, jlo, jhi
+
+    integer :: nx_coarse, ny_coarse      ! dimensions of coarse grid where we compute st.dev
+
+    real(dp) :: &
+         sumx,   &
+         sumx2,  &
+         xav,    &
+         x2av,   &
+         stdev_coarse
+
+    ! Check that nx_coarse and ny_coarse divide evenly into nx and ny with the same quotient
+
+    if (verbose_stdev .and. main_task) then
+       print*, 'In verbose_stdev'
+       print*, 'Fine nx, ny =', nx, ny
+       print*, 'grid_ratio =', grid_ratio
+    endif
+
+    if (mod(nx,grid_ratio) == 0) then
+       nx_coarse = nx/grid_ratio
+    else
+       if (main_task) print*, 'stdev error, nx/grid_ratio is not an integer'
+       stop
+    endif
+
+    if (mod(ny,grid_ratio) == 0) then
+       ny_coarse = ny/grid_ratio
+       if (main_task) print*, 'nx_coarse, ny_coarse =', nx_coarse, ny_coarse
+    else
+       if (main_task) print*, 'stdev error, ny/grid_ratio is not an integer'
+       stop
+    endif
+
+    stdev(:,:) = 0.0d0
+
+    ! Loop over the coarse grid
+    do jc = 1, ny_coarse
+       do ic = 1, nx_coarse
+
+          ! Compute the standard deviation of phi within one cell on the coarse grid
+
+          ilo = (ic-1)*grid_ratio + 1
+          ihi = ic * grid_ratio
+          jlo = (jc-1)*grid_ratio + 1
+          jhi = jc * grid_ratio
+
+          sumx = 0.0d0
+          sumx2 = 0.0d0
+          do j = jlo, jhi
+             do i = ilo, ihi
+                sumx = sumx + phi(i,j)
+                sumx2 = sumx2 + phi(i,j)**2
+             enddo
+          enddo
+          xav = sumx / grid_ratio**2
+          x2av = sumx2 / grid_ratio**2
+          stdev_coarse = sqrt(x2av - xav*xav)
+
+          ! Write this value to each cell on the fine grid.
+          ! This is done because CISM doesn't have an easy way to work with two grids.
+          !TODO: Read in two grids?
+          stdev(ilo:ihi,jlo:jhi) = stdev_coarse
+
+       enddo
+    enddo
+
+    if (verbose_stdev .and. main_task) then
+       print*, ' '
+       print*, 'Input field, idiag, jdiag:', idiag, jdiag
+       print*, ' '
+       do j = jdiag+3, jdiag-3, -1
+          write(6,'(a10)',advance='no') '          '
+          do i = idiag-3, idiag+3
+             write(6,'(f10.3)',advance='no') phi(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, 'stdev:'
+       print*, ' '
+       do j = jdiag+3, jdiag-3, -1
+          write(6,'(a10)',advance='no') '          '
+          do i = idiag-3, idiag+3
+             write(6,'(f10.3)',advance='no') stdev(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_stdev
 
 
 !TODO - Other utility subroutines to add here?

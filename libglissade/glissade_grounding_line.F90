@@ -64,9 +64,11 @@
                                         which_ho_fground_no_glp,           &
                                         f_flotation,                       &
                                         f_ground,                          &
-                                        f_ground_cell)
+                                        f_ground_cell,                     &
+                                        topg_stdev)
 
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
+    use glimmer_log
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded, optionally using a grounding line parameterization (GLP).
@@ -154,6 +156,9 @@
     real(dp), dimension(nx,ny), intent(out) ::  &
        f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground_cell <= 1
 
+    real(dp), dimension(nx,ny), intent(in), optional ::  &
+       topg_stdev             ! standard deviation of topography (m)
+
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
@@ -194,9 +199,12 @@
 
     logical :: filled       ! true if f_flotation has been filled by extrapolation
 
-    !TODO - Test sensitivity to these values
-    ! These are set to large negative values, so vertices with land-based neighbors are strongly grounded.
+    ! Set to a large negative value, so vertices with land-based neighbors are strongly grounded.
     real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
+
+    real(dp), parameter :: &
+         topg_stdev_factor = 1.0d0   ! for f_flotation, let topg -> topg + topg_stdev_factor*topg_stdev
+                                     ! should be ~1, but potentially tunable
 
     !----------------------------------------------------------------
     ! Compute ice mask at vertices (= 1 if any surrounding cells have ice or are land)
@@ -302,11 +310,41 @@
           enddo
        enddo
 
+    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_STDEV) then
+
+       if (.not.present(topg_stdev)) then
+          call write_log('Error, must pass topg_stdev to use this f_flotation options', GM_FATAL)
+       endif
+
+       ! like the previous option, but with topg -> topg + top_stdev
+       do j = 1, ny
+          do i = 1, nx
+             if (land_mask(i,j) == 1) then
+                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
+                topg_eus_diff = max((topg(i,j) + topg_stdev_factor*topg_stdev(i,j) - eus), f_flotation_land_topg_min)
+                f_flotation(i,j) = -topg_eus_diff
+             else
+                ! Note: f_flotation reduces to -(topg + topg_stdev_factor*topg_stdev - eus) for ice-free ocean
+                f_flotation(i,j) = -(topg(i,j) + topg_stdev_factor*topg_stdev(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
+                ! Make sure f_flotation is not too close to 0, for numerical robustness.
+                if (abs(f_flotation(i,j)) < f_flotation_marine_min) then
+                   if (f_flotation(i,j) < 0.0d0) then
+                      f_flotation(i,j) = -f_flotation_marine_min
+                   else
+                      f_flotation(i,j) =  f_flotation_marine_min
+                   endif
+                endif
+             endif
+          enddo
+       enddo
+
     endif  ! which_ho_flotation_function
 
-    ! Extrapolate f_flotation to ice-free ocean cells (except for the LINEARB option)
+    ! Extrapolate f_flotation to ice-free ocean cells (except for the LINEARB and LINEAR_STDEV options)
+    ! TODO - Remove option 2, keeping what are now options 3 and 4; remove extrapolation.
 
-    if (which_ho_flotation_function /= HO_FLOTATION_FUNCTION_LINEARB) then
+    if (which_ho_flotation_function /= HO_FLOTATION_FUNCTION_LINEARB .and. &
+        which_ho_flotation_function /= HO_FLOTATION_FUNCTION_LINEAR_STDEV) then
 
        ! In ice-free ocean cells, fill in f_flotation by extrapolation.
        ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
@@ -387,6 +425,25 @@
           enddo
           print*, ' '
        enddo
+       if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_STDEV) then
+          print*, 'topg_stdev'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i8)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') topg_stdev(i,j)
+             enddo
+             print*, ' '
+          enddo
+          print*, ' '
+          print*, 'topg + topg_stdev'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i8)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') topg(i,j) + topg_stdev(i,j)
+             enddo
+             print*, ' '
+          enddo
+       endif   ! linear_stdev option
        print*, ' '
        print*, 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
        do j = jtest+3, jtest-3, -1
