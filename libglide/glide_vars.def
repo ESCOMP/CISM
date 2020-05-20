@@ -840,6 +840,16 @@ load:          1
 standard_name: bedrock_altitude
 coordinates:   lon lat
 
+[topg_stdev]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     standard deviation of bedrock topography
+data:          data%geometry%topg_stdev
+factor:        thk0
+load:          1
+standard_name: bedrock_altitude_stdev
+coordinates:   lon lat
+
 ## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 #[lower_cell_loc]
 #dimensions:    time, y1, x1

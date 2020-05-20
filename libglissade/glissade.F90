@@ -110,6 +110,7 @@ contains
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: &
          glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
+    use glissade_utils, only: glissade_stdev
     use felix_dycore_interface, only: felix_velo_init
     !WHL - debug
     use mpi_mod
@@ -158,6 +159,12 @@ contains
     real(dp), dimension(:,:), allocatable :: test_array
     real(dp), dimension(:,:), allocatable :: global_test_array
     logical, parameter :: test_comm_row_col = .false.
+
+    !WHL - added for optional topg_stdev calculations
+    logical, parameter :: compute_topg_stdev = .false.
+    real(dp), dimension(:,:), allocatable :: topg_global, topg_stdev_global
+    integer, parameter :: grid_ratio = 8   ! ratio between no. of grid cells on the input grid and
+                                           ! the grid on which we want to compute topg_stdev; typically 2, 4, or 8
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -509,6 +516,40 @@ contains
 
     if (model%options%adjust_input_topography .and. model%options%is_restart == RESTART_FALSE) then
        call glissade_adjust_topography(model)
+    endif
+
+    ! Optionally, compute the standard deviation of the topography.
+    ! Ideally, this would be done when preparing the input file.
+    ! But the following code can be used to compute topg_stdev from a high-resolution
+    !  input file that contains topg only.
+    ! For example, we can read in a 1-km file, set grid_ratio = 8, compute topg_stdev
+    !  in 8x8 blocks of cells, and write it to the initial output file.
+    ! In a given 8x8 block of data, each cell will contain topg_stdev for that block.
+    ! If we then coarsen the output from the 1-km grid to the 8-km grid,
+    !  we have a field of topg_stdev to be used in 8-km simulations.
+
+    if (compute_topg_stdev) then
+
+       allocate(topg_global(global_ewn, global_nsn))
+       allocate(topg_stdev_global(global_ewn, global_nsn))
+
+       ! gather topg to global grid
+       call distributed_gather_var(model%geometry%topg*thk0, topg_global)
+
+       if (main_task) then
+          call glissade_stdev(global_ewn,           global_nsn,           &
+                              grid_ratio,                                 &
+                              model%numerics%idiag, model%numerics%jdiag, &
+                              topg_global,          topg_stdev_global)
+       endif
+
+       ! scatter topg_stdev to processors, and rescale
+       call distributed_scatter_var(model%geometry%topg_stdev, topg_stdev_global)
+       model%geometry%topg_stdev = model%geometry%topg_stdev/thk0
+
+       deallocate(topg_global)
+       deallocate(topg_stdev_global)
+
     endif
 
     ! handle relaxed/equilibrium topo
@@ -1020,7 +1061,8 @@ contains
                                        model%options%which_ho_fground_no_glp,     &
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
-                                       model%geometry%f_ground_cell)
+                                       model%geometry%f_ground_cell,  &
+                                       model%geometry%topg_stdev*thk0)
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
@@ -3048,7 +3090,8 @@ contains
                                        model%options%which_ho_fground_no_glp,     &
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
-                                       model%geometry%f_ground_cell)
+                                       model%geometry%f_ground_cell,  &
+                                       model%geometry%topg_stdev*thk0)
 
        ! Remove icebergs.
        ! Icebergs are defined as floating cells that do not have a path through active cells
@@ -3430,7 +3473,8 @@ contains
                                     model%options%which_ho_fground_no_glp,     &
                                     model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
-                                    model%geometry%f_ground_cell)
+                                    model%geometry%f_ground_cell,  &
+                                    model%geometry%topg_stdev*thk0)
 
     !WHL - debug
     if (this_rank == rtest .and. verbose_glp) then
