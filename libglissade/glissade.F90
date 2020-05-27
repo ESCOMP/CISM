@@ -468,6 +468,20 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
+    ! Check that lat and lon fields were read in, if desired
+    if (model%options%read_lat_lon) then
+       local_maxval = maxval(abs(model%general%lat))
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          call write_log('Failed to read latitude (lat) field from input file', GM_FATAL)
+       endif
+       local_maxval = maxval(abs(model%general%lon))
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          call write_log('Failed to read longitude (lon) field from input file', GM_FATAL)
+       endif
+    endif
+
     ! Allocate mask arrays in case they are needed below
     allocate(ice_mask(model%general%ewn, model%general%nsn))
     allocate(floating_mask(model%general%ewn, model%general%nsn))

@@ -384,6 +384,10 @@ module glide_types
     real(dp), dimension(:),pointer :: x1_global => null()
     real(dp), dimension(:),pointer :: y1_global => null()
 
+    ! latitude and longitude on the unstaggered ice grid
+    real(dp), dimension(:,:),pointer :: lat => null()
+    real(dp), dimension(:,:),pointer :: lon => null()
+
     integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no_penetration, 3 for no_ice
 
     !WHL - added to handle the active-blocks option
@@ -642,6 +646,9 @@ module glide_types
 
     logical :: adjust_input_topography = .false.
     !> if true, then adjust the input topography in a selected region at initialization
+
+    logical :: read_lat_lon = .false.
+    !> if true, then read lat and lon fields from the input file and write to restarts
 
     integer :: dt_option = 0
     !> \begin{description}
@@ -2428,6 +2435,10 @@ contains
     allocate(model%numerics%stagsigma(upn-1))
     allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
 
+    ! latitude and longitude
+    call coordsystem_allocate(model%general%ice_grid, model%general%lat)
+    call coordsystem_allocate(model%general%ice_grid, model%general%lon)
+
     ! ice domain mask (to identify active blocks)
     call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
 
@@ -2868,6 +2879,10 @@ contains
         deallocate(model%general%x1_global)
     if (associated(model%general%y1_global)) &
         deallocate(model%general%y1_global)
+    if (associated(model%general%lat)) &
+        deallocate(model%general%lat)
+    if (associated(model%general%lon)) &
+        deallocate(model%general%lon)
     if (associated(model%general%ice_domain_mask)) &
         deallocate(model%general%ice_domain_mask)
 

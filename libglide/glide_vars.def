@@ -93,13 +93,29 @@ units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
 
+[lat]
+dimensions:    time, y1, x1
+units:         degreeN
+standard_name: latitude
+long_name:     latitude
+data:          data%general%lat
+load:          1
+
+[lon]
+dimensions:    time, y1, x1
+units:         degreeE
+standard_name: longitude
+long_name:     longitude
+data:          data%general%lon
+load:          1
+
 [cell_area]
-dimensions:   time, y1, x1
-units:        meter2
-long_name:    cell area of cism grid
-data:         data%geometry%cell_area
-factor:       len0*len0
-load:         1
+dimensions:    time, y1, x1
+units:         meter2
+long_name:     cell area of cism grid
+data:          data%geometry%cell_area
+factor:        len0*len0
+load:          1
 
 [relx]
 dimensions:    time, y1, x1
@@ -108,7 +124,6 @@ long_name:     relaxed bedrock topography
 data:          data%isostasy%relx
 factor:        thk0
 load:          1
-coordinates:   lon lat
 
 [load]
 dimensions:    time, y1, x1
@@ -117,7 +132,6 @@ long_name:     bedrock deflection from applied load
 data:          data%isostasy%load
 factor:        thk0
 load:          1
-coordinates:   lon lat
 
 [eus]
 dimensions:    time
@@ -311,7 +325,6 @@ long_name:     basal melt rate anomaly for floating ice
 data:          data%basal_melt%bmlt_float_anomaly
 factor:        scale_acab
 standard_name: floating_ice_basal_melt_rate_anomaly
-coordinates:   lon lat
 load:          1
 
 [bmlt_float_baseline]
@@ -321,7 +334,6 @@ long_name:     baseline basal melt rate for floating ice
 data:          data%basal_melt%bmlt_float_baseline
 factor:        scyr
 standard_name: floating_ice_baseline_basal_melt_rate
-coordinates:   lon lat
 load:          1
 
 [bmlt_float_inversion]
@@ -331,17 +343,6 @@ long_name:     basal melt rate for floating ice from inversion
 data:          data%inversion%bmlt_float_inversion
 factor:        scyr
 load:          0
-coordinates:   lon lat
-
-#Remove bmlt_float_inversion_save
-[bmlt_float_inversion_save]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     cumulative basal melt rate for floating ice from inversion
-data:          data%inversion%bmlt_float_save
-factor:        scyr
-load:          1
-coordinates:   lon lat
 
 [warm_ocean_mask]
 dimensions:    time, y1, x1
@@ -350,7 +351,6 @@ long_name:     warm ocean mask
 data:          data%basal_melt%warm_ocean_mask
 load:          1
 type:          int
-coordinates:   lon lat
 
 #WHL - Fields related to ISMIP6 ocean data
 
@@ -361,7 +361,6 @@ long_name:     basin_number
 data:          data%ocean_data%basin_number
 load:          1
 type:          int
-coordinates:   lon lat
 
 [deltaT_basin_local_median]
 dimensions:    time, y1, x1
@@ -467,7 +466,6 @@ units:         degree_Celsius
 long_name:     thermal_forcing_baseline
 data:          data%ocean_data%thermal_forcing_baseline(up,:,:)
 load:          1
-coordinates:   lon lat
 
 [thermal_forcing]
 dimensions:    time, zocn, y1, x1
@@ -475,14 +473,12 @@ units:         degrees K
 long_name:     thermal_forcing
 data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
-coordinates:   lon lat
 
 [thermal_forcing_lsrf]
 dimensions:    time, y1, x1
 units:         degrees K
 long_name:     thermal_forcing at lower ice surface
 data:          data%ocean_data%thermal_forcing_lsrf(:,:)
-coordinates:   lon lat
 
 
 #WHL - A number of plume-related fields follow.
@@ -651,7 +647,6 @@ data:          data%geometry%thck
 factor:        thk0
 load:          1
 standard_name: land_ice_thickness
-coordinates:   lon lat
 
 [stagthk]
 dimensions:    time, y0, x0
@@ -661,7 +656,6 @@ data:          data%geomderv%stagthck
 factor:        thk0
 standard_name: stag_land_ice_thickness
 load:          0
-coordinates:   lon lat
 
 [reference_thck]
 dimensions:    time, y1, x1
@@ -670,7 +664,6 @@ long_name:     reference ice thickness
 data:          data%geometry%reference_thck
 factor:        thk0
 load:          1
-coordinates:   lon lat
 
 [usrf_obs]
 dimensions:    time, y1, x1
@@ -679,7 +672,6 @@ long_name:     observed surface elevation
 data:          data%geometry%usrf_obs
 factor:        thk0
 load:          1
-coordinates:   lon lat
 
 [floating_thck_target]
 dimensions:    time, y1, x1
@@ -688,7 +680,6 @@ long_name:     target thickness for floating ice
 data:          data%inversion%floating_thck_target
 factor:        thk0
 load:          1
-coordinates:   lon lat
 
 [calving_thck]
 dimensions:    time, y1, x1
@@ -696,14 +687,12 @@ units:         meter
 long_name:     thickness of calving ice
 data:          data%calving%calving_thck
 factor:        thk0
-coordinates:   lon lat
 
 [calving_rate]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of mass loss by calving
 data:          data%calving%calving_rate
-coordinates:   lon lat
 average:       1
 
 [calving_mask]
@@ -713,7 +702,6 @@ long_name:     calving mask
 data:          data%calving%calving_mask
 load:          1
 type:          int
-coordinates:   lon lat
 
 [thck_calving_threshold]
 dimensions:    time, y1, x1
@@ -721,7 +709,6 @@ units:         meter
 long_name:     thickness threshold for calving ice
 data:          data%calving%thck_calving_threshold
 load:          1
-coordinates:   lon lat
 
 [calving_lateral]
 dimensions:    time, y1, x1
@@ -729,7 +716,6 @@ units:         meter/year
 long_name:     lateral calving rate
 data:          data%calving%lateral_rate
 factor:        scyr
-coordinates:   lon lat
 
 [damage]
 dimensions:    time, staglevel, y1, x1
@@ -737,14 +723,12 @@ units:         unitless [0,1]
 long_name:     ice damage
 data:          data%calving%damage(up,:,:)
 load:          1
-coordinates:   lon lat
 
 [area_factor]
 dimensions:    time, y1, x1
 units:         unitless
 long_name:     area scale factor for stereographic map projection
 data:          data%projection%stere%area_factor
-coordinates:   lon lat
   
 [iarea]
 dimensions:    time
@@ -809,7 +793,6 @@ long_name:     mask
 units:         1
 data:          data%geometry%thkmask
 type:          int
-coordinates:   lon lat
 load:          1
 
 [usurf]
@@ -820,7 +803,6 @@ data:          data%geometry%usrf
 factor:        thk0
 load:          1
 standard_name: surface_altitude
-coordinates:   lon lat
 
 [lsurf]
 dimensions:    time, y1, x1
@@ -828,7 +810,6 @@ units:         meter
 long_name:     ice lower surface elevation
 data:          data%geometry%lsrf
 factor:        thk0
-coordinates:   lon lat
 
 [topg]
 dimensions:    time, y1, x1
@@ -838,7 +819,6 @@ data:          data%geometry%topg
 factor:        thk0
 load:          1
 standard_name: bedrock_altitude
-coordinates:   lon lat
 
 [topg_stdev]
 dimensions:    time, y1, x1
@@ -848,7 +828,6 @@ data:          data%geometry%topg_stdev
 factor:        thk0
 load:          1
 standard_name: bedrock_altitude_stdev
-coordinates:   lon lat
 
 ## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 #[lower_cell_loc]
@@ -857,7 +836,6 @@ coordinates:   lon lat
 #long_name:     location in z of lower cell location
 #data:          data%geometry%lower_cell_loc
 #factor:        1.0
-#coordinates:   lon lat
 
 ## D. Martin added - fields that need to be passed to POP for ice-ocean coupling
 #[lower_cell_temp]
@@ -866,14 +844,12 @@ coordinates:   lon lat
 #long_name:     temperature at lower_cell_loc
 #data:          data%geometry%lower_cell_temp
 #factor:        1.0
-#coordinates:   lon lat
 
 [ice_domain_mask]
 dimensions:    time, y1, x1
 units:         1
 long_name:     mask for where ice is potentially present and active
 data:          data%general%ice_domain_mask
-coordinates:   lon lat
 load:          1
 
 [ice_mask]
@@ -882,7 +858,6 @@ units:         1
 long_name:     mask for ice (1) or no ice (0)
 data:          data%geometry%ice_mask
 type:          int
-coordinates:   lon lat
 
 [ice_mask_stag]
 dimensions:    time, y0, x0
@@ -890,7 +865,6 @@ units:         1
 long_name:     mask on staggered grid for ice (1) or no ice (0)
 data:          data%geometry%ice_mask_stag
 type:          int
-coordinates:   lon lat
 
 [floating_mask]
 dimensions:    time, y1, x1
@@ -898,7 +872,6 @@ units:         1
 long_name:     mask for floating ice 
 data:          data%geometry%floating_mask
 type:          int
-coordinates:   lon lat
 
 [grounded_mask]
 dimensions:    time, y1, x1
@@ -906,7 +879,6 @@ units:         1
 long_name:     mask for grounded ice
 data:          data%geometry%grounded_mask
 type:          int
-coordinates:   lon lat
 
 [marine_connection_mask]
 dimensions:    time, y1, x1
@@ -914,7 +886,6 @@ units:         1
 long_name:     mask for marine_connected cells
 data:          data%geometry%marine_connection_mask
 type:          int
-coordinates:   lon lat
 
 [ice_sheet_mask]
 dimensions:    time, y1, x1
@@ -922,7 +893,6 @@ units:         1
 long_name:     mask for ice sheet
 data:          data%geometry%ice_sheet_mask
 type:          int
-coordinates:   lon lat
 
 [ice_cap_mask]
 dimensions:    time, y1, x1
@@ -930,14 +900,12 @@ units:         1
 long_name:     mask for ice caps
 data:          data%geometry%ice_cap_mask
 type:          int
-coordinates:   lon lat
 
 [ice_fraction_retreat_mask]
 dimensions:    time, y1, x1
 units:         1
 long_name:     real mask for forced ice retreat
 data:          data%geometry%ice_fraction_retreat_mask
-coordinates:   lon lat
 load:          1
 
 [smb]
@@ -947,7 +915,6 @@ long_name:     surface mass balance
 data:          data%climate%smb
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance
-coordinates:   lon lat
 load:          1
 
 [acab]
@@ -957,7 +924,6 @@ long_name:     accumulation, ablation rate
 data:          data%climate%acab
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance
-coordinates:   lon lat
 load:          1
 
 [smb_ref]
@@ -967,7 +933,6 @@ long_name:     surface mass balance at reference elevation
 data:          data%climate%smb_ref
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance_reference
-coordinates:   lon lat
 load:          1
 
 [smb_gradz]
@@ -977,7 +942,6 @@ long_name:     surface mass balance vertical gradient
 data:          data%climate%smb_gradz
 factor:        1.0/thk0
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
-coordinates:   lon lat
 load:          1
 
 [smb_anomaly]
@@ -987,7 +951,6 @@ long_name:     accumulation, ablation rate anomaly
 data:          data%climate%smb_anomaly
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance_anomaly
-coordinates:   lon lat
 load:          1
 
 [acab_ref]
@@ -997,7 +960,6 @@ long_name:     accumulation, ablation rate
 data:          data%climate%acab_ref
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_reference
-coordinates:   lon lat
 load:          1
 
 [acab_gradz]
@@ -1007,7 +969,6 @@ long_name:     surface mass balance vertical gradient
 data:          data%climate%acab_gradz
 factor:        scale_acab/thk0
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
-coordinates:   lon lat
 load:          1
 
 [acab_anomaly]
@@ -1017,7 +978,6 @@ long_name:     accumulation, ablation rate anomaly
 data:          data%climate%acab_anomaly
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_anomaly
-coordinates:   lon lat
 load:          1
 
 [artm_ref]
@@ -1026,7 +986,6 @@ units:         deg Celsius
 long_name:     surface temperature at reference elevation
 data:          data%climate%artm_ref
 standard_name: land_ice_surface_temperature_reference
-coordinates:   lon lat
 load:          1
 
 [artm_gradz]
@@ -1036,7 +995,6 @@ long_name:     surface temperature vertical gradient
 data:          data%climate%artm_gradz
 standard_name: land_ice_surface_temperature_vertical_gradient
 factor:        1./thk0
-coordinates:   lon lat
 load:          1
 
 [artm_anomaly]
@@ -1045,7 +1003,6 @@ units:         deg Celsius
 long_name:     surface temperature anomaly
 data:          data%climate%artm_anomaly
 standard_name: land_ice_surface_temperature_anomaly
-coordinates:   lon lat
 load:          1
 
 [smb_reference_usrf]
@@ -1055,7 +1012,6 @@ long_name:     reference upper surface elevation for SMB forcing
 data:          data%climate%smb_reference_usrf
 factor:        thk0
 standard_name: land_ice_specific_surface_mass_balance_reference_elevation
-coordinates:   lon lat
 load:          1
 
 [smb_3d]
@@ -1065,7 +1021,6 @@ long_name:     3D surface mass balance
 data:          data%climate%smb_3d(up,:,:)
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance_3d
-coordinates:   lon lat
 load:          1
 
 [acab_3d]
@@ -1075,7 +1030,6 @@ long_name:     3D surface mass balance
 data:          data%climate%acab_3d(up,:,:)
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_3d
-coordinates:   lon lat
 load:          1
 
 [artm_3d]
@@ -1084,7 +1038,6 @@ units:         deg Celsius
 long_name:     3D surface temperature
 data:          data%climate%artm_3d(up,:,:)
 standard_name: land_ice_surface_temperature_3d
-coordinates:   lon lat
 load:          1
 
 [smb_levels]
@@ -1094,7 +1047,6 @@ long_name:     surface mass balance reference levels
 data:          data%climate%smb_levels
 factor:        thk0
 standard_name: land_ice_surface_specific_mass_balance_reference_levels
-coordinates:   lon lat
 load:          1
 
 [acab_corrected]
@@ -1104,7 +1056,6 @@ long_name:     corrected accumulation, ablation rate
 data:          data%climate%acab_corrected
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_corrected
-coordinates:   lon lat
 
 [acab_applied]
 dimensions:    time, y1, x1
@@ -1113,7 +1064,6 @@ long_name:     applied accumulation, ablation rate
 data:          data%climate%acab_applied
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_applied
-coordinates:   lon lat
 average:       1
 
 [no_advance_mask]
@@ -1123,7 +1073,6 @@ long_name:     cells where advance is not allowed
 data:          data%climate%no_advance_mask
 standard_name: land_ice_no_advance_mask
 type:          int
-coordinates:   lon lat
 load:          1
 
 [overwrite_acab_mask]
@@ -1133,7 +1082,6 @@ long_name:     cells where acab is overwritten
 data:          data%climate%overwrite_acab_mask
 standard_name: land_ice_overwrite_acab_mask
 type:          int
-coordinates:   lon lat
 load:          1
 
 #WHL: Note sign convention: positive downward
@@ -1143,7 +1091,6 @@ units:         watt/meter2
 long_name:     downward basal heat flux
 data:          data%temper%bheatflx
 load:          1
-coordinates:   lon lat
 
 [bmlt]
 dimensions:    time, y1, x1
@@ -1152,7 +1099,6 @@ long_name:     basal melt rate
 data:          data%basal_melt%bmlt
 factor:        scale_acab
 standard_name: land_ice_basal_melt_rate
-coordinates:   lon lat
 #average:       1
 
 [bmlt_ground]
@@ -1162,7 +1108,6 @@ long_name:     basal melt rate for grounded ice
 data:          data%basal_melt%bmlt_ground
 factor:        scale_acab
 standard_name: grounded_ice_basal_melt_rate
-coordinates:   lon lat
 
 [bmlt_applied]
 dimensions:    time, y1, x1
@@ -1171,7 +1116,6 @@ long_name:     applied basal melt rate
 data:          data%basal_melt%bmlt_applied
 factor:        scale_acab
 standard_name: land_ice_basal_melt_rate_applied
-coordinates:   lon lat
 average:       1
 
 [bfricflx]
@@ -1180,7 +1124,6 @@ units:         watt/meter2
 long_name:     basal friction heat flux
 data:          data%temper%bfricflx
 load:          1
-coordinates:   lon lat
 
 [bwat]
 dimensions:    time, y1, x1
@@ -1189,7 +1132,6 @@ long_name:     basal water depth
 data:          data%temper%bwat
 factor:        thk0
 load:          1
-coordinates:   lon lat
 
 [bwatflx]
 dimensions:    time, y1, x1
@@ -1197,7 +1139,6 @@ units:         meter3/year
 long_name:     basal water flux
 data:          data%temper%bwatflx
 factor:        thk0
-coordinates:   lon lat
 
 [effecpress]
 dimensions:    time, y1, x1
@@ -1205,7 +1146,6 @@ units:         Pa
 long_name:     effective pressure
 data:          data%basal_physics%effecpress
 load:          1
-coordinates:   lon lat
 
 [c_space_factor]
 dimensions:    time, y1, x1
@@ -1213,7 +1153,6 @@ units:         1
 long_name:     spatial factor for basal shear stress
 data:          data%basal_physics%c_space_factor
 load:          1
-coordinates:   lon lat
 
 [powerlaw_c_inversion]
 dimensions:    time, y0, x0
@@ -1221,14 +1160,12 @@ units:         Pa (m/yr)**(-1/3)
 long_name:     spatially varying C for powerlaw sliding, staggered grid
 data:          data%inversion%powerlaw_c_inversion
 load:          1
-coordinates:   lon lat
 
 [thck_inversion_save]
 dimensions:    time, y1,x1
 units:         meter
 long_name:     thickness from previous time step, for inversion
 data:          data%inversion%thck_save
-coordinates:   lon lat
 load:          1
 
 [artm]
@@ -1238,7 +1175,6 @@ long_name:     annual mean air temperature
 data:          data%climate%artm
 standard_name: surface_air_temperature
 cell_methods:  time: mean
-coordinates:   lon lat
 load:          1
 
 [btemp]
@@ -1247,7 +1183,6 @@ units:         degree_Celsius
 long_name:     basal ice temperature
 data:          data%temper%btemp
 standard_name: land_ice_temperature
-coordinates:   lon lat
 
 [btemp_ground]
 dimensions:    time, y1, x1
@@ -1255,7 +1190,6 @@ units:         degree_Celsius
 long_name:     basal ice temperature for grounded ice
 data:          data%temper%btemp_ground
 standard_name: land_ice_temperature_ground
-coordinates:   lon lat
 
 [btemp_float]
 dimensions:    time, y1, x1
@@ -1263,7 +1197,6 @@ units:         degree_Celsius
 long_name:     basal ice temperature for floating ice
 data:          data%temper%btemp_float
 standard_name: land_ice_temperature_float
-coordinates:   lon lat
 
 [dusrfdtm]
 dimensions:    time, y1, x1
@@ -1271,7 +1204,6 @@ units:         meter/year
 long_name:     rate of upper ice surface elevation change (NOTE: Glide only)
 data:          data%geomderv%dusrfdtm
 factor:        scale_acab
-coordinates:   lon lat
 
 [dthckdtm]
 dimensions:    time, y1,x1
@@ -1279,7 +1211,6 @@ units:         meter/year
 long_name:     tendency of ice thickness (NOTE: Glide only)
 data:          data%geomderv%dthckdtm
 factor:        scale_acab
-coordinates:   lon lat
 
 [dthck_dt]
 dimensions:    time, y1,x1
@@ -1287,7 +1218,6 @@ units:         meter/year
 long_name:     tendency of ice thickness (NOTE: Glissade only)
 data:          data%geometry%dthck_dt
 factor:        scyr
-coordinates:   lon lat
 load:          1
 
 [uvel]
@@ -1447,7 +1377,6 @@ units:         meter/year
 long_name:     Horizontal ice velocity magnitude
 data:          data%velocity%velnorm(up,:,:)
 factor:        scale_uvel
-coordinates:   lon lat
 
 [divu]
 dimensions: time, y1, x1
@@ -1581,7 +1510,6 @@ units:         meter/year
 long_name:     vertical ice velocity
 data:          data%velocity%wvel(up,:,:)
 factor:        scale_wvel
-coordinates:   lon lat
 load:          1
 
 [wgrd]
@@ -1590,7 +1518,6 @@ units:         meter/year
 long_name:     Vertical grid velocity 
 data:          data%velocity%wgrd(up,:,:)
 factor:        scale_wvel
-coordinates:   lon lat
 load:          1
 
 [waterfrac]
@@ -1598,7 +1525,6 @@ dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]
 long_name:     internal water fraction
 data:          data%temper%waterfrac(up,:,:)
-coordinates:   lon lat
 load:          1
 
 [enthalpy]
@@ -1606,7 +1532,6 @@ dimensions:    time, stagwbndlevel, y1, x1
 units:         J/m3
 long_name:     specific enthalpy
 data:          data%temper%enthalpy(up,:,:)
-coordinates:   lon lat
 
 [flwa]
 dimensions:    time, level, y1, x1
@@ -1615,7 +1540,6 @@ long_name:     Pre-exponential flow law parameter
 data:          data%temper%flwa(up,:,:)
 factor:        scale_flwa
 load:          1
-coordinates:   lon lat
 
 [flwastag]
 dimensions:    time, staglevel, y1, x1
@@ -1627,7 +1551,6 @@ factor:        scale_flwa
 # The conversion to stag happens if needed in check_for_tempstag
 # but we do want it loadable in case flwa is listed as hot.
 load:          1
-coordinates:   lon lat
 
 [efvs]
 dimensions:    time, staglevel, y1, x1
@@ -1635,7 +1558,6 @@ units:         Pascal * years
 long_name:     effective viscosity               
 data:          data%stress%efvs(up,:,:)
 factor:        scale_efvs
-coordinates:   lon lat
 load:          1
 
 [temp]
@@ -1645,7 +1567,6 @@ long_name:     ice temperature
 data:          data%temper%temp(up,1:data%general%ewn,1:data%general%nsn)
 standard_name: land_ice_temperature
 load:          1
-coordinates:   lon lat
 
 [tempstag]
 dimensions:    time, stagwbndlevel, y1, x1
@@ -1656,7 +1577,6 @@ standard_name: land_ice_temperature_stag
 # hot=0 because we do not want the stag version to be in the hotvars definition.
 # The conversion to stag happens if needed in check_for_tempstag.
 load:          1
-coordinates:   lon lat
 
 [tempunstag]
 dimensions:    time, level, y1, x1
@@ -1665,7 +1585,6 @@ long_name:     ice temperature on unstaggered vertical levels
 data:          data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn)
 standard_name: land_ice_temperature_unstag
 load:          1
-coordinates:   lon lat
 
 [bpmp]
 dimensions:    time, y1, x1
@@ -1673,7 +1592,6 @@ units:         degree_Celsius
 long_name:     basal pressure melting point temperature
 data:          data%temper%bpmp
 standard_name: pressure_melting_point_temperature
-coordinates:   lon lat
 
 [litho_temp]
 dimensions:    time, lithoz, y1, x1
@@ -1681,7 +1599,6 @@ units:         degree_Celsius
 long_name:     lithosphere temperature
 data:          data%lithot%temp
 load:          1
-coordinates:   lon lat
 
 [ice_age]
 dimensions:    time, staglevel, y1, x1
@@ -1691,7 +1608,6 @@ data:          data%geometry%ice_age(up,:,:)
 standard_name: land_ice_age
 factor:        tim0/scyr
 load:          1
-coordinates:   lon lat
 
 [f_flotation]
 dimensions:    time, y1, x1
@@ -1699,7 +1615,6 @@ units:         unitless
 long_name:     flotation function
 data:          data%geometry%f_flotation
 load:          0
-coordinates:   lon lat
 
 [f_ground]
 dimensions:    time, y0, x0
@@ -1708,7 +1623,6 @@ long_name:     grounded ice fraction
 data:          data%geometry%f_ground
 standard_name: grounded_fraction
 load:          0
-coordinates:   lon lat
 
 [f_ground_cell]
 dimensions:    time, y1, x1
@@ -1717,7 +1631,6 @@ long_name:     grounded ice fraction in cells
 data:          data%geometry%f_ground_cell
 standard_name: grounded_fraction_cell
 load:          0
-coordinates:   lon lat
 
 [sfc_mbal_flux]
 dimensions:    time, y1, x1
@@ -1725,7 +1638,6 @@ units:         kg/m2/s
 long_name:     surface mass balance flux
 data:          data%geometry%sfc_mbal_flux
 standard_name: land_ice_surface_specific_mass_balance_flux
-coordinates:   lon lat
 average:       1
 
 [basal_mbal_flux]
@@ -1734,7 +1646,6 @@ units:         kg/m2/s
 long_name:     basal mass balance flux
 data:          data%geometry%basal_mbal_flux
 standard_name: land_ice_basal_specific_mass_balance_flux
-coordinates:   lon lat
 average:       1
 
 [calving_flux]
@@ -1743,7 +1654,6 @@ units:         kg/m2/s
 long_name:     calving flux
 data:          data%geometry%calving_flux
 standard_name: land_ice_specific_mass_flux_due_to_calving
-coordinates:   lon lat
 average:       1
 
 [gl_flux]
@@ -1833,7 +1743,6 @@ long_name:    dissipation rate (W m-3) divided by rhoi Ci
 data:         data%temper%dissip(up,:,:)
 factor:       scyr
 load:         1
-coordinates:  lon lat
 
 [dissipstag]
 dimensions:   time, staglevel, y1, x1
@@ -1842,7 +1751,6 @@ long_name:    dissipation rate (W m-3) divided by rhoi Ci
 data:         data%temper%dissip(up,:,:)
 factor:       scyr
 load:         1
-coordinates:  lon lat
 
 [adv_cfl_dt]
 dimensions:    time

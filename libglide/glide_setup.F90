@@ -732,6 +732,7 @@ contains
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
+    call GetValue(section,'read_lat_lon',model%options%read_lat_lon)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck',model%options%diag_minthck)
     call GetValue(section,'vertical_integration',model%options%whichwvel)
@@ -1331,7 +1332,7 @@ contains
     end if
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
-
+    
     ! dycore-dependent options; most of these are supported for Glissade only
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
@@ -1373,6 +1374,11 @@ contains
 
        if (model%options%adjust_input_topography) then
           write(message,*) ' Input topography in a selected region will be adjusted'
+          call write_log(message)
+       endif
+
+       if (model%options%read_lat_lon) then
+          write(message,*) ' Lat and lon fields will be read from input files and written to restart'
           call write_log(message)
        endif
 
@@ -3030,6 +3036,11 @@ contains
 
     if (options%enable_bmlt_anomaly) then
        call glide_add_to_restart_variable_list('bmlt_float_anomaly')
+    endif
+
+    if (options%read_lat_lon) then
+       ! If lat and lon are to be read from the input file, they should be written to the restart file
+       call glide_add_to_restart_variable_list('lat lon')
     endif
 
     select case (options%whichbmlt_float)
