@@ -990,28 +990,41 @@ contains
 
     !TODO - Move to an init_calving subroutine
     if ( (model%options%whichcalving == CALVING_THCK_THRESHOLD  .or.  &
-          model%options%whichcalving == EIGENCALVING  .or. model%options%whichcalving == CALVING_DAMAGE) &
-          .and. model%options%is_restart == RESTART_FALSE) then
+          model%options%whichcalving == EIGENCALVING  .or. model%options%whichcalving == CALVING_DAMAGE) ) then
 
-       ! Given the initial calving front thickness, initialize thck_calving_threshold.
-       ! If calving_minthck > 0 in the config file, set thck_calving_threshold = calving_minthck everywhere.
-       ! Otherwise, set thck_calving_threshold to the initial calving_front thickness, and extrapolate upstream and downstream.
-       ! During the run, any ice in the calving domain with thck < thck_calving_threshold will be removed.
-       ! On restart, thck_calving_threshold will be read from the restart file.
-       ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
-       !       Since thck_calving_threshold = 0 initially, no ice is thinner than the threshold during the
-       !        initial call above to glissade_calve_ice.  The threshold takes effect during the first timestep.
+       ! Check whether thck_calving_threshold was already read in.  If not, then compute it.
+       ! Note: Do not use the restart_false logic, since it may be convenient to compute this field on restart.
 
-       call glissade_thck_calving_threshold_init(&
-            model%general%ewn,         model%general%nsn,            &
-            itest,   jtest,    rtest,                                &
-            model%geometry%thck*thk0,  model%geometry%topg*thk0,     &
-            model%climate%eus*thk0,    model%numerics%thklim*thk0,   &
-            model%geometry%marine_connection_mask,                   &
-            model%calving%minthck,                                   &
-            model%calving%thck_calving_threshold)
+       local_maxval = maxval(model%calving%thck_calving_threshold)
+       global_maxval = parallel_reduce_max(local_maxval)
 
-    endif
+       write(message,*) 'thck_calving_threshold, global_maxval =', global_maxval
+       call write_log(trim(message))
+
+       if (global_maxval < eps11) then
+          write(message,*) 'Set thck_calving_threshold at startup'
+          call write_log(trim(message))
+
+          ! Given the initial calving front thickness, initialize thck_calving_threshold.
+          ! If calving_minthck > 0 in the config file, set thck_calving_threshold = calving_minthck everywhere.
+          ! Otherwise, set thck_calving_threshold to the initial calving_front thickness, and extrapolate upstream and downstream.
+          ! During the run, any ice in the calving domain with thck < thck_calving_threshold will be removed.
+          ! On restart, thck_calving_threshold will be read from the restart file.
+          ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
+          !       Since thck_calving_threshold = 0 initially, no ice is thinner than the threshold during the
+          !        initial call above to glissade_calve_ice.  The threshold takes effect during the first timestep.
+
+          call glissade_thck_calving_threshold_init(&
+               model%general%ewn,         model%general%nsn,            &
+               itest,   jtest,    rtest,                                &
+               model%geometry%thck*thk0,  model%geometry%topg*thk0,     &
+               model%climate%eus*thk0,    model%numerics%thklim*thk0,   &
+               model%geometry%marine_connection_mask,                   &
+               model%calving%minthck,                                   &
+               model%calving%thck_calving_threshold)
+       endif
+
+    endif  ! thickness-based calving
 
     if (model%options%whichcalving == CALVING_GRID_MASK .and. model%options%is_restart == RESTART_FALSE) then
 
@@ -2259,7 +2272,7 @@ contains
        !  making cell 3 an active interior cell, even though it is much thinner than other interior cells.
        ! To prevent this, ice is removed from cells that do not meet at least one of the following criteria
        !  before transport:
-       ! (1) active (thck > thkmin, excluding inactive CF cells)
+       ! (1) ice is present (ice_mask = 1)
        ! (2) land-based
        ! (3) shares at least one edge with an active cell
 
@@ -2267,9 +2280,10 @@ contains
            model%options%whichcalving /= CALVING_GRID_MASK) then
 
           ! compute a mask of protected cells
-          protected_mask(:,:) = 0
+          ! Protect cells where ice was present before advection, and protect land cells
 
-          where (active_ice_mask == 1 .or. land_mask == 1)
+          protected_mask(:,:) = 0
+          where (ice_mask == 1 .or. land_mask == 1)
              protected_mask = 1
           endwhere
 
@@ -3087,6 +3101,28 @@ contains
                                            ocean_mask,             land_mask,          &
                                            calving_front_mask,     thck_calving_front, &
                                            active_ice_mask = active_ice_mask)
+
+          if (verbose_calving .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'Before remove_icebergs, calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'thck_calving_front:'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
        endif
 
        ! Compute the grounded ice fraction in each grid cell
@@ -3115,6 +3151,7 @@ contains
                                      itest, jtest, rtest,                  &
                                      thck_unscaled,                        &  ! m
                                      model%geometry%f_ground_cell,         &
+                                     ice_mask,                             &
                                      land_mask,                            &
                                      active_ice_mask,                      &
                                      model%calving%calving_thck)              ! m
@@ -3341,7 +3378,8 @@ contains
     integer :: iglobal, jglobal, ii, jj
     real(dp) :: sum_cell, sum1, sum2  ! temporary sums
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: floating_mask_old
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         floating_mask_old, grounded_mask_old   ! masks from previous time steps
 
     rtest = -999
     itest = 1
@@ -3986,8 +4024,8 @@ contains
     call parallel_halo(model%calving%tau_eigen1)
     call parallel_halo(model%calving%tau_eigen2)
 
-    !WHL - debug
-    if (this_rank == rtest .and. verbose_calving) then
+
+    if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
        print*, ' '
        print*, 'tau eigen1 (Pa), i, j, rtest =:', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1
@@ -4104,8 +4142,7 @@ contains
     call parallel_halo(model%calving%eps_eigen1)
     call parallel_halo(model%calving%eps_eigen2)
 
-    !WHL - debug
-    if (this_rank == rtest .and. verbose_calving) then
+    if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
        print*, ' '
        print*, 'strain rate eigen1 (yr^-1):'
        do j = jtest+3, jtest-3, -1
@@ -4365,8 +4402,9 @@ contains
 
     endif ! verbose_inversion
 
-    ! save old floating mask for diagnostics
+    ! save old masks for diagnostics
     floating_mask_old = model%geometry%floating_mask
+    grounded_mask_old = model%geometry%grounded_mask
 
     ! set integer masks in the geometry derived type
 
@@ -4412,13 +4450,20 @@ contains
        do j = nhalo+1, model%general%nsn-nhalo
           do i = nhalo+1, model%general%ewn-nhalo
              if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
-                if (model%geometry%floating_mask(i,j) == 1) then
-                   write(6,*) 'Floating_mask flip, G to F: task, i, j =', this_rank, i, j
-                else
-                   write(6,*) 'Floating_mask flip, F to G: task, i, j =', this_rank, i, j
-                endif
                 call parallel_globalindex(i, j, iglobal, jglobal)
-                write(6,*) 'global i, j =', iglobal, jglobal
+                if (model%geometry%floating_mask(i,j) == 1) then
+                   if (grounded_mask_old(i,j) == 1) then
+                      write(6,*) 'Floating_mask flip, G to F: i, j =', iglobal, jglobal
+                   else
+                      write(6,*) 'Floating_mask flip, O to F: i, j =', iglobal, jglobal
+                   endif
+                elseif (floating_mask_old(i,j) == 1) then
+                   if (model%geometry%grounded_mask(i,j) == 1) then
+                      write(6,*) 'Floating_mask flip, F to G: i, j =', iglobal, jglobal
+                   else
+                      write(6,*) 'Floating_mask flip, F to O: i, j =', iglobal, jglobal
+                   endif
+                endif
              endif
           enddo
        enddo

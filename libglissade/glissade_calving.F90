@@ -44,7 +44,7 @@ module glissade_calving
             glissade_remove_icebergs, glissade_limit_cliffs
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -1390,6 +1390,7 @@ contains
        itest, jtest, rtest,         &
        thck,                        &
        f_ground_cell,               &
+       ice_mask,                    &
        land_mask,                   &
        active_ice_mask,             &
        calving_thck)
@@ -1423,6 +1424,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
+    integer,  dimension(nx,ny), intent(in)    :: ice_mask        !> = 1 where ice is present (thck > thklim), else = 0
     integer,  dimension(nx,ny), intent(in)    :: land_mask       !> = 1 where topg - eus >= 0, else = 0
     integer,  dimension(nx,ny), intent(in)    :: active_ice_mask !> = 1 for dynamically active cells
     real(dp), dimension(nx,ny), intent(inout) :: calving_thck    !> thickness lost due to calving in each grid cell;
@@ -1602,14 +1604,29 @@ contains
 
     ! Icebergs are cells that still have the initial color and are not on land.
     ! Remove ice in these cells, adding it to the calving field.
-    ! Note: Inactive land-based cells are not considered to be icebergs.
+    ! Note: There is an exception for cells that are
+    !       (1) adjacent to at least one ice-covered cell (sharing an edge), and
+    !       (2) connected diagonally to an active cell with the fill color.
+    !       Such cells are considered part of the inactive calving front and are
+    !        allowed to continue filling instead of calving.
 
     do j = 2, ny-1
        do i = 2, nx-1
           if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
-             calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
-             thck(i,j) = 0.0d0
-             !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
+             if (  ( color(i-1,j+1)==fill_color .and. active_ice_mask(i-1,j+1)==1 .and. &
+                       (ice_mask(i-1,j)==1 .or. ice_mask(i,j+1)==1) ) &
+              .or. ( color(i+1,j+1)==fill_color .and. active_ice_mask(i+1,j+1)==1 .and. &
+                       (ice_mask(i+1,j)==1 .or. ice_mask(i,j+1)==1) ) &
+              .or. ( color(i-1,j-1)==fill_color .and. active_ice_mask(i-1,j-1)==1 .and. &
+                       (ice_mask(i-1,j)==1 .or. ice_mask(i,j-1)==1) ) &
+              .or. ( color(i+1,j-1)==fill_color .and. active_ice_mask(i+1,j-1)==1 .and. &
+                       (ice_mask(i+1,j)==1 .or. ice_mask(i,j-1)==1) ) ) then
+                ! do nothing; this cell is part of the inactive calving front
+             else  ! not part of the inactive calving front; calve as an iceberg
+                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                thck(i,j) = 0.0d0
+                !TODO - Also handle tracers?  E.g., set damage(:,i,j) = 0.d0?
+             endif  ! diagonally connected or not
           endif
        enddo
     enddo
