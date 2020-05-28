@@ -726,6 +726,7 @@ contains
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
+    call GetValue(section,'apply_calving_mask', model%options%apply_calving_mask)
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
@@ -960,7 +961,7 @@ contains
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
-         'do nothing at marine margin     ', &
+         'no calving law                  ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
          'relaxed bedrock threshold       ', &
@@ -1336,6 +1337,10 @@ contains
     ! dycore-dependent options; most of these are supported for Glissade only
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
+
+       if (model%options%apply_calving_mask) then
+          call write_log(' A calving mask will be applied')
+       endif
 
        if (model%options%remove_icebergs) then
           call write_log(' Icebergs will be removed')
@@ -3206,7 +3211,8 @@ contains
 
         ! calving options for Glissade
 
-        if (options%whichcalving == CALVING_GRID_MASK) then
+        !TODO: CALVING_GRID_MASK and apply_calving_mask are redundant; remove one option
+        if (options%whichcalving == CALVING_GRID_MASK .or. options%apply_calving_mask) then
            call glide_add_to_restart_variable_list('calving_mask')
         endif
 
@@ -3236,8 +3242,6 @@ contains
         if (options%overwrite_acab /= 0) then
            call glide_add_to_restart_variable_list('overwrite_acab_mask')
         endif
-
-        !TODO - Should no_advance_mask also be written to restart?
 
       end select ! which_dycore
 

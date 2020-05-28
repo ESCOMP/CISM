@@ -626,15 +626,18 @@ module glide_types
     !> \item[1] Calve wherever the calving criterion is met
     !> \end{description}
 
-    logical  :: remove_icebergs = .true.
+    logical :: apply_calving_mask = .false.
+    !> if true, then apply a calving mask to prevent calving-front advance
+
+    logical :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
     !> These are connected regions with zero basal traction and no connection to grounded ice.
     !>       Safer to make it true, but not necessary for all applications
 
-    logical  :: limit_marine_cliffs = .false.
+    logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
 
-    logical  :: cull_calving_front = .false.
+    logical :: cull_calving_front = .false.
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
 
@@ -1325,8 +1328,6 @@ module glide_types
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
-     integer, dimension(:,:),pointer :: no_advance_mask => null() !> mask for cells where advance is not allowed 
-                                                                  !> (any ice reaching these locations is eliminated)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
      ! Next several fields used for SMB_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_GRADZ
@@ -2752,7 +2753,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%no_advance_mask)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
@@ -3320,8 +3320,6 @@ contains
         deallocate(model%climate%artm_anomaly)
     if (associated(model%climate%artm_corrected)) &
         deallocate(model%climate%artm_corrected)
-    if (associated(model%climate%no_advance_mask)) &
-        deallocate(model%climate%no_advance_mask)
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
     if (associated(model%climate%acab_ref)) &

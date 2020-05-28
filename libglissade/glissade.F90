@@ -1026,7 +1026,8 @@ contains
 
     endif  ! thickness-based calving
 
-    if (model%options%whichcalving == CALVING_GRID_MASK .and. model%options%is_restart == RESTART_FALSE) then
+    if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
+         .and. model%options%is_restart == RESTART_FALSE) then
 
        ! Initialize the no-advance calving_mask
        ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
@@ -2936,22 +2937,9 @@ contains
 
     model%calving%calving_thck = 0.0d0
 
-    ! If using a subgrid calving_front scheme (but not using a no-advance calving mask),
-    !  remove thin ice that was transported beyond the CF to ice-free cells without active neighbors.
-    ! In this case, model%calving%calving_mask is computed immediately after transport and applied here.
-
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and.   &
-        model%options%whichcalving /= CALVING_GRID_MASK) then
-       where (model%calving%calving_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
-          model%geometry%thck = 0.0d0
-       endwhere
-    endif
-
     ! Thin or remove ice where retreat is forced.
-    ! Note: This option has some similarities with calving_mask and no_advance_mask. Might want to consolidate options.
-    !       (This option is different in that the mask is a real number in the range [0,1], allowing thinning
-    !        instead of complete removal.)
+    ! Note: This option is similar to apply_calving_mask.  It is different in that the mask
+    !       is a real number in the range [0,1], allowing thinning instead of complete removal.
     !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
     !       This option is applied before calling glissade_calve_ice, so that ice thinned by the retreat mask
     !        can undergo further thinning or removal by the calving scheme.
@@ -2960,7 +2948,7 @@ contains
        if (main_task) print*, 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
 
        !WHL - debug
-       ! Check that a nonzero retreat mask has been read in. Otherwise, all ice will be removed.
+       ! Check that a nonzero retreat mask has been read in. Otherwise, all ice would erroneously be removed.
        local_maxval = maxval(model%geometry%ice_fraction_retreat_mask)
        global_maxval = parallel_reduce_max(local_maxval)
        if (global_maxval < eps11) then
@@ -3033,29 +3021,82 @@ contains
     thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
     model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:) * thk0
 
-    ! ------------------------------------------------------------------------ 
-    ! Calve ice, based on the value of whichcalving 
-    !       Pass in thck, topg, etc. with units of meters.
-    ! TODO: Pass in individual fields with SI units, instead of the calving derived type?
-    ! TODO: Separate logic for the no_advance/calving mask?
-    !       Either option 5, or no_advance_mask is nonzero.
-    ! ------------------------------------------------------------------------ 
+    ! Remove ice where forced by a calving mask.
+    ! Note: whichcalving = CALVING_GRID_MASK and apply_calving_mask = T are currently redundant.
+    ! TODO: Remove the CALVING_GRID_MASK option and use apply_calving_mask only (usually with marine_margin = 0).
+    !       Keeping both for now to avoid breaking config files.
 
-    call glissade_calve_ice(nx,           ny,                  &
-                            model%options%whichcalving,        &
-                            model%options%calving_domain,      &
-                            model%options%which_ho_calving_front, &     !TODO - Is this needed for the calving itself?
-                            model%calving,                     &        ! calving object; includes calving_thck (m)
-                            itest, jtest, rtest,               &
-                            model%numerics%dt*tim0,            &        ! s
-                            model%numerics%dew*len0,           &        ! m
-                            model%numerics%dns*len0,           &        ! m
-                            model%numerics%sigma,              &
-                            model%numerics%thklim*thk0,        &        ! m
-                            thck_unscaled,                     &        ! m
-                            model%isostasy%relx*thk0,          &        ! m
-                            model%geometry%topg*thk0,          &        ! m
-                            model%climate%eus*thk0)                     ! m
+    if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+
+       if (verbose_calving .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'Limit advance of calving front'
+          print*, ' '
+          print*, 'starting thck, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'calving_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') model%calving%calving_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+       endif
+
+       ! calve ice where calving_mask = 1
+       where (thck_unscaled > 0.0d0 .and. model%calving%calving_mask == 1)
+          model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
+          thck_unscaled = 0.0d0
+          !TODO - Reset temperature and other tracers in cells where the ice calved?
+       endwhere
+
+    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+       ! If using a subgrid calving_front scheme (but apply_calving_mask = F),
+       !  remove thin ice that was transported beyond the CF to ice-free cells without active neighbors.
+       ! In that case, a temporary version of model%calving%calving_mask is computed after transport and applied here.
+
+       where (model%calving%calving_mask == 1)
+          model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
+          thck_unscaled = 0.0d0
+          !TODO - Reset temperature and other tracers in cells where the ice calved?
+       endwhere
+
+    endif   ! apply_calving_mask
+
+    ! ------------------------------------------------------------------------
+    ! Calve ice, based on the value of whichcalving.
+    ! Pass in thck, topg, etc. with units of meters.
+    ! TODO: Pass in individual fields with SI units, instead of the calving derived type?
+    ! ------------------------------------------------------------------------
+
+    if (model%options%whichcalving /= CALVING_GRID_MASK) then
+
+       call glissade_calve_ice(nx,           ny,                  &
+                               model%options%whichcalving,        &
+                               model%options%calving_domain,      &
+                               model%options%which_ho_calving_front, &     !TODO - Is this needed for the calving itself?
+                               model%calving,                     &        ! calving object; includes calving_thck (m)
+                               itest, jtest, rtest,               &
+                               model%numerics%dt*tim0,            &        ! s
+                               model%numerics%dew*len0,           &        ! m
+                               model%numerics%dns*len0,           &        ! m
+                               model%numerics%sigma,              &
+                               model%numerics%thklim*thk0,        &        ! m
+                               thck_unscaled,                     &        ! m
+                               model%isostasy%relx*thk0,          &        ! m
+                               model%geometry%topg*thk0,          &        ! m
+                               model%climate%eus*thk0)                     ! m
+    endif
 
     if (init_calving .and. model%options%cull_calving_front) then
 
@@ -3123,7 +3164,7 @@ contains
              enddo
           endif
 
-       endif
+       endif   ! subgrid calving front
 
        ! Compute the grounded ice fraction in each grid cell
 
@@ -3182,20 +3223,6 @@ contains
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
     call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calclsrf
-
-    ! Eliminate ice from cells where a no-advance mask prohibits it.
-    ! Add this ice to the calving field for mass conservation diagnostics.
-    ! Note: The calving_mask option accomplishes the same thing. However, if we want to use a different
-    !       calving law while also limiting calving-front advance, we can use the no_advance mask.
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
-          if (model%climate%no_advance_mask(i,j) == 1 .and. model%geometry%thck(i,j) > 0.0d0) then
-             model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + model%geometry%thck(i,j)
-             model%geometry%thck(i,j) = 0.d0
-             ! Note: Tracers (temp, etc.) are cleaned up later by call to glissade_cleanup_icefree_cells
-          endif
-       enddo
-    enddo
 
     if (verbose_calving .and. this_rank == rtest) then
        print*, ' '

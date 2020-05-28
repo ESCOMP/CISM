@@ -1066,15 +1066,6 @@ factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_applied
 average:       1
 
-[no_advance_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     cells where advance is not allowed
-data:          data%climate%no_advance_mask
-standard_name: land_ice_no_advance_mask
-type:          int
-load:          1
-
 [overwrite_acab_mask]
 dimensions:    time, y1, x1
 units:         1
