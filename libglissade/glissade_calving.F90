@@ -549,11 +549,10 @@ contains
    
     ! initialize
 
-!!!    calving%calving_thck(:,:) = 0.d0   ! might be nonzero as a result of previous operations
-
     nz = size(sigma)
 
     if (which_calving == CALVING_NONE) then   ! do nothing
+       if (verbose_calving .and. main_task) print*, 'No calving'
        return
     endif
 
@@ -1035,44 +1034,6 @@ contains
              write(6,*) ' '
           enddo
        endif  ! verbose
-
-    elseif (which_calving == CALVING_GRID_MASK) then
-
-       ! calve ice where the input calving mask = 1
-
-       if (verbose_calving .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'Limit advance of calving front'
-          print*, ' '
-          print*, 'starting thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'calving_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving%calving_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-       endif
-       
-       do j = 1, ny
-          do i = 1, nx
-             if (thck(i,j) > 0.0d0 .and. calving%calving_mask(i,j) == 1) then
-                calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
-                thck(i,j) = 0.0d0
-                !TODO - Reset temperature and other tracers?
-             endif
-          enddo
-       enddo
 
     else   ! other calving options
 
