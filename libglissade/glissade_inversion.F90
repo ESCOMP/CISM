@@ -173,6 +173,16 @@ contains
 
           ! Where thck_obs < inversion_thck_threshold, set it to zero.
           ! One reason to do this is to avoid restoring ice to small values at the calving front.
+          ! Probably not necessary if doing basin-scale inversion for floating ice instead of inversion in each grid cell.
+          !WHL - debug
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
+                if (verbose_inversion .and. thck_obs(i,j) > 0.0d0 .and. &
+                     thck_obs(i,j) < model%inversion%thck_threshold) then
+                   print*, 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)*thk0
+                endif
+             enddo
+          enddo
 
           model%inversion%thck_threshold = max(model%inversion%thck_threshold, model%numerics%thklim)
           where (thck_obs <= model%inversion%thck_threshold)

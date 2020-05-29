@@ -2205,19 +2205,23 @@ contains
        call write_log(message)
     endif
 
+    ! thickness-based calving options
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
         model%options%whichcalving == EIGENCALVING           .or. &
         model%options%whichcalving == CALVING_DAMAGE) then
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-          write(message,*) &
-               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
-          call write_log(message, GM_FATAL)
-       endif
-
        if (model%calving%timescale <= 0.0d0) then
           write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
           call write_log(message, GM_FATAL)
+       endif
+
+       if (model%options%whichcalving == EIGENCALVING .or. &
+           model%options%whichcalving == CALVING_DAMAGE) then
+          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+             write(message,*) &
+                  'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
+             call write_log(message, GM_FATAL)
+          endif
        endif
 
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then

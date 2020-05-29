@@ -1571,7 +1571,9 @@
                             active_ice_mask = active_ice_mask)
 
     ! If using a subgrid calving-front scheme, then compute calving_front_mask
-    ! and recompute active_ice_mask.
+    !  and recompute active_ice_mask.
+    ! Note: If running without a subgrid CF scheme, then CF cells are active,
+    !       and the values of calving_front_mask and thck_calving_front do not matter.
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -1586,6 +1588,7 @@
 
     else
        calving_front_mask(:,:) = 0
+       thck_calving_front(:,:) = 0.0d0
     endif
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
@@ -2550,6 +2553,26 @@
              enddo
 
              print*, ' '
+             print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') active_ice_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
              print*, 'ice_mask, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
@@ -2565,16 +2588,6 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(i10)',advance='no') floating_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') active_ice_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo
