@@ -1017,6 +1017,7 @@ contains
           call glissade_thck_calving_threshold_init(&
                model%general%ewn,         model%general%nsn,            &
                itest,   jtest,    rtest,                                &
+               model%options%which_ho_calving_front,                    &
                model%geometry%thck*thk0,  model%geometry%topg*thk0,     &
                model%climate%eus*thk0,    model%numerics%thklim*thk0,   &
                model%geometry%marine_connection_mask,                   &
@@ -2277,8 +2278,9 @@ contains
        ! (2) land-based
        ! (3) shares at least one edge with an active cell
 
+       !TODO - Remove the redundant CALVING_GRID_MASK option
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and.   &
-           model%options%whichcalving /= CALVING_GRID_MASK) then
+           (model%options%whichcalving /= CALVING_GRID_MASK .and. .not.model%options%apply_calving_mask)) then
 
           ! compute a mask of protected cells
           ! Protect cells where ice was present before advection, and protect land cells
@@ -3084,7 +3086,7 @@ contains
        call glissade_calve_ice(nx,           ny,                  &
                                model%options%whichcalving,        &
                                model%options%calving_domain,      &
-                               model%options%which_ho_calving_front, &     !TODO - Is this needed for the calving itself?
+                               model%options%which_ho_calving_front, &
                                model%calving,                     &        ! calving object; includes calving_thck (m)
                                itest, jtest, rtest,               &
                                model%numerics%dt*tim0,            &        ! s

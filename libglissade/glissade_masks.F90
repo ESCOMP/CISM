@@ -465,10 +465,37 @@
 
     else   ! no subgrid calving front scheme
 
-       !TODO - Allow for cases when we would want to compute a CF mask even when not using the subgrid CF scheme?
-       !       E.g., when culling CF cells before inversion.
        calving_front_mask(:,:) = 0
+       interior_marine_mask(:,:) = 0
        thck_calving_front(:,:) = 0.0d0
+
+       ! Identify calving front cells (floating cells that border ice-free ocean)
+       ! and marine-based interior cells (marine-based cells not at the calving front).
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (floating_mask(i,j) == 1) then
+                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                   calving_front_mask(i,j) = 1
+                   thck_calving_front(i,j) = thck(i,j)
+                else
+                   interior_marine_mask(i,j) = 1
+                endif
+             elseif (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0 .and. topg(i,j) < eus) then  ! grounded marine-based ice
+                interior_marine_mask(i,j) = 1
+             endif
+          enddo
+       enddo
+
+       call parallel_halo(calving_front_mask)
+       call parallel_halo(thck_calving_front)
+       call parallel_halo(interior_marine_mask)
+
+       ! Optionally, copy interior_marine_mask to marine_interior_mask for output.
+       if (present(marine_interior_mask)) then
+          marine_interior_mask = interior_marine_mask
+       endif
 
        if (present(effective_areafrac)) then
           where (ice_mask == 1 .or. land_mask == 1)
