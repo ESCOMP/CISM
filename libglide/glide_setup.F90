@@ -3282,42 +3282,28 @@ contains
     end select
 
     ! basal inversion options
-    ! If computing powerlaw_c and/or bmlt_float by inversion, these fields are needed for restart.
-    if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
-        options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
-       ! Need the surface elevation target for either inversion option
+    if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
        call glide_add_to_restart_variable_list('usrf_obs')
-
-       if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
-          call glide_add_to_restart_variable_list('powerlaw_c_inversion')
-          call glide_add_to_restart_variable_list('dthck_dt')
-       endif
-
-       if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
-          call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
-          call glide_add_to_restart_variable_list('thck_inversion_save')
-       endif
-
-    endif
-
-    ! The bmlt_basin inversion option needs targets for floating ice area and volume
-    ! Note: deltaT_basin is added to the restart file above.
-    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or.  &
-        options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_APPLY) then
-       call glide_add_to_restart_variable_list('floating_thck_target')
-    endif
-
-    if (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
+       call glide_add_to_restart_variable_list('powerlaw_c_inversion')
+       call glide_add_to_restart_variable_list('dthck_dt')
+    elseif (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
        call glide_add_to_restart_variable_list('powerlaw_c_inversion')
     endif
 
-    if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-       call glide_add_to_restart_variable_list('bmlt_float_inversion_save')
+    if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('bmlt_float_inversion')
+       call glide_add_to_restart_variable_list('thck_inversion_save')
+    elseif (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
+       call glide_add_to_restart_variable_list('bmlt_float_inversion')
     endif
 
-    ! If inverting for basal parameters and/or subshelf melting based on ursf_obs,
-    !  then usrf_obs needs to be in the restart file.
+    ! The bmlt_basin inversion option needs a thickness target for floating ice
+    ! Note: deltaT_basin is added to the restart file above.
+    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+       call glide_add_to_restart_variable_list('floating_thck_target')
+    endif
 
     ! geothermal heat flux option
     select case (options%gthf)
