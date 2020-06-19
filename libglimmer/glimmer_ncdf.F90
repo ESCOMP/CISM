@@ -184,6 +184,28 @@ module glimmer_ncdf
      type(glimmer_nc_input), pointer :: next=>NULL()       !> next element in list
      type(glimmer_nc_input), pointer :: previous=>NULL()   !> previous element in list
 
+     ! The following parameter is useful if the time variable in the input file is different from the CISM time.
+     ! For example, suppose a historical CISM run starts on 1 Jan. 1951.
+     ! This is CISM time 1950.0 (since CISM time 0.0 is 1 Jan. of year 1).
+     ! If a given time slice in the forcing file has t = 1961, corresponding to year 1961,
+     !  then we want this file to be read between CISM time 1960.0 and 1961.0.
+     ! Setting time_offset = 1 ensures that 1961 data is read when CISM time >= 1960.
+     ! Note: time_offset is defined to be positive when the time in the input file is greater than the CISM time.
+
+     integer                        :: time_offset = 0     !> Difference (yr) between time in file and CISM time
+
+     ! The following parameters can be set to nonzero values if we want to cycle repeatedly through part of the input forcing.
+     ! Suppose we have forcing data for years 2001 through 2100 and we want to continue beyond 2100,
+     !  cycling through the forcing for years 2081 through 2100.
+     ! Then we set time_start_cycle = 2081.0 and nyear_cycle = 20.
+     ! Once the forcing time (i.e., the CISM time plus any offset) exceeds time_start_cycle,
+     !  the model will cycle repeatedly through the forcing until the end of the run.
+     ! Note: If time_offset /= 0, the CISM time is offset from the time in the forcing file.
+     !       In this case, time_start_cycle refers to the time in the forcing file, not the CISM time.
+     real(dp)                       :: time_start_cycle = 0.0d0   !> Start cycling once the model time exceeds this time
+     integer                        :: nyear_cycle = 0            !> Cycle repeatedly through nyear_cycle years of forcing data
+                                                                  !> No cycling unless nyear_cycle > 0
+
   end type glimmer_nc_input
 
 
