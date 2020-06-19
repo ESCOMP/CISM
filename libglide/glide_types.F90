@@ -2734,7 +2734,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
     endif
 
-    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or. &
+        model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_APPLY) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for the bmlt_basin inversion option', GM_FATAL)
        endif
