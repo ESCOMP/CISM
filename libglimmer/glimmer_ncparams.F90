@@ -354,17 +354,34 @@ contains
     type(ConfigSection), pointer :: section
     type(glimmer_nc_input), pointer :: forcing
     type(glimmer_nc_input), pointer :: handle_forcing
+    character(len=256) :: message
 
     handle_forcing=>add(forcing)
     
-    ! get filename
+    ! get filename and other info
     call GetValue(section,'name',handle_forcing%nc%filename)
     call GetValue(section,'time',handle_forcing%get_time_slice)  ! MJH don't think we'll use 'time' keyword in the forcing config section
-    
+    call GetValue(section,'time_offset',handle_forcing%time_offset)
+    call GetValue(section,'nyear_cycle',handle_forcing%nyear_cycle)
+    call GetValue(section,'time_start_cycle',handle_forcing%time_start_cycle)
+
     handle_forcing%current_time = handle_forcing%get_time_slice
 
     if (handle_forcing%nc%filename(1:1)==' ') then
        call write_log('Error, no file name specified [netCDF forcing]',GM_FATAL)
+    else
+       write(message,*) 'Forcing file: ', trim(handle_forcing%nc%filename)
+       call write_log(message)
+       if (handle_forcing%time_offset /= 0) then
+          write(message,*) '   time offset:', handle_forcing%time_offset
+          call write_log(message)
+       endif
+       if (handle_forcing%nyear_cycle > 0) then
+          write(message,*) '   time_start_cycle:', handle_forcing%time_start_cycle
+          call write_log(message)
+          write(message,*) '   nyear_cycle:', handle_forcing%nyear_cycle
+          call write_log(message)
+       endif
     end if
 
     handle_forcing%nc%filename = trim(filenames_inputname(handle_forcing%nc%filename))
