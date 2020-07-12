@@ -1983,6 +1983,7 @@ contains
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
+    call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
@@ -2336,6 +2337,9 @@ contains
 
     if (model%options%which_ho_efvs == HO_EFVS_CONSTANT) then
        write(message,*) 'constant effec viscosity (Pa yr)   :', model%paramets%efvs_constant
+       call write_log(message)
+    elseif (model%options%which_ho_efvs == HO_EFVS_NONLINEAR) then
+       write(message,*) 'min effective strain rate (yr^-1)  :', model%paramets%effstrain_min
        call write_log(message)
     end if
 

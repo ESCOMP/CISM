@@ -44,7 +44,7 @@ module glissade_calving
             glissade_remove_icebergs, glissade_limit_cliffs
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
 
 contains
 

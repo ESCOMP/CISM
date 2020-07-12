@@ -716,6 +716,7 @@
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
        efvs_constant,        &  ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
+       effstrain_min,        &  ! minimum value of effective strain rate (yr^-1) for viscosity computation
        pmp_threshold            ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
     real(dp), dimension(:,:), pointer ::  &
@@ -819,6 +820,8 @@
        xVertex, yVertex,    & ! x and y coordinates of each vertex (m)
        stagusrf,            & ! upper surface averaged to vertices, for active cells (m)
        stagthck,            & ! ice thickness averaged to vertices, for active cells (m)
+       stagusrf_lateral,    & ! modified version of stagusrf; does not weight ice-free ocean cells
+       stagthck_lateral,    & ! modified version of stagthck; does not weight ice-free ocean cells
        dusrf_dx, dusrf_dy,  & ! gradient of upper surface elevation (m/m)
        ubas, vbas             ! basal ice velocity (m/yr); input to calcbeta 
 
@@ -1125,6 +1128,7 @@
      max_slope = model%paramets%max_slope
      eus = model%climate%eus
      efvs_constant = model%paramets%efvs_constant
+     effstrain_min = model%paramets%effstrain_min
      pmp_threshold = model%temper%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
@@ -2235,6 +2239,33 @@
     ! Inactive cells with calving_front_mask = 1 are treated as if they were ice-free ocean.
     !------------------------------------------------------------------------------
 
+    ! The following is a kluge for computing lateral load at marine cliff edges.
+    ! When stagthck and stagusrf are computed above, ice-free cells are included in the average.
+    ! This is appropriate at land-terminating margins, but not for marine cliffs.
+    ! For whichassemble_lateral = HO_ASSEMBLE_LATERAL_LOCAL, stagusrf and stagthck are not used.
+    !  Instead, we use usrf and thck from the ice-filled cliff cell.
+    ! But for whichassemble_lateral = HO_ASSEMBLE_LATERAL_STANDARD, the load is proportional
+    !  to stagthck and stagusrf and will be too low if the staggered averages
+    !  incorporate ice-free ocean.  So we need to compute appropriate staggered averages
+    !  without weighting ice-free cells.
+    ! At some point, we might want to deprecate HO_ASSEMBLE_LATERAL_STANDARD.
+
+    if (whichassemble_lateral == HO_ASSEMBLE_LATERAL_STANDARD) then
+
+       call glissade_stagger(nx,           ny,               &
+                             thck,         stagthck_lateral, &
+                             ice_plus_land_mask,             &
+                             stagger_margin_in = 1)
+
+       call glissade_stagger(nx,           ny,               &
+                             usrf,         stagusrf_lateral, &
+                             ice_plus_land_mask,             &
+                             stagger_margin_in = 1)
+    else
+       stagusrf_lateral = stagusrf
+       stagthck_lateral = stagthck
+    endif
+
     call t_startf('glissade_load_vector_lateral_bc')
     call load_vector_lateral_bc(nx,               ny,              &
                                 nz,               sigma,           &
@@ -2245,7 +2276,7 @@
                                 active_cell,                       &
                                 xVertex,          yVertex,         &
                                 usrf,             thck,            &
-                                stagusrf,         stagthck,        &
+                                stagusrf_lateral, stagthck_lateral,  &
                                 loadu,            loadv)
     call t_stopf('glissade_load_vector_lateral_bc')
 
@@ -2818,8 +2849,8 @@
                                                stagusrf,         stagthck,        &
                                                flwa,             flwafact,        &
                                                whichapprox,                       &
-                                               whichefvs,        efvs_constant,   &
-                                               efvs,                              &
+                                               whichefvs,        efvs,            &
+                                               efvs_constant,    effstrain_min,   &
                                                Auu_2d,           Auv_2d,          &
                                                Avu_2d,           Avv_2d,          &
                                                dusrf_dx,         dusrf_dy,        &
@@ -3103,8 +3134,8 @@
                                                uvel,             vvel,            &
                                                stagusrf,         stagthck,        &
                                                flwafact,         whichapprox,     &
-                                               efvs,             whichefvs,       &
-                                               efvs_constant,                     &
+                                               whichefvs,        efvs,            &
+                                               efvs_constant,    effstrain_min,   &
                                                Auu,              Auv,             &
                                                Avu,              Avv)
              call t_stopf('glissade_assemble_3d')
@@ -3308,10 +3339,6 @@
           !       (and for accelerated Picard, whether the residual norm has decreased).
           !---------------------------------------------------------------------------
 
-          if (verbose_residual .and. main_task) then
-             print*, 'Compute residual vector, counter =', counter
-          endif
-
           if (solve_2d) then
 
              call t_startf('glissade_resid_vec')
@@ -3513,7 +3540,7 @@
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') uvel(nz,i,j)
+                   write(6,'(f12.4)',advance='no') uvel(nz,i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -3523,7 +3550,7 @@
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') vvel(nz,i,j)
+                   write(6,'(f12.4)',advance='no') vvel(nz,i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -3533,7 +3560,7 @@
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') uvel(1,i,j)
+                   write(6,'(f12.4)',advance='no') uvel(1,i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -3543,7 +3570,7 @@
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') vvel(1,i,j)
+                   write(6,'(f12.4)',advance='no') vvel(1,i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -3692,7 +3719,8 @@
 
                 call pcg_solver_chrongear_3d(nx,           ny,            &
                                              nz,           nhalo,         &
-                                             indxA_3d,     active_vertex, &
+                                             indxA_2d,     indxA_3d,      &
+                                             active_vertex,               &
                                              Auu,          Auv,           &
                                              Avu,          Avv,           &
                                              bu,           bv,            &
@@ -4009,16 +4037,15 @@
           call staggered_parallel_halo(vvel)
           call t_stopf('glissade_halo_xvel')
           
-          if (verbose_velo .and. this_rank==rtest) then
+          if ((verbose_velo .or. verbose_residual) .and. this_rank==rtest) then
              i = itest
              j = jtest
              print*, ' '
-             print*, 'rank, i, j:', this_rank, i, j
-             print*, 'k, uvel, vvel:'
+             print*, 'iter, rank, i, j:', counter, this_rank, i, j
+             print*, 'k, uvel, vvel, resid_u, resid_v:'
              do k = 1, nz
-                print*, k, uvel(k,i,j), vvel(k,i,j)
+                print*, k, uvel(k,i,j), vvel(k,i,j), resid_u(k,i,j), resid_v(k,i,j)
              enddo
-             print*, ' '
           endif
 
           !---------------------------------------------------------------------------
@@ -4197,9 +4224,9 @@
                                  active_cell,                  &
                                  xVertex,       yVertex,       &
                                  stagusrf,      stagthck,      &
-                                 flwafact,      efvs,          &
-                                 whichefvs,     efvs_constant, &
-                                 whichapprox,                  &
+                                 whichapprox,   flwafact,      &
+                                 whichefvs,     efvs,          &
+                                 efvs_constant, effstrain_min, &
                                  uvel,          vvel,          &
                                  tau_xz,        tau_yz,        &
                                  tau_xx,        tau_yy,        &
@@ -5377,8 +5404,8 @@
                                           uvel,             vvel,            &
                                           stagusrf,         stagthck,        &
                                           flwafact,         whichapprox,     &
-                                          efvs,             whichefvs,       &
-                                          efvs_constant,                     &       
+                                          whichefvs,        efvs,            &
+                                          efvs_constant,    effstrain_min,   &
                                           Auu,              Auv,             &
                                           Avu,              Avv)
 
@@ -5423,11 +5450,12 @@
        whichapprox,     & ! option for Stokes approximation (BP, SSA, SIA)
        whichefvs          ! option for effective viscosity calculation 
 
-    real(dp), intent(in) :: &
-       efvs_constant      ! constant value of effective viscosity (Pa yr)
-
     real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
        efvs               ! effective viscosity (Pa yr)
+
+    real(dp), intent(in) :: &
+       efvs_constant,   & ! constant value of effective viscosity (Pa yr)
+       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
 
     real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
@@ -5557,7 +5585,8 @@
 
 !          call t_startf('glissade_effective_viscosity')
                 call compute_effective_viscosity(whichefvs,        whichapprox,                       &
-                                                 efvs_constant,    nNodesPerElement_3d,               &
+                                                 efvs_constant,    effstrain_min,                     &
+                                                 nNodesPerElement_3d,                                 &
                                                  dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
                                                  u(:),             v(:),                              & 
                                                  flwafact(k,i,j),  efvs_qp(p),                        &
@@ -5608,9 +5637,9 @@
           if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
              print*, ' '
              print*, 'Assembled 3D matrix, i, j =', i, j
-             print*, 'k, efvs:'
+             print*, 'k, flwafact, efvs:'
              do k = 1, nz-1
-                print*, k, efvs(k,i,j)
+                print*, k, flwafact(k,i,j), efvs(k,i,j)
              enddo
           endif
 
@@ -5633,8 +5662,8 @@
                                           stagusrf,         stagthck,        &
                                           flwa,             flwafact,        &
                                           whichapprox,                       &
-                                          whichefvs,        efvs_constant,   &
-                                          efvs,                              &
+                                          whichefvs,        efvs,            &
+                                          efvs_constant,    effstrain_min,   &
                                           Auu,              Auv,             &
                                           Avu,              Avv,             &
                                           dusrf_dx,         dusrf_dy,        &
@@ -5690,11 +5719,12 @@
        whichapprox,     & ! option for Stokes approximation (BP, L1L2, SSA, SIA)
        whichefvs          ! option for effective viscosity calculation 
 
-    real(dp), intent(in) :: &
-       efvs_constant      ! constant value of effective viscosity (Pa yr)
-
     real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
        efvs               ! effective viscosity (Pa yr)
+
+    real(dp), intent(in) :: &
+       efvs_constant,   & ! constant value of effective viscosity (Pa yr)
+       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
 
     real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
@@ -5876,7 +5906,8 @@
 
                 ! Compute effective viscosity for each layer at this quadrature point
                 !TODO - sigma -> stagsigma for L1L2 viscosity?
-                call compute_effective_viscosity_L1L2(whichefvs,            efvs_constant,     &
+                call compute_effective_viscosity_L1L2(whichefvs,                               &
+                                                      efvs_constant,        effstrain_min,     &
                                                       nz,                   sigma,             &
                                                       nNodesPerElement_2d,  phi_2d(:,p),       &
                                                       dphi_dx_2d(:),        dphi_dy_2d(:),     &
@@ -5900,7 +5931,8 @@
 
                 ! Compute effective viscosity for each layer at this quadrature point
                 ! Note: efvs_qp_3d is intent(inout); old value is used to compute new value
-                call compute_effective_viscosity_diva(whichefvs,            efvs_constant,     &
+                call compute_effective_viscosity_diva(whichefvs,                               &
+                                                      efvs_constant,        effstrain_min,     &
                                                       nz,                   stagsigma,         &
                                                       nNodesPerElement_2d,  phi_2d(:,p),       &
                                                       dphi_dx_2d(:),        dphi_dy_2d(:),     &
@@ -5928,7 +5960,8 @@
 
                 ! Compute vertically averaged effective viscosity at this quadrature point
                 call compute_effective_viscosity(whichefvs,        whichapprox,                       &
-                                                 efvs_constant,    nNodesPerElement_2d,               &
+                                                 efvs_constant,    effstrain_min,                     &
+                                                 nNodesPerElement_2d,                                 &
                                                  dphi_dx_2d(:),    dphi_dy_2d(:),    dphi_dz_2d(:),   &
                                                  u(:),             v(:),                              & 
                                                  flwafact_2d(i,j), efvs_qp_vertavg(p),                &
@@ -5999,9 +6032,9 @@
           if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
              print*, ' '
              print*, 'Assembled 2D matrix, i, j =', i, j
-             print*, 'k, efvs:'
+             print*, 'k, flwafact, efvs:'
              do k = 1, nz-1
-                print*, k, efvs(k,i,j)
+                print*, k, flwafact(k,i,j), efvs(k,i,j)
              enddo
           endif
 
@@ -7420,9 +7453,9 @@
                                       active_cell,                  &
                                       xVertex,       yVertex,       &
                                       stagusrf,      stagthck,      &
-                                      flwafact,      efvs,          &
-                                      whichefvs,     efvs_constant, &
-                                      whichapprox,                  &
+                                      whichapprox,   flwafact,      &
+                                      whichefvs,     efvs,          &
+                                      efvs_constant, effstrain_min, &
                                       uvel,          vvel,          &
                                       tau_xz,        tau_yz,        &
                                       tau_xx,        tau_yy,        &
@@ -7459,14 +7492,15 @@
        whichapprox,     & ! option for Stokes approximation (BP, L1L2, SSA, SIA)
        whichefvs          ! option for effective viscosity calculation 
 
-    real(dp), intent(in) :: &
-       efvs_constant      ! constant value of effective viscosity (Pa yr)
-
     real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
        efvs,           &  ! precomputed effective viscosity
                           ! used for L1L2 only; efvs is recomputed at QPs for other approximations
        flwafact           ! temperature-based flow factor, 0.5 * A^(-1/n), Pa yr^(1/n)
                           ! used to compute the effective viscosity
+
+    real(dp), intent(in) :: &
+       efvs_constant,   & ! constant value of effective viscosity (Pa yr)
+       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
        uvel, vvel         ! velocity components at each node (m/yr)
@@ -7593,7 +7627,8 @@
                       ! Compute the effective viscosity at this quadrature point.
 
                       call compute_effective_viscosity(whichefvs,        whichapprox,                       &
-                                                       efvs_constant,    nNodesPerElement_3d,               &
+                                                       efvs_constant,    effstrain_min,                     &
+                                                       nNodesPerElement_3d,                                 &
                                                        dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
                                                        u(:),             v(:),                              & 
                                                        flwafact(k,i,j),  efvs_qp,                           &
@@ -7645,7 +7680,8 @@
 !****************************************************************************
 
   subroutine compute_effective_viscosity (whichefvs,     whichapprox,            &
-                                          efvs_constant, nNodesPerElement,       &
+                                          efvs_constant, effstrain_min,          &
+                                          nNodesPerElement,                      &
                                           dphi_dx,       dphi_dy,    dphi_dz,    &
                                           uvel,          vvel,                   &
                                           flwafact,      efvs,                   &
@@ -7673,6 +7709,13 @@
     real(dp), intent(in) :: &
        efvs_constant   ! constant value of effective viscosity (Pa yr)
 
+    ! Note: Mauro Perego suggests 1.e-8 yr^{-1} for effstrain_min.
+    !       This value seems adequate for SSA and DIVA, but can be too low for BP.
+    !       For Antarctic problems, a value of 1.e-6 improves BP convergence (WHL, July 2020).
+    !       Alex Robinson uses 1.e-6 for Yelmo.
+    real(dp), intent(in) :: &
+       effstrain_min   ! minimum value of effective strain rate (yr^-1) for computing viscosity
+
     integer, intent(in) :: nNodesPerElement   ! number of nodes per element
                                               ! = 4 for 2D, = 8 for 3D
 
@@ -7695,12 +7738,7 @@
     ! Local parameters
     !----------------------------------------------------------------
 
-    !TODO - Test sensitivity of model convergence to effstrain_min
     real(dp), parameter ::   &
-!!       effstrain_min = 1.d-20*scyr,     &! minimum value of effective strain rate, yr^{-1}
-                                           ! GLAM uses 1.d-20 s^{-1} for minimum effective strain rate
-       effstrain_min = 1.d-8,     &! minimum value of effective strain rate, yr^{-1}
-                                   ! Mauro Perego suggests 1.d-8 yr^{-1}
        p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp),  &! exponent (1-n)/n in effective viscosity relation
        p2_effstr = p_effstr/2                          ! exponent (1-n)/(2n) in effective viscosity relation
 
@@ -7818,7 +7856,9 @@
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
           print*, ' '
           print*, 'i, j, k, p =', i, j, k, p
-          print*, 'flwafact, effstrain (yr-1), efvs(Pa yr) =', flwafact, effstrain, efvs
+          print*, 'flwafact, effstrain (yr-1), efvs(Pa yr) =', flwafact, sqrt(effstrainsq), efvs
+          print*, 'du_dx, du_dy, du_dz:', du_dx, du_dy, du_dz
+          print*, 'dv_dx, dv_dy, dv_dz:', dv_dx, dv_dy, dv_dz
        endif
  
    end select
@@ -7827,7 +7867,8 @@
 
 !****************************************************************************
 
-  subroutine compute_effective_viscosity_L1L2(whichefvs,        efvs_constant,      &
+  subroutine compute_effective_viscosity_L1L2(whichefvs,                            &
+                                              efvs_constant,    effstrain_min,      &
                                               nz,               sigma,              &
                                               nNodesPerElement, phi,                &
                                               dphi_dx,          dphi_dy,            &
@@ -7857,6 +7898,10 @@
     real(dp), intent(in) :: &
        efvs_constant      ! constant value of effective viscosity (Pa yr)
                           ! (used for option HO_EFVS_CONSTANT)
+
+    real(dp), intent(in) :: &
+       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
+                          ! see comments above in compute_effective_viscosity
 
     integer, intent(in) ::  &
        nz,               &! number of vertical levels at which velocity is computed
@@ -7892,10 +7937,6 @@
     !----------------------------------------------------------------
 
     real(dp), parameter ::   &
-!!       effstrain_min = 1.d-20*scyr,     &! minimum value of effective strain rate, yr^{-1}
-                                           ! GLAM uses 1.d-20 s^{-1} for minimum effective strain rate
-       effstrain_min = 1.d-8,     &! minimum value of effective strain rate, yr^{-1}
-                                   ! Mauro Perego suggests 1.d-8 yr^{-1}
        p_effstr = (1.d0 - real(gn,dp)) / real(gn,dp)    ! exponent (1-n)/n in effective viscosity relation
                                                                
     !----------------------------------------------------------------
@@ -8067,7 +8108,8 @@
 
 !****************************************************************************
 
-  subroutine compute_effective_viscosity_diva(whichefvs,        efvs_constant,      &
+  subroutine compute_effective_viscosity_diva(whichefvs,                            &
+                                              efvs_constant,    effstrain_min,      &
                                               nz,               stagsigma,          &
                                               nNodesPerElement, phi,                &
                                               dphi_dx,          dphi_dy,            &
@@ -8097,6 +8139,10 @@
     real(dp), intent(in) :: &
        efvs_constant      ! constant value of effective viscosity (Pa yr)
                           ! (used for option HO_EFVS_CONSTANT)
+
+    real(dp), intent(in) :: &
+       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
+                          ! see comments above in compute_effective_viscosity
 
     integer, intent(in) ::  &
        nz,               &! number of vertical levels at which velocity is computed
@@ -8130,10 +8176,6 @@
     !----------------------------------------------------------------
 
     real(dp), parameter ::   &
-!!       effstrain_min = 1.d-20*scyr,     &! minimum value of effective strain rate (yr^{-1})
-                                           ! GLAM uses 1.d-20 s^{-1} for minimum effective strain rate
-       effstrain_min = 1.d-8,     &! minimum value of effective strain rate (yr^{-1})
-                                   ! Mauro Perego suggests 1.d-8 yr^{-1}
        p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp), &! exponent (1-n)/n in effective viscosity relation
        p2_effstr = p_effstr/2                         ! exponent (1-n)/(2n) in effective viscosity relation
                                                                
@@ -9499,7 +9541,7 @@
 
     real(dp), dimension(nz,nx-1,ny-1), intent(out) ::   &
        resid_u,      & ! residual vector, divided into 2 parts
-       resid_v
+       resid_v         !
 
     real(dp), intent(out) ::    &
        L2_norm             ! L2 norm of residual vector, |Ax - b|
@@ -9507,7 +9549,12 @@
     real(dp), intent(out), optional ::    &
        L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
 
-    integer :: i, j, k, iA, jA, kA, m
+    real(dp), dimension(nz,nx-1,ny-1) ::   &
+       resid_sq        ! resid_u^2 + resid_v^2
+
+    real(dp) :: my_max_resid, global_max_resid
+
+    integer :: i, j, k, iA, jA, kA, m, iglobal, jglobal
 
     real(dp) :: L2_norm_rhs   ! L2 norm of rhs vector, |b|
 
@@ -9563,6 +9610,7 @@
     ! Sum up squared L2 norm as we go
 
     L2_norm = 0.d0
+    resid_sq(:,:,:) = 0.0d0
 
     ! Loop over locally owned vertices
 
@@ -9572,8 +9620,8 @@
           do k = 1, nz
              resid_u(k,i,j) = resid_u(k,i,j) - bu(k,i,j)
              resid_v(k,i,j) = resid_v(k,i,j) - bv(k,i,j)
-             L2_norm = L2_norm + resid_u(k,i,j)*resid_u(k,i,j)  &
-                               + resid_v(k,i,j)*resid_v(k,i,j)
+             resid_sq(k,i,j) = resid_u(k,i,j)*resid_u(k,i,j) + resid_v(k,i,j)*resid_v(k,i,j)
+             L2_norm = L2_norm + resid_sq(k,i,j)
           enddo  ! k
        endif     ! active vertex
     enddo        ! i
@@ -9583,15 +9631,38 @@
     L2_norm = parallel_reduce_sum(L2_norm)
     L2_norm = sqrt(L2_norm)
 
-    if (verbose_residual .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       k = ktest
-       print*, 'In compute_residual_vector_3d: i, j, k =', i, j, k
-       print*, 'u,  v :', uvel(k,i,j), vvel(k,i,j)
-       print*, 'bu, bv:', bu(k,i,j), bv(k,i,j)
-       print*, 'resid_u, resid_v:', resid_u(k,i,j), resid_v(k,i,j)
-    endif
+    if (verbose_residual) then
+
+       if (this_rank==rtest) then
+          i = itest
+          j = jtest
+          k = ktest
+          print*, 'In compute_residual_vector_3d: task, i, j, k =', this_rank, i, j, k
+          write(6, '(a16, 2f13.7, 2e13.5)') &
+               '  u, v, ru, rv: ', uvel(k,i,j), vvel(k,i,j), resid_u(k,i,j), resid_v(k,i,j)
+       endif
+
+       ! Compute max value of (squared) residual on this task.
+       ! If this task owns the vertex with the global max residual, then print a diagnostic message.
+       my_max_resid = maxval(resid_sq)
+       global_max_resid = parallel_reduce_max(my_max_resid)
+
+       if (abs((my_max_resid - global_max_resid)/global_max_resid) < 1.0d-6) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   if (abs((resid_sq(k,i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
+                      call parallel_globalindex(i, j, iglobal, jglobal)
+                      write(6, '(a24, 2i6, i4, 2e13.5, e16.8)') 'ig, jg, k, ru, rv, rmax:', &
+                           iglobal, jglobal, k, resid_u(k,i,j), resid_v(k,i,j), sqrt(global_max_resid)
+                      print*, ' '
+                   endif
+                enddo
+             enddo
+          enddo
+       endif
+
+    endif  ! verbose_residual
 
     if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
 
@@ -9735,14 +9806,10 @@
        if (this_rank==rtest) then
           i = itest
           j = jtest
-!          print*, ' '
-!          print*, 'In compute_residual_vector_2d: i, j =', i, j
-!          print*, 'u,  v :', uvel(i,j), vvel(i,j)
-!          print*, 'bu, bv:', bu(i,j), bv(i,j)
-!          print*, 'resid_u, resid_v:', resid_u(i,j), resid_v(i,j)
+          print*, 'In compute_residual_vector_2d: task, i, j =', this_rank, i, j
+          write(6, '(a16, 2f13.7, 2e13.5)') &
+               '  u, v, ru, rv: ', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
        endif
-
-       !TODO - Add this calculation to the 3D residual subroutine
 
        ! Compute max value of (squared) residual on this task.
        ! If this task owns the vertex with the global max residual, then print a diagnostic message.
@@ -9753,10 +9820,10 @@
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
                 if (abs((resid_sq(i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
-                   print*, 'task, i, j, global_max_resid^2:', this_rank, i, j, global_max_resid
                    call parallel_globalindex(i, j, iglobal, jglobal)
-                   print*, 'global i, j =', iglobal, jglobal
-                   print*, 'residu, residv:', resid_u(i,j), resid_v(i,j)
+                   write(6, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, rmax:', &
+                        iglobal, jglobal, resid_u(i,j), resid_v(i,j), sqrt(global_max_resid)
+                   print*, ' '
                 endif
              enddo
           enddo
@@ -10501,6 +10568,7 @@
                                 !    Avu  | Avv                                    
 
     integer :: i, j, k, iA, jA, kA, m, mm
+    integer :: iglobal, jglobal
 
     real(dp) :: val1, val2          ! values of matrix coefficients
 
@@ -10558,6 +10626,8 @@
                             print*, 'WARNING: Auu is not symmetric: this_rank, i, j, k, iA, jA, kA =', &
                                  this_rank, i, j, k, iA, jA, kA
                             print*, 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+!!                            call parallel_globalindex(i, j, iglobal, jglobal)
+!!                            print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                            stop
                          endif
 

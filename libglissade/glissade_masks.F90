@@ -993,7 +993,7 @@
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, ', marine_connection_mask, rank =', this_rank
+       print*, 'marine_connection_mask, rank =', this_rank
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
           do i = itest-3, itest+3
