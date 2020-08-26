@@ -2069,8 +2069,8 @@ contains
     call GetValue(section, 'adjust_topg_xmax', model%paramets%adjust_topg_xmax)
     call GetValue(section, 'adjust_topg_ymin', model%paramets%adjust_topg_ymin)
     call GetValue(section, 'adjust_topg_ymax', model%paramets%adjust_topg_ymax)
-    call GetValue(section, 'adjust_topg_lo',   model%paramets%adjust_topg_lo)
-    call GetValue(section, 'adjust_topg_hi',   model%paramets%adjust_topg_hi)
+    call GetValue(section, 'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
+    call GetValue(section, 'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
     call GetValue(section, 'adjust_topg_delta',   model%paramets%adjust_topg_delta)
 
     ! basal inversion parameters
@@ -2454,9 +2454,9 @@ contains
        call write_log(message)
        write(message,*) 'adjust_topg_ymax (m)                         : ', model%paramets%adjust_topg_ymax
        call write_log(message)
-       write(message,*) 'adjust_topg_lo (m)                           : ', model%paramets%adjust_topg_lo
+       write(message,*) 'adjust_topg_no_adjust (m)                    : ', model%paramets%adjust_topg_no_adjust
        call write_log(message)
-       write(message,*) 'adjust_topg_hi (m)                           : ', model%paramets%adjust_topg_hi
+       write(message,*) 'adjust_topg_max_adjust (m)                   : ', model%paramets%adjust_topg_max_adjust
        call write_log(message)
        write(message,*) 'adjust_topg_delta (m)                        : ', model%paramets%adjust_topg_delta
        call write_log(message)

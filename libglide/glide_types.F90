@@ -2134,12 +2134,15 @@ module glide_types
                                        !       in regions of rough coastal topography
 
     ! parameters for the adjust_input_topography option
+    ! Note: Depending on the sign of (adjust_topg_max_adjust - adjust_topg_no_adjust), we will either
+    !       (1) change high topography and leave low topography unchanged, or
+    !       (2) change low topography and leave high topography unchanged
     real(dp) :: adjust_topg_xmin = 0.0d0   ! min x value (m) of the region with adjusted topography
     real(dp) :: adjust_topg_xmax = 0.0d0   ! max x value (m) of the region with adjusted topography
     real(dp) :: adjust_topg_ymin = 0.0d0   ! min y value (m) of the region with adjusted topography
     real(dp) :: adjust_topg_ymax = 0.0d0   ! max y value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_lo = 0.0d0     ! lower threshold (m); adjust where topg > topg_lo
-    real(dp) :: adjust_topg_hi = 0.0d0     ! upper threshold (m); apply max adjustment topg_delta where topg > topg_hi
+    real(dp) :: adjust_topg_no_adjust  = 0.0d0  ! elevation (m) beyond which there is no adjustment of topg
+    real(dp) :: adjust_topg_max_adjust = 0.0d0  ! elevation (m) beyond which there is full adjustment of topg
     real(dp) :: adjust_topg_delta = 0.0d0  ! max adjustment, applied where topg > topg_hi
 
   end type glide_paramets
