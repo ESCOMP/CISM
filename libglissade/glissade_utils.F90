@@ -77,7 +77,7 @@ contains
     integer :: nx, ny
     integer :: itest, jtest, rtest
 
-    logical, parameter :: verbose_adjust_thickness = .false.
+    logical, parameter :: verbose_adjust_thickness = .true.
 
     ! Copy some model variables to local variables
 
@@ -390,8 +390,21 @@ contains
     integer :: itest, jtest, rtest
 
     real(dp) :: factor
-    real(dp) :: xmin, xmax, ymin, ymax
-    real(dp) :: topg_lo, topg_hi, topg_delta
+
+    real(dp) :: &
+         xmin, xmax, ymin, ymax  ! x and y boundaries of adjusted region
+
+    ! Note: There are two ways to use these parameters.
+    ! (1) If topg_max_adjust > topg_no_adjust, then we change high topography (topg > topg_max_adjust)
+    !     by topg_delta and leave low topography (topg < topg_no_adjust) unchanged.
+    ! (2) If topg_max_adjust < topg_no_adjust, then we change low topography (topg < topg_max_adjust)
+    !     by topg_delta and leave high topography (topg > topg_no_adjust) unchanged.
+    ! Between topg_no_adjust and topg_max_adjust, the adjustment is phased in linearly.
+
+    real(dp) :: &
+         topg_no_adjust, &    ! elevation (m) beyond which there is no adjustment
+         topg_max_adjust, &   ! elevation (m) beyond which there is full adjustment (by topg_delta)
+         topg_delta           ! max change in topography (m); can be either sign
 
     logical, parameter :: verbose_adjust_topg = .true.
 
@@ -413,8 +426,8 @@ contains
     xmax = model%paramets%adjust_topg_xmax
     ymin = model%paramets%adjust_topg_ymin
     ymax = model%paramets%adjust_topg_ymax
-    topg_lo = model%paramets%adjust_topg_lo
-    topg_hi = model%paramets%adjust_topg_hi
+    topg_no_adjust = model%paramets%adjust_topg_no_adjust
+    topg_max_adjust = model%paramets%adjust_topg_max_adjust
     topg_delta = model%paramets%adjust_topg_delta
 
     if (verbose_adjust_topg .and. this_rank == rtest) then
@@ -426,7 +439,7 @@ contains
        print*, 'thck, topg =', model%geometry%thck(i,j)*thk0, model%geometry%topg(i,j)*thk0
        print*, 'xmin, xmax =', xmin, xmax
        print*, 'ymin, ymax =', ymin, ymax
-       print*, 'topg_lo, topg_hi (m) =', topg_lo, topg_hi
+       print*, 'topg_no_adjust, topg_max_adjust (m) =', topg_no_adjust, topg_max_adjust
        print*, 'topg_delta =', topg_delta
     endif
 
@@ -490,21 +503,46 @@ contains
     topg = model%geometry%topg * thk0
 
     ! Apply the topographic correction.
-    ! Where topg > topg_hi, apply the max correction, topg_delta.
-    ! Where topg < topg_lo, apply no correction.
-    ! Where topg_lo < topg < topg_hi, phase in the correction linearly.
+    ! Case 1: topg_max_adjust > topg_no_adjust; change higher topography and leave lower topography unchanged
+    ! Case 2: topg_max_adjust < topg_no_adjust; change lower topography and leave higher topography unchanged
 
-    do j = 1, ny
-       do i = 1, nx
-          if (model%general%x1(i) >= xmin .and. model%general%x1(i) <= xmax .and. &
-              model%general%y1(j) >= ymin .and. model%general%y1(j) <= ymax) then
-             if (topg(i,j) > topg_lo) then
-                factor = min((topg(i,j) - topg_lo)/(topg_hi - topg_lo), 1.0d0)
-                topg(i,j) = topg(i,j) + factor * topg_delta
+    if (topg_max_adjust > topg_no_adjust) then
+
+       ! Where topg > topg_max_adjust, apply the max correction, topg_delta.
+       ! Where topg < topg_no_adjust, apply no correction.
+       ! Where topg_no_adjust < topg < topg_max_adjust, phase in the correction linearly.
+
+       do j = 1, ny
+          do i = 1, nx
+             if (model%general%x1(i) >= xmin .and. model%general%x1(i) <= xmax .and. &
+                 model%general%y1(j) >= ymin .and. model%general%y1(j) <= ymax) then
+                if (topg(i,j) > topg_no_adjust) then
+                   factor = min((topg(i,j) - topg_no_adjust)/(topg_max_adjust - topg_no_adjust), 1.0d0)
+                   topg(i,j) = topg(i,j) + factor * topg_delta
+                endif
              endif
-          endif
+          enddo
        enddo
-    enddo
+
+    elseif (topg_max_adjust < topg_no_adjust) then
+
+       ! Where topg < topg_max_adjust, apply the max correction, topg_delta.
+       ! Where topg > topg_no_adjust, apply no correction.
+       ! Where topg_max_adjust < topg < topg_no_adjust, phase in the correction linearly.
+
+       do j = 1, ny
+          do i = 1, nx
+             if (model%general%x1(i) >= xmin .and. model%general%x1(i) <= xmax .and. &
+                 model%general%y1(j) >= ymin .and. model%general%y1(j) <= ymax) then
+                if (topg(i,j) < topg_no_adjust) then
+                   factor = min((topg_no_adjust - topg(i,j))/(topg_no_adjust - topg_max_adjust), 1.0d0)
+                   topg(i,j) = topg(i,j) + factor * topg_delta
+                endif
+             endif
+          enddo
+       enddo
+
+    endif
 
     model%geometry%topg = topg / thk0
     deallocate(topg)
