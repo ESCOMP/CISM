@@ -41,7 +41,8 @@ module glissade_calving
   private
   public :: glissade_calving_mask_init, glissade_thck_calving_threshold_init, &
             glissade_calve_ice, glissade_cull_calving_front, &
-            glissade_remove_icebergs, glissade_limit_cliffs
+            glissade_remove_icebergs, glissade_remove_isthmuses, &
+            glissade_limit_cliffs
   public :: verbose_calving
 
   logical, parameter :: verbose_calving = .false.
@@ -1569,6 +1570,98 @@ contains
     endif
 
   end subroutine glissade_remove_icebergs
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_remove_isthmuses(&
+       nx,           ny,            &
+       itest, jtest, rtest,         &
+       thck,                        &
+       f_ground_cell,               &
+       floating_mask,               &
+       ocean_mask,                  &
+       calving_thck)
+
+    ! Remove any ice isthmuses.
+    ! An isthmus is defined as a floating or weakly grounded grid cell with ice-free ocean
+    !  or thin floating ice (H < 10 m) on both sides: i.e., in cells (i-1,j) and (i+1,j),
+    !  or (i,j-1) and (i,j+1).
+    ! When using an ice_fraction_retreat_mask derived from a model (e.g., CESM),
+    !  it may be necessary to remove isthmuses to prevent unstable ice configurations,
+    !  e.g. a shelf split into two parts connected by a bridge one cell wide.
+    ! Isthmus removal should always be followed by iceberg removal.
+
+    integer :: nx, ny                                   !> horizontal grid dimensions
+    integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
+
+    real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness (m)
+    real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
+    integer,  dimension(nx,ny), intent(in)    :: floating_mask   !> = 1 ice is present and floating, else = 0
+    integer,  dimension(nx,ny), intent(in)    :: ocean_mask      !> = 1 where topg is below sea level and ice is absent, else = 0
+    real(dp), dimension(nx,ny), intent(inout) :: calving_thck    !> thickness (m) lost due to calving in each grid cell;
+                                                                 !> on output, includes ice removed from isthmuses
+
+    ! local variables
+
+    integer :: i, j
+
+    integer, dimension(nx,ny) :: &
+         ocean_plus_thin_ice_mask         ! = 1 for ocean cells and cells with thin floating ice
+
+    ! Both floating and weakly grounded cells can be identified as isthmuses and removed;
+    !  isthmuses_f_ground_threshold is used to identify weakly grounded cells.
+    real(dp), parameter :: &   ! threshold for counting cells as grounded
+         isthmus_f_ground_threshold = 0.50d0
+
+    ! An isthmus cell has ice-free ocean or thin floating ice on each side:
+    !  isthmus_f_ground_threshold is used to identify thin floating ice.
+    real(dp), parameter :: &   ! threshold (m) for counting floating ice as thin
+         isthmus_thck_threshold = 10.0d0
+
+    if (verbose_calving .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_remove_isthmuses'
+       print*, ' '
+       print*, 'Thickness before isthmus removal:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ocean_plus_thin_ice_mask = ocean_mask
+    where (floating_mask == 1 .and. thck < isthmus_thck_threshold)
+       ocean_plus_thin_ice_mask = 1
+    endwhere
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (floating_mask(i,j) == 1 .or. f_ground_cell(i,j) < isthmus_f_ground_threshold) then
+             if ( (ocean_plus_thin_ice_mask(i-1,j) == 1 .and. ocean_plus_thin_ice_mask(i+1,j) == 1) .or. &
+                  (ocean_plus_thin_ice_mask(i,j-1) == 1 .and. ocean_plus_thin_ice_mask(i,j+1) == 1) ) then
+                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                thck(i,j) = 0.0d0
+             endif
+          endif
+       enddo
+    enddo
+
+    if (verbose_calving .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'Thickness after isthmus removal'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_remove_isthmuses
 
 !---------------------------------------------------------------------------
 

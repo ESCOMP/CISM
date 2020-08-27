@@ -957,7 +957,7 @@ contains
 
     ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
 
-    if (model%options%force_retreat) then
+    if (model%options%force_retreat /= FORCE_RETREAT_NONE) then
 
        ! Set reference_thck
        ! This field is loaded if present in the input file.  Otherwise, reference_thck is set to the initial thickness.
@@ -972,15 +972,33 @@ contains
           call write_log(trim(message))
        endif
 
+       ! Check whether a nonzero retreat mask has been read in. If not, then write a message.
+       ! Note: This is not necessarily an error.  If reading the retreat mask from a forcing file,
+       !       the first nonzero mask may not be read until the model time is greater than tstart.
+       local_maxval = maxval(model%geometry%ice_fraction_retreat_mask)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          call write_log('Initial ice_fraction_retreat_mask = 0 everywhere')
+       endif
+
        !WHL - debug
        if (this_rank == rtest) then
           i = itest
           j = jtest
+          print*, 'force_retreat option =', model%options%force_retreat
           print*, ' '
           print*, 'reference_thck (m):'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') model%geometry%reference_thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ice_fraction_retreat_mask:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1043,7 +1061,7 @@ contains
             model%calving%calving_front_x, model%calving%calving_front_y,  &
             model%calving%calving_mask)
 
-    endif
+    endif   ! calving grid mask
 
     ! Note: The DIVA solver needs a halo update for effective viscosity.
     !       This is done at the end of glissade_diagnostic_variable_solve, which in most cases is sufficient.
@@ -2885,8 +2903,9 @@ contains
 
     use glimmer_paramets, only: thk0, tim0, len0
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
-         glissade_remove_icebergs, glissade_limit_cliffs, verbose_calving
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+         glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, verbose_calving
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask,  &
+         glissade_ocean_connection_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
 
@@ -2908,6 +2927,11 @@ contains
          active_ice_mask,         & ! = 1 if ice is present and dynamically active
          calving_front_mask         ! = 1 for calving-front cells
 
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ocean_connection_mask,   & ! = 1 for cells that are masked for retreat and are connected to the ocean
+                                    ! through other cells that are masked for retreat
+         retreat_mask               ! local version of ice_fraction_retreat_mask; excludes grounded cells
+
     real(dp) :: &
          maxthck,                 & ! max thickness of retreating ice
          dthck                      ! thickness loss for retreating ice
@@ -2919,9 +2943,19 @@ contains
     integer :: nx, ny               ! horizontal grid dimensions
     integer :: itest, jtest, rtest  ! coordinates of diagnostic point
 
+    real(dp), parameter :: &
+         retreat_mask_threshold = 0.01d0  ! threshold value for removing cells based on ice_fraction_retreat_mask;
+                                          !  set to a low value by default
+                                          ! Could make this a config parameter
+
+    ! variables to expand the calving mask at initialization
+    logical, dimension(16) :: mask_basin  ! true for basins whose floating ice is added to the calving mask
+                                          ! currently hardwired to 16 for ISMIP6
+    integer :: bn    ! basin number
+
     !WHL - debug
-    real(dp) :: local_maxval, global_maxval
     logical, parameter :: verbose_retreat = .true.
+
 
     nx = model%general%ewn
     ny = model%general%nsn
@@ -2943,25 +2977,25 @@ contains
     ! Note: This option is similar to apply_calving_mask.  It is different in that the mask
     !       is a real number in the range [0,1], allowing thinning instead of complete removal.
     !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
-    !       This option is applied before calling glissade_calve_ice, so that ice thinned by the retreat mask
+    ! There are two forced retreat options:
+    ! Option 1: Thin or remove ice wherever ice_fraction_retreat_mask > 0.
+    ! Option 2: Remove floating ice (but not grounded ice) where ice_fraction_retreat_mask > 0.
+    !
+    ! Option 1 is done now, before calling glissade_calve_ice, so that ice thinned by the retreat mask
     !        can undergo further thinning or removal by the calving scheme.
+    ! Option 2 is done after the main calving solve, after thin ice at the calving front has been removed
+    !  by other mechanisms.
 
-    if (model%options%force_retreat .and. .not.init_calving) then
-       if (main_task) print*, 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
-
-       !WHL - debug
-       ! Check that a nonzero retreat mask has been read in. Otherwise, all ice would erroneously be removed.
-       local_maxval = maxval(model%geometry%ice_fraction_retreat_mask)
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
-          call write_log('Error: Failed to read in a nonzero retreat mask with force_retreat = T', GM_FATAL)
+    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
+       if (this_rank == rtest) then
+          print*, 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
        endif
 
        if (verbose_retreat .and. this_rank == rtest) then
           i = itest
           j = jtest
           print*, ' '
-          print*, 'Before front retreat, thck (m):'
+          print*, 'Before forced retreat, thck (m):'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
@@ -2969,7 +3003,7 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'Apply front retreat, retreat_mask:'
+          print*, 'ice_fraction_retreat_mask:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
@@ -2980,12 +3014,8 @@ contains
           print*, 'maxthck (m):'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                if (model%geometry%ice_fraction_retreat_mask(i,j) < 1.0d0) then
-                   write(6,'(f10.3)',advance='no') &
-                        model%geometry%reference_thck(i,j)*thk0 * model%geometry%ice_fraction_retreat_mask(i,j)
-                else
-                   write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-                endif
+                write(6,'(f10.3)',advance='no') model%geometry%reference_thck(i,j)*thk0 &
+                     * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
              enddo
              write(6,*) ' '
           enddo
@@ -2993,8 +3023,9 @@ contains
 
        do j = 1, model%general%nsn
           do i = 1, model%general%ewn
-             if (model%geometry%ice_fraction_retreat_mask(i,j) < 1.0d0) then
-                maxthck = model%geometry%reference_thck(i,j) * model%geometry%ice_fraction_retreat_mask(i,j)
+             if (model%geometry%ice_fraction_retreat_mask(i,j) > 0.0d0) then
+                maxthck = model%geometry%reference_thck(i,j) &
+                     * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
                 dthck = model%geometry%thck(i,j) - min(maxthck, model%geometry%thck(i,j))
                 model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
                 model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
@@ -3006,7 +3037,7 @@ contains
           i = itest
           j = jtest
           print*, ' '
-          print*, 'After front retreat, thck (m):'
+          print*, 'After forced retreat, thck (m):'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
@@ -3015,7 +3046,7 @@ contains
           enddo
        endif
 
-    endif   ! force_retreat
+    endif   ! force_retreat_all_ice
 
     !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
@@ -3030,6 +3061,69 @@ contains
 
     if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
 
+       ! Optionally, expand the calving mask to include floating ice in select basins.
+       ! Note: Currently hardwired to include 13 of the 16 ISMIP6 basins.
+       !       Does not include the three largest shelves (Ross, Filchner-Ronne, Amery)
+
+       if (init_calving .and. model%options%expand_calving_mask) then
+
+          ! Identify basins whose floating ice will be added to the calving mask
+          ! Currently hardwired to the ISMIP6 basin numbers (1 to 16)
+          mask_basin(:) = .true.
+          mask_basin(2) = .false.   ! Amery
+          mask_basin(7) = .false.   ! Ross
+          mask_basin(14) = .false.  ! Filchner-Ronne
+
+          if (verbose_calving .and. this_rank==rtest) then
+             print*, 'Expanding the calving mask to ice shelves in select basins'
+             print*, 'basin number, mask_basin:'
+             do bn = 1, 16
+                print*, bn, mask_basin(bn)
+             enddo
+          endif
+
+          call glissade_get_masks(nx,                       ny,                         &
+                                  model%geometry%thck*thk0, model%geometry%topg*thk0,   &
+                                  model%climate%eus*thk0,   0.0d0,                      &  ! thklim = 0
+                                  ice_mask,                                             &
+                                  floating_mask = floating_mask,                        &
+                                  land_mask = land_mask)
+
+          if (verbose_calving .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'initial calving_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') model%calving%calving_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') floating_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          ! For basins with mask_basin = T, add floating ice to the calving mask.
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                bn = model%ocean_data%basin_number(i,j)
+                if (mask_basin(bn) .and. floating_mask(i,j) == 1) then
+                   model%calving%calving_mask(i,j) = 1
+                endif
+             enddo
+          enddo
+
+          call parallel_halo(model%calving%calving_mask)
+
+       endif   ! expand_calving_mask
+
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'Limit advance of calving front'
@@ -3039,6 +3133,15 @@ contains
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') floating_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3113,6 +3216,153 @@ contains
                                         model%calving%calving_thck)       ! m
 
     endif
+
+    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
+
+       ! Remove floating ice based on ice_fraction_retreat_mask.
+       ! This is done after the main calving routine, to avoid complications
+       !  involving thin ice near the calving front that calves after transport.
+       ! The logic works as follows:
+       ! * Idenfity cells with ice_fraction_retreat_mask exceeding some threshold.
+       ! * Remove any such cells if they are adjacent to ocean cells, or are connected
+       !   to the ocean through other identified cells.
+       ! * Do not remove cells without a connection to the ocean.
+       !   In other words, do not hollow out ice shelves from the interior, since
+       !   this can be numerically unstable.
+
+       ! Update masks
+
+       call glissade_get_masks(nx,                     ny,                         &
+                               thck_unscaled,          model%geometry%topg*thk0,   &
+                               model%climate%eus*thk0, model%numerics%thklim*thk0, &
+                               ice_mask,                                           &
+                               floating_mask = floating_mask,                      &
+                               ocean_mask = ocean_mask)
+
+       ! Identify floating cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
+
+       where (floating_mask == 1 .and. model%geometry%ice_fraction_retreat_mask > retreat_mask_threshold)
+          retreat_mask = 1
+       elsewhere
+          retreat_mask = 0
+       endwhere
+
+       ! Identify cells that have retreat_mask = 1 and are either adjacent to ocean cells,
+       !  or are connected to the ocean through other cells with retreat_mask = 1.
+
+       call glissade_ocean_connection_mask(nx,            ny,           &
+                                           itest, jtest,  rtest,        &
+                                           thck_unscaled, retreat_mask, &
+                                           ocean_mask,                  &
+                                           ocean_connection_mask)
+
+       if (verbose_calving .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'Force floating ice retreat'
+          print*, ' '
+          print*, 'Thickness before retreat, itest, jtest, rtest =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f7.1)',advance='no') thck_unscaled(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'floating_mask:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i7)',advance='no') floating_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ocean_mask:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-7, itest+3
+                write(6,'(i7)',advance='no') ocean_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ice_fraction_retreat_mask:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f7.2)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ocean_connection_mask:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i7)',advance='no') ocean_connection_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       ! Remove ice from ocean-connected cells with retreat_mask = 1
+       where (ocean_connection_mask == 1)
+          model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
+          thck_unscaled = 0.0d0
+          !TODO - Reset temperature and other tracers in cells where the ice calved?
+       endwhere
+
+    endif   ! force_retreat_floating_ice
+
+    if (model%options%remove_isthmuses) then
+
+       ! Optionally, remove isthmuses.
+       ! An isthmus is defined as a floating or weakly grounded grid cell with ice-free ocean
+       !  or thin floating ice on both sides.
+       ! When using a calving or retreat mask derived from an ESM or other model,
+       !  isthmuses may need to be removed to prevent unstable ice configurations,
+       !  e.g. a shelf split into two parts connected by a bridge one cell wide.
+       ! Isthmus removal should always be followed by iceberg removal.
+
+       ! Update the masks
+
+       call glissade_get_masks(nx,                     ny,                         &
+                               thck_unscaled,          model%geometry%topg*thk0,   &
+                               model%climate%eus*thk0, model%numerics%thklim*thk0, &
+                               ice_mask,                                           &
+                               floating_mask = floating_mask,                      &
+                               ocean_mask = ocean_mask,                            &
+                               land_mask = land_mask)
+
+       ! Compute f_ground_cell for isthmus removal
+
+       call glissade_grounded_fraction(nx,          ny,               &
+                                       itest, jtest, rtest,           &  ! diagnostic only
+                                       thck_unscaled,                 &
+                                       model%geometry%topg*thk0,      &
+                                       model%climate%eus*thk0,        &
+                                       ice_mask,                      &
+                                       floating_mask,                 &
+                                       land_mask,                     &
+                                       model%options%which_ho_ground, &
+                                       model%options%which_ho_flotation_function, &
+                                       model%options%which_ho_fground_no_glp,     &
+                                       model%geometry%f_flotation,    &
+                                       model%geometry%f_ground,       &
+                                       model%geometry%f_ground_cell,  &
+                                       model%geometry%topg_stdev*thk0)
+
+       call glissade_remove_isthmuses(&
+            nx,           ny,              &
+            itest, jtest, rtest,           &
+            thck_unscaled,                 &
+            model%geometry%f_ground_cell,  &
+            floating_mask,                 &
+            ocean_mask,                    &
+            model%calving%calving_thck)
+
+    endif  ! remove isthmuses
 
     ! ------------------------------------------------------------------------
     ! Remove any icebergs.
