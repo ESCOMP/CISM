@@ -728,6 +728,8 @@ contains
     call GetValue(section,'calving_domain',model%options%calving_domain)
     call GetValue(section,'apply_calving_mask', model%options%apply_calving_mask)
     call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
+    call GetValue(section,'remove_isthmuses', model%options%remove_isthmuses)
+    call GetValue(section,'expand_calving_mask', model%options%expand_calving_mask)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
@@ -1347,7 +1349,24 @@ contains
        else
           call write_log(' Icebergs will not be removed')
        endif
+
+       if (model%options%remove_isthmuses) then
+          if (.not.model%options%remove_icebergs) then
+             model%options%remove_icebergs = .true.
+             write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
+             call write_log(message)
+          endif
+          call write_log(' Isthmuses will be removed')
+       endif
        
+       if (model%options%expand_calving_mask) then
+          if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+             call write_log(' The calving mask will be expanded to include floating ice in select basins')
+          else
+             call write_log(' Not using a calving_mask; expand_calving_mask = T will be ignored')
+          endif
+       endif
+
        if (model%options%limit_marine_cliffs) then
           call write_log(' The thickness of marine ice cliffs will be limited')
           call write_log(message)
@@ -1883,20 +1902,23 @@ contains
 
           if (model%options%block_inception) then
              write(message,*) 'Inception outside the main ice sheet will be blocked'
-          else
-             write(message,*) 'Inception outside the main ice sheet is allowed'
+             call write_log(message)
           endif
 
           if (model%options%remove_ice_caps) then
              write(message,*) 'Ice caps will be removed and added to the calving flux'
-          else
-             write(message,*) 'Ice caps will not be removed'
+             call write_log(message)
           endif
 
-          if (model%options%force_retreat) then
+          if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE) then
              write(message,*) 'Ice retreat will be forced using ice_fraction_retreat_mask'
-          else
-             write(message,*) 'Ice retreat will not be forced'
+             call write_log(message)
+          elseif (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
+             write(message,*) 'Floating ice retreat will be forced using ice_fraction_retreat_mask'
+             call write_log(message)
+             if (.not.model%options%remove_isthmuses) then
+                call write_log('  Warning: Can be unstable when remove_isthmuses = F')
+             endif
           endif
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
@@ -3238,7 +3260,7 @@ contains
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
         !  and reference_thck (which sets up an upper thickness limit for partly retreating cells)
-        if (options%force_retreat) then
+        if (options%force_retreat /= FORCE_RETREAT_NONE) then
            call glide_add_to_restart_variable_list('ice_fraction_retreat_mask')
            call glide_add_to_restart_variable_list('reference_thck')
         endif

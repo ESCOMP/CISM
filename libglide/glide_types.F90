@@ -193,6 +193,10 @@ module glide_types
   integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
 
+  integer, parameter :: FORCE_RETREAT_NONE = 0
+  integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
+  integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
+
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
 
@@ -634,6 +638,15 @@ module glide_types
     !> These are connected regions with zero basal traction and no connection to grounded ice.
     !>       Safer to make it true, but not necessary for all applications
 
+    logical :: remove_isthmuses = .false.
+    !> if true, then identify and remove ice isthmuses after calving
+    !> These are narrow bridges connecting two regions of floating ice.
+    !> False by default, but may need to be true for the FORCE_RETREAT_FLOATING_ICE option.
+
+    logical :: expand_calving_mask = .false.
+    !> if true, then expand the calving mask to include all ice that is floating at initialization
+    !> Note: By default, this is done for a hardwired set of ISMIP6 basins, excluding large shelves
+
     logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
 
@@ -1011,7 +1024,7 @@ module glide_types
     logical :: remove_ice_caps = .false.
     !> Flag that indicates whether ice caps are removed and added to the calving flux
 
-    logical :: force_retreat = .false.
+    integer :: force_retreat = 0
     !> Flag that indicates whether retreat is forced using ice_fraction_retreat_mask
 
     integer :: which_ho_ice_age = 1

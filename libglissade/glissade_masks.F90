@@ -47,10 +47,12 @@
     implicit none
 
     private
-    public :: glissade_get_masks, glissade_calving_front_mask, &
+    public :: glissade_get_masks, glissade_calving_front_mask,      &
               glissade_marine_cliff_mask, glissade_ice_sheet_mask,  &
+              glissade_ocean_connection_mask,                       &
               glissade_marine_connection_mask, glissade_lake_mask,  &
               glissade_extend_mask, glissade_fill, glissade_fill_with_buffer
+
     public :: initial_color, fill_color, boundary_color
 
     ! colors for fill subroutines
@@ -754,16 +756,191 @@
 
 !****************************************************************************
 
+  subroutine glissade_ocean_connection_mask(nx,            ny,          &
+                                            itest, jtest,  rtest,       &
+                                            thck,          input_mask,  &
+                                            ocean_mask,                 &
+                                            ocean_connection_mask)
+
+    ! Create a masks consisting of cells with input_mask = 1, which either
+    ! are adjacent to the ocean, or are connected to the ocean through other cells
+    ! with input_mask = 1.
+
+    ! The algorithm is as follows:
+    ! (1) Assign the initial color to cells with input_mask = 1.
+    !     Mark other cells with the boundary color.
+    ! (2) Seed the fill by giving the fill color to cells that have input_mask = 1
+    !     and are adjacent to ocean cells (ocean_mask = 1).
+    ! (3) Recursively fill all cells that have input_mask = 1 and are connected
+    !     to the ocean by a path that passes through other cells with input_mask = 1.
+    ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
+    ! (5) Once the fill is done, all cells with the fill color are assigned
+    !     to ocean_connection_mask.
+    !
+    ! Note: The logic is general enough that we could replace ocean_mask and
+    !       ocean_connection_mask with generic input and output masks.
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck                   !> ice thickness (m)
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         input_mask,          & !> = 1 for cells that meet some criterion specified elsewhere
+         ocean_mask             !> = 1 for ice-free cells with topg below sea level
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         ocean_connection_mask  !> = 1 for cells with input_mask = 1, connected to the ocean
+                                !>   through other such cells
+
+    ! local variables
+
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
+
+    integer, dimension(nx,ny) ::  &
+         color                   ! color variable for the fill
+
+    logical, parameter :: verbose_ocean_connection_mask = .false.
+
+    ! initialize
+    ! Note: Cells with input_mask = 1 receive the initial color, and other cells receive the boundary color.
+
+    where (input_mask == 1)
+       color = initial_color
+    elsewhere
+       color = boundary_color
+    endwhere
+
+    ! Identifying cells that have the initial color and are adjacent to the ocean.
+    ! Fill these cells and then recursively fill neighbors that have the initial color.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+
+    max_iter = max(ewtasks,nstasks)
+    global_count_save = 0
+
+    do iter = 1, max_iter
+
+       if (iter == 1) then   ! identify cells adjacent to the ocean, which can seed the fill
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (color(i,j) == initial_color .and.  &
+                     (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                      ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) ) then
+                   ! assign the fill color to this cell, and recursively fill neighbors with input_mask = 1
+                   call glissade_fill(nx,    ny,    &
+                                      i,     j,     &
+                                      color, input_mask)
+                endif
+             enddo
+          enddo
+
+       else  ! iter > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
+
+          call parallel_halo(color)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, input_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, input_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, input_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, input_mask)
+             endif
+          enddo
+
+       endif  ! iter = 1
+
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) local_count = local_count + 1
+          enddo
+       enddo
+
+       global_count = parallel_reduce_sum(local_count)
+
+       if (global_count == global_count_save) then
+          if (verbose_ocean_connection_mask .and. main_task) &
+               print*, 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_ocean_connection_mask .and. main_task) &
+               print*, 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
+       endif
+
+    enddo  ! max_iter
+
+    ! Any cells with the fill color are deemed to be ocean-connected.
+
+    call parallel_halo(color)
+
+    ocean_connection_mask(:,:) = 0
+
+    where (color == fill_color)
+       ocean_connection_mask = 1
+    elsewhere
+       ocean_connection_mask = 0
+    endwhere
+
+  end subroutine glissade_ocean_connection_mask
+
+!****************************************************************************
+
   subroutine glissade_marine_connection_mask(nx,           ny,             &
                                              itest, jtest, rtest,          &
-                                             thck,          topg,          &
-                                             eus,           thklim,        &
+                                             thck,         topg,           &
+                                             eus,          thklim,         &
                                              marine_connection_mask)
 
-  ! Identify cells that have a marine path to the ocean.
-  ! The path can include grounded marine-based ice.
-  ! The ocean is identified as ice-free cells with bed elevation below sea level,
-  !  or optionally with bed elevation below some threshold value.
+    ! Identify cells that have a marine path to the ocean.
+    ! The path can include grounded marine-based ice.
+    ! The ocean is identified as ice-free cells with bed elevation below sea level,
+    !  or optionally with bed elevation below some threshold value.
 
     ! subroutine arguments
 
