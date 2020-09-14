@@ -2085,6 +2085,9 @@ contains
 
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
+    call GetVAlue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
+    call GetVAlue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
+    call GetVAlue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2697,6 +2700,14 @@ contains
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'gamma0 (nondimensional)  :  ', model%ocean_data%gamma0
        call write_log(message)
+       if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
+          write(message,*) 'thermal forcing anomaly (C) :', model%ocean_data%thermal_forcing_anomaly
+          call write_log(message)
+          write(message,*) 'TF anomaly start time (yr)  :', model%ocean_data%thermal_forcing_anomaly_tstart
+          call write_log(message)
+          write(message,*) 'TF anomaly timescale (yr)   :', model%ocean_data%thermal_forcing_anomaly_timescale
+          call write_log(message)
+       endif
     endif
 
   end subroutine print_parameters

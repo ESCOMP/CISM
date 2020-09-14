@@ -894,7 +894,8 @@ module glissade_bmlt_float
        lsrf,                      &
        topg,                      &
        ocean_data,                &
-       bmlt_float)
+       bmlt_float,                &
+       tf_anomaly_in)
 
     use glimmer_paramets, only: thk0, unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
@@ -944,7 +945,10 @@ module glissade_bmlt_float
                             !> deltaT_basin = temperature corrections per basin for ISMIP6 melt parameterization
 
     real(dp), dimension(:,:), intent(out) :: &
-         bmlt_float                !> basal melt rate for floating ice (m/s)
+         bmlt_float         !> basal melt rate for floating ice (m/s)
+
+    real(dp), intent(in), optional ::  &
+         tf_anomaly_in      !> uniform thermal forcing anomaly (deg C), applied everywhere
 
     ! local variables
 
@@ -958,6 +962,9 @@ module glissade_bmlt_float
          thermal_forcing_mask,          & ! = 1 where thermal forcing and bmlt_float can be nonzero, else = 0
          new_mask                         ! temporary mask
 
+    real(dp), dimension(ocean_data%nzocn,nx,ny) ::  &
+         thermal_forcing_in               ! TF passed to subroutine interpolate_thermal_forcing_to_lsrf;
+                                          ! optionally corrected for nonzero tf_anomaly
     real(dp), dimension(nx,ny) ::  &
          theta_slope,                   & ! sub-shelf slope angle (radians)
          f_float                          ! weighting function for computing basin averages, in range [0,1]
@@ -966,6 +973,9 @@ module glissade_bmlt_float
     real(dp), dimension(ocean_data%nbasin) :: &
          thermal_forcing_basin,        &  ! basin average thermal forcing (K) at current time
          deltaT_basin_avg                 ! basin average value of deltaT_basin
+
+    real(dp) :: &
+         tf_anomaly                       ! local version of tf_anomaly_in
 
     !TODO - Make H0_float a config parameter?
     real(dp), parameter ::  &
@@ -976,6 +986,12 @@ module glissade_bmlt_float
        print*, 'In subroutine glissade_bmlt_float_thermal_forcing'
        print*, '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
        print*, '   ocean_data_domain =', ocean_data_domain
+    endif
+
+    if (present(tf_anomaly_in)) then
+       tf_anomaly = tf_anomaly_in
+    else
+       tf_anomaly = 0.0d0
     endif
 
     ! initialize the output
@@ -1166,12 +1182,17 @@ module glissade_bmlt_float
           enddo
        endif
 
-
     endif   ! ocean_data_domain
 
     !-----------------------------------------------
-    ! Interpolate the thermal forcing to the lower ice surface
+    ! Interpolate the thermal forcing to the lower ice surface.
     !-----------------------------------------------
+
+    ! Optionally, add a uniform anomaly (= 0 by default) to the thermal forcing.
+    thermal_forcing_in = ocean_data%thermal_forcing
+    if (tf_anomaly /= 0.0d0) then
+       thermal_forcing_in = ocean_data%thermal_forcing + tf_anomaly
+    endif
 
     call interpolate_thermal_forcing_to_lsrf(&
          nx,                ny,              &
@@ -1179,7 +1200,7 @@ module glissade_bmlt_float
          ocean_data%zocn,                    &
          thermal_forcing_mask,               &
          lsrf,                               &
-         ocean_data%thermal_forcing,         &
+         thermal_forcing_in,                 &
          ocean_data%thermal_forcing_lsrf)
 
     if (verbose_bmlt_float .and. this_rank==rtest) then

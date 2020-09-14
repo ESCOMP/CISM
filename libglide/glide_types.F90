@@ -1742,6 +1742,12 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           deltaT_basin => null()                    !> deltaT in each basin (deg C) 
 
+     real(dp) :: &
+          thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
+          thermal_forcing_anomaly_tstart = 0.0d0, & !> starting time (yr) for applying or phasing in the anomaly
+          thermal_forcing_anomaly_timescale = 0.0d0 !> number of years over which the anomaly is phased in linearly
+                                                    !> If set to zero, then the full anomaly is applied immediately.
+
   end type glide_ocean_data
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
