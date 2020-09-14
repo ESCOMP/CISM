@@ -72,6 +72,7 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
+  real(dp), parameter :: eps08 = 1.0d-8   ! small number
   real(dp), parameter :: eps11 = 1.0d-11  ! small number
 
 contains
@@ -1420,11 +1421,16 @@ contains
          bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s);
                                   ! take bmlt_float_transient - bmlt_float_baseline to compute anomaly
 
-    real(dp) :: previous_time
+    real(dp) :: previous_time     ! time (yr) at the end of the previous timestep
+    real(dp) :: time_from_start   ! time (yr) since the start of applying the anomaly
+    real(dp) :: anomaly_fraction  ! fraction of full anomaly to apply
+    real(dp) :: tf_anomaly        ! uniform thermal forcing anomaly (deg C), applied everywhere
+
     integer :: i, j
     integer :: ewn, nsn
     real(dp) :: dew, dns
     integer :: itest, jtest, rtest
+
 
     ! set grid dimensions
     ewn = model%general%ewn
@@ -1483,6 +1489,30 @@ contains
           print*, 'Compute bmlt_float at runtime from current thermal forcing'
        endif
 
+       !-----------------------------------------------
+       ! Optionally, apply a uniform thermal forcing anomaly everywhere.
+       ! This anomaly can be phased in linearly over a prescribed timescale.
+       !-----------------------------------------------
+
+       if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
+          time_from_start = model%numerics%time - model%ocean_data%thermal_forcing_anomaly_tstart
+          if (time_from_start + eps08 > model%ocean_data%thermal_forcing_anomaly_timescale .or.  &
+               model%ocean_data%thermal_forcing_anomaly_timescale == 0.0d0) then
+             anomaly_fraction = 1.0d0   ! apply the full anomaly
+          else
+             anomaly_fraction = floor(time_from_start + eps08) &
+                  / model%ocean_data%thermal_forcing_anomaly_timescale
+          endif
+          tf_anomaly = anomaly_fraction * model%ocean_data%thermal_forcing_anomaly
+          if (this_rank == rtest .and. verbose_bmlt_float) then
+             print*, 'time_from_start (yr):', time_from_start
+             print*, 'thermal forcing anomaly  (deg):', model%ocean_data%thermal_forcing_anomaly
+             print*, 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
+             print*, 'fraction:', anomaly_fraction
+             print*, 'current TF anomaly (deg):', tf_anomaly
+          endif
+       endif
+
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_domain,       &
@@ -1497,7 +1527,8 @@ contains
             model%geometry%lsrf*thk0,              & ! m
             model%geometry%topg*thk0,              & ! m
             model%ocean_data,                      &
-            model%basal_melt%bmlt_float)
+            model%basal_melt%bmlt_float,           &
+            tf_anomaly)                              ! deg C
 
        ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
        ! (1) Use the value just computed, based on the current thermal_forcing.
