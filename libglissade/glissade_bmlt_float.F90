@@ -895,7 +895,8 @@ module glissade_bmlt_float
        topg,                      &
        ocean_data,                &
        bmlt_float,                &
-       tf_anomaly_in)
+       tf_anomaly_in,             &
+       tf_anomaly_basin_in)
 
     use glimmer_paramets, only: thk0, unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
@@ -948,7 +949,8 @@ module glissade_bmlt_float
          bmlt_float         !> basal melt rate for floating ice (m/s)
 
     real(dp), intent(in), optional ::  &
-         tf_anomaly_in      !> uniform thermal forcing anomaly (deg C), applied everywhere
+         tf_anomaly_in,   &   !> uniform thermal forcing anomaly (deg C), applied everywhere
+         tf_anomaly_basin_in  !> basin where anomaly is applied; for default value of 0, apply to all basins
 
     ! local variables
 
@@ -975,7 +977,8 @@ module glissade_bmlt_float
          deltaT_basin_avg                 ! basin average value of deltaT_basin
 
     real(dp) :: &
-         tf_anomaly                       ! local version of tf_anomaly_in
+         tf_anomaly,                   &  ! local version of tf_anomaly_in
+         tf_anomaly_basin                 ! local version of tf_anomaly_basin_in
 
     !TODO - Make H0_float a config parameter?
     real(dp), parameter ::  &
@@ -992,6 +995,12 @@ module glissade_bmlt_float
        tf_anomaly = tf_anomaly_in
     else
        tf_anomaly = 0.0d0
+    endif
+
+    if (present(tf_anomaly_basin_in)) then
+       tf_anomaly_basin = tf_anomaly_basin_in
+    else
+       tf_anomaly_basin = 0
     endif
 
     ! initialize the output
@@ -1191,7 +1200,17 @@ module glissade_bmlt_float
     ! Optionally, add a uniform anomaly (= 0 by default) to the thermal forcing.
     thermal_forcing_in = ocean_data%thermal_forcing
     if (tf_anomaly /= 0.0d0) then
-       thermal_forcing_in = ocean_data%thermal_forcing + tf_anomaly
+       if (tf_anomaly_basin >= 1 .and. tf_anomaly_basin <= ocean_data%nbasin) then  ! apply to one basin
+          do j = 1, ny
+             do i = 1, nx
+                if (ocean_data%basin_number(i,j) == tf_anomaly_basin) then
+                   thermal_forcing_in(:,i,j) = thermal_forcing_in(:,i,j) + tf_anomaly
+                endif
+             enddo
+          enddo
+       else   ! apply to all basins
+          thermal_forcing_in = thermal_forcing_in + tf_anomaly
+       endif
     endif
 
     call interpolate_thermal_forcing_to_lsrf(&

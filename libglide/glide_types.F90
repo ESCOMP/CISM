@@ -1747,6 +1747,9 @@ module glide_types
           thermal_forcing_anomaly_tstart = 0.0d0, & !> starting time (yr) for applying or phasing in the anomaly
           thermal_forcing_anomaly_timescale = 0.0d0 !> number of years over which the anomaly is phased in linearly
                                                     !> If set to zero, then the full anomaly is applied immediately.
+     integer :: &
+          thermal_forcing_anomaly_basin = 0         !> basin where anomaly is applied;
+                                                    !> for default value of 0, apply to all basins
 
   end type glide_ocean_data
 

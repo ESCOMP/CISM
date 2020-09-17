@@ -2088,6 +2088,7 @@ contains
     call GetVAlue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
     call GetVAlue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
     call GetVAlue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
+    call GetVAlue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2707,6 +2708,13 @@ contains
           call write_log(message)
           write(message,*) 'TF anomaly timescale (yr)   :', model%ocean_data%thermal_forcing_anomaly_timescale
           call write_log(message)
+          if (model%ocean_data%thermal_forcing_anomaly_basin == 0) then
+             call write_log('TF anomaly will be applied to all basins')
+          else
+             write(message,*) 'TF anomaly will be applied to basin', &
+                  model%ocean_data%thermal_forcing_anomaly_basin
+             call write_log(message)
+          endif
        endif
     endif
 
