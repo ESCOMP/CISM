@@ -1425,6 +1425,8 @@ contains
     real(dp) :: time_from_start   ! time (yr) since the start of applying the anomaly
     real(dp) :: anomaly_fraction  ! fraction of full anomaly to apply
     real(dp) :: tf_anomaly        ! uniform thermal forcing anomaly (deg C), applied everywhere
+    real(dp) :: tf_anomaly_basin  ! basin number where anomaly is applied;
+                                  ! for default value of 0, apply to all basins
 
     integer :: i, j
     integer :: ewn, nsn
@@ -1504,12 +1506,16 @@ contains
                   / model%ocean_data%thermal_forcing_anomaly_timescale
           endif
           tf_anomaly = anomaly_fraction * model%ocean_data%thermal_forcing_anomaly
+          tf_anomaly_basin = model%ocean_data%thermal_forcing_anomaly_basin
           if (this_rank == rtest .and. verbose_bmlt_float) then
              print*, 'time_from_start (yr):', time_from_start
              print*, 'thermal forcing anomaly  (deg):', model%ocean_data%thermal_forcing_anomaly
              print*, 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
              print*, 'fraction:', anomaly_fraction
              print*, 'current TF anomaly (deg):', tf_anomaly
+             if (model%ocean_data%thermal_forcing_anomaly_timescale /= 0) then
+                print*, 'anomaly applied to basin', model%ocean_data%thermal_forcing_anomaly_basin
+             endif
           endif
        endif
 
@@ -1528,7 +1534,8 @@ contains
             model%geometry%topg*thk0,              & ! m
             model%ocean_data,                      &
             model%basal_melt%bmlt_float,           &
-            tf_anomaly)                              ! deg C
+            tf_anomaly,                            & ! deg C
+            tf_anomaly_basin)
 
        ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
        ! (1) Use the value just computed, based on the current thermal_forcing.
