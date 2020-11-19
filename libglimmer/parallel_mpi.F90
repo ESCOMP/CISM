@@ -53,16 +53,6 @@ module parallel
   end type bounds_info_type
 
 
-!PW - Repeat from glimmer_horiz_bcs_parallel.F90
-  integer, parameter, private :: HORIZ_BCS_WALL_SLIP = 0
-  integer, parameter, private :: HORIZ_BCS_CYCLIC = 1
-
-  integer, parameter, private :: horiz_bcs_type_north = HORIZ_BCS_CYCLIC
-  integer, parameter, private :: horiz_bcs_type_south = HORIZ_BCS_CYCLIC
-  integer, parameter, private :: horiz_bcs_type_east  = HORIZ_BCS_CYCLIC
-  integer, parameter, private :: horiz_bcs_type_west  = HORIZ_BCS_CYCLIC
-!PW - End of repeat
-
   ! Debug and Verification Level
   integer,parameter :: DEBUG_LEVEL = 1 
 	! If > 0, then debug code executed.  Added for parallel_halo_verify()
@@ -160,48 +150,6 @@ module parallel
 
   ! global IDs
   integer,save :: ProcsEW
-
-  !TODO - Remove these gathered_* declarations.  No longer used.
-
-  ! JEFF Declarations for undistributed variables on main_task.
-  ! Later move to separate module?  These are only temporary until code is completely distributed.
-  real(dp),dimension(:,:,:),allocatable :: gathered_efvs  ! Output var from glam_velo_fordsiapstr(), used often
-  real(dp),dimension(:,:,:),allocatable :: gathered_efvs2  ! Variable for testing that scatter/gather are inverses
-  real(dp),dimension(:,:,:),allocatable :: gathered_uvel  ! Output var from glam_velo_fordsiapstr(), used often
-  real(dp),dimension(:,:,:),allocatable :: gathered_vvel  ! Output var from glam_velo_fordsiapstr(), used often
-  real(dp),dimension(:,:),allocatable :: gathered_uflx    ! Output var from glam_velo_fordsiapstr(), used often
-  real(dp),dimension(:,:),allocatable :: gathered_vflx    ! Output var from glam_velo_fordsiapstr(), used often
-  real(dp),dimension(:,:,:),allocatable :: gathered_velnorm  ! Variable calculated in run_ho_diagnostic(), is this used?
-  real(dp),dimension(:,:),allocatable :: gathered_thck    ! Used in horizontal_remap_in()
-  real(dp),dimension(:,:),allocatable :: gathered_stagthck ! Used in horizontal_remap_in()
-  real(sp),dimension(:,:),allocatable :: gathered_acab    ! Used in horizontal_remap_in()
-  real(dp),dimension(:,:,:),allocatable :: gathered_temp  ! Used in horizontal_remap_in()
-  real(dp),dimension(:,:),allocatable :: gathered_dusrfdew  ! Used in glide_stress()
-  real(dp),dimension(:,:),allocatable :: gathered_dusrfdns  ! Used in glide_stress()
-  real(dp),dimension(:,:),allocatable :: gathered_dthckdew  ! Used in glide_stress()
-  real(dp),dimension(:,:),allocatable :: gathered_dthckdns  ! Used in glide_stress()
-  real(dp),dimension(:,:,:),allocatable :: gathered_tauxx   ! Calculated in glide_stress()
-  real(dp),dimension(:,:,:),allocatable :: gathered_tauyy   ! Calculated in glide_stress()
-  real(dp),dimension(:,:,:),allocatable :: gathered_tauxy   ! Calculated in glide_stress()
-  real(dp),dimension(:,:,:),allocatable :: gathered_tauscalar   ! Calculated in glide_stress()
-  real(dp),dimension(:,:,:),allocatable :: gathered_tauxz   ! Calculated in glide_stress()
-  real(dp),dimension(:,:,:),allocatable :: gathered_tauyz   ! Calculated in glide_stress()
-  real(dp),dimension(:,:),allocatable :: gathered_topg  ! Bedrock topology, Used in glide_set_mask()
-  integer,dimension(:,:),allocatable :: gathered_thkmask  ! Calculated in glide_set_mask()
-  real(dp),dimension(:,:),allocatable :: gathered_marine_bc_normal  ! Calculated in glide_marine_margin_normal()
-  real(dp),dimension(:,:,:),allocatable :: gathered_surfvel   ! Used in calc_gline_flux()
-  real(dp),dimension(:,:),allocatable :: gathered_gline_flux   ! Calculated in calc_gline_flux()
-  real(dp),dimension(:,:),allocatable :: gathered_ubas   ! Used in calc_gline_flux()
-  real(dp),dimension(:,:),allocatable :: gathered_vbas   ! Used in calc_gline_flux()
-  real(dp),dimension(:,:),allocatable :: gathered_relx   ! Used in glide_marinlim()
-  real(dp),dimension(:,:,:),allocatable :: gathered_flwa   ! Used in glide_marinlim()
-  real(sp),dimension(:,:),allocatable :: gathered_calving   ! Used in glide_marinlim()
-  real(sp),dimension(:,:),allocatable :: gathered_backstress   ! Used in glide_marinlim()
-  real(dp),dimension(:,:),allocatable :: gathered_usrf   ! Used in glide_marinlim()
-  logical,dimension(:,:),allocatable :: gathered_backstressmap ! Used in glide_marinlim()
-  real(dp),dimension(:,:),allocatable :: gathered_tau_x   ! Calculated in calc_basal_shear()
-  real(dp),dimension(:,:),allocatable :: gathered_tau_y   ! Calculated in calc_basal_shear()
-  real(dp),dimension(:,:),allocatable :: gathered_lsrf   ! Used in glide_marinlim()
 
   interface broadcast
      module procedure broadcast_character

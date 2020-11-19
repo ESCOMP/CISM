@@ -1688,32 +1688,13 @@ contains
           call write_log('Error, HO beta limit input out of range', GM_FATAL)
        end if
 
-       write(message,*) 'ho_cp_whichinversion    : ',model%options%which_ho_cp_inversion,  &
-                         ho_cp_whichinversion(model%options%which_ho_cp_inversion)
-       call write_log(message)
-       if (model%options%which_ho_cp_inversion < 0 .or. &
-           model%options%which_ho_cp_inversion >= size(ho_cp_whichinversion)) then
-          call write_log('Error, Cp inversion input out of range', GM_FATAL)
-       end if
+       ! Inversion options
 
-       write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
-                         ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
-       call write_log(message)
-       if (model%options%which_ho_bmlt_inversion < 0 .or. &
-           model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
-          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
-       end if
-
-       write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
-                         ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
-       call write_log(message)
-       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
-           model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
-          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
-       end if
-
-       ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
-       if (model%options%which_ho_cp_inversion /= 0) then
+       if (model%options%which_ho_cp_inversion /= HO_CP_INVERSION_NONE) then
+          write(message,*) 'ho_cp_whichinversion    : ',model%options%which_ho_cp_inversion,  &
+                            ho_cp_whichinversion(model%options%which_ho_cp_inversion)
+          call write_log(message)
+          ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
           if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
               model%options%which_ho_babc == HO_BABC_POWERLAW) then
              ! inversion for Cp is supported
@@ -1725,13 +1706,37 @@ contains
           endif
        endif
 
+       if (model%options%which_ho_cp_inversion < 0 .or. &
+           model%options%which_ho_cp_inversion >= size(ho_cp_whichinversion)) then
+          call write_log('Error, Cp inversion input out of range', GM_FATAL)
+       end if
+
+       if (model%options%which_ho_bmlt_inversion /= HO_BMLT_INVERSION_NONE) then
+          write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
+                            ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
+          call write_log(message)
+       endif
+
+       if (model%options%which_ho_bmlt_inversion < 0 .or. &
+            model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
+          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
+       end if
+
        if (model%options%which_ho_bmlt_basin_inversion /= HO_BMLT_BASIN_INVERSION_NONE) then
+          write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
+                            ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
+          call write_log(message)
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
              call write_log('Error, bmlt_basin inversion is not supported for this bmlt_float option')
              write(message,*) 'bmlt_basin inversion is supported only for bmlt_float = ', BMLT_FLOAT_THERMAL_FORCING
              call write_log(message, GM_FATAL)
           endif
        endif
+
+       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
+            model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
+          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
+       end if
 
        ! unsupported ho-babc options
        if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then

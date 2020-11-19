@@ -785,9 +785,13 @@ contains
     call broadcast(imax_global, procnum)
     call broadcast(jmax_global, procnum)
 
-    write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/yr), i, j    ',   &
-                    max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+    ! Write to diagnostics only if nonzero
+
+    if (abs(max_bmlt_global*thk0*scyr/tim0) > eps) then
+       write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/yr), i, j    ',   &
+            max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
 
     ! max surface speed
     imax = 0
