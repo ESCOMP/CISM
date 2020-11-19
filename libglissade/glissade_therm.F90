@@ -1628,7 +1628,8 @@ module glissade_therm
     ! At each temperature point, compute the temperature part of the enthalpy.
     ! enth_T = enth for cold ice, enth_T < enth for temperate ice
 
-    do up = 0, upn
+    enth_T(0) = rhoi*shci*temp(0)  !WHL - not sure enth_T(0) is needed
+    do up = 1, upn
        enth_T(up) = (1.d0 - waterfrac(up)) * rhoi*shci*temp(up)
     enddo
 
