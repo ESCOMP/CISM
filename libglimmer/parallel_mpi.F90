@@ -4626,28 +4626,31 @@ contains
 
     ! if halo cell and if using periodic boundary conditions,
     ! define global ID to be associated non-halo cell
+    !WHL - Commented out the deprecated options horiz_bcs_type_south/north/west/east.
+    !      Replaced with periodic_bc logic, but not tested.
+
     if (global_row .le. lhalo) then
-      if (horiz_bcs_type_south .eq. HORIZ_BCS_CYCLIC) then
-        global_row = global_row + global_nsn
-      endif
+       if (periodic_bc) then
+          global_row = global_row + global_nsn
+       endif
     endif
 
     if (global_row > (global_nsn+lhalo)) then
-      if  (horiz_bcs_type_north .eq. HORIZ_BCS_CYCLIC) then
-        global_row = global_row - global_nsn
-      endif
+       if (periodic_bc) then
+          global_row = global_row - global_nsn
+       endif
     endif
 
     if (global_col .le. lhalo) then
-      if (horiz_bcs_type_west .eq. HORIZ_BCS_CYCLIC) then
-        global_col = global_col + global_ewn
-      endif
+       if (periodic_bc) then
+          global_col = global_col + global_ewn
+       endif
     endif
 
     if (global_col > (global_ewn+lhalo)) then
-      if (horiz_bcs_type_east .eq. HORIZ_BCS_CYCLIC) then
-        global_col = global_col - global_ewn
-      endif
+       if (periodic_bc) then
+          global_col = global_col - global_ewn
+       endif
     endif
 
     ! including global domain halo adds (lhalo + uhalo) to global_ewn
