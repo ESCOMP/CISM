@@ -1569,13 +1569,21 @@ module glissade_bmlt_float
 
     logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
+    ! Note: If thermal forcing is close to but not quite equal to unphys_val (e.g., because of roundoff error),
+    !       it is interpreted as equal to unphys_val.
+    real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg C)
+
     ! Count the number of filled levels/cells in the input thermal forcing field.
 
     local_count = 0
     do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo,  nx-nhalo
           do k = 1, nzocn
-             if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
+             if (abs(thermal_forcing(k,i,j) - unphys_val) < tf_roundoff_threshold) then
+                thermal_forcing(k,i,j) = unphys_val
+             else  ! real physical value
+                local_count = local_count + 1
+             endif
           enddo
        enddo
     enddo
