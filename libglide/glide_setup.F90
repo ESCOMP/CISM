@@ -487,6 +487,14 @@ contains
 
     else    ! no 'grid_ocn' section
 
+       ! Allocate and initialize model%ocean_data%zocn.
+       ! Note: Coupled CESM runs require this array to be allocated, even if CISM
+       !       is not receiving realistic ocean forcing fields (as of Jan. 2021).
+       model%ocean_data%nzocn = get_nzocn(model)
+       if (.not.associated(model%ocean_data%zocn)) &
+            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+       model%ocean_data%zocn(:) = 0.0d0
+
        if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
           write(message,*) 'Must have a [grid_ocn] section to use the thermal forcing option'
           call write_log(message, GM_FATAL)
