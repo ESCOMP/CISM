@@ -1149,9 +1149,10 @@ module glide_types
     integer, dimension(:,:),pointer :: ice_cap_mask => null()    !> = 1 for ice cap cells disconnected from the main ice sheet
 
     ! fields for forced retreat, as in ISMIP6 ocean-forced retreat for Greenland
-    real(dp),dimension(:,:),pointer :: ice_fraction_retreat_mask !> = 0.0 where ice is forced to retreat, = 1.0 where ice is left intact;
-                                                                 !> ice is thinned based on reference_thck for values between 0 and 1
-    real(dp),dimension(:,:),pointer :: reference_thck            !> reference thickness giving upper limit for retreating ice
+    real(dp),dimension(:,:),pointer :: ice_fraction_retreat_mask => null() !> = 0.0 where ice is forced to retreat, = 1.0 where 
+                                                                 !> ice is left intact; ice is thinned based on reference_thck for 
+                                                                 !> values between 0 and 1
+    real(dp),dimension(:,:),pointer :: reference_thck => null()  !> reference thickness giving upper limit for retreating ice
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -1586,7 +1587,7 @@ module glide_types
      ! fields and parameters for deltaT_basin inversion
      ! Note: This is defined on the 2D (i,j) grid, even though it is uniform within a basin
      real(dp), dimension(:,:), pointer ::  &
-          floating_thck_target                   !> Observational target for floating ice thickness
+          floating_thck_target => null()         !> Observational target for floating ice thickness
 
      real(dp) ::  &
           dbmlt_dtemp_scale = 10.0d0,             & !> scale for rate of change of bmlt w/temperature, m/yr/degC
@@ -1905,13 +1906,13 @@ module glide_types
      ! The sparse matrix and linearised arrays
      type(sparse_matrix_type) :: fd_coeff, fd_coeff_slap
      integer :: all_bar_top
-     real(dp), dimension(:), pointer :: rhs
-     real(dp), dimension(:), pointer :: answer
-     real(dp), dimension(:), pointer :: supd,diag,subd
+     real(dp), dimension(:), pointer :: rhs => null()
+     real(dp), dimension(:), pointer :: answer => null()
+     real(dp), dimension(:), pointer :: supd => null(), diag => null(), subd => null()
 
      ! work arrays for solver
-     real(dp), dimension(:), pointer :: rwork
-     integer, dimension(:), pointer :: iwork
+     real(dp), dimension(:), pointer :: rwork => null()
+     integer, dimension(:), pointer :: iwork => null()
      integer mxnelt
 
      real(dp), dimension(:), pointer :: deltaz => null()    !> array holding grid spacing in z
@@ -1943,7 +1944,7 @@ module glide_types
      real(dp) :: lr                         !> radius of relative stiffness
      real(dp) :: a                          !> radius of disk
      real(dp) :: c1,c2,cd3,cd4              !> coefficients
-     real(dp), dimension(:,:), pointer :: w !> matrix operator for lithosphere deformation
+     real(dp), dimension(:,:), pointer :: w => null() !> matrix operator for lithosphere deformation
      integer :: wsize                       !> size of operator (0:rbel_wsize, 0:rbel_wsize), operator is axis symmetric
   end type isos_elastic
 
