@@ -1,0 +1,10 @@
+autocopy.log
+cism_driver
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
+fortran_autocopy_includes
+fortran_autogen_srcs
+fortran_mod_files
+lib
+Makefile
