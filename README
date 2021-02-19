@@ -22,7 +22,7 @@ domain.
 Mailing list:
 =============
 
-There are two mailing lists, once for general users and one for developers:
+There are two mailing lists, one for general users and one for developers:
 
 1. The general user mailing list can be signed up for by sending an email to:
    cism-users+subscribe@googlegroups.com
@@ -37,11 +37,12 @@ mailing list. The sign-up process will require you to authenticate the email add
 taking you to a website where you will be prompted to enter that information.  
 
 
-Discussion Board:
-=================
+Help with running CISM:
+=======================
 
-A discussion board for getting help with running CISM, either in stand-alone mode or as part of CESM, can
-be found at: http://bb.cgd.ucar.edu/forums/ice-sheet-modeling-cism  
+For welp running CISM, contact the science or software liaison of the Land Ice Working Group:
+science: Gunter Leguy (gunterl@ucar.edu)
+software: Kate Thayer-Calder (katec@ucar.edu)
 
 
 Bug Reporting:
@@ -55,7 +56,7 @@ Building / Installing CISM:
 ===========================
 
 For detailed instructions on how to install and build CISM, please see Chapter 2 of the users
-guide (available at: https://github.com/CISM/cism-documentation)
+guide (available at: https://cism.github.io/data/cism_documentation_v2_1.pdf)
 
 
-last updated: 10/21/2014
+last updated: 02/19/2021
