@@ -52,7 +52,10 @@ contains
 
   subroutine glissade_test_halo(model)
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: main_task, this_rank, uhalo, lhalo, staggered_lhalo, staggered_uhalo, &
+         global_ewn, global_nsn, global_row_offset, global_col_offset
+    use parallel_mod, only: parallel_halo, staggered_parallel_halo, parallel_globalID_scalar
 
     ! various tests of parallel halo updates
 
@@ -614,7 +617,6 @@ contains
 
   subroutine glissade_test_transport(model)
 
-    use parallel
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
     use glimmer_paramets, only: len0, thk0, tim0

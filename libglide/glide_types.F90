@@ -54,6 +54,7 @@ module glide_types
   use glimmer_map_types
   use glimmer_physcon
   use glimmer_paramets, only: unphys_val
+  use parallel_mod, only: parallel_type  !WHL - added a new parallel derived type
 
   implicit none
 
@@ -2275,6 +2276,7 @@ module glide_types
     type(glide_prof_type):: glide_prof
     type(isostasy_type)  :: isostasy
     type(glissade_solver):: solver_data
+    type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
 !!    type(glide_basalproc):: basalproc
 !!    type(glide_phaml)    :: phaml
 

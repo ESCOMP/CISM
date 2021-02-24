@@ -38,7 +38,6 @@ contains
 
 subroutine cism_init_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -50,14 +49,13 @@ subroutine cism_init_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
-
-  use cism_external_dycore_interface
-
-!  use glimmer_to_dycore
-
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
+!  use glimmer_to_dycore
+!  use parallel
+
+  use cism_external_dycore_interface
 
   implicit none
 
@@ -237,7 +235,6 @@ end subroutine cism_init_dycore
 
 subroutine cism_run_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -248,12 +245,12 @@ subroutine cism_run_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
-
-  use cism_external_dycore_interface
-  
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
+!  use parallel
+
+  use cism_external_dycore_interface
 
   implicit none
 
@@ -394,7 +391,6 @@ end subroutine cism_run_dycore
 
 subroutine cism_finalize_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -404,12 +400,12 @@ subroutine cism_finalize_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
+  use glide_stop, only: glide_finalise
+  use glide_diagnostics
+!  use parallel
 
   use cism_external_dycore_interface
   
-  use glide_stop, only: glide_finalise
-  use glide_diagnostics
-
   implicit none
 
   type(glide_global_type) :: model        ! model instance

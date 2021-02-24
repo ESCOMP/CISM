@@ -135,9 +135,10 @@ contains
     !> The main difference is that this subroutine uses a global gather and scatter to compute
     !>  the load for simulations on more than one task.
 
-    use parallel, only : global_ewn, global_nsn, this_rank, main_task, nhalo, &
-                         distributed_gather_var, distributed_scatter_var, parallel_halo
-    use parallel, only : parallel_reduce_sum  ! diagnostic only
+!    use parallel, only : global_ewn, global_nsn, this_rank, main_task, nhalo, &
+!                         distributed_gather_var, distributed_scatter_var, parallel_halo
+    use parallel_mod, only: global_ewn, global_nsn, this_rank, main_task
+    use parallel_mod, only: distributed_gather_var, distributed_scatter_var, parallel_halo
 
     implicit none
 

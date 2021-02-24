@@ -57,7 +57,9 @@ module glissade_therm
     use glimmer_global, only : dp 
     use glide_types
     use glimmer_log
-    use parallel
+!    use parallel
+    use parallel_mod, only: this_rank
+    use parallel_mod, only: broadcast, parallel_globalindex
 
     implicit none
 

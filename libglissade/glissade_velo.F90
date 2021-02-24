@@ -33,7 +33,7 @@
 
 module glissade_velo
 
-    use parallel
+!    use parallel
 
     ! Driver for Glissade velocity solvers
 

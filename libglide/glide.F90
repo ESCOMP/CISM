@@ -78,9 +78,6 @@ contains
     use glimmer_map_init
     use glimmer_filenames
 
-    !WHL - debug
-    use parallel, only: main_task
-
     implicit none
 
     type(glide_global_type), intent(inout) :: model  ! model instance
@@ -153,7 +150,8 @@ contains
     use glide_bwater
     use glimmer_paramets, only: len0
 
-    use parallel, only: distributed_grid
+!    use parallel, only: distributed_grid
+    use parallel_mod, only: distributed_grid
 
     type(glide_global_type), intent(inout) :: model     ! model instance
 

@@ -31,10 +31,10 @@ module felix_dycore_interface
    use glimmer_paramets, only : vel0, tau0, vis0
    use glide_types
    use glimmer_log
-   use parallel
    use glissade_grid_operators, only: glissade_stagger 
    !use glimmer_to_dycore
-
+!   use parallel
+   use parallel_mod, only: this_rank, nhalo, ewlb, nslb, global_ewn, global_nsn
    implicit none
    private
 

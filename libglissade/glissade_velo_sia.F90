@@ -62,7 +62,9 @@
     use glide_types
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
                                        glissade_gradient_at_edges
-    use parallel
+!    use parallel
+    use parallel_mod, only: this_rank, main_task, nhalo
+    use parallel_mod, only: parallel_halo, staggered_parallel_halo
 
     implicit none
 
@@ -776,8 +778,6 @@
                                         whichgradient_margin,   &
                                         ubas,     vbas,         &
                                         uvel,     vvel)
-
-    use parallel
 
     !----------------------------------------------------------------
     ! Input-output arguments

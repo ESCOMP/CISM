@@ -59,7 +59,9 @@ contains
     !TODO: In this and the next two subroutines, we could pass in thck, topg, etc. instead of the model derived type.
 
     use glimmer_paramets, only: thk0
-    use parallel, only: this_rank, parallel_reduce_max
+!!    use parallel, only: this_rank, parallel_reduce_max
+    use parallel_mod, only: this_rank
+    use parallel_mod, only: parallel_reduce_max
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -218,10 +220,12 @@ contains
     !        increase thickness to keep the ice grounded?
 
     use glimmer_paramets, only: thk0
-    use parallel, only: this_rank
     use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
+
+!    use parallel, only: this_rank
+    use parallel_mod, only: this_rank
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -371,8 +375,10 @@ contains
     !       It has not been used to lower topography.
 
     use glimmer_paramets, only: thk0
-    use parallel, only: this_rank
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine (e.g., in this module)
+
+!    use parallel, only: this_rank
+    use parallel_mod, only: this_rank
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -595,7 +601,8 @@ contains
         idiag,     jdiag,          &
         phi,       stdev)
 
-    use parallel, only: main_task
+!    use parallel, only: main_task
+    use parallel_mod, only: main_task
 
     integer, intent(in) :: nx, ny                    ! number of cells in x and y direction on input grid (global)
     integer, intent(in) :: grid_ratio                ! nx/nx_coarse = ny/ny_coarse = ratio of fine to coarse grid

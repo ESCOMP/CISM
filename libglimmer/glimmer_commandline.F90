@@ -37,7 +37,10 @@
 !> parsing common command line arguments
 module glimmer_commandline
 
-  use glimmer_global, only:fname_length
+  use glimmer_global, only: fname_length
+
+!  use parallel, only: main_task
+  use parallel_mod, only: main_task
 
   implicit none
 
@@ -52,7 +55,7 @@ contains
   !! \author Magnus Hagdorn
   !! \date April 2009
   subroutine glimmer_GetCommandline()
-    use parallel, only: main_task
+
     implicit none
 
     integer numargs,nfiles
@@ -129,7 +132,7 @@ contains
   !! \author Magnus Hagdorn
   !! \date April 2009
   subroutine glimmer_PrintCommandline()
-    use parallel, only: main_task
+
     implicit none
 
     if (main_task) then
@@ -146,7 +149,7 @@ contains
   !! \author Magnus Hagdorn
   !! \date April 2009
   subroutine glimmer_commandlineHelp()
-    use parallel, only: main_task
+
     implicit none
     character(len=500) :: pname
 

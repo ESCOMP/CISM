@@ -46,8 +46,14 @@
     use glide_types   ! for preconditioning options
     use glimmer_log
     use profile
-    use parallel
-    
+
+!    use parallel
+    use parallel_mod, only: this_rank, main_task, nhalo, staggered_ilo, staggered_ihi, staggered_jlo, staggered_jhi, &
+        tasks_row, tasks_col, main_task_row, main_task_col, this_rank_row, this_rank_col, comm_row, comm_col
+
+    use parallel_mod, only: staggered_parallel_halo, parallel_reduce_sum, &
+         distributed_gather_all_var_row, distributed_gather_all_var_col
+
     implicit none
     
     private

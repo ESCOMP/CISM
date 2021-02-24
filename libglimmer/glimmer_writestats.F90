@@ -36,7 +36,8 @@ contains
 
   subroutine glimmer_write_stats(resname, cfgname,wallTime)
     use glimmer_global, only : dp
-    use parallel, only: main_task
+!    use parallel, only: main_task
+    use parallel_mod, only: main_task
     implicit none
     character(len=*), intent(in) :: resname !< name of the output result file
     character(len=*), intent(in) :: cfgname !< name of configuration file

@@ -35,6 +35,9 @@ module glide_mask
     ! masking ice thicknesses
 
     use glimmer_global, only : dp
+!    use parallel
+    use parallel_mod, only: lhalo, uhalo
+    use parallel_mod, only: parallel_halo, parallel_reduce_sum
 
     implicit none
 
@@ -48,7 +51,6 @@ contains
 
   subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask, iarea, ivol, exec_serial)
 
-    use parallel
     use glide_types
     use glimmer_physcon, only : rhoi, rhoo
     implicit none
@@ -216,7 +218,6 @@ contains
 
   subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
 
-    use parallel
     use glimmer_paramets, only : len0, thk0
 
     implicit none
@@ -255,7 +256,6 @@ contains
  
   subroutine calc_iareaf_iareag(dew, dns, mask, iareaf, iareag, exec_serial)
     
-    use parallel
     use glimmer_paramets, only : len0 
     implicit none
     real(dp), intent(in) :: dew, dns
@@ -308,7 +308,6 @@ contains
       !TODO - Remove subroutine glide_marine_margin_normal?  Old PBJ routine.
       !       Also can remove calc_normal_45deg
 
-      use parallel
         use glimmer_physcon, only:pi
         implicit none
         !> This subroutine derives from the given mask the normal to an ice shelf
@@ -496,7 +495,7 @@ contains
     !differencing across the boundary.
 
     subroutine upwind_from_mask(mask, direction_x, direction_y, exec_serial)
-      use parallel
+
         integer, dimension(:,:), intent(in) :: mask
         double precision, dimension(:,:), intent(out) :: direction_x, direction_y
         logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.

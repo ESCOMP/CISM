@@ -58,7 +58,10 @@ module glissade_remap
 
   use glimmer_global, only: dp
   use glimmer_log
-  use parallel
+
+!  use parallel
+  use parallel_mod, only: this_rank
+  use parallel_mod, only: parallel_halo, parallel_globalindex, broadcast
 
   implicit none
   save

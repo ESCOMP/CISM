@@ -88,7 +88,11 @@
          trilinos_test
 #endif
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: this_rank, main_task, nhalo, tasks, &
+         staggered_ilo, staggered_ihi, staggered_jlo, staggered_jhi
+    use parallel_mod, only: parallel_halo, staggered_parallel_halo, parallel_globalindex, &
+         parallel_reduce_max, parallel_reduce_sum, not_parallel
 
     implicit none
 

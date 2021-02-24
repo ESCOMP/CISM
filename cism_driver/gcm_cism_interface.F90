@@ -33,7 +33,7 @@
 
 module gcm_cism_interface
 
-  use parallel
+!  use parallel
   use glint_commandline
   use glide
   use cism_front_end
@@ -50,7 +50,9 @@ module gcm_cism_interface
 contains
 
 subroutine gci_init_interface(which_gcm,g2c)
-  use parallel
+
+!  use parallel
+  use parallel_mod, only: main_task
   use glint_commandline
   use glimmer_config
   use glide
