@@ -271,7 +271,9 @@ contains
     use glide_types
     use glimmer_log
     use glimmer_filenames
-    use parallel
+!    use parallel
+    use parallel_mod, only: main_task
+    use parallel_mod, only: broadcast
 
     implicit none
 
@@ -403,7 +405,9 @@ contains
     use glide_types
     use glimmer_config
     use glimmer_log
-    use parallel, only: main_task
+!    use parallel, only: main_task
+    use parallel_mod, only: main_task
+
     implicit none
 
     type(glide_global_type) :: model        !> model instance
@@ -837,7 +841,8 @@ contains
     use glide_types
     use glimmer_log
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: tasks
 
     implicit none
 
@@ -2858,7 +2863,8 @@ contains
   subroutine print_isostasy(model)
     use glide_types
     use glimmer_log
-    use parallel, only: tasks
+!    use parallel, only: tasks
+    use parallel_mod, only: tasks
     implicit none
     type(glide_global_type)  :: model
     character(len=100) :: message

@@ -35,7 +35,7 @@ module glide_ground
 
   use glide_types
   use glimmer_global, only: dp
-  use parallel
+!  use parallel
 
   implicit none
 

@@ -50,7 +50,10 @@
   use glimmer_paramets, only : vel0, tau0
   use glimmer_log
   use glide_types
-  use parallel,         only : staggered_parallel_halo  
+!  use parallel, only : staggered_parallel_halo
+  use parallel_mod, only : this_rank, main_task, global_ewn, global_nsn
+  use parallel_mod, only : parallel_halo, staggered_parallel_halo, parallel_globalindex, &
+       distributed_scatter_var
 
   implicit none
 
@@ -89,9 +92,6 @@ contains
      
   use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
-  use parallel, only: nhalo, this_rank
-  use parallel, only: parallel_globalindex, global_ewn, global_nsn
-  use parallel, only: distributed_scatter_var, parallel_halo, main_task
   use glissade_grid_operators, only: glissade_stagger
 
   implicit none
@@ -702,7 +702,6 @@ contains
     ! Calculate the effective pressure at the bed
 
     use glimmer_physcon, only: rhoi, grav, rhoo
-    use parallel
     use glissade_grid_operators, only: glissade_stagger
 
     implicit none

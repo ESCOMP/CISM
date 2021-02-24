@@ -250,7 +250,9 @@ contains
     !       in Glide's basal water routing scheme.
     ! TODO: Write a parallel version of this subroutine?
 
-      use parallel
+!        use parallel
+      !use parallel_mod, only: this_rank, main_task, lhalo, uhalo, global_ewn, global_nsn
+
         implicit none
         real(dp), dimension(:, :), intent(in) :: f
         real(dp), intent(in) :: deltax, deltay

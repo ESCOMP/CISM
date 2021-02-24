@@ -40,7 +40,10 @@
 
     use glimmer_global, only: dp
 !    use glimmer_log, only: write_log
-    use parallel
+
+!    use parallel
+    use parallel_mod, only: this_rank, main_task, nhalo
+    use parallel_mod, only: staggered_parallel_halo
 
     implicit none
     private
@@ -903,8 +906,6 @@
     ! Small test matrices for Trilinos solver
     !--------------------------------------------------------
     
-    use parallel
-      
     !--------------------------------------------------------
     ! Local variables
     !--------------------------------------------------------

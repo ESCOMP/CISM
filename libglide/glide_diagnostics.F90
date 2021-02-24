@@ -35,7 +35,11 @@ module glide_diagnostics
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use parallel
+!  use parallel
+  use parallel_mod, only: this_rank, main_task, lhalo, uhalo, global_ewn, global_nsn, &
+       global_col_offset, global_row_offset
+  use parallel_mod, only: broadcast, parallel_localindex, parallel_globalindex, &
+       parallel_reduce_sum, parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc
 
   implicit none
 
@@ -154,8 +158,6 @@ contains
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
  
-    use parallel
-
     use glimmer_paramets, only: thk0, len0, vel0, tim0, unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
  
@@ -725,9 +727,9 @@ contains
     call parallel_reduce_maxloc(xin=max_temp, xout=max_temp_global, xprocout=procnum)
     call parallel_globalindex(imax, jmax, imax_global, jmax_global)
     kmax_global = kmax
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
-    call broadcast(kmax_global, procnum)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+    call broadcast(kmax_global, proc = procnum)
 
     write(message,'(a25,f24.16,3i6)') 'Max temperature, i, j, k ',   &
                     max_temp_global, imax_global, jmax_global, kmax_global
@@ -757,9 +759,9 @@ contains
     call parallel_reduce_minloc(xin=min_temp, xout=min_temp_global, xprocout=procnum)
     call parallel_globalindex(imin, jmin, imin_global, jmin_global)
     kmin_global = kmin
-    call broadcast(imin_global, procnum)
-    call broadcast(jmin_global, procnum)
-    call broadcast(kmin_global, procnum)
+    call broadcast(imin_global, proc = procnum)
+    call broadcast(jmin_global, proc = procnum)
+    call broadcast(kmin_global, proc = procnum)
 
     write(message,'(a25,f24.16,3i6)') 'Min temperature, i, j, k ',   &
                     min_temp_global, imin_global, jmin_global, kmin_global
@@ -782,8 +784,8 @@ contains
 
     call parallel_reduce_maxloc(xin=max_bmlt, xout=max_bmlt_global, xprocout=procnum)
     call parallel_globalindex(imax, jmax, imax_global, jmax_global)
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
 
     ! Write to diagnostics only if nonzero
 
@@ -812,8 +814,8 @@ contains
 
     call parallel_reduce_maxloc(xin=max_spd_sfc, xout=max_spd_sfc_global, xprocout=procnum)
     call parallel_globalindex(imax, jmax, imax_global, jmax_global)
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
 
     write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/yr), i, j ',   &
                     max_spd_sfc_global*vel0*scyr, imax_global, jmax_global
@@ -838,9 +840,8 @@ contains
 
     call parallel_reduce_maxloc(xin=max_spd_bas, xout=max_spd_bas_global, xprocout=procnum)
     call parallel_globalindex(imax, jmax, imax_global, jmax_global)
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
-
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
     write(message,'(a25,f24.16,2i6)') 'Max base spd (m/yr), i, j',   &
                     max_spd_bas_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)

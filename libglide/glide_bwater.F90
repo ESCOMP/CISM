@@ -83,10 +83,11 @@ contains
     ! Driver for updating basal hydrology
     !TODO - Upgrade calcbwat for Glissade?  Currently this subroutine is a mix of old Glide and newer Glissade code.
 
-    use parallel
     use glimmer_paramets, only : thk0
     use glide_grid_operators, only: stagvarb
     use glissade_grid_operators, only: glissade_stagger
+!    use parallel
+    use parallel_mod, only: parallel_halo
 
     implicit none
 

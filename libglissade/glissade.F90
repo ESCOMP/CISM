@@ -62,6 +62,10 @@ module glissade
   use glissade_test, only: glissade_test_halo, glissade_test_transport
   use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
 
+  !WHL - variables to be in the new parallel derived type
+  use parallel_mod, only: this_rank, main_task, comm, nhalo, own_ewn, own_nsn, global_ewn, global_nsn, &
+       main_task_row, comm_row, main_task_col, comm_col
+
   implicit none
 
   integer, private, parameter :: dummyunit=99
@@ -75,6 +79,7 @@ module glissade
   real(dp), parameter :: eps08 = 1.0d-8   ! small number
   real(dp), parameter :: eps11 = 1.0d-11  ! small number
 
+
 contains
 
 !=======================================================================
@@ -87,7 +92,16 @@ contains
 
     ! initialise Glissade model instance
 
-    use parallel
+!    use parallel
+    use parallel_mod, only:  &
+         distributed_gather_var,  &
+         parallel_halo, &
+         parallel_halo_extrapolate, &
+         parallel_reduce_max, &
+         staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
+         parallel_create_comm_row, parallel_create_comm_col, not_parallel, &
+         distributed_grid, distributed_grid_active_blocks
+
     use glide_stop, only: register_model
     use glide_setup
     use glimmer_ncio
@@ -167,6 +181,9 @@ contains
     integer, parameter :: grid_ratio = 8   ! ratio between no. of grid cells on the input grid and
                                            ! the grid on which we want to compute topg_stdev; typically 2, 4, or 8
 
+    !WHL - debug
+    if (main_task) print*, 'In glissade_initialise'
+
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
     else
@@ -183,6 +200,9 @@ contains
 
     ! Set up coordinate systems, and change the parallel values of ewn and nsn.
     ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
+
+    !WHL - debug
+    if (main_task) print*, 'call distributed grid'
 
     if (model%options%compute_blocks == ACTIVE_BLOCKS_ONLY .or.   &
         model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
@@ -207,6 +227,7 @@ contains
 
        call glimmer_nc_get_var(infile, 'ice_domain_mask', &
                                model%general%ice_domain_mask)
+
 
        if (model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
 
@@ -259,6 +280,9 @@ contains
        call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'periodic')
 
     endif
+
+    !WHL - debug
+    if (main_task) print*, 'Done in distributed grid'
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0,               &
                                              model%numerics%dew, model%numerics%dns, &
@@ -1132,7 +1156,8 @@ contains
 
     ! Perform time-step of an ice model instance with the Glissade dycore
 
-    use parallel
+!    use parallel
+    use parallel_mod, only:  not_parallel
 
     use glimmer_paramets, only: tim0, len0, thk0
     use glimmer_physcon, only: scyr
@@ -1399,7 +1424,7 @@ contains
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
 
-    use parallel
+!    use parallel
 
     implicit none
 
@@ -1834,7 +1859,8 @@ contains
     ! Do the vertical thermal solve.
     ! First call a driver subroutine for vertical temperature or enthalpy evolution,
     ! and then update the basal water.
-    use parallel
+!    use parallel
+    use parallel_mod, only: parallel_halo
 
     use glimmer_paramets, only: tim0, thk0, len0
     use glissade_therm, only: glissade_therm_driver
@@ -2020,7 +2046,9 @@ contains
     !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
+         parallel_reduce_max
 
     use glimmer_paramets, only: tim0, thk0, vel0, len0
     use glimmer_physcon, only: scyr
@@ -2937,7 +2965,8 @@ contains
     ! Calculate iceberg calving
     ! ------------------------------------------------------------------------ 
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: parallel_halo
 
     use glimmer_paramets, only: thk0, tim0, len0
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
@@ -3551,7 +3580,9 @@ contains
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------ 
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: parallel_halo, parallel_halo_extrapolate
+
     use isostasy
     use glimmer_paramets, only: thk0
     use glissade_masks, only: glissade_marine_connection_mask
@@ -3638,7 +3669,9 @@ contains
      ! This is needed at the end of each time step once the prognostic variables (thickness, tracers) have been updated.  
      ! It is also needed to fill out the initial state from the fields that have been read in.
 
-    use parallel
+!    use parallel
+    use parallel_mod, only: parallel_halo, staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
+         parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
     use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: scyr

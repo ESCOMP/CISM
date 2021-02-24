@@ -107,10 +107,11 @@ contains
   subroutine init_isostasy(model)
 
     !> initialise isostasy calculations
-    use parallel
     use glide_types
     use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: tim0
+!    use parallel
+
     implicit none
 
     type(glide_global_type) :: model

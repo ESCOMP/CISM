@@ -70,10 +70,13 @@ contains
 
   subroutine glide_nc_filldvars(outfile, model)
 
-    use parallel
     use glide_types
     use glimmer_ncdf
     use glimmer_paramets, only : len0
+!    use parallel
+    use parallel_mod, only: global_ewn, global_nsn
+    use parallel_mod, only: parallel_inq_varid, parallel_put_var, parallel_enddef
+
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile

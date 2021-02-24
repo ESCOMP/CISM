@@ -36,6 +36,11 @@ module glimmer_ncio
   !> written by Magnus Hagdorn, 2004
 
   use glimmer_ncdf
+!  use parallel
+  use parallel_mod, only: global_ewn, global_nsn
+  use parallel_mod, only: parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
+       parallel_put_att, parallel_def_var, parallel_def_dim, parallel_inq_varid, parallel_inq_dimid,  &
+       parallel_inquire_dimension, parallel_redef, parallel_enddef, parallel_sync
 
   implicit none
 
@@ -60,7 +65,6 @@ contains
     use glide_types
     use glimmer_ncdf
     use glimmer_filenames, only: process_path
-    use parallel, only: parallel_open
 
     implicit none
 
@@ -143,12 +147,12 @@ contains
                                    already_open_in)
 
     !> open netCDF file for appending
-    use parallel
     use glimmer_log
     use glide_types
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_filenames
+
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile       !> structure containing output netCDF descriptor
@@ -215,7 +219,6 @@ contains
   subroutine glimmer_nc_createfile(outfile, model, baseline_year)
 
     !> create a new netCDF file
-    use parallel
     use glimmer_log
     use glide_types
     use glimmer_map_CFproj
@@ -351,7 +354,6 @@ contains
   subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time)
 
     !> check if we should write to file
-    use parallel
     use glimmer_log
     use glide_types
     use glimmer_filenames
@@ -516,7 +518,7 @@ contains
     use glimmer_log
     use glimmer_paramets, only: len0
     use glimmer_filenames
-    use parallel
+
     implicit none
 
     type(glimmer_nc_input), pointer :: infile    !> structure containg input netCDF descriptor
@@ -905,7 +907,6 @@ contains
     use glimmer_ncdf
     use glimmer_log
     use glimmer_filenames, only: process_path
-    use parallel, only: parallel_open, parallel_get_var, parallel_inq_varid
 
     type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
     character(len=*), intent(in) :: varname
@@ -950,7 +951,6 @@ contains
     use glimmer_ncdf
     use glimmer_log
     use glimmer_filenames, only: process_path
-    use parallel, only: parallel_open, parallel_get_var, parallel_inq_varid
 
     type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
     character(len=*), intent(in) :: varname

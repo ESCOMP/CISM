@@ -41,7 +41,9 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: rhoi, rhoo
     use glide_types  ! grounding line options
-    use parallel
+!    use parallel
+    use parallel_mod, only: this_rank, nhalo
+    use parallel_mod, only: parallel_halo
 
     implicit none
 
@@ -1149,7 +1151,6 @@
     !        match the fluxes computed by the transport scheme.
     !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
 
-    use parallel, only: nhalo
     use glimmer_paramets, only: thk0, vel0, len0
 
     implicit none

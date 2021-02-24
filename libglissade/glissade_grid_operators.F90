@@ -41,7 +41,9 @@ module glissade_grid_operators
     use glimmer_global, only: dp
     use glimmer_log
     use glide_types
-    use parallel
+!    use parallel
+    use parallel_mod, only: this_rank, main_task, nhalo, ewtasks, nstasks
+    use parallel_mod, only: parallel_halo, staggered_parallel_halo, parallel_reduce_sum, parallel_globalindex
 
     implicit none
 
@@ -1600,8 +1602,6 @@ contains
     ! (2) For each cell with output_mask = 1 and phi = phi_unfilled, obtain phi as the average value
     !     of neighbors with  phi /= phi_unfilled.
     ! (3) Repeat until no more cells can be filled with extrapolated values.
-
-    use parallel
 
     ! Input/output arguments
 
