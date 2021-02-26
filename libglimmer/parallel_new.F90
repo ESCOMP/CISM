@@ -30,17 +30,23 @@ module parallel_new
   use glimmer_global, only : dp, sp
   implicit none
 
-  private  !WHL - Keep private for initial compiling
+!!  private  !WHL - Keep private for initial compiling
 
-  ! Type to hold information related to parallel operations.
-  ! Note: At one time, most of these were module-level variables in parallel_mpi.F90.
-  !       This works for standalone parallel runs with a single ice sheet instance,
-  !        but not for coupled parallel runs with multiple ice sheet instances.
-  !       With multiple instances, each instances requires its own grid, decomposition,
-  !        and MPI communicator.
+  ! integers associated with the main global communicator
+  ! (for communication among all tasks)
+  ! Note: When running CISM with multiple ice sheet instances, these values are assumed
+  !       to be the same for all instances.
+  integer :: comm           ! integer ID for the main global communicator
+  integer :: tasks          ! total number of tasks
+  integer :: this_rank      ! integer ID for the local task
+  integer :: main_rank      ! integer ID for the master task
+  logical :: main_task      ! true if this_rank = main_rank
 
   type :: parallel_type
      ! information needed to carry out parallel operations (halo, broadcast, gather, scatter, etc.)
+     ! Note: At one time, most of these were module-level variables in parallel_mpi.F90.
+     !       This works for runs with a single ice sheet instance, but not with multiple instances.
+     !       With multiple instances, each instance requires its own grid and decomposition.
 
      ! global boundary conditions
      logical :: periodic_bc  ! doubly periodic                       
@@ -48,33 +54,6 @@ module parallel_new
                                   ! staggered data to zero beyond the global boundary
      logical :: no_ice_bc    ! if true, scalars adjacent to the global boundary are set to zero;
                                   ! this includes halo cells and one row of locally owned cells
-
-     ! integers associated with the main global communicator
-     ! (for communication among all tasks)
-     integer :: comm           ! integer ID for the main global communicator
-     integer :: tasks          ! total number of tasks
-     integer :: this_rank      ! integer ID for the local task
-     integer :: main_rank      ! integer ID for the master task
-     logical :: main_task      ! true if this_rank = main_rank
-
-     ! optional row-based and column-based communicators
-     ! These can be used for global tridiagonal solves
-
-     ! integers associated with the row-based communicator
-     ! (for communication among tasks with the same value of nsrank)
-     integer :: comm_row       ! integer ID for the row-based communicator
-     integer :: tasks_row      ! total number of tasks on the local row
-     integer :: this_rank_row  ! integer ID for the local task in the row
-     integer :: main_rank_row  ! integer ID for the master task on the row
-     logical :: main_task_row  ! true if this_rank_row = main_rank_row
-
-     ! integers associated with the column-based communicator
-     ! (for communication among tasks with the same value of ewrank)
-     integer :: comm_col       ! integer ID for the column-based communicator
-     integer :: tasks_col      ! total number of tasks on the local column
-     integer :: this_rank_col  ! integer ID for the local task in the column
-     integer :: main_rank_col  ! integer ID for the master task on the column
-     logical :: main_task_col  ! true if this_rank_col = main_rank_col
 
      ! grid parameters on the distributed grid
      integer :: global_ewn, global_nsn  ! no. of cells in x and y dimensions on global grid
@@ -110,6 +89,25 @@ module parallel_new
      integer :: staggered_jlo
      integer :: staggered_ihi
      integer :: staggered_jhi
+
+     ! optional row-based and column-based communicators
+     ! These can be used for global tridiagonal solves
+
+     ! integers associated with the row-based communicator
+     ! (for communication among tasks with the same value of nsrank)
+     integer :: comm_row       ! integer ID for the row-based communicator
+     integer :: tasks_row      ! total number of tasks on the local row
+     integer :: this_rank_row  ! integer ID for the local task in the row
+     integer :: main_rank_row  ! integer ID for the master task on the row
+     logical :: main_task_row  ! true if this_rank_row = main_rank_row
+
+     ! integers associated with the column-based communicator
+     ! (for communication among tasks with the same value of ewrank)
+     integer :: comm_col       ! integer ID for the column-based communicator
+     integer :: tasks_col      ! total number of tasks on the local column
+     integer :: this_rank_col  ! integer ID for the local task in the column
+     integer :: main_rank_col  ! integer ID for the master task on the column
+     logical :: main_task_col  ! true if this_rank_col = main_rank_col
 
   end type parallel_type
 
@@ -383,23 +381,17 @@ contains
 
   ! subroutines belonging to the broadcast interface
 
-  subroutine broadcast_character(c, parallel, proc)
+  subroutine broadcast_character(c, proc)
 
     use mpi_mod
     implicit none
     character(len=*) :: c
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror, n
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
-
     if (present(proc)) then
        source = proc
     else
@@ -407,223 +399,174 @@ contains
     endif
     n = len(c)
     call mpi_bcast(c,n,mpi_character,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_character
 
 
-  subroutine broadcast_integer(i, parallel, proc)
+  subroutine broadcast_integer(i, proc)
 
     use mpi_mod
     implicit none
     integer :: i
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(i,1,mpi_integer,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_integer
 
 
-  subroutine broadcast_integer_1d(a, parallel, proc)
+  subroutine broadcast_integer_1d(a, proc)
 
     use mpi_mod
     implicit none
     integer,dimension(:) :: a
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(a,size(a),mpi_integer,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_integer_1d
 
 
-  subroutine broadcast_logical(l, parallel, proc)
+  subroutine broadcast_logical(l, proc)
 
     use mpi_mod
     implicit none
     logical :: l
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(l,1,mpi_logical,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_logical
 
 
-  subroutine broadcast_logical_1d(l, parallel, proc)
+  subroutine broadcast_logical_1d(l, proc)
 
     use mpi_mod
     implicit none
     logical,dimension(:) :: l
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(l,size(l),mpi_logical,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_logical_1d
 
 
-  subroutine broadcast_real4(r, parallel, proc)
+  subroutine broadcast_real4(r, proc)
 
     use mpi_mod
     implicit none
     real(sp) :: r
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(r,1,mpi_real4,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_real4
 
 
-  subroutine broadcast_real4_1d(a, parallel, proc)
+  subroutine broadcast_real4_1d(a, proc)
 
     use mpi_mod
     implicit none
     real(sp),dimension(:) :: a
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(a,size(a),mpi_real4,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_real4_1d
 
 
-  subroutine broadcast_real8(r, parallel, proc)
+  subroutine broadcast_real8(r, proc)
 
     use mpi_mod
     implicit none
     real(dp) :: r
-    type(parallel_type) :: parallel
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(r,1,mpi_real8,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_real8
 
 
-  subroutine broadcast_real8_1d(a, parallel, proc)
+  subroutine broadcast_real8_1d(a, proc)
 
     use mpi_mod
     implicit none
     real(dp),dimension(:) :: a
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
-    type(parallel_type) :: parallel
 
     integer :: ierror
     integer :: source ! local variable indicating which processor to broadcast from
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank  &
-         )
     if (present(proc)) then
        source = proc
     else
        source = main_rank
     endif
     call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
-    end associate
 
   end subroutine broadcast_real8_1d
 
@@ -672,10 +615,6 @@ contains
     integer,dimension(:,:),allocatable :: sendbuf
 
     associate(  &
-         comm      => parallel%comm,       &
-         tasks     => parallel%tasks,      &
-         main_task => parallel%main_task,  &
-         main_rank => parallel%main_rank,  &
          ewlb      => parallel%ewlb,       &
          ewub      => parallel%ewub,       &
          nslb      => parallel%nslb,       &
@@ -692,7 +631,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -781,10 +720,6 @@ contains
     logical,dimension(:,:),allocatable :: sendbuf
 
     associate(  &
-         comm      => parallel%comm,       &
-         tasks     => parallel%tasks,      &
-         main_task => parallel%main_task,  &
-         main_rank => parallel%main_rank,  &
          ewlb      => parallel%ewlb,       &
          ewub      => parallel%ewub,       &
          nslb      => parallel%nslb,       &
@@ -801,7 +736,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -890,10 +825,6 @@ contains
     real(sp),dimension(:,:),allocatable :: sendbuf
 
     associate(  &
-         comm      => parallel%comm,       &
-         tasks     => parallel%tasks,      &
-         main_task => parallel%main_task,  &
-         main_rank => parallel%main_rank,  &
          ewlb      => parallel%ewlb,       &
          ewub      => parallel%ewub,       &
          nslb      => parallel%nslb,       &
@@ -910,7 +841,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -1000,10 +931,6 @@ contains
     real(sp),dimension(:,:,:),allocatable :: sendbuf
 
     associate(  &
-         comm      => parallel%comm,       &
-         tasks     => parallel%tasks,      &
-         main_task => parallel%main_task,  &
-         main_rank => parallel%main_rank,  &
          ewlb      => parallel%ewlb,       &
          ewub      => parallel%ewub,       &
          nslb      => parallel%nslb,       &
@@ -1020,7 +947,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -1055,7 +982,7 @@ contains
        endif
        if (size(values,1) /= d1u-d1l+1) then
           write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
-          call parallel_stop(__FILE__, __LINE__, parallel)
+          call parallel_stop(__FILE__, __LINE__)
        endif
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(d1l:d1u,&
@@ -1126,10 +1053,6 @@ contains
     real(dp),dimension(:,:),allocatable :: sendbuf
 
     associate(  &
-         comm      => parallel%comm,       &
-         tasks     => parallel%tasks,      &
-         main_task => parallel%main_task,  &
-         main_rank => parallel%main_rank,  &
          ewlb      => parallel%ewlb,       &
          ewub      => parallel%ewub,       &
          nslb      => parallel%nslb,       &
@@ -1146,7 +1069,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -1235,10 +1158,6 @@ contains
     real(dp),dimension(:,:,:),allocatable :: sendbuf
 
     associate(  &
-         comm      => parallel%comm,       &
-         tasks     => parallel%tasks,      &
-         main_task => parallel%main_task,  &
-         main_rank => parallel%main_rank,  &
          ewlb      => parallel%ewlb,       &
          ewub      => parallel%ewub,       &
          nslb      => parallel%nslb,       &
@@ -1255,7 +1174,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -1290,7 +1209,7 @@ contains
        endif
        if (size(values,1) /= d1u-d1l+1) then
           write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
-          call parallel_stop(__FILE__, __LINE__, parallel)
+          call parallel_stop(__FILE__, __LINE__)
        endif
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(d1l:d1u,&
@@ -1379,7 +1298,6 @@ contains
          this_rank_row => parallel%this_rank_row,  &
          main_rank_row => parallel%main_rank_row,  &
          main_task_row => parallel%main_task_row,  &
-         this_rank     => parallel%this_rank,      &
          own_nsn       => parallel%own_nsn         &
          )
 
@@ -1387,7 +1305,7 @@ contains
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
        write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
@@ -1519,7 +1437,6 @@ contains
          this_rank_row => parallel%this_rank_row,  &
          main_rank_row => parallel%main_rank_row,  &
          main_task_row => parallel%main_task_row,  &
-         this_rank     => parallel%this_rank,      &
          own_nsn       => parallel%own_nsn         &
          )
 
@@ -1530,7 +1447,7 @@ contains
        !       giving size(values,2) = own_nsn + 1
        write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
        write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
@@ -1642,7 +1559,6 @@ contains
          this_rank_col => parallel%this_rank_col,  &
          main_rank_col => parallel%main_rank_col,  &
          main_task_col => parallel%main_task_col,  &
-         this_rank     => parallel%this_rank,      &
          own_ewn       => parallel%own_ewn         &
          )
 
@@ -1650,7 +1566,7 @@ contains
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
        write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
@@ -1783,7 +1699,6 @@ contains
          this_rank_col => parallel%this_rank_col,  &
          main_rank_col => parallel%main_rank_col,  &
          main_task_col => parallel%main_task_col,  &
-         this_rank     => parallel%this_rank,      &
          own_ewn       => parallel%own_ewn         &
          )
 
@@ -1791,7 +1706,7 @@ contains
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
        write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
@@ -1889,10 +1804,6 @@ contains
     ! begin
 
     associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task,  &
          ewlb       => parallel%ewlb,       &
          ewub       => parallel%ewub,       &
          nslb       => parallel%nslb,       &
@@ -1914,7 +1825,7 @@ contains
        ew = global_ewn-1
        ns = global_nsn-1
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     mybounds(1) = ewlb
     mybounds(2) = ewub
@@ -1954,7 +1865,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
-    call broadcast(distributed_get_var_integer_2d, parallel)
+    call broadcast(distributed_get_var_integer_2d)
     allocate(recvbuf(local_ewn,local_nsn))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_integer,&
          recvbuf,size(recvbuf),mpi_integer,main_rank,comm,ierror)
@@ -1985,10 +1896,6 @@ contains
     ! begin
 
     associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task,  &
          ewlb       => parallel%ewlb,       &
          ewub       => parallel%ewub,       &
          nslb       => parallel%nslb,       &
@@ -2010,8 +1917,8 @@ contains
     else
        allocate(bounds(1,1))
     end if
-    call broadcast(x1id, parallel)
-    call broadcast(y1id, parallel)
+    call broadcast(x1id)
+    call broadcast(y1id)
     if (varid==x1id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub
@@ -2021,7 +1928,7 @@ contains
        mybounds(2) = nsub
        myn = global_nsn
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
@@ -2053,7 +1960,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
-    call broadcast(distributed_get_var_real4_1d, parallel)
+    call broadcast(distributed_get_var_real4_1d)
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real4,&
          values,size(values),mpi_real4,main_rank,comm,ierror)
 
@@ -2082,10 +1989,6 @@ contains
     ! begin
 
     associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task,  &
          ewlb       => parallel%ewlb,       &
          ewub       => parallel%ewub,       &
          nslb       => parallel%nslb,       &
@@ -2107,7 +2010,7 @@ contains
        ew = global_ewn-1
        ns = global_nsn-1
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     mybounds(1) = ewlb
     mybounds(2) = ewub
@@ -2147,7 +2050,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
-    call broadcast(distributed_get_var_real4_2d, parallel)
+    call broadcast(distributed_get_var_real4_2d)
     allocate(recvbuf(local_ewn,local_nsn))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real4,&
          recvbuf,size(recvbuf),mpi_real4,main_rank,comm,ierror)
@@ -2178,10 +2081,6 @@ contains
     ! begin
 
     associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task,  &
          ewlb       => parallel%ewlb,       &
          ewub       => parallel%ewub,       &
          nslb       => parallel%nslb,       &
@@ -2203,8 +2102,8 @@ contains
     else
        allocate(bounds(1,1))
     end if
-    call broadcast(x1id, parallel)
-    call broadcast(y1id, parallel)
+    call broadcast(x1id)
+    call broadcast(y1id)
     if (varid==x1id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub
@@ -2214,7 +2113,7 @@ contains
        mybounds(2) = nsub
        myn = global_nsn
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
@@ -2246,7 +2145,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
-    call broadcast(distributed_get_var_real8_1d, parallel)
+    call broadcast(distributed_get_var_real8_1d)
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
          values,size(values),mpi_real8,main_rank,comm,ierror)
 
@@ -2275,10 +2174,6 @@ contains
     ! begin
 
     associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task,  &
          ewlb       => parallel%ewlb,       &
          ewub       => parallel%ewub,       &
          nslb       => parallel%nslb,       &
@@ -2300,7 +2195,7 @@ contains
        ew = global_ewn-1
        ns = global_nsn-1
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     mybounds(1) = ewlb
     mybounds(2) = ewub
@@ -2341,7 +2236,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
-    call broadcast(distributed_get_var_real8_2d, parallel)
+    call broadcast(distributed_get_var_real8_2d)
     allocate(recvbuf(local_ewn,local_nsn))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
          recvbuf,size(recvbuf),mpi_real8,main_rank,comm,ierror)
@@ -2372,10 +2267,6 @@ contains
     ! begin
 
     associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task,  &
          ewlb       => parallel%ewlb,       &
          ewub       => parallel%ewub,       &
          nslb       => parallel%nslb,       &
@@ -2397,7 +2288,7 @@ contains
        ew = global_ewn-1
        ns = global_nsn-1
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     mybounds(1) = ewlb
     mybounds(2) = ewub
@@ -2439,7 +2330,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
-    call broadcast(distributed_get_var_real8_3d, parallel)
+    call broadcast(distributed_get_var_real8_3d)
     allocate(recvbuf(local_ewn,local_nsn,size(values,3)))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_real8,&
          recvbuf,size(recvbuf),mpi_real8,main_rank,comm,ierror)
@@ -2485,11 +2376,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         this_rank   => parallel%this_rank,    &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_ewn  => parallel%global_ewn,   &
          global_nsn  => parallel%global_nsn,   &
          local_ewn   => parallel%local_ewn,    &
@@ -2550,7 +2436,7 @@ contains
           if (main_task) write(*,*) 'Setting no_ice boundary conditions'
        else
           if (main_task) write(*,*) 'Error: Invalid global_bc option for distributed_grid subroutine'
-          call parallel_stop(__FILE__, __LINE__, parallel)
+          call parallel_stop(__FILE__, __LINE__)
        endif
     else   ! default to periodic
        periodic_bc = .true.
@@ -2570,7 +2456,7 @@ contains
           write(*,*) 'Setting halo values: nhalo =', nhalo_in
           if (nhalo_in < 0) then
              write(*,*) 'ERROR: nhalo must be >= 0'
-             call parallel_stop(__FILE__, __LINE__, parallel)
+             call parallel_stop(__FILE__, __LINE__)
           elseif (nhalo_in /= 2) then
              write(*,*) 'WARNING: parallel dycores tested only with nhalo = 2'
           endif
@@ -2599,7 +2485,7 @@ contains
           end if
        end if
     end do
-    if (ewtasks*nstasks/=tasks) call parallel_stop(__FILE__,__LINE__, parallel)
+    if (ewtasks*nstasks/=tasks) call parallel_stop(__FILE__,__LINE__)
 
     ! Store critical value for creating global IDs.  Defines grid distribution.
     ProcsEW = ewtasks
@@ -2647,10 +2533,10 @@ contains
 
     ! Determine the global bounds of ewlb, ewub, nslb, and nsub.
     ! These are used to allocate global arrays used in gathers and scatters.
-    global_minval_ewlb = parallel_reduce_min(ewlb, parallel)
-    global_maxval_ewub = parallel_reduce_max(ewub, parallel)
-    global_minval_nslb = parallel_reduce_min(nslb, parallel)
-    global_maxval_nsub = parallel_reduce_max(nsub, parallel)
+    global_minval_ewlb = parallel_reduce_min(ewlb)
+    global_maxval_ewub = parallel_reduce_max(ewub)
+    global_minval_nslb = parallel_reduce_min(nslb)
+    global_maxval_nsub = parallel_reduce_max(nsub)
 
     !WHL - debug
     if (main_task) then
@@ -2708,15 +2594,15 @@ contains
     ! local_* - lhalo - uhalo is the actual number of non-halo cells on a processor.
     if ((local_nsn - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
         write(*,*) "NS halos overlap on processor ", this_rank
-        call parallel_stop(__FILE__, __LINE__, parallel)
+        call parallel_stop(__FILE__, __LINE__)
     endif
 
     if ((local_ewn  - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
         write(*,*) "EW halos overlap on processor ", this_rank
-        call parallel_stop(__FILE__, __LINE__, parallel)
+        call parallel_stop(__FILE__, __LINE__)
     endif
 
-!    call parallel_barrier(parallel)
+!    call parallel_barrier
 !    print*, 'task, west, east, south, north:', this_rank, west, east, south, north
 
     ! Uncomment to print grid geometry
@@ -2732,7 +2618,7 @@ contains
 !    write(*,*) "Process ", this_rank, " global_col_offset = ", global_col_offset, &
 !                                      " global_row_offset = ", global_row_offset
 
-    call distributed_print_grid(own_ewn, own_nsn, parallel)
+    call distributed_print_grid(own_ewn, own_nsn)
 
     end associate
 
@@ -2827,11 +2713,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         this_rank   => parallel%this_rank,    &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_ewn  => parallel%global_ewn,   &
          global_nsn  => parallel%global_nsn,   &
          local_ewn   => parallel%local_ewn,    &
@@ -2900,7 +2781,7 @@ contains
 
     if (nx_block == 0 .or. ny_block == 0) then
        write(*,*) 'Error: Must have nx_block and ny_block > 0'
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     endif
 
     if (mod(global_ewn, nx_block) > 0) then
@@ -3097,20 +2978,20 @@ contains
           write(*,*) 'The number of active blocks with this domain and block layout is ', nblocks_active
           write(*,*) 'The total number of blocks is ', nblocks
           write(*,*) 'Please resubmit with nblocks_active <= tasks <= n_blocks'
-          call parallel_stop(__FILE__, __LINE__, parallel)
+          call parallel_stop(__FILE__, __LINE__)
        else   ! abort if tasks < nblocks_active or tasks > nblocks; otherwise proceed
           if (tasks < nblocks_active) then
              write(*,*)
              write(*,*) 'Fatal error: tasks < nblocks_active'
              write(*,*) 'Number of tasks =', tasks
              write(*,*) 'Minimum number of tasks to compute on all active blocks is ', nblocks_active
-             call parallel_stop(__FILE__, __LINE__, parallel)
+             call parallel_stop(__FILE__, __LINE__)
           elseif (tasks > nblocks) then
              write(*,*)
              write(*,*) 'Fatal error: tasks > nblocks'
              write(*,*) 'Number of tasks =', tasks
              write(*,*) 'Maximum number of tasks to compute on all blocks is ', nblocks
-             call parallel_stop(__FILE__, __LINE__, parallel)
+             call parallel_stop(__FILE__, __LINE__)
           endif
        endif   ! only_inquire
 
@@ -3146,7 +3027,7 @@ contains
 
           if (nblocks_active < tasks) then  ! should not happen, but check just in case
              write(*,*) 'Error, still have nblocks_active < tasks:', nblocks_active, tasks
-             call parallel_stop(__FILE__, __LINE__, parallel)
+             call parallel_stop(__FILE__, __LINE__)
           endif
 
           if (verbose_active_blocks) then
@@ -3178,7 +3059,7 @@ contains
     ! Now that we have one task per active block, set up grid info on the local task.
 
     ! Broadcast active blocks to all tasks
-    call broadcast(block_is_active, parallel)
+    call broadcast(block_is_active)
     nblocks_active = count(block_is_active)
 
     ! Set up a correspondence between tasks and active blocks
@@ -3325,16 +3206,16 @@ contains
     ! local_* - lhalo - uhalo is the actual number of non-halo cells on a processor.
     if ((local_nsn - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
         write(*,*) "NS halos overlap on processor ", this_rank
-        call parallel_stop(__FILE__, __LINE__, parallel)
+        call parallel_stop(__FILE__, __LINE__)
     endif
 
     if ((local_ewn  - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
         write(*,*) "EW halos overlap on processor ", this_rank
-        call parallel_stop(__FILE__, __LINE__, parallel)
+        call parallel_stop(__FILE__, __LINE__)
     endif
 
     if (verbose_active_blocks) then
-    call parallel_barrier(parallel)
+    call parallel_barrier
 !       print*, 'task, west, east, south, north:', this_rank, west, east, south, north
 !       print*, 'task, SW, SE, NE, NW:', this_rank, &
 !            southwest_corner, southeast_corner, northwest_corner, northeast_corner
@@ -3354,7 +3235,7 @@ contains
 !    write(*,*) "Process ", this_rank, " global_col_offset = ", global_col_offset, &
 !                                      " global_row_offset = ", global_row_offset
 
-    call distributed_print_grid(own_ewn, own_nsn, parallel)
+    call distributed_print_grid(own_ewn, own_nsn)
 
     end associate
 
@@ -3383,28 +3264,19 @@ contains
 
 !=======================================================================
 
-  subroutine distributed_print_grid(l_ewn,l_nsn, parallel)
+  subroutine distributed_print_grid(l_ewn,l_nsn)
 
     ! Gathers and prints the overall grid layout by processor counts.
     use mpi_mod
     implicit none
 
     integer :: l_ewn, l_nsn
-    type(parallel_type) :: parallel
 
     integer :: i,j,curr_count
     integer,dimension(2) :: mybounds
     integer,dimension(:,:),allocatable :: bounds
 
     ! begin
-
-    associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task     &
-         )
-
     mybounds(1) = l_ewn
     mybounds(2) = l_nsn
 
@@ -3431,8 +3303,6 @@ contains
           endif
        end do
     end if
-
-    end associate
     ! automatic deallocation
 
   end subroutine distributed_print_grid
@@ -3461,10 +3331,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -3481,7 +3347,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_print does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     mybounds(1) = ewlb+lhalo
@@ -3572,10 +3438,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -3592,7 +3454,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_print does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     mybounds(1) = ewlb+lhalo
@@ -3683,10 +3545,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -3703,7 +3561,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_print does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     mybounds(1) = ewlb+lhalo
@@ -3801,10 +3659,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_minval_ewlb => parallel%global_minval_ewlb, &
          global_maxval_ewub => parallel%global_maxval_ewub, &
          global_minval_nslb => parallel%global_minval_nslb, &
@@ -3859,7 +3713,7 @@ contains
        distributed_put_var_integer_2d = nf90_put_var(ncid,varid,&
             global_values(1:bounds_info%global_ewn, 1:bounds_info%global_nsn),start)
     end if
-    call broadcast(distributed_put_var_integer_2d, parallel)
+    call broadcast(distributed_put_var_integer_2d)
 
     end associate
     !automatic deallocation
@@ -3886,10 +3740,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_ewn  => parallel%global_ewn,   &
          global_nsn  => parallel%global_nsn,   &
          ewlb        => parallel%ewlb,         &
@@ -3911,10 +3761,10 @@ contains
     else
        allocate(bounds(1,1))
     end if
-    call broadcast(x0id, parallel)
-    call broadcast(x1id, parallel)
-    call broadcast(y0id, parallel)
-    call broadcast(y1id, parallel)
+    call broadcast(x0id)
+    call broadcast(x1id)
+    call broadcast(y0id)
+    call broadcast(y1id)
     if (varid==x0id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub-1
@@ -3932,7 +3782,7 @@ contains
        mybounds(2) = nsub
        myn = global_nsn
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
@@ -3977,7 +3827,7 @@ contains
             nf90_put_var(ncid,varid,global_values(1:myn))
        endif
     end if
-    call broadcast(distributed_put_var_real4_1d, parallel)
+    call broadcast(distributed_put_var_real4_1d)
 
     end associate
     !automatic deallocation
@@ -4005,10 +3855,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_minval_ewlb => parallel%global_minval_ewlb, &
          global_maxval_ewub => parallel%global_maxval_ewub, &
          global_minval_nslb => parallel%global_minval_nslb, &
@@ -4062,7 +3908,7 @@ contains
        distributed_put_var_real4_2d = nf90_put_var(ncid,varid,&
             global_values(1:bounds_info%global_ewn, 1:bounds_info%global_nsn),start)
     end if
-    call broadcast(distributed_put_var_real4_2d, parallel)
+    call broadcast(distributed_put_var_real4_2d)
 
     end associate
     !automatic deallocation
@@ -4090,10 +3936,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_ewn  => parallel%global_ewn,   &
          global_nsn  => parallel%global_nsn,   &
          ewlb        => parallel%ewlb,         &
@@ -4115,10 +3957,10 @@ contains
     else
        allocate(bounds(1,1))
     end if
-    call broadcast(x0id, parallel)
-    call broadcast(x1id, parallel)
-    call broadcast(y0id, parallel)
-    call broadcast(y1id, parallel)
+    call broadcast(x0id)
+    call broadcast(x1id)
+    call broadcast(y0id)
+    call broadcast(y1id)
     if (varid==x0id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub-1
@@ -4136,7 +3978,7 @@ contains
        mybounds(2) = nsub
        myn = global_nsn
     else
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     end if
     call fc_gather_int(mybounds,2,mpi_integer,bounds,2,&
        mpi_integer,main_rank,comm)
@@ -4181,7 +4023,7 @@ contains
             nf90_put_var(ncid,varid,global_values(1:myn))
        endif
     end if
-    call broadcast(distributed_put_var_real8_1d, parallel)
+    call broadcast(distributed_put_var_real8_1d)
 
     end associate
     !automatic deallocation
@@ -4209,10 +4051,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_minval_ewlb => parallel%global_minval_ewlb, &
          global_maxval_ewub => parallel%global_maxval_ewub, &
          global_minval_nslb => parallel%global_minval_nslb, &
@@ -4266,7 +4104,7 @@ contains
        distributed_put_var_real8_2d = nf90_put_var(ncid,varid,&
             global_values(1:bounds_info%global_ewn, 1:bounds_info%global_nsn),start)
     end if
-    call broadcast(distributed_put_var_real8_2d, parallel)
+    call broadcast(distributed_put_var_real8_2d)
 
     end associate
     !automatic deallocation
@@ -4294,10 +4132,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          global_minval_ewlb => parallel%global_minval_ewlb, &
          global_maxval_ewub => parallel%global_maxval_ewub, &
          global_minval_nslb => parallel%global_minval_nslb, &
@@ -4354,7 +4188,7 @@ contains
        distributed_put_var_real8_3d = nf90_put_var(ncid,varid,&
             global_values(1:bounds_info%global_ewn, 1:bounds_info%global_nsn ,:),start)
     end if
-    call broadcast(distributed_put_var_real8_3d, parallel)
+    call broadcast(distributed_put_var_real8_3d)
 
     end associate
     !automatic deallocation
@@ -4383,10 +4217,6 @@ contains
     integer,dimension(:,:),allocatable :: recvbuf
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -4399,7 +4229,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_scatter does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -4471,10 +4301,6 @@ contains
     logical,dimension(:,:),allocatable :: recvbuf
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -4487,7 +4313,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_scatter does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -4559,10 +4385,6 @@ contains
     real(sp),dimension(:,:),allocatable :: recvbuf
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -4575,7 +4397,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_scatter does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -4647,10 +4469,6 @@ contains
     real(sp),dimension(:,:,:),allocatable :: recvbuf
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -4663,7 +4481,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_scatter does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -4737,10 +4555,6 @@ contains
     real(dp),dimension(:,:),allocatable :: recvbuf
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -4753,7 +4567,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_scatter does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     ! first time
@@ -4827,10 +4641,6 @@ contains
     real(dp),dimension(:,:,:),allocatable :: recvbuf
 
     associate(  &
-         comm        => parallel%comm,         &
-         tasks       => parallel%tasks,        &
-         main_rank   => parallel%main_rank,    &
-         main_task   => parallel%main_task,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          ewlb        => parallel%ewlb,         &
@@ -4843,7 +4653,7 @@ contains
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "distributed_scatter does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (present(deallocflag)) then
@@ -4947,7 +4757,7 @@ contains
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_scatter_var_row requires N-S array size of own_nsn"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     d_gs_mybounds_row(1) = this_rank_row*size(values,1) + 1
@@ -5046,7 +4856,7 @@ contains
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
        write(*,*) "ERROR: distributed_scatter_var_col requires E-W array size of own_nsn"
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     d_gs_mybounds_col(1) = this_rank_col*size(values,1) + 1
@@ -5155,7 +4965,7 @@ contains
        bounds_info%jhi = (local_nsn - 1) - staggered_uhalo
 
     else
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     end associate
@@ -5164,32 +4974,28 @@ contains
 
 !=======================================================================
 
-  subroutine not_parallel(file, line, parallel)
+  subroutine not_parallel(file, line)
 
     implicit none
     integer :: line
     character(len=*) :: file
-    type(parallel_type) :: parallel
 
     ! begin
-    call parallel_stop(file,line, parallel)
+    call parallel_stop(file,line)
 
   end subroutine not_parallel
 
 !=======================================================================
 
-  subroutine parallel_barrier(parallel)
+  subroutine parallel_barrier
 
     use mpi_mod
     implicit none
-    type(parallel_type) :: parallel
 
     integer :: ierror
 
     ! begin
-    associate(comm => parallel%comm)
     call mpi_barrier(comm,ierror)
-    end associate
 
   end subroutine parallel_barrier
 
@@ -5223,21 +5029,16 @@ contains
 
 !=======================================================================
 
-  function parallel_close(ncid, parallel)
+  function parallel_close(ncid)
 
     implicit none
     integer :: ncid
-    type(parallel_type) :: parallel
 
     integer :: parallel_close
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_close = nf90_close(ncid)
-    call broadcast(parallel_close, parallel)
-
-    end associate
+    call broadcast(parallel_close)
 
   end function parallel_close
 
@@ -5263,14 +5064,14 @@ contains
        write(*,*) "Unexpected size for input_with_halo: ", &
             size(input_with_halo,1), size(input_with_halo,2)
        write(*,*) "Expected size is: ", local_ewn, local_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
        write(*,*) "Unexpected size for output_no_halo: ", &
             size(output_no_halo,1), size(output_no_halo,2)
        write(*,*) "Expected size is: ", own_ewn, own_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     output_no_halo(1:own_ewn, 1:own_nsn) = &
@@ -5299,14 +5100,14 @@ contains
        write(*,*) "Unexpected size for input_with_halo: ", &
             size(input_with_halo,1), size(input_with_halo,2)
        write(*,*) "Expected size is: ", local_ewn, local_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
        write(*,*) "Unexpected size for output_no_halo: ", &
             size(output_no_halo,1), size(output_no_halo,2)
        write(*,*) "Expected size is: ", own_ewn, own_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     output_no_halo(1:own_ewn, 1:own_nsn) = &
@@ -5338,14 +5139,14 @@ contains
        write(*,*) "Unexpected size for input_no_halo: ", &
             size(input_no_halo,1), size(input_no_halo,2)
        write(*,*) "Expected size is: ", own_ewn, own_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
        write(*,*) "Unexpected size for output_with_halo: ", &
             size(output_with_halo,1), size(output_with_halo,2)
        write(*,*) "Expected size is: ", local_ewn, local_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     output_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = &
@@ -5376,14 +5177,14 @@ contains
        write(*,*) "Unexpected size for input_no_halo: ", &
             size(input_no_halo,1), size(input_no_halo,2)
        write(*,*) "Expected size is: ", own_ewn, own_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
        write(*,*) "Unexpected size for output_with_halo: ", &
             size(output_with_halo,1), size(output_with_halo,2)
        write(*,*) "Expected size is: ", local_ewn, local_nsn
-       call parallel_stop(__FILE__, __LINE__, parallel)
+       call parallel_stop(__FILE__, __LINE__)
     end if
 
     output_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = &
@@ -5397,22 +5198,17 @@ contains
 
 !=======================================================================
 
-  function parallel_create(path, cmode, ncid, parallel)
+  function parallel_create(path, cmode, ncid)
 
     implicit none
     integer :: cmode, ncid, parallel_create
-    type(parallel_type) :: parallel
 
     character(len=*) :: path
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_create = nf90_create(path,cmode,ncid)
-    call broadcast(parallel_create, parallel)
-    call broadcast(ncid, parallel)
-
-    end associate
+    call broadcast(parallel_create)
+    call broadcast(ncid)
 
   end function parallel_create
 
@@ -5433,9 +5229,6 @@ contains
     integer :: ierror
 
     associate(  &
-         comm          => parallel%comm,          &
-         tasks         => parallel%tasks,         &
-         this_rank     => parallel%this_rank,     &
          nsrank        => parallel%nsrank,        &
          comm_row      => parallel%comm_row,      &
          tasks_row     => parallel%tasks_row,     &
@@ -5473,9 +5266,6 @@ contains
     integer :: ierror
 
     associate(  &
-         comm          => parallel%comm,          &
-         tasks         => parallel%tasks,         &
-         this_rank     => parallel%this_rank,     &
          ewrank        => parallel%ewrank,        &
          comm_col      => parallel%comm_col,      &
          tasks_col     => parallel%tasks_col,     &
@@ -5502,7 +5292,7 @@ contains
 
 !=======================================================================
 
-  function parallel_def_dim(ncid, name, len, dimid, parallel)
+  function parallel_def_dim(ncid, name, len, dimid)
 
     use netcdf
     implicit none
@@ -5512,13 +5302,9 @@ contains
     character(len=*) :: name
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_def_dim = nf90_def_dim(ncid,name,len,dimid)
-    call broadcast(parallel_def_dim, parallel)
-    call broadcast(dimid, parallel)
-
-    end associate
+    call broadcast(parallel_def_dim)
+    call broadcast(dimid)
 
   end function parallel_def_dim
 
@@ -5526,61 +5312,46 @@ contains
 
   ! functions belonging to the parallel_def_var interface
 
-  function parallel_def_var_dimids(ncid, name, xtype, dimids, varid, parallel)
+  function parallel_def_var_dimids(ncid, name, xtype, dimids, varid)
 
     implicit none
     integer :: ncid, parallel_def_var_dimids, varid, xtype
     integer,dimension(:) :: dimids
     character(len=*) :: name
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_def_var_dimids = &
          nf90_def_var(ncid,name,xtype,dimids,varid)
-    call broadcast(parallel_def_var_dimids, parallel)
-    call broadcast(varid, parallel)
-
-    end associate
+    call broadcast(parallel_def_var_dimids)
+    call broadcast(varid)
 
   end function parallel_def_var_dimids
 
 
-  function parallel_def_var_nodimids(ncid, name, xtype, varid, parallel)
+  function parallel_def_var_nodimids(ncid, name, xtype, varid)
 
     implicit none
     integer :: ncid, parallel_def_var_nodimids, varid, xtype
     character(len=*) :: name
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_def_var_nodimids = &
          nf90_def_var(ncid,name,xtype,varid)
-    call broadcast(parallel_def_var_nodimids, parallel)
-    call broadcast(varid, parallel)
-
-    end associate
+    call broadcast(parallel_def_var_nodimids)
+    call broadcast(varid)
 
   end function parallel_def_var_nodimids
 
 !=======================================================================
 
-  function parallel_enddef(ncid, parallel)
+  function parallel_enddef(ncid)
 
     implicit none
     integer :: ncid,parallel_enddef
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_enddef = nf90_enddef(ncid)
-    call broadcast(parallel_enddef, parallel)
-
-    end associate
+    call broadcast(parallel_enddef)
 
   end function parallel_enddef
 
@@ -5601,106 +5372,81 @@ contains
 
   ! functions belonging to the parallel_get_att interface
 
-  function parallel_get_att_character(ncid, varid, name, values, parallel)
+  function parallel_get_att_character(ncid, varid, name, values)
 
     implicit none
     integer :: ncid,parallel_get_att_character,varid
     character(len=*) :: name,values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_att_character = &
          nf90_get_att(ncid,varid,name,values)
-    call broadcast(parallel_get_att_character, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_att_character)
+    call broadcast(values)
 
   end function parallel_get_att_character
 
 
-  function parallel_get_att_real4(ncid, varid, name, values, parallel)
+  function parallel_get_att_real4(ncid, varid, name, values)
 
     implicit none
     integer :: ncid,parallel_get_att_real4,varid
     character(len=*) :: name
     real(sp) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_att_real4 = &
          nf90_get_att(ncid,varid,name,values)
-    call broadcast(parallel_get_att_real4, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_att_real4)
+    call broadcast(values)
 
   end function parallel_get_att_real4
 
 
-  function parallel_get_att_real4_1d(ncid, varid, name, values, parallel)
+  function parallel_get_att_real4_1d(ncid, varid, name, values)
 
     implicit none
     integer :: ncid, parallel_get_att_real4_1d, varid
     character(len=*) :: name
     real(sp),dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_att_real4_1d = &
          nf90_get_att(ncid,varid,name,values)
-    call broadcast(parallel_get_att_real4_1d, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_att_real4_1d)
+    call broadcast(values)
 
   end function parallel_get_att_real4_1d
 
 
-  function parallel_get_att_real8(ncid, varid, name, values, parallel)
+  function parallel_get_att_real8(ncid, varid, name, values)
 
     implicit none
     integer :: ncid, parallel_get_att_real8, varid
     character(len=*) :: name
     real(dp) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_att_real8 = &
          nf90_get_att(ncid,varid,name,values)
-    call broadcast(parallel_get_att_real8, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_att_real8)
+    call broadcast(values)
 
   end function parallel_get_att_real8
 
 
-  function parallel_get_att_real8_1d(ncid, varid, name, values, parallel)
+  function parallel_get_att_real8_1d(ncid, varid, name, values)
 
     implicit none
     integer :: ncid, parallel_get_att_real8_1d, varid
     character(len=*) :: name
     real(dp),dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_att_real8_1d = &
          nf90_get_att(ncid,varid,name,values)
-    call broadcast(parallel_get_att_real8_1d, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_att_real8_1d)
+    call broadcast(values)
 
   end function parallel_get_att_real8_1d
 
@@ -5713,157 +5459,117 @@ contains
   !      The scalar and 1D functions broadcast values from main_task to other tasks.
   !      The 2D functions do not broadcast; they only bring a global array to main_task.
 
-  function parallel_get_var_integer(ncid, varid, values, parallel)
+  function parallel_get_var_integer(ncid, varid, values)
 
     implicit none
     integer :: ncid, parallel_get_var_integer, varid
     integer :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_integer, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_var_integer)
+    call broadcast(values)
 
   end function parallel_get_var_integer
 
 
-  function parallel_get_var_real4(ncid, varid, values, parallel)
+  function parallel_get_var_real4(ncid, varid, values)
 
     implicit none
     integer :: ncid, parallel_get_var_real4, varid
     real(sp) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real4, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_var_real4)
+    call broadcast(values)
 
   end function parallel_get_var_real4
 
 
-  function parallel_get_var_real8(ncid, varid, values, parallel)
+  function parallel_get_var_real8(ncid, varid, values)
 
     implicit none
     integer :: ncid,parallel_get_var_real8,varid
     real(dp) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real8, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_var_real8)
+    call broadcast(values)
 
   end function parallel_get_var_real8
 
 
-  function parallel_get_var_integer_1d(ncid, varid, values, parallel)
+  function parallel_get_var_integer_1d(ncid, varid, values)
 
     implicit none
     integer :: ncid,parallel_get_var_integer_1d,varid
     integer,dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_integer_1d = &
          nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_integer_1d, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_var_integer_1d)
+    call broadcast(values)
 
   end function parallel_get_var_integer_1d
 
-  function parallel_get_var_real4_1d(ncid, varid, values, parallel)
+  function parallel_get_var_real4_1d(ncid, varid, values)
 
     implicit none
     integer :: ncid,parallel_get_var_real4_1d,varid
     real(sp),dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_real4_1d = &
          nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real4_1d, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_var_real4_1d)
+    call broadcast(values)
 
   end function parallel_get_var_real4_1d
 
-  function parallel_get_var_real8_1d(ncid, varid, values, parallel)
+  function parallel_get_var_real8_1d(ncid, varid, values)
 
     implicit none
     integer :: ncid,parallel_get_var_real8_1d,varid
     real(dp),dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_real8_1d = &
          nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real8_1d, parallel)
-    call broadcast(values, parallel)
-
-    end associate
+    call broadcast(parallel_get_var_real8_1d)
+    call broadcast(values)
 
   end function parallel_get_var_real8_1d
 
 
-  function parallel_get_var_integer_2d(ncid, varid, values, parallel)
+  function parallel_get_var_integer_2d(ncid, varid, values)
 
     implicit none
     integer :: ncid,parallel_get_var_integer_2d,varid
     integer,dimension(:,:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_integer_2d = &
          nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_integer_2d, parallel)
-!!    call broadcast(values, parallel)  ! no broadcast subroutine for 2D arrays
-
-    end associate
+    call broadcast(parallel_get_var_integer_2d)
+!!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
   end function parallel_get_var_integer_2d
 
 
-  function parallel_get_var_real8_2d(ncid, varid, values, parallel)
+  function parallel_get_var_real8_2d(ncid, varid, values)
 
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
     real(dp),dimension(:,:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_get_var_real8_2d = &
          nf90_get_var(ncid,varid,values)
-    call broadcast(parallel_get_var_real8_2d, parallel)
-!!    call broadcast(values, parallel)  ! no broadcast subroutine for 2D arrays
-
-    end associate
+    call broadcast(parallel_get_var_real8_2d)
+!!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
   end function parallel_get_var_real8_2d
 
@@ -6026,7 +5732,6 @@ contains
     integer :: flag, flag_out
 
     associate(  &
-         main_task         => parallel%main_task,          &
          own_ewn           => parallel%own_ewn,            &
          own_nsn           => parallel%own_nsn,            &
          global_row_offset => parallel%global_row_offset,  &
@@ -6045,15 +5750,15 @@ contains
        flag = 1
     endif
 
-    call parallel_reduce_maxloc(flag, flag_out, rlocal, parallel)
+    call parallel_reduce_maxloc(flag, flag_out, rlocal)
 
     if (flag_out==1) then
-       call broadcast(ilocal, parallel, rlocal)
-       call broadcast(jlocal, parallel, rlocal)
+       call broadcast(ilocal, rlocal)
+       call broadcast(jlocal, rlocal)
     else ! global indices are invalid
        if (main_task) then
           write(*,*) 'Invalid global indices: iglobal, jglobal =', iglobal, jglobal
-          call parallel_stop(__FILE__,__LINE__, parallel)
+          call parallel_stop(__FILE__,__LINE__)
        endif
     endif
 
@@ -6083,8 +5788,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -6104,7 +5807,7 @@ contains
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
        write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -6209,8 +5912,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -6230,7 +5931,7 @@ contains
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
        write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -6335,8 +6036,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -6356,7 +6055,7 @@ contains
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
        write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -6468,8 +6167,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -6489,7 +6186,7 @@ contains
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
        write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
-       call parallel_stop(__FILE__,__LINE__, parallel)
+       call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -6621,8 +6318,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -6642,7 +6337,7 @@ contains
     if (size(a,2)/=local_ewn.or.size(a,3)/=local_nsn) then
          write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -6743,7 +6438,6 @@ contains
 
     ! begin
     associate(  &
-         this_rank   => parallel%this_rank,    &
          east        => parallel%east,         &
          west        => parallel%west,         &
          north       => parallel%north,        &
@@ -6809,7 +6503,6 @@ contains
 
     ! begin
     associate(  &
-         this_rank   => parallel%this_rank,    &
          east        => parallel%east,         &
          west        => parallel%west,         &
          north       => parallel%north,        &
@@ -6888,8 +6581,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -6909,7 +6600,7 @@ contains
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
          write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -7017,8 +6708,6 @@ contains
     associate(  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -7038,7 +6727,7 @@ contains
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
          write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! unstaggered grid
@@ -7147,8 +6836,6 @@ contains
     ! begin
 
     associate(  &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -7164,7 +6851,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) &
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
 
     ! unstaggered grid
     call mpi_irecv(wrecv,size(wrecv),mpi_integer,west,west,&
@@ -7202,7 +6889,7 @@ contains
     ! if notverify_flag is TRUE, then there was some difference detected
     if (notverify_flag) then
          write(*,*) "Halo Verify FAILED on processor ", this_rank
-         ! call parallel_stop(__FILE__,__LINE__, parallel)
+         ! call parallel_stop(__FILE__,__LINE__)
     endif
 
     parallel_halo_verify_integer_2d = .NOT. notverify_flag  ! return if verified (True) or not verified (False)
@@ -7229,8 +6916,6 @@ contains
 
     ! begin
     associate(  &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -7246,7 +6931,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) &
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
 
     ! unstaggered grid
     call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
@@ -7282,7 +6967,7 @@ contains
 
     if (notverify_flag) then
          write(*,*) "Halo Verify FAILED on processor ", this_rank
-         ! call parallel_stop(__FILE__,__LINE__, parallel)
+         ! call parallel_stop(__FILE__,__LINE__)
     endif
 
     parallel_halo_verify_real8_2d = .NOT. notverify_flag
@@ -7309,8 +6994,6 @@ contains
 
     ! begin
     associate(  &
-         comm        => parallel%comm,         &
-         this_rank   => parallel%this_rank,    &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn,    &
          east        => parallel%east,         &
@@ -7326,7 +7009,7 @@ contains
 
     ! unknown grid
     if (size(a,2)/=local_ewn.or.size(a,3)/=local_nsn) &
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
 
     ! unstaggered grid
     call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
@@ -7362,7 +7045,7 @@ contains
 
     if (notverify_flag) then
          write(*,*) "Halo Verify FAILED on processor ", this_rank
-         ! call parallel_stop(__FILE__,__LINE__, parallel)
+         ! call parallel_stop(__FILE__,__LINE__)
     endif
 
     parallel_halo_verify_real8_3d = .NOT. notverify_flag
@@ -7376,20 +7059,17 @@ contains
   ! Note: parallel_initialise should generally be called only by standalone cism drivers
   ! When cism is nested inside a climate model (so mpi_init has already been called) use parallel_set_info instead
 
-  ! WHL: Does this need to be called only once, or once per instance?
-
-  subroutine parallel_initialise(parallel)
+  subroutine parallel_initialise
 
     use mpi_mod 
     implicit none
-    type(parallel_type) :: parallel
 
     integer :: ierror 
     integer, parameter :: my_main_rank = 0
 
     ! begin 
     call mpi_init(ierror)
-    call parallel_set_info(mpi_comm_world, my_main_rank, parallel)
+    call parallel_set_info(mpi_comm_world, my_main_rank)
 
   end subroutine parallel_initialise
 
@@ -7398,156 +7078,119 @@ contains
   ! Note: parallel_set_info should be called directly when cism is nested inside a climate model
   !       (Since mpi_init has already been called, do NOT use parallel_initialise)
 
-  subroutine parallel_set_info(my_comm, my_main_rank, parallel)
+  subroutine parallel_set_info(my_comm, my_main_rank)
 
     use mpi_mod
     implicit none
     integer, intent(in) :: my_comm       ! CISM's global communicator
     integer, intent(in) :: my_main_rank  ! rank of the master task
-    type(parallel_type) :: parallel
 
     integer :: ierror 
 
     ! begin
-    associate(  &
-         comm       => parallel%comm,       &
-         tasks      => parallel%tasks,      &
-         this_rank  => parallel%this_rank,  &
-         main_rank  => parallel%main_rank,  &
-         main_task  => parallel%main_task   &
-         )
-
     comm = my_comm
     main_rank = my_main_rank
-    call mpi_comm_size(comm,tasks,ierror)
-    call mpi_comm_rank(comm,this_rank,ierror)
+    call mpi_comm_size(comm, tasks, ierror)
+    call mpi_comm_rank(comm, this_rank, ierror)
     main_task = (this_rank==main_rank)
-
-    end associate
 
   end subroutine parallel_set_info
 
 !=======================================================================
 
-  function parallel_inq_attname(ncid, varid, attnum, name, parallel)
+  function parallel_inq_attname(ncid, varid, attnum, name)
 
     implicit none
     integer :: attnum, ncid, parallel_inq_attname, varid
     character(len=*) :: name
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_inq_attname = &
          nf90_inq_attname(ncid,varid,attnum,name)
-    call broadcast(parallel_inq_attname, parallel)
-    call broadcast(name, parallel)
-
-    end associate
+    call broadcast(parallel_inq_attname)
+    call broadcast(name)
 
   end function parallel_inq_attname
 
 !=======================================================================
 
-  function parallel_inq_dimid(ncid, name, dimid, parallel)
+  function parallel_inq_dimid(ncid, name, dimid)
 
     implicit none
     integer :: dimid, ncid, parallel_inq_dimid
     character(len=*) :: name
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_inq_dimid = nf90_inq_dimid(ncid,name,dimid)
-    call broadcast(parallel_inq_dimid, parallel)
-    call broadcast(dimid, parallel)
-
-    end associate
+    call broadcast(parallel_inq_dimid)
+    call broadcast(dimid)
 
   end function parallel_inq_dimid
 
 !=======================================================================
 
-  function parallel_inq_varid(ncid, name, varid, parallel)
+  function parallel_inq_varid(ncid, name, varid)
 
     implicit none
     integer :: ncid,parallel_inq_varid,varid
     character(len=*) :: name
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_inq_varid = nf90_inq_varid(ncid,name,varid)
-    call broadcast(parallel_inq_varid, parallel)
-    call broadcast(varid, parallel)
-
-    end associate
+    call broadcast(parallel_inq_varid)
+    call broadcast(varid)
 
   end function parallel_inq_varid
 
 !=======================================================================
 
-  function parallel_inquire(ncid, nvariables, parallel)
+  function parallel_inquire(ncid, nvariables)
 
     implicit none
     integer :: ncid,parallel_inquire,nvariables
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_inquire = nf90_inquire(ncid,nvariables=nvariables)
-    call broadcast(parallel_inquire, parallel)
-    call broadcast(nvariables, parallel)
-
-    end associate
+    call broadcast(parallel_inquire)
+    call broadcast(nvariables)
 
   end function parallel_inquire
 
 !=======================================================================
 
-  function parallel_inquire_dimension(ncid, dimid, parallel, name, len)
+  function parallel_inquire_dimension(ncid, dimid, name, len)
 
     implicit none
     integer :: dimid, ncid, parallel_inquire_dimension
-    type(parallel_type) :: parallel
     integer,optional :: len
     character(len=*),optional :: name
     
     integer :: l
     
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (present(name)) then
        if (main_task) parallel_inquire_dimension = &
             nf90_inquire_dimension(ncid,dimid,name,len=l)
-       call broadcast(name, parallel)
+       call broadcast(name)
     else
        if (main_task) parallel_inquire_dimension = &
             nf90_inquire_dimension(ncid,dimid,len=l)
     end if
-    call broadcast(parallel_inquire_dimension, parallel)
+    call broadcast(parallel_inquire_dimension)
     if (present(len)) then
-       call broadcast(l, parallel)
+       call broadcast(l)
        len = l
     end if
-
-    end associate
 
   end function parallel_inquire_dimension
 
 !=======================================================================
 
-  function parallel_inquire_variable(ncid, varid, parallel, &
+  function parallel_inquire_variable(ncid, varid, &
                                      name, ndims, dimids, natts)
 
     implicit none
     integer :: ncid, parallel_inquire_variable, varid
-    type(parallel_type) :: parallel
     integer,optional :: ndims, natts
     character(len=*),optional :: name
     integer,dimension(:),optional :: dimids
@@ -7555,54 +7198,45 @@ contains
     integer :: nd,na
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (present(name)) then
        if (main_task) parallel_inquire_variable = &
             nf90_inquire_variable(ncid,varid,name=name)
-       call broadcast(parallel_inquire_variable, parallel)
-       call broadcast(name, parallel)
+       call broadcast(parallel_inquire_variable)
+       call broadcast(name)
        if (parallel_inquire_variable/=nf90_noerr) return
     end if
     if (present(dimids)) then
        if (main_task) parallel_inquire_variable = &
             nf90_inquire_variable(ncid,varid,dimids=dimids)
-       call broadcast(parallel_inquire_variable, parallel)
-       call broadcast(dimids, parallel)
+       call broadcast(parallel_inquire_variable)
+       call broadcast(dimids)
        if (parallel_inquire_variable/=nf90_noerr) return
     end if
     if (main_task) parallel_inquire_variable = &
          nf90_inquire_variable(ncid,varid,ndims=nd,natts=na)
-    call broadcast(parallel_inquire_variable, parallel)
+    call broadcast(parallel_inquire_variable)
     if (present(ndims)) then
-       call broadcast(nd, parallel)
+       call broadcast(nd)
        ndims = nd
     end if
     if (present(natts)) then
-       call broadcast(na, parallel)
+       call broadcast(na)
        natts = na
     end if
-
-    end associate
 
   end function parallel_inquire_variable
 
 !=======================================================================
 
-  function parallel_open(path, mode, ncid, parallel)
+  function parallel_open(path, mode, ncid)
 
     implicit none
     integer :: mode, ncid, parallel_open
     character(len=*) :: path
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_open = nf90_open(path,mode,ncid)
-    call broadcast(parallel_open, parallel)
-
-    end associate
+    call broadcast(parallel_open)
 
   end function parallel_open
 
@@ -7620,9 +7254,6 @@ contains
 
     ! begin
     associate(  &
-         tasks     => parallel%tasks,       &
-         this_rank => parallel%this_rank,   &
-         main_task => parallel%main_task,   &
          ewlb      => parallel%ewlb,        &
          nslb      => parallel%nslb         &
          )
@@ -7632,7 +7263,7 @@ contains
        close(u)
     end if
     do t = 0,tasks-1
-       call parallel_barrier(parallel)
+       call parallel_barrier
        if (t==this_rank) then
           open(unit=u,file=name,form="formatted",position="append")
           do j = 1,size(values,3)
@@ -7654,22 +7285,17 @@ contains
 
   ! subroutines belonging to the parallel_print interface
 
-  subroutine parallel_print_integer_2d(name, values, parallel)
+  subroutine parallel_print_integer_2d(name, values)
 
     implicit none
     character(*) :: name
     integer,dimension(:,:) :: values
-    type(parallel_type) :: parallel
 
     integer,parameter :: u = 33
     character(3) :: ts
     integer :: i,j
 
     ! begin
-    associate(  &
-         tasks     => parallel%tasks,       &
-         main_task => parallel%main_task    &
-         )
 
     if (main_task) then
        write(ts,'(i3.3)') tasks
@@ -7683,31 +7309,24 @@ contains
        close(u)
     end if
 
-    call parallel_barrier(parallel)  ! Only the main_task writes the variable.  Rest wait here.
+    call parallel_barrier  ! Only the main_task writes the variable.  Rest wait here.
 
-    end associate
     ! automatic deallocation
 
   end subroutine parallel_print_integer_2d
 
 
-  subroutine parallel_print_real8_2d(name, values, parallel)
+  subroutine parallel_print_real8_2d(name, values)
 
     implicit none
     character(*) :: name
     real(dp),dimension(:,:) :: values
-    type(parallel_type) :: parallel
 
     integer,parameter :: u = 33
     character(3) :: ts
     integer :: i,j
 
     ! begin
-    associate(  &
-         tasks     => parallel%tasks,       &
-         main_task => parallel%main_task    &
-         )
-
     if (main_task) then
        write(ts,'(i3.3)') tasks
        open(unit=u,file=name//ts//".txt",form="formatted",status="replace")
@@ -7720,30 +7339,22 @@ contains
        close(u)
     end if
 
-    call parallel_barrier(parallel)  ! Only the main_task writes the variable.  Rest wait here.
-
-    end associate
+    call parallel_barrier  ! Only the main_task writes the variable.  Rest wait here.
 
   end subroutine parallel_print_real8_2d
 
 
-  subroutine parallel_print_real8_3d(name, values, parallel)
+  subroutine parallel_print_real8_3d(name, values)
 
     implicit none
     character(*) :: name
     real(dp),dimension(:,:,:) :: values
-    type(parallel_type) :: parallel
 
     integer,parameter :: u = 33
     character(3) :: ts
     integer :: i,j
 
     ! begin
-    associate(  &
-         tasks     => parallel%tasks,       &
-         main_task => parallel%main_task    &
-         )
-
     if (main_task) then
        write(ts,'(i3.3)') tasks
        open(unit=u,file=name//ts//".txt",form="formatted",status="replace")
@@ -7756,9 +7367,7 @@ contains
        close(u)
     end if
 
-    call parallel_barrier(parallel)  ! Only the main_task writes the variable.  Rest wait here.
-
-    end associate
+    call parallel_barrier  ! Only the main_task writes the variable.  Rest wait here.
 
   end subroutine parallel_print_real8_3d
 
@@ -7766,115 +7375,85 @@ contains
 
   ! functions belonging to the parallel_put_att interface
 
-  function parallel_put_att_character(ncid, varid, name, values, parallel)
+  function parallel_put_att_character(ncid, varid, name, values)
 
     implicit none
     integer :: ncid, parallel_put_att_character, varid
     character(len=*) :: name, values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_put_att_character = nf90_put_att(ncid,varid,name,values)
-    call broadcast(parallel_put_att_character, parallel)
-
-    end associate
+    call broadcast(parallel_put_att_character)
 
   end function parallel_put_att_character
 
 
-  function parallel_put_att_integer(ncid, varid, name, values, parallel)
+  function parallel_put_att_integer(ncid, varid, name, values)
 
     implicit none
     integer :: ncid, parallel_put_att_integer, varid
     character(len=*) :: name
     integer :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_put_att_integer = nf90_put_att(ncid,varid,name,values)
-    call broadcast(parallel_put_att_integer, parallel)
-
-    end associate
+    call broadcast(parallel_put_att_integer)
 
   end function parallel_put_att_integer
 
 
-  function parallel_put_att_real4(ncid, varid, name, values, parallel)
+  function parallel_put_att_real4(ncid, varid, name, values)
 
     implicit none
     integer :: ncid,parallel_put_att_real4,varid
     character(len=*) :: name
     real(sp) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_put_att_real4 = nf90_put_att(ncid,varid,name,values)
-    call broadcast(parallel_put_att_real4, parallel)
-
-    end associate
+    call broadcast(parallel_put_att_real4)
 
   end function parallel_put_att_real4
 
 
-  function parallel_put_att_real4_1d(ncid, varid, name, values, parallel)
+  function parallel_put_att_real4_1d(ncid, varid, name, values)
 
     implicit none
     integer :: ncid,parallel_put_att_real4_1d,varid
     character(len=*) :: name
     real(sp),dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_put_att_real4_1d = nf90_put_att(ncid,varid,name,values)
-    call broadcast(parallel_put_att_real4_1d, parallel)
-
-    end associate
+    call broadcast(parallel_put_att_real4_1d)
 
   end function parallel_put_att_real4_1d
 
 
-  function parallel_put_att_real8(ncid, varid, name, values, parallel)
+  function parallel_put_att_real8(ncid, varid, name, values)
 
     implicit none
     integer :: ncid, parallel_put_att_real8, varid
     character(len=*) :: name
     real(dp) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_put_att_real8 = nf90_put_att(ncid,varid,name,values)
-    call broadcast(parallel_put_att_real8, parallel)
-
-    end associate
+    call broadcast(parallel_put_att_real8)
 
   end function parallel_put_att_real8
 
 
-  function parallel_put_att_real8_1d(ncid, varid, name, values, parallel)
+  function parallel_put_att_real8_1d(ncid, varid, name, values)
 
     implicit none
     integer :: ncid,parallel_put_att_real8_1d,varid
     character(len=*) :: name
     real(dp),dimension(:) :: values
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_put_att_real8_1d = nf90_put_att(ncid,varid,name,values)
-    call broadcast(parallel_put_att_real8_1d, parallel)
-
-    end associate
+    call broadcast(parallel_put_att_real8_1d)
 
   end function parallel_put_att_real8_1d
 
@@ -7882,17 +7461,14 @@ contains
 
   ! functions belonging to the parallel_put_var interface
 
-  function parallel_put_var_integer(ncid, varid, values, parallel, start)
+  function parallel_put_var_integer(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_put_var_integer,varid
     integer :: values
-    type(parallel_type) :: parallel
     integer,dimension(:),optional :: start
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) then
        if (present(start)) then
           parallel_put_var_integer = nf90_put_var(ncid,varid,values,start)
@@ -7900,24 +7476,19 @@ contains
           parallel_put_var_integer = nf90_put_var(ncid,varid,values)
        endif
     endif
-    call broadcast(parallel_put_var_integer, parallel)
-
-    end associate
+    call broadcast(parallel_put_var_integer)
 
   end function parallel_put_var_integer
 
 
-  function parallel_put_var_real4(ncid, varid, values, parallel, start)
+  function parallel_put_var_real4(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_put_var_real4,varid
     real(sp) :: values
-    type(parallel_type) :: parallel
     integer,dimension(:),optional :: start
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) then
        if (present(start)) then
           parallel_put_var_real4 = nf90_put_var(ncid,varid,values,start)
@@ -7925,24 +7496,19 @@ contains
           parallel_put_var_real4 = nf90_put_var(ncid,varid,values)
        endif
     endif
-    call broadcast(parallel_put_var_real4, parallel)
-
-    end associate
+    call broadcast(parallel_put_var_real4)
 
   end function parallel_put_var_real4
 
 
-  function parallel_put_var_real8(ncid, varid, values, parallel, start)
+  function parallel_put_var_real8(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_put_var_real8,varid
     real(dp) :: values
-    type(parallel_type) :: parallel
     integer,dimension(:),optional :: start
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) then
        if (present(start)) then
           parallel_put_var_real8 = nf90_put_var(ncid,varid,values,start)
@@ -7950,24 +7516,19 @@ contains
           parallel_put_var_real8 = nf90_put_var(ncid,varid,values)
        endif
     endif
-    call broadcast(parallel_put_var_real8, parallel)
-
-    end associate
+    call broadcast(parallel_put_var_real8)
 
   end function parallel_put_var_real8
 
 
-  function parallel_put_var_real8_1d(ncid, varid, values, parallel, start)
+  function parallel_put_var_real8_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_put_var_real8_1d,varid
     real(dp),dimension(:) :: values
-    type(parallel_type) :: parallel
     integer,dimension(:),optional :: start
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) then
        if (present(start)) then
           parallel_put_var_real8_1d = nf90_put_var(ncid,varid,values,start)
@@ -7975,27 +7536,20 @@ contains
           parallel_put_var_real8_1d = nf90_put_var(ncid,varid,values)
        end if
     end if
-    call broadcast(parallel_put_var_real8_1d, parallel)
-
-    end associate
+    call broadcast(parallel_put_var_real8_1d)
 
   end function parallel_put_var_real8_1d
 
 !=======================================================================
 
-  function parallel_redef(ncid, parallel)
+  function parallel_redef(ncid)
 
     implicit none
     integer :: ncid,parallel_redef
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_redef = nf90_redef(ncid)
-    call broadcast(parallel_redef, parallel)
-
-    end associate
+    call broadcast(parallel_redef)
 
   end function parallel_redef
 
@@ -8003,114 +7557,89 @@ contains
 
   ! functions belonging to the parallel_reduce_sum interface
 
-  function parallel_reduce_sum_integer(x, parallel)
+  function parallel_reduce_sum_integer(x)
 
     use mpi_mod
     implicit none
     integer :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     integer :: recvbuf,sendbuf, parallel_reduce_sum_integer
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_integer,mpi_sum,comm,ierror)
     parallel_reduce_sum_integer = recvbuf
 
-    end associate
-
   end function parallel_reduce_sum_integer
 
 
-  function parallel_reduce_sum_real4(x, parallel)
+  function parallel_reduce_sum_real4(x)
 
     use mpi_mod
     implicit none
     real(sp) :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(sp) :: recvbuf,sendbuf, parallel_reduce_sum_real4
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real4,mpi_sum,comm,ierror)
     parallel_reduce_sum_real4 = recvbuf
 
-    end associate
-
   end function parallel_reduce_sum_real4
 
 
-  function parallel_reduce_sum_real8(x, parallel)
+  function parallel_reduce_sum_real8(x)
 
     use mpi_mod
     implicit none
     real(dp) :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(dp) :: recvbuf,sendbuf, parallel_reduce_sum_real8
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real8,mpi_sum,comm,ierror)
     parallel_reduce_sum_real8 = recvbuf
 
-    end associate
-
   end function parallel_reduce_sum_real8
 
 
-  function parallel_reduce_sum_integer_nvar(x, parallel)
+  function parallel_reduce_sum_integer_nvar(x)
 
     use mpi_mod
     implicit none
     integer :: x(:)
-    type(parallel_type) :: parallel
 
     integer :: ierror, nvar
     integer, dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_sum_integer_nvar
 
     ! begin
-    associate(comm => parallel%comm)
-
     nvar = size(x)
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,nvar,mpi_integer,mpi_sum,comm,ierror)
     parallel_reduce_sum_integer_nvar = recvbuf
 
-    end associate
-
   end function parallel_reduce_sum_integer_nvar
 
 
-  function parallel_reduce_sum_real8_nvar(x, parallel)
+  function parallel_reduce_sum_real8_nvar(x)
 
     use mpi_mod
     implicit none
     real(dp) :: x(:)
-    type(parallel_type) :: parallel
 
     integer :: ierror, nvar
     real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_sum_real8_nvar
 
     ! begin
-    associate(comm => parallel%comm)
-
     nvar = size(x)
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,nvar,mpi_real8,mpi_sum,comm,ierror)
     parallel_reduce_sum_real8_nvar = recvbuf
-
-    end associate
 
   end function parallel_reduce_sum_real8_nvar
 
@@ -8118,68 +7647,53 @@ contains
 
   ! functions belonging to the parallel_reduce_max interface
 
-  function parallel_reduce_max_integer(x, parallel)
+  function parallel_reduce_max_integer(x)
 
     use mpi_mod
     implicit none
     integer :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     integer :: recvbuf,sendbuf, parallel_reduce_max_integer
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_integer,mpi_max,comm,ierror)
     parallel_reduce_max_integer = recvbuf
 
-    end associate
-
   end function parallel_reduce_max_integer
 
 
-  function parallel_reduce_max_real4(x, parallel)
+  function parallel_reduce_max_real4(x)
 
     use mpi_mod
     implicit none
     real(sp) :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(sp) :: recvbuf,sendbuf, parallel_reduce_max_real4
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real4,mpi_max,comm,ierror)
     parallel_reduce_max_real4 = recvbuf
 
-    end associate
-
   end function parallel_reduce_max_real4
 
 
-  function parallel_reduce_max_real8(x, parallel)
+  function parallel_reduce_max_real8(x)
 
     use mpi_mod
     implicit none
     real(dp) :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(dp) :: recvbuf,sendbuf, parallel_reduce_max_real8
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real8,mpi_max,comm,ierror)
     parallel_reduce_max_real8 = recvbuf
-
-    end associate
 
   end function parallel_reduce_max_real8
 
@@ -8187,89 +7701,65 @@ contains
 
   ! functions belonging to the parallel_reduce_maxloc interface
 
-  subroutine parallel_reduce_maxloc_integer(xin, xout, xprocout, parallel)
+  subroutine parallel_reduce_maxloc_integer(xin, xout, xprocout)
 
     use mpi_mod
     implicit none
     integer, intent(in) :: xin         ! variable to reduce
     integer, intent(out) :: xout       ! value resulting from the reduction
     integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-    type(parallel_type) :: parallel
 
     integer :: ierror
     integer, dimension(2,1) :: recvbuf, sendbuf
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         this_rank => parallel%this_rank  &
-         )
-
     sendbuf(1,1) = xin
     sendbuf(2,1) = this_rank  ! This is the processor number associated with the value x
     call mpi_allreduce(sendbuf,recvbuf,1,MPI_2INTEGER,mpi_maxloc,comm,ierror)
     xout = recvbuf(1,1)
     xprocout = recvbuf(2,1)
 
-    end associate
-
   end subroutine parallel_reduce_maxloc_integer
 
 
-  subroutine parallel_reduce_maxloc_real4(xin, xout, xprocout, parallel)
+  subroutine parallel_reduce_maxloc_real4(xin, xout, xprocout)
 
     use mpi_mod
     implicit none
     real(sp), intent(in) :: xin         ! variable to reduce
     real(sp), intent(out) :: xout       ! value resulting from the reduction
     integer, intent(out) :: xprocout    ! processor on which reduced value occurs
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(sp), dimension(2,1) :: recvbuf, sendbuf
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         this_rank => parallel%this_rank  &
-         )
-
     sendbuf(1,1) = xin
     sendbuf(2,1) = this_rank  ! This is the processor number associated with the value x (coerced to a real)
     call mpi_allreduce(sendbuf,recvbuf,1,MPI_2REAL,mpi_maxloc,comm,ierror)
     xout = recvbuf(1,1)
     xprocout = recvbuf(2,1) ! coerced back to integer
 
-    end associate
-
   end subroutine parallel_reduce_maxloc_real4
 
 
-  subroutine parallel_reduce_maxloc_real8(xin, xout, xprocout, parallel)
+  subroutine parallel_reduce_maxloc_real8(xin, xout, xprocout)
 
     use mpi_mod
     implicit none
     real(dp), intent(in) :: xin         ! variable to reduce
     real(dp), intent(out) :: xout       ! value resulting from the reduction
     integer, intent(out) :: xprocout    ! processor on which reduced value occurs
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(dp), dimension(2,1) :: recvbuf, sendbuf
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         this_rank => parallel%this_rank  &
-         )
-
     sendbuf(1,1) = xin
     sendbuf(2,1) = this_rank  ! This is the processor number associated with the value x (coerced to a real)
     call mpi_allreduce(sendbuf,recvbuf,1,MPI_2DOUBLE_PRECISION,mpi_maxloc,comm,ierror)
     xout = recvbuf(1,1)
     xprocout = recvbuf(2,1) ! coerced back to integer
-
-    end associate
 
   end subroutine parallel_reduce_maxloc_real8
 
@@ -8278,68 +7768,53 @@ contains
 
   ! subroutines belonging to the parallel_reduce_min interface
 
-  function parallel_reduce_min_integer(x, parallel)
+  function parallel_reduce_min_integer(x)
 
     use mpi_mod
     implicit none
     integer :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     integer :: recvbuf,sendbuf, parallel_reduce_min_integer
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_integer,mpi_min,comm,ierror)
     parallel_reduce_min_integer = recvbuf
 
-    end associate
-
   end function parallel_reduce_min_integer
 
 
-  function parallel_reduce_min_real4(x, parallel)
+  function parallel_reduce_min_real4(x)
 
     use mpi_mod
     implicit none
     real(sp) :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(sp) :: recvbuf,sendbuf, parallel_reduce_min_real4
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real4,mpi_min,comm,ierror)
     parallel_reduce_min_real4 = recvbuf
 
-    end associate
-
   end function parallel_reduce_min_real4
 
 
-  function parallel_reduce_min_real8(x, parallel)
+  function parallel_reduce_min_real8(x)
 
     use mpi_mod
     implicit none
     real(dp) :: x
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(dp) :: recvbuf,sendbuf, parallel_reduce_min_real8
 
     ! begin
-    associate(comm => parallel%comm)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real8,mpi_min,comm,ierror)
     parallel_reduce_min_real8 = recvbuf
-
-    end associate
 
   end function parallel_reduce_min_real8
 
@@ -8347,112 +7822,81 @@ contains
 
   ! subroutines belonging to the parallel_reduce_minloc interface
 
-  subroutine parallel_reduce_minloc_integer(xin, xout, xprocout, parallel)
+  subroutine parallel_reduce_minloc_integer(xin, xout, xprocout)
 
     use mpi_mod
     implicit none
     integer, intent(in) :: xin         ! variable to reduce
     integer, intent(out) :: xout       ! value resulting from the reduction
     integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-    type(parallel_type) :: parallel
 
     integer :: ierror
     integer, dimension(2,1) :: recvbuf, sendbuf
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         this_rank => parallel%this_rank  &
-         )
-
     sendbuf(1,1) = xin
     sendbuf(2,1) = this_rank  ! This is the processor number associated with the value x
     call mpi_allreduce(sendbuf,recvbuf,1,MPI_2INTEGER,mpi_minloc,comm,ierror)
     xout = recvbuf(1,1)
     xprocout = recvbuf(2,1)
 
-    end associate
-
   end subroutine parallel_reduce_minloc_integer
 
 
-  subroutine parallel_reduce_minloc_real4(xin, xout, xprocout, parallel)
+  subroutine parallel_reduce_minloc_real4(xin, xout, xprocout)
 
     use mpi_mod
     implicit none
     real(sp), intent(in) :: xin        ! variable to reduce
     real(sp), intent(out) :: xout      ! value resulting from the reduction
     integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(sp), dimension(2,1) :: recvbuf, sendbuf
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         this_rank => parallel%this_rank  &
-         )
-
     sendbuf(1,1) = xin
     sendbuf(2,1) = this_rank  ! This is the processor number associated with the value x (coerced to a real)
     call mpi_allreduce(sendbuf,recvbuf,1,MPI_2REAL,mpi_minloc,comm,ierror)
     xout = recvbuf(1,1)
     xprocout = recvbuf(2,1) ! coerced back to integer
 
-    end associate
-
   end subroutine parallel_reduce_minloc_real4
 
 
-  subroutine parallel_reduce_minloc_real8(xin, xout, xprocout, parallel)
+  subroutine parallel_reduce_minloc_real8(xin, xout, xprocout)
 
     use mpi_mod
     implicit none
     real(dp), intent(in) :: xin        ! variable to reduce
     real(dp), intent(out) :: xout      ! value resulting from the reduction
     integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-    type(parallel_type) :: parallel
 
     integer :: ierror
     real(dp), dimension(2,1) :: recvbuf, sendbuf
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         this_rank => parallel%this_rank  &
-         )
-
     sendbuf(1,1) = xin
     sendbuf(2,1) = this_rank  ! This is the processor number associated with the value x (coerced to a real)
     call mpi_allreduce(sendbuf,recvbuf,1,MPI_2DOUBLE_PRECISION,mpi_minloc,comm,ierror)
     xout = recvbuf(1,1)
     xprocout = recvbuf(2,1) ! coerced back to integer
 
-    end associate
-
   end subroutine parallel_reduce_minloc_real8
 
 !=======================================================================
 
-  subroutine parallel_show_minmax(label,values, parallel)
+  subroutine parallel_show_minmax(label,values)
 
     use mpi_mod
     implicit none
     character(*) :: label
     real(dp),dimension(:,:,:) :: values
-    type(parallel_type) :: parallel
     
     integer :: ierror
     real(dp) :: allmin,allmax,mymin,mymax
 
     ! begin
-    associate(  &
-         comm      => parallel%comm,      &
-         main_rank => parallel%main_rank, &
-         main_task => parallel%main_task  &
-         )
-
     mymin = minval(values(:,1+lhalo:size(values,2)-uhalo,&
          1+lhalo:size(values,3)-uhalo))
     mymax = maxval(values(:,1+lhalo:size(values,2)-uhalo,&
@@ -8461,48 +7905,36 @@ contains
     call mpi_reduce(mymax,allmax,1,mpi_real8,mpi_max,main_rank,comm,ierror)
     if (main_task) print *,label,allmin,allmax
 
-    end associate
-
   end subroutine parallel_show_minmax
 
 !=======================================================================
 
-  subroutine parallel_stop(file, line, parallel)
+  subroutine parallel_stop(file, line)
 
     use mpi_mod
     implicit none
     integer :: line
     character(len=*) :: file
-    type(parallel_type) :: parallel
 
     integer :: ierror
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) write(0,*) "PARALLEL STOP in ",file," at line ",line
     call mpi_abort(MPI_COMM_WORLD, 1001, ierror)
     stop "PARALLEL STOP"
-
-    end associate
 
   end subroutine parallel_stop
 
 !=======================================================================
 
-  function parallel_sync(ncid, parallel)
+  function parallel_sync(ncid)
 
     implicit none
     integer :: ncid,parallel_sync
-    type(parallel_type) :: parallel
 
     ! begin
-    associate(main_task => parallel%main_task)
-
     if (main_task) parallel_sync = nf90_sync(ncid)
-    call broadcast(parallel_sync, parallel)
-
-    end associate
+    call broadcast(parallel_sync)
 
   end function parallel_sync
 
@@ -8515,7 +7947,6 @@ contains
     type(parallel_type) :: parallel
 
     associate(  &
-         this_rank => parallel%this_rank,  &
          local_ewn => parallel%local_ewn,  &
          local_nsn => parallel%local_nsn,  &
          east      => parallel%east,       &
@@ -8628,8 +8059,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm      => parallel%comm,           &
-         this_rank => parallel%this_rank,      &
          local_ewn => parallel%local_ewn,      &
          local_nsn => parallel%local_nsn,      &
          east      => parallel%east,           &
@@ -8647,7 +8076,7 @@ contains
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Prepost expected receives
@@ -8794,8 +8223,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm      => parallel%comm,           &
-         this_rank => parallel%this_rank,      &
          local_ewn => parallel%local_ewn,      &
          local_nsn => parallel%local_nsn,      &
          east      => parallel%east,           &
@@ -8813,7 +8240,7 @@ contains
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1.or.size(a,3)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Prepost expected receives
@@ -8959,8 +8386,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm      => parallel%comm,           &
-         this_rank => parallel%this_rank,      &
          local_ewn => parallel%local_ewn,      &
          local_nsn => parallel%local_nsn,      &
          east      => parallel%east,           &
@@ -8978,7 +8403,7 @@ contains
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Prepost expected receives
@@ -9124,8 +8549,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm      => parallel%comm,           &
-         this_rank => parallel%this_rank,      &
          local_ewn => parallel%local_ewn,      &
          local_nsn => parallel%local_nsn,      &
          east      => parallel%east,           &
@@ -9143,7 +8566,7 @@ contains
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Prepost expected receives
@@ -9293,8 +8716,6 @@ contains
          periodic_bc => parallel%periodic_bc,  &
          outflow_bc  => parallel%outflow_bc,   &
          no_ice_bc   => parallel%no_ice_bc,    &
-         comm      => parallel%comm,           &
-         this_rank => parallel%this_rank,      &
          local_ewn => parallel%local_ewn,      &
          local_nsn => parallel%local_nsn,      &
          east      => parallel%east,           &
@@ -9312,7 +8733,7 @@ contains
     ! Confirm staggered array
     if (size(a,3)/=local_ewn-1 .or. size(a,4)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Prepost expected receives
@@ -9447,7 +8868,6 @@ contains
     ! begin
 
     associate(  &
-         this_rank => parallel%this_rank,  &
          local_ewn => parallel%local_ewn,  &
          local_nsn => parallel%local_nsn,  &
          east   => parallel%east,    &
@@ -9459,7 +8879,7 @@ contains
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Extrapolate the staggered field into halo cells along the global boundary.
@@ -9517,7 +8937,6 @@ contains
     ! begin
 
     associate(  &
-         this_rank => parallel%this_rank,  &
          local_ewn => parallel%local_ewn,  &
          local_nsn => parallel%local_nsn,  &
          east  => parallel%east,   &
@@ -9529,7 +8948,7 @@ contains
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
          write(*,*) "staggered_parallel_halo() requires staggered arrays."
-         call parallel_stop(__FILE__,__LINE__, parallel)
+         call parallel_stop(__FILE__,__LINE__)
     endif
 
     ! Extrapolate the staggered field into halo cells along the global boundary.
