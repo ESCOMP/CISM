@@ -39,11 +39,7 @@
   module glissade_velo_higher_trilinos
 
     use glimmer_global, only: dp
-!    use glimmer_log, only: write_log
-
-!    use parallel
-    use parallel_mod, only: this_rank, main_task, nhalo
-    use parallel_mod, only: staggered_parallel_halo
+    use parallel_mod, only: this_rank, main_task, nhalo, staggered_parallel_halo
 
     implicit none
     private
@@ -62,6 +58,7 @@
 !****************************************************************************
 
   subroutine trilinos_global_id_3d(nx,         ny,         nz,   &
+                                   parallel,                     &
                                    nNodesSolve,                  &
                                    iNodeIndex, jNodeIndex, kNodeIndex,  &
                                    global_node_id,               &
@@ -78,6 +75,9 @@
     integer, intent(in) ::   &
        nx, ny,             &  ! number of grid cells in each direction
        nz                     ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+       parallel               ! info for parallel communication
 
     integer, intent(in) ::             &
        nNodesSolve            ! number of nodes where we solve for velocity
@@ -116,7 +116,7 @@
        enddo
     enddo
 
-    call staggered_parallel_halo(global_vertex_id)
+    call staggered_parallel_halo(global_vertex_id, parallel)
 
     do j = 1, ny-1         ! loop over all vertices, including halo
        do i = 1, nx-1
@@ -144,6 +144,7 @@
 !****************************************************************************
 
   subroutine trilinos_global_id_2d(nx,             ny,           &
+                                   parallel,                     &
                                    nVerticesSolve,               &
                                    iVertexIndex,   jVertexIndex, &
                                    global_vertex_id,             &
@@ -159,6 +160,9 @@
 
     integer, intent(in) ::   &
        nx, ny                  ! number of grid cells in each direction
+
+    type(parallel_type), intent(in) :: &
+       parallel                ! info for parallel communication
 
     integer, intent(in) ::             &
        nVerticesSolve          ! number of nodes where we solve for velocity
@@ -194,7 +198,7 @@
        enddo
     enddo
 
-    call staggered_parallel_halo(global_vertex_id)
+    call staggered_parallel_halo(global_vertex_id, parallel)
 
     !----------------------------------------------------------------
     ! Associate a unique global index with each unknown on the active vertices

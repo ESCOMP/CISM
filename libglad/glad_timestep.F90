@@ -39,6 +39,8 @@ module glad_timestep
   use glad_type
   use glad_constants
   use glimmer_global, only: dp
+  use parallel_mod, only: tasks, main_task, this_rank
+
   implicit none
 
   private
@@ -68,7 +70,6 @@ contains
     use glad_io
     use glad_mbal_io
     use glide_diagnostics
-    use parallel, only: tasks, main_task, this_rank
     use glad_output_fluxes, only : accumulate_output_fluxes, reset_output_fluxes
     
     implicit none
@@ -317,7 +318,6 @@ contains
     ! a known ocean point.
 
     use glimmer_log
-    use parallel, only : tasks
 
     real(dp),dimension(:,:),intent(inout) :: orog !> Orography --- used for input and output
     integer,                intent(in)    :: x,y  !> Location of starting point (index)

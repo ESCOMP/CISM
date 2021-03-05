@@ -42,9 +42,8 @@
     use glimmer_log
     use glimmer_physcon, only: rhoi, rhoo
     use glide_types
-!    use parallel
-    use parallel_mod, only: this_rank, main_task, nhalo, ewtasks, nstasks
-    use parallel_mod, only: parallel_halo, parallel_reduce_sum
+    use parallel_mod, only: this_rank, main_task, nhalo, &
+         parallel_type, parallel_halo, parallel_reduce_sum
 
     implicit none
 
@@ -67,6 +66,7 @@
 !****************************************************************************
 
   subroutine glissade_get_masks(nx,          ny,          &
+                                parallel,                 &
                                 thck,        topg,        &
                                 eus,         thklim,      &
                                 ice_mask,                 &
@@ -76,6 +76,7 @@
                                 grounding_line_mask,      &
                                 active_ice_mask)
 
+    !TODO: Modify glissade_get_masks so that 'parallel' is not needed
     !----------------------------------------------------------------
     ! Compute various masks for the Glissade dycore.
     !
@@ -119,6 +120,9 @@
 
     integer, intent(in) ::   &
          nx,  ny                ! number of grid cells in each direction
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
     ! Default dimensions are meters, but this subroutine will work for
     ! any units as long as thck, topg, eus and thklim have the same units.
@@ -201,10 +205,11 @@
     ! Note: These are not strictly needed because the above loops include halo cells.
     !       However, they are included in case the user calls this subroutine without
     !        first updating thck in halo cells.
+    !TODO: Drop the halo updates and require the user to update thck before the call?
 
-    call parallel_halo(ice_mask)
-    if (present(floating_mask)) call parallel_halo(floating_mask)
-    if (present(active_ice_mask)) call parallel_halo(active_ice_mask)
+    call parallel_halo(ice_mask, parallel)
+    if (present(floating_mask)) call parallel_halo(floating_mask, parallel)
+    if (present(active_ice_mask)) call parallel_halo(active_ice_mask, parallel)
 
     ! Identify grounded cells; this mask is used in some calculations below
     if (present(floating_mask)) then
@@ -216,6 +221,7 @@
     endif
 
     ! Optionally, compute grounding line mask using grounded_mask, floating_mask and ocean_mask
+    !TODO: Move grounding_line_mask to a different subroutine?
 
     if (present(grounding_line_mask)) then
 
@@ -251,7 +257,8 @@
           enddo   ! i
        enddo   ! j
 
-       call parallel_halo(grounding_line_mask)
+       !TODO: Drop this halo call?
+       call parallel_halo(grounding_line_mask, parallel)
 
     endif   ! present(grounding_line_mask)
 
@@ -275,6 +282,7 @@
   subroutine glissade_calving_front_mask(&
        nx,                     ny,                   &
        which_ho_calving_front,                       &
+       parallel,                                     &
        thck,                   topg,                 &
        eus,                                          &
        ice_mask,               floating_mask,        &
@@ -290,6 +298,8 @@
     integer, intent(in) ::   &
          nx,  ny,              &  ! number of grid cells in each direction
          which_ho_calving_front   ! subgrid calving front option
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     ! Default dimensions are meters, but this subroutine will work for any units
     !  as long as thck, topg, and eus have the same units.
@@ -363,8 +373,8 @@
           enddo
        enddo
 
-       call parallel_halo(calving_front_mask)
-       call parallel_halo(interior_marine_mask)
+       call parallel_halo(calving_front_mask, parallel)
+       call parallel_halo(interior_marine_mask, parallel)
 
        ! Compute thck_calving_front, an effective thickness for calving-front cells.
        ! It is set to the mean thickness in adjacent marine interior cells.
@@ -396,7 +406,7 @@
           enddo
        enddo
 
-       call parallel_halo(thck_calving_front)
+       call parallel_halo(thck_calving_front, parallel)
 
        ! Limit thck_calving_front so as not to exceed the flotation thickness
        where (thck_calving_front > 0.0d0)
@@ -463,7 +473,7 @@
              enddo
           enddo
 
-          call parallel_halo(active_ice_mask)
+          call parallel_halo(active_ice_mask, parallel)
 
        endif   ! present(active_ice_mask)
 
@@ -492,9 +502,9 @@
           enddo
        enddo
 
-       call parallel_halo(calving_front_mask)
-       call parallel_halo(thck_calving_front)
-       call parallel_halo(interior_marine_mask)
+       call parallel_halo(calving_front_mask, parallel)
+       call parallel_halo(thck_calving_front, parallel)
+       call parallel_halo(interior_marine_mask, parallel)
 
        ! Optionally, copy interior_marine_mask to marine_interior_mask for output.
        if (present(marine_interior_mask)) then
@@ -564,13 +574,15 @@
        enddo  ! i
     enddo   ! j
 
-    call parallel_halo(marine_cliff_mask)
+    !Note: Halo update moved to higher level
+!    call parallel_halo(marine_cliff_mask)
 
   end subroutine glissade_marine_cliff_mask
 
 !****************************************************************************
 
   subroutine glissade_ice_sheet_mask(nx,            ny,     &
+                                     parallel,              &
                                      itest, jtest,  rtest,  &
                                      ice_mask,      thck,   &
                                      ice_sheet_mask,        &
@@ -595,6 +607,8 @@
     !       The ice sheet seeding criterion can be changed by adjusting minthck_ice_sheet.
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
@@ -646,7 +660,7 @@
     ! Fill these cells and then recursively fill ice-covered neighbors.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
-    max_iter = max(ewtasks,nstasks)
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
     global_count_save = 0
 
     do iter = 1, max_iter
@@ -669,7 +683,7 @@
           ! Check for halo cells that were just filled on neighbor processors
           ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
 
-          call parallel_halo(color)
+          call parallel_halo(color, parallel)
 
           ! west halo layer
           i = nhalo
@@ -742,8 +756,6 @@
     ice_sheet_mask(:,:) = 0.0d0
     ice_cap_mask(:,:) = 0.0d0
 
-    call parallel_halo(color)
-
     do j = 1, ny
        do i = 1, nx
           if (color(i,j) == initial_color) then
@@ -754,11 +766,15 @@
        enddo
     enddo
 
+    call parallel_halo(ice_sheet_mask, parallel)
+    call parallel_halo(ice_cap_mask, parallel)
+
   end subroutine glissade_ice_sheet_mask
 
 !****************************************************************************
 
   subroutine glissade_ocean_connection_mask(nx,            ny,          &
+                                            parallel,                   &
                                             itest, jtest,  rtest,       &
                                             thck,          input_mask,  &
                                             ocean_mask,                 &
@@ -783,6 +799,8 @@
     !       ocean_connection_mask with generic input and output masks.
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
@@ -825,7 +843,7 @@
     ! Fill these cells and then recursively fill neighbors that have the initial color.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
-    max_iter = max(ewtasks,nstasks)
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
     global_count_save = 0
 
     do iter = 1, max_iter
@@ -850,7 +868,7 @@
           ! Check for halo cells that were just filled on neighbor processors
           ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
 
-          call parallel_halo(color)
+          call parallel_halo(color, parallel)
 
           ! west halo layer
           i = nhalo
@@ -918,9 +936,6 @@
     enddo  ! max_iter
 
     ! Any cells with the fill color are deemed to be ocean-connected.
-
-    call parallel_halo(color)
-
     ocean_connection_mask(:,:) = 0
 
     where (color == fill_color)
@@ -929,11 +944,15 @@
        ocean_connection_mask = 0
     endwhere
 
+    !TODO: Move this update to a higher level?
+    call parallel_halo(ocean_connection_mask, parallel)
+
   end subroutine glissade_ocean_connection_mask
 
 !****************************************************************************
 
   subroutine glissade_marine_connection_mask(nx,           ny,             &
+                                             parallel,                     &
                                              itest, jtest, rtest,          &
                                              thck,         topg,           &
                                              eus,          thklim,         &
@@ -947,6 +966,8 @@
     ! subroutine arguments
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
@@ -1008,7 +1029,7 @@
        enddo
     enddo
 
-    call parallel_halo(ocean_mask)
+    call parallel_halo(ocean_mask, parallel)
 
     ! initialize
     ! Compute a marine mask; = 1 for all cells with topg - eus < 0.
@@ -1045,7 +1066,7 @@
     ! We may have to do this several times to incorporate connections between neighboring processors.
     ! The result is a mask that all marine-based cells connected to the ocean are filled.
 
-    max_iter = max(ewtasks,nstasks)
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
     global_count_save = 0
 
     do iter = 1, max_iter
@@ -1076,7 +1097,7 @@
           ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
           !       but also must have marine_mask = 1.
 
-          call parallel_halo(color)
+          call parallel_halo(color, parallel)
 
           ! west halo layer
           i = nhalo
@@ -1143,7 +1164,7 @@
 
     enddo  ! max_iter
 
-    call parallel_halo(color)
+    call parallel_halo(color, parallel)
 
     ! Set the marine connection mask.  This includes:
     ! (1) cells that are already ocean
@@ -1159,7 +1180,7 @@
        enddo
     enddo
 
-    call parallel_halo(marine_connection_mask)
+    call parallel_halo(marine_connection_mask, parallel)
 
     if (verbose_marine_connection .and. this_rank == rtest) then
        print*, ' '
@@ -1187,6 +1208,7 @@
 !****************************************************************************
 
   subroutine glissade_lake_mask(nx,           ny,             &
+                                parallel,                     &
                                 itest, jtest, rtest,          &
                                 floating_mask,                &
                                 ocean_mask,                   &
@@ -1194,7 +1216,7 @@
                                 ocean_connection_mask)
 
   ! TODO - Rewrite this subroutine with marine_connection_mask as an input.
-  !        Lake cells are floating cells without a marine connection.
+  !        Lake cells are just floating cells without a marine connection.
 
   ! Identify interior lake cells: cells that are floating but are not connected
   !  to the ocean along a path through other floating cells.
@@ -1203,6 +1225,8 @@
   ! Note: The path to the ocean must pass through edge neighbors, not corner neighbors.
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
@@ -1271,7 +1295,7 @@
     ! We may have to do this several times to incorporate connections between neighboring processors.
     ! The result is a mask that identifies (with the fill color) all floating cells connected to the ocean.
 
-    max_iter = max(ewtasks,nstasks)
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
     global_count_save = 0
 
     do iter = 1, max_iter
@@ -1302,7 +1326,7 @@
           ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
           !       but also must have floating_mask = 1.
 
-          call parallel_halo(color)
+          call parallel_halo(color, parallel)
 
           ! west halo layer
           i = nhalo
@@ -1369,7 +1393,7 @@
 
     enddo  ! max_iter
 
-    call parallel_halo(color)
+    call parallel_halo(color, parallel)
 
     ! Identify lake cells: floating cells that still have the initial color.
 
@@ -1381,7 +1405,7 @@
              lake_mask(i,j) = 1
 
              if (verbose_lake .and. this_rank == rtest) then
-                call parallel_globalindex(i, j, ig, jg)
+                call parallel_globalindex(i, j, ig, jg, parallel)
                 print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
              endif
 
@@ -1389,7 +1413,7 @@
        enddo
     enddo
 
-    call parallel_halo(lake_mask)
+    call parallel_halo(lake_mask, parallel)
 
     if (verbose_lake .and. this_rank == rtest) then
        print*, ' '
@@ -1419,7 +1443,8 @@
           enddo
        enddo
 
-       call parallel_halo(ocean_connection_mask)
+       !TODO: Is this halo call needed?
+       call parallel_halo(ocean_connection_mask, parallel)
 
        if (verbose_lake .and. this_rank == rtest) then
           print*, ' '
@@ -1486,7 +1511,8 @@
        enddo
     enddo
 
-    call parallel_halo(extended_mask)
+    !Note: Halo update moved to higher level
+!    call parallel_halo(extended_mask)
 
   end subroutine glissade_extend_mask
 

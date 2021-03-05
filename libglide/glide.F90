@@ -149,8 +149,6 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
     use glimmer_paramets, only: len0
-
-!    use parallel, only: distributed_grid
     use parallel_mod, only: distributed_grid
 
     type(glide_global_type), intent(inout) :: model     ! model instance
@@ -179,10 +177,12 @@ contains
     ! Note: nhalo = 0 is included in call to distributed_grid to set other halo
     !  variables (lhalo, uhalo, etc.) to 0 instead of default values
 
-!WHL - distributed_grid is not in old glide
+!WHL - distributed_grid is not in old Glide
       
+!    call distributed_grid(model%general%ewn, model%general%nsn,  &
+!                          nhalo_in=my_nhalo)
     call distributed_grid(model%general%ewn, model%general%nsn,  &
-                          nhalo_in=my_nhalo)
+                          model%parallel,    nhalo_in=my_nhalo)
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0, &
                                              model%numerics%dew, model%numerics%dns, &

@@ -13,7 +13,9 @@ name:     glad
 datatype: glad_instance
 # module where type is defined
 datamod:  glad_type 
-
+# path to parallel derived type
+datapath: data%model
+ 
 [lat]
 dimensions:    time, y1, x1
 units:         degreeN

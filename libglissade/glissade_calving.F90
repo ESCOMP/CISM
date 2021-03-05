@@ -32,10 +32,8 @@ module glissade_calving
   use glide_types
   use glimmer_global, only: dp
   use glimmer_log
-!  use parallel
-  use parallel_mod, only: this_rank, main_task, nhalo, ewtasks, nstasks
-  use parallel_mod, only: parallel_halo, parallel_globalindex, &
-       parallel_reduce_sum, parallel_reduce_max
+  use parallel_mod, only: this_rank, main_task, nhalo, &
+       parallel_halo, parallel_globalindex, parallel_reduce_sum, parallel_reduce_max
 
   use glimmer_paramets, only: thk0
 
@@ -55,6 +53,7 @@ contains
 !-------------------------------------------------------------------------------
 
   subroutine glissade_calving_mask_init(dx,                dy,               &
+                                        parallel,                            &
                                         thck,              topg,             &
                                         eus,               thklim,           &
                                         calving_front_x,   calving_front_y,  &
@@ -67,6 +66,7 @@ contains
     ! Input/output arguments
 
     real(dp), intent(in) :: dx, dy                 !> cell dimensions in x and y directions (m)
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
     real(dp), dimension(:,:), intent(in) :: thck   !> ice thickness (m)
     real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
     real(dp), intent(in) :: eus                    !> eustatic sea level (m)
@@ -118,7 +118,7 @@ contains
              do i = 1, nx
 
                 ! find global i and j indices
-                call parallel_globalindex(i, j, iglobal, jglobal)
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 
                 ! find cell center x coordinate
                 xcell = (dble(iglobal) - 0.5d0) * dx
@@ -142,7 +142,7 @@ contains
              do i = 1, nx
 
                 ! find global i and j indices
-                call parallel_globalindex(i, j, iglobal, jglobal)
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 
                 ! find cell center y coordinate
                 ycell = (dble(jglobal) - 0.5d0) * dy
@@ -170,7 +170,9 @@ contains
        allocate(ice_mask(nx,ny))
        allocate(ocean_mask(nx,ny))
 
+       !TODO: Modify glissade_get_masks so that 'parallel' is not needed
        call glissade_get_masks(nx,            ny,             &
+                               parallel,                      &
                                thck,          topg,           &
                                eus,           thklim,         &
                                ice_mask,                      &
@@ -191,7 +193,8 @@ contains
 
     endif  ! mask_maxval > 0
 
-    call parallel_halo(calving_mask)
+    ! halo update moved to higher level
+    call parallel_halo(calving_mask, parallel)
 
   end subroutine glissade_calving_mask_init
 
@@ -199,6 +202,7 @@ contains
 
   subroutine glissade_thck_calving_threshold_init(&
        nx,      ny,               &
+       parallel,                  &
        itest,   jtest,   rtest,   &
        which_ho_calving_front,    &
        thck,    topg,             &
@@ -223,6 +227,7 @@ contains
     !---------------------------------------------------------------------
 
     integer, intent(in) :: nx, ny                              !> horizontal grid dimensions
+    type(parallel_type), intent(in) :: parallel                !> info for parallel communication
     integer, intent(in) :: itest, jtest, rtest                 !> coordinates of diagnostic point
     integer, intent(in) :: which_ho_calving_front              !> = 1 for subgrid calving-front scheme, else = 0
 
@@ -279,6 +284,7 @@ contains
        ! Get masks
 
        call glissade_get_masks(nx,            ny,             &
+                               parallel,                      &
                                thck,          topg,           &
                                eus,           thklim,         &
                                ice_mask,                      &
@@ -292,6 +298,7 @@ contains
 
        call glissade_calving_front_mask(nx,            ny,                 &
                                         which_ho_calving_front,            &
+                                        parallel,                          &
                                         thck,          topg,               &
                                         eus,                               &
                                         ice_mask,      floating_mask,      &
@@ -374,6 +381,7 @@ contains
           ! Apply a Laplacian smoother during the extrapolation.
 
           call glissade_scalar_extrapolate(nx,    ny,                 &
+                                           parallel,                  &
                                            calving_front_mask,        &
                                            thck_calving_front,        &
                                            marine_connection_mask,    &
@@ -382,7 +390,7 @@ contains
                                            apply_smoother = .true.,   &
                                            itest = itest, jtest = jtest, rtest = rtest)
 
-          call parallel_halo(thck_calving_threshold)
+          call parallel_halo(thck_calving_threshold, parallel)
 
           if (verbose_calving .and. this_rank == rtest) then
              print*, ' '
@@ -436,6 +444,7 @@ contains
                                 which_calving,           &
                                 calving_domain,          &
                                 which_ho_calving_front,  &
+                                parallel,                &
                                 calving,                 &  ! calving derived type
                                 itest,   jtest,   rtest, &
                                 dt,                      &  ! s
@@ -466,7 +475,8 @@ contains
                                                    !>     to the ocean through other cells where the criterion is met
     integer, intent(in) :: which_ho_calving_front  !> = 1 for subgrid calving-front scheme, else = 0
 
-    type(glide_calving), intent(inout) :: calving !> calving object
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+    type(glide_calving), intent(inout) :: calving  !> calving object
 
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: marine_limit        !> lower limit on topography elevation at marine edge before ice calves
@@ -610,6 +620,7 @@ contains
        !  only to compute the thck_calving_threshold field.
 
        call glissade_get_masks(nx,            ny,             &
+                               parallel,                      &
                                thck,          topg,           &
                                eus,           thklim,         &
                                ice_mask,                      &
@@ -620,6 +631,7 @@ contains
 
        call glissade_calving_front_mask(nx,            ny,              &
                                         which_ho_calving_front,         &
+                                        parallel,                       &
                                         thck,          topg,            &
                                         eus,                            &
                                         ice_mask,      floating_mask,   &
@@ -679,8 +691,8 @@ contains
           tau2 = 0.0d0
        endwhere
 
-       call parallel_halo(tau1)
-       call parallel_halo(tau2)
+       call parallel_halo(tau1, parallel)
+       call parallel_halo(tau2, parallel)
 
        ! Compute the effective stress.
        ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
@@ -809,7 +821,7 @@ contains
 
        ! The following operations are shared by eigencalving and damage-based calving.
 
-       call parallel_halo(calving%lateral_rate)
+       call parallel_halo(calving%lateral_rate, parallel)
 
        ! Convert the lateral calving rate to a vertical thinning rate, conserving volume.
        ! Note: The calved volume is proportional to the effective shelf-edge thickness (thck_calving_front),
@@ -889,6 +901,7 @@ contains
        ! For eigencalving, masks were computed above, but should be recomputed before doing more calving
 
        call glissade_get_masks(nx,            ny,             &
+                               parallel,                      &
                                thck,          topg,           &
                                eus,           thklim,         &
                                ice_mask,                      &
@@ -899,6 +912,7 @@ contains
        call glissade_calving_front_mask(&
                                nx,            ny,                 &
                                which_ho_calving_front,            &
+                               parallel,                          &
                                thck,          topg,               &
                                eus,                               &
                                ice_mask,      floating_mask,      &
@@ -1029,6 +1043,7 @@ contains
        !  that meets the calving criteria, not just dynamically active ice.
 
        call glissade_get_masks(nx,            ny,             &
+                               parallel,                      &
                                thck,          topg,           &
                                eus,           0.0d0,          &   ! thklim = 0.0
                                ice_mask,                      &
@@ -1096,7 +1111,7 @@ contains
        end select
 
        ! halo update (may not be necessary if thck, damage, etc. are correct in halos, but including to be safe)
-       call parallel_halo(calving_law_mask)
+       call parallel_halo(calving_law_mask, parallel)
 
        ! set the calving domain mask
 
@@ -1120,7 +1135,7 @@ contains
           enddo
 
           ! halo update (since the loop above misses some halo cells)
-          call parallel_halo(calving_domain_mask)
+          call parallel_halo(calving_domain_mask, parallel)
 
           if (verbose_calving .and. this_rank==rtest) then
              print*, ' '
@@ -1186,6 +1201,7 @@ contains
 
   subroutine glissade_cull_calving_front(&
        nx,           ny,          &
+       parallel,                  &
        itest, jtest, rtest,       &
        thck,         topg,        &
        eus,          thklim,      &
@@ -1205,10 +1221,11 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
 
     integer, intent(in) :: nx, ny                       !> horizontal grid dimensions
+    type(parallel_type), intent(in) :: parallel         !> info for parallel communication
     integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
 
-    real(dp), dimension(nx,ny), intent(inout) :: thck     !> ice thickness
-    real(dp), dimension(nx,ny), intent(in)    :: topg     !> present bedrock topography
+    real(dp), dimension(nx,ny), intent(inout) :: thck   !> ice thickness
+    real(dp), dimension(nx,ny), intent(in)    :: topg   !> present bedrock topography
     real(dp), intent(in)    :: eus                      !> eustatic sea level
     real(dp), intent(in)    :: thklim                   !> minimum thickness for dynamically active grounded ice
     integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
@@ -1239,6 +1256,7 @@ contains
        !       (since they are separated from any active cells).
 
        call glissade_get_masks(nx,            ny,             &
+                               parallel,                      &
                                thck,          topg,           &
                                eus,           thklim,         &
                                ice_mask,                      &
@@ -1248,6 +1266,7 @@ contains
 
        call glissade_calving_front_mask(nx,            ny,                 &
                                         which_ho_calving_front,            &
+                                        parallel,                          &
                                         thck,          topg,               &
                                         eus,                               &
                                         ice_mask,      floating_mask,      &
@@ -1314,6 +1333,7 @@ contains
 
   subroutine glissade_remove_icebergs(&
        nx,           ny,            &
+       parallel,                    &
        itest, jtest, rtest,         &
        thck,                        &
        f_ground_cell,               &
@@ -1346,8 +1366,9 @@ contains
 
     use glissade_masks, only: glissade_fill_with_buffer, initial_color, fill_color, boundary_color
 
-    integer :: nx, ny                                   !> horizontal grid dimensions
-    integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
+    integer, intent(in) :: nx, ny                                !> horizontal grid dimensions
+    type(parallel_type), intent(in) :: parallel                  !> info for parallel communication
+    integer, intent(in) :: itest, jtest, rtest                   !> coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
@@ -1427,7 +1448,7 @@ contains
     ! Fill each grounded cell and then recursively fill active neighbor cells, whether grounded or not.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
-    max_iter = max(ewtasks,nstasks)
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
     global_count_save = 0
 
     do iter = 1, max_iter
@@ -1463,7 +1484,7 @@ contains
           ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
           !       but also must be an active cell.
 
-          call parallel_halo(color)
+          call parallel_halo(color, parallel)
 
           ! west halo layer
           i = nhalo
@@ -1670,6 +1691,7 @@ contains
 
   subroutine glissade_limit_cliffs(&
        nx,             ny,              &
+       parallel,                        &
        itest,  jtest,  rtest,           &
        dt,                              &
        which_ho_calving_front,          &
@@ -1685,6 +1707,7 @@ contains
     use glissade_masks
 
     integer, intent(in)  :: nx, ny                      !> horizontal grid dimensions
+    type(parallel_type), intent(in) :: parallel         !> info for parallel communication
     integer, intent(in)  :: itest, jtest, rtest         !> coordinates of diagnostic point
     real(dp), intent(in) :: dt                          !> model timestep (s)
 
@@ -1727,6 +1750,7 @@ contains
     !       But to identify marine cliffs, we use active_ice_mask, which depends on whether there is a subgrid calving front.
 
     call glissade_get_masks(nx,            ny,             &
+                            parallel,                      &
                             thck,          topg,           &
                             eus,           thklim,         &
                             ice_mask,                      &
@@ -1734,8 +1758,9 @@ contains
                             ocean_mask = ocean_mask,       &
                             land_mask = land_mask)
 
-    call glissade_calving_front_mask(nx,            ny,           &
-                                     which_ho_calving_front,      &
+    call glissade_calving_front_mask(nx,            ny,                 &
+                                     which_ho_calving_front,            &
+                                     parallel,                          &
                                      thck,          topg,               &
                                      eus,                               &
                                      ice_mask,      floating_mask,      &
@@ -1748,6 +1773,8 @@ contains
                                     ice_mask,      floating_mask,     &
                                     land_mask,     active_ice_mask,   &
                                     marine_cliff_mask)
+
+    call parallel_halo(marine_cliff_mask, parallel)
 
     if (verbose_calving .and. this_rank==rtest) then
        print*, ' '

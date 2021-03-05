@@ -33,8 +33,6 @@
 
 module glissade_velo
 
-!    use parallel
-
     ! Driver for Glissade velocity solvers
 
     implicit none

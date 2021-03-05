@@ -105,7 +105,6 @@ contains
     use glide_types
     use glimmer_log
     use glide_mask
-!    use parallel
     use parallel_mod, only: not_parallel
 
     implicit none

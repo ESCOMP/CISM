@@ -165,7 +165,10 @@ contains
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine interp_wind_to_local(lgrid_fulldomain,zonwind,merwind,downs,xwind,ywind)
+  subroutine interp_wind_to_local(lgrid_fulldomain,          &
+                                  zonwind,        merwind,   &
+                                  downs,          parallel,  &
+                                  xwind,          ywind)
 
     ! Interpolate a global wind field (or any vector field) onto a given projected grid.
     !
@@ -174,7 +177,7 @@ contains
     use glimmer_utils
     use glimmer_coordinates
     use glimmer_log
-    use parallel, only : tasks
+    use parallel_mod, only : parallel_type, tasks
 
     ! Argument declarations
 
@@ -182,6 +185,7 @@ contains
     real(dp),dimension(:,:),intent(in)     :: zonwind          !> Zonal component (input)
     real(dp),dimension(:,:),intent(in)     :: merwind          !> Meridional components (input)
     type(downscale),        intent(inout)  :: downs            !> Downscaling parameters
+    type(parallel_type),    intent(in)     :: parallel         !> Info for parallel communication
     real(dp),dimension(:,:),intent(out)    :: xwind,ywind      !> x and y components on the projected grid (output)
 
     ! Declare two temporary arrays to hold the interpolated zonal and meridional winds
@@ -195,8 +199,8 @@ contains
 
     ! Interpolate onto the projected grid
 
-    call interp_to_local(lgrid_fulldomain,zonwind,downs,localdp=tempzw)
-    call interp_to_local(lgrid_fulldomain,merwind,downs,localdp=tempmw)
+    call interp_to_local(lgrid_fulldomain, zonwind, downs, parallel, localdp=tempzw)
+    call interp_to_local(lgrid_fulldomain, merwind, downs, parallel, localdp=tempmw)
 
     ! Apply rotation
 
@@ -214,9 +218,10 @@ contains
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine interp_to_local (lgrid_fulldomain, global,      downs,   &
-                              localsp,          localdp,              &
-                              global_fn,        z_constrain,          &
+  subroutine interp_to_local (lgrid_fulldomain, global,        &
+                              downs,            parallel,      &
+                              localsp,          localdp,       &
+                              global_fn,        z_constrain,   &
                               gmask,            maskval)
 
     !> Interpolate a global scalar field onto a projected grid. 
@@ -243,7 +248,7 @@ contains
     use glimmer_utils
     use glimmer_coordinates
     use glimmer_log
-    use parallel, only : main_task, distributed_scatter_var, parallel_halo
+    use parallel_mod, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
 
     !TODO - Not sure we need localsp now that the code is fully double precision 
 
@@ -252,6 +257,8 @@ contains
     type(coordsystem_type),  intent(in)           :: lgrid_fulldomain !> Local grid, spanning the full domain (across all tasks)
     real(dp), dimension(:,:),intent(in)           :: global           !> Global field (input)
     type(downscale),         intent(inout)        :: downs            !> Downscaling parameters
+    type(parallel_type)     ,intent(in)           :: parallel         !> Info for parallel communication
+
     real(sp),dimension(:,:), intent(out),optional :: localsp          !> Local field on projected grid (output) sp
     real(dp),dimension(:,:), intent(out),optional :: localdp          !> Local field on projected grid (output) dp
     real(dp),optional,external                    :: global_fn        !> Function returning values in global field. This  
@@ -450,14 +457,14 @@ contains
 
     if (present(localsp)) then
        localsp(:,:) = 0.d0
-       call distributed_scatter_var(localsp, localsp_fulldomain)
-       call parallel_halo(localsp)
+       call distributed_scatter_var(localsp, localsp_fulldomain, parallel)
+       call parallel_halo(localsp, parallel)
     endif
 
     if (present(localdp)) then
        localdp(:,:) = 0.d0
-       call distributed_scatter_var(localdp, localdp_fulldomain)
-       call parallel_halo(localdp)
+       call distributed_scatter_var(localdp, localdp_fulldomain, parallel)
+       call parallel_halo(localdp, parallel)
     endif
 
     ! We do NOT deallocate the local*_fulldomain variables here, because the
@@ -467,7 +474,9 @@ contains
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine copy_to_local (lgrid_fulldomain, global, downs, local)
+  subroutine copy_to_local (lgrid_fulldomain, global,   &
+                            downs,            parallel, &
+                            local)
 
     ! Do a simple copy of a global scalar field onto a projected grid.
     ! 
@@ -480,13 +489,14 @@ contains
     ! on the main task.
 
     use glimmer_coordinates
-    use parallel, only : main_task, distributed_scatter_var, parallel_halo
+    use parallel_mod, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
 
     ! Argument declarations
 
     type(coordsystem_type),  intent(in)  :: lgrid_fulldomain !> Local grid, spanning the full domain (across all tasks)
     real(dp), dimension(:,:),intent(in)  :: global           !> Global field (input)
     type(downscale),         intent(in)  :: downs            !> Downscaling parameters
+    type(parallel_type)     ,intent(in)  :: parallel         !> Info for parallel communication
     real(dp),dimension(:,:), intent(out) :: local            !> Local field on projected grid (output)
     
     ! Local variable declarations
@@ -520,8 +530,8 @@ contains
     !  case another part of the code (e.g., glissade_temp) assumes they are available.
 
     local(:,:) = 0.d0
-    call distributed_scatter_var(local, local_fulldomain)
-    call parallel_halo(local)
+    call distributed_scatter_var(local, local_fulldomain, parallel)
+    call parallel_halo(local, parallel)
 
     ! We do NOT deallocate local_fulldomain here, because the distributed_scatter_var
     ! routine does this deallocation
@@ -671,7 +681,7 @@ contains
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine local_to_global_avg(ups,local,global,mask)
+  subroutine local_to_global_avg(ups, parallel, local, global, mask)
 
     !> Upscale to global domain by areal averaging.
     !>
@@ -685,13 +695,14 @@ contains
     !> \texttt{interp\_to\_local} routine.
     !> \end{itemize}
 
-    use parallel, only : main_task, distributed_gather_var
+    use parallel_mod, only : main_task, parallel_type, distributed_gather_var
 
     ! Arguments
 
-    type(upscale),          intent(in)  :: ups    !> Upscaling indexing data.
-    real(dp),dimension(:,:),intent(in)  :: local  !> Data on projected grid (input).
-    real(dp),dimension(:,:),intent(out) :: global !> Data on global grid (output).
+    type(upscale),          intent(in)  :: ups      !> Upscaling indexing data.
+    type(parallel_type),    intent(in)  :: parallel !> Info for parallel communication
+    real(dp),dimension(:,:),intent(in)  :: local    !> Data on projected grid (input)
+    real(dp),dimension(:,:),intent(out) :: global   !> Data on global grid (output)
     integer, dimension(:,:),intent(in),optional :: mask !> Mask for upscaling
 
     ! Internal variables
@@ -718,8 +729,8 @@ contains
 
     ! Gather 'local' and 'tempmask' onto main task, which is the only one that does the regridding
 
-    call distributed_gather_var(local, local_fulldomain)
-    call distributed_gather_var(tempmask, tempmask_fulldomain)
+    call distributed_gather_var(local, local_fulldomain, parallel)
+    call distributed_gather_var(tempmask, tempmask_fulldomain, parallel)
 
     ! Main task does regridding
 
@@ -761,7 +772,7 @@ contains
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine local_to_global_sum(ups,local,global,mask)
+  subroutine local_to_global_sum(ups, parallel, local, global, mask)
 
     !> Upscale to global domain by summing local field.
     !> The result is an accumulated sum, not an average.
@@ -774,13 +785,14 @@ contains
     !> \item \texttt{gboxn} is the same size as \texttt{global}
     !> \end{itemize}
 
-    use parallel, only : main_task, distributed_gather_var
+    use parallel_mod, only : main_task, parallel_type, distributed_gather_var
 
     ! Arguments
 
-    type(upscale),          intent(in)  :: ups    !> Upscaling indexing data.
-    real(dp),dimension(:,:),intent(in)  :: local  !> Data on projected grid (input).
-    real(dp),dimension(:,:),intent(out) :: global !> Data on global grid (output).
+    type(upscale),          intent(in)  :: ups      !> Upscaling indexing data.
+    type(parallel_type),    intent(in)  :: parallel !> Info for parallel communication
+    real(dp),dimension(:,:),intent(in)  :: local    !> Data on projected grid (input).
+    real(dp),dimension(:,:),intent(out) :: global   !> Data on global grid (output).
     integer,dimension(:,:),intent(in),optional :: mask !> Mask for upscaling
 
     ! Internal variables
@@ -804,8 +816,8 @@ contains
 
     ! Gather 'local' and 'tempmask' onto main task, which is the only one that does the regridding
 
-    call distributed_gather_var(local, local_fulldomain)
-    call distributed_gather_var(tempmask, tempmask_fulldomain)
+    call distributed_gather_var(local, local_fulldomain, parallel)
+    call distributed_gather_var(tempmask, tempmask_fulldomain, parallel)
 
     ! Main task does regridding
     if (main_task) then
@@ -829,7 +841,7 @@ contains
   
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine local_to_global_min(ups,local,global,mask)
+  subroutine local_to_global_min(ups, parallel, local, global, mask)
 
     !> Upscale to global domain by finding the minimum of the local field.
     !> The result is an accumulated sum, not an average.
@@ -842,13 +854,14 @@ contains
     !> \item \texttt{gboxn} is the same size as \texttt{global}
     !> \end{itemize}
 
-    use parallel, only : main_task, distributed_gather_var
+    use parallel_mod, only : main_task, parallel_type, distributed_gather_var
 
     ! Arguments
 
-    type(upscale),          intent(in)  :: ups    !> Upscaling indexing data.
-    real(dp),dimension(:,:),intent(in)  :: local  !> Data on projected grid (input).
-    real(dp),dimension(:,:),intent(out) :: global !> Data on global grid (output).
+    type(upscale),          intent(in)  :: ups      !> Upscaling indexing data.
+    type(parallel_type),    intent(in)  :: parallel !> Info for parallel communication
+    real(dp),dimension(:,:),intent(in)  :: local    !> Data on projected grid (input).
+    real(dp),dimension(:,:),intent(out) :: global   !> Data on global grid (output).
     integer,dimension(:,:),intent(in),optional :: mask !> Mask for upscaling
 
     ! Internal variables
@@ -872,8 +885,8 @@ contains
 
     ! Gather 'local' and 'tempmask' onto main task, which is the only one that does the regridding
 
-    call distributed_gather_var(local, local_fulldomain)
-    call distributed_gather_var(tempmask, tempmask_fulldomain)
+    call distributed_gather_var(local, local_fulldomain, parallel)
+    call distributed_gather_var(tempmask, tempmask_fulldomain, parallel)
 
     ! Main task does regridding
     if (main_task) then
@@ -993,7 +1006,7 @@ contains
     use glint_global_grid
     use glimmer_coordinates
     use glimmer_map_trans
-    use parallel, only: main_task
+    use parallel_mod, only : main_task
 
     ! Arguments
 

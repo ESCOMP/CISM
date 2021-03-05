@@ -40,7 +40,6 @@ module glimmer_map_CFproj
 
   use glimmer_map_types
   use glimmer_ncdf, only: nc_errorhandle
-!  use parallel
   use parallel_mod, only: parallel_get_att, parallel_put_att, parallel_inquire, &
        parallel_inquire_variable, parallel_inq_attname
   use netcdf

@@ -33,8 +33,7 @@ module felix_dycore_interface
    use glimmer_log
    use glissade_grid_operators, only: glissade_stagger 
    !use glimmer_to_dycore
-!   use parallel
-   use parallel_mod, only: this_rank, nhalo, ewlb, nslb, global_ewn, global_nsn
+   use parallel_mod, only: this_rank, nhalo
    implicit none
    private
 
@@ -177,7 +176,7 @@ contains
       call get_parallel_finite_element_mesh_data(model%general%ewn,      model%general%nsn ,&
                                                  model%general%upn, &
                                                  model%numerics%sigma, &
-                                                 nhalo, &
+                                                 model%parallel,       &
                                                  len0 * model%numerics%dew, &
                                                  len0 * model%numerics%dns, &
                                                  thk0 * model%geometry%thck, &
@@ -315,7 +314,7 @@ contains
 
    subroutine get_parallel_finite_element_mesh_data(nx,         ny,           &
                                                     nz,         sigma,        &
-                                                    nhalo,                    &
+                                                    parallel,                 &
                                                     dx,         dy,           &
                                                     thck,       usrf,         &
                                                     topg,                     &
@@ -329,33 +328,33 @@ contains
       !-----------------------------------------------------------------
 
        integer, intent(in) ::   &
-       nx, ny,               &  ! number of grid cells in each direction
-       nz,                   &  ! number of vertical levels where velocity is computed
-                                ! (same as model%general%upn)
-       nhalo                    ! number of rows/columns of halo cells
+            nx, ny,               &  ! number of grid cells in each direction
+            nz                       ! number of vertical levels where velocity is computed
+                                     ! (same as model%general%upn)
 
        real(dp), dimension(:), intent(in) :: &
-       sigma
+            sigma
+
+       type(parallel_type), intent(in) :: &
+            parallel            ! info for parallel communication
 
        real(dp), intent(in) ::  &
-       dx,  dy                  ! grid cell length and width (m)
-                                ! assumed to have the same value for each grid
-                                ! cell
+            dx,  dy                  ! grid cell length and width (m)
+                                     ! assumed to have the same value for each grid cell
 
        real(dp), dimension(:,:), intent(in) ::  &
-       thck,                 &  ! ice thickness (m)
-       usrf,                 &  ! upper surface elevation (m)
-       topg                     ! elevation of topography (m)
-
+            thck,                 &  ! ice thickness (m)
+            usrf,                 &  ! upper surface elevation (m)
+            topg                     ! elevation of topography (m)
 
        real(dp), intent(in) ::   &
-       thklim                   ! minimum ice thickness for active cells (m)
+            thklim                   ! minimum ice thickness for active cells (m)
 
        real(dp), dimension(:,:), intent(in) ::  &
-       beta                     ! basal traction parameter
+            beta                     ! basal traction parameter
 
        real(dp), dimension(:,:,:), intent(in) ::  &
-       flwa                     ! flow factor parameter
+            flwa                     ! flow factor parameter
 
 
       !-----------------------------------------------------------------
@@ -506,7 +505,13 @@ contains
       integer :: nodes_x !total # nodes in x 
       integer :: x_GID, y_GID, z_GID, x_GIDplus1, y_GIDplus1, z_GIDplus1, elem_GID, xy_plane !for creating element numbering 
       integer :: nCellsActive !# active cells (with ice) in 2D  
+      integer :: ewlb, nslb
+      integer :: global_ewn, global_nsn
 
+      ewlb = parallel%ewlb
+      nslb = parallel%nslb
+      global_ewn = parallel%global_ewn
+      global_nsn = parallel%global_nsn
 
      !--------------------------------------------------------------------
      ! TO DO (IK, 9/18/13): 
@@ -523,7 +528,7 @@ contains
      !print *, 'dy: ', dy
      !print *, 'ewlb: ', ewlb
      !print *, 'nslb: ', nslb
-     !print *, 'global_ewn: ', global_ewn
+     !print *, 'global_ewn:', global_ewn
      !print *, 'global_nsn:', global_nsn
      !print *, 'nhalo:', nhalo
      !print *, 'nz:', nz

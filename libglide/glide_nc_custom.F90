@@ -61,26 +61,27 @@ contains
 
     do while(associated(oc))
        if (.not.oc%append) then
-          call glide_nc_filldvars(oc,model)
+          call glide_nc_filldvars(oc, model, &
+                                  model%parallel%global_ewn, model%parallel%global_nsn)
        endif
        oc=>oc%next
     end do
 
   end subroutine glide_nc_fillall
 
-  subroutine glide_nc_filldvars(outfile, model)
+  subroutine glide_nc_filldvars(outfile,    model, &
+                                global_ewn, global_nsn)
 
     use glide_types
     use glimmer_ncdf
     use glimmer_paramets, only : len0
-!    use parallel
-    use parallel_mod, only: global_ewn, global_nsn
     use parallel_mod, only: parallel_inq_varid, parallel_put_var, parallel_enddef
 
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
+    integer, intent(in) :: global_ewn, global_nsn    !> dimensions of global arrays
 
     integer i,status,varid
 

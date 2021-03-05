@@ -38,8 +38,8 @@ module glint_main
   use glint_global_grid
   use glad_constants
   use glint_anomcouple
-
   use glimmer_paramets, only: stdout, GLC_DEBUG
+  use parallel_mod, only: main_task, tasks
 
   implicit none
 
@@ -200,7 +200,6 @@ contains
     use glimmer_log
     use glimmer_filenames
     use glint_upscale, only: glint_upscaling
-    use parallel, only: main_task
     implicit none
 
     ! Subroutine argument declarations --------------------------------------------------------
@@ -611,7 +610,6 @@ contains
     use glimmer_filenames
     use glimmer_physcon, only: rearth
     use glint_upscale, only: glint_upscaling_gcm
-    use parallel, only: main_task
 
     implicit none
 
@@ -986,7 +984,7 @@ contains
     use glint_upscale, only: glint_upscaling
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
+
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------
@@ -1372,7 +1370,6 @@ contains
     use glint_upscale, only: glint_upscaling_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
 
     implicit none
 
@@ -1713,8 +1710,6 @@ contains
                                icemask_coupled_fluxes,    &
                                nec,                       &
                                frac_coverage)
-
-     use parallel, only: main_task
 
      ! Add the output for this instance to the global output
 

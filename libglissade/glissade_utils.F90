@@ -33,6 +33,7 @@ module glissade_utils
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
+  use parallel_mod, only: this_rank, main_task
 
   implicit none
 
@@ -59,8 +60,6 @@ contains
     !TODO: In this and the next two subroutines, we could pass in thck, topg, etc. instead of the model derived type.
 
     use glimmer_paramets, only: thk0
-!!    use parallel, only: this_rank, parallel_reduce_max
-    use parallel_mod, only: this_rank
     use parallel_mod, only: parallel_reduce_max
 
     !----------------------------------------------------------------
@@ -224,9 +223,6 @@ contains
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
 
-!    use parallel, only: this_rank
-    use parallel_mod, only: this_rank
-
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -267,7 +263,9 @@ contains
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
     ! compute initial mask
+    ! Modify glissade_get_masks so that 'parallel' is not needed
     call glissade_get_masks(nx,                  ny,                    &
+                            model%parallel,                             &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   0.0d0,                 &  ! thklim = 0
                             ice_mask,                                   &
@@ -376,9 +374,6 @@ contains
 
     use glimmer_paramets, only: thk0
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine (e.g., in this module)
-
-!    use parallel, only: this_rank
-    use parallel_mod, only: this_rank
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -600,9 +595,6 @@ contains
         grid_ratio,                &
         idiag,     jdiag,          &
         phi,       stdev)
-
-!    use parallel, only: main_task
-    use parallel_mod, only: main_task
 
     integer, intent(in) :: nx, ny                    ! number of cells in x and y direction on input grid (global)
     integer, intent(in) :: grid_ratio                ! nx/nx_coarse = ny/ny_coarse = ratio of fine to coarse grid
