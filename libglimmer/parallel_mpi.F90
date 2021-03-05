@@ -41,7 +41,6 @@ module parallel_mod
   integer :: main_rank      ! integer ID for the master task
   logical :: main_task      ! true if this_rank = main_rank
 
-
   ! Debug and Verification Level
   integer, parameter :: DEBUG_LEVEL = 1
 	! If > 0, then debug code executed.  Added for parallel_halo_verify()
@@ -94,7 +93,7 @@ module parallel_mod
      integer :: global_ewn, global_nsn  ! no. of cells in x and y dimensions on global grid
      integer :: local_ewn,  local_nsn   ! no. of cells in x and y dimensions on local grid (including halos)
      integer :: own_ewn,    own_nsn     ! no. of locally owned cells in x and y dimensions (excluding halos) 
-     integer :: global_col_offset, global_row_offset  ! 
+     integer :: global_row_offset, global_col_offset  ! no. of row and columns preceding the local rows and columns
 
      integer :: ewlb, ewub, nslb, nsub    ! indices for lower and upper cells in x and y dimensions
      integer :: east, west, north, south  ! integer ID for neighboring processes in each direction
@@ -294,6 +293,11 @@ module parallel_mod
      module procedure parallel_halo_real8_3d
   end interface
 
+  interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_integer_2d
+     module procedure parallel_halo_extrapolate_real8_2d
+  end interface
+
   interface parallel_halo_tracers
      module procedure parallel_halo_tracers_real8_3d
      module procedure parallel_halo_tracers_real8_4d
@@ -305,13 +309,7 @@ module parallel_mod
      module procedure parallel_halo_verify_real8_3d
   end interface
 
-  interface parallel_halo_extrapolate
-     module procedure parallel_halo_extrapolate_integer_2d
-     module procedure parallel_halo_extrapolate_real8_2d
-  end interface
-
   interface parallel_print
-     ! Writes a parallel (same on all processors) variable to file by just writing from main_task
      module procedure parallel_print_integer_2d
      module procedure parallel_print_real8_2d
      module procedure parallel_print_real8_3d
@@ -339,10 +337,24 @@ module parallel_mod
      module procedure parallel_reduce_max_real8
   end interface
 
+  ! This reduce interface determines the global max value and the processor on which it occurs
+  interface parallel_reduce_maxloc
+     module procedure parallel_reduce_maxloc_integer
+     module procedure parallel_reduce_maxloc_real4
+     module procedure parallel_reduce_maxloc_real8
+  end interface
+
   interface parallel_reduce_min
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+  end interface
+
+  ! This reduce interface determines the global min value and the processor on which it occurs
+  interface parallel_reduce_minloc
+     module procedure parallel_reduce_minloc_integer
+     module procedure parallel_reduce_minloc_real4
+     module procedure parallel_reduce_minloc_real8
   end interface
 
   interface parallel_reduce_sum
@@ -351,20 +363,6 @@ module parallel_mod
      module procedure parallel_reduce_sum_real8
      module procedure parallel_reduce_sum_integer_nvar
      module procedure parallel_reduce_sum_real8_nvar
-  end interface
-
-  ! This reduce interface determines the global max value and the processor on which it occurs
-  interface parallel_reduce_maxloc
-     module procedure parallel_reduce_maxloc_integer
-     module procedure parallel_reduce_maxloc_real4
-     module procedure parallel_reduce_maxloc_real8
-  end interface
-
-  ! This reduce interface determines the global min value and the processor on which it occurs
-  interface parallel_reduce_minloc
-     module procedure parallel_reduce_minloc_integer
-     module procedure parallel_reduce_minloc_real4
-     module procedure parallel_reduce_minloc_real8
   end interface
 
   interface staggered_parallel_halo
@@ -1047,6 +1045,7 @@ contains
 
   end subroutine distributed_gather_var_real4_3d
 
+
   subroutine distributed_gather_var_real8_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
@@ -1153,6 +1152,7 @@ contains
     ! automatic deallocation
 
   end subroutine distributed_gather_var_real8_2d
+
 
   subroutine distributed_gather_var_real8_3d(values, global_values, parallel, ld1, ud1)
 
@@ -2363,17 +2363,6 @@ contains
 
 !=======================================================================
 
-  function distributed_isparallel()
-
-     implicit none
-     logical :: distributed_isparallel
-
-     distributed_isparallel = .true.
-
-  end function distributed_isparallel
-
-!=======================================================================
-
   subroutine distributed_grid(ewn,      nsn,        &
                               parallel,             &
                               nhalo_in, global_bc_in)
@@ -2383,7 +2372,7 @@ contains
 
     implicit none
     integer, intent(inout) :: ewn, nsn                  ! global grid dimensions
-    type(parallel_type), intent(inout) :: parallel
+    type(parallel_type), intent(inout) :: parallel      ! info for parallel communication, computed here
     integer, intent(in), optional :: nhalo_in           ! number of rows of halo cells
     character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
 
@@ -2509,9 +2498,9 @@ contains
     ! Store critical value for creating global IDs.  Defines grid distribution.
     ProcsEW = ewtasks
 
-    ! For globalID calculations determine processor's global grid index offsets
-    ! sum block sizes for row blocks preceding this_rank
-    ! Do not include halo offsets in global calculations
+    ! For globalID calculations, determine processor's global grid index offsets.
+    ! Sum block sizes for row blocks preceding this_rank.
+    ! Do not include halo offsets in global calculations.
     ! (There are ProcsEW processors per row.)
     global_col_offset = 0
     do ewrank=0,mod(this_rank, ProcsEW)-1
@@ -2522,7 +2511,7 @@ contains
       global_col_offset = global_col_offset + own_ewn
     enddo
 
-    ! sum block sizes for column blocks preceding this_rank
+    ! Sum block sizes for column blocks preceding this_rank
     ! (Integer division required for this_rank/ProcsEW)
     global_row_offset = 0
     do nsrank=0,(this_rank/ProcsEW)-1
@@ -2678,7 +2667,7 @@ contains
     integer, intent(in) :: nx_block, ny_block       ! block sizes in each direction
     integer, intent(in), dimension(:,:) :: &
          ice_domain_mask                            ! = 1 where ice is potentially present and active, else = 0
-    type(parallel_type) :: parallel
+    type(parallel_type), intent(inout) :: parallel  ! info for parallel communication, computed here
     logical, intent(in), optional :: inquire_only   ! if true, then report the number of active blocks and abort
 
     integer :: i, j, nb, nt
@@ -3250,7 +3239,19 @@ contains
 
 !=======================================================================
 
+  function distributed_isparallel()
+
+     implicit none
+     logical :: distributed_isparallel
+
+     distributed_isparallel = .true.
+
+  end function distributed_isparallel
+
+!=======================================================================
+
   function distributed_owner(ew, ewn, ns, nsn, parallel)
+
     implicit none
     logical :: distributed_owner
     integer :: ew,ewn,ns,nsn
@@ -3640,9 +3641,6 @@ contains
   end subroutine distributed_print_real8_3d
 
 !=======================================================================
-
-  !WHL: glide_io template will need to be modified to add the parallel argument
-  !     Should go before 'start', which in some cases is optional
 
   ! functions belonging to the distributed_put_var interface
 
@@ -6707,7 +6705,6 @@ contains
     end associate
 
   end subroutine parallel_halo_tracers_real8_3d
-
 
   subroutine parallel_halo_tracers_real8_4d(a, parallel)
 
