@@ -24,11 +24,30 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-module parallel
+module parallel_mod
 
   use netcdf
   use glimmer_global, only : dp, sp
   implicit none
+
+  ! integers associated with the main global communicator (for communication among all tasks)
+  ! Note: When running CISM with multiple ice sheet instances, these values are assumed
+  !        to be the same for all instances.
+  !       In most cases the following ifdef will be false, and we set parameter values.
+
+#ifdef _USE_MPI_WITH_SLAP
+  integer,save :: comm         ! integer ID for the main global communicator
+  integer,save :: tasks        ! total number of tasks
+  integer,save :: this_rank    ! integer ID for the local task
+  integer,save :: main_rank    ! integer ID for the master task
+  logical,save :: main_task    ! true if this_rank = main_rank
+#else
+  integer,parameter :: comm = 0
+  integer,parameter :: tasks = 1
+  integer,parameter :: this_rank = 0
+  integer,parameter :: main_rank = 0
+  logical,parameter :: main_task = .true.
+#endif
 
   !NOTE: The glam/glissade dycore currently requires nhalo = 2,
   !       whereas the glide dycore requires nhalo = 0.
@@ -45,39 +64,69 @@ module parallel
   integer, save :: staggered_lhalo = 2
   integer, save :: staggered_uhalo = 1
 
-#ifdef _USE_MPI_WITH_SLAP
-  logical,save :: main_task
-  integer,save :: this_rank
-  integer,save :: tasks
-  integer,save :: comm
-#else
-  logical,parameter :: main_task = .true.
-  integer,parameter :: this_rank = 0
-  integer,parameter :: tasks = 1
-#endif
+  ! Information needed to carry out parallel operations (halo, broadcast, gather, scatter, etc.)
+  !  for a particular ice sheet instance
+  ! Note: It is unlikely that we would run the serial code with multiple ice sheet instances.
+  !       However, the interfaces in this module have been made consistent with those in parallel_mpi.F90,
+  !        which were rewritten to support multiple instances (Mar. 2021).
+  ! Note: Options not supported for the serial code:
+  !       * no_ice_bc
+  !       * global row and column communicators
+  !       * active_blocks (as set up in subroutine distributed_grid_active_blocks)
 
-  ! distributed grid
-  integer,save :: global_ewn,global_nsn,local_ewn,local_nsn,own_ewn,own_nsn
-  integer,save :: global_col_offset, global_row_offset
+  type :: parallel_type
 
-  integer,save :: ewlb,ewub,nslb,nsub
-  integer,save :: east,north,south,west
-  integer,save :: ewtasks,nstasks
+     ! global boundary conditions
+     logical :: periodic_bc = .true.  ! doubly periodic
+     logical :: outflow_bc = .false.  ! if true, set scalars in global halo to zero, and set
+                                      ! staggered data to zero beyond the global boundary
+     logical :: no_ice_bc = .false.   ! if true, scalars adjacent to the global boundary are set to zero;
+                                      ! this includes halo cells and one row of locally owned cells
 
-  ! bounds of locally owned vertices on staggered grid
-  ! For periodic BC, staggered_ilo = staggered_jlo = staggered_lhalo+1.
-  ! For outflow BC the locally owned vertices include the southern and western rows
-  !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
-  !  processors that include these rows.
-  integer,save :: staggered_ilo
-  integer,save :: staggered_jlo
-  integer,save :: staggered_ihi
-  integer,save :: staggered_jhi
+     ! grid parameters on the distributed grid
+     integer :: global_ewn, global_nsn  ! no. of cells in x and y dimensions on global grid
+     integer :: local_ewn,  local_nsn   ! no. of cells in x and y dimensions on local grid (including halos)
+     integer :: own_ewn,    own_nsn     ! no. of locally owned cells in x and y dimensions (excluding halos)
+     integer :: global_row_offset, global_col_offset  ! no. of row and columns preceding the local rows and columns
 
-  ! global boundary conditions
-  logical,save :: periodic_bc  ! doubly periodic
-  logical,save :: outflow_bc   ! if true, set scalars in global halo to zero, and set
-                               ! staggered data to zero beyond the global boundary
+     integer :: ewlb, ewub, nslb, nsub    ! indices for lower and upper cells in x and y dimensions
+     integer :: east, west, north, south  ! integer ID for neighboring processes in each direction
+     integer :: ewtasks, nstasks          ! no. of tasks in x and y directions
+     integer :: ewrank, nsrank            ! this processor's rank in x and y directions
+
+     ! bounds of locally owned vertices on staggered grid
+     ! For periodic BC, staggered_ilo = staggered_jlo = staggered_lhalo+1.
+     ! For outflow BC the locally owned vertices include the southern and western rows
+     !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
+     !  processors that include these rows.
+     integer :: staggered_ilo
+     integer :: staggered_jlo
+     integer :: staggered_ihi
+     integer :: staggered_jhi
+
+     ! optional row-based and column-based communicators
+     ! These can be used for global tridiagonal solves
+
+     ! Note: The row- and column-based communicators are not supported for the serial code.
+     !       Here, we simply declare some variables so the code will compile.
+
+     ! integers associated with the row-based communicator
+     ! (for communication among tasks with the same value of nsrank)
+     integer :: comm_row           ! integer ID for the row-based communicator
+     integer :: tasks_row          ! total number of tasks on the local row
+     integer :: this_rank_row      ! integer ID for the local task in the row
+     integer :: main_rank_row      ! integer ID for the master task on the row
+     logical :: main_task_row      ! true if this_rank_row = main_rank_row
+
+     ! integers associated with the column-based communicator
+     ! (for communication among tasks with the same value of ewrank)
+     integer :: comm_col           ! integer ID for the column-based communicator
+     integer :: tasks_col          ! total number of tasks on the local column
+     integer :: this_rank_col      ! integer ID for the local task in the column
+     integer :: main_rank_col      ! integer ID for the master task on the column
+     logical :: main_task_col      ! true if this_rank_col = main_rank_col
+
+  end type parallel_type
 
   ! global IDs
   integer,parameter :: ProcsEW = 1
@@ -103,6 +152,23 @@ module parallel
      module procedure distributed_gather_var_real8_3d
   end interface
 
+  !TODO - Add dummy procedures for row and column gathers
+  interface distributed_gather_var_row
+     module procedure distributed_gather_var_row_real8_2d
+  end interface
+
+  interface distributed_gather_all_var_row
+     module procedure distributed_gather_all_var_row_real8_2d
+  end interface
+
+  interface distributed_gather_var_col
+     module procedure distributed_gather_var_col_real8_2d
+  end interface
+
+  interface distributed_gather_all_var_col
+     module procedure distributed_gather_all_var_col_real8_2d
+  end interface
+
   interface distributed_get_var
      module procedure distributed_get_var_integer_2d
      module procedure distributed_get_var_real4_1d
@@ -110,11 +176,10 @@ module parallel
      module procedure distributed_get_var_real8_1d
      module procedure distributed_get_var_real8_2d
      module procedure distributed_get_var_real8_3d
-
      !TODO - Put these in the parallel_get_var interface only?
-     module procedure parallel_get_var_integer
-     module procedure parallel_get_var_real4
-     module procedure parallel_get_var_real8
+!!     module procedure parallel_get_var_integer
+!!     module procedure parallel_get_var_real4
+!!     module procedure parallel_get_var_real8
   end interface
 
   interface distributed_print
@@ -131,11 +196,23 @@ module parallel
      module procedure distributed_put_var_real8_1d
      module procedure distributed_put_var_real8_2d
      module procedure distributed_put_var_real8_3d
+  end interface
 
-     !TODO - Put these in the parallel_put_var interface only?
-     module procedure parallel_put_var_integer
-     module procedure parallel_put_var_real4
-     module procedure parallel_put_var_real8
+  interface distributed_scatter_var
+     module procedure distributed_scatter_var_integer_2d
+     module procedure distributed_scatter_var_logical_2d
+     module procedure distributed_scatter_var_real4_2d
+     module procedure distributed_scatter_var_real4_3d
+     module procedure distributed_scatter_var_real8_2d
+     module procedure distributed_scatter_var_real8_3d
+  end interface
+
+  interface distributed_scatter_var_row
+     module procedure distributed_scatter_var_row_real8_2d
+  end interface
+
+  interface distributed_scatter_var_col
+     module procedure distributed_scatter_var_col_real8_2d
   end interface
 
   interface parallel_convert_haloed_to_nonhaloed
@@ -161,20 +238,6 @@ module parallel
      module procedure parallel_get_att_real8_1d
   end interface
 
-  interface distributed_scatter_var
-     module procedure distributed_scatter_var_integer_2d
-     module procedure distributed_scatter_var_logical_2d
-     module procedure distributed_scatter_var_real4_2d
-     module procedure distributed_scatter_var_real4_3d
-     module procedure distributed_scatter_var_real8_2d
-     module procedure distributed_scatter_var_real8_3d
-  end interface
-
-  interface global_sum
-     module procedure global_sum_real8_scalar
-     module procedure global_sum_real8_1d
-  end interface
-
   interface parallel_get_var
      module procedure parallel_get_var_integer
      module procedure parallel_get_var_real4
@@ -192,6 +255,11 @@ module parallel
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
      module procedure parallel_halo_real8_3d
+  end interface
+
+  interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_integer_2d
+     module procedure parallel_halo_extrapolate_real8_2d
   end interface
 
   interface parallel_halo_tracers
@@ -227,24 +295,10 @@ module parallel
      module procedure parallel_put_var_real8_1d
   end interface
 
-  interface parallel_reduce_sum
-     module procedure parallel_reduce_sum_integer
-     module procedure parallel_reduce_sum_real4
-     module procedure parallel_reduce_sum_real8
-     module procedure parallel_reduce_sum_integer_nvar
-     module procedure parallel_reduce_sum_real8_nvar
-  end interface
-
   interface parallel_reduce_max
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
-  end interface
-
-  interface parallel_reduce_min
-     module procedure parallel_reduce_min_integer
-     module procedure parallel_reduce_min_real4
-     module procedure parallel_reduce_min_real8
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -254,11 +308,25 @@ module parallel
      module procedure parallel_reduce_maxloc_real8
   end interface
 
+  interface parallel_reduce_min
+     module procedure parallel_reduce_min_integer
+     module procedure parallel_reduce_min_real4
+     module procedure parallel_reduce_min_real8
+  end interface
+
   ! This reduce interface determines the global min value and the processor on which it occurs
   interface parallel_reduce_minloc
      module procedure parallel_reduce_minloc_integer
      module procedure parallel_reduce_minloc_real4
      module procedure parallel_reduce_minloc_real8
+  end interface
+
+  interface parallel_reduce_sum
+     module procedure parallel_reduce_sum_integer
+     module procedure parallel_reduce_sum_real4
+     module procedure parallel_reduce_sum_real8
+     module procedure parallel_reduce_sum_integer_nvar
+     module procedure parallel_reduce_sum_real8_nvar
   end interface
 
   interface staggered_parallel_halo
@@ -269,17 +337,16 @@ module parallel
      module procedure staggered_parallel_halo_real8_4d
   end interface
 
-  interface parallel_halo_extrapolate
-     module procedure parallel_halo_extrapolate_integer_2d
-     module procedure parallel_halo_extrapolate_real8_2d
-  end interface
-
   interface staggered_parallel_halo_extrapolate
      module procedure staggered_parallel_halo_extrapolate_integer_2d
      module procedure staggered_parallel_halo_extrapolate_real8_2d
   end interface
 
 contains
+
+!=======================================================================
+
+  ! subroutines belonging to the broadcast interface
 
   subroutine broadcast_character(c, proc)
     implicit none
@@ -334,16 +401,347 @@ contains
     integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from - not relevant to serial version
   end subroutine broadcast_real8_1d
 
-  function distributed_get_var_integer_2d(ncid,varid,values,start)
+!=======================================================================
+
+  function distributed_execution()
+     ! Returns if running distributed or not.
+     logical distributed_execution
+
+     distributed_execution = .false.
+  end function distributed_execution
+
+!=======================================================================
+
+  ! subroutines belonging to the distributed_gather_var interface
+
+  subroutine distributed_gather_var_integer_2d(values, global_values, parallel)
+
+    ! Gather a distributed variable back to main_task node
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which the main_task will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+    ! Variables are assumed to lie on the scalar grid (at cell centers).
+
+    implicit none
+    integer,dimension(:,:),intent(in) :: values
+    integer,dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+
+      !WHL - Commented code will not work if the local arrays include halo cells
+!!    allocate(global_values(size(values,1), size(values,2)))
+!!    global_values(:,:) = values(:,:)
+    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
+    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
+
+  end subroutine distributed_gather_var_integer_2d
+
+
+  subroutine distributed_gather_var_logical_2d(values, global_values, parallel)
+
+    ! Gather a distributed variable back to main_task node
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which the main_task will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+    ! Variables are assumed to lie on the scalar grid (at cell centers).
+
+    implicit none
+    logical,dimension(:,:),intent(in) :: values
+    logical,dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+
+      !WHL - Commented code will not work if the local arrays include halo cells
+!!    allocate(global_values(size(values,1), size(values,2)))
+!!    global_values(:,:) = values(:,:)
+    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
+    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
+
+  end subroutine distributed_gather_var_logical_2d
+
+
+  subroutine distributed_gather_var_real4_2d(values, global_values, parallel)
+
+    ! Gather a distributed variable back to main_task node
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which the main_task will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+    ! Variables are assumed to lie on the scalar grid (at cell centers).
+
+    implicit none
+    real(sp),dimension(:,:),intent(in) :: values
+    real(sp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+
+      !WHL - Commented code will not work if the local arrays include halo cells
+!!    allocate(global_values(size(values,1), size(values,2)))
+!!    global_values(:,:) = values(:,:)
+    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
+    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
+
+  end subroutine distributed_gather_var_real4_2d
+
+
+  subroutine distributed_gather_var_real4_3d(values, global_values, parallel, ld1, ud1)
+
+    ! Gather a distributed variable back to main_task node
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which the main_task will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+    ! Variables are assumed to lie on the scalar grid (at cell centers).
+
+    implicit none
+    real(sp),dimension(:,:,:),intent(in) :: values
+    real(sp),dimension(:,:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+    integer,optional,intent(in) :: ld1, ud1
+
+    integer :: d1l,d1u
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+    if (present(ld1)) then
+       d1l = ld1
+    else
+       d1l = 1
+    endif
+    if (present(ud1)) then
+       d1u = ud1
+    else
+       d1u = size(values,1)
+    endif
+    if (size(values,1) /= d1u-d1l+1) then
+       write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
+       call parallel_stop(__FILE__, __LINE__)
+    endif
+
+    !WHL - Commented code will not work if the local arrays include halo cells
+!!    allocate(global_values(d1l:d1u, size(values,2), size(values,3)))
+!!    global_values(d1l:d1u,:,:) = values(1:size(values,1),:,:)
+    allocate(global_values(d1l:d1u, size(values,2)-uhalo-lhalo, size(values,3)-uhalo-lhalo))
+    global_values(d1l:d1u,:,:) = values(1:size(values,1), 1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
+
+  end subroutine distributed_gather_var_real4_3d
+
+
+  subroutine distributed_gather_var_real8_2d(values, global_values, parallel)
+
+    ! Gather a distributed variable back to main_task node
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which the main_task will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+    ! Variables are assumed to lie on the scalar grid (at cell centers).
+
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+
+      !WHL - Commented code will not work if the local arrays include halo cells
+!!    allocate(global_values(size(values,1), size(values,2)))
+!!    global_values(:,:) = values(:,:)
+    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
+    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
+
+  end subroutine distributed_gather_var_real8_2d
+
+
+  subroutine distributed_gather_var_real8_3d(values, global_values, parallel, ld1, ud1)
+
+    ! Gather a distributed variable back to main_task node
+    ! values = local portion of distributed variable
+    ! global_values = reference to allocateable array into which the main_task will store the variable.
+    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
+    ! Variables are assumed to lie on the scalar grid (at cell centers).
+    implicit none
+    real(dp),dimension(:,:,:),intent(in) :: values
+    real(dp),dimension(:,:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+    integer,optional,intent(in) :: ld1, ud1
+
+    integer :: d1l,d1u
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
+
+    if (allocated(global_values)) then
+       deallocate(global_values)
+    endif
+    if (present(ld1)) then
+       d1l = ld1
+    else
+       d1l = 1
+    endif
+    if (present(ud1)) then
+       d1u = ud1
+    else
+       d1u = size(values,1)
+    endif
+    if (size(values,1) /= d1u-d1l+1) then
+       write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
+       call parallel_stop(__FILE__, __LINE__)
+    endif
+
+    !WHL - Commented code will not work if the local arrays include halo cells
+!!    allocate(global_values(d1l:d1u, size(values,2), size(values,3)))
+!!    global_values(d1l:d1u,:,:) = values(1:size(values,1),:,:)
+    allocate(global_values(d1l:d1u, size(values,2)-uhalo-lhalo, size(values,3)-uhalo-lhalo))
+    global_values(d1l:d1u,:,:) = values(1:size(values,1), 1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
+
+  end subroutine distributed_gather_var_real8_3d
+
+!=======================================================================
+
+  ! subroutines belonging to the distributed_gather_var_row interface
+
+  subroutine distributed_gather_var_row_real8_2d(values, global_values, parallel)
+
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    ! The row gather option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The row gather option is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_gather_var_row_real8_2d
+
+!=======================================================================
+
+  ! subroutines belonging to the distributed_gather_all_var_row interface
+  ! Note: This is a dummy subroutine.  Row gathers are not supported for the serial code.
+
+  subroutine distributed_gather_all_var_row_real8_2d(values, global_values, parallel)
+
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    ! The row gather option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The row gather option is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_gather_all_var_row_real8_2d
+
+!=======================================================================
+
+  ! subroutines belonging to the distributed_gather_var_col interface
+  ! Note: This is a dummy subroutine.  Column gathers are not supported for the serial code.
+
+  subroutine distributed_gather_var_col_real8_2d(values, global_values, parallel)
+
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    ! The column gather option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The row gather option is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_gather_var_col_real8_2d
+
+!=======================================================================
+
+  ! subroutines belonging to the distributed_gather_all_var_col interface
+  ! Note: This is a dummy subroutine.  Column gathers are not supported for the serial code.
+
+  subroutine distributed_gather_all_var_col_real8_2d(values, global_values, parallel)
+
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    ! The row gather option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The row gather option is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_gather_all_var_col_real8_2d
+
+!=======================================================================
+
+  ! functions belonging to the distributed get_var interface
+  ! Note: 'parallel' is before 'start' to be consistent with the distributed_put_var interface.
+  !       For distributed_put_var, 'parallel' must go first since 'start' can be optional
+
+  function distributed_get_var_integer_2d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_get_var_integer_2d,ncid,varid
     integer,dimension(:) :: start
     integer,dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo, ihi, jlo, jhi
 
     ! begin
+
+    associate(  &
+         local_ewn  => parallel%local_ewn,  &
+         local_nsn  => parallel%local_nsn)
 
     if (main_task) then
 
@@ -366,19 +764,27 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_get_var_integer_2d
 
-  function distributed_get_var_real4_1d(ncid,varid,values,start)
+
+  function distributed_get_var_real4_1d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_get_var_real4_1d,ncid,varid
     integer,dimension(:) :: start
     real(sp),dimension(:) :: values
+    type(parallel_type) :: parallel
 
     integer :: status, x1id, y1id
     integer :: ilo, ihi
 
     ! begin
+
+    associate(  &
+         local_ewn  => parallel%local_ewn,  &
+         local_nsn  => parallel%local_nsn)
 
     if (main_task) then
 
@@ -399,18 +805,26 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_get_var_real4_1d
 
-  function distributed_get_var_real4_2d(ncid,varid,values,start)
+
+  function distributed_get_var_real4_2d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_get_var_real4_2d,ncid,varid
     integer,dimension(:) :: start
     real(sp),dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo, ihi, jlo, jhi
 
     ! begin
+
+    associate(  &
+         local_ewn  => parallel%local_ewn,  &
+         local_nsn  => parallel%local_nsn)
 
     if (main_task) then
 
@@ -433,21 +847,27 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_get_var_real4_2d
 
-  !WHL - added this function
 
-  function distributed_get_var_real8_1d(ncid,varid,values,start)
+  function distributed_get_var_real8_1d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_get_var_real8_1d,ncid,varid
     integer,dimension(:) :: start
     real(dp),dimension(:) :: values
+    type(parallel_type) :: parallel
 
     integer :: status, x1id, y1id
     integer :: ilo, ihi
 
     ! begin
+
+    associate(  &
+         local_ewn  => parallel%local_ewn,  &
+         local_nsn  => parallel%local_nsn)
 
     if (main_task) then
 
@@ -468,17 +888,26 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_get_var_real8_1d
 
-  function distributed_get_var_real8_2d(ncid,varid,values,start)
+
+  function distributed_get_var_real8_2d(ncid, varid, values, parallel, start)
+
     implicit none
     integer :: distributed_get_var_real8_2d,ncid,varid
     integer,dimension(:) :: start
     real(dp),dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo, ihi, jlo, jhi
 
     ! begin
+
+    associate(  &
+         local_ewn  => parallel%local_ewn,  &
+         local_nsn  => parallel%local_nsn)
 
     if (main_task) then
 
@@ -501,18 +930,26 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_get_var_real8_2d
 
-  function distributed_get_var_real8_3d(ncid,varid,values,start)
+
+  function distributed_get_var_real8_3d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_get_var_real8_3d,ncid,varid
     integer,dimension(:) :: start
     real(dp),dimension(:,:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo, ihi, jlo, jhi
 
     ! begin
+
+    associate(  &
+         local_ewn  => parallel%local_ewn,  &
+         local_nsn  => parallel%local_nsn)
 
     if (main_task) then
 
@@ -535,34 +972,88 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_get_var_real8_3d
 
 
   subroutine distributed_grid(ewn,      nsn,  &
-                              nhalo_in, outflow_bc_in)
+                              parallel,       &
+                              nhalo_in, global_bc_in)
+
+    ! Divide the global domain into blocks, with one task per block.
+    ! Set various grid and domain variables for the local task.
+    ! For the serial code, there is just one task on one block.
 
     implicit none
 
-    integer, intent(inout) :: ewn, nsn          ! global grid dimensions
-    integer, intent(in), optional :: nhalo_in   ! number of rows of halo cells
-    logical, intent(in), optional :: outflow_bc_in  ! true for outflow global BCs
-                                                    ! (scalars in global halo set to zero)
-           
-    integer :: ewrank,nsrank
+    integer, intent(inout) :: ewn, nsn                  ! global grid dimensions
+    type(parallel_type), intent(inout) :: parallel      ! info for parallel communication, computed here
+    integer, intent(in), optional :: nhalo_in           ! number of rows of halo cells
+    character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
+
+    associate(  &
+         periodic_bc => parallel%periodic_bc,  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         global_ewn  => parallel%global_ewn,   &
+         global_nsn  => parallel%global_nsn,   &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn,      &
+         ewlb        => parallel%ewlb,         &
+         ewub        => parallel%ewub,         &
+         nslb        => parallel%nslb,         &
+         nsub        => parallel%nsub,         &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south,        &
+         ewtasks     => parallel%ewtasks,      &
+         nstasks     => parallel%nstasks,      &
+         ewrank      => parallel%ewrank,       &
+         nsrank      => parallel%nsrank,       &
+         global_col_offset  => parallel%global_col_offset,  &
+         global_row_offset  => parallel%global_row_offset,  &
+         staggered_ilo      => parallel%staggered_ilo,      &
+         staggered_ihi      => parallel%staggered_ihi,      &
+         staggered_jlo      => parallel%staggered_jlo,      &
+         staggered_jhi      => parallel%staggered_jhi       &
+         )
 
     ! set the boundary conditions (periodic by default) 
     ! Note: The no-penetration BC is treated as periodic. This BC may need some more work.
 
-    if (present(outflow_bc_in)) then
-       outflow_bc = outflow_bc_in
-    else
-       outflow_bc = .false.
-    endif
-
-    if (outflow_bc) then
-       periodic_bc = .false.
-    else
+    if (present(global_bc_in)) then
+       if (trim(global_bc_in) == 'periodic') then
+          periodic_bc = .true.
+          outflow_bc = .false.
+          no_ice_bc = .false.
+          if (main_task) write(*,*) 'Setting periodic boundary conditions'
+       elseif (trim(global_bc_in) == 'outflow') then
+          periodic_bc = .false.
+          outflow_bc = .true.
+          no_ice_bc = .false.
+          if (main_task) write(*,*) 'Setting outflow boundary conditions'
+       elseif (trim(global_bc_in) == 'no_penetration') then
+          periodic_bc = .true.   ! Currently use the same halo logic for no_penetration and periodic
+          outflow_bc = .false.
+          no_ice_bc = .false.
+          if (main_task) write(*,*) 'Setting no_penetration boundary conditions'
+       elseif (trim(global_bc_in) == 'no_ice') then
+          periodic_bc = .false.
+          outflow_bc = .false.
+          no_ice_bc = .true.
+          if (main_task) write(*,*) 'Setting no_ice boundary conditions'
+       else
+          if (main_task) write(*,*) 'Error: Invalid global_bc option for distributed_grid subroutine'
+          call parallel_stop(__FILE__, __LINE__)
+       endif
+    else   ! default to periodic
        periodic_bc = .true.
+       outflow_bc = .false.
+       no_ice_bc = .false.
     endif
 
     ! Optionally, change the halo values
@@ -604,7 +1095,7 @@ contains
     north = 0
     south = 0
 
-! Trey's original code
+    ! Trey's original code
 !    ewlb = 1
 !    ewub = global_ewn
 !    local_ewn = ewub-ewlb+1
@@ -617,7 +1108,7 @@ contains
 !    own_nsn = local_nsn-lhalo-uhalo
 !    nsn = local_nsn
 
-!WHL - modified code for nonzero halo values
+    ! modified code for nonzero halo values
     ewlb = 1 - lhalo
     ewub = global_ewn + uhalo
     local_ewn = ewub - ewlb + 1
@@ -661,12 +1152,15 @@ contains
     write(*,*) "Process ", this_rank, " north = ", north, " south = ", south
     write(*,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
 
+    end associate
+
   end subroutine distributed_grid
 
 
   subroutine distributed_grid_active_blocks(ewn,      nsn,        &
                                             nx_block, ny_block,   &
                                             ice_domain_mask,      &
+                                            parallel,             &
                                             inquire_only)
 
     implicit none
@@ -675,6 +1169,7 @@ contains
     integer, intent(in) :: nx_block, ny_block       ! block sizes in each direction
     integer, intent(in), dimension(:,:) :: &
          ice_domain_mask                            ! = 1 where ice is potentially present and active, else = 0
+    type(parallel_type), intent(inout) :: parallel  ! info for parallel communication
     logical, intent(in), optional :: inquire_only   ! if true, then report the number of active blocks and abort
 
     ! The active_blocks option is not supported for serial code.
@@ -686,202 +1181,49 @@ contains
 
   end subroutine distributed_grid_active_blocks
 
-  function distributed_execution()
-     ! Returns if running distributed or not.
-     logical distributed_execution
-
-     distributed_execution = .false.
-  end function distributed_execution
-
-  subroutine distributed_gather_var_integer_2d(values, global_values)
-    ! JEFF Gather a distributed variable back to main_task node
-    ! values = local portion of distributed variable
-    ! global_values = reference to allocateable array into which the main_task will store the variable.
-    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
-    ! Variables are assumed to lie on the scalar grid (at cell centers).
-    implicit none
-    integer,dimension(:,:),intent(in) :: values
-    integer,dimension(:,:),allocatable,intent(inout) :: global_values
-
-    if (allocated(global_values)) then
-       deallocate(global_values)
-    endif
-
-      !WHL - Commented code will not work if the local arrays include halo cells
-!!    allocate(global_values(size(values,1), size(values,2)))
-!!    global_values(:,:) = values(:,:)
-    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
-    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
-
-  end subroutine distributed_gather_var_integer_2d
-
-  subroutine distributed_gather_var_logical_2d(values, global_values)
-    ! JEFF Gather a distributed variable back to main_task node
-    ! values = local portion of distributed variable
-    ! global_values = reference to allocateable array into which the main_task will store the variable.
-    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
-    ! Variables are assumed to lie on the scalar grid (at cell centers).
-    implicit none
-    logical,dimension(:,:),intent(in) :: values
-    logical,dimension(:,:),allocatable,intent(inout) :: global_values
-
-    if (allocated(global_values)) then
-       deallocate(global_values)
-    endif
-
-      !WHL - Commented code will not work if the local arrays include halo cells
-!!    allocate(global_values(size(values,1), size(values,2)))
-!!    global_values(:,:) = values(:,:)
-    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
-    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
-
-  end subroutine distributed_gather_var_logical_2d
-
-  subroutine distributed_gather_var_real4_2d(values, global_values)
-    ! JEFF Gather a distributed variable back to main_task node
-    ! values = local portion of distributed variable
-    ! global_values = reference to allocateable array into which the main_task will store the variable.
-    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
-    ! Variables are assumed to lie on the scalar grid (at cell centers).
-    implicit none
-    real(sp),dimension(:,:),intent(in) :: values
-    real(sp),dimension(:,:),allocatable,intent(inout) :: global_values
-
-    if (allocated(global_values)) then
-       deallocate(global_values)
-    endif
-
-      !WHL - Commented code will not work if the local arrays include halo cells
-!!    allocate(global_values(size(values,1), size(values,2)))
-!!    global_values(:,:) = values(:,:)
-    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
-    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
-
-  end subroutine distributed_gather_var_real4_2d
-
-  subroutine distributed_gather_var_real4_3d(values, global_values, ld1, ud1)
-    ! JEFF Gather a distributed variable back to main_task node
-    ! values = local portion of distributed variable
-    ! global_values = reference to allocateable array into which the main_task will store the variable.
-    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
-    ! Variables are assumed to lie on the scalar grid (at cell centers).
-    implicit none
-    real(sp),dimension(:,:,:),intent(in) :: values
-    real(sp),dimension(:,:,:),allocatable,intent(inout) :: global_values
-    integer,optional,intent(in) :: ld1, ud1
-
-    integer :: d1l,d1u
-
-    if (allocated(global_values)) then
-       deallocate(global_values)
-    endif
-    if (present(ld1)) then
-       d1l = ld1
-    else
-       d1l = 1
-    endif
-    if (present(ud1)) then
-       d1u = ud1
-    else
-       d1u = size(values,1)
-    endif
-    if (size(values,1) /= d1u-d1l+1) then
-       write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
-       call parallel_stop(__FILE__, __LINE__)
-    endif
-
-    !WHL - Commented code will not work if the local arrays include halo cells
-!!    allocate(global_values(d1l:d1u, size(values,2), size(values,3)))
-!!    global_values(d1l:d1u,:,:) = values(1:size(values,1),:,:)
-    allocate(global_values(d1l:d1u, size(values,2)-uhalo-lhalo, size(values,3)-uhalo-lhalo))
-    global_values(d1l:d1u,:,:) = values(1:size(values,1), 1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
-
-  end subroutine distributed_gather_var_real4_3d
-
-  subroutine distributed_gather_var_real8_2d(values, global_values)
-    ! JEFF Gather a distributed variable back to main_task node
-    ! values = local portion of distributed variable
-    ! global_values = reference to allocateable array into which the main_task will store the variable.
-    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
-    ! Variables are assumed to lie on the scalar grid (at cell centers).
-    implicit none
-    real(dp),dimension(:,:),intent(in) :: values
-    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
-
-    if (allocated(global_values)) then
-       deallocate(global_values)
-    endif
-
-      !WHL - Commented code will not work if the local arrays include halo cells
-!!    allocate(global_values(size(values,1), size(values,2)))
-!!    global_values(:,:) = values(:,:)
-    allocate(global_values(size(values,1)-uhalo-lhalo, size(values,2)-uhalo-lhalo))
-    global_values(:,:) = values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
-
-  end subroutine distributed_gather_var_real8_2d
-
-  subroutine distributed_gather_var_real8_3d(values, global_values, ld1, ud1)
-    ! JEFF Gather a distributed variable back to main_task node
-    ! values = local portion of distributed variable
-    ! global_values = reference to allocateable array into which the main_task will store the variable.
-    ! If global_values is allocated, then it will be deallocated and reallocated.  It will be unused on other nodes.
-    ! Variables are assumed to lie on the scalar grid (at cell centers).
-    implicit none
-    real(dp),dimension(:,:,:),intent(in) :: values
-    real(dp),dimension(:,:,:),allocatable,intent(inout) :: global_values
-    integer,optional,intent(in) :: ld1, ud1
-
-    integer :: d1l,d1u
-
-    if (allocated(global_values)) then
-       deallocate(global_values)
-    endif
-    if (present(ld1)) then
-       d1l = ld1
-    else
-       d1l = 1
-    endif
-    if (present(ud1)) then
-       d1u = ud1
-    else
-       d1u = size(values,1)
-    endif
-    if (size(values,1) /= d1u-d1l+1) then
-       write(*,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
-       call parallel_stop(__FILE__, __LINE__)
-    endif
-
-    !WHL - Commented code will not work if the local arrays include halo cells
-!!    allocate(global_values(d1l:d1u, size(values,2), size(values,3)))
-!!    global_values(d1l:d1u,:,:) = values(1:size(values,1),:,:)
-    allocate(global_values(d1l:d1u, size(values,2)-uhalo-lhalo, size(values,3)-uhalo-lhalo))
-    global_values(d1l:d1u,:,:) = values(1:size(values,1), 1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
-
-  end subroutine distributed_gather_var_real8_3d
+!=======================================================================
 
   function distributed_isparallel()
+
      implicit none
      logical :: distributed_isparallel
 
      distributed_isparallel = .false.
+
   end function distributed_isparallel
 
-  function distributed_owner(ew,ewn,ns,nsn)
+!=======================================================================
+
+  function distributed_owner(ew, ewn, ns, nsn, parallel)
+
     implicit none
     logical :: distributed_owner
     integer :: ew,ewn,ns,nsn
+    type(parallel_type) :: parallel
+
     ! begin
     distributed_owner = .true.
+
   end function distributed_owner
 
-  subroutine distributed_print_integer_2d(name,values)
+!=======================================================================
+
+! subroutines belonging to the distributed_print interface
+
+  subroutine distributed_print_integer_2d(name, values, parallel)
+
     implicit none
     character(*) :: name
     integer,dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer,parameter :: u = 33
     character(3) :: ts
     integer :: i,j,k
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     write(ts,'(i3.3)') tasks
     open(unit=u,file=name//ts//".txt",form="formatted",status="replace")
@@ -901,16 +1243,26 @@ contains
        end do
     end if
     close(u)
+
+    end associate
+
   end subroutine distributed_print_integer_2d
 
-  subroutine distributed_print_real8_2d(name,values)
+
+  subroutine distributed_print_real8_2d(name, values, parallel)
+
     implicit none
     character(*) :: name
     real(dp),dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer,parameter :: u = 33
     character(3) :: ts
     integer :: i,j,k
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     write(ts,'(i3.3)') tasks
     open(unit=u,file=name//ts//".txt",form="formatted",status="replace")
@@ -930,16 +1282,26 @@ contains
        end do
     end if
     close(u)
+
+    end associate
+
   end subroutine distributed_print_real8_2d
 
-  subroutine distributed_print_real8_3d(name,values)
+
+  subroutine distributed_print_real8_3d(name, values, parallel)
+
     implicit none
     character(*) :: name
     real(dp),dimension(:,:,:) :: values
+    type(parallel_type) :: parallel
 
     integer,parameter :: u = 33
     character(3) :: ts
     integer :: i,j,k
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     write(ts,'(i3.3)') tasks
     open(unit=u,file=name//ts//".txt",form="formatted",status="replace")
@@ -959,19 +1321,30 @@ contains
        end do
     end if
     close(u)
+
+    end associate
+
   end subroutine distributed_print_real8_3d
 
+!=======================================================================
 
-  function distributed_put_var_integer_2d(ncid,varid,values,start)
+! functions belonging to the distributed_put_var interface
+
+  function distributed_put_var_integer_2d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_put_var_integer_2d,ncid,varid
     integer,dimension(:) :: start
     integer,dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo,ihi,jlo,jhi
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     if (main_task) then
 
@@ -994,18 +1367,27 @@ contains
 
      endif
 
+     end associate
+
   end function distributed_put_var_integer_2d
 
-  function distributed_put_var_real4_1d(ncid,varid,values,start)
+
+  function distributed_put_var_real4_1d(ncid, varid, values, parallel, start)
+
     implicit none
     integer :: distributed_put_var_real4_1d,ncid,varid
     integer,dimension(:),optional :: start
     real(sp),dimension(:) :: values
+    type(parallel_type) :: parallel
 
     integer :: status, x0id, x1id, y0id, y1id
     integer :: ilo, ihi
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     if (main_task) then
 
@@ -1038,18 +1420,26 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_put_var_real4_1d
 
 
-  function distributed_put_var_real4_2d(ncid,varid,values,start)
+  function distributed_put_var_real4_2d(ncid, varid, values, parallel, start)
+
     implicit none
     integer :: distributed_put_var_real4_2d,ncid,varid
     integer,dimension(:) :: start
     real(sp),dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo,ihi,jlo,jhi
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     if (main_task) then
 
@@ -1072,19 +1462,27 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_put_var_real4_2d
 
-  !WHL - added this function
-  function distributed_put_var_real8_1d(ncid,varid,values,start)
+
+  function distributed_put_var_real8_1d(ncid, varid, values, parallel, start)
+
     implicit none
     integer :: distributed_put_var_real8_1d,ncid,varid
     integer,dimension(:),optional :: start
     real(dp),dimension(:) :: values
+    type(parallel_type) :: parallel
 
     integer :: status, x0id, x1id, y0id, y1id
     integer :: ilo, ihi
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     if (main_task) then
 
@@ -1117,18 +1515,26 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_put_var_real8_1d
 
 
-  function distributed_put_var_real8_2d(ncid,varid,values,start)
+  function distributed_put_var_real8_2d(ncid, varid, values, parallel, start)
+
     implicit none
     integer :: distributed_put_var_real8_2d,ncid,varid
     integer,dimension(:) :: start
     real(dp),dimension(:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo,ihi,jlo,jhi
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     if (main_task) then
 
@@ -1151,20 +1557,26 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_put_var_real8_2d
 
-  !TODO - Should we assume that ewn is the first index?
-  !       Typically it is the 2nd index.
-  function distributed_put_var_real8_3d(ncid,varid,values,start)
+
+  function distributed_put_var_real8_3d(ncid, varid, values, parallel, start)
 
     implicit none
     integer :: distributed_put_var_real8_3d,ncid,varid
     integer,dimension(:) :: start
     real(dp),dimension(:,:,:) :: values
+    type(parallel_type) :: parallel
 
     integer :: ilo,ihi,jlo,jhi
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     if (main_task) then
 
@@ -1187,95 +1599,164 @@ contains
 
     endif
 
+    end associate
+
   end function distributed_put_var_real8_3d
 
-  subroutine distributed_scatter_var_integer_2d(values, global_values)
-    ! JEFF Scatter a variable on the main_task node back to the distributed
+!=======================================================================
+
+  ! subroutines belonging to the distributed_scatter_var interface
+
+  subroutine distributed_scatter_var_integer_2d(values, global_values, parallel)
+
+    ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
     ! Variables are assumed to lie on the scalar grid (at cell centers).
+
     implicit none
     integer,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
     integer,dimension(:,:),allocatable,intent(inout) :: global_values  ! only used on main_task
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = global_values(:,:)
 
+    end associate
+
     deallocate(global_values)  ! automatic deallocation
+
   end subroutine distributed_scatter_var_integer_2d
 
-  subroutine distributed_scatter_var_logical_2d(values, global_values)
-    ! JEFF Scatter a variable on the main_task node back to the distributed
+
+  subroutine distributed_scatter_var_logical_2d(values, global_values, parallel)
+
+    ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
     ! Variables are assumed to lie on the scalar grid (at cell centers).
+
     implicit none
     logical,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
     logical,dimension(:,:),allocatable,intent(inout) :: global_values  ! only used on main_task
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = global_values(:,:)
 
+    end associate
+
     deallocate(global_values)  ! automatic deallocation
+
   end subroutine distributed_scatter_var_logical_2d
 
-  subroutine distributed_scatter_var_real4_2d(values, global_values)
-    ! JEFF Scatter a variable on the main_task node back to the distributed
+
+  subroutine distributed_scatter_var_real4_2d(values, global_values, parallel)
+
+    ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+
     implicit none
     real(sp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
     real(sp),dimension(:,:),allocatable,intent(inout) :: global_values  ! only used on main_task
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = global_values(:,:)
 
+    end associate
+
     deallocate(global_values)  ! automatic deallocation
+
   end subroutine distributed_scatter_var_real4_2d
 
-  subroutine distributed_scatter_var_real4_3d(values, global_values)
-    ! JEFF Scatter a variable on the main_task node back to the distributed
+
+  subroutine distributed_scatter_var_real4_3d(values, global_values, parallel)
+
+    ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
     ! NOTE: The horizontal dimensions are assumed to be the second and third dimensions.
     !       Variables are assumed to lie on the scalar grid (at cell centers).
+
     implicit none
     real(sp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
     real(sp),dimension(:,:,:),allocatable,intent(inout) :: global_values  ! only used on main_task
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     values(:, 1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = global_values(:,:,:)
 
+    end associate
+
     deallocate(global_values)  ! automatic deallocation
+
   end subroutine distributed_scatter_var_real4_3d
 
-  subroutine distributed_scatter_var_real8_2d(values, global_values)
-    ! JEFF Scatter a variable on the main_task node back to the distributed
+
+  subroutine distributed_scatter_var_real8_2d(values, global_values, parallel)
+
+    ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
     ! Variables are assumed to lie on the scalar grid (at cell centers).
+
     implicit none
     real(dp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
     real(dp),dimension(:,:),allocatable,intent(inout) :: global_values  ! only used on main_task
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     values(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = global_values(:,:)
 
+    end associate
+
     deallocate(global_values)  ! automatic deallocation
+
   end subroutine distributed_scatter_var_real8_2d
 
-  subroutine distributed_scatter_var_real8_3d(values, global_values, deallocflag)
-    ! JEFF Scatter a variable on the main_task node back to the distributed
+
+  subroutine distributed_scatter_var_real8_3d(values, global_values, deallocflag, parallel)
+
+    ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
     ! NOTE: The horizontal dimensions are assumed to be the second and third dimensions.
     !       Variables are assumed to lie on the scalar grid (at cell centers).
+
     implicit none
     real(dp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
     real(dp),dimension(:,:,:),allocatable,intent(inout) :: global_values  ! only used on main_task
+    type(parallel_type) :: parallel
+
     logical,optional :: deallocflag
     logical :: deallocmem
+
+    associate(  &
+         local_ewn => parallel%local_ewn, &
+         local_nsn => parallel%local_nsn )
 
     !TODO - Why does this distributed_scatter subroutine have a deallocmem flag, but not the others?
     if (present(deallocflag)) then
@@ -1287,51 +1768,114 @@ contains
     ! begin
     values(:, 1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = global_values(:,:,:)
 
+    end associate
+
     if (deallocmem) deallocate(global_values) ! automatic deallocation
+
   end subroutine distributed_scatter_var_real8_3d
 
-  subroutine global_sum_real8_scalar(x)
-    implicit none
-    real(dp) :: x
-  end subroutine global_sum_real8_scalar
+!=======================================================================
 
-  subroutine global_sum_real8_1d(x)
+  ! subroutines belonging to the distributed_scatter_var_row interface
+
+  subroutine distributed_scatter_var_row_real8_2d(values, global_values, parallel)
+
     implicit none
-    real(dp),dimension(:) :: x
-  end subroutine global_sum_real8_1d
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    ! The row scatter option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The row scatter option is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_scatter_var_row_real8_2d
+
+!=======================================================================
+
+  ! subroutines belonging to the distributed_scatter_var_col interface
+
+  subroutine distributed_scatter_var_col_real8_2d(values, global_values, parallel)
+
+    implicit none
+    real(dp),dimension(:,:),intent(in) :: values
+    real(dp),dimension(:,:),allocatable,intent(inout) :: global_values
+    type(parallel_type) :: parallel
+
+    ! The column scatter option is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: The column scatter option is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine distributed_scatter_var_col_real8_2d
+
+!=======================================================================
 
   subroutine not_parallel(file,line)
+
     implicit none
     integer :: line
     character(len=*) :: file
     ! begin
     write(0,*) "WARNING: not parallel in ",file," at line ",line
+
   end subroutine not_parallel
 
+!=======================================================================
+
   subroutine parallel_barrier
+
     implicit none
+
   end subroutine parallel_barrier
 
+!=======================================================================
+
   function parallel_boundary(ew,ewn,ns,nsn)
+
     implicit none
     logical :: parallel_boundary
     integer :: ew,ewn,ns,nsn
+
     ! begin
-    parallel_boundary = (ew==1.or.ew==ewn.or.ns==1.or.ns==nsn)
+    parallel_boundary = (ew==1 .or. ew==ewn .or. ns==1 .or. ns==nsn)
+
   end function parallel_boundary
 
+!=======================================================================
+
   function parallel_close(ncid)
+
     implicit none
     integer :: ncid,parallel_close
+
     ! begin
     if (main_task) parallel_close = nf90_close(ncid)
     call broadcast(parallel_close)
+
   end function parallel_close
 
-  subroutine parallel_convert_haloed_to_nonhaloed_real4_2d(input_with_halo, output_no_halo)
+!=======================================================================
+
+  ! subroutines belonging to the parallel_convert_haloed_to_nonhaloed interface
+
+  subroutine parallel_convert_haloed_to_nonhaloed_real4_2d(input_with_halo, output_no_halo, parallel)
+
     ! Given an input array that has halo cells, return an output array without halo cells
     real(sp),dimension(:,:), intent(in)  :: input_with_halo
     real(sp),dimension(:,:), intent(out) :: output_no_halo
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
     if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
        write(*,*) "Unexpected size for input_with_halo: ", &
@@ -1349,13 +1893,24 @@ contains
 
     output_no_halo(1:own_ewn, 1:own_nsn) = &
          input_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
+
+    end associate
 
   end subroutine parallel_convert_haloed_to_nonhaloed_real4_2d
 
-  subroutine parallel_convert_haloed_to_nonhaloed_real8_2d(input_with_halo, output_no_halo)
+
+  subroutine parallel_convert_haloed_to_nonhaloed_real8_2d(input_with_halo, output_no_halo, parallel)
+
     ! Given an input array that has halo cells, return an output array without halo cells
     real(dp),dimension(:,:), intent(in)  :: input_with_halo
     real(dp),dimension(:,:), intent(out) :: output_no_halo
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
     if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
        write(*,*) "Unexpected size for input_with_halo: ", &
@@ -1374,12 +1929,26 @@ contains
     output_no_halo(1:own_ewn, 1:own_nsn) = &
          input_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo)
 
+    end associate
+
   end subroutine parallel_convert_haloed_to_nonhaloed_real8_2d
 
-  subroutine parallel_convert_nonhaloed_to_haloed_real4_2d(input_no_halo, output_with_halo)
+!=======================================================================
+
+  ! subroutines belonging to the parallel_convert_nonhaloed_to_haloed interface
+
+  subroutine parallel_convert_nonhaloed_to_haloed_real4_2d(input_no_halo, output_with_halo, parallel)
+
     ! Given an input array without halo cells, return an output array with halo cells
     real(sp),dimension(:,:), intent(in)  :: input_no_halo
     real(sp),dimension(:,:), intent(out) :: output_with_halo
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
     
     if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
        write(*,*) "Unexpected size for input_no_halo: ", &
@@ -1398,14 +1967,25 @@ contains
     output_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = &
          input_no_halo(1:own_ewn, 1:own_nsn)
 
-    call parallel_halo(output_with_halo)
+    call parallel_halo(output_with_halo, parallel)
+
+    end associate
     
   end subroutine parallel_convert_nonhaloed_to_haloed_real4_2d
 
-  subroutine parallel_convert_nonhaloed_to_haloed_real8_2d(input_no_halo, output_with_halo)
+
+  subroutine parallel_convert_nonhaloed_to_haloed_real8_2d(input_no_halo, output_with_halo, parallel)
+
     ! Given an input array without halo cells, return an output array with halo cells
     real(dp),dimension(:,:), intent(in)  :: input_no_halo
     real(dp),dimension(:,:), intent(out) :: output_with_halo
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
     
     if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
        write(*,*) "Unexpected size for input_no_halo: ", &
@@ -1424,61 +2004,128 @@ contains
     output_with_halo(1+lhalo:local_ewn-uhalo, 1+lhalo:local_nsn-uhalo) = &
          input_no_halo(1:own_ewn, 1:own_nsn)
 
-    call parallel_halo(output_with_halo)
-    
+    call parallel_halo(output_with_halo, parallel)
+
+    end associate
+
   end subroutine parallel_convert_nonhaloed_to_haloed_real8_2d
 
+!=======================================================================
+
   function parallel_create(path,cmode,ncid)
+
     implicit none
     integer :: cmode,ncid,parallel_create
     character(len=*) :: path
+
     ! begin
     if (main_task) parallel_create = nf90_create(path,cmode,ncid)
     call broadcast(parallel_create)
     call broadcast(ncid)
+
   end function parallel_create
 
-  function parallel_def_dim(ncid,name,len,dimid)
+!=======================================================================
+
+  ! subroutines to create communicators for rows and columns of tasks
+  ! Not supported for a serial build
+
+  subroutine parallel_create_comm_row(comm, parallel)
+
+    use mpi_mod
+    implicit none
+    integer, intent(in) :: comm          ! global communicator
+    type(parallel_type) :: parallel
+
+    ! A row communicator is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: A row communicator is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine parallel_create_comm_row
+
+!=======================================================================
+
+  subroutine parallel_create_comm_col(comm, parallel)
+
+    use mpi_mod
+    implicit none
+    integer, intent(in) :: comm          ! global communicator
+    type(parallel_type) :: parallel
+
+    ! A column communicator is not supported for serial code.
+    ! Write an error message and abort.
+
+    write(*,*) 'Error: A column communicator is not supported for serial code.'
+    write(*,*) 'Please resubmit without global tridiagonal preconditioning.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine parallel_create_comm_col
+
+!=======================================================================
+
+  function parallel_def_dim(ncid, name, len, dimid)
+
     use netcdf
     implicit none
     integer :: dimid,len,ncid,parallel_def_dim
     character(len=*) :: name
+
     ! begin
     if (main_task) parallel_def_dim = nf90_def_dim(ncid,name,len,dimid)
     call broadcast(parallel_def_dim)
     call broadcast(dimid)
+
   end function parallel_def_dim
 
-  function parallel_def_var_dimids(ncid,name,xtype,dimids,varid)
+!=======================================================================
+
+  function parallel_def_var_dimids(ncid, name, xtype, dimids, varid)
+
     implicit none
     integer :: ncid,parallel_def_var_dimids,varid,xtype
     integer,dimension(:) :: dimids
     character(len=*) :: name
+
     ! begin
     if (main_task) parallel_def_var_dimids = &
          nf90_def_var(ncid,name,xtype,dimids,varid)
     call broadcast(parallel_def_var_dimids)
     call broadcast(varid)
+
   end function parallel_def_var_dimids
 
-  function parallel_def_var_nodimids(ncid,name,xtype,varid)
+
+  function parallel_def_var_nodimids(ncid, name, xtype, varid)
+
     implicit none
     integer :: ncid,parallel_def_var_nodimids,varid,xtype
     character(len=*) :: name
+
     ! begin
     if (main_task) parallel_def_var_nodimids = &
          nf90_def_var(ncid,name,xtype,varid)
     call broadcast(parallel_def_var_nodimids)
     call broadcast(varid)
+
   end function parallel_def_var_nodimids
 
+!=======================================================================
+
   function parallel_enddef(ncid)
+
     implicit none
     integer :: ncid,parallel_enddef
+
     ! begin
     if (main_task) parallel_enddef = nf90_enddef(ncid)
     call broadcast(parallel_enddef)
+
   end function parallel_enddef
+
+!=======================================================================
 
 #ifdef _USE_MPI_WITH_SLAP
   subroutine parallel_finalise
@@ -1494,143 +2141,202 @@ contains
   end subroutine parallel_finalise
 #endif
 
+!=======================================================================
+
+! functions belonging to the parallel_get_att interface
+
   function parallel_get_att_character(ncid,varid,name,values)
+
     implicit none
     integer :: ncid,parallel_get_att_character,varid
     character(len=*) :: name,values
+
     ! begin
     if (main_task) parallel_get_att_character = &
          nf90_get_att(ncid,varid,name,values)
     call broadcast(parallel_get_att_character)
     call broadcast(values)
+
   end function parallel_get_att_character
 
+
   function parallel_get_att_real4(ncid,varid,name,values)
+
     implicit none
     integer :: ncid,parallel_get_att_real4,varid
     character(len=*) :: name
     real(sp) :: values
+
     ! begin
     if (main_task) parallel_get_att_real4 = &
          nf90_get_att(ncid,varid,name,values)
+
   end function parallel_get_att_real4
 
-  function parallel_get_att_real4_1d(ncid,varid,name,values)
+
+  function parallel_get_att_real4_1d(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_get_att_real4_1d,varid
     character(len=*) :: name
     real(sp),dimension(:) :: values
+
     ! begin
     if (main_task) parallel_get_att_real4_1d = &
          nf90_get_att(ncid,varid,name,values)
+
   end function parallel_get_att_real4_1d
 
-  function parallel_get_att_real8(ncid,varid,name,values)
+
+  function parallel_get_att_real8(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_get_att_real8,varid
     character(len=*) :: name
     real(dp) :: values
+
     ! begin
     if (main_task) parallel_get_att_real8 = &
          nf90_get_att(ncid,varid,name,values)
+
   end function parallel_get_att_real8
 
-  function parallel_get_att_real8_1d(ncid,varid,name,values)
+
+  function parallel_get_att_real8_1d(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_get_att_real8_1d,varid
     character(len=*) :: name
     real(dp),dimension(:) :: values
+
     ! begin
     if (main_task) parallel_get_att_real8_1d = &
          nf90_get_att(ncid,varid,name,values)
+
   end function parallel_get_att_real8_1d
 
-  function parallel_get_var_integer(ncid,varid,values,start)
+!=======================================================================
+
+! functions belonging to the parallel_get_var interface
+
+  function parallel_get_var_integer(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_integer,varid
-    integer,dimension(:) :: start
     integer :: values
+
     ! begin
-    if (main_task) parallel_get_var_integer = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_integer
 
-  function parallel_get_var_real4(ncid,varid,values,start)
+
+  function parallel_get_var_real4(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_real4,varid
-    integer,dimension(:) :: start
     real(sp) :: values
+
     ! begin
-    if (main_task) parallel_get_var_real4 = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_real4
 
-  function parallel_get_var_real8(ncid,varid,values,start)
+
+  function parallel_get_var_real8(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_real8,varid
-    integer,dimension(:) :: start
     real(dp) :: values
+
     ! begin
-    if (main_task) parallel_get_var_real8 = &
-         nf90_get_var(ncid,varid,values,start)
+    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_real8
 
-  function parallel_get_var_integer_1d(ncid,varid,values)
+
+  function parallel_get_var_integer_1d(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_integer_1d,varid
     integer,dimension(:) :: values
+
     ! begin
-    if (main_task) parallel_get_var_integer_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) parallel_get_var_integer_1d = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_integer_1d
 
-  function parallel_get_var_real4_1d(ncid,varid,values)
+
+  function parallel_get_var_real4_1d(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_real4_1d,varid
     real(sp),dimension(:) :: values
+
     ! begin
-    if (main_task) parallel_get_var_real4_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) parallel_get_var_real4_1d = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_real4_1d
 
-  function parallel_get_var_real8_1d(ncid,varid,values)
+
+  function parallel_get_var_real8_1d(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_real8_1d,varid
     real(dp),dimension(:) :: values
+
     ! begin
-    if (main_task) parallel_get_var_real8_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) parallel_get_var_real8_1d = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_real8_1d
 
-  function parallel_get_var_integer_2d(ncid,varid,values)
+
+  function parallel_get_var_integer_2d(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_integer_2d,varid
     integer,dimension(:,:) :: values
+
     ! begin
-    if (main_task) parallel_get_var_integer_2d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_integer_2d
 
-  function parallel_get_var_real8_2d(ncid,varid,values)
+
+  function parallel_get_var_real8_2d(ncid, varid, values)
+
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
     real(dp),dimension(:,:) :: values
+
     ! begin
-    if (main_task) parallel_get_var_real8_2d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values)
+
   end function parallel_get_var_real8_2d
 
-  !TODO - Is function parallel_globalID still needed?
+!=======================================================================
 
-  function parallel_globalID(locns, locew, upstride)
+  !TODO - Is function parallel_globalID still needed? No longer called except from glissade_test_halo.
+
+  function parallel_globalID(locns, locew, upstride, parallel)
+
     ! Returns a unique ID for a given row and column reference that is identical across all processors.
     ! For instance if Proc 2: (17,16) is the same global cell as Proc 3: (17,1), then the globalID will be the same for both.
-    ! These IDs are spaced upstride apart.  upstride = number of vertical layers.  Typically (upn) + number of ghost layers (2 = top and bottom)
+    ! These IDs are spaced upstride apart.  upstride = number of vertical layers.
+    ! Typically (upn) + number of ghost layers (2 = top and bottom)
+
     integer,intent(in) :: locns, locew, upstride
     integer :: parallel_globalID
+    type(parallel_type) :: parallel
     ! locns is local NS (row) grid index
     ! locew is local EW (col) grid index
+
     integer :: global_row, global_col, global_ID
+
+    associate(  &
+         global_ewn  => parallel%global_ewn,  &
+         own_ewn     => parallel%own_ewn,     &
+         own_nsn     => parallel%own_nsn)
 
     global_row = (locns - uhalo) + this_rank/ProcsEW * own_nsn
     	! Integer division required for this_rank/ProcsEW
@@ -1640,9 +2346,14 @@ contains
     global_ID = ((global_row - 1) * global_ewn + (global_col - 1)) * upstride + 1
 
     parallel_globalID = global_ID
+
+    end associate
+
   end function parallel_globalID
 
-  function parallel_globalID_scalar(locew, locns, upstride)
+!=======================================================================
+
+  function parallel_globalID_scalar(locew, locns, upstride, parallel)
 
     !WHL - This function is similar to parallel_globalID, but assigns 0's to cells outside the global domain
 
@@ -1652,9 +2363,16 @@ contains
 
     integer,intent(IN) :: locns, locew, upstride
     integer :: parallel_globalID_scalar
+    type(parallel_type) :: parallel
     ! locns is local NS (row) grid index
     ! locew is local EW (col) grid index
+
     integer :: global_row, global_col, global_ID
+
+    associate(  &
+         global_ewn  => parallel%global_ewn,  &
+         own_ewn     => parallel%own_ewn,     &
+         own_nsn     => parallel%own_nsn)
 
     ! including global domain halo adds lhalo to offsets
     global_row = locns - lhalo
@@ -1666,23 +2384,37 @@ contains
     !return value
     parallel_globalID_scalar = global_ID
 
+    end associate
+
   end function parallel_globalID_scalar
 
+!=======================================================================
 
-  subroutine parallel_globalindex(ilocal, jlocal, iglobal, jglobal)
+  subroutine parallel_globalindex(ilocal, jlocal, iglobal, jglobal, parallel)
+
     ! Calculates the global i,j indices from the local i,j indices
     integer,intent(in)  :: ilocal,  jlocal  ! These include the halos
     integer,intent(out) :: iglobal, jglobal ! These do NOT include halos
+    type(parallel_type) :: parallel  ! in the interface, but not used here
 
    ! No check is currently made for being located in the global (periodic) halo
     iglobal = (ilocal - lhalo)
     jglobal = (jlocal - lhalo)
+
   end subroutine parallel_globalindex
 
-  subroutine parallel_localindex(iglobal, jglobal, ilocal, jlocal, rlocal)
+!=======================================================================
+
+  subroutine parallel_localindex(iglobal, jglobal, ilocal, jlocal, rlocal, parallel)
+
     ! Calculates the local i,j indices and rank from the global i,j indices                                                                                               
     integer,intent(in) :: iglobal, jglobal 
     integer,intent(out)  :: ilocal, jlocal, rlocal
+    type(parallel_type) :: parallel
+
+    associate(  &
+         own_ewn => parallel%own_ewn,  &
+         own_nsn => parallel%own_nsn)
 
     ilocal = iglobal + lhalo 
     jlocal = jglobal + lhalo 
@@ -1699,20 +2431,33 @@ contains
           call parallel_stop(__FILE__,__LINE__)
        endif
     endif
+
+    end associate
+
   end subroutine parallel_localindex
 
+!=======================================================================
 
-  subroutine parallel_halo_integer_2d(a)
+  ! subroutines belonging to the parallel_halo interface
+
+  subroutine parallel_halo_integer_2d(a, parallel)
 
     implicit none
     integer,dimension(:,:) :: a
+    type(parallel_type) :: parallel
 
-    integer,dimension(lhalo,local_nsn-lhalo-uhalo) :: ecopy
-    integer,dimension(uhalo,local_nsn-lhalo-uhalo) :: wcopy
-    integer,dimension(local_ewn,lhalo) :: ncopy
-    integer,dimension(local_ewn,uhalo) :: scopy
+    integer,dimension(lhalo,parallel%local_nsn-lhalo-uhalo) :: ecopy
+    integer,dimension(uhalo,parallel%local_nsn-lhalo-uhalo) :: wcopy
+    integer,dimension(parallel%local_ewn,lhalo) :: ncopy
+    integer,dimension(parallel%local_ewn,uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
@@ -1731,6 +2476,13 @@ contains
        a(:,:lhalo) = 0
        a(:,local_nsn-uhalo+1:) = 0
 
+    elseif (no_ice_bc) then
+
+       a(:lhalo+1,1+lhalo:local_nsn-uhalo) = 0
+       a(local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = 0
+       a(:,:lhalo+1) = 0
+       a(:,local_nsn-uhalo:) = 0
+
     else    ! periodic BC
 
        ecopy(:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -1745,20 +2497,29 @@ contains
 
     endif
 
+    end associate
+
   end subroutine parallel_halo_integer_2d
 
 
-  subroutine parallel_halo_logical_2d(a)
+  subroutine parallel_halo_logical_2d(a, parallel)
 
     implicit none
     logical,dimension(:,:) :: a
+    type(parallel_type) :: parallel
 
-    logical,dimension(lhalo,local_nsn-lhalo-uhalo) :: ecopy
-    logical,dimension(uhalo,local_nsn-lhalo-uhalo) :: wcopy
-    logical,dimension(local_ewn,lhalo) :: ncopy
-    logical,dimension(local_ewn,uhalo) :: scopy
+    logical,dimension(lhalo,parallel%local_nsn-lhalo-uhalo) :: ecopy
+    logical,dimension(uhalo,parallel%local_nsn-lhalo-uhalo) :: wcopy
+    logical,dimension(parallel%local_ewn,lhalo) :: ncopy
+    logical,dimension(parallel%local_ewn,uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
@@ -1777,6 +2538,13 @@ contains
        a(:,:lhalo) = .false.
        a(:,local_nsn-uhalo+1:) = .false.
 
+    elseif (no_ice_bc) then
+
+       a(:lhalo+1,1+lhalo:local_nsn-uhalo) = .false.
+       a(local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = .false.
+       a(:,:lhalo+1) = .false.
+       a(:,local_nsn-uhalo:) = .false.
+
     else    ! periodic BC
 
        ecopy(:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -1791,20 +2559,29 @@ contains
 
     endif
 
+    end associate
+
   end subroutine parallel_halo_logical_2d
 
 
-  subroutine parallel_halo_real4_2d(a)
+  subroutine parallel_halo_real4_2d(a, parallel)
 
     implicit none
     real(sp),dimension(:,:) :: a
+    type(parallel_type) :: parallel
 
-    real(sp),dimension(lhalo,local_nsn-lhalo-uhalo) :: ecopy
-    real(sp),dimension(uhalo,local_nsn-lhalo-uhalo) :: wcopy
-    real(sp),dimension(local_ewn,lhalo) :: ncopy
-    real(sp),dimension(local_ewn,uhalo) :: scopy
+    real(sp),dimension(lhalo,parallel%local_nsn-lhalo-uhalo) :: ecopy
+    real(sp),dimension(uhalo,parallel%local_nsn-lhalo-uhalo) :: wcopy
+    real(sp),dimension(parallel%local_ewn,lhalo) :: ncopy
+    real(sp),dimension(parallel%local_ewn,uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
@@ -1823,6 +2600,13 @@ contains
        a(:,:lhalo) = 0.
        a(:,local_nsn-uhalo+1:) = 0.
 
+    elseif (no_ice_bc) then
+
+       a(:lhalo+1,1+lhalo:local_nsn-uhalo) = 0.
+       a(local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = 0.
+       a(:,:lhalo+1) = 0.
+       a(:,local_nsn-uhalo:) = 0.
+
     else    ! periodic BC
 
        ecopy(:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -1837,27 +2621,36 @@ contains
 
     endif
 
+    end associate
+
   end subroutine parallel_halo_real4_2d
 
 
-  subroutine parallel_halo_real8_2d(a, periodic_offset_ew, periodic_offset_ns)
+  subroutine parallel_halo_real8_2d(a, parallel, periodic_offset_ew, periodic_offset_ns)
 
     !WHL - added optional arguments for periodic offsets, to support ismip-hom test cases
 
     implicit none
     real(dp),dimension(:,:) :: a
+    type(parallel_type) :: parallel
     real(dp), intent(in), optional :: &
        periodic_offset_ew,  &! offset halo values by this amount
                              ! if positive, the offset is positive for W halo, negative for E halo 
        periodic_offset_ns    ! offset halo values by this amount
                              ! if positive, the offset is positive for S halo, negative for N halo
 
-    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo) :: ecopy
-    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo) :: wcopy
-    real(dp),dimension(local_ewn,lhalo) :: ncopy
-    real(dp),dimension(local_ewn,uhalo) :: scopy
+    real(dp),dimension(lhalo,parallel%local_nsn-lhalo-uhalo) :: ecopy
+    real(dp),dimension(uhalo,parallel%local_nsn-lhalo-uhalo) :: wcopy
+    real(dp),dimension(parallel%local_ewn,lhalo) :: ncopy
+    real(dp),dimension(parallel%local_ewn,uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
@@ -1875,6 +2668,13 @@ contains
        a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = 0.d0
        a(:,:lhalo) = 0.d0
        a(:,local_nsn-uhalo+1:) = 0.d0
+
+    elseif (no_ice_bc) then
+
+       a(:lhalo+1,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:lhalo+1) = 0.d0
+       a(:,local_nsn-uhalo:) = 0.d0
 
     else    ! periodic BC
 
@@ -1906,20 +2706,29 @@ contains
 
     endif  ! open or periodic BC
 
+    end associate
+
   end subroutine parallel_halo_real8_2d
 
 
-  subroutine parallel_halo_real8_3d(a)
+  subroutine parallel_halo_real8_3d(a, parallel)
 
     implicit none
     real(dp),dimension(:,:,:) :: a
+    type(parallel_type) :: parallel
 
-    real(dp),dimension(size(a,1),lhalo,local_nsn-lhalo-uhalo) :: ecopy
-    real(dp),dimension(size(a,1),uhalo,local_nsn-lhalo-uhalo) :: wcopy
-    real(dp),dimension(size(a,1),local_ewn,lhalo) :: ncopy
-    real(dp),dimension(size(a,1),local_ewn,uhalo) :: scopy
+    real(dp),dimension(size(a,1),lhalo,parallel%local_nsn-lhalo-uhalo) :: ecopy
+    real(dp),dimension(size(a,1),uhalo,parallel%local_nsn-lhalo-uhalo) :: wcopy
+    real(dp),dimension(size(a,1),parallel%local_ewn,lhalo) :: ncopy
+    real(dp),dimension(size(a,1),parallel%local_ewn,uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,2)==local_ewn-1 .and. size(a,3)==local_nsn-1) return
@@ -1938,6 +2747,13 @@ contains
        a(:,:,:lhalo) = 0.d0
        a(:,:,local_nsn-uhalo+1:) = 0.d0
 
+    elseif (no_ice_bc) then
+
+       a(:,:lhalo+1,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:,:lhalo+1) = 0.d0
+       a(:,:,local_nsn-uhalo:) = 0.d0
+
     else    ! periodic BC
 
        ecopy(:,:,:) = a(:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -1952,20 +2768,99 @@ contains
 
     endif
 
+    end associate
+
   end subroutine parallel_halo_real8_3d
 
+!=======================================================================
 
-  subroutine parallel_halo_tracers_real8_3d(a)
+  ! subroutines belonging to the parallel_halo_extrapolate interface
+
+  subroutine parallel_halo_extrapolate_integer_2d(a, parallel)
+
+    implicit none
+    integer,dimension(:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+
+    ! Extrapolate the staggered field into halo cells along the global boundary.
+
+    ! extrapolate eastward
+    do i = size(a,1)-uhalo+1, size(a,1)
+       a(i, :) = a(size(a,1)-uhalo, :)
+    enddo
+
+    ! extrapolate westward
+    do i = 1, lhalo
+       a(i, :) = a(lhalo+1, :)
+    enddo
+
+    ! extrapolate northward
+    do j = size(a,2)-uhalo+1, size(a,2)
+       a(:, j) = a(:, size(a,2)-uhalo)
+    enddo
+
+    ! extrapolate southward
+    do j = 1, lhalo
+       a(:, j) = a(:, lhalo+1)
+    enddo
+
+  end subroutine parallel_halo_extrapolate_integer_2d
+
+
+  subroutine parallel_halo_extrapolate_real8_2d(a, parallel)
+
+    implicit none
+    real(dp),dimension(:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+
+    ! Extrapolate the staggered field into halo cells along the global boundary.
+
+    ! extrapolate eastward
+    do i = size(a,1)-uhalo+1, size(a,1)
+       a(i, :) = a(size(a,1)-uhalo, :)
+    enddo
+
+    ! extrapolate westward
+    do i = 1, lhalo
+       a(i, :) = a(lhalo+1, :)
+    enddo
+
+    ! extrapolate northward
+    do j = size(a,2)-uhalo+1, size(a,2)
+       a(:, j) = a(:, size(a,2)-uhalo)
+    enddo
+
+    ! extrapolate southward
+    do j = 1, lhalo
+       a(:, j) = a(:, lhalo+1)
+    enddo
+
+  end subroutine parallel_halo_extrapolate_real8_2d
+
+!=======================================================================
+
+  subroutine parallel_halo_tracers_real8_3d(a, parallel)
 
     implicit none
     real(dp),dimension(:,:,:) :: a
+    type(parallel_type) :: parallel
 
-    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3)) :: ecopy
-    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3)) :: wcopy
-    real(dp),dimension(local_ewn,lhalo,size(a,3)) :: ncopy
-    real(dp),dimension(local_ewn,uhalo,size(a,3)) :: scopy
+    real(dp),dimension(lhalo,parallel%local_nsn-lhalo-uhalo,size(a,3)) :: ecopy
+    real(dp),dimension(uhalo,parallel%local_nsn-lhalo-uhalo,size(a,3)) :: wcopy
+    real(dp),dimension(parallel%local_ewn,lhalo,size(a,3)) :: ncopy
+    real(dp),dimension(parallel%local_ewn,uhalo,size(a,3)) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
@@ -1984,6 +2879,13 @@ contains
        a(:,:lhalo,:) = 0.d0
        a(:,local_nsn-uhalo+1:,:) = 0.d0
 
+    elseif (no_ice_bc) then
+
+       a(:,:lhalo+1,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:,:lhalo+1) = 0.d0
+       a(:,:,local_nsn-uhalo:) = 0.d0
+
     else    ! periodic BC
 
        ecopy(:,:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:)
@@ -1998,20 +2900,29 @@ contains
 
     endif
 
+    end associate
+
   end subroutine parallel_halo_tracers_real8_3d
 
 
-  subroutine parallel_halo_tracers_real8_4d(a)
+  subroutine parallel_halo_tracers_real8_4d(a, parallel)
 
     implicit none
     real(dp),dimension(:,:,:,:) :: a
+    type(parallel_type) :: parallel
 
-    real(dp),dimension(lhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: ecopy
-    real(dp),dimension(uhalo,local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: wcopy
-    real(dp),dimension(local_ewn,lhalo,size(a,3),size(a,4)) :: ncopy
-    real(dp),dimension(local_ewn,uhalo,size(a,3),size(a,4)) :: scopy
+    real(dp),dimension(lhalo,parallel%local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: ecopy
+    real(dp),dimension(uhalo,parallel%local_nsn-lhalo-uhalo,size(a,3),size(a,4)) :: wcopy
+    real(dp),dimension(parallel%local_ewn,lhalo,size(a,3),size(a,4)) :: ncopy
+    real(dp),dimension(parallel%local_ewn,uhalo,size(a,3),size(a,4)) :: scopy
 
     ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! staggered grid
     if (size(a,1)==local_ewn-1 .and. size(a,2)==local_nsn-1) return
@@ -2031,6 +2942,13 @@ contains
        a(:,:lhalo,:,:) = 0.d0
        a(:,local_nsn-uhalo+1:,:,:) = 0.d0
 
+    elseif (no_ice_bc) then
+
+       a(:lhalo+1,1+lhalo:local_nsn-uhalo,:,:) = 0.d0
+       a(local_ewn-uhalo:,1+lhalo:local_nsn-uhalo,:,:) = 0.d0
+       a(:,:lhalo+1,:,:) = 0.d0
+       a(:,local_nsn-uhalo:,:,:) = 0.d0
+
     else    ! periodic BC
 
        ecopy(:,:,:,:) = a(local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo,:,:)
@@ -2045,133 +2963,107 @@ contains
 
     endif
 
+    end associate
+
   end subroutine parallel_halo_tracers_real8_4d
 
+!=======================================================================
 
-  subroutine parallel_halo_extrapolate_integer_2d(a)
+  ! subroutines belonging to the parallel_halo_verify interface
 
-    implicit none
-    integer,dimension(:,:) :: a
-    integer :: i, j
+  function parallel_halo_verify_integer_2d(a, parallel)
 
-    ! Extrapolate the staggered field into halo cells along the global boundary.
-
-    ! extrapolate eastward
-    do i = size(a,1)-uhalo+1, size(a,1)
-       a(i, :) = a(size(a,1)-uhalo, :)
-    enddo
-
-    ! extrapolate westward
-    do i = 1, lhalo
-       a(i, :) = a(lhalo+1, :)
-    enddo
-
-    ! extrapolate northward
-    do j = size(a,2)-uhalo+1, size(a,2)
-       a(:, j) = a(:, size(a,2)-uhalo)
-    enddo
- 
-    ! extrapolate southward
-    do j = 1, lhalo
-       a(:, j) = a(:, lhalo+1)
-    enddo
-
-  end subroutine parallel_halo_extrapolate_integer_2d
-
-
-  subroutine parallel_halo_extrapolate_real8_2d(a)
-
-    implicit none
-    real(dp),dimension(:,:) :: a
-    integer :: i, j
-
-    ! Extrapolate the staggered field into halo cells along the global boundary.
-
-    ! extrapolate eastward
-    do i = size(a,1)-uhalo+1, size(a,1)
-       a(i, :) = a(size(a,1)-uhalo, :)
-    enddo
-
-    ! extrapolate westward
-    do i = 1, lhalo
-       a(i, :) = a(lhalo+1, :)
-    enddo
-
-    ! extrapolate northward
-    do j = size(a,2)-uhalo+1, size(a,2)
-       a(:, j) = a(:, size(a,2)-uhalo)
-    enddo
- 
-    ! extrapolate southward
-    do j = 1, lhalo
-       a(:, j) = a(:, lhalo+1)
-    enddo
-
-  end subroutine parallel_halo_extrapolate_real8_2d
-
-
-  function parallel_halo_verify_integer_2d(a)
     implicit none
     integer,dimension(:,:) :: a
     logical :: parallel_halo_verify_integer_2d
+    type(parallel_type) :: parallel
+
     parallel_halo_verify_integer_2d = .true.
+
   end function parallel_halo_verify_integer_2d
 
-  function parallel_halo_verify_real8_2d(a)
+
+  function parallel_halo_verify_real8_2d(a, parallel)
+
     implicit none
     real(dp),dimension(:,:) :: a
     logical :: parallel_halo_verify_real8_2d
+    type(parallel_type) :: parallel
+
     parallel_halo_verify_real8_2d = .true.
+
   end function parallel_halo_verify_real8_2d
 
-  function parallel_halo_verify_real8_3d(a)
+
+  function parallel_halo_verify_real8_3d(a, parallel)
+
     implicit none
     real(dp),dimension(:,:,:) :: a
     logical :: parallel_halo_verify_real8_3d
+    type(parallel_type) :: parallel
+
     parallel_halo_verify_real8_3d = .true.
+
   end function parallel_halo_verify_real8_3d
+
+!=======================================================================
 
 #ifdef _USE_MPI_WITH_SLAP
   ! parallel_initialise should generally just be called by standalone cism drivers
   ! When cism is nested inside a climate model (so mpi_init has already been called) use parallel_set_info instead
+
   subroutine parallel_initialise
+
     use mpi_mod 
     implicit none
     integer :: ierror 
     integer, parameter :: my_main_rank = 0
+
     ! begin 
     call mpi_init(ierror)
     call parallel_set_info(mpi_comm_world, my_main_rank)
+
   end subroutine parallel_initialise
+
+!=======================================================================
 
   ! parallel_set_info should be called directly when cism is nested inside a climate model
   ! (then, mpi_init has already been called, so do NOT use parallel_initialise)
 
   subroutine parallel_set_info(my_comm, my_main_rank)
+
     use mpi_mod
     implicit none
     integer, intent(in) :: my_comm       ! CISM's global communicator
     integer, intent(in) :: my_main_rank  ! rank of the master task (ignored for parallel_slap)
     integer :: ierror 
+
     ! begin
     comm = my_comm
     call mpi_comm_size(comm,tasks,ierror)
     call mpi_comm_rank(comm,this_rank,ierror)
     main_task = .true. !For parallel_slap, each node duplicates all of the calculations.
+
   end subroutine parallel_set_info
 
 #else
   subroutine parallel_initialise
+
     implicit none
   end subroutine parallel_initialise
 
+
   subroutine parallel_set_info(my_comm, my_main_rank)
+
     implicit none
     integer, intent(in) :: my_comm       ! CISM's global communicator (IGNORED)
     integer, intent(in) :: my_main_rank  ! rank of the master task (IGNORED)
+
   end subroutine parallel_set_info
 
 #endif
+
+!=======================================================================
 
   subroutine parallel_print_integer_2d(name,values)
     implicit none
@@ -2191,47 +3083,70 @@ contains
     close(u)
   end subroutine parallel_print_integer_2d
 
-  function parallel_inq_attname(ncid,varid,attnum,name)
+!=======================================================================
+
+  function parallel_inq_attname(ncid, varid, attnum, name)
+
     implicit none
     integer :: attnum,ncid,parallel_inq_attname,varid
     character(len=*) :: name
+
     ! begin
     if (main_task) parallel_inq_attname = &
          nf90_inq_attname(ncid,varid,attnum,name)
     call broadcast(parallel_inq_attname)
     call broadcast(name)
+
   end function parallel_inq_attname
 
-  function parallel_inq_dimid(ncid,name,dimid)
+!=======================================================================
+
+  function parallel_inq_dimid(ncid, name, dimid)
+
     implicit none
     integer :: dimid,ncid,parallel_inq_dimid
     character(len=*) :: name
+
     ! begin
     if (main_task) parallel_inq_dimid = nf90_inq_dimid(ncid,name,dimid)
     call broadcast(parallel_inq_dimid)
     call broadcast(dimid)
+
   end function parallel_inq_dimid
 
-  function parallel_inq_varid(ncid,name,varid)
+!=======================================================================
+
+  function parallel_inq_varid(ncid, name, varid)
+
     implicit none
     integer :: ncid,parallel_inq_varid,varid
     character(len=*) :: name
+
     ! begin
     if (main_task) parallel_inq_varid = nf90_inq_varid(ncid,name,varid)
     call broadcast(parallel_inq_varid)
     call broadcast(varid)
+
   end function parallel_inq_varid
 
-  function parallel_inquire(ncid,nvariables)
+!=======================================================================
+
+  function parallel_inquire(ncid, nvariables)
+
     implicit none
     integer :: ncid,parallel_inquire,nvariables
+
     ! begin
     if (main_task) parallel_inquire = nf90_inquire(ncid,nvariables=nvariables)
     call broadcast(parallel_inquire)
     call broadcast(nvariables)
+
   end function parallel_inquire
 
-  function parallel_inquire_dimension(ncid,dimid,name,len)
+!=======================================================================
+
+  function parallel_inquire_dimension(ncid, dimid, name, len)
+
     implicit none
     integer :: dimid,ncid,parallel_inquire_dimension
     integer,optional :: len
@@ -2254,9 +3169,13 @@ contains
        call broadcast(l)
        len = l
     end if
+
   end function parallel_inquire_dimension
 
-  function parallel_inquire_variable(ncid,varid,name,ndims,dimids,natts)
+!=======================================================================
+
+  function parallel_inquire_variable(ncid, varid, name, ndims, dimids, natts)
+
     implicit none
     integer :: ncid,parallel_inquire_variable,varid
     integer,optional :: ndims,natts
@@ -2264,6 +3183,7 @@ contains
     integer,dimension(:),optional :: dimids
 
     integer :: nd,na
+
     ! begin
     if (present(name)) then
        if (main_task) parallel_inquire_variable = &
@@ -2290,24 +3210,34 @@ contains
        call broadcast(na)
        natts = na
     end if
+
   end function parallel_inquire_variable
 
+!=======================================================================
+
   function parallel_open(path,mode,ncid)
+
     implicit none
     integer :: mode,ncid,parallel_open
     character(len=*) :: path
+
     ! begin
     if (main_task) parallel_open = nf90_open(path,mode,ncid)
     call broadcast(parallel_open)
+
   end function parallel_open
 
-  subroutine parallel_print_real8_2d(name,values)
+!=======================================================================
+
+  subroutine parallel_print_real8_2d(name, values)
+
     implicit none
     character(*) :: name
     real(dp),dimension(:,:) :: values
     
     integer,parameter :: u = 33
     integer :: i,j
+
     ! begin
     open(unit=u,file=name//".txt",form="formatted",status="replace")
     do j = 1,size(values,2)
@@ -2317,15 +3247,20 @@ contains
        write(u,'()')
     end do
     close(u)
+
   end subroutine parallel_print_real8_2d
 
-  subroutine parallel_print_real8_3d(name,values)
+!=======================================================================
+
+  subroutine parallel_print_real8_3d(name, values)
+
     implicit none
     character(*) :: name
     real(dp),dimension(:,:,:) :: values
     
     integer,parameter :: u = 33
     integer :: i,j
+
     ! begin
     open(unit=u,file=name//".txt",form="formatted",status="replace")
     do j = 1,size(values,3)
@@ -2335,105 +3270,151 @@ contains
        write(u,'()')
     end do
     close(u)
+
   end subroutine parallel_print_real8_3d
 
-  function parallel_put_att_character(ncid,varid,name,values)
+!=======================================================================
+
+! functions belonging to the parallel_put_att interface
+
+  function parallel_put_att_character(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_put_att_character,varid
     character(len=*) :: name,values
+
     ! begin
     if (main_task) parallel_put_att_character = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_character)
+
   end function parallel_put_att_character
 
-  function parallel_put_att_integer(ncid,varid,name,values)
+
+  function parallel_put_att_integer(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_put_att_integer,varid
     character(len=*) :: name
     integer :: values
+
     ! begin
     if (main_task) parallel_put_att_integer = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_integer)
+
   end function parallel_put_att_integer
 
-  function parallel_put_att_real4(ncid,varid,name,values)
+
+  function parallel_put_att_real4(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_put_att_real4,varid
     character(len=*) :: name
     real(sp) :: values
+
     ! begin
     if (main_task) parallel_put_att_real4 = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_real4)
+
   end function parallel_put_att_real4
 
-  function parallel_put_att_real4_1d(ncid,varid,name,values)
+
+  function parallel_put_att_real4_1d(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_put_att_real4_1d,varid
     character(len=*) :: name
     real(sp),dimension(:) :: values
+
     ! begin
     if (main_task) parallel_put_att_real4_1d = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_real4_1d)
+
   end function parallel_put_att_real4_1d
 
-  function parallel_put_att_real8(ncid,varid,name,values)
+
+  function parallel_put_att_real8(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_put_att_real8,varid
     character(len=*) :: name
     real(dp) :: values
+
     ! begin
     if (main_task) parallel_put_att_real8 = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_real8)
+
   end function parallel_put_att_real8
 
-  function parallel_put_att_real8_1d(ncid,varid,name,values)
+
+  function parallel_put_att_real8_1d(ncid, varid, name, values)
+
     implicit none
     integer :: ncid,parallel_put_att_real8_1d,varid
     character(len=*) :: name
     real(dp),dimension(:) :: values
+
     ! begin
     if (main_task) parallel_put_att_real8_1d = nf90_put_att(ncid,varid,name,values)
     call broadcast(parallel_put_att_real8_1d)
+
   end function parallel_put_att_real8_1d
 
-  function parallel_put_var_integer(ncid,varid,values,start)
+!=======================================================================
+
+ ! functions belonging to the parallel_put_var interface
+
+  function parallel_put_var_integer(ncid, varid, values, start)
+
     implicit none
     integer :: ncid,parallel_put_var_integer,varid
     integer,dimension(:) :: start
     integer :: values
+
     ! begin
     if (main_task) parallel_put_var_integer = &
          nf90_put_var(ncid,varid,values,start)
     call broadcast(parallel_put_var_integer)
+
   end function parallel_put_var_integer
 
-  function parallel_put_var_real4(ncid,varid,values,start)
+
+  function parallel_put_var_real4(ncid, varid, values, start)
+
     implicit none
     integer :: ncid,parallel_put_var_real4,varid
     integer,dimension(:) :: start
     real(sp) :: values
+
     ! begin
     if (main_task) parallel_put_var_real4 = &
          nf90_put_var(ncid,varid,values,start)
     call broadcast(parallel_put_var_real4)
+
   end function parallel_put_var_real4
 
-  function parallel_put_var_real8(ncid,varid,values,start)
+
+  function parallel_put_var_real8(ncid, varid, values, start)
+
     implicit none
     integer :: ncid,parallel_put_var_real8,varid
     integer,dimension(:) :: start
     real(dp) :: values
+
     ! begin
     if (main_task) parallel_put_var_real8 = &
          nf90_put_var(ncid,varid,values,start)
     call broadcast(parallel_put_var_real8)
+
   end function parallel_put_var_real8
 
-  function parallel_put_var_real8_1d(ncid,varid,values,start)
+
+  function parallel_put_var_real8_1d(ncid, varid, values, start)
+
     implicit none
     integer :: ncid,parallel_put_var_real8_1d,varid
     integer,dimension(:),optional :: start
     real(dp),dimension(:) :: values
+
     ! begin
     if (main_task) then
        if (present(start)) then
@@ -2443,50 +3424,238 @@ contains
        end if
     end if
     call broadcast(parallel_put_var_real8_1d)
+
   end function parallel_put_var_real8_1d
 
+!=======================================================================
+
   function parallel_redef(ncid)
+
     implicit none
     integer :: ncid,parallel_redef
+
     ! begin
     if (main_task) parallel_redef = nf90_redef(ncid)
     call broadcast(parallel_redef)
+
   end function parallel_redef
 
-! ------------------------------------------
-! functions for parallel_reduce_sum interface
-! ------------------------------------------
+!=======================================================================
+
+  ! functions belonging to the parallel_reduce_max interface
+
+  function parallel_reduce_max_integer(x)
+
+    ! Max x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    integer :: x, parallel_reduce_max_integer
+
+    parallel_reduce_max_integer = x
+
+  end function parallel_reduce_max_integer
+
+
+  function parallel_reduce_max_real4(x)
+
+    ! Max x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(sp) :: x, parallel_reduce_max_real4
+
+    parallel_reduce_max_real4 = x
+
+  end function parallel_reduce_max_real4
+
+
+  function parallel_reduce_max_real8(x)
+
+    ! Max x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp) :: x, parallel_reduce_max_real8
+
+    parallel_reduce_max_real8 = x
+
+  end function parallel_reduce_max_real8
+
+!=======================================================================
+
+  ! subroutines belonging to the parallel_reduce_maxloc interface
+
+  subroutine parallel_reduce_maxloc_integer(xin, xout, xprocout)
+
+    ! Max x across all of the nodes and its proc number
+    ! In parallel_slap mode just return x.
+    implicit none
+    integer, intent(in) :: xin         ! variable to reduce
+    integer, intent(out) :: xout       ! value resulting from the reduction
+    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
+
+    xout = xin
+    xprocout = this_rank
+
+  end subroutine parallel_reduce_maxloc_integer
+
+
+  subroutine parallel_reduce_maxloc_real4(xin, xout, xprocout)
+
+    ! Max x across all of the nodes and its proc number
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(sp), intent(in) :: xin         ! variable to reduce
+    real(sp), intent(out) :: xout       ! value resulting from the reduction
+    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
+
+    xout = xin
+    xprocout = this_rank
+
+  end subroutine parallel_reduce_maxloc_real4
+
+
+  subroutine parallel_reduce_maxloc_real8(xin, xout, xprocout)
+
+    ! Max x across all of the nodes and its proc number
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), intent(in) :: xin         ! variable to reduce
+    real(dp), intent(out) :: xout       ! value resulting from the reduction
+    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
+
+    xout = xin
+    xprocout = this_rank
+
+  end subroutine parallel_reduce_maxloc_real8
+
+!=======================================================================
+
+  ! functions belonging to the parallel_reduce_min interface
+
+  function parallel_reduce_min_integer(x)
+
+    ! Min x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    integer :: x, parallel_reduce_min_integer
+
+    parallel_reduce_min_integer = x
+
+  end function parallel_reduce_min_integer
+
+
+  function parallel_reduce_min_real4(x)
+
+    ! Min x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(sp) :: x, parallel_reduce_min_real4
+
+    parallel_reduce_min_real4 = x
+
+  end function parallel_reduce_min_real4
+
+
+  function parallel_reduce_min_real8(x)
+
+    ! Min x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp) :: x, parallel_reduce_min_real8
+
+    parallel_reduce_min_real8 = x
+
+  end function parallel_reduce_min_real8
+
+!=======================================================================
+
+  ! subroutines belonging to the parallel_reduce_minloc interface
+
+  subroutine parallel_reduce_minloc_integer(xin, xout, xprocout)
+
+    ! Min x across all of the nodes and its proc number
+    ! In parallel_slap mode just return x.
+    implicit none
+    integer, intent(in) :: xin         ! variable to reduce
+    integer, intent(out) :: xout       ! value resulting from the reduction
+    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
+
+    xout = xin
+    xprocout = this_rank
+
+  end subroutine parallel_reduce_minloc_integer
+
+
+  subroutine parallel_reduce_minloc_real4(xin, xout, xprocout)
+
+    ! Min x across all of the nodes and its proc number
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(sp), intent(in) :: xin         ! variable to reduce
+    real(sp), intent(out) :: xout       ! value resulting from the reduction
+    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
+
+    xout = xin
+    xprocout = this_rank
+
+  end subroutine parallel_reduce_minloc_real4
+
+
+  subroutine parallel_reduce_minloc_real8(xin, xout, xprocout)
+
+    ! Min x across all of the nodes and its proc number
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), intent(in) :: xin         ! variable to reduce
+    real(dp), intent(out) :: xout       ! value resulting from the reduction
+    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
+
+    xout = xin
+    xprocout = this_rank
+
+  end subroutine parallel_reduce_minloc_real8
+
+!=======================================================================
+
+  ! functions belonging to the parallel_reduce_sum interface
+
   function parallel_reduce_sum_integer(x)
+
     ! Sum x across all of the nodes.
     ! In parallel_slap mode just return x.
     implicit none
     integer :: x, parallel_reduce_sum_integer
 
     parallel_reduce_sum_integer = x
-    return
+
   end function parallel_reduce_sum_integer
 
+
   function parallel_reduce_sum_real4(x)
+
     ! Sum x across all of the nodes.
     ! In parallel_slap mode just return x.
     implicit none
     real(sp) :: x, parallel_reduce_sum_real4
 
     parallel_reduce_sum_real4 = x
-    return
+
   end function parallel_reduce_sum_real4
 
+
   function parallel_reduce_sum_real8(x)
+
     ! Sum x across all of the nodes.
     ! In parallel_slap mode just return x.
     implicit none
     real(dp) :: x, parallel_reduce_sum_real8
 
     parallel_reduce_sum_real8 = x
-    return
+
   end function parallel_reduce_sum_real8
 
+
   function parallel_reduce_sum_integer_nvar(x)
+
     ! Sum x across all of the nodes.
     ! In parallel_slap mode just return x.
     implicit none
@@ -2494,10 +3663,12 @@ contains
     integer, dimension(size(x)) :: parallel_reduce_sum_integer_nvar
 
     parallel_reduce_sum_integer_nvar(:) = x(:)
-    return
+
   end function parallel_reduce_sum_integer_nvar
 
+
   function parallel_reduce_sum_real8_nvar(x)
+
     ! Sum x across all of the nodes.
     ! In parallel_slap mode just return x.
     implicit none
@@ -2505,183 +3676,60 @@ contains
     real(dp), dimension(size(x)) :: parallel_reduce_sum_real8_nvar
 
     parallel_reduce_sum_real8_nvar(:) = x(:)
-    return
+
   end function parallel_reduce_sum_real8_nvar
 
-! ------------------------------------------
-! functions for parallel_reduce_max interface
-! ------------------------------------------
-  function parallel_reduce_max_integer(x)
-    ! Max x across all of the nodes.
-    ! In parallel_slap mode just return x.
-    implicit none
-    integer :: x, parallel_reduce_max_integer
-
-    parallel_reduce_max_integer = x
-    return
-  end function parallel_reduce_max_integer
-
-  function parallel_reduce_max_real4(x)
-    ! Max x across all of the nodes.
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(sp) :: x, parallel_reduce_max_real4
-
-    parallel_reduce_max_real4 = x
-    return
-  end function parallel_reduce_max_real4
-
-  function parallel_reduce_max_real8(x)
-    ! Max x across all of the nodes.
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(dp) :: x, parallel_reduce_max_real8
-
-    parallel_reduce_max_real8 = x
-    return
-  end function parallel_reduce_max_real8
-
-! ------------------------------------------
-! routines for parallel_reduce_maxloc interface
-! ------------------------------------------
-  subroutine parallel_reduce_maxloc_integer(xin, xout, xprocout)
-    ! Max x across all of the nodes and its proc number
-    ! In parallel_slap mode just return x.
-    implicit none
-    integer, intent(in) :: xin         ! variable to reduce
-    integer, intent(out) :: xout       ! value resulting from the reduction
-    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-
-    xout = xin
-    xprocout = this_rank
-  end subroutine parallel_reduce_maxloc_integer
-
-  subroutine parallel_reduce_maxloc_real4(xin, xout, xprocout)
-    ! Max x across all of the nodes and its proc number
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(sp), intent(in) :: xin         ! variable to reduce
-    real(sp), intent(out) :: xout       ! value resulting from the reduction
-    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-
-    xout = xin
-    xprocout = this_rank
-  end subroutine parallel_reduce_maxloc_real4
-
-  subroutine parallel_reduce_maxloc_real8(xin, xout, xprocout)
-    ! Max x across all of the nodes and its proc number
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(dp), intent(in) :: xin         ! variable to reduce
-    real(dp), intent(out) :: xout       ! value resulting from the reduction
-    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-
-    xout = xin
-    xprocout = this_rank
-  end subroutine parallel_reduce_maxloc_real8
-
-! ------------------------------------------
-! functions for parallel_reduce_min interface
-! ------------------------------------------
-  function parallel_reduce_min_integer(x)
-    ! Min x across all of the nodes.
-    ! In parallel_slap mode just return x.
-    implicit none
-    integer :: x, parallel_reduce_min_integer
-
-    parallel_reduce_min_integer = x
-    return
-  end function parallel_reduce_min_integer
-
-  function parallel_reduce_min_real4(x)
-    ! Min x across all of the nodes.
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(sp) :: x, parallel_reduce_min_real4
-
-    parallel_reduce_min_real4 = x
-    return
-  end function parallel_reduce_min_real4
-
-  function parallel_reduce_min_real8(x)
-    ! Min x across all of the nodes.
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(dp) :: x, parallel_reduce_min_real8
-
-    parallel_reduce_min_real8 = x
-    return
-  end function parallel_reduce_min_real8
-
-! ------------------------------------------
-! routines for parallel_reduce_minloc interface
-! ------------------------------------------
-  subroutine parallel_reduce_minloc_integer(xin, xout, xprocout)
-    ! Min x across all of the nodes and its proc number
-    ! In parallel_slap mode just return x.
-    implicit none
-    integer, intent(in) :: xin         ! variable to reduce
-    integer, intent(out) :: xout       ! value resulting from the reduction
-    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-
-    xout = xin
-    xprocout = this_rank
-  end subroutine parallel_reduce_minloc_integer
-
-  subroutine parallel_reduce_minloc_real4(xin, xout, xprocout)
-    ! Min x across all of the nodes and its proc number
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(sp), intent(in) :: xin         ! variable to reduce
-    real(sp), intent(out) :: xout       ! value resulting from the reduction
-    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-
-    xout = xin
-    xprocout = this_rank
-  end subroutine parallel_reduce_minloc_real4
-
-  subroutine parallel_reduce_minloc_real8(xin, xout, xprocout)
-    ! Min x across all of the nodes and its proc number
-    ! In parallel_slap mode just return x.
-    implicit none
-    real(dp), intent(in) :: xin         ! variable to reduce
-    real(dp), intent(out) :: xout       ! value resulting from the reduction
-    integer, intent(out) :: xprocout   ! processor on which reduced value occurs
-
-    xout = xin
-    xprocout = this_rank
-  end subroutine parallel_reduce_minloc_real8
-
+!=======================================================================
 
   subroutine parallel_show_minmax(label,values)
+
     implicit none
     character(*) :: label
     real(dp),dimension(:,:,:) :: values
+
     ! begin
     print *,label,minval(values),maxval(values)
+
   end subroutine parallel_show_minmax
 
+!=======================================================================
+
   subroutine parallel_stop(file,line)
+
     implicit none
     integer :: line
     character(len=*) :: file
+
     ! begin
     write(0,*) "STOP in ",file," at line ",line
     stop
+
   end subroutine parallel_stop
 
+!=======================================================================
+
   function parallel_sync(ncid)
+
     implicit none
     integer :: ncid,parallel_sync
+
     ! begin
     if (main_task) parallel_sync = nf90_sync(ncid)
     call broadcast(parallel_sync)
+
   end function parallel_sync
 
-  subroutine staggered_no_penetration_mask(umask, vmask)
+!=======================================================================
+
+  subroutine staggered_no_penetration_mask(umask, vmask, parallel)
 
     implicit none
     integer,dimension(:,:) :: umask, vmask  ! mask set to 1 wherever the outflow velocity should be zero
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
 
     ! initialize the no-penetration masks to 0
     umask(:,:) = 0
@@ -2699,16 +3747,22 @@ contains
     ! set v velocity mask = 1 at the south global boundary and vertices southward
     vmask(:,:lhalo) = 1
 
-    call staggered_parallel_halo(umask)
-    call staggered_parallel_halo(vmask)
+    call staggered_parallel_halo(umask, parallel)
+    call staggered_parallel_halo(vmask, parallel)
+
+    end associate
 
   end subroutine staggered_no_penetration_mask
 
+!=======================================================================
 
-  subroutine staggered_parallel_halo_integer_2d(a)
+  ! subroutines belonging to the staggered_parallel_halo interface
+
+  subroutine staggered_parallel_halo_integer_2d(a, parallel)
 
     implicit none
     integer,dimension(:,:) :: a
+    type(parallel_type) :: parallel
 
     integer,dimension(staggered_lhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: ecopy
     integer,dimension(staggered_uhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: wcopy
@@ -2716,6 +3770,12 @@ contains
     integer,dimension(size(a,1),staggered_uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         periodic_bc => parallel%periodic_bc,  &
+         outflow_bc  => parallel%outflow_bc,   &
+         local_ewn => parallel%local_ewn,      &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
@@ -2759,13 +3819,16 @@ contains
 
     endif  ! periodic_bc
 
+    end associate
+
   end subroutine staggered_parallel_halo_integer_2d
 
 
-  subroutine staggered_parallel_halo_integer_3d(a)
+  subroutine staggered_parallel_halo_integer_3d(a, parallel)
 
     implicit none
     integer,dimension(:,:,:) :: a
+    type(parallel_type) :: parallel
 
     integer,dimension(size(a,1),staggered_lhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: ecopy
     integer,dimension(size(a,1),staggered_uhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: wcopy
@@ -2773,6 +3836,12 @@ contains
     integer,dimension(size(a,1),size(a,2),staggered_uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         periodic_bc => parallel%periodic_bc,  &
+         outflow_bc  => parallel%outflow_bc,   &
+         local_ewn => parallel%local_ewn,      &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
@@ -2814,13 +3883,16 @@ contains
 
     endif
 
+    end associate
+
   end subroutine staggered_parallel_halo_integer_3d
 
 
-  subroutine staggered_parallel_halo_real8_2d(a)
+  subroutine staggered_parallel_halo_real8_2d(a, parallel)
 
     implicit none
     real(dp),dimension(:,:) :: a
+    type(parallel_type) :: parallel
 
     real(dp),dimension(staggered_lhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: ecopy
     real(dp),dimension(staggered_uhalo,size(a,2)-staggered_lhalo-staggered_uhalo) :: wcopy
@@ -2828,6 +3900,12 @@ contains
     real(dp),dimension(size(a,1),staggered_uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         periodic_bc => parallel%periodic_bc,  &
+         outflow_bc  => parallel%outflow_bc,   &
+         local_ewn => parallel%local_ewn,      &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
@@ -2871,13 +3949,16 @@ contains
 
     endif
 
+    end associate
+
   end subroutine staggered_parallel_halo_real8_2d
 
 
-  subroutine staggered_parallel_halo_real8_3d(a)
+  subroutine staggered_parallel_halo_real8_3d(a, parallel)
 
     implicit none
     real(dp),dimension(:,:,:) :: a
+    type(parallel_type) :: parallel
 
     real(dp),dimension(size(a,1),staggered_lhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: ecopy
     real(dp),dimension(size(a,1),staggered_uhalo,size(a,3)-staggered_lhalo-staggered_uhalo) :: wcopy
@@ -2885,6 +3966,12 @@ contains
     real(dp),dimension(size(a,1),size(a,2),staggered_uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         periodic_bc => parallel%periodic_bc,  &
+         outflow_bc  => parallel%outflow_bc,   &
+         local_ewn => parallel%local_ewn,      &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
@@ -2928,10 +4015,12 @@ contains
 
     endif
 
+    end associate
+
   end subroutine staggered_parallel_halo_real8_3d
 
 
-  subroutine staggered_parallel_halo_real8_4d(a)
+  subroutine staggered_parallel_halo_real8_4d(a, parallel)
 
     ! Implements a staggered grid halo update for a 4D field.
     ! This subroutine is used for the 4D arrays that hold matrix entries.
@@ -2942,6 +4031,7 @@ contains
 
     implicit none
     real(dp),dimension(:,:,:,:) :: a
+    type(parallel_type) :: parallel
 
     real(dp),dimension(size(a,1),size(a,2),staggered_lhalo,size(a,4)-staggered_lhalo-staggered_uhalo) :: ecopy
     real(dp),dimension(size(a,1),size(a,2),staggered_uhalo,size(a,4)-staggered_lhalo-staggered_uhalo) :: wcopy
@@ -2949,6 +4039,12 @@ contains
     real(dp),dimension(size(a,1),size(a,2),size(a,3),staggered_uhalo) :: scopy
 
     ! begin
+
+    associate(  &
+         periodic_bc => parallel%periodic_bc,  &
+         outflow_bc  => parallel%outflow_bc,   &
+         local_ewn => parallel%local_ewn,      &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,3)/=local_ewn-1 .or. size(a,4)/=local_nsn-1) then
@@ -2992,16 +4088,26 @@ contains
 
     endif
 
+    end associate
+
   end subroutine staggered_parallel_halo_real8_4d
 
+!=======================================================================
 
-  subroutine staggered_parallel_halo_extrapolate_integer_2d(a)
+  ! subroutines belonging to the staggered_parallel_halo_extrapolate interface
+
+  subroutine staggered_parallel_halo_extrapolate_integer_2d(a, parallel)
 
     implicit none
     integer,dimension(:,:) :: a
     integer :: i, j
+    type(parallel_type) :: parallel
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
@@ -3033,17 +4139,25 @@ contains
     do j = 1, staggered_lhalo
        a(:, j) = a(:, staggered_lhalo+1)
     enddo
+
+    end associate
 
   end subroutine staggered_parallel_halo_extrapolate_integer_2d
 
 
-  subroutine staggered_parallel_halo_extrapolate_real8_2d(a)
+  subroutine staggered_parallel_halo_extrapolate_real8_2d(a, parallel)
 
     implicit none
     real(dp),dimension(:,:) :: a
+    type(parallel_type) :: parallel
+
     integer :: i, j
 
     ! begin
+
+    associate(  &
+         local_ewn => parallel%local_ewn,  &
+         local_nsn => parallel%local_nsn)
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
@@ -3076,7 +4190,12 @@ contains
        a(:, j) = a(:, staggered_lhalo+1)
     enddo
 
+    end associate
+
   end subroutine staggered_parallel_halo_extrapolate_real8_2d
 
+!=======================================================================
 
-end module parallel
+end module parallel_mod
+
+!=======================================================================
