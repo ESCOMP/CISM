@@ -63,7 +63,6 @@ contains
 
     subroutine sparse_solver_default_options(method, opt)
 
-!        use parallel
         integer, intent(in) :: method                 ! sparse solver: BiCG, GMRES, PCG, etc.
         type(sparse_solver_options), target :: opt    !TODO - intent inout or out?
 
@@ -107,7 +106,6 @@ contains
 
     subroutine sparse_allocate_workspace(matrix, options, workspace, max_nonzeros_arg)
 
-!        use parallel
         !> Allocate solver workspace.  This needs to be done once
         !> (when the maximum number of nonzero entries is first known)
         !> This function need not be safe to call on already allocated memory

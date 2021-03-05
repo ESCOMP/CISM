@@ -28,7 +28,6 @@ program cism_driver
 !  use glimmer_commandline
 !  use glide
   use gcm_cism_interface
-!  use parallel
   use parallel_mod, only: parallel_initialise, parallel_finalise
 
   integer :: which_gcm = GCM_DATA_MODEL

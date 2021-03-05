@@ -86,8 +86,6 @@ contains
     use glimmer_paramets, only : thk0
     use glide_grid_operators, only: stagvarb
     use glissade_grid_operators, only: glissade_stagger
-!    use parallel
-    use parallel_mod, only: parallel_halo
 
     implicit none
 
@@ -114,10 +112,11 @@ contains
     p_flux_to_depth = 2.0d0            ! exponent on the depth
     q_flux_to_depth = 1.0d0            ! exponent on the potential gradient
 
-    ! TODO - Should halo updates for thck and topg be done before calling calcbwat?
-    !        If not, they need to be done here so that the effective pressure will be correct in halo cells
-    call parallel_halo(thck)
-    call parallel_halo(topg)
+    ! Note: Commented out these halo updates to avoid passing 'parallel' to this subroutine,
+    !       which was written for one processor only.
+
+!!    call parallel_halo(thck)
+!!    call parallel_halo(topg)
 
     select case (which)
 

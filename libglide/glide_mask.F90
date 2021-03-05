@@ -35,9 +35,7 @@ module glide_mask
     ! masking ice thicknesses
 
     use glimmer_global, only : dp
-!    use parallel
-    use parallel_mod, only: lhalo, uhalo
-    use parallel_mod, only: parallel_halo, parallel_reduce_sum
+    use parallel_mod, only: lhalo, uhalo, parallel_type, parallel_halo, parallel_reduce_sum
 
     implicit none
 
@@ -49,7 +47,8 @@ contains
 !       This subroutine is now called from glissade_velo_driver with stagthck and stagtopg
 !       as input arguments.
 
-  subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask, iarea, ivol, exec_serial)
+  subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask, iarea, ivol, &
+                            exec_serial, parallel)
 
     use glide_types
     use glimmer_physcon, only : rhoi, rhoo
@@ -62,7 +61,9 @@ contains
     real(dp), intent(in) :: eus                  ! Sea level
     integer, dimension(:,:), intent(inout) :: mask   ! Output mask
     real(dp), intent(inout), optional :: ivol, iarea ! Area and volume of ice
-    logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.
+
+    logical, optional :: exec_serial             !JEFF If executing in serial in MPI program.
+    type(parallel_type), optional :: parallel    ! info for parallel communication
 
     ! local variables
     integer ew,ns
@@ -186,8 +187,8 @@ contains
 
     !JEFF Don't call halo update if running in serial mode
     !WHL - I think the halo update will now work in serial mode.
-    if (.NOT. exec_serial_flag) then
-       call parallel_halo(mask)
+    if (.NOT. exec_serial_flag .and. present(parallel)) then
+       call parallel_halo(mask, parallel)
     endif
 
   end subroutine glide_set_mask
@@ -303,7 +304,8 @@ contains
 
   end subroutine calc_iareaf_iareag
 
-    subroutine glide_marine_margin_normal(thck, mask, marine_bc_normal, exec_serial)
+    subroutine glide_marine_margin_normal(thck, mask, marine_bc_normal, &
+                                          exec_serial, parallel)
 
       !TODO - Remove subroutine glide_marine_margin_normal?  Old PBJ routine.
       !       Also can remove calc_normal_45deg
@@ -315,7 +317,9 @@ contains
         real(dp), dimension(:,:), intent(in) :: thck
         integer, dimension(:,:), intent(in) :: mask
         real(dp), dimension(:,:), intent(out) :: marine_bc_normal
-        logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.
+
+        logical, optional :: exec_serial  !JEFF If executing in serial in MPI program
+        type(parallel_type), optional :: parallel    ! info for parallel communication
 
         integer :: i, j, dx, dy, k
         logical :: exec_serial_flag
@@ -393,10 +397,10 @@ contains
                 end if
             end do
         end do
-        if (.NOT. exec_serial_flag) then
-           call parallel_halo(marine_bc_normal)
+        if (.NOT. exec_serial_flag .and. present(parallel)) then
+           call parallel_halo(marine_bc_normal, parallel)
         endif
-    end subroutine
+      end subroutine glide_marine_margin_normal
 
     function calc_normal_45deg(thck3x3)
         use glimmer_physcon, only: pi
@@ -494,11 +498,14 @@ contains
     !marine ice margin, where upwinding and downwinding is used to avoid
     !differencing across the boundary.
 
-    subroutine upwind_from_mask(mask, direction_x, direction_y, exec_serial)
+    subroutine upwind_from_mask(mask, direction_x, direction_y, &
+                                exec_serial, parallel)
 
         integer, dimension(:,:), intent(in) :: mask
         double precision, dimension(:,:), intent(out) :: direction_x, direction_y
+
         logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.
+        type(parallel_type), optional :: parallel    ! info for parallel communication
 
         integer :: i,j
         logical :: exec_serial_flag
@@ -582,9 +589,9 @@ contains
             end do
         end do
 
-        if (.NOT. exec_serial_flag) then
-            call parallel_halo(direction_x)
-            call parallel_halo(direction_y)
+        if (.NOT. exec_serial_flag .and. present(parallel)) then
+            call parallel_halo(direction_x, parallel)
+            call parallel_halo(direction_y, parallel)
         endif
 
     end subroutine upwind_from_mask

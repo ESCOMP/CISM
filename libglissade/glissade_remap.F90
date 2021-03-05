@@ -59,9 +59,7 @@ module glissade_remap
   use glimmer_global, only: dp
   use glimmer_log
 
-!  use parallel
-  use parallel_mod, only: this_rank
-  use parallel_mod, only: parallel_halo, parallel_globalindex, broadcast
+  use parallel_mod, only: this_rank, parallel_type, parallel_halo, parallel_globalindex, broadcast
 
   implicit none
   save
@@ -254,6 +252,7 @@ module glissade_remap
                                           dx,                dy,            &
                                           nx_block,          ny_block,      &
                                           ntracer,           nghost,        &
+                                          parallel,                         &
                                           mmask,             icells,        &
                                           indxi,             indxj,         &
                                           uvel,              vvel,          &
@@ -281,6 +280,9 @@ module glissade_remap
 
       real(dp), intent(in) ::    &   
          dx, dy       ! x and y gridcell dimensions
+
+      type(parallel_type), intent(in) :: &
+           parallel   ! info for parallel communication
 
       !TODO - Change nx_block and ny_block to nx and ny
       integer, intent(in) :: &
@@ -508,6 +510,7 @@ module glissade_remap
       call departure_points(nx_block,         ny_block,          &
                             ilo, ihi,         jlo, jhi,          &
                             nghost,           dt,                &
+                            parallel,                            &
                             uvel  (:,:),      vvel(:,:),         &
                             dxu   (:,:),      dyu (:,:),         &
                             htn   (:,:),      hte (:,:),         &
@@ -530,18 +533,18 @@ module glissade_remap
       if (nghost==1) then
 
          ! mass field
-         call parallel_halo(mc)
-         call parallel_halo(mx)
-         call parallel_halo(my)
+         call parallel_halo(mc, parallel)
+         call parallel_halo(mx, parallel)
+         call parallel_halo(my, parallel)
 
          ! tracer fields
-         call parallel_halo(tc)
-         call parallel_halo(tx)
-         call parallel_halo(ty)
+         call parallel_halo(tc, parallel)
+         call parallel_halo(tx, parallel)
+         call parallel_halo(ty, parallel)
 
          ! departure points
-         call parallel_halo(dpx)
-         call parallel_halo(dpy)
+         call parallel_halo(dpx, parallel)
+         call parallel_halo(dpy, parallel)
 
       endif  ! nghost
 
@@ -631,7 +634,7 @@ module glissade_remap
 
       call update_fields (nx_block,           ny_block,          &
                           ilo, ihi,           jlo, jhi,          &
-                          ntracer,                               &
+                          ntracer,            parallel,          &
                           tarear,             l_stop,            &
                           mflxe (:,:),        mflxn (:,:),       &
                           mass  (:,:),                           &     
@@ -1099,7 +1102,8 @@ module glissade_remap
 !
     subroutine departure_points (nx_block,   ny_block,   &
                                  ilo, ihi,   jlo, jhi,   &
-                                 nghost,     dt,   &
+                                 nghost,     dt,      &
+                                 parallel,            &
                                  uvel,       vvel,    &
                                  dxu,        dyu,     &
                                  htn,        hte,     &
@@ -1120,6 +1124,9 @@ module glissade_remap
 
       real(dp), intent(in) ::   &
          dt               ! time step (s)
+
+      type(parallel_type), intent(in) :: &
+           parallel       ! info for parallel communication
 
       real(dp), dimension (nx_block-1,ny_block-1), intent(in) ::   &
          uvel           ,&! x-component of velocity (m/s)
@@ -1204,7 +1211,7 @@ module glissade_remap
       !TODO - Write error message to the log file.
 
       if (l_stop) then
-         call parallel_globalindex(istop, jstop, istop_global, jstop_global)
+         call parallel_globalindex(istop, jstop, istop_global, jstop_global, parallel)
          call broadcast(istop_global, proc=this_rank)
          call broadcast(jstop_global, proc=this_rank)
          i = istop
@@ -3038,7 +3045,7 @@ module glissade_remap
 !
     subroutine update_fields (nx_block,    ny_block,   &
                               ilo, ihi,    jlo, jhi,   &
-                              ntracer,                 &
+                              ntracer,     parallel,   &
                               tarear,      l_stop,     &
                               mflxe,       mflxn,      &
                               mass,                    &
@@ -3055,6 +3062,9 @@ module glissade_remap
          nx_block, ny_block,&! block dimensions
          ilo,ihi,jlo,jhi   ,&! beginning and end of physical domain
          ntracer             ! number of tracers in use
+
+      type(parallel_type), intent(in) :: &
+           parallel       ! info for parallel communication
 
       real(dp), dimension (nx_block, ny_block), intent(in) ::   &
          mflxe, mflxn     ! mass transport across east and north cell edges
@@ -3159,7 +3169,7 @@ module glissade_remap
 !         call write_log(message)    
 !         write (message,*) 'Net transport =', -w1*tarear
 !         call write_log(message)
-         call parallel_globalindex(i, j, iglobal, jglobal)
+         call parallel_globalindex(i, j, iglobal, jglobal, parallel)
          write (6,*) ' '
          write (6,*) 'Process:',this_rank
          write (6,*) 'Remap, negative ice thickness, i, j =', i, j

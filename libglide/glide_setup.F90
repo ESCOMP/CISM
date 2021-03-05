@@ -271,9 +271,7 @@ contains
     use glide_types
     use glimmer_log
     use glimmer_filenames
-!    use parallel
-    use parallel_mod, only: main_task
-    use parallel_mod, only: broadcast
+    use parallel_mod, only: main_task, broadcast
 
     implicit none
 
@@ -405,7 +403,6 @@ contains
     use glide_types
     use glimmer_config
     use glimmer_log
-!    use parallel, only: main_task
     use parallel_mod, only: main_task
 
     implicit none
@@ -840,8 +837,6 @@ contains
 
     use glide_types
     use glimmer_log
-
-!    use parallel
     use parallel_mod, only: tasks
 
     implicit none
@@ -2103,10 +2098,10 @@ contains
 
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
-    call GetVAlue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
-    call GetVAlue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
-    call GetVAlue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
-    call GetVAlue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
+    call GetValue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
+    call GetValue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
+    call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
+    call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2861,10 +2856,11 @@ contains
 !--------------------------------------------------------------------------------
 
   subroutine print_isostasy(model)
+
     use glide_types
     use glimmer_log
-!    use parallel, only: tasks
     use parallel_mod, only: tasks
+
     implicit none
     type(glide_global_type)  :: model
     character(len=100) :: message

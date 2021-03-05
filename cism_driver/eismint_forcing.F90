@@ -211,8 +211,8 @@ contains
     ! print eismint_climate configuration
 
     use glimmer_log
-!    use parallel, only: tasks
     use parallel_mod, only: tasks
+
     implicit none
 
     type(eismint_climate_type) :: eismint_climate   ! structure holding climate info

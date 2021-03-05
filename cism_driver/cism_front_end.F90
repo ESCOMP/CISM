@@ -53,7 +53,6 @@ subroutine cism_init_dycore(model)
   use glide_diagnostics
   use glimmer_paramets, only: thk0
 !  use glimmer_to_dycore
-!  use parallel
 
   use cism_external_dycore_interface
 
@@ -248,7 +247,6 @@ subroutine cism_run_dycore(model)
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
-!  use parallel
 
   use cism_external_dycore_interface
 
@@ -402,7 +400,6 @@ subroutine cism_finalize_dycore(model)
   use glide_io, only: glide_io_writeall
   use glide_stop, only: glide_finalise
   use glide_diagnostics
-!  use parallel
 
   use cism_external_dycore_interface
   

@@ -36,9 +36,7 @@ module glimmer_ncio
   !> written by Magnus Hagdorn, 2004
 
   use glimmer_ncdf
-!  use parallel
-  use parallel_mod, only: global_ewn, global_nsn
-  use parallel_mod, only: parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
+  use parallel_mod, only: parallel_type, parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
        parallel_put_att, parallel_def_var, parallel_def_dim, parallel_inq_varid, parallel_inq_dimid,  &
        parallel_inquire_dimension, parallel_redef, parallel_enddef, parallel_sync
 
@@ -509,7 +507,7 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_openfile(infile,model)
+  subroutine glimmer_nc_openfile(infile, model)
 
     !> open an existing netCDF file
     use glide_types
@@ -590,9 +588,9 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inquire_dimension(NCI%id,dimid,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
-    if (dimsize /= global_ewn) then
+    if (dimsize /= model%parallel%global_ewn) then
        write(message,*) 'Dimension x1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config dimension: ', dimsize, global_ewn
+            ' does not match with config dimension: ', dimsize, model%parallel%global_ewn
        call write_log(message,type=GM_FATAL)
     end if
     status = parallel_inq_varid(NCI%id,'x1',varid)
@@ -633,9 +631,9 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inquire_dimension(NCI%id,dimid,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
-    if (dimsize /= global_nsn) then
+    if (dimsize /= model%parallel%global_nsn) then
        write(message,*) 'Dimension y1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config dimension: ', dimsize, global_nsn
+            ' does not match with config dimension: ', dimsize, model%parallel%global_nsn
        call write_log(message,type=GM_FATAL)
     end if
     status = parallel_inq_varid(NCI%id,'y1',varid)

@@ -110,7 +110,6 @@ contains
     use glide_types
     use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: tim0
-!    use parallel
 
     implicit none
 
@@ -236,6 +235,7 @@ contains
             model%isostasy%rbel,  &
             load_factors,         &
             load,                 &
+            model%parallel,       &
             model%numerics%idiag, &
             model%numerics%jdiag, &
             model%numerics%idiag_local, &

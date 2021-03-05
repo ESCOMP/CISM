@@ -35,7 +35,6 @@ module profile
 
 #if (defined CCSMCOUPLED || defined CESMTIMERS)
   use perf_mod
-!  use parallel
   use parallel_mod
 #endif
 

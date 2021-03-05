@@ -50,10 +50,8 @@
   use glimmer_paramets, only : vel0, tau0
   use glimmer_log
   use glide_types
-!  use parallel, only : staggered_parallel_halo
-  use parallel_mod, only : this_rank, main_task, global_ewn, global_nsn
-  use parallel_mod, only : parallel_halo, staggered_parallel_halo, parallel_globalindex, &
-       distributed_scatter_var
+  use parallel_mod, only : this_rank, main_task, parallel_type, &
+       parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
 
   implicit none
 
@@ -67,6 +65,7 @@ contains
 !***********************************************************************
 
   subroutine calcbeta (whichbabc,                    &
+                       parallel,                     &
                        dew,           dns,           &
                        ewn,           nsn,           &
                        thisvel,       othervel,      &
@@ -98,8 +97,12 @@ contains
 
   ! Input/output arguments
 
-  integer, intent(in) :: whichbabc
-  integer, intent(in) :: ewn, nsn
+  integer, intent(in) :: whichbabc     ! option for basal friction parameterization
+
+  type(parallel_type), intent(in) :: &
+       parallel                        ! info for parallel communication
+
+  integer, intent(in) :: ewn, nsn      ! horizonal grid dimensions
 
   real(dp), intent(in)                    :: dew, dns           ! m
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
@@ -276,7 +279,7 @@ contains
                          / dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 + (smallnum)**2 )   ! velocity components (m/yr)
 
       !!! since beta is updated here, communicate that info to halos
-      call staggered_parallel_halo(beta)
+      call staggered_parallel_halo(beta, parallel)
 
     case(HO_BABC_BETA_LARGE)      ! frozen (u=v=0) ice-bed interface
 
@@ -287,6 +290,7 @@ contains
 
     case(HO_BABC_ISHOMC)          ! prescribe according to ISMIP-HOM test C
 
+       !TODO: Carry out this operation at initialization, before calling calcbeta?
        !Note: Ideally, beta would be read in from an external netCDF file.
        !      However, this is not possible given that the global velocity grid is smaller
        !       than the ice grid and hence not able to fit the full beta field.
@@ -295,7 +299,7 @@ contains
        ! Allocate a global array on the main task only.
        ! On other tasks, allocate a size 0 array, since distributed_scatter_var wants to deallocate on all tasks.
        if (main_task) then
-          allocate(beta_global(global_ewn, global_nsn))
+          allocate(beta_global(parallel%global_ewn, parallel%global_nsn))
        else
           allocate(beta_global(0,0))
        endif
@@ -305,12 +309,12 @@ contains
        !       They need a global array of size (ewn,nsn) to hold values on the global boundary.
        if (main_task) then
 
-          Ldomain = global_ewn * dew   ! size of full domain (must be square)
+          Ldomain = parallel%global_ewn * dew   ! size of full domain (must be square)
           omega = 2.d0*pi / Ldomain
 
           beta_global(:,:) = 0.0d0
-          do ns = 1, global_nsn
-             do ew = 1, global_ewn
+          do ns = 1, parallel%global_nsn
+             do ew = 1, parallel%global_ewn
                 dx = dew * ew
                 dy = dns * ns
                 beta_global(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
@@ -323,10 +327,10 @@ contains
        ! Note: beta_extend has dimensions (ewn,nsn), so it can receive scattered data from beta_global.
        allocate(beta_extend(ewn, nsn))
        beta_extend(:,:) = 0.d0
-       call distributed_scatter_var(beta_extend, beta_global)
+       call distributed_scatter_var(beta_extend, beta_global, parallel)
 
        ! distributed_scatter_var does not update the halo, so do an update here
-       call parallel_halo(beta_extend)
+       call parallel_halo(beta_extend, parallel)
 
        ! Copy beta_extend to beta on the local processor.
        ! This is done since beta lives on the velocity grid and has dimensions (ewn-1,nsn-1).
@@ -665,7 +669,7 @@ contains
          if (beta(ew,ns) >= 0.d0) then
             ! do nothing
          else
-            call parallel_globalindex(ew, ns, iglobal, jglobal)
+            call parallel_globalindex(ew, ns, iglobal, jglobal, parallel)
             write(message,*) 'Invalid beta value in calcbeta: this_rank, i, j, iglobal, jglobal, beta, f_ground:', &
                  this_rank, ew, ns, iglobal, jglobal, beta(ew,ns), f_ground(ew,ns)
             call write_log(trim(message), GM_FATAL)
@@ -674,7 +678,8 @@ contains
    end do
    
    ! halo update
-   call staggered_parallel_halo(beta)
+   !TODO - Move this halo update to a higher level?
+   call staggered_parallel_halo(beta, parallel)
 
                 !WHL - debug
                 if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
@@ -928,8 +933,6 @@ contains
                       endif
                    enddo
                 enddo
-
-                call parallel_halo(f_pattyn_2d)
 
                 print*, ' '
                 print*, 'f_pattyn, itest, jtest, rank =', itest, jtest, rtest

@@ -43,9 +43,8 @@
     use glimmer_global, only: dp
     use glimmer_log
     use glissade_remap, only: glissade_horizontal_remap, make_remap_mask, puny
-!    use parallel
-    use parallel_mod, only: this_rank, main_task, nhalo, lhalo, uhalo, staggered_lhalo, staggered_uhalo
-    use parallel_mod, only: parallel_reduce_max, parallel_reduce_sum, parallel_reduce_minloc, &
+    use parallel_mod, only: this_rank, main_task, nhalo, lhalo, uhalo, staggered_lhalo, staggered_uhalo, &
+         parallel_type, parallel_reduce_max, parallel_reduce_sum, parallel_reduce_minloc, &
          parallel_globalindex, broadcast
 
     implicit none
@@ -291,6 +290,7 @@
                                             dx,           dy,           &
                                             nx,           ny,           &
                                             nlyr,         sigma,        &
+                                            parallel,                   &
                                             thck,                       &
                                             acab,         bmlt,         &
                                             acab_applied, bmlt_applied, &
@@ -323,6 +323,9 @@
       real(dp), dimension(nlyr+1), intent(in) ::  &
          sigma                  ! layer interfaces in sigma coordinates
                                 ! top sfc = 0, bottom sfc = 1
+
+      type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
       real(dp), dimension(nx,ny), intent(in) ::  &
          effective_areafrac     ! effective fractional area, in range [0,1]
@@ -429,7 +432,6 @@
 
          call sum_mass_and_tracers(nx,                ny,              &
                                    nlyr,              ntracers,        &
-                                   nhalo,                              &
                                    thck_layer(:,:,:), msum_init,       &
                                    tracers(:,:,:,:),  mtsum_init(:))
       endif
@@ -457,7 +459,7 @@
 
          call glissade_add_smb(nx,       ny,          &
                                nlyr,     ntracers,    &
-                               nhalo,    dt,          &
+                               dt,       parallel,    &
                                ocean_mask,            &
                                effective_areafrac,    &
                                thck_layer(:,:,:),     &
@@ -475,10 +477,9 @@
          !-------------------------------------------------------------------
 
          call glissade_vertical_remap(nx,                ny,       &
-                                      nlyr,              nhalo,    &
-                                      sigma(:),                    &
+                                      nlyr,              ntracers, &
+                                      parallel,          sigma(:), &
                                       thck_layer(:,:,:),           &
-                                      ntracers, &
                                       tracers(:,:,:,:),            &
                                       tracers_usrf(:,:,:),         &
                                       tracers_lsrf(:,:,:),         &
@@ -518,7 +519,6 @@
 
             call sum_mass_and_tracers(nx,                ny,              &
                                       nlyr,              ntracers,        &
-                                      nhalo,                              &
                                       thck_layer(:,:,:), msum_final,      &
                                       tracers(:,:,:,:),  mtsum_final(:))
 
@@ -557,6 +557,7 @@
                                          dx,           dy,           &
                                          nx,           ny,           &
                                          nlyr,         sigma,        &
+                                         parallel,                   &
                                          uvel,         vvel,         &
                                          thck,                       &
                                          ntracers,     tracers,      &
@@ -593,6 +594,9 @@
       real(dp), dimension(nlyr+1), intent(in) ::  &
          sigma                  ! layer interfaces in sigma coordinates
                                 ! top sfc = 0, bottom sfc = 1
+
+      type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
       real(dp), dimension(nlyr+1,nx-1,ny-1), intent(in) ::  &
          uvel, vvel             ! horizontal velocity components (m/s)
@@ -717,7 +721,6 @@
 
          call sum_mass_and_tracers(nx,                ny,              &
                                    nlyr,              ntracers,        &
-                                   nhalo,                              &
                                    thck_layer(:,:,:), msum_init,       &
                                    tracers(:,:,:,:),  mtsum_init(:))
       endif
@@ -859,6 +862,7 @@
                                             dx,                dy,               &
                                             nx,                ny,               &
                                             ntracers,          nhalo,            &
+                                            parallel,                            &
                                             thck_mask(:,:),    icells,           &
                                             indxi(:),          indxj(:),         &
                                             uvel_layer(:,:),   vvel_layer(:,:),  &
@@ -883,7 +887,6 @@
 
          call sum_mass_and_tracers(nx,                ny,              &
                                    nlyr,              ntracers,        &
-                                   nhalo,                              &
                                    thck_layer(:,:,:), msum_final,      &
                                    tracers(:,:,:,:),  mtsum_final(:))
 
@@ -913,10 +916,9 @@
       !-------------------------------------------------------------------
 
       call glissade_vertical_remap(nx,                ny,       &
-                                   nlyr,              nhalo,    &
-                                   sigma(:),                    &
+                                   nlyr,              ntracers, &
+                                   parallel,          sigma(:), &
                                    thck_layer(:,:,:),           &
-                                   ntracers, &
                                    tracers(:,:,:,:),            &
                                    tracers_usrf(:,:,:),         &
                                    tracers_lsrf(:,:,:),         &
@@ -938,7 +940,6 @@
 
          call sum_mass_and_tracers(nx,                ny,              &
                                    nlyr,              ntracers,        &
-                                   nhalo,                              &
                                    thck_layer(:,:,:), msum_final,      &
                                    tracers(:,:,:,:),  mtsum_final(:))
 
@@ -977,6 +978,7 @@
 
     subroutine glissade_check_cfl(ewn,     nsn,      nlyr,          & 
                                   dew,     dns,      sigma,         &
+                                  parallel,                         &
                                   stagthk, dusrfdew, dusrfdns,      &
                                   uvel,    vvel,     deltat,        &
                                   allowable_dt_adv,  allowable_dt_diff)
@@ -999,6 +1001,9 @@
 
       real(dp), dimension(:), intent(in) :: &
          sigma       ! vertical coordinate spacing
+
+      type(parallel_type), intent(in) :: &
+         parallel    ! info for parallel communication
 
       real(dp), dimension(:,:), intent(in) :: &
          stagthk     ! thickness on the staggered grid, dimensional m
@@ -1141,7 +1146,9 @@
 
           ! Get position of the limiting location - do this only if an error message is needed to avoid 2 MPI comms
           indices_adv_global(1) = indices_adv(1)
-          call parallel_globalindex(indices_adv(2), indices_adv(3), indices_adv_global(2), indices_adv_global(3))  
+          call parallel_globalindex(indices_adv(2), indices_adv(3), &
+                                    indices_adv_global(2), indices_adv_global(3),  &
+                                    parallel)
           ! Note: This subroutine assumes the scalar grid, but should work fine for the stag grid too
           ! indices_adv_global now has i,j on the global grid for this proc's location
           call broadcast(indices_adv_global(2), proc=procnum)
@@ -1170,7 +1177,9 @@
 
       if (deltat > allowable_dt_diff) then
           ! Get position of the limiting location - do this only if an error message is needed to avoid 2 MPI comms
-          call parallel_globalindex(indices_diff(1), indices_diff(2), indices_diff_global(1), indices_diff_global(2))  
+          call parallel_globalindex(indices_diff(1), indices_diff(2), &
+                                    indices_diff_global(1), indices_diff_global(2),  &
+                                    parallel)
           ! Note: this subroutine assumes the scalar grid, but should work fine for the stag grid too
           ! indices_diff_global now has i,j on the global grid for this proc's location
           call broadcast(indices_diff_global(1), proc=procnum)
@@ -1204,7 +1213,6 @@
 
     subroutine sum_mass_and_tracers(nx,         ny,        &
                                     nlyr,       ntracer,   &
-                                    nhalo,                 &
                                     thck_layer, msum,      &
                                     tracer,     mtsum)
 
@@ -1216,8 +1224,7 @@
       integer, intent(in) ::   &
          nx, ny,               &! horizontal array size
          nlyr,                 &! number of vertical layers
-         ntracer,              &! number of tracers
-         nhalo                  ! number of halo rows
+         ntracer                ! number of tracers
 
       real(dp), dimension (nx,ny,nlyr), intent(in) ::     &
          thck_layer             ! ice layer thickness
@@ -1357,7 +1364,7 @@
 
     subroutine glissade_add_smb(nx,           ny,          &
                                 nlyr,         ntracer,     &
-                                nhalo,        dt,          &
+                                dt,           parallel,    &
                                 ocean_mask,                &
                                 effective_areafrac,        &
                                 thck_layer,   tracer,      &
@@ -1373,11 +1380,13 @@
       integer, intent(in) ::   &
          nx, ny,               &! horizontal array size
          nlyr,                 &! number of vertical layers
-         ntracer,              &! number of tracers
-         nhalo                  ! number of halo rows
+         ntracer                ! number of tracers
 
       real(dp), intent(in) ::   &
          dt                     ! time step (s)
+
+      type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
       !TODO - Could remove ocean_mask argument, if acab and bmlt have already been set to 0 for ice-free ocean cells.
       integer, dimension(nx,ny), intent(in) :: &
@@ -1623,7 +1632,7 @@
                thck_final(i,j) = sum(thck_layer(i,j,:))
                dthck = (acab(i,j) - bmlt(i,j))*dt*effective_areafrac(i,j)
                if (abs(thck_init(i,j) + dthck - thck_final(i,j) + melt_potential(i,j)) > 1.d-8) then
-                  call parallel_globalindex(i,j, iglobal, jglobal)
+                  call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                   print*, ' '
                   print*, 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
                        this_rank, i, j, iglobal, jglobal, thck_init(i,j) + dthck - thck_final(i,j)
@@ -1876,9 +1885,9 @@
 !----------------------------------------------------------------------
 
     subroutine glissade_vertical_remap(nx,        ny,        &
-                                       nlyr,      nhalo,     &
-                                       sigma,     hlyr,      &
-                                       ntracer,   trcr,      &
+                                       nlyr,      ntracer,   &
+                                       parallel,  sigma,     &
+                                       hlyr,      trcr,      &
                                        trcr_usrf, trcr_lsrf, &
                                        vert_remap_accuracy)
  
@@ -1899,14 +1908,16 @@
     integer, intent(in) ::  &
          nx, ny,     &! number of cells in EW and NS directions
          nlyr,       &! number of vertical layers
-         nhalo,      &! number of halo rows
          ntracer      ! number of tracer fields
 
-    real(dp), dimension (nx, ny, nlyr), intent(inout) ::  &
-         hlyr         ! layer thickness
+    type(parallel_type), intent(in) :: &
+         parallel    ! info for parallel communication
 
     real(dp), dimension (nlyr+1), intent(in) ::  &
          sigma        ! sigma vertical coordinate (at layer interfaces)
+
+    real(dp), dimension (nx, ny, nlyr), intent(inout) ::  &
+         hlyr         ! layer thickness
 
     real(dp), dimension (nx, ny, ntracer, nlyr), intent(inout) ::   &
          trcr         ! tracer field to be remapped
@@ -2160,7 +2171,7 @@
           do j = 1, ny
              do i = 1, nx
                 if (trcr(i,j,nt,k) /= trcr(i,j,nt,k)) then
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    write(message,*) 'ERROR: Vertical remap, iglobal, jglobal, k, hlyr, trcr:', &
                         iglobal, jglobal, k, hlyr(i,j,k), trcr(i,j,nt,k)
                    call write_log(trim(message), GM_FATAL) 

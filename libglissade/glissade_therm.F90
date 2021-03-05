@@ -57,9 +57,7 @@ module glissade_therm
     use glimmer_global, only : dp 
     use glide_types
     use glimmer_log
-!    use parallel
-    use parallel_mod, only: this_rank
-    use parallel_mod, only: broadcast, parallel_globalindex
+    use parallel_mod, only: this_rank, broadcast, parallel_globalindex
 
     implicit none
 
@@ -529,6 +527,7 @@ module glissade_therm
   subroutine glissade_therm_driver(whichtemp,                         &
                                    temp_init,                         &
                                    dttem,                             &
+                                   parallel,                          &
                                    ewn,             nsn,       upn,   &
                                    itest,           jtest,     rtest, &
                                    sigma,           stagsigma,        &
@@ -571,6 +570,9 @@ module glissade_therm
 
     integer, intent(in) ::   &
          temp_init             ! option for initializing the temperature (used for thin ice)
+
+    type(parallel_type), intent(in) :: &
+         parallel              ! info for parallel communication
 
     integer, intent(in) ::   &
          ewn, nsn, upn,      & ! grid dimensions
@@ -698,12 +700,12 @@ module glissade_therm
 
     endif
 
-
-
     ! Compute masks: ice_mask = 1 where thck > thklim_temp;
     !                floating_mask = 1 where ice is present (thck > thklim_temp) and floating;
+    !TODO: Modify glissade_get_masks so that 'parallel' is not needed
 
     call glissade_get_masks(ewn,           nsn,            &
+                            parallel,                      &
                             thck,          topg,           &
                             eus,           thklim_temp,    &
                             ice_mask,                      &
@@ -1148,7 +1150,7 @@ module glissade_therm
        end do    ! ns
 
        if (lstop) then
-          call parallel_globalindex(istop, jstop, istop_global, jstop_global)
+          call parallel_globalindex(istop, jstop, istop_global, jstop_global, parallel)
           call broadcast(istop_global, proc=this_rank)
           call broadcast(istop_global, proc=this_rank)
           print*, 'ERROR: Energy not conserved in glissade_therm, rank, i, j =', this_rank, istop, jstop
@@ -1265,7 +1267,7 @@ module glissade_therm
           mintemp = minval(temp(:,ew,ns))
           
           if (maxtemp > maxtemp_threshold) then
-             call parallel_globalindex(ew, ns, ew_global, ns_global)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              write(message,*) 'maxtemp < maxtemp_threshold: this_rank, i, j, i_global, j_global, maxtemp =', &
                   this_rank, ew, ns, ew_global, ns_global, maxtemp
              call write_log(message,GM_FATAL)
@@ -1278,7 +1280,7 @@ module glissade_therm
 !             do k = 1, upn
 !                print*, k, temp(k,ew,ns)
 !             enddo
-             call parallel_globalindex(ew, ns, ew_global, ns_global)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              write(message,*) 'mintemp < mintemp_threshold: this_rank, i, j, i_global, j_global, mintemp =', &
                   this_rank, ew, ns, ew_global, ns_global, mintemp
              call write_log(message,GM_FATAL)

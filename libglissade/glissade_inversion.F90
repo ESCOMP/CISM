@@ -31,9 +31,8 @@ module glissade_inversion
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
-!  use parallel
-  use parallel_mod, only: this_rank, main_task, nhalo
-  use parallel_mod, only: parallel_halo, staggered_parallel_halo, &
+  use parallel_mod, only: this_rank, main_task, nhalo, &
+       parallel_type, parallel_halo, staggered_parallel_halo, &
        parallel_reduce_min, parallel_reduce_max
 
   implicit none
@@ -68,7 +67,6 @@ contains
 
     use glissade_masks, only: glissade_get_masks
     use glissade_bmlt_float, only: basin_sum
-    use glissade_grounding_line, only: glissade_grounded_fraction
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -98,6 +96,10 @@ contains
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
     integer :: ewn, nsn
+
+    type(parallel_type) :: parallel    ! info for global communication
+
+    parallel = model%parallel
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -204,13 +206,15 @@ contains
 
        endif   ! not a restart
 
-       call parallel_halo(model%geometry%usrf_obs)
-       call parallel_halo(thck_obs)
+       call parallel_halo(model%geometry%usrf_obs, parallel)
+       call parallel_halo(thck_obs, parallel)
 
     endif  ! which_ho_cp_inversion or which_ho_bmlt_inversion
 
     ! Set masks that are used below
+    ! Modify glissade_get_masks so that 'parallel' is not needed
     call glissade_get_masks(ewn,                 nsn,                   &
+                            parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask,                                   &
@@ -238,8 +242,8 @@ contains
        ! If restarting, it should have been read in already.
        ! If not restarting, it will have been set to zero, which is an appropriate initial value.
 
-       call parallel_halo(model%geometry%marine_connection_mask)
-       call parallel_halo(model%inversion%bmlt_float_save)
+       call parallel_halo(model%geometry%marine_connection_mask, parallel)
+       call parallel_halo(model%inversion%bmlt_float_save, parallel)
 
     endif   ! which_ho_bmlt_inversion
 
@@ -336,7 +340,7 @@ contains
 
        endif   ! not a restart
 
-       call parallel_halo(model%inversion%floating_thck_target)
+       call parallel_halo(model%inversion%floating_thck_target, parallel)
 
     endif  ! which_ho_bmlt_basin_inversion
 
@@ -407,6 +411,10 @@ contains
     integer :: itest, jtest, rtest
 
     logical :: first_time = .true.
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    parallel = model%parallel
 
     rtest = -999
     itest = 1
@@ -574,6 +582,8 @@ contains
                                  model%inversion%bmlt_float_save,               &    ! m/s
                                  bmlt_weight,                                   &    ! [0,1]
                                  bmlt_float_new)                                     ! m/s
+
+          call parallel_halo(bmlt_float_new, parallel)
 
           ! Limit bmlt_float_new to physically reasonable values.
           ! Typically, bmlt_max_melt is greater in magnitude than bmlt_max_freeze.
@@ -946,9 +956,8 @@ contains
        enddo   ! i
     enddo   ! j
 
-    call parallel_halo(bmlt_float_mask) ! diagnostic only
-    call parallel_halo(thck_target)     ! diagnostic only
-    call parallel_halo(bmlt_float_new)
+!    call parallel_halo(bmlt_float_mask) ! diagnostic only
+!    call parallel_halo(thck_target)     ! diagnostic only
 
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
@@ -1081,6 +1090,10 @@ contains
                                     ! Found that unweighted staggering can lead to low-frequency thickness oscillations
                                     !  in Antarctic runs, because of large dH/dt in floating cells
 
+    type(parallel_type) :: parallel
+
+    parallel = model%parallel
+
     rtest = -999
     itest = 1
     jtest = 1
@@ -1142,9 +1155,9 @@ contains
 
        endif   ! f_ground_weight
 
-       call staggered_parallel_halo(stag_thck_obs)
-       call staggered_parallel_halo(stag_thck)
-       call staggered_parallel_halo(stag_dthck_dt)
+       call staggered_parallel_halo(stag_thck_obs, parallel)
+       call staggered_parallel_halo(stag_thck, parallel)
+       call staggered_parallel_halo(stag_dthck_dt, parallel)
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '

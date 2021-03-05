@@ -54,7 +54,7 @@ module glide_types
   use glimmer_map_types
   use glimmer_physcon
   use glimmer_paramets, only: unphys_val
-  use parallel_mod, only: parallel_type  !WHL - added a new parallel derived type
+  use parallel_mod, only: parallel_type
 
   implicit none
 
@@ -2427,19 +2427,20 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
-    use parallel, only: global_ewn, global_nsn
 
     implicit none
 
     type(glide_global_type),intent(inout) :: model
 
-    integer :: ewn,nsn,upn
+    integer :: ewn,nsn,upn               !> local array dimensions
+    integer :: global_ewn, global_nsn    !> global array dimensions
 
     ! for simplicity, copy these values...
-
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
+    global_ewn = model%parallel%global_ewn
+    global_nsn = model%parallel%global_nsn
     
     ! horizontal coordinates
 

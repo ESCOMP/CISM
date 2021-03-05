@@ -12,7 +12,9 @@ name:     glide
 # f90 type containing all necessary data
 datatype: glide_global_type   
 # module where type is defined
-datamod:  glide_types     
+datamod:  glide_types
+# path to parallel derived type
+datapath: data
 
 [x0]
 dimensions:    x0
@@ -20,7 +22,7 @@ units:         meter
 long_name:     Cartesian x-coordinate, velocity grid
 axis:          X
 data:          data%general%x0
-dimlen:        global_ewn-1
+dimlen:        model%parallel%global_ewn-1
 
 [y0]
 dimensions:    y0
@@ -28,7 +30,7 @@ units:         meter
 long_name:     Cartesian y-coordinate, velocity grid
 axis:          Y
 data:          data%general%y0
-dimlen:        global_nsn-1
+dimlen:        model%parallel%global_nsn-1
 
 [x1]
 dimensions:    x1
@@ -36,7 +38,7 @@ units:         meter
 long_name:     Cartesian x-coordinate
 axis:          X
 data:          data%general%x1
-dimlen:        global_ewn
+dimlen:        model%parallel%global_ewn
 load:          1
 
 [y1]
@@ -45,7 +47,7 @@ units:         meter
 long_name:     Cartesian y-coordinate
 axis:          Y
 data:          data%general%y1
-dimlen:        global_nsn
+dimlen:        model%parallel%global_nsn
 load:          1
 
 [level]

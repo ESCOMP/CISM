@@ -467,7 +467,7 @@ contains
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !> compute local area scale factors for stereographic projection
-  subroutine glimmap_stere_area_factor(params, ewn, nsn, dx, dy)
+  subroutine glimmap_stere_area_factor(params, ewn, nsn, dx, dy, parallel)
 
     ! Compute area scale factors for each grid cell.
     ! These scale factors describe the distortion of areas in a stereographic projection.
@@ -480,13 +480,16 @@ contains
 
     use glimmer_log
     use glimmer_physcon, only: pi, rearth
-!    use parallel, only: parallel_globalindex, parallel_reduce_max, parallel_reduce_min
-    use parallel_mod, only: parallel_globalindex, parallel_reduce_max, parallel_reduce_min
+    use parallel_mod, only: parallel_type, parallel_globalindex, &
+         parallel_reduce_max, parallel_reduce_min
 
     type(proj_stere),intent(inout) :: params
 
     integer, intent(in) :: ewn, nsn  ! grid dimensions in x and y
     real(dp), intent(in) :: dx, dy   ! grid cell size in x and y (m)
+
+    !TODO: Test for the case that 'parallel' is not included?  I.e. when called from glide.F90
+    type(parallel_type), intent(in), optional :: parallel   ! info for parallel communication
 
     ! Local variables
 
@@ -543,7 +546,12 @@ contains
        do j = 1, nsn
           do i = 1, ewn
 
-             call parallel_globalindex(i, j, iglobal, jglobal)
+             if (present(parallel)) then
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+             else   !TODO - This alternative needs to be tested.
+                iglobal = i
+                jglobal = j
+             endif
 
              ! compute x and y at cell center, relative to the projection origin
              x = delta_x + (real(iglobal,dp)-0.5d0)*dx

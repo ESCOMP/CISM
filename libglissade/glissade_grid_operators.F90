@@ -41,9 +41,8 @@ module glissade_grid_operators
     use glimmer_global, only: dp
     use glimmer_log
     use glide_types
-!    use parallel
-    use parallel_mod, only: this_rank, main_task, nhalo, ewtasks, nstasks
-    use parallel_mod, only: parallel_halo, staggered_parallel_halo, parallel_reduce_sum, parallel_globalindex
+    use parallel_mod, only: this_rank, main_task, nhalo, &
+         parallel_type, parallel_halo, parallel_reduce_sum, parallel_globalindex
 
     implicit none
 
@@ -296,8 +295,8 @@ contains
 
     endif
 
-    ! Fill in halo values
-    call parallel_halo(unstagvar)
+    ! Note: Halo update moved to higher level
+!    call parallel_halo(unstagvar)
 
   end subroutine glissade_unstagger
 
@@ -1195,10 +1194,6 @@ contains
 
     endif   ! present(max_slope)
 
-    ! halo update
-    call staggered_parallel_halo(ds_dx)
-    call staggered_parallel_halo(ds_dy)
-
     if (verbose_gradient .and. this_rank==rtest) then
        print*, ' '
        print*, 'Hybrid gradient, i, j, task =', itest, jtest, rtest
@@ -1239,6 +1234,10 @@ contains
           print*, ' '
        enddo
     endif
+
+    ! Note: Halo updates moved to higher level
+!    call staggered_parallel_halo(ds_dx)
+!    call staggered_parallel_halo(ds_dy)
 
   end subroutine glissade_surface_elevation_gradient
 
@@ -1319,6 +1318,8 @@ contains
 
     ! Compute the slope angle
     theta_slope = atan(slope)
+
+    ! Note: Halo update of theta_slope moved to higher level
 
   end subroutine glissade_slope_angle
 
@@ -1510,7 +1511,7 @@ contains
 
 
     ! Given an input field (e.g., surface mass balance), supplied at various vertical levels,
-    ! downscale the field to elevation usrf by linear interpolation.
+    ! interpolate the field to elevation usrf by linear interpolation.
 
     ! input-output arguments
 
@@ -1577,13 +1578,15 @@ contains
        enddo   ! i
     enddo   ! j
 
-    call parallel_halo(field)
+    !Note: halo update moved to higher level
+!    call parallel_halo(field)
 
   end subroutine glissade_vertical_interpolate
 
 !-------------------------------------------------------------------------------
 
   subroutine glissade_scalar_extrapolate(nx,    ny,             &
+                                         parallel,              &
                                          input_mask,            &
                                          phi_in,                &
                                          output_mask,           &
@@ -1605,7 +1608,9 @@ contains
 
     ! Input/output arguments
 
-    integer, intent(in) :: nx, ny                                !> horizontal grid dimensions
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     integer, dimension(nx,ny), intent(in) :: &
          input_mask,            & !> = 1 for cells where phi_out is initially set to phi_in
@@ -1708,7 +1713,7 @@ contains
     ! In a worst case, we would start with a few filled cells in one corner of the global domain
     !  and have to extrapolate to the opposite corner
 
-    max_iter = (ewtasks + nstasks) * (nx + ny)
+    max_iter = (parallel%ewtasks + parallel%nstasks) * (nx + ny)
 
     ! Extrapolate the input field horizontally
 
@@ -1785,7 +1790,7 @@ contains
 
        endif  ! npoints
 
-       call parallel_halo(phi_out)
+       call parallel_halo(phi_out, parallel)
 
        ! Update the filled mask
        where (phi_out == phi_unfilled)
@@ -1801,7 +1806,7 @@ contains
                                            phi,        phi_out,    &
                                            filled_mask,            &
                                            npoints_stencil = npoints)
-          call parallel_halo(phi_out)
+          call parallel_halo(phi_out, parallel)
        endif
 
        ! Every several iterations, count the number of filled cells.
@@ -1842,7 +1847,7 @@ contains
     do j = 1, ny
        do i = 1, nx
           if (output_mask(i,j) == 1 .and. filled_mask(i,j) == 0) then
-             call parallel_globalindex(i, j, iglobal, jglobal)
+             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 !!             print*, 'i, j, iglobal, jglobal:', i, j, iglobal, jglobal
              write(message,*) &
                   'Extrapolation warning: did not fill cell i, j =', iglobal, jglobal
