@@ -79,7 +79,9 @@ subroutine cism_init_dycore(model)
   ! DMR -- open_log call commented out, since called in gci_init_interface()
   ! start logging
   ! call open_log(unit=50, fname=logname(commandline_configname))
-  
+  ! Note: In principle, the standalone CISM driver could support multiple ice sheet instances.
+  !       At least for now, assume that there is only one instance, with one config file.
+
   ! setup paths
   call filenames_init(commandline_configname)
 

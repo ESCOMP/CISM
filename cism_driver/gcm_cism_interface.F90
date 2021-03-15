@@ -41,9 +41,15 @@ module gcm_cism_interface
   use glint_main
   use gcm_to_cism_glint
 
+  ! Note: Options 0 and 1 used to be called GCM_MINIMAL_MODEL AND GCM_DATA_MODEL.
+  !       'BASIC' refers to standalone CISM with a single input data file.
+  !       'GLINT' refers to runs with the Glint interface, with a climate config file
+  !         and one or more ice sheet config files.
+  !       The 'GCM' prefix is a misnomer, in that both of these options use standalone CISM,
+  !         uncoupled to a global climate model.
 
-  integer, parameter :: GCM_MINIMAL_MODEL = 0
-  integer, parameter :: GCM_DATA_MODEL = 1
+  integer, parameter :: GCM_BASIC_MODEL = 0
+  integer, parameter :: GCM_GLINT_MODEL = 1
   integer, parameter :: GCM_CESM = 2
 
 contains
@@ -62,35 +68,54 @@ subroutine gci_init_interface(which_gcm,g2c)
   type(gcm_to_cism_type) :: g2c   ! holds everything
 
   integer :: whichdycore
-  type(ConfigSection), pointer :: config  ! configuration stuff
-  type(ConfigSection), pointer :: section  !< pointer to the section to be checked
+  type(ConfigSection), pointer :: config   ! configuration stuff
+  type(ConfigSection), pointer :: section  ! pointer to the section to be checked
+
+  character(len=fname_length) :: fname_root ! root of log file name
+  integer :: num_icesheet_config            ! number of ice sheet config files
+  integer :: i
 
   ! call parallel_initialise
   
-  ! get the CISM dycore to be used:
+  ! Set the name of the log file
+  ! Note: The log file name is constructed from the name of the config file.
+  !       If there are multiple config files, the log file name is built by concatenating them.
   call glint_GetCommandline()
-  call open_log(unit=50, fname=logname(commandline_configname))
-  call ConfigRead(commandline_configname,config)
+
+  fname_root = trim(commandline_configname(1))
+  num_icesheet_config = size(commandline_configname)
+  if (num_icesheet_config > 1) then
+     do i = 2, num_icesheet_config
+        fname_root = trim(fname_root)//'..'//trim(commandline_configname(i))
+     enddo
+  endif
+  call open_log(unit=50, fname=logname(fname_root))
+
+  ! Get the CISM dycore to be used
+  ! Note: If there are multiple ice sheet config files, CISM assumes that each will use the same dycore,
+  !        and gets the dycore from the first config file in the configname array.
+  !       Either all instances are basic or all instances use glint; a mix is not supported.
+  call ConfigRead(commandline_configname(1),config)
   call GetSection(config,section,'options')
   call GetValue(section,'dycore',whichdycore)
   if (main_task) print *,'CISM dycore type (0=Glide, 1=Glam, 2=Glissade, 3=AlbanyFelix, 4 = BISICLES) = ', whichdycore  
 
-  ! check to see if running minimal GCM or data GCM.  Still need to add CESM GCM:
+  ! Check to see if running basic GCM or glint GCM.  Still need to add CESM GCM:
   call GetSection(config,section,'GLINT climate')
 
   if (associated(section)) then
-    g2c%which_gcm = GCM_DATA_MODEL
+     g2c%which_gcm = GCM_GLINT_MODEL
   else 
-    g2c%which_gcm = GCM_MINIMAL_MODEL
+     g2c%which_gcm = GCM_BASIC_MODEL
   end if
-  if (main_task) print *,'g2c%which_gcm (1 = data, 2 = minimal) = ',g2c%which_gcm
+  if (main_task) print *,'g2c%which_gcm (0 = basic, 1 = Glint) = ', g2c%which_gcm
 
   select case (g2c%which_gcm)
-    case (GCM_MINIMAL_MODEL)
+    case (GCM_BASIC_MODEL)
       if (main_task) print*, 'call cism_init_dycore'
       call cism_init_dycore(g2c%glide_model)
  
-    case (GCM_DATA_MODEL)
+    case (GCM_GLINT_MODEL)
       if (main_task) print*, 'call g2c_glint_init'
       call g2c_glint_init(g2c)
 
@@ -112,12 +137,12 @@ subroutine gci_run_model(g2c)
 
   do while (.not. finished)
     select case (g2c%which_gcm)
-      case (GCM_MINIMAL_MODEL)
+      case (GCM_BASIC_MODEL)
         ! call gcm_update_model(gcm_model,cism_model)
 !        if (main_task) print *,"In gci_run_model, calling cism_run_dycore"
         call cism_run_dycore(g2c%glide_model)
 
-      case (GCM_DATA_MODEL,GCM_CESM)
+      case (GCM_GLINT_MODEL,GCM_CESM)
 !        if (main_task) print *,"In gci_run_model, calling g2c_glint_run"
         call g2c_glint_run(g2c)
         call g2c_glint_climate_time_step(g2c)
@@ -135,10 +160,10 @@ function gci_finished(g2c) result(finished)
   logical :: finished
  
   select case (g2c%which_gcm)
-    case (GCM_MINIMAL_MODEL)
+    case (GCM_BASIC_MODEL)
       finished = .true.
 
-    case (GCM_DATA_MODEL,GCM_CESM)
+    case (GCM_GLINT_MODEL,GCM_CESM)
       call g2c_glint_check_finished(g2c,finished)
     case default
   end select
@@ -152,10 +177,10 @@ subroutine gci_finalize_interface(g2c)
   type(gcm_to_cism_type) :: g2c
 
   select case (g2c%which_gcm)
-    case (GCM_MINIMAL_MODEL)
+    case (GCM_BASIC_MODEL)
       call cism_finalize_dycore(g2c%glide_model)
  
-    case (GCM_DATA_MODEL)
+    case (GCM_GLINT_MODEL)
       call g2c_glint_end(g2c)
 
     case (GCM_CESM)

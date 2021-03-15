@@ -30,8 +30,7 @@
 
 module glint_main
 
-  !>  This is the main glimmer module, which contains the top-level 
-  !>  subroutines and derived types comprising the glimmer ice model.
+  !>  This is the main Glint module, with the top-level subroutines and derived types for running Glint.
 
   use glimmer_global, only: dp, fname_length
   use glint_type
@@ -1534,7 +1533,6 @@ contains
                                     params%instances(i),   &
                                     icets)
 
-
              ! Set flag
              if (present(ice_tstep)) then
                 ice_tstep = (ice_tstep .or. icets)
@@ -1551,8 +1549,9 @@ contains
                                       gfrac_temp,          gtopo_temp,        &
                                       grofi_temp,          grofl_temp,        &
                                       ghflx_temp )
-             
+
              call compute_ice_sheet_grid_mask(ice_sheet_grid_mask_temp, gfrac_temp)
+
              call compute_icemask_coupled_fluxes(icemask_coupled_fluxes_temp, &
                                                  ice_sheet_grid_mask_temp, &
                                                  params%instances(i))

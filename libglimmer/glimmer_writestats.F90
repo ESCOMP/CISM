@@ -34,15 +34,17 @@ module glimmer_writestats
 
 contains
 
-  subroutine glimmer_write_stats(resname, cfgname,wallTime)
+  subroutine glimmer_write_stats(resname, cfgname, wallTime)
+
     use glimmer_global, only : dp
     use parallel_mod, only: main_task
     implicit none
-    character(len=*), intent(in) :: resname !< name of the output result file
-    character(len=*), intent(in) :: cfgname !< name of configuration file
-    real(kind=dp), intent(in)    :: wallTime!< elapsed wall clock tine in seconds
+    character(len=*), intent(in) :: resname    !< name of the output result file
+    character(len=*), intent(in) :: cfgname    !< name of ice sheet configuration file
+    real(kind=dp), intent(in)    :: wallTime   !< elapsed wall clock tine in seconds
 
-    if (main_task) call gf_writestats(resname,cfgname,wallTime)
+    if (main_task) call gf_writestats(resname, cfgname, wallTime)
+
   end subroutine glimmer_write_stats
 
 end module glimmer_writestats

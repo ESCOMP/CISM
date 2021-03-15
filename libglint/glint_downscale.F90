@@ -267,8 +267,7 @@ contains
        enddo ! i
     enddo ! j
 
-!WHL - debug
-    if (main_task) then
+    if (GLC_DEBUG .and. main_task) then
        print*, 'glint_downscaling_gcm, max/min qsmb_g, this_rank =', this_rank
        do n = 0, nec
           print*, n, maxval(qsmb_g(:,:,n)), minval(qsmb_g(:,:,n))
@@ -281,7 +280,6 @@ contains
        print*, ' '
        print*, 'glint_downscaling_gcm, this_rank, max/min acab:', this_rank, maxval(instance%acab), minval(instance%acab)
     endif
-!WHL - end debug
 
     deallocate(qsmb_l, tsfc_l, topo_l)
     
