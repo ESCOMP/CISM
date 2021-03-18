@@ -62,8 +62,6 @@
     logical, parameter ::     &
          conservation_check = .true. ! if true, check global conservation
 
-    real(dp), parameter :: eps08 = 1.d-8   ! small number
-
 !=======================================================================
 
   contains
@@ -102,7 +100,7 @@
 
       if (.not.associated(model%geometry%tracers)) then
 
-         ! first call; need to count tracers and allocate the tracer array
+         ! first call for this instance; need to count tracers and allocate the tracer array
 
          model%geometry%ntracers = 0
 
@@ -1764,6 +1762,8 @@
                                      anomaly_timescale,        &
                                      time)
 
+    use glimmer_paramets, only: eps08
+
     real(dp), dimension(:,:), intent(inout) ::  &
          var2d               !> 2D field (uncorrected)
                              !> uncorrrected on input, corrected on output
@@ -1827,6 +1827,8 @@
                                      var3d_anomaly,         &
                                      anomaly_timescale,     &
                                      time)
+
+    use glimmer_paramets, only : eps08
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
          var3d               !> input 3d field; vertical index in first slot

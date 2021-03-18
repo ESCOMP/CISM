@@ -52,8 +52,6 @@ module glissade_inversion
 !!    logical, parameter :: verbose_inversion = .false.
     logical, parameter :: verbose_inversion = .true.
 
-    real(dp), parameter :: eps08 = 1.0d-08  ! small number
-
 !***********************************************************************
 
 contains
@@ -374,7 +372,7 @@ contains
                                            ice_mask,            &
                                            floating_mask)
 
-    use glimmer_paramets, only: tim0, thk0
+    use glimmer_paramets, only: eps08, tim0, thk0
     use glimmer_physcon, only: scyr
 
     implicit none
@@ -403,14 +401,15 @@ contains
          thck_projected          ! projected thickness after appyling bmlt_float_save * bmlt_weight
 
     real(dp) ::  &
+         local_maxval, global_maxval  ! max values of a given variable; = 0 if not yet read in
+
+    real(dp) ::  &
          nudging_factor,       & ! factor in range [0,1], used for inversion of bmlt_float
          weaning_time            ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
     integer :: i, j
     integer :: ewn, nsn
     integer :: itest, jtest, rtest
-
-    logical :: first_time = .true.
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -513,47 +512,33 @@ contains
        thck_projected = thck_new_unscaled  &
                       - (model%inversion%bmlt_float_save * bmlt_weight * model%numerics%dt*tim0)
 
-       ! thickness tendency dH/dt from one step to the next (m/s)
-       ! Note: model%inversion%thck_save is in the restart file as needed for exact restart.
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, 'time, tstart:', model%numerics%time, model%numerics%tstart
        endif
 
-!!       if (first_time .and. model%options%is_restart == RESTART_FALSE) then
-       if (first_time) then
+       ! thickness tendency dH/dt from one step to the next (m/s)
 
-          first_time = .false.
+       ! Check whether model%inversion%thck_save has nonzero values.
+       ! If so, then use this field to compute dthck_dt_inversion.  This will be the case from the second time step forward,
+       !  including restarts (since model%inversion%thck_save is in the restart file).
+       ! If not, then set dthck_dt_inversion = 0.  This will be the case on the first step of a run.
 
-          if (model%options%is_restart == RESTART_TRUE) then
-             dthck_dt_inversion = (thck_projected - model%inversion%thck_save) / (model%numerics%dt * tim0)
-
-             if (verbose_inversion .and. this_rank == rtest) then
-                i = itest
-                j = jtest
-                print*, 'Compute dH/dt for inversion; restart = T'
-                print*, 'rank, i, j, H_proj, H_proj_save, dH/dt (m/yr):', &
-                     this_rank, i, j, thck_projected(i,j), model%inversion%thck_save(i,j), dthck_dt_inversion(i,j)*scyr
-                print*, 'bmlt_weight:', bmlt_weight(i,j)
-             endif
-          else
-             dthck_dt_inversion = 0.0d0  ! default to 0 on first step of the run
-          endif
-
-       else
-
+       local_maxval = maxval(model%inversion%thck_save)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval > eps08) then
           dthck_dt_inversion = (thck_projected - model%inversion%thck_save) / (model%numerics%dt * tim0)
-
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
              j = jtest
-             print*, 'Compute dH/dt for inversion'
+             print*, 'Compute dH/dt for inversion; restart = T'
              print*, 'rank, i, j, H_proj, H_proj_save, dH/dt (m/yr):', &
                   this_rank, i, j, thck_projected(i,j), model%inversion%thck_save(i,j), dthck_dt_inversion(i,j)*scyr
              print*, 'bmlt_weight:', bmlt_weight(i,j)
           endif
-
-       endif   ! first time
+       else
+          dthck_dt_inversion = 0.0d0  ! default to 0 on first step of the run
+       endif   ! max(thck_save) > eps11
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -708,6 +693,8 @@ contains
        floating_mask,                    &
        f_ground_cell,                    &
        float_fraction_factor)
+
+    use glimmer_paramets, only : eps08
 
     ! Based on the grounding-line options and the floating mask or fraction field,
     !  compute a weighting factor for reducing bmlt_float in cells containing the GL.

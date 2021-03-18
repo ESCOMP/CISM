@@ -71,9 +71,6 @@ module parallel_mod
   ! distributed gather flow control parameter
   integer,parameter :: max_gather_block_size = 64 ! max and default
 
-  ! global IDs
-  integer,save :: ProcsEW
-
   ! Information needed to carry out parallel operations (halo, broadcast, gather, scatter, etc.)
   !  for a particular ice sheet instance
   ! Note: At one time, these were independent module-level variables in parallel_mpi.F90.
@@ -2378,6 +2375,7 @@ contains
 
     integer :: best,i,j,metric
     real(dp) :: rewtasks,rnstasks
+    integer :: ProcsEW
 
     ! begin
 
@@ -2673,6 +2671,8 @@ contains
     integer :: i, j, nb, nt
     integer :: nblocks               ! number of blocks = ewtasks * nstasks
     real(dp) :: rewtasks, rnstasks
+    integer :: ProcsEW
+
     integer :: nblocks_active        ! number of active blocks
     logical :: only_inquire          ! local version of inquire_only
     integer :: corner_block          ! block number for a corner neighbor

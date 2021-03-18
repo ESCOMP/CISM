@@ -58,7 +58,7 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: gn, rhoi, rhoo, grav, scyr, pi
-    use glimmer_paramets, only: thk0, len0, tim0, tau0, vel0, vis0, evs0
+    use glimmer_paramets, only: eps08, eps10, thk0, len0, tim0, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
@@ -190,10 +190,6 @@
     real(dp), dimension(3,3) ::  &
        identity3             ! 3 x 3 identity matrix
 
-    real(dp), parameter ::   &
-       eps08 = 1.d-08,      &! small number
-       eps10 = 1.d-10        ! smaller number
-
     real(dp) :: vol0    ! volume scale (m^3), used to scale 3D matrix values
 
     logical, parameter ::  &
@@ -246,9 +242,6 @@
 !    logical :: verbose_glp = .true.
     logical :: verbose_picard = .false.
 !    logical :: verbose_picard = .true.
-
-    integer :: itest, jtest    ! coordinates of diagnostic point
-    integer :: rtest           ! task number for processor containing diagnostic point
 
     integer, parameter :: ktest = 1     ! vertical level of diagnostic point
     integer, parameter :: ptest = 1     ! diagnostic quadrature point
@@ -808,7 +801,11 @@
        whichground,  &          ! option for computing grounded fraction of each cell
        whichflotation_function,&! option for computing flotation function at and near each vertex
        maxiter_nonlinear,    &  ! maximum number of nonlinear iterations
-       linear_solve_ncheck      ! number of iterations between convergence checks in the linear solver
+       linear_solve_ncheck,  &  ! number of iterations between convergence checks in the linear solver
+       linear_maxiters          ! max number of linear iterations before quitting
+
+    real(dp) ::  &
+         linear_tolerance       ! tolerance for linear solver
 
     !--------------------------------------------------------
     ! Local parameters
@@ -1049,6 +1046,9 @@
          Auu_sav, Auv_sav,          & ! assembled matrices associated with (uvel_2d_sav, vvel_2d_sav)
          Avu_sav, Avv_sav
 
+    integer :: itest, jtest    ! coordinates of diagnostic point
+    integer :: rtest           ! task number for processor containing diagnostic point
+
     call t_startf('glissade_vhs_init')
     rtest = -999
     itest = 1
@@ -1157,6 +1157,8 @@
      whichprecond         = model%options%which_ho_precond
      maxiter_nonlinear    = model%options%glissade_maxiter
      linear_solve_ncheck  = model%options%linear_solve_ncheck
+     linear_maxiters      = model%options%linear_maxiters
+     linear_tolerance     = model%options%linear_tolerance
      whichgradient        = model%options%which_ho_gradient
      whichgradient_margin = model%options%which_ho_gradient_margin
      whichassemble_beta   = model%options%which_ho_assemble_beta
@@ -1829,6 +1831,7 @@
                              nz,             nhalo,                &
                              parallel,                             &
                              dx,             dy,                   &
+                             itest,  jtest,  rtest,                &
                              active_ice_mask,                      &
                              xVertex,        yVertex,              &
                              active_cell,    active_vertex,        &
@@ -2198,6 +2201,7 @@
                              nz,               nhalo,           &
                              sigma,            stagwbndsigma,   &
                              dx,               dy,              &
+                             itest,   jtest,   rtest,           &
                              active_cell,                       &
                              active_vertex,                     &
                              xVertex,          yVertex,         &
@@ -2294,6 +2298,7 @@
     call load_vector_lateral_bc(nx,               ny,              &
                                 nz,               sigma,           &
                                 nhalo,                             &
+                                itest,   jtest,   rtest,           &
                                 whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
                                 calving_front_mask,                &
@@ -2491,6 +2496,7 @@
 
                    call compute_3d_velocity_diva(nx,              ny,                   &
                                                  nz,              sigma,                &
+                                                 itest,  jtest,   rtest,                &
                                                  active_vertex,   diva_level_index,     &
                                                  ice_plus_land_mask,                    &
                                                  stag_omega,      omega_k,              &
@@ -2868,6 +2874,7 @@
                                                nz,                                &
                                                sigma,            stagsigma,       &
                                                nhalo,                             &
+                                               itest,   jtest,   rtest,           &
                                                active_cell,                       &
                                                xVertex,          yVertex,         &
                                                uvel_2d,          vvel_2d,         &
@@ -2980,6 +2987,7 @@
                 call basal_sliding_bc_2d(nx,                ny,              &
                                       nNodeNeighbors_2d, nhalo,           &
                                       dx,                dy,              &
+                                      itest,   jtest,    rtest,           &
                                       active_cell,       active_vertex,   &
                                       beta_eff,                           &
                                       xVertex,           yVertex,         &
@@ -2993,6 +3001,7 @@
                 call basal_sliding_bc_2d(nx,                ny,              &
                                       nNodeNeighbors_2d, nhalo,           &
                                       dx,                dy,              &
+                                      itest,   jtest,    rtest,           &
                                       active_cell,       active_vertex,   &
                                       beta_internal,                      &
                                       xVertex,           yVertex,         &
@@ -3155,6 +3164,7 @@
              call assemble_stiffness_matrix_3d(nx,               ny,              &
                                                nz,               sigma,           &
                                                nhalo,                             &
+                                               itest,   jtest,   rtest,           &
                                                active_cell,                       &
                                                xVertex,          yVertex,         &
                                                uvel,             vvel,            &
@@ -3177,6 +3187,7 @@
                 call basal_sliding_bc(nx,                  ny,              &
                                       nNodeNeighbors_3d,   nhalo,           &
                                       dx,                  dy,              &
+                                      itest,    jtest,     rtest,           &
                                       active_cell,         active_vertex,   &
                                       beta_internal,                        &
                                       xVertex,             yVertex,         &
@@ -3370,6 +3381,7 @@
              call t_startf('glissade_resid_vec')
              call compute_residual_vector_2d(nx,            ny,            &
                                              parallel,                     &
+                                             itest,  jtest, rtest,         &
                                              active_vertex,                &
                                              Auu_2d,        Auv_2d,        &
                                              Avu_2d,        Avv_2d,        &
@@ -3446,6 +3458,7 @@
              call t_startf('glissade_resid_vec')
              call compute_residual_vector_3d(nx,    ny,     nz,            &
                                              parallel,                     &
+                                             itest,  jtest, rtest,         &
                                              active_vertex,                &
                                              Auu,           Auv,           &
                                              Avu,           Avv,           &
@@ -3712,6 +3725,8 @@
                                              bu_2d,        bv_2d,         &
                                              uvel_2d,      vvel_2d,       &
                                              whichprecond, linear_solve_ncheck, &
+                                             linear_tolerance,            &
+                                             linear_maxiters,             &
                                              err,          niters,        &
                                              itest, jtest, rtest)
 
@@ -3725,6 +3740,8 @@
                                             bu_2d,        bv_2d,         &
                                             uvel_2d,      vvel_2d,       &
                                             whichprecond, linear_solve_ncheck, &
+                                            linear_tolerance,            &
+                                            linear_maxiters,             &
                                             err,          niters,        &
                                             itest, jtest, rtest)
 
@@ -3752,6 +3769,8 @@
                                              bu,           bv,            &
                                              uvel,         vvel,          &
                                              whichprecond, linear_solve_ncheck, &
+                                             linear_tolerance,            &
+                                             linear_maxiters,             &
                                              err,          niters,        &
                                              itest, jtest, rtest)
 
@@ -3765,6 +3784,8 @@
                                             bu,           bv,            &
                                             uvel,         vvel,          &
                                             whichprecond, linear_solve_ncheck, &
+                                            linear_tolerance,            &
+                                            linear_maxiters,             &
                                             err,          niters,        &
                                             itest, jtest, rtest)
 
@@ -4042,6 +4063,7 @@
 
              call compute_3d_velocity_diva(nx,              ny,                   &
                                            nz,              sigma,                &
+                                           itest,  jtest,   rtest,                &
                                            active_vertex,   diva_level_index,     &
                                            ice_plus_land_mask,                    &
                                            stag_omega,      omega_k,              &
@@ -4188,6 +4210,7 @@
        call compute_3d_velocity_L1L2(nx,               ny,              &
                                      nz,               sigma,           &
                                      dx,               dy,              &
+                                     itest,   jtest,   rtest,           &
                                      parallel,                          &
                                      ice_mask,         floating_mask,   &
                                      active_cell,      active_vertex,   &
@@ -4212,27 +4235,6 @@
           resid_v(k,:,:) = resid_v_2d(:,:)
        enddo
 
-       !WHL - Commented out because the 3D velocity is now computed after each iteration.
-
-!       ! Interpolate omega_k to the staggered grid
-
-!       do k = 1, nz
-!          call glissade_stagger(nx,              ny,                           &
-!                                omega_k(k,:,:),  stag_omega_k(k,:,:),  &
-!                                ice_mask,        stagger_margin_in = 1)
-!       enddo
-
-!       call compute_3d_velocity_diva(nx,              ny,                   &
-!                                     nz,              sigma,                &
-!                                     active_vertex,   diva_level_index,     &
-!                                     stag_omega_k,    stag_omega,           &
-!                                     btractx,         btracty,              &
-!                                     uvel_2d,         vvel_2d,              &
-!                                     uvel,            vvel)
-
-!       call staggered_parallel_halo(uvel, parallel)
-!       call staggered_parallel_halo(vvel, parallel)
-
        if (verbose_diva .and. this_rank==rtest) then
           print*, 'Computed 3D velocity, DIVA'
           i = itest
@@ -4251,6 +4253,7 @@
     call compute_internal_stress(nx,            ny,            &
                                  nz,            sigma,         &
                                  nhalo,                        &
+                                 itest, jtest,  rtest,         &
                                  active_cell,                  &
                                  xVertex,       yVertex,       &
                                  stagusrf,      stagthck,      &
@@ -4268,6 +4271,7 @@
 
     call compute_basal_friction_heatflx(nx,            ny,            &
                                         nhalo,                        &
+                                        itest, jtest,  rtest,         &
                                         active_cell,                  &
                                         active_vertex,                &
                                         xVertex,       yVertex,       &
@@ -4591,6 +4595,7 @@
                                  nz,             nhalo,                &
                                  parallel,                             &
                                  dx,             dy,                   &
+                                 itest,  jtest,  rtest,                &
                                  active_ice_mask,                      &
                                  xVertex,        yVertex,              &
                                  active_cell,    active_vertex,        &
@@ -4624,6 +4629,9 @@
     real(dp), intent(in) ::  &
        dx,  dy                ! grid cell length and width (m)
                               ! assumed to have the same value for each grid cell
+
+    integer, intent(in) :: &
+       itest, jtest, rtest    ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::  &
        active_ice_mask        ! = 1 for cells with active ice, else = 0
@@ -4758,6 +4766,7 @@
                                  nz,               nhalo,           &
                                  sigma,            stagwbndsigma,   & 
                                  dx,               dy,              &
+                                 itest,  jtest,    rtest,           &
                                  active_cell,                       &
                                  active_vertex,                     &
                                  xVertex,          yVertex,         &
@@ -4780,6 +4789,9 @@
 
     real(dp), intent(in) ::     &
        dx, dy                        ! grid cell length and width
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice and borders a locally owned vertex
@@ -4915,7 +4927,9 @@
                    call get_basis_function_derivatives_3d(x(:),          y(:),          z(:),                    &
                                                           dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
                                                           dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
-                                                          detJ , i, j, k, p   )
+                                                          detJ,                                                  &
+                                                          itest, jtest, rtest,                                   &
+                                                          i, j, k, p)
 
                    ! Increment the load vector with the gravitational contribution from this quadrature point
 
@@ -4976,6 +4990,7 @@
   subroutine load_vector_lateral_bc(nx,               ny,              &
                                     nz,               sigma,           &
                                     nhalo,                             &
+                                    itest,   jtest,   rtest,           &
                                     whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
@@ -4996,6 +5011,9 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice, borders a locally owned vertex,
@@ -5052,6 +5070,7 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   itest,   jtest,  rtest,           &
                                    whichassemble_lateral,            &
                                    'west',                           &
                                    i,               j,               &
@@ -5066,6 +5085,7 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   itest,   jtest,  rtest,           &
                                    whichassemble_lateral,            &
                                    'east',                           &
                                    i,               j,               &
@@ -5080,6 +5100,7 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   itest,   jtest,  rtest,           &
                                    whichassemble_lateral,            &
                                    'south',                          &
                                    i,               j,               &
@@ -5094,6 +5115,7 @@
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
+                                   itest,   jtest,  rtest,           &
                                    whichassemble_lateral,            &
                                    'north',                          &
                                    i,               j,               &
@@ -5114,6 +5136,7 @@
 
   subroutine lateral_shelf_bc(nx,                  ny,              &
                               nz,                  sigma,           &
+                              itest,   jtest,      rtest,           &
                               whichassemble_lateral,                &
                               face,                                 &
                               iCell,               jCell,           &
@@ -5169,6 +5192,9 @@
  
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex              ! x and y coordinates of vertices
@@ -5356,7 +5382,9 @@
           call get_basis_function_derivatives_2d(x(:),              y(:),               &
                                                  dphi_dxr_2d(:,p),  dphi_dyr_2d(:,p),   &
                                                  dphi_dx_2d(:),     dphi_dy_2d(:),      &
-                                                 detJ, iCell, jCell, p)
+                                                 detJ,                                  &
+                                                 itest, jtest, rtest,                   &
+                                                 iCell, jCell, p)
 
           ! For some faces, detJ is computed to be a negative number because the face is
           ! oriented opposite the x or y axis.  Fix this by taking the absolute value.
@@ -5444,6 +5472,7 @@
   subroutine assemble_stiffness_matrix_3d(nx,               ny,              &
                                           nz,               sigma,           &
                                           nhalo,                             &
+                                          itest,   jtest,   rtest,           &
                                           active_cell,                       &
                                           xVertex,          yVertex,         &
                                           uvel,             vvel,            &
@@ -5472,6 +5501,9 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice and borders a locally owned vertex
@@ -5626,7 +5658,9 @@
                 call get_basis_function_derivatives_3d(x(:),             y(:),             z(:),              &          
                                                        dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
                                                        dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
-                                                       detJ(p) , i, j, k, p  )
+                                                       detJ(p),                                               &
+                                                       itest, jtest, rtest,                                   &
+                                                       i, j, k, p)
 
 !          call t_startf('glissade_effective_viscosity')
                 call compute_effective_viscosity(whichefvs,        whichapprox,                       &
@@ -5635,6 +5669,7 @@
                                                  dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
                                                  u(:),             v(:),                              & 
                                                  flwafact(k,i,j),  efvs_qp(p),                        &
+                                                 itest, jtest, rtest,                                 &
                                                  i, j, k, p )
 !          call t_stopf('glissade_effective_viscosity')
 
@@ -5650,6 +5685,7 @@
                                             dphi_dx_3d(:),   dphi_dy_3d(:),    dphi_dz_3d(:),   &
                                             Kuu(:,:),        Kuv(:,:),                          &
                                             Kvu(:,:),        Kvv(:,:),                          &
+                                            itest, jtest, rtest,                                &
                                             i, j, k, p )
 !          call t_stopf('glissade_compute_element_matrix')
 
@@ -5670,11 +5706,12 @@
 
              ! Sum terms of element matrix K into dense assembled matrix A
 
-             call element_to_global_matrix_3d(nx,           ny,          nz, &
-                                              i,            j,           k,  &
-                                              Kuu,          Kuv,             &
-                                              Kvu,          Kvv,             &
-                                              Auu,          Auv,             &
+             call element_to_global_matrix_3d(nx,           ny,          nz,    &
+                                              i,            j,           k,     &
+                                              itest,        jtest,       rtest, &
+                                              Kuu,          Kuv,                &
+                                              Kvu,          Kvv,                &
+                                              Auu,          Auv,                &
                                               Avu,          Avv)
 
           enddo   ! nz  (loop over elements in this column)
@@ -5701,6 +5738,7 @@
                                           nz,                                &
                                           sigma,            stagsigma,       &
                                           nhalo,                             &
+                                          itest,   jtest,   rtest,           &
                                           active_cell,                       &
                                           xVertex,          yVertex,         &
                                           uvel_2d,          vvel_2d,         &
@@ -5740,6 +5778,9 @@
 
     real(dp), dimension(nz-1), intent(in) ::    &
        stagsigma          ! staggered sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -5944,7 +5985,9 @@
              call get_basis_function_derivatives_2d(x(:),             y(:),          &
                                                     dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
-                                                    detJ(p) , i, j, p)
+                                                    detJ(p),                            &
+                                                    itest, jtest, rtest,                &
+                                                    i, j, p)
              dphi_dz_2d(:) = 0.d0
 
              if (whichapprox == HO_APPROX_L1L2) then
@@ -5961,6 +6004,7 @@
                                                       dsdx(:),              dsdy(:),           &
                                                       flwa(:,i,j),          flwafact(:,i,j),   &
                                                       efvs_qp(:,p),                            &
+                                                      itest,    jtest,      rtest,             &
                                                       i, j, p)
 
                 ! Compute vertical average of effective viscosity
@@ -5986,6 +6030,7 @@
                                                       h(:),                                    &
                                                       flwa(:,i,j),          flwafact(:,i,j),   &
                                                       efvs_qp(:,p),                            &
+                                                      itest,    jtest,      rtest,             &
                                                       i, j, p)
 
                 if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
@@ -6010,6 +6055,7 @@
                                                  dphi_dx_2d(:),    dphi_dy_2d(:),    dphi_dz_2d(:),   &
                                                  u(:),             v(:),                              & 
                                                  flwafact_2d(i,j), efvs_qp_vertavg(p),                &
+                                                 itest, jtest, rtest,                                 &
                                                  i, j, 1, p)
 
                 ! Copy vertically averaged value to all levels
@@ -6034,6 +6080,7 @@
                                          dphi_dx_2d(:),   dphi_dy_2d(:),    dphi_dz_2d(:),   &
                                          Kuu(:,:),        Kuv(:,:),                          &
                                          Kvu(:,:),        Kvv(:,:),                          &
+                                         itest, jtest, rtest,                                &
                                          i, j, 1, p )
 
           enddo   ! nQuadPoints_2d
@@ -6041,9 +6088,10 @@
           if (whichapprox == HO_APPROX_DIVA) then
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
-             call compute_integrals_diva(nz,               sigma,                &
-                                         thck(i,j),        efvs_qp(:,:),         &
-                                         omega_k(:,i,j),   omega(i,j),           &
+             call compute_integrals_diva(nz,             sigma,         &
+                                         itest,  jtest,  rtest,         &
+                                         thck(i,j),      efvs_qp(:,:),  &
+                                         omega_k(:,i,j), omega(i,j),    &
                                          i, j)
 
           endif
@@ -6069,6 +6117,7 @@
 
           call element_to_global_matrix_2d(nx,           ny,        &
                                            i,            j,         &
+                                           itest, jtest, rtest,     &
                                            Kuu,          Kuv,       &
                                            Kvu,          Kvv,       &
                                            Auu,          Auv,       &
@@ -6094,9 +6143,10 @@
 
 ! For now, passing in i and j for debugging
 
-  subroutine compute_integrals_diva(nz,        sigma,         & 
-                                    thck,      efvs_qp,       &
-                                    omega_k,   omega,   i, j)
+  subroutine compute_integrals_diva(nz,           sigma,         &
+                                    itest, jtest, rtest,         &
+                                    thck,         efvs_qp,       &
+                                    omega_k,      omega,   i, j)
 
     !----------------------------------------------------------------
     ! Compute some integrals used by the DIVA solver to relate velocities
@@ -6121,6 +6171,9 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     real(dp), intent(in) ::  &
        thck               ! ice thickness (m)
@@ -6225,6 +6278,7 @@
 
   subroutine compute_3d_velocity_diva(nx,               ny,                 &
                                       nz,               sigma,              &
+                                      itest,   jtest,   rtest,              &
                                       active_vertex,    diva_level_index,   &  
                                       ice_plus_land_mask,                   &
                                       stag_omega,       omega_k,            &
@@ -6248,6 +6302,9 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
 
     logical, dimension(nx-1,ny-1), intent(in) ::  &
        active_vertex      ! true for vertices of active cells
@@ -6358,6 +6415,7 @@
   subroutine compute_3d_velocity_L1L2(nx,               ny,              &
                                       nz,               sigma,           &
                                       dx,               dy,              &
+                                      itest,   jtest,   rtest,           &
                                       parallel,                          &
                                       ice_mask,         land_mask,       &
                                       active_cell,      active_vertex,   &
@@ -6388,8 +6446,11 @@
     real(dp), intent(in) ::     &
        dx, dy                      ! grid cell length and width 
 
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
+
     type(parallel_type), intent(in) :: &
-         parallel                  ! info for parallel communication
+       parallel                    ! info for parallel communication
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
@@ -6568,7 +6629,9 @@
              call get_basis_function_derivatives_2d(x(:),               y(:),               &
                                                     dphi_dxr_2d_ctr(:), dphi_dyr_2d_ctr(:), &
                                                     dphi_dx_2d(:),      dphi_dy_2d(:),      &
-                                                    detJ, i, j, 1)
+                                                    detJ,                                   &
+                                                    itest, jtest, rtest,                    &
+                                                    i, j, 1)
 
              ! Compute basal strain rate components at cell center
              
@@ -6895,7 +6958,9 @@
   subroutine get_basis_function_derivatives_3d(xNode,       yNode,       zNode,       &
                                                dphi_dxr_3d, dphi_dyr_3d, dphi_dzr_3d, &
                                                dphi_dx_3d,  dphi_dy_3d,  dphi_dz_3d,  &
-                                               detJ,        i, j, k, p)
+                                               detJ,                                  &
+                                               itest, jtest, rtest,                   &
+                                               i, j, k, p)
 
     !------------------------------------------------------------------
     ! Evaluate the x, y and z derivatives of the element basis functions
@@ -6923,6 +6988,9 @@
          Jac,      &! Jacobian matrix
          Jinv,     &! inverse Jacobian matrix
          cofactor   ! matrix of cofactors
+
+    integer, intent(in) :: &
+       itest, jtest, rtest              ! coordinates of diagnostic point
 
     integer, intent(in) :: i, j, k, p   ! indices passed in for debugging
 
@@ -7118,7 +7186,9 @@
   subroutine get_basis_function_derivatives_2d(xNode,       yNode,         &
                                                dphi_dxr_2d, dphi_dyr_2d,   &
                                                dphi_dx_2d,  dphi_dy_2d,    &
-                                               detJ, i, j, p)
+                                               detJ,                       &
+                                               itest, jtest, rtest,        &
+                                               i, j, p)
 
     !------------------------------------------------------------------
     ! Evaluate the x and y derivatives of 2D element basis functions
@@ -7145,6 +7215,9 @@
     real(dp), dimension(2,2) ::  &
                 Jac,      &! Jacobian matrix
                 Jinv       ! inverse Jacobian matrix
+
+    integer, intent(in) :: &
+       itest, jtest, rtest              ! coordinates of diagnostic point
 
     integer, intent(in) :: i, j, p
 
@@ -7289,6 +7362,7 @@
 
   subroutine compute_basal_friction_heatflx(nx,            ny,            &
                                             nhalo,                        &
+                                            itest, jtest,  rtest,         &
                                             active_cell,                  &
                                             active_vertex,                &
                                             xVertex,       yVertex,       &
@@ -7327,6 +7401,9 @@
     integer, intent(in) ::      &
        nx, ny,                  &    ! horizontal grid dimensions
        nhalo                         ! number of halo layers
+
+    integer, intent(in) :: &
+       itest, jtest, rtest              ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell            ! true if cell contains ice and borders a locally owned vertex
@@ -7502,6 +7579,7 @@
   subroutine compute_internal_stress (nx,            ny,            &
                                       nz,            sigma,         &
                                       nhalo,                        &
+                                      itest, jtest,  rtest,         &
                                       active_cell,                  &
                                       xVertex,       yVertex,       &
                                       stagusrf,      stagthck,      &
@@ -7529,6 +7607,9 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest              ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -7627,7 +7708,9 @@
                    call get_basis_function_derivatives_3d(x(:),             y(:),             z(:),              &          
                                                           dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
                                                           dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
-                                                          detJ, i, j, k, p  )
+                                                          detJ,                                                  &
+                                                          itest, jtest, rtest,                                   &
+                                                          i, j, k, p)
 
                    ! Compute strain rates at this quadrature point, looping over nodes of element
                    du_dx = 0.d0
@@ -7684,6 +7767,7 @@
                                                        dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
                                                        u(:),             v(:),                              & 
                                                        flwafact(k,i,j),  efvs_qp,                           &
+                                                       itest, jtest, rtest,                                 &
                                                        i, j, k, p)
 
                    endif
@@ -7737,13 +7821,12 @@
                                           dphi_dx,       dphi_dy,    dphi_dz,    &
                                           uvel,          vvel,                   &
                                           flwafact,      efvs,                   &
+                                          itest, jtest,  rtest,                  &
                                           i, j, k, p )
 
     ! Compute effective viscosity at a quadrature point, based on the latest
     !  guess for the velocity field
     ! Note: Elements can be either 2D or 3D
-
-    integer, intent(in) :: i, j, k, p
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -7785,7 +7868,12 @@
     real(dp), intent(out) ::   &
        efvs            ! effective viscosity at this quadrature point (Pa yr)
                        ! computed as 0.5 * A^{-1/n) * effstrain^{(1-n)/n)}
-                       
+
+    integer, intent(in) :: &
+       itest, jtest, rtest            ! coordinates of diagnostic point
+
+    integer, intent(in) :: i, j, k, p
+
     !----------------------------------------------------------------
     ! Local parameters
     !----------------------------------------------------------------
@@ -7929,13 +8017,12 @@
                                               dsdx,             dsdy,               &
                                               flwa,             flwafact,           &
                                               efvs,                                 &
+                                              itest,   jtest,   rtest,              &
                                               i, j, p )
 
     ! Compute the effective viscosity at each layer of an ice column corresponding
     !  to a particular quadrature point, based on the L1L2 formulation.
     ! See PGB(2012), section 2.3
-
-    integer, intent(in) :: i, j, p
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -7962,6 +8049,11 @@
 
     real(dp), dimension(nz), intent(in) ::    &
        sigma              ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
+
+    integer, intent(in) :: i, j, p
 
     real(dp), dimension(nNodesPerElement), intent(in) ::  &
        phi,           &   ! basic functions at this quadrature point
@@ -8170,13 +8262,12 @@
                                               stagthck,                             &
                                               flwa,             flwafact,           &
                                               efvs,                                 &
+                                              itest,  jtest,    rtest,              &
                                               i, j, p )
     
     ! Compute the effective viscosity at each layer of an ice column corresponding
     !  to a particular quadrature point, based on the depth-integrated formulation.
     ! See Goldberg(2011) for details.
-
-    integer, intent(in) :: i, j, p
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -8222,6 +8313,11 @@
     !WHL - intent(out) if solving cubic, but (inout) if using old efvs in calculation
     real(dp), dimension(nz-1), intent(inout) ::   &
        efvs               ! effective viscosity of each layer corresponding to this quadrature point (Pa yr)
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
+
+    integer, intent(in) :: i, j, p
 
     !----------------------------------------------------------------
     ! Local parameters
@@ -8413,6 +8509,7 @@
                                     dphi_dx,     dphi_dy,    dphi_dz,  &
                                     Kuu,         Kuv,                  &
                                     Kvu,         Kvv,                  &
+                                    itest, jtest, rtest,               &
                                     i, j, k, p)
 
     !------------------------------------------------------------------
@@ -8426,8 +8523,6 @@
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
-
-    integer, intent(in) :: i, j, k, p
 
     integer, intent(in) :: &
          whichapprox     ! which Stokes approximation to use (BP, SIA, SSA)
@@ -8446,6 +8541,11 @@
 
     real(dp), dimension(nNodesPerElement,nNodesPerElement), intent(inout) :: &
              Kuu, Kuv, Kvu, Kvv     ! components of element stiffness matrix
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
+
+    integer, intent(in) :: i, j, k, p
 
     !----------------------------------------------------------------
     ! Local variables
@@ -8531,6 +8631,7 @@
 
   subroutine element_to_global_matrix_3d(nx,           ny,          nz,          &
                                          iElement,     jElement,    kElement,    &
+                                         itest,        jtest,       rtest,       &
                                          Kuu,          Kuv,                      &
                                          Kvu,          Kvv,                      &
                                          Auu,          Auv,                      &
@@ -8545,6 +8646,9 @@
 
     integer, intent(in) ::   &
        iElement, jElement, kElement     ! i, j and k indices for this element
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
 
     real(dp), dimension(nNodesPerElement_3d,nNodesPerElement_3d), intent(in) ::  &
        Kuu, Kuv, Kvu, Kvv       ! element matrix
@@ -8599,6 +8703,7 @@
 
   subroutine element_to_global_matrix_2d(nx,           ny,        &
                                          iElement,     jElement,  &
+                                         itest, jtest, rtest,     &
                                          Kuu,          Kuv,       &
                                          Kvu,          Kvv,       &
                                          Auu,          Auv,       &
@@ -8612,6 +8717,9 @@
 
     integer, intent(in) ::   &
        iElement, jElement       ! i and j indices for this element
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
 
     real(dp), dimension(nNodesPerElement_2d,nNodesPerElement_2d), intent(in) ::  &
        Kuu, Kuv, Kvu, Kvv       ! element matrix
@@ -8666,13 +8774,14 @@
   !TODO - Call this subroutine for both 2D and 3D solvers.
   !       First need to switch the index order for 3D matrices.
   subroutine basal_sliding_bc_2d(nx,               ny,              &
-                              nNeighbors,       nhalo,           &
-                              dx,               dy,              &
-                              active_cell,      active_vertex,   &
-                              beta,                              &
-                              xVertex,          yVertex,         &
-                              whichassemble_beta,                &
-                              Auu,              Avv)
+                                 nNeighbors,       nhalo,           &
+                                 dx,               dy,              &
+                                 itest,  jtest,    rtest,           &
+                                 active_cell,      active_vertex,   &
+                                 beta,                              &
+                                 xVertex,          yVertex,         &
+                                 whichassemble_beta,                &
+                                 Auu,              Avv)
 
     !------------------------------------------------------------------------
     ! Increment the Auu and Avv matrices with basal traction terms.
@@ -8699,6 +8808,9 @@
 
     real(dp), intent(in) ::     &
        dx, dy                        ! grid cell length and width
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice and borders a locally owned vertex
@@ -8818,7 +8930,9 @@
                 call get_basis_function_derivatives_2d(x(:),             y(:),               &
                                                        dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
-                                                       detJ, i, j, p)
+                                                       detJ,                                 &
+                                                       itest, jtest, rtest,                  &
+                                                       i, j, p)
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
                 beta_qp = 0.d0
@@ -8928,6 +9042,7 @@
   subroutine basal_sliding_bc(nx,               ny,              &
                               nNeighbors,       nhalo,           &
                               dx,               dy,              &
+                              itest,  jtest,    rtest,           &
                               active_cell,      active_vertex,   &
                               beta,                              &
                               xVertex,          yVertex,         &
@@ -8959,6 +9074,9 @@
 
     real(dp), intent(in) ::     &
        dx, dy                        ! grid cell length and width
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice and borders a locally owned vertex
@@ -9078,7 +9196,9 @@
                 call get_basis_function_derivatives_2d(x(:),             y(:),               &
                                                        dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
-                                                       detJ, i, j, p)
+                                                       detJ,                                 &
+                                                       itest, jtest, rtest,                  &
+                                                       i, j, p)
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
                 beta_qp = 0.d0
@@ -9556,6 +9676,7 @@
 
   subroutine compute_residual_vector_3d(nx,    ny,     nz,            &
                                         parallel,                     &
+                                        itest,  jtest, rtest,         &
                                         active_vertex,                &
                                         Auu,           Auv,           &
                                         Avu,           Avv,           &
@@ -9572,7 +9693,10 @@
        nz                     ! number of vertical levels where velocity is computed
 
     type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
+       parallel               ! info for parallel communication
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
        active_vertex          ! T for columns (i,j) where velocity is computed, else F
@@ -9759,6 +9883,7 @@
 
   subroutine compute_residual_vector_2d(nx,            ny,            &
                                         parallel,                     &
+                                        itest,  jtest, rtest,         &
                                         active_vertex,                &
                                         Auu,           Auv,           &
                                         Avu,           Avv,           &
@@ -9774,7 +9899,10 @@
        nx, ny                 ! horizontal grid dimensions (for scalars)
 
     type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
+       parallel               ! info for parallel communication
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
        active_vertex          ! T for columns (i,j) where velocity is computed, else F

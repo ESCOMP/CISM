@@ -70,14 +70,11 @@
     private
     public :: glissade_velo_sia_solve
 
-    logical, parameter :: verbose = .false.
+    logical, parameter :: verbose_sia = .false.
     logical, parameter :: verbose_geom = .false.
     logical, parameter :: verbose_bed = .false.
     logical, parameter :: verbose_interior = .false.
     logical, parameter :: verbose_bfric = .false.
-
-    integer :: itest, jtest    ! coordinates of diagnostic point                                                                                    
-    integer :: rtest           ! task number for processor containing diagnostic point
 
   contains
 
@@ -179,6 +176,9 @@
        ice_mask,            & ! = 1 where ice is present, else = 0
        land_mask              ! = 1 for land cells, else = 0
 
+    integer :: itest, jtest   ! coordinates of diagnostic point
+    integer :: rtest          ! task number for processor containing diagnostic point
+
     integer :: i, j, k
 
     !--------------------------------------------------------
@@ -223,7 +223,7 @@
        jtest = model%numerics%jdiag_local
     endif
 
-    if (verbose .and. this_rank==rtest) then
+    if (verbose_sia .and. this_rank==rtest) then
        print*, 'In glissade_velo_sia_solve'
        print*, 'rank, itest, jtest =', rtest, itest, jtest
     endif
@@ -339,7 +339,7 @@
                            ice_mask,               &
                            gradient_margin_in = whichgradient_margin)
 
-    if (verbose .and. main_task) then
+    if (verbose_sia .and. main_task) then
        print*, ' '
        print*, 'In glissade_velo_sia_solve'
     endif
@@ -454,6 +454,7 @@
     call glissade_velo_sia_interior(nx,       ny,       nz,  &
                                     dx,       dy,            &
                                     sigma,    thklim,        &
+                                    itest, jtest, rtest,     &
                                     usrf,                    &
                                     thck,     stagthck,      &
                                     dusrf_dx, dusrf_dy,      &
@@ -527,7 +528,8 @@
     !------------------------------------------------------------------------------
 
     call glissade_velo_sia_bfricflx(nx,           ny,            &
-                                    nhalo,        ice_mask,      &
+                                    itest,jtest,  rtest,         &
+                                    ice_mask,                    &
                                     uvel(nz,:,:), vvel(nz,:,:),  &
                                     btrc,         bfricflx)
 
@@ -786,6 +788,7 @@
   subroutine glissade_velo_sia_interior(nx,       ny,      nz,  &
                                         dx,       dy,           &
                                         sigma,    thklim,       &
+                                        itest, jtest, rtest,    &
                                         usrf,                   &
                                         thck,     stagthck,     &
                                         dusrf_dx, dusrf_dy,     &
@@ -810,6 +813,9 @@
 
     real(dp), dimension(nz) ::   &
        sigma                    ! vertical sigma coordinate, [0,1]
+
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) ::   &
        thck,                  & ! ice thickness (m)
@@ -998,7 +1004,8 @@
 !****************************************************************************
 
   subroutine glissade_velo_sia_bfricflx(nx,            ny,            &
-                                        nhalo,         ice_mask,      &
+                                        itest, jtest,  rtest,         &
+                                        ice_mask,                     &
                                         uvel,          vvel,          &
                                         btrc,          bfricflx)
 
@@ -1021,8 +1028,10 @@
     !----------------------------------------------------------------
 
     integer, intent(in) ::      &
-       nx, ny,                  &    ! horizontal grid dimensions
-       nhalo                         ! number of halo layers
+       nx, ny                   ! horizontal grid dimensions
+
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask               ! = 1 where ice is present, else = 0

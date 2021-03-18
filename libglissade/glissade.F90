@@ -73,10 +73,6 @@ module glissade
   real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
 
-  real(dp), parameter :: eps08 = 1.0d-8   ! small number
-  real(dp), parameter :: eps11 = 1.0d-11  ! small number
-
-
 contains
 
 !=======================================================================
@@ -114,7 +110,7 @@ contains
     use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
-    use glimmer_paramets, only: thk0, len0, tim0
+    use glimmer_paramets, only: eps11, thk0, len0, tim0
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: &
          glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
@@ -746,6 +742,7 @@ contains
                              model%numerics%idiag_local, model%numerics%jdiag_local,&
                              model%numerics%rdiag_local,                            &
                              model%numerics%sigma,       model%numerics%stagsigma,  &
+                             model%numerics%dups,                                   &
                              model%geometry%thck*thk0,                              & ! m
                              model%climate%artm_corrected,                          & ! deg C
                              model%climate%acab*thk0/tim0,                          & ! m/s
@@ -1443,7 +1440,7 @@ contains
 
     ! Solve for basal melting beneath floating ice.
 
-    use glimmer_paramets, only: tim0, thk0, len0
+    use glimmer_paramets, only: eps08, tim0, thk0, len0
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
@@ -2005,6 +2002,7 @@ contains
                                 model%numerics%idiag_local, model%numerics%jdiag_local,       &
                                 model%numerics%rdiag_local,                                   &
                                 model%numerics%sigma,       model%numerics%stagsigma,         &
+                                model%numerics%dups,                                          &
                                 model%numerics%thklim_temp*thk0,                              & ! m
                                 model%geometry%thck*thk0,                                     & ! m
                                 model%geometry%topg*thk0,                                     & ! m
@@ -2084,7 +2082,7 @@ contains
     use parallel_mod, only: parallel_type, parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
          parallel_reduce_max
 
-    use glimmer_paramets, only: tim0, thk0, vel0, len0
+    use glimmer_paramets, only: eps11, tim0, thk0, vel0, len0
     use glimmer_physcon, only: scyr
     use glimmer_scales, only: scale_acab
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp

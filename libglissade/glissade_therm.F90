@@ -71,8 +71,6 @@ module glissade_therm
          maxtemp_threshold = 1.d11,   &
          mintemp_threshold = -100.d0
 
-    real(dp), dimension(:,:), allocatable :: dups   ! vertical grid quantities
-
     ! local parameter for debugging
     logical, parameter:: verbose_therm = .false.  ! set to true for diagnostic column output
 
@@ -84,6 +82,7 @@ module glissade_therm
                                   ewn,        nsn,        upn,   &
                                   itest,      jtest,      rtest, &
                                   sigma,      stagsigma,         &
+                                  dups,                          &
                                   thck,                          &
                                   artm,                          &
                                   acab,                          &
@@ -120,6 +119,9 @@ module glissade_therm
     real(dp), intent(in) :: &
          pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
 
+    real(dp), dimension(:,:), intent(out) ::   &
+         dups              ! vertical grid quantities
+
     real(dp), dimension(0:,:,:), intent(inout) ::  &
          temp              ! ice temperature
                            ! intent(inout) because it might have been read already from an input file,
@@ -141,7 +143,7 @@ module glissade_therm
 
     ! Precompute some grid quantities used in the vertical temperature solve
  
-    allocate(dups(upn+1,2))   !TODO - upn-1 instead?
+!!    allocate(dups(upn+1,2))   ! now allocated in glide_types
     dups(:,:) = 0.0d0
 
     up = 1
@@ -530,7 +532,7 @@ module glissade_therm
                                    parallel,                          &
                                    ewn,             nsn,       upn,   &
                                    itest,           jtest,     rtest, &
-                                   sigma,           stagsigma,        &
+                                   sigma,           stagsigma, dups,  &
                                    thklim_temp,                       &
                                    thck,            topg,             &
                                    lsrf,            eus,              &
@@ -586,6 +588,9 @@ module glissade_therm
     real(dp), dimension(:), intent(in) ::   &
          sigma,           &! vertical coordinate, located at layer interfaces
          stagsigma         ! staggered vertical coordinate, located at the center of each layer
+
+    real(dp), dimension(:,:), intent(in) ::   &
+         dups              ! vertical grid quantities
 
     real(dp), dimension(:,:), intent(in) ::  &
          thck,            &! ice thickness (m)
@@ -860,7 +865,7 @@ module glissade_therm
                                                        upn,         stagsigma,    &
                                                        subd,        diag,         &
                                                        supd,        rhsd,         &
-                                                       dups(:,:),                 &
+                                                       dups,                      &
                                                        floating_mask(ew,ns),      &
                                                        thck(ew,ns),               &
                                                        bpmp(ew,ns),               &
@@ -982,11 +987,11 @@ module glissade_therm
                 einit = einit * rhoi * shci * thck(ew,ns)
                 
                 ! compute matrix elements
-                !TODO - Pass dups?
                 call glissade_temperature_matrix_elements(dttem,                 &
                                                           upn,     stagsigma,    &
                                                           subd,    diag,         &
                                                           supd,    rhsd,         &            
+                                                          dups,                  &
                                                           which_ho_ground,       &
                                                           floating_mask(ew,ns),  &
                                                           f_ground_cell(ew,ns),  &
@@ -1297,6 +1302,7 @@ module glissade_therm
                                                   upn,          stagsigma,      &
                                                   subd,         diag,           &
                                                   supd,         rhsd,           &
+                                                  dups,                         &
                                                   which_ho_ground,              &
                                                   floating_mask,                &
                                                   f_ground_cell,                &
@@ -1318,6 +1324,7 @@ module glissade_therm
     real(dp), intent(in) :: dttem       ! time step (s)
     integer, intent(in) :: upn          ! number of layer interfaces
     real(dp), dimension(upn-1), intent(in) :: stagsigma    ! sigma coordinate at temp nodes
+    real(dp), dimension(:,:), intent(in) :: dups   ! vertical grid quantities
 
     real(dp), dimension(:), intent(out) :: subd, diag, supd, rhsd
 
@@ -1479,7 +1486,8 @@ module glissade_therm
                                                upn,       stagsigma,        &
                                                subd,      diag,             &
                                                supd,      rhsd,             &
-                                               dups,      floating_mask,    &
+                                               dups,                        &
+                                               floating_mask,               &
                                                thck,      bpmp,             &
                                                temp,      waterfrac,        &
                                                enthalpy,  dissip,           &
@@ -1805,6 +1813,7 @@ module glissade_therm
     !  meltwater fraction (0.01 by default) is drained to the bed.
 
     use glimmer_physcon, only: rhoi, lhci
+    use glimmer_paramets, only: eps08, eps11
 
     !-----------------------------------------------------------------
     ! Input/output arguments
@@ -1849,9 +1858,6 @@ module glissade_therm
          bflx_mlt             ! heat flux available for basal melting (W/m^2)
 
     integer :: up, ew, ns
-
-    real(dp), parameter :: eps08 = 1.d-08     ! small number used to evaluate whether T > Tpmp
-    real(dp), parameter :: eps11 = 1.d-11     ! smaller number used as a melt threshold
 
     bmlt_ground(:,:) = 0.0d0
 

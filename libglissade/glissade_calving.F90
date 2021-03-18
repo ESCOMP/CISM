@@ -35,7 +35,7 @@ module glissade_calving
   use parallel_mod, only: this_rank, main_task, nhalo, &
        parallel_halo, parallel_globalindex, parallel_reduce_sum, parallel_reduce_max
 
-  use glimmer_paramets, only: thk0
+  use glimmer_paramets, only: eps08, thk0
 
   implicit none
 
@@ -259,8 +259,6 @@ contains
     real(dp), dimension(nx,ny) :: &
          thck_calving_front,             & ! effective ice thickness at the calving front
          thck_calving_threshold_smoothed   ! smoothed version of thck_calving_threshold
-
-    real(dp), parameter :: eps08 = 1.0d-8   ! small number
 
     !TODO - Make the calving thresholds config parameters?
     real(dp), parameter :: &
