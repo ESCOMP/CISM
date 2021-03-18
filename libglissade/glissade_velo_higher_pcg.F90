@@ -66,15 +66,11 @@
 
     ! linear solver settings
     !TODO - Pass in these solver settings as arguments?
-    integer, parameter ::    &
-       maxiters = 200          ! max number of linear iterations before quitting
+!    integer, parameter ::    &
+!       maxiters = 200          ! max number of linear iterations before quitting
                                ! TODO - change to maxiters_default?
-    integer, parameter :: &
-       maxiters_tridiag = 100  ! reduced number appropriate for tridiagonal preconditioning,
-                               ! which generally leads to faster convergence than diagonal preconditioning
-
-    real(dp), parameter ::   &
-       tolerance = 1.d-08    ! tolerance for linear solver
+!    real(dp), parameter ::   &
+!       tolerance = 1.d-08    ! tolerance for linear solver
 
     logical, parameter :: verbose_pcg = .false.
     logical, parameter :: verbose_tridiag = .false.
@@ -93,6 +89,7 @@
                                     bu,        bv,            &
                                     xu,        xv,            &
                                     precond,   linear_solve_ncheck,  &
+                                    tolerance, maxiters,      &
                                     err,       niters,        &
                                     itest, jtest, rtest)
 
@@ -188,6 +185,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                     ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                    ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                          ! error (L2 norm of residual) in final solution
@@ -574,6 +577,7 @@
                                     bu,        bv,            &
                                     xu,        xv,            &
                                     precond,   linear_solve_ncheck,  &
+                                    tolerance, maxiters,      &
                                     err,       niters,        &
                                     itest, jtest, rtest)
 
@@ -642,6 +646,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck         ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                    ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                   ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                         ! error (L2 norm of residual) in final solution
@@ -982,6 +992,7 @@
                                      bu,        bv,            &
                                      xu,        xv,            &
                                      precond,   linear_solve_ncheck,  &
+                                     tolerance, maxiters,      &
                                      err,       niters,        &
                                      itest, jtest, rtest)
 
@@ -1131,6 +1142,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck         ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                    ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                   ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                         ! error (L2 norm of residual) in final solution
@@ -1984,6 +2001,7 @@
                                      bu,        bv,            &
                                      xu,        xv,            &
                                      precond,   linear_solve_ncheck,  &
+                                     tolerance, maxiters,      &
                                      err,       niters,        &
                                      itest, jtest, rtest)
 
@@ -2020,7 +2038,7 @@
                               ! velocity grid has dimensions (nx-1,ny-1)
 
     type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
+       parallel               ! info for parallel communication
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
        indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
@@ -2050,6 +2068,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                     ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                    ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                          ! error (L2 norm of residual) in final solution
@@ -2132,6 +2156,10 @@
     integer :: &
          tasks_row,         &   ! number of tasks per row and column for tridiagonal solve
          tasks_col
+
+    integer, parameter :: &
+       maxiters_tridiag = 100  ! max number of linear iterations for tridiagonal preconditioning,
+                               ! which generally leads to faster convergence than diagonal preconditioning
 
     !WHL - debug
     real(dp) :: usum, usum_global, vsum, vsum_global

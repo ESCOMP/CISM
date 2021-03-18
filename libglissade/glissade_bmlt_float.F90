@@ -97,7 +97,7 @@ module glissade_bmlt_float
     logical, parameter :: cap_Dplume = .true.
 !!    logical, parameter :: cap_Dplume = .false.
 
-    !WHL - debug 
+    ! loop limits for debug diagnostics
     integer :: kmin_diag = 1
     integer :: kmax_diag = 1
 

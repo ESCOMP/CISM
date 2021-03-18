@@ -808,6 +808,8 @@ contains
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
     call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
+    call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
+    call GetValue(section, 'linear_tolerance',            model%options%linear_tolerance)
 
   end subroutine handle_ho_options
 
@@ -1947,6 +1949,12 @@ contains
           write(message,*) 'linear_solve_ncheck     : ',model%options%linear_solve_ncheck
           call write_log(message)
 
+          write(message,*) 'linear_maxiters         : ',model%options%linear_maxiters
+          call write_log(message)
+
+          write(message,*) 'linear_tolerance        : ',model%options%linear_tolerance
+          call write_log(message)
+
        end if   ! DYCORE_GLISSADE
 
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
@@ -1987,12 +1995,15 @@ contains
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
-    !NOTE: The following physical constants have default values in glimmer_physcon.F90.
+    !Note: The following physical constants have default values in glimmer_physcon.F90.
     !      Some test cases (e.g., MISMIP) specify different values. The default values
-    !      can therefore be overridden by the user in the config file (except that certain
-    !      constants in CESM's shr_const_mod cannot be overridden when CISM is coupled to CESM).
-    !      These constants are not part of the model derived type.
-
+    !       can therefore be overridden by the user in the config file.
+    !      For coupled CESM runs, however, CISM uses the values in CESM's shr_const_mod,
+    !       which cannot be overridden.
+    !      These constants are *not* part of the model derived type.
+    !      If running multiple instances, the user should either use the default values
+    !       or specify identical values in each config file.  Otherwise, the run will use
+    !       whatever values are specified in the last config file to be read.
 #ifndef CCSMCOUPLED
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)

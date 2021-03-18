@@ -1035,11 +1035,18 @@ module glide_types
     !> \item[1] ice age computation on
     !> \end{description}
 
+    !TODO - Put the next few variables in a solver derived type
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
 
     integer :: linear_solve_ncheck = 5
     !> check the linear solver for convergence every linear_solve_ncheck iterations
+
+    integer :: linear_maxiters = 200
+    !> max number of linear iterations before quitting
+
+    real(dp) :: linear_tolerance = 1.0d-08
+    !> error tolerance for linear solver
 
     ! The remaining options are not currently supported
 
@@ -2031,8 +2038,10 @@ module glide_types
                                                                
     real(dp),dimension(:),pointer :: sigma => null() !> Sigma values for vertical spacing of 
                                                      !> model levels
-    real(dp),dimension(:),pointer :: stagsigma => null() !> Staggered values of sigma (layer midpts)
+    real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
     real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
+    real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
+
 
     integer :: profile_period = 100            ! profile frequency
 
@@ -2467,6 +2476,7 @@ contains
 
     allocate(model%numerics%stagsigma(upn-1))
     allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
+    allocate(model%numerics%dups(upn+1,2))    !TODO - upn-1 instead?
 
     ! latitude and longitude
     call coordsystem_allocate(model%general%ice_grid, model%general%lat)
