@@ -91,7 +91,6 @@ contains
 
     integer :: config_fileunit
     logical :: do_ice_evolution
-    integer :: nzocn
 
     config_fileunit = 99
     if (present(gcm_config_unit)) then
@@ -192,7 +191,6 @@ contains
                                      get_ewn(instance%model), &
                                      get_nsn(instance%model))
 
-
     ! Allocate arrays appropriately
 
     call glad_i_allocate_gcm(instance, force_start)
@@ -202,9 +200,8 @@ contains
     call glad_i_readdata(instance)
 
     ! initialise the mass-balance accumulation
-    nzocn = get_nzocn(instance%model) ! used for ocean related fields
 
-    call glad_mbc_init(instance%mbal_accum, instance%lgrid, nzocn)
+    call glad_mbc_init(instance%mbal_accum, instance%lgrid)
 
     ! If flag set to force frequent coupling (for testing purposes),
     ! then decrease all coupling timesteps to very short intervals

@@ -43,12 +43,8 @@ module glad_mbal_coupling
   type glad_mbc
      real(dp),dimension(:,:),pointer :: acab_save  => null() ! used to accumulate mass-balance
      real(dp),dimension(:,:),pointer :: artm_save  => null() ! used to average air-temperature
-     real(dp),dimension(:,:,:),pointer :: thermal_forcing_save  => null() ! used to average 3D thermal forcing
-
      real(dp),dimension(:,:),pointer :: acab       => null() ! Instantaneous mass-balance
      real(dp),dimension(:,:),pointer :: artm       => null() ! Instantaneous air temperature
-     real(dp),dimension(:,:,:),pointer :: thermal_forcing => null() ! Instantaneous thermal_forcing
-
      integer :: av_count  = 0 ! Counter for averaging inputs
      logical :: new_accum = .true.
      integer :: start_time    ! the time we started averaging (hours)
@@ -57,7 +53,7 @@ module glad_mbal_coupling
 
 contains
 
-  subroutine glad_mbc_init(params,lgrid,nzocn)
+  subroutine glad_mbc_init(params,lgrid)
 
     ! Initialize the glad_mbc structure ('params').
 
@@ -68,31 +64,23 @@ contains
 
     use glimmer_coordinates
     use glad_constants, only : years2hours
-    use glide_types, only : get_nzocn
 
     type(glad_mbc)  :: params
     type(coordsystem_type) :: lgrid
-    integer, intent(in) :: nzocn
 
     ! Deallocate if necessary
 
     if (associated(params%acab_save))  deallocate(params%acab_save)
     if (associated(params%artm_save))  deallocate(params%artm_save)
-    if (associated(params%thermal_forcing_save))  deallocate(params%thermal_forcing_save)
-
     if (associated(params%acab))       deallocate(params%acab)
     if (associated(params%artm))       deallocate(params%artm)
-    if (associated(params%thermal_forcing))  deallocate(params%thermal_forcing)
 
     ! Allocate arrays and zero
 
     call coordsystem_allocate(lgrid,params%acab_save);  params%acab_save = 0.d0
     call coordsystem_allocate(lgrid,params%artm_save);  params%artm_save = 0.d0
-    call coordsystem_allocate(lgrid,nzocn,params%thermal_forcing_save);  params%thermal_forcing_save = 0.d0
-
     call coordsystem_allocate(lgrid,params%acab);       params%acab = 0.d0
     call coordsystem_allocate(lgrid,params%artm);       params%artm = 0.d0
-    call coordsystem_allocate(lgrid,nzocn,params%thermal_forcing);  params%thermal_forcing = 0.d0
 
     ! Set default mass balance time step
     !
@@ -104,9 +92,7 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_accumulate_input_gcm(params, time, acab, artm, thermal_forcing) !, &
-!                                       thermal_forcing2, thermal_forcing3, thermal_forcing4,  &
-!                                       thermal_forcing5, thermal_forcing6, thermal_forcing7)
+  subroutine glad_accumulate_input_gcm(params, time, acab, artm)
 
     ! In glint, this was done in glint_downscale.F90
     
@@ -115,7 +101,6 @@ contains
 
     real(dp),dimension(:,:),intent(in) :: acab   ! Surface mass balance (m)
     real(dp),dimension(:,:),intent(in) :: artm   ! Mean air temperature (degC)
-    real(dp),dimension(:,:,:),intent(in) :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
 
     ! Things to do the first time
 
@@ -128,7 +113,6 @@ contains
 
        params%acab_save = 0.d0
        params%artm_save = 0.d0
-       params%thermal_forcing_save = 0.d0
        params%start_time = time
 
     end if
@@ -139,36 +123,31 @@ contains
 
     params%acab_save = params%acab_save + acab
     params%artm_save = params%artm_save + artm
-    params%thermal_forcing_save = params%thermal_forcing_save + thermal_forcing
 
     ! Copy instantaneous fields
 
     params%acab = acab
     params%artm = artm
-    params%thermal_forcing = thermal_forcing
 
   end subroutine glad_accumulate_input_gcm
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_average_input_gcm(params, dt, acab, artm, thermal_forcing)
+  subroutine glad_average_input_gcm(params, dt, acab, artm)
 
     ! In glint, this was done in glint_downscale.F90
 
     use glad_constants, only: hours2years
 
     type(glad_mbc)  :: params
-    integer,                intent(in)   :: dt     !> mbal accumulation time (hours)
-    real(dp),dimension(:,:),intent(out)  :: artm   !> Mean air temperature (degC)
-    real(dp),dimension(:,:),intent(out)  :: acab   !> Mass-balance (m/yr)
-    real(dp),dimension(:,:,:),intent(out)  :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
+    integer,                intent(in)    :: dt     !> mbal accumulation time (hours)
+    real(dp),dimension(:,:),intent(out)   :: artm   !> Mean air temperature (degC)
+    real(dp),dimension(:,:),intent(out)   :: acab   !> Mass-balance (m/yr)
 
     if (.not. params%new_accum) then
        params%artm_save = params%artm_save / real(params%av_count,dp)
-       params%thermal_forcing_save = params%thermal_forcing_save / real(params%av_count,dp)
     end if
     artm  = params%artm_save
-    thermal_forcing  = params%thermal_forcing_save
 
     ! Note: acab_save has units of m, but acab has units of m/yr
     acab  = params%acab_save / real(dt*hours2years,dp)

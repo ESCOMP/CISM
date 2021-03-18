@@ -123,13 +123,10 @@ module glad_main
   ! Some notes on coupling to the Community Earth System Model (CESM).  These may be applicable
   ! for coupling to other GCMs:
   !
-  ! When coupled to CESM, Glad receives several fields from the coupler on the ice sheet grid:
+  ! When coupled to CESM, Glad receives two fields from the coupler on the ice sheet grid:
   !   qsmb = surface mass balance (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
-  !   salinity1..7 = ocean salinity at levels 0,10,19,26,30,33,35 (g/kg)
-  !   tocn1..7     = ocean temperatures at levels 0,10,19,26,30,33,35 (deg K)
   ! Both qsmb and tsfc are computed in the CESM land model.
-  ! Both set of fields salinity1..7 and tocan1..7 are computed in POP.
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
@@ -547,12 +544,11 @@ contains
   
   !===================================================================
 
-  subroutine glad_gcm(params,         instance_index, time,                 &
-                      qsmb,           tsfc,                                 &
-                      salinity,       tocn,                                 &
-                      ice_covered,    topo,                                 &
-                      rofi,           rofl,           hflx,                 &
-                      ice_sheet_grid_mask, valid_inputs,                    &
+  subroutine glad_gcm(params,         instance_index, time,  &
+                      qsmb,           tsfc,                  &
+                      ice_covered,    topo,                  &
+                      rofi,           rofl,           hflx,  &
+                      ice_sheet_grid_mask, valid_inputs,     &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
@@ -570,7 +566,7 @@ contains
     use glimmer_log
     use glimmer_physcon, only : celsius_to_kelvin
     use parallel, only : parallel_convert_nonhaloed_to_haloed
-    use glide_types, only : get_ewn, get_nsn, get_nzocn
+    use glide_types, only : get_ewn, get_nsn
     use glad_output_fluxes, only : calculate_average_output_fluxes
 
     implicit none
@@ -583,8 +579,6 @@ contains
 
     real(dp),dimension(:,:),intent(in)    :: qsmb         ! input surface mass balance of glacier ice (kg/m^2/s)
     real(dp),dimension(:,:),intent(in)    :: tsfc         ! input surface ground temperature (deg C)
-    real(dp),dimension(:,:,:),intent(in)  :: salinity     ! input ocean salinity (g/kg)
-    real(dp),dimension(:,:,:),intent(in)  :: tocn         ! input ocean temperature (deg K)
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
@@ -600,25 +594,15 @@ contains
 ! Internal variables ----------------------------------------------------------------------------
 
     integer :: ewn,nsn    ! dimensions of local grid
-    integer :: nzocn      ! dimension of ocean layer
-    integer :: k
-
-!    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing  ! sub-shelf thermal_forcing (deg K)
 
     ! version of input fields with halo cells
-    real(dp),dimension(:,:),allocatable   :: qsmb_haloed
-    real(dp),dimension(:,:),allocatable   :: tsfc_haloed
-    real(dp),dimension(:,:,:),allocatable :: salinity_haloed
-    real(dp),dimension(:,:,:),allocatable :: tocn_haloed
-    real(dp),dimension(:,:,:),allocatable :: thermal_forcing_haloed
+    real(dp),dimension(:,:),allocatable :: qsmb_haloed
+    real(dp),dimension(:,:),allocatable :: tsfc_haloed
 
     logical :: icets
     character(250) :: message
 
     integer :: av_start_time  ! value of time from the last occasion averaging was restarted (hours)
-
-    integer :: i, j, itest, jtest, rtest
-    real(dp), dimension(:), allocatable :: zocn
 
     ! Begin subroutine code --------------------------------------------------------------------
 
@@ -627,82 +611,18 @@ contains
     if (present(output_flag)) output_flag = .false.
     if (present(ice_tstep))   ice_tstep = .false.
 
-    nzocn = get_nzocn(params%instances(instance_index)%model)
-    allocate(zocn(nzocn))
-    zocn(:) = params%instances(instance_index)%model%ocean_data%zocn(:)
-
-    if (verbose_glad) then
-
-       write(message,*) 'In glad_gcm, time (hr), valid_inputs =', time, valid_inputs
-       call write_log(trim(message))
-
-       rtest = params%instances(instance_index)%model%numerics%rdiag_local
-       itest = params%instances(instance_index)%model%numerics%idiag_local
-       jtest = params%instances(instance_index)%model%numerics%jdiag_local
-
-       write(message,*) 'itest, jtest, rtest =', itest, jtest, rtest
-       call write_log(trim(message))
-
-       if (this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, 'r, i, j, nzocn =', this_rank, i, j, nzocn
-          print*, 'k, zocn:'
-          do k = 1, nzocn
-             print*, k, zocn(k)
-          enddo
-       endif
-
-    endif   ! verbose_glad
-
-    ! Accumulate input fields for later averaging
+       ! Accumulate input fields for later averaging
 
     if (valid_inputs) then
-
        ewn = get_ewn(params%instances(instance_index)%model)
        nsn = get_nsn(params%instances(instance_index)%model)
-
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
-       allocate(salinity_haloed(nzocn,ewn,nsn))
-       allocate(tocn_haloed(nzocn,ewn,nsn))
-       allocate(thermal_forcing_haloed(nzocn,ewn,nsn))       
-
        call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
        call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
 
-       do k = 1,nzocn
-          call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:))
-          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:),     tocn_haloed(k,:,:))
-          call compute_thermal_forcing_level(&
-               zocn(k),                                &    ! m
-               salinity_haloed(k,:,:),                 &    ! g/kg
-               tocn_haloed(k,:,:) - celsius_to_kelvin, &    ! convert K to C
-               thermal_forcing_haloed(k,:,:))
-       enddo
-
-       if (verbose_glad .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, 'r, i, j =', this_rank, i, j
-          print*, 'k, zocn, temperature, salinity, thermal forcing:'
-          do k = 1, nzocn
-             write(6,'(i4, 4f10.3)') k, zocn(k), &
-                  tocn_haloed(k,i,j), salinity_haloed(k,i,j), thermal_forcing_haloed(k,i,j)
-          enddo
-       endif
-
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-            qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
-            thermal_forcing = thermal_forcing_haloed,                         &
-            time = time)
-
-       deallocate(qsmb_haloed)
-       deallocate(tsfc_haloed)
-       deallocate(salinity_haloed)
-       deallocate(tocn_haloed)
-       deallocate(thermal_forcing_haloed)
-
+            qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
     end if
 
     ! ---------------------------------------------------------
@@ -716,7 +636,7 @@ contains
        
        write(message,*) 'Unexpected calling of GLAD at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
-
+    
     else if (time - av_start_time + params%time_step > params%tstep_mbal) then
 
        write(message,*) &
@@ -757,21 +677,10 @@ contains
 
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
-
           call calculate_averages(&
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
-               tsfc = params%instances(instance_index)%artm, &
-               thermal_forcing = params%instances(instance_index)%thermal_forcing)
-
-          if (verbose_glad .and. this_rank == rtest) then
-             i = itest
-             j = jtest
-             print*, 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
-             do k = 1, nzocn
-                write(6,'(i4, 2f10.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
-             enddo
-          endif
+               tsfc = params%instances(instance_index)%artm)
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -816,8 +725,6 @@ contains
        endif
 
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
-
-   deallocate(zocn)
 
   end subroutine glad_gcm
 
