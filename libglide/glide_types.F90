@@ -904,7 +904,7 @@ module glide_types
     !> \item[1] Diagonal preconditioner
     !> \item[2] Physics-based shallow-ice preconditioner
     !> \item[3] Local tridiagonal preconditioner (one solve per task)
-    !> \item[3] Global tridiagonal preconditioner (global solve)
+    !> \item[4] Global tridiagonal preconditioner (global solve)
     !> \end{description}
 
     integer :: which_ho_gradient = 0    
