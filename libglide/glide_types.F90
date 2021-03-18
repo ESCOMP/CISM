@@ -667,7 +667,8 @@ module glide_types
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
 
-    integer :: dt_option = 0
+    !Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM
+    integer :: dt_input_option = 0
     !> \begin{description}
     !> \item[0] Input dt in years
     !> \item[1] Input dt in steps per year
