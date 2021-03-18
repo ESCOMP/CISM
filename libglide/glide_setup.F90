@@ -604,16 +604,17 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-!       Set dt_option to specify whether the dynamic timestep (model%numerics%tinc)
+!       Set dt_input_option to specify whether the dynamic timestep (model%numerics%tinc)
 !        is based on dt (the timestep in years) or nsteps_per_year in the config file.
-!       The default (dt_option = DT_IN_YEARS) is to read dt directly,
+!       The default (dt_input_option = DT_IN_YEARS) is to read dt directly,
 !        but the nsteps_per_year option allows more flexibility.
 !       Typically, we want an integral number of timesteps per year,
 !        e.g., if running coupled with the mass balance timestep of 1 year,
 !        or if writing output at annual intervals.
+!       Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM.
     call GetValue(section,'tstart',model%numerics%tstart)
     call GetValue(section,'tend',model%numerics%tend)
-    call GetValue(section,'dt_option',model%options%dt_option)
+    call GetValue(section,'dt_input_option',model%options%dt_input_option)
     call GetValue(section,'dt',model%numerics%tinc)
     call GetValue(section,'nsteps_per_year',model%numerics%nsteps_per_year)
     call GetValue(section,'subcyc',model%numerics%subcyc)
@@ -631,7 +632,7 @@ contains
 
     ! If the time step was entered in number of steps per year, then set the timestep in years.
     ! If the time step was entered in years, then set nsteps_per_year.
-    if (model%options%dt_option == DT_STEPS_PER_YEAR) then
+    if (model%options%dt_input_option == DT_STEPS_PER_YEAR) then
        if (model%numerics%nsteps_per_year > 0) then
           model%numerics%tinc = 1.d0 / real(model%numerics%nsteps_per_year, dp)
        else
@@ -643,7 +644,7 @@ contains
        else
           call write_log('Must set dt > 0.0 with this dt option', GM_FATAL)
        endif
-    endif   ! dt_option
+    endif   ! dt_input_option
 
   end subroutine handle_time
   
