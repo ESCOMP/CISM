@@ -884,7 +884,7 @@ contains
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
           acab_diag = model%climate%acab_applied(i,j) * thk0*scyr/tim0
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * thk0*scyr/tim0
-          bwat_diag = model%temper%bwat(i,j) * thk0
+          bwat_diag = model%basal_hydro%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
        
           temp_diag(:) = model%temper%temp(1:upn,i,j)          
