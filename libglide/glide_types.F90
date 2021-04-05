@@ -280,6 +280,11 @@ module glide_types
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
+  integer, parameter :: HO_BWAT_FLUX_ROUTING = 3
+
+  integer, parameter :: HO_FLUX_ROUTING_D8 = 0
+  integer, parameter :: HO_FLUX_ROUTING_DINF = 1
+  integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
 
   !TODO - Remove option 2? Rarely used
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
@@ -827,6 +832,15 @@ module glide_types
     !> \item[0] Set to zero everywhere
     !> \item[1] Set to constant everywhere, to force T = Tpmp.
     !> \item[2] Local basal till model with constant drainage
+    !> \item[3] Steady-state water routing with flux calculation
+    !> \end{description}
+
+    integer :: ho_flux_routing_scheme = 0
+    !> Flux routing scheme for basal water:
+    !> \begin{description}
+    !> \item[0] D8; send flux to lowest-elevation neighbor
+    !> \item[1] Dinf; divide flux between two lower-elevation neighbors
+    !> \item[2] FD8; divide flux amond all lower-elevation neighbors
     !> \end{description}
 
     integer :: which_ho_effecpress = 0
@@ -1516,12 +1530,6 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
-     ! fields related to basal water
-     !TODO - Move these fields to the basal_physics type?
-     real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
-     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux 
-     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
-
     real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
@@ -1810,9 +1818,46 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  type glide_basal_hydro
+
+     !> Holds variables related to basal hydrology
+     !> See glissade_bwater.F90 for usage details
+
+     ! fields related to basal water
+     ! Note: Ideally, bwat should have MKS units (m), but currently is scaled.
+     real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
+     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
+     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux (m^3/s)
+     real(dp),dimension(:,:),  pointer :: head => null()      !> Hydraulic head (m)
+
+     ! parameter for constant basal water
+     ! Note: This parameter applies to teh case HO_BWAT_CONSTANT.
+     ! For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
+     real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
+
+     ! parameters for local till model
+     ! These parameters apply to the case HO_BWAT_LOCAL_TILL.
+     ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
+     real(dp) :: bwat_till_max = 2.0d0           !> maximum water depth in till (m)
+     real(dp) :: c_drainage = 1.0d-3             !> uniform drainage rate (m/yr)
+     real(dp) :: N_0 = 1000.d0                   !> reference effective pressure (Pa)
+     real(dp) :: e_0 = 0.69d0                    !> reference void ratio (dimensionless)
+     real(dp) :: C_c = 0.12d0                    !> till compressibility (dimensionless)
+                                                 !> Note: The ratio (e_0/C_c) is the key parameter
+
+     ! parameters for steady-state flux-routing model
+     ! Could add visc_water and omega_hydro here; currently set in glissade_bwater module
+     ! Some of these parameters might apply to more general models like SHAKTI
+
+  end type glide_basal_hydro
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   type glide_basal_physics
+
      !> Holds variables related to basal physics associated with ice dynamics
      !> See glissade_basal_traction.F90 for usage details
+     !> TODO: Divide into separate types for basal friction/sliding and basal hydrology?
 
      !Note: By default, beta_grounded_min is set to a small nonzero value.
      !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.
@@ -1881,20 +1926,6 @@ module glide_types
      ! parameter to limit the min value of beta for various power laws
      real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
                                                  !> Where u > umax, let u = umax when evaluating beta(u)
-
-     ! parameter for constant basal water
-     ! Note: This parameter applies to HO_BWAT_CONSTANT only.
-     !       For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
-     real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
-
-     ! parameters for local till model
-     ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
-     real(dp) :: bwat_till_max = 2.0d0           !> maximum water depth in till (m)
-     real(dp) :: c_drainage = 1.0d-3             !> uniform drainage rate (m/yr)
-     real(dp) :: N_0 = 1000.d0                   !> reference effective pressure (Pa)
-     real(dp) :: e_0 = 0.69d0                    !> reference void ratio (dimensionless)
-     real(dp) :: C_c = 0.12d0                    !> till compressibility (dimensionless)
-                                                 !> Note: The ratio (e_0/C_c) is the key parameter
 
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed..
@@ -2269,6 +2300,7 @@ module glide_types
     type(eismint_climate_type) :: eismint_climate
     type(glide_calving)  :: calving
     type(glide_temper)   :: temper
+    type(glide_basal_hydro)  :: basal_hydro
     type(glide_basal_physics):: basal_physics
     type(glide_basal_melt)   :: basal_melt
     type(glide_ocean_data)   :: ocean_data
@@ -2307,7 +2339,6 @@ contains
     !> \item \texttt{bheatflx(ewn,nsn)}
     !> \item \texttt{flwa(upn,ewn,nsn)}           !WHL - 2 choices
     !> \item \texttt{dissip(upn,ewn,nsn)}         !WHL - 2 choices
-    !> \item \texttt{bwat(ewn,nsn)}
     !> \item \texttt{bfricflx(ewn,nsn)}
     !> \item \texttt{ucondflx(ewn,nsn)}
     !> \item \texttt{lcondflx(ewn,nsn)}
@@ -2519,8 +2550,6 @@ contains
          model%temper%tempunstag(:,:,:) = unphys_val
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bwat)
-    call coordsystem_allocate(model%general%velo_grid, model%temper%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
@@ -2529,9 +2558,14 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
 
-    if (model%options%whichdycore == DYCORE_GLIDE) then   ! glide only
-       call coordsystem_allocate(model%general%ice_grid, model%temper%bwatflx)
-    else   ! glissade only
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
+    call coordsystem_allocate(model%general%velo_grid, model%basal_hydro%stagbwat)
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
+    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)
+    endif
+
+    if (model%options%whichdycore == DYCORE_GLISSADE) then   ! glissade only
        call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
@@ -2948,12 +2982,6 @@ contains
         deallocate(model%temper%tempunstag)
     if (associated(model%temper%bheatflx)) &
         deallocate(model%temper%bheatflx)
-    if (associated(model%temper%bwat)) &
-        deallocate(model%temper%bwat)
-    if (associated(model%temper%bwatflx)) &
-        deallocate(model%temper%bwatflx)
-    if (associated(model%temper%stagbwat)) &
-        deallocate(model%temper%stagbwat)
     if (associated(model%temper%bpmp)) &
         deallocate(model%temper%bpmp)
     if (associated(model%temper%stagbpmp)) &
@@ -3109,6 +3137,16 @@ contains
         deallocate(model%stress%taudx)
     if (associated(model%stress%taudy)) &
         deallocate(model%stress%taudy)
+
+    ! basal hydrology arrays
+    if (associated(model%basal_hydro%bwat)) &
+        deallocate(model%basal_hydro%bwat)
+    if (associated(model%basal_hydro%stagbwat)) &
+        deallocate(model%basal_hydro%stagbwat)
+    if (associated(model%basal_hydro%bwatflx)) &
+        deallocate(model%basal_hydro%bwatflx)
+    if (associated(model%basal_hydro%head)) &
+        deallocate(model%basal_hydro%head)
 
     ! basal physics arrays
     if (associated(model%basal_physics%bpmp_mask)) &

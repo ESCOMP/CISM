@@ -785,6 +785,7 @@ contains
     call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
     call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
+    call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
@@ -1058,10 +1059,16 @@ contains
          'invert for basin-based basal melting parameters            ', &
          'apply basin basal melting parameters from earlier inversion' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
+    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
          'constant basal water depth                      ', &
-         'basal water depth computed from local till model' /)
+         'basal water depth computed from local till model', &
+         'steady-state water routing with flux calculation' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
+         'D8; route flux to lowest-elevation neighbor      ', &
+         'Dinf; route flux to two lower-elevation neighbors', &
+         'FD8; route flux to all lower-elevation neighbors ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
@@ -1229,7 +1236,7 @@ contains
     end if
 
     if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
-       call write_log('Error, flux-based basal water option not supported for more than one processor', GM_FATAL)
+       call write_log('Error, flux-based basal water option not yet supported for more than one processor', GM_FATAL)
     endif
 
     ! Forbidden options associated with Glissade dycore
@@ -1758,6 +1765,16 @@ contains
           call write_log('Error, HO basal water input out of range', GM_FATAL)
        end if
 
+       if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+          write(message,*) 'ho_flux_routing_scheme  : ',model%options%ho_flux_routing_scheme,  &
+               ho_flux_routing_scheme(model%options%ho_flux_routing_scheme)
+          call write_log(message)
+          if (model%options%ho_flux_routing_scheme < 0.or. &
+              model%options%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
+             call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
+          end if
+       end if
+
        write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
                          ho_whicheffecpress(model%options%which_ho_effecpress)
        call write_log(message)
@@ -2095,9 +2112,9 @@ contains
     call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
 
     ! basal water parameters
-    call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
-    call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
-    call GetValue(section, 'c_drainage', model%basal_physics%c_drainage)
+    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
+    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
+    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
 
     ! pseudo-plastic parameters
     !TODO - Put pseudo-plastic and other basal sliding parameters in a separate section
@@ -2619,12 +2636,12 @@ contains
     endif
 
     if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       write(message,*) 'constant basal water depth (m): ', model%basal_physics%const_bwat
+       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
        call write_log(message)
     elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
+       write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
        call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
        call write_log(message)
     endif
 

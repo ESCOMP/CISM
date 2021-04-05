@@ -578,6 +578,9 @@ contains
     !
     !--------------------------------------------------------
 
+    ! TODO - Make HO_GRADIENT_MARGIN_LAND the default, since it is simple and requires no optional arguments?
+    ! TODO - Make ice_mask an optional argument, = 1 everywhere by default.
+
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
@@ -585,7 +588,6 @@ contains
     endif
 
     ! Set logical edge mask based on gradient_margin.
-
     edge_mask_x(:,:) = .false.
     edge_mask_y(:,:) = .false.
 

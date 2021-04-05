@@ -696,7 +696,7 @@ contains
 
   subroutine calc_effective_pressure (which_effecpress,             &
                                       ewn,           nsn,           &
-                                      basal_physics,                &
+                                      basal_physics, basal_hydro,   &
                                       ice_mask,      floating_mask, &
                                       thck,          topg,          &
                                       eus,                          &
@@ -722,6 +722,10 @@ contains
     type(glide_basal_physics), intent(inout) :: &
          basal_physics       ! basal physics object
                              ! includes effecpress, effecpress_stag and various parameters
+
+    type(glide_basal_hydro), intent(inout) :: &
+         basal_hydro         ! basal hydro object
+                             ! includes bwat and various parameters
 
     integer, dimension(:,:), intent(in) :: &
          ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
@@ -855,19 +859,19 @@ contains
 
                 if (bwat(i,j) > 0.0d0) then
 
-                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
 
                    ! Eq. 23 from Bueler & van Pelt (2015)
-                   basal_physics%effecpress(i,j) = basal_physics%N_0  &
-                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
-                        * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+                   basal_physics%effecpress(i,j) = basal_hydro%N_0  &
+                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_hydro%N_0)**relative_bwat  &
+                        * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
                    ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
                    ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
                    !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
 
 !!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
-!!                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+!!                      * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
                    !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
                    !      This might lead to smoother variations in N with spatial variation in bwat.
