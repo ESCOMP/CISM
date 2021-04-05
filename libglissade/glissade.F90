@@ -1765,11 +1765,12 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: tim0, thk0, len0
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_therm, only: glissade_therm_driver
-    use glissade_basal_water, only: glissade_calcbwat
+    use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_grid_operators, only: glissade_vertical_interpolate
+    use glissade_masks, only: glissade_get_masks
 
     implicit none
 
@@ -1787,6 +1788,13 @@ contains
 
     integer :: i, j, up
     integer :: itest, jtest, rtest
+
+    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+         ice_mask,              & ! = 1 if ice is present (thck > thklim_temp), else = 0
+         floating_mask            ! = 1 if ice is present (thck > thklim_temp) and floating
+
+    !WHL - debug
+    real(dp) :: head_max
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -1892,7 +1900,7 @@ contains
                                 model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                 model%temper%dissip,                                          & ! deg/s
                                 model%temper%pmp_threshold,                                   & ! deg C
-                                model%temper%bwat*thk0,                                       & ! m
+                                model%basal_hydro%bwat*thk0,                                  & ! m
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
                                 model%temper%bpmp,                                            & ! deg C
@@ -1906,19 +1914,63 @@ contains
     if (main_task .and. verbose_glissade) print*, 'Call glissade_calcbwat'
 
     ! convert bwat to SI units for input to glissade_calcbwat
-    bwat_unscaled(:,:) = model%temper%bwat(:,:) * thk0
+    bwat_unscaled(:,:) = model%basal_hydro%bwat(:,:) * thk0
 
-    call glissade_calcbwat(model%options%which_ho_bwat,      &
-                           model%basal_physics,              &
-                           dt,                               &  ! s
-                           model%geometry%thck*thk0,         &  ! m
-                           model%numerics%thklim_temp*thk0,  &  ! m
-                           bmlt_ground_unscaled,             &  ! m/s
-                           bwat_unscaled)                       ! m
+    !TODO - Move the following calls to a new basal hydrology solver?
+
+    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+
+       !WHL - Temporary code for debugging: Make up a simple basal melt field.
+       model%basal_hydro%head(:,:) = &
+            model%geometry%thck(:,:)*thk0 + (rhow/rhoi)*model%geometry%topg(:,:)*thk0
+       head_max = maxval(model%basal_hydro%head)  ! Need a global sum if parallel
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (head_max - model%basal_hydro%head(i,j) < 200.d0) then
+                bmlt_ground_unscaled(i,j) = 1.0d0/scyr    ! units are m/s
+             else
+                bmlt_ground_unscaled(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       call glissade_get_masks(&
+            model%general%ewn,       model%general%nsn,       &
+            parallel,                                         &
+            model%geometry%thck, model%geometry%topg,         &
+            model%climate%eus,   model%numerics%thklim_temp,  &  ! thklim = thklim_temp
+            ice_mask,                                         &
+            floating_mask = floating_mask)
+
+       call glissade_bwat_flux_routing(&
+            model%general%ewn,       model%general%nsn,       &
+            model%numerics%dew*len0, model%numerics%dns*len0, &  ! m
+            itest, jtest, rtest,                              &
+            model%options%ho_flux_routing_scheme,             &
+            model%numerics%thklim_temp*thk0,                  &  ! m
+            model%geometry%thck*thk0,                         &  ! m
+            model%geometry%topg*thk0,                         &  ! m
+            bmlt_ground_unscaled,                             &  ! m/s
+            floating_mask,                                    &  !
+            bwat_unscaled,                                    &  ! m
+            model%basal_hydro%bwatflx,                        &  ! m^3/s
+            model%basal_hydro%head)                              ! m
+
+    else  ! simpler basal water options
+
+       call glissade_calcbwat(model%options%which_ho_bwat,      &
+                              model%basal_hydro,                &
+                              dt,                               &  ! s
+                              model%geometry%thck*thk0,         &  ! m
+                              model%numerics%thklim_temp*thk0,  &  ! m
+                              bmlt_ground_unscaled,             &  ! m/s
+                              bwat_unscaled)                       ! m
+
+    endif
 
     ! convert bmlt and bwat from SI units (m/s and m) to scaled model units
     model%basal_melt%bmlt_ground(:,:) = bmlt_ground_unscaled(:,:) * tim0/thk0
-    model%temper%bwat(:,:) = bwat_unscaled(:,:) / thk0
+    model%basal_hydro%bwat(:,:) = bwat_unscaled(:,:) / thk0
 
     ! Update tempunstag as sigma weighted interpolation from temp to layer interfaces
     do up = 2, model%general%upn-1
@@ -1936,7 +1988,7 @@ contains
     !------------------------------------------------------------------------ 
     
     ! Note: bwat is needed in halos to compute effective pressure if which_ho_effecpress = HO_EFFECPRESS_BWAT
-    call parallel_halo(model%temper%bwat, parallel)
+    call parallel_halo(model%basal_hydro%bwat, parallel)
 
     call t_stopf('glissade_thermal_solve')
     
@@ -4876,7 +4928,7 @@ contains
           if (model%geometry%thck_old(i,j) > 0.0d0 .and. model%geometry%thck(i,j) == 0.0d0) then
 
              ! basal water
-             model%temper%bwat(i,j) = 0.0d0
+             model%basal_hydro%bwat(i,j) = 0.0d0
 
              ! thermal variables
              if (model%options%whichtemp == TEMP_INIT_ZERO) then
