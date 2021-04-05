@@ -1122,7 +1122,7 @@ load:          1
 dimensions:    time, y1, x1
 units:         meter
 long_name:     basal water depth
-data:          data%temper%bwat
+data:          data%basal_hydro%bwat
 factor:        thk0
 load:          1
 
@@ -1130,8 +1130,15 @@ load:          1
 dimensions:    time, y1, x1
 units:         meter3/year
 long_name:     basal water flux
-data:          data%temper%bwatflx
-factor:        thk0
+data:          data%basal_hydro%bwatflx
+factor:        scyr
+
+[head]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     hydraulic head
+data:          data%basal_hydro%head
+factor:        1
 
 [effecpress]
 dimensions:    time, y1, x1

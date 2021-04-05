@@ -1108,7 +1108,7 @@
      beta_internal => model%velocity%beta_internal(:,:)
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
-     bwat     => model%temper%bwat(:,:)
+     bwat     => model%basal_hydro%bwat(:,:)
      bmlt     => model%basal_melt%bmlt(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
@@ -2016,12 +2016,14 @@
     ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
     !       just before the velocity solve. Then they will be consistent with the
     !       current thickness field.
+    ! TODO: Move this call to a higher level.  Does not need any velocity information.
     !------------------------------------------------------------------------------
 
     !TODO - Use btemp_ground instead of temp(nz)?
     call calc_effective_pressure(whicheffecpress,              &
                                  nx,            ny,            &
                                  model%basal_physics,          &
+                                 model%basal_hydro,            &
                                  ice_mask,      floating_mask, &
                                  thck,          topg,          &
                                  eus,                          &

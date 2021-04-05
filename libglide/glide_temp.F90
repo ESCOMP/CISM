@@ -512,7 +512,7 @@ contains
 
                 call corrpmpt(model%temper%temp(:,ew,ns),     &
                               model%geometry%thck(ew,ns),     &
-                              model%temper%bwat(ew,ns),       &
+                              model%basal_hydro%bwat(ew,ns),  &
                               model%numerics%sigma,           &
                               model%general%upn)
             
@@ -560,7 +560,7 @@ contains
 
                    call corrpmpt(model%temper%temp(:,ew,ns),     &
                                  model%geometry%thck(ew,ns),     &
-                                 model%temper%bwat(ew,ns),       &
+                                 model%basal_hydro%bwat(ew,ns),  &
                                  model%numerics%sigma,           &
                                  model%general%upn)
 
