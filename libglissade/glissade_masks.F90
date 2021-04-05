@@ -1003,7 +1003,7 @@
     real(dp), parameter :: &
          ocean_topg_threshold = -500.d0   !> ocean threshold elevation (m) to seed the fill; negative below sea level
 
-    logical, parameter :: verbose_marine_connection = .true.
+    logical, parameter :: verbose_marine_connection = .false.
 
     ! Compute ocean_mask, which is used to seed the fill.
     ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
