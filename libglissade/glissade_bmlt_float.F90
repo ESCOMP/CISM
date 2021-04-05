@@ -51,8 +51,8 @@ module glissade_bmlt_float
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
        basin_sum, basin_average
 
-!!    logical :: verbose_bmlt_float = .false.
-    logical :: verbose_bmlt_float = .true.
+    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
