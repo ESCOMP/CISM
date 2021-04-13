@@ -45,10 +45,9 @@
     use glimmer_global, only: dp
     use glide_types   ! for preconditioning options
     use glimmer_log
-    use profile
+    use profile, only: t_startf, t_stopf
     use parallel_mod, only: this_rank, main_task, &
-         parallel_type, staggered_parallel_halo, parallel_reduce_sum, &
-         distributed_gather_all_var_row, distributed_gather_all_var_col
+         parallel_type, staggered_parallel_halo, parallel_reduce_sum
 
     implicit none
     
@@ -4635,6 +4634,9 @@
                                       first_time,   gather_data)
 
     use glimmer_utils, only: tridiag
+    use parallel_mod, only: distributed_gather_var_row, distributed_gather_var_col, &
+         distributed_gather_all_var_row, distributed_gather_all_var_col, &
+         distributed_scatter_var_row, distributed_scatter_var_col
 
     integer, intent(in) :: &
          ilocal, jlocal            ! size of input/output arrays; number of locally owned vertices in each direction
@@ -4993,11 +4995,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_scatter_row")
-             call distributed_scatter_var_row(local_coeffs, global_coeffs)
+             call distributed_scatter_var_row(local_coeffs, global_coeffs, parallel)
              call t_stopf ("pcg_tridiag_scatter_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_scatter_col")
-             call distributed_scatter_var_col(local_coeffs, global_coeffs)
+             call distributed_scatter_var_col(local_coeffs, global_coeffs, parallel)
              call t_stopf ("pcg_tridiag_scatter_col")
           endif
 

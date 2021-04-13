@@ -59,8 +59,10 @@ module glissade
   use glide_io
   use glide_lithot
   use glimmer_config
-  use glissade_test, only: glissade_test_halo, glissade_test_transport
+  use glissade_test, only: &
+       glissade_test_halo, glissade_test_transport, glissade_test_comm_row_col
   use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
+  use profile, only: t_startf, t_stopf
   use parallel_mod, only: this_rank, main_task, comm, nhalo
 
   implicit none
@@ -69,9 +71,10 @@ module glissade
   logical, parameter :: verbose_glissade = .false.
 
   ! Change any of the following logical parameters to true to carry out simple tests
-  logical, parameter :: test_transport = .false.   ! if true, call test_transport subroutine
-  real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
-  logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
+  logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
+  real(dp), parameter :: thk_init = 500.d0          ! initial thickness (m) for test_transport
+  logical, parameter :: test_halo = .false.         ! if true, call test_halo subroutine
+  logical, parameter :: test_comm_row_col = .false. ! if true, test the row and column communicators
 
 contains
 
@@ -100,8 +103,10 @@ contains
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
+    use glimmer_paramets, only: eps11, thk0, len0, tim0
+    use glimmer_physcon, only: rhow, rhoi
     use glide_mask
-    use isostasy
+    use isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
@@ -110,15 +115,11 @@ contains
     use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
-    use glimmer_paramets, only: eps11, thk0, len0, tim0
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: &
          glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
     use glissade_utils, only: glissade_stdev
     use felix_dycore_interface, only: felix_velo_init
-
-    !WHL - debug
-    use mpi_mod
 
     implicit none
 
@@ -160,12 +161,6 @@ contains
 
     type(glimmer_nc_input), pointer :: infile
     type(parallel_type) :: parallel   ! info for parallel communication
-
-    !WHL - debug
-    integer :: ierror
-    real(dp), dimension(:,:), allocatable :: test_array
-    real(dp), dimension(:,:), allocatable :: global_test_array
-    logical, parameter :: test_comm_row_col = .false.
 
     !WHL - added for optional topg_stdev calculations
     logical, parameter :: compute_topg_stdev = .false.
@@ -294,6 +289,22 @@ contains
 
     endif
 
+    if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+
+       ! Set up row-based and column-based communicators (in addition to mpi_comm_world).
+       ! These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
+       ! For the row-based communicator, the task with the minimum rank in each row becomes main_task_row.
+       ! For the column-based communicator, the task with the minimum rank in each column becomes main_task_column.
+       call parallel_create_comm_row(comm, model%parallel)
+       call parallel_create_comm_col(comm, model%parallel)
+
+       if (test_comm_row_col) then
+          call glissade_test_comm_row_col(model)
+       endif
+
+    endif  ! HO_PRECOND_TRIDIAG_GLOBAL
+
+    ! Now that model%parallel has been set, copy to 'parallel' to save typing below
     parallel = model%parallel
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0,               &
@@ -306,169 +317,6 @@ contains
 
     ! allocate arrays
     call glide_allocarr(model)
-
-    if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
-
-       !WHL - Optionally, set up row-based and column-based communicators (in addition to mpi_comm_world).
-       !      These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
-       !      For the row-based communicator, the task with the minimum rank in each row becomes main_task_row.
-       !      For the column-based communicator, the task with the minimum rank in each column becomes main_task_column.
-       call parallel_create_comm_row(comm, parallel)
-       call parallel_create_comm_col(comm, parallel)
-
-       !WHL - debug
-       if (test_comm_row_col) then
-
-          ! Test the new communicators
-
-          ! row gather
-
-          call mpi_barrier(parallel%comm_row,ierror)
-          call mpi_barrier(parallel%comm_col,ierror)
-
-          allocate(test_array(2,parallel%own_nsn))
-          do j = 1, parallel%own_nsn
-             do i = 1, 2
-                test_array(i,j) = (this_rank + 2) * real(i*j, dp)
-             enddo
-          enddo
-
-!!       if (this_rank <= 1) then
-!!       if (this_rank == 0) then
-          if (this_rank == 999) then
-             print*, ' '
-             print*, 'test_array, i = 1, this_rank =', this_rank
-             i = 1
-             do j = 1, parallel%own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'test_array, i = 2, this_rank =', this_rank
-             i = 2
-             do j = 1, parallel%own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-!!       print*, 'gather row array, this_rank =', this_rank
-
-          call distributed_gather_var_row(test_array, global_test_array, parallel)
-
-          if (parallel%main_task_row .and. this_rank == 0) then
-!!       if (parallel%main_task_row) then
-             do i = 1, 4
-                print*, 'Row global_test_array, this_rank, i =', this_rank, i
-                do j = 1, size(global_test_array,2)
-                   write(6,'(f6.0)',advance='no') global_test_array(i,j)
-                enddo
-                print*, ' '
-             enddo
-             print*, ' '
-             call flush(6)
-          endif
-
-!!       print*, 'scatter row array, this_rank =', this_rank
-
-          call distributed_scatter_var_row(test_array, global_test_array, parallel)
-
-          if (this_rank == 1) then
-!!       if (this_rank == 999) then
-             print*, ' '
-             print*, 'Scattered test_array, i = 1, this_rank =', this_rank
-             i = 1
-             do j = 1, parallel%own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'Scattered test_array, i = 2, this_rank =', this_rank
-             i = 2
-             do j = 1, parallel%own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-          deallocate(test_array)
-
-          ! column gather
-
-          call mpi_barrier(parallel%comm_row,ierror)
-          call mpi_barrier(parallel%comm_col,ierror)
-
-          allocate(test_array(2,parallel%own_ewn))
-          do j = 1, 2
-             do i = 1, parallel%own_ewn
-                test_array(j,i) = (this_rank + 2) * real(j*i, dp)
-             enddo
-          enddo
-
-!!       if (this_rank==0 .or. this_rank==2) then
-!!       if (this_rank==1 .or. this_rank==3) then
-          if (this_rank == 999) then
-             print*, ' '
-             print*, 'test_array, j = 1, this_rank, own_ewn =', this_rank, parallel%own_ewn
-             j = 1
-             do i = 1, parallel%own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'test_array, j = 2, this_rank, own_ewn =', this_rank, parallel%own_ewn
-             j = 2
-             do i = 1, parallel%own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-!!       print*, 'gather col array, this_rank =', this_rank
-
-          call distributed_gather_var_col(test_array, global_test_array, parallel)
-
-!!       print*, 'gathered col array, this_rank =', this_rank
-
-       if (parallel%main_task_col) then
-             do j = 1, 4
-                print*, 'Column global_test_array, this_rank, j =', this_rank, j
-                do i = 1, size(global_test_array,2)
-                   write(6,'(f6.0)',advance='no') global_test_array(j,i)
-                enddo
-                print*, ' '
-             enddo
-             print*, ' '
-          endif
-
-          call distributed_scatter_var_col(test_array, global_test_array, parallel)
-
-          if (this_rank == 3) then
-             print*, ' '
-             print*, 'Scattered test_array, j = 1, this_rank, own_ewn =', this_rank, parallel%own_ewn
-             j = 1
-             do i = 1, parallel%own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'Scattered test_array, j = 2, this_rank, own_ewn =', this_rank, parallel%own_ewn
-             j = 2
-             do i = 1, parallel%own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-          deallocate(test_array)
-
-          endif   ! test_comm_row_col
-
-    endif  ! HO_PRECOND_TRIDIAG_GLOBAL
 
     ! set masks at global boundary for no-penetration boundary conditions
     ! this subroutine includes a halo update
@@ -1441,6 +1289,7 @@ contains
     ! Solve for basal melting beneath floating ice.
 
     use glimmer_paramets, only: eps08, tim0, thk0, len0
+    use glimmer_physcon, only: scyr
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
@@ -1888,6 +1737,7 @@ contains
     use parallel_mod, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: tim0, thk0, len0
+    use glimmer_physcon, only: scyr
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat
     use glissade_transport, only: glissade_add_2d_anomaly
@@ -2083,7 +1933,7 @@ contains
          parallel_reduce_max
 
     use glimmer_paramets, only: eps11, tim0, thk0, vel0, len0
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
     use glissade_transport, only: glissade_mass_balance_driver, &
@@ -2156,7 +2006,7 @@ contains
     real(dp) :: local_maxval, global_maxval
     character(len=100) :: message
 
-    logical, parameter :: verbose_smb = .true.
+    logical, parameter :: verbose_smb = .false.
 
     rtest = -999
     itest = 1
@@ -3640,7 +3490,7 @@ contains
 
     use parallel_mod, only: parallel_type, parallel_halo, parallel_halo_extrapolate
 
-    use isostasy
+    use isostasy, only: isos_compute, isos_icewaterload
     use glimmer_paramets, only: thk0
     use glissade_masks, only: glissade_marine_connection_mask
 
@@ -3737,7 +3587,7 @@ contains
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
     use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver

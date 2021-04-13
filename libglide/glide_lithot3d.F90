@@ -49,6 +49,7 @@ contains
 
     use glide_types
     use glimmer_paramets, only: len0,tim0
+    use glimmer_sparse_type, only: new_sparse_matrix, copy_sparse_matrix, sparse_insert_val
     implicit none
     type(glide_global_type),intent(inout) :: model       ! model instance
 
@@ -152,10 +153,13 @@ contains
   end subroutine init_lithot3d
 
   subroutine calc_lithot3d(model)
+
     use glide_types
     use glide_stop
     use glimmer_log
+    use glimmer_sparse_type, only: sparse_matrix_vec_prod
     implicit none
+
     type(glide_global_type),intent(inout) :: model       ! model instance
 
     integer i,j,k,r
@@ -215,7 +219,9 @@ contains
 
   subroutine finalise_lithot3d(model)
     use glide_types
+    use glimmer_sparse_type, only: del_sparse_matrix
     implicit none
+
     type(glide_global_type),intent(inout) :: model       ! model instance
 
     call del_sparse_matrix(model%lithot%fd_coeff)

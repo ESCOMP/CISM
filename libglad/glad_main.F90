@@ -449,6 +449,15 @@ contains
 
     ! Begin subroutine code --------------------------------------------------------------------
     
+    ! Copy parallel info for this instance from the parallel derived type
+
+    parallel = params%instances(instance_index)%model%parallel
+    own_ewn = parallel%own_ewn
+    own_nsn = parallel%own_nsn
+    global_row_offset = parallel%global_row_offset
+    global_col_offset = parallel%global_col_offset
+    global_ewn = parallel%global_ewn
+
     ! Perform error checking on inputs
     
     if (size(global_indices, 1) /= own_ewn .or. size(global_indices, 2) /= own_nsn) then
@@ -460,14 +469,6 @@ contains
        call write_log(subname // ' ERROR: Wrong size for local_indices', &
             GM_FATAL, __FILE__, __LINE__)
     end if
-
-    ! Copy parallel info for this instance from the parallel derived type
-    parallel = params%instances(instance_index)%model%parallel
-    own_ewn = parallel%own_ewn
-    own_nsn = parallel%own_nsn
-    global_row_offset = parallel%global_row_offset
-    global_col_offset = parallel%global_col_offset
-    global_ewn = parallel%global_ewn
 
     ! Set global and local indices
 

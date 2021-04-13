@@ -315,7 +315,7 @@ module glissade_therm
                                        temp,          &
                                        verbose_column)
 
-    use glimmer_physcon, only : pi, rhoi, shci, coni
+    use glimmer_physcon, only : pi, rhoi, shci, coni, scyr
 
     ! Initialize temperatures in a column based on the value of temp_init.
     ! Four possibilities:
@@ -559,7 +559,7 @@ module glissade_therm
     ! Note: SI units are used throughout this subroutine
 
     use glimmer_utils,  only : tridiag
-    use glimmer_physcon, only: shci, coni, rhoi, tocnfrz_sfc, dtocnfrz_dh
+    use glimmer_physcon, only: shci, coni, rhoi, rhow, scyr, tocnfrz_sfc, dtocnfrz_dh
     use glide_mask
     use glissade_masks, only: glissade_get_masks
 
@@ -1314,7 +1314,7 @@ module glissade_therm
 
     ! compute matrix elements for the tridiagonal solve
 
-    use glimmer_physcon,  only : rhoi, grav, coni
+    use glimmer_physcon,  only : rhoi, grav, coni, shci
 
     ! Note: Matrix elements (subd, supd, diag, rhsd) are indexed from 1 to upn+1,
     !        whereas temperature is indexed from 0 to upn.
@@ -1812,7 +1812,7 @@ module glissade_therm
     ! For the enthalpy scheme, any meltwater in excess of the maximum allowed
     !  meltwater fraction (0.01 by default) is drained to the bed.
 
-    use glimmer_physcon, only: rhoi, lhci
+    use glimmer_physcon, only: rhoi, lhci, scyr
     use glimmer_paramets, only: eps08, eps11
 
     !-----------------------------------------------------------------
@@ -2251,6 +2251,7 @@ module glissade_therm
     ! based on the shallow-ice approximation.
     
     use glimmer_physcon, only : gn   ! Glen's n
+    use glimmer_physcon, only: rhoi, shci, grav
 
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
 
@@ -2316,7 +2317,9 @@ module glissade_therm
     !  unstaggered vertical grid.  
     ! Note also that dissip and flwa must have the same vertical dimension 
     !  (1:upn on an unstaggered vertical grid, or 1:upn-1 on a staggered vertical grid).
-    
+
+    use glimmer_physcon, only: rhoi, shci
+
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
     integer, dimension(:,:), intent(in) :: ice_mask    ! = 1 where ice is present (thck > thklim), else = 0
 

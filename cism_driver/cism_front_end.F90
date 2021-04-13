@@ -52,6 +52,7 @@ subroutine cism_init_dycore(model)
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
+  use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
 !  use glimmer_to_dycore
 
   use cism_external_dycore_interface
@@ -249,6 +250,7 @@ subroutine cism_run_dycore(model)
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
+  use profile, only: t_startf, t_stopf
 
   use cism_external_dycore_interface
 
@@ -393,7 +395,6 @@ subroutine cism_finalize_dycore(model)
 
   use glimmer_global
   use glide
-  use glissade
   use glimmer_log
   use glimmer_config
   use glimmer_commandline
@@ -402,6 +403,7 @@ subroutine cism_finalize_dycore(model)
   use glide_io, only: glide_io_writeall
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use profile, only: t_startf, t_stopf
 
   use cism_external_dycore_interface
   

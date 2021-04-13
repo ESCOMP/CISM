@@ -59,7 +59,6 @@ module NAME_io
     module procedure is_enabled_3dreal
   end interface is_enabled
 
-  !WHL TODO: Add 'only' arguments to the various 'use parallel' statements?
 contains
 
   !*****************************************************************************
@@ -138,13 +137,15 @@ contains
   
   subroutine NAME_io_create(outfile,model,data)
 
-    use parallel_mod
+    use parallel_mod, only: parallel_type, &
+         parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
     use glide_types
     use DATAMOD
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
     use glimmer_paramets
+    use glimmer_physcon
     use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
@@ -229,9 +230,10 @@ contains
 
   subroutine NAME_io_write(outfile,data)
 
-    use parallel_mod
+    use parallel_mod, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
     use DATAMOD
     use glimmer_paramets
+    use glimmer_physcon
     use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
@@ -497,7 +499,8 @@ contains
   subroutine NAME_io_read(infile,data)
 
     ! read variables from a netCDF file
-    use parallel_mod
+    use parallel_mod, only: parallel_type, &
+         parallel_inq_varid, parallel_get_att, distributed_get_var, parallel_get_var
     use glimmer_log
     use DATAMOD
     use glimmer_paramets
@@ -524,7 +527,7 @@ contains
   subroutine NAME_io_checkdim(infile,model,data)
 
     ! check if dimension sizes in file match dims of model
-    use parallel_mod
+    use parallel_mod, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
     use glimmer_log
     use glide_types
     use DATAMOD
@@ -553,7 +556,7 @@ contains
     !        will be too large, because this subroutine will be called more than once per time step.
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
-    use parallel_mod
+    use parallel_mod, only: parallel_inq_varid
     use glide_types
     use DATAMOD
     implicit none
@@ -575,7 +578,7 @@ contains
 
   subroutine NAME_avg_reset(outfile,data)
 
-    use parallel_mod
+    use parallel_mod, only: parallel_inq_varid
     use DATAMOD
     implicit none
     type(glimmer_nc_output), pointer :: outfile
