@@ -36,6 +36,7 @@ module glissade_calving
        parallel_halo, parallel_globalindex, parallel_reduce_sum, parallel_reduce_max
 
   use glimmer_paramets, only: eps08, thk0
+  use glimmer_physcon, only: rhoi, rhoo, grav, scyr
 
   implicit none
 

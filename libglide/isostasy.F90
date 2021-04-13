@@ -92,7 +92,6 @@ module isostasy
   !> calculate isostatic adjustment due to changing surface loads
 
   use glimmer_global, only : dp
-  use isostasy_elastic
 
   implicit none
 
@@ -110,6 +109,7 @@ contains
     use glide_types
     use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: tim0
+    use isostasy_elastic, only: init_elastic
 
     implicit none
 
@@ -219,6 +219,7 @@ contains
   subroutine isos_lithosphere(model,load,load_factors)
 
     use glide_types
+    use isostasy_elastic, only: calc_elastic
     implicit none
 
     type(glide_global_type) :: model

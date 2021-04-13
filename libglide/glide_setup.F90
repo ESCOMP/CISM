@@ -2198,6 +2198,7 @@ contains
 
   subroutine print_parameters(model)
 
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
     use glide_types
     use glimmer_log
     implicit none

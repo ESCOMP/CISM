@@ -38,6 +38,7 @@ contains
   subroutine bwater_init(model)
     ! Driver for initializing basal hydrology
     use glimmer_paramets
+    use glimmer_physcon, only : rhow, grav, scyr
 
     implicit none
 

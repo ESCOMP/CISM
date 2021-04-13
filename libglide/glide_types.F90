@@ -46,14 +46,14 @@ module glide_types
 !TODO - Clean up the glide_global type so it holds fewer subtypes?
 !       For example, we could replace some work types (tempwk, velowk) with local arrays and parameters.
 
-  use glimmer_sparse_type
-  use glimmer_global, only: sp, dp
-  use glimmer_ncdf
-  use profile
-  use glimmer_coordinates, only: coordsystem_type
-  use glimmer_map_types
-  use glimmer_physcon
+  use glimmer_global, only: sp, dp, fname_length
+  use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
+  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output
+  use profile, only: profile_type
+  use glimmer_coordinates, only: coordsystem_type
+  use glimmer_map_types, only: glimmap_proj
+  use glimmer_sparse_type, only: sparse_matrix_type
   use parallel_mod, only: parallel_type
 
   implicit none
@@ -2437,6 +2437,7 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
+    use glimmer_sparse_type, only: new_sparse_matrix
 
     implicit none
 
