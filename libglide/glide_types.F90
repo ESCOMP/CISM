@@ -46,14 +46,15 @@ module glide_types
 !TODO - Clean up the glide_global type so it holds fewer subtypes?
 !       For example, we could replace some work types (tempwk, velowk) with local arrays and parameters.
 
-  use glimmer_sparse_type
-  use glimmer_global, only: sp, dp
-  use glimmer_ncdf
-  use profile
-  use glimmer_coordinates, only: coordsystem_type
-  use glimmer_map_types
-  use glimmer_physcon
+  use glimmer_global, only: sp, dp, fname_length
+  use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
+  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output
+  use profile, only: profile_type
+  use glimmer_coordinates, only: coordsystem_type
+  use glimmer_map_types, only: glimmap_proj
+  use glimmer_sparse_type, only: sparse_matrix_type
+  use parallel_mod, only: parallel_type
 
   implicit none
 
@@ -666,7 +667,8 @@ module glide_types
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
 
-    integer :: dt_option = 0
+    !Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM
+    integer :: dt_input_option = 0
     !> \begin{description}
     !> \item[0] Input dt in years
     !> \item[1] Input dt in steps per year
@@ -1034,11 +1036,18 @@ module glide_types
     !> \item[1] ice age computation on
     !> \end{description}
 
+    !TODO - Put the next few variables in a solver derived type
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
 
     integer :: linear_solve_ncheck = 5
     !> check the linear solver for convergence every linear_solve_ncheck iterations
+
+    integer :: linear_maxiters = 200
+    !> max number of linear iterations before quitting
+
+    real(dp) :: linear_tolerance = 1.0d-08
+    !> error tolerance for linear solver
 
     ! The remaining options are not currently supported
 
@@ -2030,8 +2039,10 @@ module glide_types
                                                                
     real(dp),dimension(:),pointer :: sigma => null() !> Sigma values for vertical spacing of 
                                                      !> model levels
-    real(dp),dimension(:),pointer :: stagsigma => null() !> Staggered values of sigma (layer midpts)
+    real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
     real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
+    real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
+
 
     integer :: profile_period = 100            ! profile frequency
 
@@ -2275,6 +2286,7 @@ module glide_types
     type(glide_prof_type):: glide_prof
     type(isostasy_type)  :: isostasy
     type(glissade_solver):: solver_data
+    type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
 !!    type(glide_basalproc):: basalproc
 !!    type(glide_phaml)    :: phaml
 
@@ -2425,19 +2437,21 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
-    use parallel, only: global_ewn, global_nsn
+    use glimmer_sparse_type, only: new_sparse_matrix
 
     implicit none
 
     type(glide_global_type),intent(inout) :: model
 
-    integer :: ewn,nsn,upn
+    integer :: ewn,nsn,upn               !> local array dimensions
+    integer :: global_ewn, global_nsn    !> global array dimensions
 
     ! for simplicity, copy these values...
-
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
+    global_ewn = model%parallel%global_ewn
+    global_nsn = model%parallel%global_nsn
     
     ! horizontal coordinates
 
@@ -2464,6 +2478,7 @@ contains
 
     allocate(model%numerics%stagsigma(upn-1))
     allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
+    allocate(model%numerics%dups(upn+1,2))    !TODO - upn-1 instead?
 
     ! latitude and longitude
     call coordsystem_allocate(model%general%ice_grid, model%general%lat)

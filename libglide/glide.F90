@@ -72,14 +72,10 @@ contains
     ! Read glide configuration from file and print it to the log
 
     use glide_setup
-    use isostasy
     use glimmer_ncparams
     use glimmer_config
     use glimmer_map_init
     use glimmer_filenames
-
-    !WHL - debug
-    use parallel, only: main_task
 
     implicit none
 
@@ -146,14 +142,14 @@ contains
     use glimmer_log
     use glimmer_scales
     use glide_mask
-    use isostasy
+    use isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
     use glimmer_paramets, only: len0
-
-    use parallel, only: distributed_grid
+    use glimmer_physcon, only: rhoi, rhow
+    use parallel_mod, only: distributed_grid
 
     type(glide_global_type), intent(inout) :: model     ! model instance
 
@@ -181,10 +177,12 @@ contains
     ! Note: nhalo = 0 is included in call to distributed_grid to set other halo
     !  variables (lhalo, uhalo, etc.) to 0 instead of default values
 
-!WHL - distributed_grid is not in old glide
+!WHL - distributed_grid is not in old Glide
       
+!    call distributed_grid(model%general%ewn, model%general%nsn,  &
+!                          nhalo_in=my_nhalo)
     call distributed_grid(model%general%ewn, model%general%nsn,  &
-                          nhalo_in=my_nhalo)
+                          model%parallel,    nhalo_in=my_nhalo)
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0, &
                                              model%numerics%dew, model%numerics%dns, &
@@ -447,7 +445,7 @@ contains
     use glide_velo
     use glide_mask
     use glimmer_paramets, only: tim0
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: scyr, rhoi, rhow
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
     use glide_temp, only: glide_calcbmlt, glide_calcbpmp
@@ -916,7 +914,7 @@ contains
     use glide_velo
     use glide_temp
     use glide_mask
-    use isostasy
+    use isostasy, only: isos_icewaterload
     use glide_ground, only: glide_calve_ice
 
     type(glide_global_type), intent(inout) :: model    ! model instance
@@ -1078,8 +1076,9 @@ contains
     ! Perform third part of time-step of an ice model instance:
     ! calculate isostatic adjustment and upper and lower ice surface
 
-    use isostasy
+    use isostasy, only: isos_compute
     use glimmer_scales, only: scale_acab
+    use glimmer_physcon, only: rhoi, rhow
     use glide_setup
     use glide_velo, only: glide_velo_vertical
     use glide_thck, only: glide_calclsrf
@@ -1127,11 +1126,7 @@ contains
 
     ! compute vertical velocity
          
-    call t_startf('vertical_velo')
-
     call glide_velo_vertical(model)
-
-    call t_stopf('vertical_velo')
 
  endif  ! oldglide = F
 

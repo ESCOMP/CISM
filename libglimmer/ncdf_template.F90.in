@@ -136,15 +136,17 @@ contains
   end subroutine NAME_io_writeall
   
   subroutine NAME_io_create(outfile,model,data)
-    use parallel
+
+    use parallel_mod, only: parallel_type, &
+         parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
     use glide_types
     use DATAMOD
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
     use glimmer_paramets
+    use glimmer_physcon
     use glimmer_scales
-    use glimmer_log
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
@@ -227,9 +229,11 @@ contains
   end subroutine NAME_io_create
 
   subroutine NAME_io_write(outfile,data)
-    use parallel
+
+    use parallel_mod, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
     use DATAMOD
     use glimmer_paramets
+    use glimmer_physcon
     use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
@@ -241,6 +245,9 @@ contains
     real(dp) :: tavgf
     integer status, varid
     integer up
+    type(parallel_type) :: parallel
+
+    parallel = DATAPATH%parallel
      
     tavgf = outfile%total_time
     if (tavgf.ne.0.d0) then
@@ -249,6 +256,7 @@ contains
 
     ! write variables
     !GENVAR_WRITE!
+
   end subroutine NAME_io_write
 
 
@@ -391,14 +399,16 @@ contains
        end if
        ic=>ic%next
     end do
+
   end subroutine NAME_io_readall
 
 
   subroutine NAME_read_forcing(data, model)
+
     ! Read data from forcing files
     use glimmer_log
     use glide_types
-    use parallel, only: main_task
+    use parallel_mod, only: main_task
 
     implicit none
     type(DATATYPE) :: data
@@ -487,8 +497,10 @@ contains
 
 
   subroutine NAME_io_read(infile,data)
+
     ! read variables from a netCDF file
-    use parallel
+    use parallel_mod, only: parallel_type, &
+         parallel_inq_varid, parallel_get_att, distributed_get_var, parallel_get_var
     use glimmer_log
     use DATAMOD
     use glimmer_paramets
@@ -503,14 +515,19 @@ contains
     integer status,varid
     integer up
     real(dp) :: scaling_factor
+    type(parallel_type) :: parallel
+
+    parallel = DATAPATH%parallel
 
     ! read variables
     !GENVAR_READ!
+
   end subroutine NAME_io_read
 
   subroutine NAME_io_checkdim(infile,model,data)
+
     ! check if dimension sizes in file match dims of model
-    use parallel
+    use parallel_mod, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
     use glimmer_log
     use glide_types
     use DATAMOD
@@ -539,7 +556,7 @@ contains
     !        will be too large, because this subroutine will be called more than once per time step.
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
-    use parallel
+    use parallel_mod, only: parallel_inq_varid
     use glide_types
     use DATAMOD
     implicit none
@@ -560,7 +577,8 @@ contains
   end subroutine NAME_avg_accumulate
 
   subroutine NAME_avg_reset(outfile,data)
-    use parallel
+
+    use parallel_mod, only: parallel_inq_varid
     use DATAMOD
     implicit none
     type(glimmer_nc_output), pointer :: outfile

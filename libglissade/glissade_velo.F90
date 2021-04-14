@@ -33,8 +33,6 @@
 
 module glissade_velo
 
-    use parallel
-
     ! Driver for Glissade velocity solvers
 
     implicit none
@@ -53,6 +51,7 @@ contains
       use glissade_velo_higher, only: glissade_velo_higher_solve
       use glissade_velo_sia, only: glissade_velo_sia_solve
       use glide_mask
+      use profile, only: t_startf, t_stopf
 
       type(glide_global_type),intent(inout) :: model
 

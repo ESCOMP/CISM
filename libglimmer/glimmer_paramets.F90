@@ -73,10 +73,16 @@ module glimmer_paramets
   ! Unphysical value used for initializing certain variables (e.g., temperature) so we can tell
   !  later if they were read from an input file or otherwise computed correctly
   real(dp), parameter :: unphys_val = -99999.d0
-                                                
-! scaling parameters
 
-! The fundamental scaling parameters are thk0, len0, and vel0. The others are derived from these.
+
+  ! Other numerical constants
+  real(dp), parameter :: eps08 = 1.0d-08  ! small number, useful for some thresholds
+  real(dp), parameter :: eps10 = 1.0d-10  ! another small number
+  real(dp), parameter :: eps11 = 1.0d-11  ! another small number
+
+  ! scaling parameters
+
+  ! The fundamental scaling parameters are thk0, len0, and vel0. The others are derived from these.
 
 !SCALING - DFM, 2, Oct 2012 - made scaled vs. unscaled values for thk0, len0, 
 ! and vel0 switchable by the reconstituted NO_RESCALE compilation flag. 

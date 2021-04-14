@@ -41,11 +41,10 @@ module glad_main
   use glad_constants
   use glimmer_config
   use glimmer_filenames, only : process_path
-  use parallel, only: main_task, this_rank
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
-  
   use glimmer_paramets, only: stdout, GLC_DEBUG, unphys_val
+  use parallel_mod, only: main_task, this_rank
 
   implicit none
   private
@@ -298,7 +297,7 @@ contains
   !===================================================================
 
   subroutine glad_get_grid_size(params, instance_index, &
-       ewn, nsn, npts, &
+       ewn,     nsn,     npts, &
        ewn_tot, nsn_tot, npts_tot)
 
     ! Get the size of a grid corresponding to this instance.
@@ -312,8 +311,6 @@ contains
     ! The caller can then allocate arrays (inputs to and outputs from glad) with size
     ! (ewn, nsn).
 
-    use parallel, only : own_ewn, own_nsn, global_ewn, global_nsn
-    
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet instance
     integer, intent(out) :: ewn  ! number of east-west points owned by this proc (first dimension of arrays)
@@ -323,12 +320,18 @@ contains
     integer, intent(out) :: nsn_tot ! total number of north-south points in grid
     integer, intent(out) :: npts_tot ! total number of points in grid
     
-    ewn = own_ewn
-    nsn = own_nsn
+    type(parallel_type) :: parallel         ! info for parallel communication
+
+    ! Copy parallel info for this instance from the parallel derived type
+
+    parallel = params%instances(instance_index)%model%parallel
+
+    ewn = parallel%own_ewn
+    nsn = parallel%own_nsn
     npts = ewn * nsn
 
-    ewn_tot = global_ewn
-    nsn_tot = global_nsn
+    ewn_tot = parallel%global_ewn
+    nsn_tot = parallel%global_nsn
     npts_tot = ewn_tot * nsn_tot
 
   end subroutine glad_get_grid_size
@@ -422,8 +425,6 @@ contains
     ! The global_indices and local_indices arrays should NOT include halo cells. The
     ! returned indices also ignore halo cells.
 
-    use parallel, only : own_ewn, own_nsn, global_row_offset, global_col_offset, global_ewn
-    
     ! Subroutine argument declarations --------------------------------------------------------
 
     type(glad_params), intent(in) :: params
@@ -440,8 +441,23 @@ contains
     integer :: local_index, global_index
     character(len=*), parameter :: subname = 'glad_get_grid_indices'
 
+    integer :: own_ewn, own_nsn
+    integer :: global_row_offset, global_col_offset
+    integer :: global_ewn
+
+    type(parallel_type) :: parallel         ! info for parallel communication
+
     ! Begin subroutine code --------------------------------------------------------------------
     
+    ! Copy parallel info for this instance from the parallel derived type
+
+    parallel = params%instances(instance_index)%model%parallel
+    own_ewn = parallel%own_ewn
+    own_nsn = parallel%own_nsn
+    global_row_offset = parallel%global_row_offset
+    global_col_offset = parallel%global_col_offset
+    global_ewn = parallel%global_ewn
+
     ! Perform error checking on inputs
     
     if (size(global_indices, 1) /= own_ewn .or. size(global_indices, 2) /= own_nsn) then
@@ -496,20 +512,29 @@ contains
 
     ! Output arrays do NOT have halo cells
 
-    use parallel, only : own_ewn, own_nsn, parallel_convert_haloed_to_nonhaloed
+    use parallel_mod, only: parallel_type, parallel_convert_haloed_to_nonhaloed
     
     ! Subroutine argument declarations --------------------------------------------------------
 
     type(glad_params), intent(in) :: params
-    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(in) :: instance_index   ! index of current ice sheet instance
     real(dp), intent(out) :: lats(:,:)      ! latitudes (degrees)
     real(dp), intent(out) :: lons(:,:)      ! longitudes (degrees)
 
     ! Internal variables -----------------------------------------------------------------------
     character(len=*), parameter :: subname = 'glad_get_lat_lon'
-    
+
+    type(parallel_type) :: parallel         ! info for parallel communication
+
+    integer :: own_ewn, own_nsn
+
     ! Begin subroutine code --------------------------------------------------------------------
-    
+
+    ! Copy parallel info for this instance from the parallel derived type
+    parallel = params%instances(instance_index)%model%parallel
+    own_ewn = parallel%own_ewn
+    own_nsn = parallel%own_nsn
+
     ! Perform error checking on inputs
 
     if (size(lats, 1) /= own_ewn .or. size(lats, 2) /= own_nsn) then
@@ -522,8 +547,10 @@ contains
             GM_FATAL, __FILE__, __LINE__)
     end if
 
-    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lat, lats)
-    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lon, lons)
+    ! Retrieve the parallel derived type for this instance
+
+    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lat, lats, parallel)
+    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lon, lons, parallel)
     
   end subroutine glad_get_lat_lon
 
@@ -569,9 +596,9 @@ contains
     use glad_timestep, only : glad_i_tstep_gcm
     use glimmer_log
     use glimmer_physcon, only : celsius_to_kelvin
-    use parallel, only : parallel_convert_nonhaloed_to_haloed
     use glide_types, only : get_ewn, get_nsn, get_nzocn
     use glad_output_fluxes, only : calculate_average_output_fluxes
+    use parallel_mod, only : parallel_type, parallel_convert_nonhaloed_to_haloed
 
     implicit none
 
@@ -603,6 +630,8 @@ contains
     integer :: nzocn      ! dimension of ocean layer
     integer :: k
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
 !    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing  ! sub-shelf thermal_forcing (deg K)
 
     ! version of input fields with halo cells
@@ -627,6 +656,7 @@ contains
     if (present(output_flag)) output_flag = .false.
     if (present(ice_tstep))   ice_tstep = .false.
 
+    parallel = params%instances(instance_index)%model%parallel
     nzocn = get_nzocn(params%instances(instance_index)%model)
     allocate(zocn(nzocn))
     zocn(:) = params%instances(instance_index)%model%ocean_data%zocn(:)
@@ -668,12 +698,12 @@ contains
        allocate(tocn_haloed(nzocn,ewn,nsn))
        allocate(thermal_forcing_haloed(nzocn,ewn,nsn))       
 
-       call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
-       call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
+       call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed, parallel)
+       call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed, parallel)
 
        do k = 1,nzocn
-          call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:))
-          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:),     tocn_haloed(k,:,:))
+          call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:), parallel)
+          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:),     tocn_haloed(k,:,:),     parallel)
           call compute_thermal_forcing_level(&
                zocn(k),                                &    ! m
                salinity_haloed(k,:,:),                 &    ! g/kg
@@ -940,8 +970,8 @@ contains
     ! the halo cells.
 
     use glad_output_states, only : set_output_states
-    use parallel, only : parallel_convert_haloed_to_nonhaloed
     use glide_types, only : get_ewn, get_nsn
+    use parallel_mod, only : parallel_type, parallel_convert_haloed_to_nonhaloed
 
     ! Subroutine argument declarations --------------------------------------------------------
 
@@ -958,6 +988,8 @@ contains
 
     integer :: ewn,nsn    ! dimensions of local grid
     
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     ! temporary versions of output fields with halo cells
     real(dp),dimension(:,:),allocatable :: ice_covered_haloed
     real(dp),dimension(:,:),allocatable :: topo_haloed
@@ -965,6 +997,7 @@ contains
 
     ! Begin subroutine code --------------------------------------------------------------------
 
+    parallel = instance%model%parallel
     ewn = get_ewn(instance%model)
     nsn = get_nsn(instance%model)
 
@@ -975,12 +1008,12 @@ contains
     call set_output_states(instance, &
          ice_covered_haloed, topo_haloed, ice_sheet_grid_mask_haloed)
 
-    call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered)
-    call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo)
-    call parallel_convert_haloed_to_nonhaloed(instance%hflx_tavg, hflx)
-    call parallel_convert_haloed_to_nonhaloed(instance%rofi_tavg, rofi)
-    call parallel_convert_haloed_to_nonhaloed(instance%rofl_tavg, rofl)
-    call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask)
+    call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered, parallel)
+    call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo, parallel)
+    call parallel_convert_haloed_to_nonhaloed(instance%hflx_tavg, hflx, parallel)
+    call parallel_convert_haloed_to_nonhaloed(instance%rofi_tavg, rofi, parallel)
+    call parallel_convert_haloed_to_nonhaloed(instance%rofl_tavg, rofl, parallel)
+    call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask, parallel)
 
   end subroutine glad_set_output_fields
   

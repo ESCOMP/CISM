@@ -41,7 +41,8 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: rhoi, rhoo
     use glide_types  ! grounding line options
-    use parallel
+    use parallel_mod, only: this_rank, nhalo, parallel_type, parallel_halo
+    !TODO - May be able to remove parallel halo updates from this module
 
     implicit none
 
@@ -55,6 +56,7 @@
 !****************************************************************************
 
   subroutine glissade_grounded_fraction(nx,              ny,               &
+                                        parallel,                          &
                                         itest, jtest,    rtest,            &
                                         thck,            topg,             &
                                         eus,             ice_mask,         &
@@ -121,6 +123,9 @@
 
     integer, intent(in) ::   &
        nx,  ny                ! number of grid cells in each direction
+
+    type(parallel_type), intent(in) ::  &
+         parallel             ! info for parallel communication
 
     integer, intent(in) ::   &
        itest, jtest, rtest    ! coordinates of diagnostic point
@@ -398,7 +403,7 @@
        enddo  ! j
 
        ! halo update
-       call parallel_halo(f_flotation_extrap)
+       call parallel_halo(f_flotation_extrap, parallel)
 
        ! copy the extrapolated array to the main f_flotation array
        f_flotation(:,:) = f_flotation_extrap(:,:)
@@ -561,7 +566,7 @@
           enddo           ! i
        enddo              ! j
 
-       ! Average f_ground from vertices to cells (includes a halo update)
+       ! Average f_ground from vertices to cells
        call glissade_unstagger(nx,       ny,  &
                                f_ground, f_ground_cell)
 
@@ -569,6 +574,8 @@
        where (land_mask == 1)
           f_ground_cell = 1.0d0
        endwhere
+
+       call parallel_halo(f_ground_cell, parallel)
 
     elseif (which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
@@ -719,7 +726,7 @@
           f_ground_cell = 1.0d0
        endwhere
 
-       call parallel_halo(f_ground_cell)
+       call parallel_halo(f_ground_cell, parallel)
 
     endif   ! which_ho_ground
 
@@ -1149,7 +1156,6 @@
     !        match the fluxes computed by the transport scheme.
     !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
 
-    use parallel, only: nhalo
     use glimmer_paramets, only: thk0, vel0, len0
 
     implicit none

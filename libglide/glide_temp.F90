@@ -82,7 +82,7 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
     use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use parallel, only: lhalo, uhalo
+    use parallel_mod, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
 

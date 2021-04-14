@@ -58,15 +58,25 @@ module glimmer_physcon
   real(dp),parameter :: rhow = 1000.0d0          !< The density of fresh water (kg m<SUP>-3</SUP>)  
   real(dp),parameter :: rearth  = 6.37122d6      ! radius of earth (m)  
 
-  !NOTE: The following are not parameters because the default values can be overridden in the config file.
+  !Note: The following are not declared as parameters, because the default values can be overridden in the config file.
   !      This may be desirable for test problems such as MISMIP that specify values different from CISM's default values. 
-  !      It may also be useful to set these to CESM values, for comparing CESM-coupled to standalone runs.
-  real(dp) :: rhoi = 910.d0                      !< The density of ice (kg m<SUP>-3</SUP>)  
+  !      Also, it can be convenient to use the CESM values, for comparing CESM-coupled to standalone runs.
+  !      If running multiple instances, be careful when setting constants in the config file,
+  !       because each instance will override the values specified for the previous instance.
+
+  real(dp) :: rhoi = 910.d0                      !< The density of ice (kg m<SUP>-3</SUP>)
   real(dp) :: rhoo = 1028.0d0                    !< The density of the ocean (kg m<SUP>-3</SUP>)
   real(dp) :: grav = 9.81d0                      !< The acceleration due to gravity (m s<SUP>-2</SUP>)
-  real(dp) :: shci = 2009.0d0                    !< Specific heat capacity of ice (J kg<SUP>-1</SUP> K<SUP>-1</SUP>) 
-  real(dp) :: lhci = 335.0d3                     !< Latent heat of melting of ice (J kg<SUP>-1</SUP>)  
+  real(dp) :: shci = 2009.0d0                    !< Specific heat capacity of ice (J kg<SUP>-1</SUP> K<SUP>-1</SUP>)
+  real(dp) :: lhci = 335.0d3                     !< Latent heat of melting of ice (J kg<SUP>-1</SUP>)
   real(dp) :: trpt = 273.16d0                    !< Triple point of water (K)
+!  TODO: Make the defaults equal to the CESM values.  This will change answers.
+!  real(dp) :: rhoi = 917.d0                       !< The density of ice (kg m<SUP>-3</SUP>)
+!  real(dp) :: rhoo = 1026.0d0                     !< The density of the ocean (kg m<SUP>-3</SUP>)
+!  real(dp) :: grav = 9.80616d0                    !< The acceleration due to gravity (m s<SUP>-2</SUP>)
+!  real(dp) :: shci = 2.11727d3                    !< Specific heat capacity of ice (J kg<SUP>-1</SUP> K<SUP>-1</SUP>)
+!  real(dp) :: lhci = 3.337d5                      !< Latent heat of melting of ice (J kg<SUP>-1</SUP>)
+!  real(dp) :: trpt = 273.16d0                     !< Triple point of water (K)
 #endif
 
   real(dp),parameter :: celsius_to_kelvin = 273.15d0  !< Note: Not quite equal to trpt

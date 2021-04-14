@@ -103,8 +103,9 @@ contains
   !> read a configuration file
   subroutine ConfigRead(fname,config,fileunit)
     !> read configuration file
-    use parallel
+    use parallel_mod, only: main_task, broadcast
     use glimmer_log
+
     implicit none
 
     character(len=*), intent(in) :: fname    !< the name of the file to be read

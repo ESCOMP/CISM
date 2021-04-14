@@ -35,7 +35,8 @@ module profile
 
 #if (defined CCSMCOUPLED || defined CESMTIMERS)
   use perf_mod
-  use parallel
+  !TODO - Add an 'only' for 'use parallel_mod'?
+  use parallel_mod
 #endif
 
   use glimmer_global, only: dp

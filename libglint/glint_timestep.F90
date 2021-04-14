@@ -39,6 +39,8 @@ module glint_timestep
   use glint_type
   use glad_constants
   use glimmer_global, only: dp
+  use parallel_mod, only: tasks, main_task, this_rank
+
   implicit none
 
   private
@@ -74,7 +76,6 @@ contains
     use glint_mbal_io
     use glint_routing
     use glide_diagnostics
-    use parallel, only: tasks, main_task
 
     implicit none
 
@@ -367,6 +368,7 @@ contains
           endwhere
 
           call local_to_global_avg(instance%ups,   &
+                                   instance%model%parallel,  &
                                    upscale_temp,   &
                                    g_water_in,     &
                                    instance%out_mask)
@@ -405,6 +407,7 @@ contains
                            real(instance%lgrid%delta%pt(2),dp))
 
           call local_to_global_avg(instance%ups,   &
+                                   instance%model%parallel,  &
                                    routing_temp,   &
                                    g_water_out,    &
                                    instance%out_mask)
@@ -506,7 +509,6 @@ contains
     use glint_io
     use glint_mbal_io
     use glide_diagnostics
-    use parallel, only: tasks, main_task, this_rank
 
     implicit none
 
@@ -693,9 +695,6 @@ contains
 
     end if   ! time - instance%mbal_accum%start_time + instance%mbal_tstep == instance%mbal_accum_time
 
-!WHL - debug
-    print*, 'output instantaneous values'
-
     ! Output instantaneous values
 
     call glint_mbal_io_writeall(instance, instance%model,       &
@@ -726,7 +725,6 @@ contains
     ! a known ocean point.
 
     use glimmer_log
-    use parallel, only : tasks
 
     real(dp),dimension(:,:),intent(inout) :: orog !> Orography --- used for input and output
     integer,                intent(in)    :: x,y  !> Location of starting point (index)
