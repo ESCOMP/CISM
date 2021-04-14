@@ -271,7 +271,7 @@ contains
     use glide_types
     use glimmer_log
     use glimmer_filenames
-    use parallel
+    use parallel_mod, only: main_task, broadcast
 
     implicit none
 
@@ -403,7 +403,8 @@ contains
     use glide_types
     use glimmer_config
     use glimmer_log
-    use parallel, only: main_task
+    use parallel_mod, only: main_task
+
     implicit none
 
     type(glide_global_type) :: model        !> model instance
@@ -603,16 +604,17 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-!       Set dt_option to specify whether the dynamic timestep (model%numerics%tinc)
+!       Set dt_input_option to specify whether the dynamic timestep (model%numerics%tinc)
 !        is based on dt (the timestep in years) or nsteps_per_year in the config file.
-!       The default (dt_option = DT_IN_YEARS) is to read dt directly,
+!       The default (dt_input_option = DT_IN_YEARS) is to read dt directly,
 !        but the nsteps_per_year option allows more flexibility.
 !       Typically, we want an integral number of timesteps per year,
 !        e.g., if running coupled with the mass balance timestep of 1 year,
 !        or if writing output at annual intervals.
+!       Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM.
     call GetValue(section,'tstart',model%numerics%tstart)
     call GetValue(section,'tend',model%numerics%tend)
-    call GetValue(section,'dt_option',model%options%dt_option)
+    call GetValue(section,'dt_input_option',model%options%dt_input_option)
     call GetValue(section,'dt',model%numerics%tinc)
     call GetValue(section,'nsteps_per_year',model%numerics%nsteps_per_year)
     call GetValue(section,'subcyc',model%numerics%subcyc)
@@ -630,7 +632,7 @@ contains
 
     ! If the time step was entered in number of steps per year, then set the timestep in years.
     ! If the time step was entered in years, then set nsteps_per_year.
-    if (model%options%dt_option == DT_STEPS_PER_YEAR) then
+    if (model%options%dt_input_option == DT_STEPS_PER_YEAR) then
        if (model%numerics%nsteps_per_year > 0) then
           model%numerics%tinc = 1.d0 / real(model%numerics%nsteps_per_year, dp)
        else
@@ -642,7 +644,7 @@ contains
        else
           call write_log('Must set dt > 0.0 with this dt option', GM_FATAL)
        endif
-    endif   ! dt_option
+    endif   ! dt_input_option
 
   end subroutine handle_time
   
@@ -807,6 +809,8 @@ contains
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
     call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
+    call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
+    call GetValue(section, 'linear_tolerance',            model%options%linear_tolerance)
 
   end subroutine handle_ho_options
 
@@ -836,8 +840,7 @@ contains
 
     use glide_types
     use glimmer_log
-
-    use parallel
+    use parallel_mod, only: tasks
 
     implicit none
 
@@ -1688,32 +1691,13 @@ contains
           call write_log('Error, HO beta limit input out of range', GM_FATAL)
        end if
 
-       write(message,*) 'ho_cp_whichinversion    : ',model%options%which_ho_cp_inversion,  &
-                         ho_cp_whichinversion(model%options%which_ho_cp_inversion)
-       call write_log(message)
-       if (model%options%which_ho_cp_inversion < 0 .or. &
-           model%options%which_ho_cp_inversion >= size(ho_cp_whichinversion)) then
-          call write_log('Error, Cp inversion input out of range', GM_FATAL)
-       end if
+       ! Inversion options
 
-       write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
-                         ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
-       call write_log(message)
-       if (model%options%which_ho_bmlt_inversion < 0 .or. &
-           model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
-          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
-       end if
-
-       write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
-                         ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
-       call write_log(message)
-       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
-           model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
-          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
-       end if
-
-       ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
-       if (model%options%which_ho_cp_inversion /= 0) then
+       if (model%options%which_ho_cp_inversion /= HO_CP_INVERSION_NONE) then
+          write(message,*) 'ho_cp_whichinversion    : ',model%options%which_ho_cp_inversion,  &
+                            ho_cp_whichinversion(model%options%which_ho_cp_inversion)
+          call write_log(message)
+          ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
           if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
               model%options%which_ho_babc == HO_BABC_POWERLAW) then
              ! inversion for Cp is supported
@@ -1725,13 +1709,37 @@ contains
           endif
        endif
 
+       if (model%options%which_ho_cp_inversion < 0 .or. &
+           model%options%which_ho_cp_inversion >= size(ho_cp_whichinversion)) then
+          call write_log('Error, Cp inversion input out of range', GM_FATAL)
+       end if
+
+       if (model%options%which_ho_bmlt_inversion /= HO_BMLT_INVERSION_NONE) then
+          write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
+                            ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
+          call write_log(message)
+       endif
+
+       if (model%options%which_ho_bmlt_inversion < 0 .or. &
+            model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
+          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
+       end if
+
        if (model%options%which_ho_bmlt_basin_inversion /= HO_BMLT_BASIN_INVERSION_NONE) then
+          write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
+                            ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
+          call write_log(message)
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
              call write_log('Error, bmlt_basin inversion is not supported for this bmlt_float option')
              write(message,*) 'bmlt_basin inversion is supported only for bmlt_float = ', BMLT_FLOAT_THERMAL_FORCING
              call write_log(message, GM_FATAL)
           endif
        endif
+
+       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
+            model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
+          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
+       end if
 
        ! unsupported ho-babc options
        if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
@@ -1942,6 +1950,12 @@ contains
           write(message,*) 'linear_solve_ncheck     : ',model%options%linear_solve_ncheck
           call write_log(message)
 
+          write(message,*) 'linear_maxiters         : ',model%options%linear_maxiters
+          call write_log(message)
+
+          write(message,*) 'linear_tolerance        : ',model%options%linear_tolerance
+          call write_log(message)
+
        end if   ! DYCORE_GLISSADE
 
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
@@ -1982,12 +1996,15 @@ contains
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
-    !NOTE: The following physical constants have default values in glimmer_physcon.F90.
+    !Note: The following physical constants have default values in glimmer_physcon.F90.
     !      Some test cases (e.g., MISMIP) specify different values. The default values
-    !      can therefore be overridden by the user in the config file (except that certain
-    !      constants in CESM's shr_const_mod cannot be overridden when CISM is coupled to CESM).
-    !      These constants are not part of the model derived type.
-
+    !       can therefore be overridden by the user in the config file.
+    !      For coupled CESM runs, however, CISM uses the values in CESM's shr_const_mod,
+    !       which cannot be overridden.
+    !      These constants are *not* part of the model derived type.
+    !      If running multiple instances, the user should either use the default values
+    !       or specify identical values in each config file.  Otherwise, the run will use
+    !       whatever values are specified in the last config file to be read.
 #ifndef CCSMCOUPLED
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)
@@ -2093,10 +2110,10 @@ contains
 
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
-    call GetVAlue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
-    call GetVAlue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
-    call GetVAlue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
-    call GetVAlue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
+    call GetValue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
+    call GetValue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
+    call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
+    call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2181,6 +2198,7 @@ contains
 
   subroutine print_parameters(model)
 
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
     use glide_types
     use glimmer_log
     implicit none
@@ -2851,9 +2869,11 @@ contains
 !--------------------------------------------------------------------------------
 
   subroutine print_isostasy(model)
+
     use glide_types
     use glimmer_log
-    use parallel, only: tasks
+    use parallel_mod, only: tasks
+
     implicit none
     type(glide_global_type)  :: model
     character(len=100) :: message

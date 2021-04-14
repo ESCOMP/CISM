@@ -88,6 +88,7 @@ contains
     ! Orography
 
     call local_to_global_avg(instance%ups_orog, &
+                             instance%model%parallel,  &
                              instance%model%geometry%usrf, &
                              orog,    &
                              instance%out_mask)
@@ -103,6 +104,7 @@ contains
     endwhere
 
     call local_to_global_avg(instance%ups, &
+                             instance%model%parallel,  &
                              temp, &
                              ice_frac,    &
                              instance%out_mask)
@@ -114,6 +116,7 @@ contains
        temp = 0.d0
     endwhere
     call local_to_global_avg(instance%ups, &
+                             instance%model%parallel,  &
                              temp, &
                              snowice_frac,    &
                              instance%out_mask)
@@ -125,6 +128,7 @@ contains
        temp = 0.d0
     endwhere
     call local_to_global_avg(instance%ups, &
+                             instance%model%parallel,  &
                              temp, &
                              snowveg_frac,    &
                              instance%out_mask)
@@ -135,6 +139,7 @@ contains
     ! Snow depth
 
     call local_to_global_avg(instance%ups, &
+                             instance%model%parallel,  &
                              instance%mbal_accum%snowd, &
                              snow_depth,    &
                              instance%out_mask)
@@ -172,7 +177,7 @@ contains
 
     use glimmer_paramets, only: thk0, GLC_DEBUG
     use glimmer_log
-    use parallel, only: tasks, main_task
+    use parallel_mod, only: tasks, main_task
 
     ! Arguments ----------------------------------------------------------------------------
  
@@ -365,16 +370,19 @@ contains
 
     ! Total area of non-ocean ice cells within global grid cell
     call local_to_global_sum(instance%ups, &
+                             instance%model%parallel,  &
                              area_l,       &
                              area_g)
 
     !Total solid ice flux                            
     call local_to_global_sum(instance%ups,       &
+                             instance%model%parallel,  &
                              area_rofi_l(:,:),   &
                              grofi(:,:))
 
     !Total basal runoff
     call local_to_global_sum(instance%ups,       &
+                             instance%model%parallel,  &
                              area_rofl_l(:,:),   &
                              grofl(:,:))
                      
@@ -383,12 +391,14 @@ contains
     do n = 0, nec
 
        call local_to_global_sum(instance%ups,         &
+                               instance%model%parallel,  &
                                 area_frac_l(:,:,n),   &
                                 gfrac(:,:,n))
 
        if (n==0) then ! for bare land topography, use minimum elevation of child grid cell as the value for the parent grid cell
        
           call local_to_global_min(instance%ups,         &                                
+                                   instance%model%parallel,  &
                                    area_topo_l(:,:,n),   &
                                    gtopo(:,:,n),   &
                                    area_mask_l(:,:,n))
@@ -396,12 +406,14 @@ contains
        else   ! use average elevation of child grid cell as the value for the parent grid cell
 
           call local_to_global_avg(instance%ups,         &
+                                   instance%model%parallel,  &
                                    area_topo_l(:,:,n),   &
                                    gtopo(:,:,n),   &
                                    area_mask_l(:,:,n))
        endif
 
        call local_to_global_avg(instance%ups,         &
+                                instance%model%parallel,  &
                                 area_hflx_l(:,:,n),   &
                                 ghflx(:,:,n),   &
                                 area_mask_l(:,:,n))

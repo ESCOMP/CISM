@@ -30,7 +30,6 @@ contains
 
 subroutine cism_init_external_dycore(external_dycore_type,model)
  
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -40,7 +39,6 @@ subroutine cism_init_external_dycore(external_dycore_type,model)
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
-
   use glide_diagnostics
 
 #if defined CISM_HAS_BISICLES || defined CISM_HAS_FELIX
@@ -82,7 +80,7 @@ end subroutine cism_init_external_dycore
 
 
 subroutine cism_run_external_dycore(external_dycore_model_index,cur_time,time_inc)
-  use parallel
+
   use glimmer_global
   use glide
   use glissade
@@ -92,7 +90,6 @@ subroutine cism_run_external_dycore(external_dycore_model_index,cur_time,time_in
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
-
   use glide_diagnostics
 
 #if defined CISM_HAS_BISICLES || defined CISM_HAS_FELIX
@@ -123,7 +120,6 @@ end subroutine cism_run_external_dycore
 
 subroutine cism_finalize_external_dycore(external_dycore_type,model)
  
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -133,7 +129,6 @@ subroutine cism_finalize_external_dycore(external_dycore_type,model)
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
-
   use glide_diagnostics
 
 #if defined CISM_HAS_BISICLES || defined CISM_HAS_FELIX

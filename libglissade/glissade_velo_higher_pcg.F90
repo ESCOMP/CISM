@@ -45,9 +45,10 @@
     use glimmer_global, only: dp
     use glide_types   ! for preconditioning options
     use glimmer_log
-    use profile
-    use parallel
-    
+    use profile, only: t_startf, t_stopf
+    use parallel_mod, only: this_rank, main_task, &
+         parallel_type, staggered_parallel_halo, parallel_reduce_sum
+
     implicit none
     
     private
@@ -64,15 +65,11 @@
 
     ! linear solver settings
     !TODO - Pass in these solver settings as arguments?
-    integer, parameter ::    &
-       maxiters = 200          ! max number of linear iterations before quitting
+!    integer, parameter ::    &
+!       maxiters = 200          ! max number of linear iterations before quitting
                                ! TODO - change to maxiters_default?
-    integer, parameter :: &
-       maxiters_tridiag = 100  ! reduced number appropriate for tridiagonal preconditioning,
-                               ! which generally leads to faster convergence than diagonal preconditioning
-
-    real(dp), parameter ::   &
-       tolerance = 1.d-08    ! tolerance for linear solver
+!    real(dp), parameter ::   &
+!       tolerance = 1.d-08    ! tolerance for linear solver
 
     logical, parameter :: verbose_pcg = .false.
     logical, parameter :: verbose_tridiag = .false.
@@ -84,13 +81,14 @@
 !****************************************************************************
 
   subroutine pcg_solver_standard_3d(nx,        ny,            &
-                                    nz,        nhalo,         &
+                                    nz,        parallel,      &
                                     indxA_3d,  active_vertex, &
                                     Auu,       Auv,           &
                                     Avu,       Avv,           &
                                     bu,        bv,            &
                                     xu,        xv,            &
                                     precond,   linear_solve_ncheck,  &
+                                    tolerance, maxiters,      &
                                     err,       niters,        &
                                     itest, jtest, rtest)
 
@@ -152,8 +150,10 @@
     integer, intent(in) ::   &
        nx, ny,               &  ! horizontal grid dimensions (for scalars)
                                 ! velocity grid has dimensions (nx-1,ny-1)
-       nz,                   &  ! number of vertical levels where velocity is computed
-       nhalo                    ! number of halo layers (for scalars)
+       nz                       ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel             ! info for parallel communication
 
     integer, dimension(-1:1,-1:1,-1:1), intent(in) :: &
        indxA_3d               ! maps relative (x,y,z) coordinates to an index between 1 and 27
@@ -184,6 +184,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                     ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                    ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                          ! error (L2 norm of residual) in final solution
@@ -283,20 +289,20 @@
     ! Halo update for x (initial guess for velocity solution)
 
     call t_startf("pcg_halo_init")
-    call staggered_parallel_halo(xu)
-    call staggered_parallel_halo(xv)
+    call staggered_parallel_halo(xu, parallel)
+    call staggered_parallel_halo(xv, parallel)
     call t_stopf("pcg_halo_init")
 
     ! Compute A*x (use z as a temp vector for A*x)
 
     call t_startf("pcg_matmult_init")
-    call matvec_multiply_structured_3d(nx,        ny,            &
-                                       nz,        nhalo,         &
-                                       indxA_3d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       xu,        xv,            &
-                                       zu,        zv)
+    call matvec_multiply_structured_3d(nx,            ny,            &
+                                       nz,            parallel,      &
+                                       indxA_3d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       xu,            xv,            &
+                                       zu,            zv)
     call t_stopf("pcg_matmult_init")
 
     ! Compute the initial residual r(0) = b - Ax(0)
@@ -329,9 +335,9 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,     ny,     &
-                              nz,     nhalo,  &
-                              L2_rhs,         &
+    call global_sum_staggered(nx,            ny,          &
+                              nz,            parallel,    &
+                              L2_rhs,                     &
                               work0u, work0v)
     call t_stopf("pcg_glbsum_init")
 
@@ -393,9 +399,9 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,     &
-                                 nz,     nhalo,  &
-                                 eta1,           &
+       call global_sum_staggered(nx,            ny,            &
+                                 nz,            parallel,      &
+                                 eta1,                         &
                                  work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
@@ -423,21 +429,21 @@
        ! Halo update for d
 
        call t_startf("pcg_halo_iter")
-       call staggered_parallel_halo(du)
-       call staggered_parallel_halo(dv)
+       call staggered_parallel_halo(du, parallel)
+       call staggered_parallel_halo(dv, parallel)
        call t_stopf("pcg_halo_iter")
   
        ! Compute q = A*d
        ! This is the one matvec multiply required for each iteration
 
        call t_startf("pcg_matmult_iter")
-       call matvec_multiply_structured_3d(nx,        ny,            &
-                                          nz,        nhalo,         &
-                                          indxA_3d,  active_vertex, &
-                                          Auu,       Auv,           &
-                                          Avu,       Avv,           &
-                                          du,        dv,            &
-                                          qu,        qv)
+       call matvec_multiply_structured_3d(nx,            ny,            &
+                                          nz,            parallel,      &
+                                          indxA_3d,      active_vertex, &
+                                          Auu,           Auv,           &
+                                          Avu,           Avv,           &
+                                          du,            dv,            &
+                                          qu,            qv)
        call t_stopf("pcg_matmult_iter")
 
        ! Copy old eta1 = (r, PC(r)) to eta0
@@ -452,9 +458,9 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,     &
-                                 nz,     nhalo,  &
-                                 eta2,           &
+       call global_sum_staggered(nx,            ny,        &
+                                 nz,            parallel,  &
+                                 eta2,                     &
                                  work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
@@ -492,20 +498,20 @@
           ! Halo update for x
 
           call t_startf("pcg_halo_resid")
-          call staggered_parallel_halo(xu)
-          call staggered_parallel_halo(xv)
+          call staggered_parallel_halo(xu, parallel)
+          call staggered_parallel_halo(xv, parallel)
           call t_stopf("pcg_halo_resid")
 
           ! Compute A*x (use z as a temp vector for A*x)
            
           call t_startf("pcg_matmult_resid")
-          call matvec_multiply_structured_3d(nx,        ny,            &
-                                             nz,        nhalo,         &
-                                             indxA_3d,  active_vertex, &
-                                             Auu,       Auv,           &
-                                             Avu,       Avv,           &
-                                             xu,        xv,            &
-                                             zu,        zv)
+          call matvec_multiply_structured_3d(nx,            ny,            &
+                                             nz,            parallel,      &
+                                             indxA_3d,      active_vertex, &
+                                             Auu,           Auv,           &
+                                             Avu,           Avv,           &
+                                             xu,            xv,            &
+                                             zu,            zv)
           call t_stopf("pcg_matmult_resid")
 
           ! Compute residual r = b - Ax
@@ -523,9 +529,9 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,       &
-                                    nz,     nhalo,    &
-                                    L2_resid,         &
+          call global_sum_staggered(nx,            ny,       &
+                                    nz,            parallel, &
+                                    L2_resid,                &
                                     work0u, work0v)
           call t_stopf("pcg_glbsum_resid")
 
@@ -563,13 +569,14 @@
 !****************************************************************************
 
   subroutine pcg_solver_standard_2d(nx,        ny,            &
-                                    nhalo,                    &
+                                    parallel,                 &
                                     indxA_2d,  active_vertex, &
                                     Auu,       Auv,           &
                                     Avu,       Avv,           &
                                     bu,        bv,            &
                                     xu,        xv,            &
                                     precond,   linear_solve_ncheck,  &
+                                    tolerance, maxiters,      &
                                     err,       niters,        &
                                     itest, jtest, rtest)
 
@@ -604,9 +611,11 @@
     !---------------------------------------------------------------
 
     integer, intent(in) ::   &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
+       nx, ny                 ! horizontal grid dimensions (for scalars)
                               ! velocity grid has dimensions (nx-1,ny-1)
-       nhalo                  ! number of halo layers (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel             ! info for parallel communication
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
        indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
@@ -636,6 +645,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck         ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                    ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                   ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                         ! error (L2 norm of residual) in final solution
@@ -701,20 +716,20 @@
     ! Halo update for x (initial guess for velocity solution)
 
     call t_startf("pcg_halo_init")
-    call staggered_parallel_halo(xu)
-    call staggered_parallel_halo(xv)
+    call staggered_parallel_halo(xu, parallel)
+    call staggered_parallel_halo(xv, parallel)
     call t_stopf("pcg_halo_init")
 
     ! Compute A*x (use z as a temp vector for A*x)
 
     call t_startf("pcg_matmult_init")
-    call matvec_multiply_structured_2d(nx,        ny,            &
-                                       nhalo,                    &
-                                       indxA_2d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       xu,        xv,            &
-                                       zu,        zv)
+    call matvec_multiply_structured_2d(nx,            ny,            &
+                                       parallel,                     &
+                                       indxA_2d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       xu,            xv,            &
+                                       zu,            zv)
     call t_stopf("pcg_matmult_init")
 
     ! Compute the initial residual r(0) = b - Ax(0)
@@ -747,9 +762,10 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,     ny,      &
-                              nhalo,  L2_rhs,  &
-                              work0u, work0v)
+    call global_sum_staggered(nx,        ny,       &
+                              parallel,            &
+                              L2_rhs,              &
+                              work0u,    work0v)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -803,7 +819,8 @@
 
        call t_startf("pcg_glbsum_iter")
        call global_sum_staggered(nx,     ny,     &
-                                 nhalo,  eta1,   &
+                                 parallel,       &
+                                 eta1,           &
                                  work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
@@ -831,21 +848,21 @@
        ! Halo update for d
 
        call t_startf("pcg_halo_iter")
-       call staggered_parallel_halo(du)
-       call staggered_parallel_halo(dv)
+       call staggered_parallel_halo(du, parallel)
+       call staggered_parallel_halo(dv, parallel)
        call t_stopf("pcg_halo_iter")
   
        ! Compute q = A*d
        ! This is the one matvec multiply required for each iteration
 
        call t_startf("pcg_matmult_iter")
-       call matvec_multiply_structured_2d(nx,        ny,            &
-                                          nhalo,                    &
-                                          indxA_2d,  active_vertex, &
-                                          Auu,       Auv,           &
-                                          Avu,       Avv,           &
-                                          du,        dv,            &
-                                          qu,        qv)
+       call matvec_multiply_structured_2d(nx,            ny,            &
+                                          parallel,                     &
+                                          indxA_2d,      active_vertex, &
+                                          Auu,           Auv,           &
+                                          Avu,           Avv,           &
+                                          du,            dv,            &
+                                          qu,            qv)
        call t_stopf("pcg_matmult_iter")
 
        ! Copy old eta1 = (r, PC(r)) to eta0
@@ -860,8 +877,9 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,     &
-                                 nhalo,  eta2,   &
+       call global_sum_staggered(nx,     ny,       &
+                                 parallel,         &
+                                 eta2,             &
                                  work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
@@ -899,20 +917,20 @@
           ! Halo update for x
 
           call t_startf("pcg_halo_resid")
-          call staggered_parallel_halo(xu)
-          call staggered_parallel_halo(xv)
+          call staggered_parallel_halo(xu, parallel)
+          call staggered_parallel_halo(xv, parallel)
           call t_stopf("pcg_halo_resid")
 
           ! Compute A*x (use z as a temp vector for A*x)
            
           call t_startf("pcg_matmult_resid")
-          call matvec_multiply_structured_2d(nx,        ny,            &
-                                             nhalo,                    &
-                                             indxA_2d,  active_vertex, &
-                                             Auu,       Auv,           &
-                                             Avu,       Avv,           &
-                                             xu,        xv,            &
-                                             zu,        zv)
+          call matvec_multiply_structured_2d(nx,            ny,            &
+                                             parallel,                     &
+                                             indxA_2d,      active_vertex, &
+                                             Auu,           Auv,           &
+                                             Avu,           Avv,           &
+                                             xu,            xv,            &
+                                             zu,            zv)
           call t_stopf("pcg_matmult_resid")
 
           ! Compute residual r = b - Ax
@@ -930,8 +948,9 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,        &
-                                    nhalo,  L2_resid,  &
+          call global_sum_staggered(nx,     ny,     &
+                                    parallel,       &
+                                    L2_resid,       &
                                     work0u, work0v)
           call t_stopf("pcg_glbsum_resid")
 
@@ -964,7 +983,7 @@
 !****************************************************************************
 
   subroutine pcg_solver_chrongear_3d(nx,        ny,            &
-                                     nz,        nhalo,         &
+                                     nz,        parallel,      &
                                      indxA_2d,  indxA_3d,      &
                                      active_vertex,            &
                                      Auu,       Auv,           &
@@ -972,6 +991,7 @@
                                      bu,        bv,            &
                                      xu,        xv,            &
                                      precond,   linear_solve_ncheck,  &
+                                     tolerance, maxiters,      &
                                      err,       niters,        &
                                      itest, jtest, rtest)
 
@@ -1082,10 +1102,12 @@
     !---------------------------------------------------------------
 
     integer, intent(in) ::   &
-       nx, ny,               &  ! horizontal grid dimensions (for scalars)
-                                ! velocity grid has dimensions (nx-1,ny-1)
-       nz,                   &  ! number of vertical levels where velocity is computed
-       nhalo                    ! number of halo layers (for scalars)
+       nx, ny,                       &  ! horizontal grid dimensions (for scalars)
+                                        ! velocity grid has dimensions (nx-1,ny-1)
+       nz                               ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel             ! info for parallel communication
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
        indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
@@ -1119,6 +1141,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck         ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                    ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                   ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                         ! error (L2 norm of residual) in final solution
@@ -1201,10 +1229,25 @@
          gather_data_row,   &   ! arrays for gathering data from every task on a row or column
          gather_data_col
 
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    integer :: &
+         tasks_row,         &   ! number of tasks per row and column for tridiagonal solve
+         tasks_col
+
     !WHL - debug
     integer :: iu_max, ju_max, iv_max, jv_max
     real(dp) :: ru_max, rv_max
 
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    tasks_row = parallel%tasks_row
+    tasks_col = parallel%tasks_col
 
     ! Note: maxiters_tridiag commented out here, because the BP tridiagonal solver
     !       tends not to converge as well as the 2D version.
@@ -1299,18 +1342,18 @@
        ! Compute arrays for tridiagonal preconditioning
 
        call setup_preconditioner_tridiag_local_3d(&
-            nx,           ny,           &
-            nz,                         &
-            active_vertex,              &
-            indxA_2d,     indxA_3d,     &
-            itest, jtest, rtest,        &
-            Auu,          Avv,          &
-            Muu,          Mvv,          &
-            Adiag_u,      Adiag_v,      &
-            Asubdiag_u,   Asubdiag_v,   &
-            Asupdiag_u,   Asupdiag_v,   &
-            omega_u,      omega_v,      &
-            denom_u,      denom_v)
+            nx,            ny,            &
+            nz,            parallel,      &
+            active_vertex,                &
+            indxA_2d,      indxA_3d,      &
+            itest, jtest,  rtest,         &
+            Auu,           Avv,           &
+            Muu,           Mvv,           &
+            Adiag_u,       Adiag_v,       &
+            Asubdiag_u,    Asubdiag_v,    &
+            Asupdiag_u,    Asupdiag_v,    &
+            omega_u,       omega_v,       &
+            denom_u,       denom_v)
        
     elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
 
@@ -1341,21 +1384,21 @@
        ! Compute arrays for tridiagonal preconditioning
 
        call setup_preconditioner_tridiag_global_3d(&
-            nx,           ny,           &
-            nz,                         &
-            active_vertex,              &
-            indxA_2d,     indxA_3d,     &
-            ilocal,       jlocal,       &
-            itest, jtest, rtest,        &
-            Auu,          Avv,          &
-            Muu,          Mvv,          &
-            Adiag_u,      Adiag_v,      &
-            Asubdiag_u,   Asubdiag_v,   &
-            Asupdiag_u,   Asupdiag_v,   &
-            omega_u,      omega_v,      &
-            denom_u,      denom_v,      &
-            xuh_u,        xuh_v,        &
-            xlh_u,        xlh_v)
+            nx,            ny,            &
+            nz,            parallel,      &
+            active_vertex,                &
+            indxA_2d,      indxA_3d,      &
+            ilocal,        jlocal,        &
+            itest, jtest,  rtest,         &
+            Auu,           Avv,           &
+            Muu,           Mvv,           &
+            Adiag_u,       Adiag_v,       &
+            Asubdiag_u,    Asubdiag_v,    &
+            Asupdiag_u,    Asupdiag_v,    &
+            omega_u,       omega_v,       &
+            denom_u,       denom_v,       &
+            xuh_u,         xuh_v,         &
+            xlh_u,         xlh_v)
 
     endif   ! precond
 
@@ -1390,9 +1433,9 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,     ny,     &
-                              nz,     nhalo,  &
-                              bb,             &
+    call global_sum_staggered(nx,     ny,         &
+                              nz,     parallel,   &
+                              bb,                 &
                               worku,  workv)
     call t_stopf("pcg_glbsum_init")
 
@@ -1412,20 +1455,20 @@
     !---- Halo update for x (initial guess for velocity solution)
 
     call t_startf("pcg_halo_init")
-    call staggered_parallel_halo(xu)
-    call staggered_parallel_halo(xv)
+    call staggered_parallel_halo(xu, parallel)
+    call staggered_parallel_halo(xv, parallel)
     call t_stopf("pcg_halo_init")
 
     !---- Compute A*x   (use z as a temp vector for A*x)
 
     call t_startf("pcg_matmult_init")
-    call matvec_multiply_structured_3d(nx,        ny,            &
-                                       nz,        nhalo,         &
-                                       indxA_3d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       xu,        xv,            &
-                                       zu,        zv)
+    call matvec_multiply_structured_3d(nx,            ny,            &
+                                       nz,            parallel,      &
+                                       indxA_3d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       xu,            xv,            &
+                                       zu,            zv)
     call t_stopf("pcg_matmult_init")
 
     !---- Compute the initial residual r = b - A*x
@@ -1439,8 +1482,8 @@
     !---- Halo update for residual
 
     call t_startf("pcg_halo_init")
-    call staggered_parallel_halo(ru)
-    call staggered_parallel_halo(rv)
+    call staggered_parallel_halo(ru, parallel)
+    call staggered_parallel_halo(rv, parallel)
     call t_stopf("pcg_halo_init")
 
     !---- Compute (PC)r = solution z of Mz = r
@@ -1510,17 +1553,18 @@
        ! Use a local tridiagonal solver to find an approximate solution of A*z = r
 
        call tridiag_solver_local_3d(&
-            nx,           ny,            &
-            nz,           active_vertex, &
-            itest, jtest, rtest,         &
-            Adiag_u,      Adiag_v,       &  ! entries of 2D preconditioning matrix
-            Asubdiag_u,   Asubdiag_v,    &
-            Asupdiag_u,   Asupdiag_v,    &
-            omega_u,      omega_v,       &
-            denom_u,      denom_v,       &
-            Muu,          Mvv,           &  ! entries of SIA matrix
-            ru,           rv,            &  ! 3D residual
-            zu,           zv)               ! approximate solution of Az = r
+            nx,            ny,            &
+            nz,            parallel,      &
+            active_vertex,                &
+            itest, jtest,  rtest,         &
+            Adiag_u,       Adiag_v,       &  ! entries of 2D preconditioning matrix
+            Asubdiag_u,    Asubdiag_v,    &
+            Asupdiag_u,    Asupdiag_v,    &
+            omega_u,       omega_v,       &
+            denom_u,       denom_v,       &
+            Muu,           Mvv,           &  ! entries of SIA matrix
+            ru,            rv,            &  ! 3D residual
+            zu,            zv)               ! approximate solution of Az = r
 
     elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
 
@@ -1528,8 +1572,10 @@
 
        call tridiag_solver_global_3d(&
             nx,              ny,              &
-            nz,              active_vertex,   &
+            nz,              parallel,        &
+            active_vertex,                    &
             ilocal,          jlocal,          &
+            tasks_row,       tasks_col,       &
             itest,  jtest,   rtest,           &
             Adiag_u,         Adiag_v,         &  ! entries of 2D preconditioning matrix
             Asubdiag_u,      Asubdiag_v,      &
@@ -1565,13 +1611,13 @@
     !---- q is correct for locally owned nodes
 
     call t_startf("pcg_matmult_iter")
-    call matvec_multiply_structured_3d(nx,        ny,            &
-                                       nz,        nhalo,         &
-                                       indxA_3d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       du,        dv,            &
-                                       qu,        qv)
+    call matvec_multiply_structured_3d(nx,            ny,            &
+                                       nz,            parallel,      &
+                                       indxA_3d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       du,            dv,            &
+                                       qu,            qv)
     call t_stopf("pcg_matmult_iter")
 
     !---- Compute intermediate result for dot product (d,q) = (d,Ad)
@@ -1584,17 +1630,17 @@
     !---- Find global sums of (r,z) and (d,q)
 
     call t_startf("pcg_glbsum_iter")
-    call global_sum_staggered(nx,     ny,     &
-                              nz,     nhalo,  &
-                              gsum,           &
+    call global_sum_staggered(nx,     ny,         &
+                              nz,     parallel,   &
+                              gsum,               &
                               work2u, work2v)
     call t_stopf("pcg_glbsum_iter")
 
     !---- Halo update for q
 
     call t_startf("pcg_halo_iter")
-    call staggered_parallel_halo(qu)
-    call staggered_parallel_halo(qv)
+    call staggered_parallel_halo(qu, parallel)
+    call staggered_parallel_halo(qv, parallel)
     call t_stopf("pcg_halo_iter")
 
     rho_old = gsum(1)      ! (r,z) = (r, (PC)r)
@@ -1688,17 +1734,18 @@
           ! Use a local tridiagonal solver to find an approximate solution of A*z = r
 
           call tridiag_solver_local_3d(&
-               nx,           ny,            &
-               nz,           active_vertex, &
-               itest, jtest, rtest,         &
-               Adiag_u,      Adiag_v,       &  ! entries of 2D preconditioning matrix
-               Asubdiag_u,   Asubdiag_v,    &
-               Asupdiag_u,   Asupdiag_v,    &
-               omega_u,      omega_v,       &
-               denom_u,      denom_v,       &
-               Muu,          Mvv,           &  ! entries of SIA matrix
-               ru,           rv,            &  ! 3D residual
-               zu,           zv)               ! approximate solution of Az = r
+               nx,            ny,            &
+               nz,            parallel,      &
+               active_vertex,                &
+               itest, jtest,  rtest,         &
+               Adiag_u,       Adiag_v,       &  ! entries of 2D preconditioning matrix
+               Asubdiag_u,    Asubdiag_v,    &
+               Asupdiag_u,    Asupdiag_v,    &
+               omega_u,       omega_v,       &
+               denom_u,       denom_v,       &
+               Muu,           Mvv,           &  ! entries of SIA matrix
+               ru,            rv,            &  ! 3D residual
+               zu,            zv)               ! approximate solution of Az = r
 
        elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
 
@@ -1706,8 +1753,10 @@
 
           call tridiag_solver_global_3d(&
                nx,              ny,              &
-               nz,              active_vertex,   &
+               nz,              parallel,        &
+               active_vertex,                    &
                ilocal,          jlocal,          &
+               tasks_row,       tasks_col,       &
                itest,  jtest,   rtest,           &
                Adiag_u,         Adiag_v,         &  ! entries of 2D preconditioning matrix
                Asubdiag_u,      Asubdiag_v,      &
@@ -1734,13 +1783,13 @@
        !---- Az is correct for local owned nodes and needs a halo update (below)
 
        call t_startf("pcg_matmult_iter")
-       call matvec_multiply_structured_3d(nx,        ny,            &
-                                          nz,        nhalo,         &
-                                          indxA_3d,  active_vertex, &
-                                          Auu,       Auv,           &
-                                          Avu,       Avv,           &
-                                          zu,        zv,            &
-                                          Azu,       Azv)
+       call matvec_multiply_structured_3d(nx,            ny,            &
+                                          nz,            parallel,      &
+                                          indxA_3d,      active_vertex, &
+                                          Auu,           Auv,           &
+                                          Avu,           Avv,           &
+                                          zu,            zv,            &
+                                          Azu,           Azv)
        call t_stopf("pcg_matmult_iter")
 
 
@@ -1759,9 +1808,9 @@
        ! this is the one MPI global reduction per iteration.
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,     &
-                                 nz,     nhalo,  &
-                                 gsum,           &
+       call global_sum_staggered(nx,     ny,          &
+                                 nz,     parallel,    &
+                                 gsum,                &
                                  work2u, work2v)
        call t_stopf("pcg_glbsum_iter")
 
@@ -1769,8 +1818,8 @@
        !---- This is the one halo update required per iteration
 
        call t_startf("pcg_halo_iter")
-       call staggered_parallel_halo(Azu)
-       call staggered_parallel_halo(Azv)
+       call staggered_parallel_halo(Azu, parallel)
+       call staggered_parallel_halo(Azv, parallel)
        call t_stopf("pcg_halo_iter")
 
        !---- Compute some scalars
@@ -1840,13 +1889,13 @@
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
           call t_startf("pcg_matmult_resid")
-          call matvec_multiply_structured_3d(nx,        ny,            &
-                                             nz,        nhalo,         &
-                                             indxA_3d,  active_vertex, &
-                                             Auu,       Auv,           &
-                                             Avu,       Avv,           &
-                                             xu,        xv,            &
-                                             zu,        zv)
+          call matvec_multiply_structured_3d(nx,            ny,            &
+                                             nz,            parallel,      &
+                                             indxA_3d,      active_vertex, &
+                                             Auu,           Auv,           &
+                                             Avu,           Avv,           &
+                                             xu,            xv,            &
+                                             zu,            zv)
           call t_stopf("pcg_matmult_resid")
 
           !---- Compute residual r = b - A*x
@@ -1864,9 +1913,9 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,       &
-                                    nz,     nhalo,    &
-                                    rr,               &
+          call global_sum_staggered(nx,     ny,         &
+                                    nz,     parallel,   &
+                                    rr,                 &
                                     worku,  workv)
           call t_stopf("pcg_glbsum_resid")
 
@@ -1922,8 +1971,8 @@
           !---- Update residual in halo for next iteration
 
           call t_startf("pcg_halo_resid")
-          call staggered_parallel_halo(ru)
-          call staggered_parallel_halo(rv)
+          call staggered_parallel_halo(ru, parallel)
+          call staggered_parallel_halo(rv, parallel)
           call t_stopf("pcg_halo_resid")
 
        endif    ! linear_solve_ncheck
@@ -1944,13 +1993,14 @@
 !****************************************************************************
 
   subroutine pcg_solver_chrongear_2d(nx,        ny,            &
-                                     nhalo,                    &
+                                     parallel,                 &
                                      indxA_2d,  active_vertex, &
                                      Auu,       Auv,           &
                                      Avu,       Avv,           &
                                      bu,        bv,            &
                                      xu,        xv,            &
                                      precond,   linear_solve_ncheck,  &
+                                     tolerance, maxiters,      &
                                      err,       niters,        &
                                      itest, jtest, rtest)
 
@@ -1983,9 +2033,11 @@
     !---------------------------------------------------------------
 
     integer, intent(in) ::   &
-       nx, ny,               &  ! horizontal grid dimensions (for scalars)
-                                ! velocity grid has dimensions (nx-1,ny-1)
-       nhalo                    ! number of halo layers (for scalars)
+       nx, ny                 ! horizontal grid dimensions (for scalars)
+                              ! velocity grid has dimensions (nx-1,ny-1)
+
+    type(parallel_type), intent(in) :: &
+       parallel               ! info for parallel communication
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
        indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
@@ -2015,6 +2067,12 @@
 
     integer, intent(in)  :: &
        linear_solve_ncheck          ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+       maxiters                     ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+       tolerance                    ! tolerance for linear solver
 
     real(dp), intent(out) ::  &
        err                          ! error (L2 norm of residual) in final solution
@@ -2090,12 +2148,32 @@
     integer :: ii, jj
     integer :: maxiters_chrongear  ! max number of linear iterations before quitting
 
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    integer :: &
+         tasks_row,         &   ! number of tasks per row and column for tridiagonal solve
+         tasks_col
+
+    integer, parameter :: &
+       maxiters_tridiag = 100  ! max number of linear iterations for tridiagonal preconditioning,
+                               ! which generally leads to faster convergence than diagonal preconditioning
+
     !WHL - debug
     real(dp) :: usum, usum_global, vsum, vsum_global
 
     !WHL - debug
     integer :: iu_max, ju_max, iv_max, jv_max
     real(dp) :: ru_max, rv_max
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    tasks_row = parallel%tasks_row
+    tasks_col = parallel%tasks_col
 
     ! Set the maximum number of linear iterations.
     ! Typically allow up to 200 iterations with diagonal preconditioning, but only 100
@@ -2166,15 +2244,16 @@
        allocate(omega_v   (nx-1,ny-1))
        allocate(denom_v   (nx-1,ny-1))
 
-       call setup_preconditioner_tridiag_local_2d(nx,         ny,             &
-                                                  indxA_2d,                   &
-                                                  itest,      jtest,  rtest,  &
-                                                  Auu,        Avv,            &
-                                                  Adiag_u,    Adiag_v,        &
-                                                  Asubdiag_u, Asubdiag_v,     &
-                                                  Asupdiag_u, Asupdiag_v,     &
-                                                  omega_u,    omega_v,        &
-                                                  denom_u,    denom_v)
+       call setup_preconditioner_tridiag_local_2d(&
+            nx,            ny,             &
+            parallel,      indxA_2d,       &
+            itest,         jtest,  rtest,  &
+            Auu,           Avv,            &
+            Adiag_u,       Adiag_v,        &
+            Asubdiag_u,    Asubdiag_v,     &
+            Asupdiag_u,    Asupdiag_v,     &
+            omega_u,       omega_v,        &
+            denom_u,       denom_v)
 
     elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
 
@@ -2287,8 +2366,9 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,     ny,     &
-                              nhalo,  bb,     &
+    call global_sum_staggered(nx,     ny,   &
+                              parallel,     &
+                              bb,           &
                               worku,  workv)
     call t_stopf("pcg_glbsum_init")
 
@@ -2308,20 +2388,20 @@
     !---- Halo update for x (initial guess for velocity solution)
 
     call t_startf("pcg_halo_init")
-    call staggered_parallel_halo(xu)
-    call staggered_parallel_halo(xv)
+    call staggered_parallel_halo(xu, parallel)
+    call staggered_parallel_halo(xv, parallel)
     call t_stopf("pcg_halo_init")
 
     !---- Compute A*x   (use z as a temp vector for A*x)
 
     call t_startf("pcg_matmult_init")
-    call matvec_multiply_structured_2d(nx,        ny,            &
-                                       nhalo,                    &
-                                       indxA_2d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       xu,        xv,            &
-                                       zu,        zv)
+    call matvec_multiply_structured_2d(nx,            ny,            &
+                                       parallel,                     &
+                                       indxA_2d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       xu,            xv,            &
+                                       zu,            zv)
     call t_stopf("pcg_matmult_init")
 
     !---- Compute the initial residual r = b - A*x
@@ -2335,8 +2415,8 @@
     !---- Halo update for residual
 
     call t_startf("pcg_halo_init")
-    call staggered_parallel_halo(ru)
-    call staggered_parallel_halo(rv)
+    call staggered_parallel_halo(ru, parallel)
+    call staggered_parallel_halo(rv, parallel)
     call t_stopf("pcg_halo_init")
 
     !---- Compute (PC)r = solution z of Mz = r
@@ -2404,15 +2484,16 @@
        !TODO - Test a local solver that can compute zu and zv in the halo
        !       (to avoid the halo update below)
 
-       call tridiag_solver_local_2d(nx,           ny,         &
-                                    itest, jtest, rtest,      &
-                                    Adiag_u,      Adiag_v,    &  ! entries of preconditioning matrix
-                                    Asubdiag_u,   Asubdiag_v, &
-                                    Asupdiag_u,   Asupdiag_v, &
-                                    omega_u,      omega_v,    &
-                                    denom_u,      denom_v,    &
-                                    ru,           rv,         &  ! right hand side
-                                    zu,           zv)            ! solution
+       call tridiag_solver_local_2d(nx,            ny,            &
+                                    parallel,                     &
+                                    itest, jtest,  rtest,         &
+                                    Adiag_u,       Adiag_v,       &  ! entries of preconditioning matrix
+                                    Asubdiag_u,    Asubdiag_v,    &
+                                    Asupdiag_u,    Asupdiag_v,    &
+                                    omega_u,       omega_v,       &
+                                    denom_u,       denom_v,       &
+                                    ru,            rv,            &  ! right hand side
+                                    zu,            zv)               ! solution
 
        !WHL - debug
           if (verbose_pcg .and. this_rank == rtest) then
@@ -2426,8 +2507,8 @@
 
        !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
        !TODO: See whether tridiag solvers could be modified to provide zu and zv in halo cells?
-       call staggered_parallel_halo(zu)
-       call staggered_parallel_halo(zv)
+       call staggered_parallel_halo(zu, parallel)
+       call staggered_parallel_halo(zv, parallel)
 
     elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
 
@@ -2447,7 +2528,8 @@
        ! Solve M*z = r, where M is a global tridiagonal matrix
 
        call tridiag_solver_global_2d(ilocal,       jlocal,      &
-                                     tasks_row,    'row',       &  ! tridiagonal solve for each row
+                                     parallel,     tasks_row,   &
+                                     'row',                     &  ! tridiagonal solve for each row
 !!                                          itest, jtest, rtest,      &
                                      itest - staggered_ilo + 1, &  ! itest referenced to (ilocal,jlocal) coordinates
                                      jtest - staggered_jlo + 1, &  ! jtest referenced to (ilocal,jlocal) coordinates
@@ -2485,7 +2567,8 @@
        gather_data_col = 0.0d0
 
        call tridiag_solver_global_2d(jlocal,       ilocal,      &
-                                     tasks_col,    'col',       &  ! tridiagonal solve for each row
+                                     parallel,     tasks_col,   &
+                                     'col',                     &  ! tridiagonal solve for each column
 !!                                          itest, jtest, rtest,      &
                                      jtest - staggered_jlo + 1, &  ! jtest referenced to (jlocal,ilocal) coordinates
                                      itest - staggered_ilo + 1, &  ! itest referenced to (jlocal,ilocal) coordinates
@@ -2511,8 +2594,8 @@
 
        !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
        !TODO: See whether tridiag_solver_local_2d could be modified to provide zu and zv in halo cells?
-       call staggered_parallel_halo(zu)
-       call staggered_parallel_halo(zv)
+       call staggered_parallel_halo(zu, parallel)
+       call staggered_parallel_halo(zv, parallel)
 
     endif    ! precond
 
@@ -2535,13 +2618,13 @@
     !---- q is correct for locally owned nodes, provided d extends one layer into the halo
 
     call t_startf("pcg_matmult_iter")
-    call matvec_multiply_structured_2d(nx,        ny,            &
-                                       nhalo,                    &
-                                       indxA_2d,  active_vertex, &
-                                       Auu,       Auv,           &
-                                       Avu,       Avv,           &
-                                       du,        dv,            &
-                                       qu,        qv)
+    call matvec_multiply_structured_2d(nx,            ny,            &
+                                       parallel,                     &
+                                       indxA_2d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       du,            dv,            &
+                                       qu,            qv)
     call t_stopf("pcg_matmult_iter")
 
     !WHL - debug
@@ -2564,8 +2647,9 @@
     !---- Find global sums of (r,z) and (d,q)
 
     call t_startf("pcg_glbsum_iter")
-    call global_sum_staggered(nx,     ny,     &
-                              nhalo,  gsum,   &
+    call global_sum_staggered(nx,     ny,   &
+                              parallel,     &
+                              gsum,         &
                               work2u, work2v)
     call t_stopf("pcg_glbsum_iter")
 
@@ -2576,8 +2660,8 @@
     !---- Halo update for q
 
     call t_startf("pcg_halo_iter")
-    call staggered_parallel_halo(qu)
-    call staggered_parallel_halo(qv)
+    call staggered_parallel_halo(qu, parallel)
+    call staggered_parallel_halo(qv, parallel)
     call t_stopf("pcg_halo_iter")
 
     rho_old = gsum(1)      ! (r,z) = (r, (PC)r)
@@ -2678,20 +2762,21 @@
              print*, '   call tridiag_solver_local_2d'
           endif
 
-          call tridiag_solver_local_2d(nx,           ny,         &
-                                       itest, jtest, rtest,      &
-                                       Adiag_u,      Adiag_v,    &  ! entries of preconditioning matrix
-                                       Asubdiag_u,   Asubdiag_v, &
-                                       Asupdiag_u,   Asupdiag_v, &
-                                       omega_u,      omega_v,    &
-                                       denom_u,      denom_v,    &
-                                       ru,           rv,         &  ! right hand side
-                                       zu,           zv)            ! solution
+          call tridiag_solver_local_2d(nx,            ny,            &
+                                       parallel,                     &
+                                       itest, jtest,  rtest,         &
+                                       Adiag_u,       Adiag_v,       &  ! entries of preconditioning matrix
+                                       Asubdiag_u,    Asubdiag_v,    &
+                                       Asupdiag_u,    Asupdiag_v,    &
+                                       omega_u,       omega_v,       &
+                                       denom_u,       denom_v,       &
+                                       ru,            rv,            &  ! right hand side
+                                       zu,            zv)               ! solution
 
           !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
           !TODO: See whether tridiag solvers could be modified to provide zu and zv in halo cells?
-          call staggered_parallel_halo(zu)
-          call staggered_parallel_halo(zv)
+          call staggered_parallel_halo(zu, parallel)
+          call staggered_parallel_halo(zv, parallel)
 
           if (verbose_pcg .and. this_rank == rtest) then
              j = jtest
@@ -2739,7 +2824,8 @@
 
 
           call tridiag_solver_global_2d(ilocal,       jlocal,      &
-                                        tasks_row,    'row',       &  ! tridiagonal solve for each row
+                                        parallel,     tasks_row,   &
+                                        'row',                     &  ! tridiagonal solve for each row
 !!                                             itest, jtest, rtest,      &
                                         itest - staggered_ilo + 1, &  ! itest referenced to (ilocal,jlocal) coordinates
                                         jtest - staggered_jlo + 1, &  ! jtest referenced to (ilocal,jlocal) coordinates
@@ -2784,7 +2870,8 @@
     endif
 
           call tridiag_solver_global_2d(jlocal,       ilocal,      &
-                                        tasks_col,    'col',       &  ! tridiagonal solve for each column
+                                        parallel,     tasks_col,   &
+                                        'col',                     &  ! tridiagonal solve for each column
 !!                                             itest, jtest, rtest,      &
                                         jtest - staggered_jlo + 1, &  ! jtest referenced to (jlocal,ilocal) coordinates
                                         itest - staggered_ilo + 1, &  ! itest referenced to (jlocal,ilocal) coordinates
@@ -2810,8 +2897,8 @@
 
           !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
           !TODO: See whether tridiag solvers could be modified to provide zu and zv in halo cells?
-          call staggered_parallel_halo(zu)
-          call staggered_parallel_halo(zv)
+          call staggered_parallel_halo(zu, parallel)
+          call staggered_parallel_halo(zv, parallel)
 
        endif    ! precond
 
@@ -2822,13 +2909,13 @@
        !---- Az is correct for locally owned nodes and needs a halo update (below)
 
        call t_startf("pcg_matmult_iter")
-       call matvec_multiply_structured_2d(nx,        ny,            &
-                                          nhalo,                    &
-                                          indxA_2d,  active_vertex, &
-                                          Auu,       Auv,           &
-                                          Avu,       Avv,           &
-                                          zu,        zv,            &
-                                          Azu,       Azv)
+       call matvec_multiply_structured_2d(nx,            ny,            &
+                                          parallel,                     &
+                                          indxA_2d,      active_vertex, &
+                                          Auu,           Auv,           &
+                                          Avu,           Avv,           &
+                                          zu,            zv,            &
+                                          Azu,           Azv)
        call t_stopf("pcg_matmult_iter")
 
        !---- Compute intermediate results for the dot products (r,z) and (Az,z)
@@ -2846,16 +2933,17 @@
        ! this is the one MPI global reduction per iteration.
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,     &
-                                 nhalo,  gsum,   &
-                                 work2u, work2v)
+       call global_sum_staggered(nx,      ny,    &
+                                 parallel,        &
+                                 gsum,            &
+                                 work2u,  work2v)
        call t_stopf("pcg_glbsum_iter")
 
        !---- Halo update for Az
 
        call t_startf("pcg_halo_iter")
-       call staggered_parallel_halo(Azu)
-       call staggered_parallel_halo(Azv)
+       call staggered_parallel_halo(Azu, parallel)
+       call staggered_parallel_halo(Azv, parallel)
        call t_stopf("pcg_halo_iter")
 
        !---- Compute some scalars
@@ -2924,13 +3012,13 @@
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
           call t_startf("pcg_matmult_resid")
-          call matvec_multiply_structured_2d(nx,        ny,            &
-                                             nhalo,                    &
-                                             indxA_2d,  active_vertex, &
-                                             Auu,       Auv,           &
-                                             Avu,       Avv,           &
-                                             xu,        xv,            &
-                                             zu,        zv)
+          call matvec_multiply_structured_2d(nx,            ny,            &
+                                             parallel,                     &
+                                             indxA_2d,      active_vertex, &
+                                             Auu,           Auv,           &
+                                             Avu,           Avv,           &
+                                             xu,            xv,            &
+                                             zu,            zv)
           call t_stopf("pcg_matmult_resid")
 
           !---- Compute residual r = b - A*x
@@ -2948,8 +3036,9 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,       &
-                                    nhalo,  rr,       &
+          call global_sum_staggered(nx,     ny,    &
+                                    parallel,      &
+                                    rr,            &
                                     worku,  workv)
           call t_stopf("pcg_glbsum_resid")
 
@@ -3003,8 +3092,8 @@
           !---- Update residual in halo for next iteration
 
           call t_startf("pcg_halo_resid")
-          call staggered_parallel_halo(ru)
-          call staggered_parallel_halo(rv)
+          call staggered_parallel_halo(ru, parallel)
+          call staggered_parallel_halo(rv, parallel)
           call t_stopf("pcg_halo_resid")
 
        endif    ! linear_solve_ncheck
@@ -3168,18 +3257,18 @@
 !****************************************************************************
 
   subroutine setup_preconditioner_tridiag_local_3d(&
-       nx,           ny,           &
-       nz,                         &
-       active_vertex,              &
-       indxA_2d,     indxA_3d,     &
-       itest, jtest, rtest,        &
-       Auu,          Avv,          &
-       Muu,          Mvv,          &
-       Adiag_u,      Adiag_v,      &
-       Asubdiag_u,   Asubdiag_v,   &
-       Asupdiag_u,   Asupdiag_v,   &
-       omega_u,      omega_v,      &
-       denom_u,      denom_v)
+       nx,            ny,            &
+       nz,            parallel,      &
+       active_vertex,                &
+       indxA_2d,      indxA_3d,      &
+       itest, jtest,  rtest,         &
+       Auu,           Avv,           &
+       Muu,           Mvv,           &
+       Adiag_u,       Adiag_v,       &
+       Asubdiag_u,    Asubdiag_v,    &
+       Asupdiag_u,    Asupdiag_v,    &
+       omega_u,       omega_v,       &
+       denom_u,       denom_v)
 
     ! Set up arrays for the local tridiagonal preconditioner.
     ! This preconditioner uses a combination of horizontal tridiagonal solutionss and
@@ -3189,6 +3278,9 @@
          nx, ny,             &  ! horizontal grid dimensions (for scalars);
                                 ! velocity grid has dimensions (nx-1,ny-1)
          nz                     ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
          active_vertex          ! T for columns (i,j) where velocity is computed, else F
@@ -3304,15 +3396,15 @@
     endif
 
     call setup_preconditioner_tridiag_local_2d(&
-         nx,           ny,             &
-         indxA_2d,                     &
-         itest, jtest, rtest,          &
-         Auu_vsum,     Avv_vsum,       &
-         Adiag_u,      Adiag_v,        &
-         Asubdiag_u,   Asubdiag_v,     &
-         Asupdiag_u,   Asupdiag_v,     &
-         omega_u,      omega_v,        &
-         denom_u,      denom_v)
+         nx,            ny,             &
+         parallel,      indxA_2d,       &
+         itest, jtest,  rtest,          &
+         Auu_vsum,      Avv_vsum,       &
+         Adiag_u,       Adiag_v,        &
+         Asubdiag_u,    Asubdiag_v,     &
+         Asupdiag_u,    Asupdiag_v,     &
+         omega_u,       omega_v,        &
+         denom_u,       denom_v)
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
@@ -3358,30 +3450,33 @@
 !****************************************************************************
 
   subroutine setup_preconditioner_tridiag_global_3d(&
-       nx,           ny,           &
-       nz,                         &
-       active_vertex,              &
-       indxA_2d,     indxA_3d,     &
-       ilocal,       jlocal,       &
-       itest, jtest, rtest,        &
-       Auu,          Avv,          &
-       Muu,          Mvv,          &
-       Adiag_u,      Adiag_v,      &
-       Asubdiag_u,   Asubdiag_v,   &
-       Asupdiag_u,   Asupdiag_v,   &
-       omega_u,      omega_v,      &
-       denom_u,      denom_v,      &
-       xuh_u,        xuh_v,        &
-       xlh_u,        xlh_v)
+       nx,            ny,            &
+       nz,            parallel,      &
+       active_vertex,                &
+       indxA_2d,      indxA_3d,      &
+       ilocal,        jlocal,        &
+       itest, jtest,  rtest,         &
+       Auu,           Avv,           &
+       Muu,           Mvv,           &
+       Adiag_u,       Adiag_v,       &
+       Asubdiag_u,    Asubdiag_v,    &
+       Asupdiag_u,    Asupdiag_v,    &
+       omega_u,       omega_v,       &
+       denom_u,       denom_v,       &
+       xuh_u,         xuh_v,         &
+       xlh_u,         xlh_v)
 
     ! Set up arrays for the local tridiagonal preconditioner.
     ! This preconditioner uses a combination of horizontal tridiagonal solutionss and
     !  vertical SIA solutions, so we compute arrays needed for both solutions.
 
     integer, intent(in) :: &
-         nx, ny,           &  ! horizontal grid dimensions (for scalars)
-                              ! velocity grid has dimensions (nx-1,ny-1)
-         nz                   ! number of vertical levels where velocity is computed
+         nx, ny,                &  ! horizontal grid dimensions (for scalars)
+                                   ! velocity grid has dimensions (nx-1,ny-1)
+         nz                        ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
          active_vertex          ! T for columns (i,j) where velocity is computed, else F
@@ -3408,7 +3503,7 @@
                               !         |
 
     real(dp), dimension(-1:1,nz,nx-1,ny-1), intent(out) ::   &
-       Muu, Mvv               ! preconditioning matrices based on shallow-ice approximation
+         Muu, Mvv               ! preconditioning matrices based on shallow-ice approximation
 
 
     real(dp), dimension(ilocal, jlocal), intent(out) :: &
@@ -3431,6 +3526,15 @@
 
     real(dp), dimension(:,:,:), allocatable :: &
          Auu_vsum, Avv_vsum          ! arrays to hold vertical sums of matrix elements
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
 
     if (verbose_pcg .and. main_task) then
        print*, 'Setting up global tridiagonal preconditioner'
@@ -3471,8 +3575,8 @@
 
     !WHL - debug
     do m = 1, 9
-       call staggered_parallel_halo(Auu_vsum(:,:,m))
-       call staggered_parallel_halo(Avv_vsum(:,:,m))
+       call staggered_parallel_halo(Auu_vsum(:,:,m), parallel)
+       call staggered_parallel_halo(Avv_vsum(:,:,m), parallel)
     enddo
 
     !WHL - debug
@@ -3662,15 +3766,15 @@
 
 !****************************************************************************
 
-  subroutine setup_preconditioner_tridiag_local_2d(nx,         ny,           &
-                                                   indxA_2d,                 &
-                                                   itest, jtest, rtest,      &
-                                                   Auu,        Avv,          &
-                                                   Adiag_u,    Adiag_v,      &
-                                                   Asubdiag_u, Asubdiag_v,   &
-                                                   Asupdiag_u, Asupdiag_v,   &
-                                                   omega_u,    omega_v,      &
-                                                   denom_u,    denom_v)
+  subroutine setup_preconditioner_tridiag_local_2d(nx,            ny,            &
+                                                   parallel,      indxA_2d,      &
+                                                   itest, jtest,  rtest,         &
+                                                   Auu,           Avv,           &
+                                                   Adiag_u,       Adiag_v,       &
+                                                   Asubdiag_u,    Asubdiag_v,    &
+                                                   Asupdiag_u,    Asupdiag_v,    &
+                                                   omega_u,       omega_v,       &
+                                                   denom_u,       denom_v)
 
     ! Set up some arrays that are used repeatedly for tridiagonal preconditioning
 
@@ -3681,6 +3785,9 @@
     integer, intent(in) :: &
          nx, ny                 ! horizontal grid dimensions (for scalars)
                                 ! velocity grid has dimensions (nx-1,ny-1)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest   ! coordinates of diagnostic point
 
@@ -3705,6 +3812,15 @@
          denom_u,    denom_v
 
     integer :: i, j
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
 
     if (verbose_pcg .and. main_task) then
        print*, 'Using local tridiagonal matrix for preconditioning'
@@ -3927,17 +4043,18 @@
 !****************************************************************************
 
   subroutine tridiag_solver_local_3d(&
-       nx,           ny,            &
-       nz,           active_vertex, &
-       itest, jtest, rtest,         &
-       Adiag_u,      Adiag_v,       &  ! tridiagonal entries of 3D matrix
-       Asubdiag_u,   Asubdiag_v,    &
-       Asupdiag_u,   Asupdiag_v,    &
-       omega_u,      omega_v,       &
-       denom_u,      denom_v,       &
-       Muu,          Mvv,           &  ! entries of SIA preconditioning matrix
-       ru,           rv,            &
-       zu,           zv)
+       nx,            ny,            &
+       nz,            parallel,      &
+       active_vertex,                &
+       itest, jtest,  rtest,         &
+       Adiag_u,       Adiag_v,       &  ! tridiagonal entries of 3D matrix
+       Asubdiag_u,    Asubdiag_v,    &
+       Asupdiag_u,    Asupdiag_v,    &
+       omega_u,       omega_v,       &
+       denom_u,       denom_v,       &
+       Muu,           Mvv,           &  ! entries of SIA preconditioning matrix
+       ru,            rv,            &
+       zu,            zv)
 
     ! Find the approximate solution of A*z = r, where A and r are the 3D matrix and rhs.
     ! This is done in several steps:
@@ -3949,9 +4066,12 @@
     ! Without the SIA adjustment (2), the preconditioning cannot generate solutions with vertical shear.
 
     integer, intent(in) :: &
-         nx, ny,             &  ! horizontal grid dimensions (for scalars);
-                                ! velocity grid has dimensions (nx-1,ny-1)
-         nz                     ! number of vertical levels where velocity is computed
+         nx, ny,                &  ! horizontal grid dimensions (for scalars);
+                                   ! velocity grid has dimensions (nx-1,ny-1)
+         nz                        ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
          active_vertex          ! T for columns (i,j) where velocity is computed, else F
@@ -4007,20 +4127,21 @@
 
     ! Solve A_2d*z_2d = r_2d
 
-    call tridiag_solver_local_2d(nx,           ny,         &
-                                 itest, jtest, rtest,      &
-                                 Adiag_u,      Adiag_v,    &  ! entries of 2D preconditioning matrix
-                                 Asubdiag_u,   Asubdiag_v, &
-                                 Asupdiag_u,   Asupdiag_v, &
-                                 omega_u,      omega_v,    &
-                                 denom_u,      denom_v,    &
-                                 ru_vsum,      rv_vsum,    &  ! right hand side, vertically integrated
-                                 zu_vsum,      zv_vsum)       ! solution to vertically integrated problem
+    call tridiag_solver_local_2d(nx,            ny,            &
+                                 parallel,                     &
+                                 itest, jtest,  rtest,         &
+                                 Adiag_u,       Adiag_v,       &  ! entries of 2D preconditioning matrix
+                                 Asubdiag_u,    Asubdiag_v,    &
+                                 Asupdiag_u,    Asupdiag_v,    &
+                                 omega_u,       omega_v,       &
+                                 denom_u,       denom_v,       &
+                                 ru_vsum,       rv_vsum,       &  ! right hand side, vertically integrated
+                                 zu_vsum,       zv_vsum)          ! solution to vertically integrated problem
 
     !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
     !TODO: See whether tridiag solvers could be modified to provide zu and zv in halo cells?
-    call staggered_parallel_halo(zu_vsum)
-    call staggered_parallel_halo(zv_vsum)
+    call staggered_parallel_halo(zu_vsum, parallel)
+    call staggered_parallel_halo(zv_vsum, parallel)
 
     ! Solve a tridiagonal problem for zu and zv in each problem, to account for vertical shear
 
@@ -4061,8 +4182,10 @@
 
   subroutine tridiag_solver_global_3d(&
        nx,              ny,              &
-       nz,              active_vertex,   &
+       nz,              parallel,        &
+       active_vertex,                    &
        ilocal,          jlocal,          &
+       tasks_row,       tasks_col,       &
        itest,  jtest,   rtest,           &
        Adiag_u,         Adiag_v,         &
        Asubdiag_u,      Asubdiag_v,      &
@@ -4087,15 +4210,19 @@
     ! Without the SIA adjustment (2), the preconditioning cannot generate solutions with vertical shear.
 
     integer, intent(in) :: &
-         nx, ny,             &  ! horizontal grid dimensions (for scalars);
-                                ! velocity grid has dimensions (nx-1,ny-1)
-         nz                     ! number of vertical levels where velocity is computed
+         nx, ny,                       &  ! horizontal grid dimensions (for scalars);
+                                          ! velocity grid has dimensions (nx-1,ny-1)
+         nz                               ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
          active_vertex          ! T for columns (i,j) where velocity is computed, else F
 
     integer, intent(in) :: &
-         ilocal, jlocal         ! size of input/output arrays; number of locally owned vertices in each direction
+         ilocal, jlocal,      & ! size of input/output arrays; number of locally owned vertices in each direction
+         tasks_row, tasks_col   ! number of tasks per row and column for tridiagonal solve
 
     integer, intent(in) :: &
          itest, jtest, rtest    ! coordinates of diagnostic point
@@ -4117,7 +4244,8 @@
     real(dp), dimension(8*tasks_row,jlocal), intent(inout) ::  &
          gather_data_row        ! array for gathering data from every task on a row
 
-    real(dp), dimension(8*tasks_row,ilocal), intent(inout) ::  &
+    !WHL - Earlier code version had 8*tasks_row here; pretty sure that was a bug
+    real(dp), dimension(8*tasks_col,ilocal), intent(inout) ::  &
          gather_data_col        ! array for gathering data from every task on a column
 
     logical, intent(in) :: &
@@ -4142,6 +4270,15 @@
 
     real(dp), dimension(jlocal, ilocal) ::  &
          b_v,     x_v           ! rhs and solution for tridiagonal solve, v component
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
 
     if (verbose_pcg .and. main_task) then
        print*, 'Applying global tridiagonal preconditioner'
@@ -4188,7 +4325,8 @@
     endif
 
     call tridiag_solver_global_2d(ilocal,       jlocal,      &
-                                  tasks_row,    'row',       &  ! tridiagonal solve for each row
+                                  parallel,     tasks_row,   &
+                                  'row',                     &  ! tridiagonal solve for each row
                                   itest - staggered_ilo + 1, &  ! itest referenced to (ilocal,jlocal) coordinates
                                   jtest - staggered_jlo + 1, &  ! jtest referenced to (ilocal,jlocal) coordinates
                                   rtest,                     &
@@ -4230,7 +4368,8 @@
     endif
 
     call tridiag_solver_global_2d(jlocal,       ilocal,      &
-                                  tasks_col,    'col',       &  ! tridiagonal solve for each row
+                                  parallel,     tasks_col,   &
+                                  'col',                     &  ! tridiagonal solve for each column
                                   jtest - staggered_jlo + 1, &  ! jtest referenced to (jlocal,ilocal) coordinates
                                   itest - staggered_ilo + 1, &  ! itest referenced to (jlocal,ilocal) coordinates
                                   rtest,                     &
@@ -4253,8 +4392,8 @@
 
     !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
     !TODO: See whether tridiag_solver_local_2d could be modified to provide zu and zv in halo cells?
-    call staggered_parallel_halo(zu_vsum)
-    call staggered_parallel_halo(zv_vsum)
+    call staggered_parallel_halo(zu_vsum, parallel)
+    call staggered_parallel_halo(zv_vsum, parallel)
 
     ! Solve a tridiagonal problem for zu and zv in each problem, to account for vertical shear
 
@@ -4296,20 +4435,24 @@
 
 !****************************************************************************
 
-  subroutine tridiag_solver_local_2d(nx,           ny,         &
-                                     itest, jtest, rtest,      &
-                                     Adiag_u,      Adiag_v,    &
-                                     Asubdiag_u,   Asubdiag_v, &
-                                     Asupdiag_u,   Asupdiag_v, &
-                                     omega_u,      omega_v,    &
-                                     denom_u,      denom_v,    &
-                                     bu,           bv,         &
-                                     xu,           xv)
+  subroutine tridiag_solver_local_2d(nx,            ny,            &
+                                     parallel,                     &
+                                     itest, jtest,  rtest,         &
+                                     Adiag_u,       Adiag_v,       &
+                                     Asubdiag_u,    Asubdiag_v,    &
+                                     Asupdiag_u,    Asupdiag_v,    &
+                                     omega_u,       omega_v,       &
+                                     denom_u,       denom_v,       &
+                                     bu,            bv,            &
+                                     xu,            xv)
 
     use glimmer_utils, only: tridiag
 
     integer, intent(in) :: &
-         nx, ny              ! horizontal grid dimensions (for scalars)
+         nx, ny                    ! horizontal grid dimensions (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest   ! diagnostic only
 
@@ -4332,6 +4475,15 @@
          gamma_u, gamma_v        ! work arrays
 
     integer :: i, j
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
 
     !-------------------------------------------------------------------------------------
     ! Solve a tridiagonal system of the form A*x = b.
@@ -4470,8 +4622,8 @@
 
 !****************************************************************************
 
-  subroutine tridiag_solver_global_2d(ilocal, jlocal,           &
-                                      tasks_rc,                 &
+  subroutine tridiag_solver_global_2d(ilocal,       jlocal,     &
+                                      parallel,     tasks_rc,   &
                                       tridiag_solver_flag,      &
                                       itest, jtest, rtest,      &
                                       Adiag,                    &
@@ -4482,9 +4634,15 @@
                                       first_time,   gather_data)
 
     use glimmer_utils, only: tridiag
+    use parallel_mod, only: distributed_gather_var_row, distributed_gather_var_col, &
+         distributed_gather_all_var_row, distributed_gather_all_var_col, &
+         distributed_scatter_var_row, distributed_scatter_var_col
 
     integer, intent(in) :: &
          ilocal, jlocal            ! size of input/output arrays; number of locally owned vertices in each direction
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
 
     character(len=3), intent(in) ::  &
          tridiag_solver_flag       ! either 'row' or 'col' depending on whether solving over rows or columns
@@ -4605,13 +4763,13 @@
     ! calling a subroutine twice as long with much duplicated logic.
 
     if (tridiag_solver_flag == 'row') then
-       comm_rc = comm_row
-       main_task_rc = main_task_row
-       this_rank_rc = this_rank_row
+       comm_rc = parallel%comm_row
+       main_task_rc = parallel%main_task_row
+       this_rank_rc = parallel%this_rank_row
     elseif (tridiag_solver_flag == 'col') then
-       comm_rc = comm_col
-       main_task_rc = main_task_col
-       this_rank_rc = this_rank_col
+       comm_rc = parallel%comm_col
+       main_task_rc = parallel%main_task_col
+       this_rank_rc = parallel%this_rank_col
     endif
 
     if (verbose_tridiag .and. main_task) then
@@ -4703,11 +4861,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_gather_row")
-             call distributed_gather_all_var_row(outdata, gather_data2)
+             call distributed_gather_all_var_row(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_gather_col")
-             call distributed_gather_all_var_col(outdata, gather_data2)
+             call distributed_gather_all_var_col(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_col")
           endif
 
@@ -4718,11 +4876,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_gather_row")
-             call distributed_gather_var_row(outdata, gather_data2)
+             call distributed_gather_var_row(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_gather_col")
-             call distributed_gather_var_col(outdata, gather_data2)
+             call distributed_gather_var_col(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_col")
           endif
 
@@ -4837,11 +4995,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_scatter_row")
-             call distributed_scatter_var_row(local_coeffs, global_coeffs)
+             call distributed_scatter_var_row(local_coeffs, global_coeffs, parallel)
              call t_stopf ("pcg_tridiag_scatter_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_scatter_col")
-             call distributed_scatter_var_col(local_coeffs, global_coeffs)
+             call distributed_scatter_var_col(local_coeffs, global_coeffs, parallel)
              call t_stopf ("pcg_tridiag_scatter_col")
           endif
 
@@ -4889,17 +5047,19 @@
 
 !****************************************************************************
 
-  subroutine global_sum_staggered_3d_real8(nx,     ny,         &
-                                           nz,     nhalo,      &
-                                           global_sum,         &
+  subroutine global_sum_staggered_3d_real8(nx,            ny,         &
+                                           nz,            parallel,   &
+                                           global_sum,                &
                                            work1,  work2)
 
      ! Sum one or two local arrays on the staggered grid, then take the global sum.
 
      integer, intent(in) :: &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nz,                 &  ! number of vertical layers at which velocity is computed
-       nhalo                  ! number of halo layers (for scalars)
+          nx, ny,             &  ! horizontal grid dimensions (for scalars)
+          nz                     ! number of vertical layers at which velocity is computed
+
+     type(parallel_type), intent(in) :: &
+          parallel               ! info for parallel communication
 
      real(dp), intent(out) :: global_sum   ! global sum
 
@@ -4908,6 +5068,15 @@
 
      integer :: i, j, k
      real(dp) :: local_sum
+
+     integer :: &
+          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+          staggered_jlo, staggered_jhi
+
+     staggered_ilo = parallel%staggered_ilo
+     staggered_ihi = parallel%staggered_ihi
+     staggered_jlo = parallel%staggered_jlo
+     staggered_jhi = parallel%staggered_jhi
 
      local_sum = 0.d0
 
@@ -4939,17 +5108,19 @@
 
 !****************************************************************************
 
-  subroutine global_sum_staggered_3d_real8_nvar(nx,     ny,           &
-                                                nz,     nhalo,        &
-                                                global_sum,           &
+  subroutine global_sum_staggered_3d_real8_nvar(nx,            ny,         &
+                                                nz,            parallel,   &
+                                                global_sum,                &
                                                 work1,  work2)
 
      ! Sum one or two local arrays on the staggered grid, then take the global sum.
 
      integer, intent(in) :: &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nz,                 &  ! number of vertical layers at which velocity is computed
-       nhalo                  ! number of halo layers (for scalars)
+       nx, ny,                &  ! horizontal grid dimensions (for scalars)
+       nz                        ! number of vertical layers at which velocity is computed
+
+     type(parallel_type), intent(in) :: &
+          parallel               ! info for parallel communication
 
      real(dp), intent(out), dimension(:) :: global_sum   ! global sum
 
@@ -4958,6 +5129,15 @@
 
      integer :: i, j, k, n, nvar
      real(dp), dimension(size(global_sum)) :: local_sum
+
+     integer :: &
+          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+          staggered_jlo, staggered_jhi
+
+     staggered_ilo = parallel%staggered_ilo
+     staggered_ihi = parallel%staggered_ihi
+     staggered_jlo = parallel%staggered_jlo
+     staggered_jhi = parallel%staggered_jhi
 
      nvar = size(global_sum)
 
@@ -4991,19 +5171,22 @@
 
      global_sum(:) = parallel_reduce_sum(local_sum(:))
 
-    end subroutine global_sum_staggered_3d_real8_nvar
+   end subroutine global_sum_staggered_3d_real8_nvar
 
 !****************************************************************************
 
-  subroutine global_sum_staggered_2d_real8(nx,     ny,            &
-                                           nhalo,  global_sum,    &
+  subroutine global_sum_staggered_2d_real8(nx,            ny,    &
+                                           parallel,             &
+                                           global_sum,           &
                                            work1,  work2)
 
      ! Sum one or two local arrays on the staggered grid, then take the global sum.
 
      integer, intent(in) :: &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nhalo                  ! number of halo layers (for scalars)
+       nx, ny                     ! horizontal grid dimensions (for scalars)
+
+      type(parallel_type), intent(in) :: &
+           parallel               ! info for parallel communication
 
      real(dp), intent(out) :: global_sum   ! global sum
 
@@ -5012,6 +5195,15 @@
 
      integer :: i, j
      real(dp) :: local_sum
+
+     integer :: &
+          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+          staggered_jlo, staggered_jhi
+
+     staggered_ilo = parallel%staggered_ilo
+     staggered_ihi = parallel%staggered_ihi
+     staggered_jlo = parallel%staggered_jlo
+     staggered_jhi = parallel%staggered_jhi
 
      local_sum = 0.d0
 
@@ -5039,68 +5231,81 @@
 
 !****************************************************************************
 
-  subroutine global_sum_staggered_2d_real8_nvar(nx,     ny,             &
-                                                nhalo,  global_sum,     &
-                                                work1,  work2)
+    subroutine global_sum_staggered_2d_real8_nvar(nx,            ny,            &
+                                                  parallel,                     &
+                                                  global_sum,                   &
+                                                  work1,  work2)
 
-     ! Sum one or two local arrays on the staggered grid, then take the global sum.
+      ! Sum one or two local arrays on the staggered grid, then take the global sum.
 
-     integer, intent(in) :: &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nhalo                  ! number of halo layers (for scalars)
+      integer, intent(in) :: &
+           nx, ny              ! horizontal grid dimensions (for scalars)
 
-     real(dp), intent(out), dimension(:) :: global_sum   ! global sum
+      type(parallel_type), intent(in) :: &
+           parallel               ! info for parallel communication
 
-     real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
-     real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+      real(dp), intent(out), dimension(:) :: &
+           global_sum          ! global sum
 
-     integer :: i, j, n, nvar
+      real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
+      real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
 
-     real(dp), dimension(size(global_sum)) :: local_sum
+      integer :: i, j, n, nvar
 
-     nvar = size(global_sum)
+      real(dp), dimension(size(global_sum)) :: local_sum
 
-     local_sum(:) = 0.d0
+      integer :: &
+           staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+           staggered_jlo, staggered_jhi
 
-     do n = 1, nvar
+      staggered_ilo = parallel%staggered_ilo
+      staggered_ihi = parallel%staggered_ihi
+      staggered_jlo = parallel%staggered_jlo
+      staggered_jhi = parallel%staggered_jhi
 
-        ! sum over locally owned velocity points
+      nvar = size(global_sum)
 
-        if (present(work2)) then
-           do j = staggered_jlo, staggered_jhi
-              do i = staggered_ilo, staggered_ihi
-                 local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
-              enddo
-           enddo
-        else
-           do j = staggered_jlo, staggered_jhi
-              do i = staggered_ilo, staggered_ihi
-                 local_sum(n) = local_sum(n) + work1(i,j,n)    
-              enddo
-           enddo
-        endif
+      local_sum(:) = 0.d0
 
-     enddo   ! nvar
+      do n = 1, nvar
 
-     !WHL - debug
+         ! sum over locally owned velocity points
+
+         if (present(work2)) then
+            do j = staggered_jlo, staggered_jhi
+               do i = staggered_ilo, staggered_ihi
+                  local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
+               enddo
+            enddo
+         else
+            do j = staggered_jlo, staggered_jhi
+               do i = staggered_ilo, staggered_ihi
+                  local_sum(n) = local_sum(n) + work1(i,j,n)
+               enddo
+            enddo
+         endif
+
+      enddo   ! nvar
+
+      !WHL - debug
 !     if (verbose_pcg .and. main_task) then
 !        print*, '   Call parallel_reduce_sum'
 !     endif
 
-     ! take the global sum
+      ! take the global sum
 
-     global_sum(:) = parallel_reduce_sum(local_sum(:))
+      global_sum(:) = parallel_reduce_sum(local_sum(:))
 
     end subroutine global_sum_staggered_2d_real8_nvar
 
 !****************************************************************************
 
-  subroutine matvec_multiply_structured_3d(nx,        ny,            &
-                                           nz,        nhalo,         &
-                                           indxA_3d,  active_vertex, &
-                                           Auu,       Auv,           &
-                                           Avu,       Avv,           &
-                                           xu,        xv,            &
+  subroutine matvec_multiply_structured_3d(nx,        ny,              &
+                                           nz,        parallel,        &
+                                           indxA_3d,  active_vertex,   &
+                                           Auu,       Auv,             &
+                                           Avu,       Avv,             &
+                                           xu,        xv,              &
                                            yu,        yv)
 
     !---------------------------------------------------------------
@@ -5122,32 +5327,33 @@
     !---------------------------------------------------------------
 
     integer, intent(in) :: &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nz,                 &  ! number of vertical layers at which velocity is computed
-       nhalo                  ! number of halo layers (for scalars)
+         nx, ny,             &  ! horizontal grid dimensions (for scalars)
+         nz                     ! number of vertical layers at which velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
     integer, dimension(-1:1,-1:1,-1:1), intent(in) :: &
-       indxA_3d               ! maps relative (x,y,z) coordinates to an index between 1 and 27
+         indxA_3d               ! maps relative (x,y,z) coordinates to an index between 1 and 27
     
     logical, dimension(nx-1,ny-1), intent(in) ::   &
-       active_vertex          ! T for columns (i,j) where velocity is computed, else F
+         active_vertex          ! T for columns (i,j) where velocity is computed, else F
 
     real(dp), dimension(27,nz,nx-1,ny-1), intent(in) ::   &
-       Auu, Auv, Avu, Avv     ! four components of assembled matrix
-                              ! 1st dimension = 27 (node and its nearest neighbors in x, y and z direction)
-                              ! other dimensions = (z,x,y) indices
-                              !
-                              !    Auu  | Auv
-                              !    _____|____
-                              !    Avu  | Avv
-                              !         |
+         Auu, Auv, Avu, Avv     ! four components of assembled matrix
+                                ! 1st dimension = 27 (node and its nearest neighbors in x, y and z direction)
+                                ! other dimensions = (z,x,y) indices
+                                !
+                                !    Auu  | Auv
+                                !    _____|____
+                                !    Avu  | Avv
+                                !         |
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::   &
-       xu, xv             ! current guess for solution
-
+         xu, xv             ! current guess for solution
 
     real(dp), dimension(nz,nx-1,ny-1), intent(out) ::  &
-       yu, yv             ! y = Ax
+         yu, yv             ! y = Ax
 
     !---------------------------------------------------------------
     ! local variables
@@ -5155,7 +5361,16 @@
 
     integer :: i, j, k, m
     integer :: iA, jA, kA
-    
+
+    integer :: &
+       staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+       staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
     ! Initialize the result vector.
 
     yu(:,:,:) = 0.d0
@@ -5213,13 +5428,13 @@
  
 !****************************************************************************
 
-  subroutine matvec_multiply_structured_2d(nx,        ny,            &
-                                           nhalo,                    &
-                                           indxA_2d,  active_vertex, &
-                                           Auu,       Auv,           &
-                                           Avu,       Avv,           &
-                                           xu,        xv,            &
-                                           yu,        yv)
+  subroutine matvec_multiply_structured_2d(nx,            ny,            &
+                                           parallel,                     &
+                                           indxA_2d,      active_vertex, &
+                                           Auu,           Auv,           &
+                                           Avu,           Avv,           &
+                                           xu,            xv,            &
+                                           yu,            yv)
 
     !---------------------------------------------------------------
     ! Compute the matrix-vector product $y = Ax$.
@@ -5240,31 +5455,33 @@
     !---------------------------------------------------------------
 
     integer, intent(in) :: &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nhalo                  ! number of halo layers (for scalars)
+         nx, ny                 ! horizontal grid dimensions (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
-       indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
+         indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
 
     logical, dimension(nx-1,ny-1), intent(in) ::   &
-       active_vertex          ! T for columns (i,j) where velocity is computed, else F
+         active_vertex          ! T for columns (i,j) where velocity is computed, else F
 
     real(dp), dimension(nx-1,ny-1,9), intent(in) ::   &
-       Auu, Auv, Avu, Avv     ! four components of assembled matrix
-                              ! first two dimensions = (x,y) indices
-                              ! 3rd dimension = 9 (node and its nearest neighbors in x and y directions)
-                              !
-                              !    Auu  | Auv
-                              !    _____|____
-                              !    Avu  | Avv
-                              !         |
+         Auu, Auv, Avu, Avv     ! four components of assembled matrix
+                                ! first two dimensions = (x,y) indices
+                                ! 3rd dimension = 9 (node and its nearest neighbors in x and y directions)
+                                !
+                                !    Auu  | Auv
+                                !    _____|____
+                                !    Avu  | Avv
+                                !           |
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
-       xu, xv             ! current guess for solution
+         xu, xv             ! current guess for solution
 
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
-       yu, yv             ! y = Ax
+         yu, yv             ! y = Ax
 
     !---------------------------------------------------------------
     ! local variables
@@ -5272,6 +5489,15 @@
 
     integer :: i, j, m
     integer :: iA, jA
+
+    integer :: &
+       staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+       staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
 
     ! Initialize the result vector.
 

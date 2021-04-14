@@ -40,7 +40,9 @@ module glissade_bmlt_float
   use glimmer_paramets, only: unphys_val
   use glimmer_log
   use glide_types
-  use parallel
+  use parallel_mod, only: this_rank, main_task, nhalo, &
+       parallel_type, parallel_halo, parallel_globalindex, &
+       parallel_reduce_sum, parallel_reduce_min, parallel_reduce_max
 
   implicit none
   
@@ -49,8 +51,8 @@ module glissade_bmlt_float
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
        basin_sum, basin_average
 
-!!    logical :: verbose_bmlt_float = .false.
-    logical :: verbose_bmlt_float = .true.
+    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -95,7 +97,7 @@ module glissade_bmlt_float
     logical, parameter :: cap_Dplume = .true.
 !!    logical, parameter :: cap_Dplume = .false.
 
-    !WHL - debug 
+    ! loop limits for debug diagnostics
     integer :: kmin_diag = 1
     integer :: kmax_diag = 1
 
@@ -104,6 +106,7 @@ module glissade_bmlt_float
 !****************************************************
 
   subroutine glissade_basal_melting_float(whichbmlt_float,              &
+                                          parallel,                     &
                                           ewn,         nsn,             &
                                           dew,         dns,             &
                                           itest,       jtest,    rtest, &
@@ -123,6 +126,9 @@ module glissade_bmlt_float
     !-----------------------------------------------------------------
 
     integer, intent(in) :: whichbmlt_float            ! method for computing melt rate of floating ice
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) ::  &
          ewn, nsn,             & ! grid dimensions
@@ -252,8 +258,10 @@ module glissade_bmlt_float
     ! - floating_mask = 1 where thck > 0 and ice is floating;
     ! - ocean_mask = 1 where topg is below sea level and ice is absent
     !Note: The '0.0d0' argument is thklim. Here, any ice with thck > 0 gets ice_mask = 1.
+    !TODO: Modify glissade_get_masks so that 'parallel' is not needed.
 
     call glissade_get_masks(ewn,           nsn,            &
+                            parallel,                      &
                             thck,          topg,           &
                             eus,           0.0d0,          &
                             ice_mask,                      &
@@ -576,10 +584,10 @@ module glissade_bmlt_float
 
        ! Note: The plume model expects floating_mask, T_ambient and S_ambient to be correct in halo cells.
        !       This is likely the case already, but do halo updates just in case.
-       
-       call parallel_halo(floating_mask)
-       call parallel_halo(T_ambient)
-       call parallel_halo(S_ambient)
+       ! TODO: Remove these halo updates?
+       call parallel_halo(floating_mask, parallel)
+       call parallel_halo(T_ambient, parallel)
+       call parallel_halo(S_ambient, parallel)
 
        ! If D_plume has already been computed, then convert from scaled units to meters
        if (.not. first_call) then
@@ -592,6 +600,7 @@ module glissade_bmlt_float
        
        call glissade_plume_melt_rate(&
             first_call,                         &
+            parallel,                           &
             ewn,              nsn,              &
             dew,              dns,              &
             x1,                                 &
@@ -653,8 +662,11 @@ module glissade_bmlt_float
 
     real(dp) :: tf_baseline_max    ! global max value of thermal_forcing_baseline
 
-    !WHL - debug
     logical :: simple_init = .false.
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    parallel = model%parallel
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -807,9 +819,9 @@ module glissade_bmlt_float
           endif  ! verbose_bmlt_float
 
           ! Fill halos (might not be needed)
-
-          call parallel_halo(ocean_data%basin_number)
-          call parallel_halo(ocean_data%thermal_forcing)
+          ! TODO: Remove these halo updates?
+          call parallel_halo(ocean_data%basin_number, parallel)
+          call parallel_halo(ocean_data%thermal_forcing, parallel)
 
          ! Compute the melt rate associated with the baseline thermal forcing and initial lower ice surface (lsrf).
          ! This melt rate can be subtracted from the runtime melt rate to give a runtime anomaly.
@@ -818,9 +830,10 @@ module glissade_bmlt_float
           if (verbose_bmlt_float .and. main_task) print*, 'Compute baseline bmlt_float at initialization'
 
           ! Compute some masks
-
+          !TODO: Modify glissade_get_masks so that 'parallel' is not needed
           call glissade_get_masks(&
-               ewn,                 nsn,     &
+               ewn,                 nsn,                   &
+               parallel,                                   &
                model%geometry%thck, model%geometry%topg,   &
                model%climate%eus,   0.0d0,                 &  ! thklim = 0
                ice_mask,                                   &
@@ -831,6 +844,7 @@ module glissade_bmlt_float
           call glissade_bmlt_float_thermal_forcing(&
                model%options%bmlt_float_thermal_forcing_param,   &
                model%options%ocean_data_domain,                  &
+               parallel,                                         &
                ewn,                     nsn,                     &
                model%numerics%dew*len0, model%numerics%dew*len0, &  ! m
                itest,     jtest,   rtest,                &
@@ -867,6 +881,7 @@ module glissade_bmlt_float
 
              call basin_number_extrapolate(&
                   ewn,             nsn,     &
+                  parallel,                 &
                   model%ocean_data%nbasin,  &
                   model%ocean_data%basin_number)
 
@@ -883,6 +898,7 @@ module glissade_bmlt_float
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
        ocean_data_domain,         &
+       parallel,                  &
        nx,        ny,             &
        dew,       dns,            &
        itest,     jtest,   rtest, &
@@ -908,6 +924,9 @@ module glissade_bmlt_float
          bmlt_float_thermal_forcing_param, & !> melting parameterization used to derive melt rate from thermal forcing;
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
          ocean_data_domain                   !> = 0 if TF is provided on ocean domain only; = 1 if extrapolated under ice
+
+    type(parallel_type), intent(in) :: &
+         parallel                            !> info for parallel communication
 
     integer, intent(in) :: &
          nx, ny                              !> number of grid cells in each direction
@@ -955,6 +974,9 @@ module glissade_bmlt_float
     ! local variables
 
     integer :: i, j, k, nb
+    integer :: iglobal, jglobal
+
+    character(len=256) :: message
 
     ! Note: thermal_forcing_mask is similar but not identical to floating_mask.
     !       * floating_mask = 1 where ice is present, and thck satisfies a flotation condition
@@ -1007,7 +1029,7 @@ module glissade_bmlt_float
     bmlt_float = 0.0d0
 
     ! Make sure thermal_forcing is up to date in halo cells.
-    call parallel_halo(ocean_data%thermal_forcing)
+    call parallel_halo(ocean_data%thermal_forcing, parallel)
 
     !WHL - Commented out the code below because this subroutine no longer uses ocean_mask to compute marine_connection_mask.
     !      If CISM mis-identifies landlocked fjord cells as marine-connected, when there is no
@@ -1070,7 +1092,7 @@ module glissade_bmlt_float
     enddo
 
     thermal_forcing_mask = new_mask
-    call parallel_halo(thermal_forcing_mask)
+    call parallel_halo(thermal_forcing_mask, parallel)
 
     !-----------------------------------------------
     ! If thermal forcing data is provided only over the ocean domain,
@@ -1148,6 +1170,7 @@ module glissade_bmlt_float
  
        call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
+            parallel,                          &
             itest,     jtest,     rtest,       &
             ocean_data%nzocn,                  &
             ocean_data%zocn,                   &  ! m
@@ -1221,6 +1244,22 @@ module glissade_bmlt_float
          lsrf,                               &
          thermal_forcing_in,                 &
          ocean_data%thermal_forcing_lsrf)
+
+    ! Bug check: Make sure there are no negative values of thermal forcing.
+    !            This could happen if the data set contains negative special values
+    !             that are not overwritten with realistic values in cavities.
+    !TODO - Remove this bug check if the ocean can realistically have TF < 0.
+    do j = 1, ny
+       do i = 1, nx
+          if (ocean_data%thermal_forcing_lsrf(i,j) < 0.0d0) then
+             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+             write(message,*) &
+                  'Ocean thermal forcing error: negative TF at level k, i, j, lsrf, TF =', &
+                  k, iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+    enddo
 
     if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
@@ -1416,6 +1455,8 @@ module glissade_bmlt_float
                                     theta_slope,      &  ! radians
                                     slope_mask_in = ice_mask)
 
+          call parallel_halo(theta_slope, parallel)
+
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
              print*, 'sin(theta_slope)'
@@ -1481,6 +1522,7 @@ module glissade_bmlt_float
 
   subroutine glissade_thermal_forcing_extrapolate(&
        nx,              ny,                    &
+       parallel,                               &
        itest,           jtest,        rtest,   &
        nzocn,           zocn,                  &
        lsrf,            topg,                  &
@@ -1513,6 +1555,9 @@ module glissade_bmlt_float
          nx, ny,               & ! grid dimensions
          itest, jtest, rtest,  & ! coordinates of diagnostic point
          nzocn                   ! number of ocean levels
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     real(dp), dimension(nzocn), intent(in) :: &
          zocn                    ! ocean levels (m, negative below sea level)
@@ -1631,8 +1676,9 @@ module glissade_bmlt_float
        enddo   ! i
     enddo   ! j
 
-    call parallel_halo(ktop)
-    call parallel_halo(kbot)
+    !TODO - Are these halo updates needed?
+    call parallel_halo(ktop, parallel)
+    call parallel_halo(kbot, parallel)
 
     if (verbose_bmlt_float .and. this_rank == rtest) then
        print*, ' ' 
@@ -1661,7 +1707,7 @@ module glissade_bmlt_float
     !  on an 8 km grid (to reach the farthest corners of the Ross Ice Shelf), with
     !  counts doubling for each halving of grid size.
 
-    max_iter = max(ewtasks, nstasks) * max(nx-2*nhalo, ny-2*nhalo)
+    max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
 
     ! Extrapolate the data horizontally.
 
@@ -1863,7 +1909,7 @@ module glissade_bmlt_float
           enddo   ! i
        enddo  ! j
 
-       call parallel_halo(thermal_forcing)
+       call parallel_halo(thermal_forcing, parallel)
 
        ! Every several iterations, count the total number of filled cells/levels in the global domain.
        ! If this number has not increased since the previous iteration, then exit the loop.
@@ -1922,7 +1968,7 @@ module glissade_bmlt_float
           if (thermal_forcing_mask(i,j) == 1) then
              do k = ktop(i,j), kbot(i,j)
                 if (thermal_forcing(k,i,j) == unphys_val) then
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'i, j, ktop, kbot =', i, j, ktop(i,j), kbot(i,j)
                    write(message,*) &
                         'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
@@ -1983,8 +2029,6 @@ module glissade_bmlt_float
     integer :: iglobal, jglobal
     real(dp) :: dtf, dzocn, dzice  ! terms used in linear interpolation
 
-    character(len=256) :: message
-
     ! Compute the thermal forcing at the lower ice surface.
     ! Above the top ocean level, use the TF value at the top level.
     ! Below the bottom ocean level, use the TF value at the bottom level.
@@ -2012,22 +2056,6 @@ module glissade_bmlt_float
              thermal_forcing_lsrf(i,j) = 0.0d0
           endif
 
-       enddo
-    enddo
-
-    ! Bug check: Make sure there are no negative values of thermal forcing.
-    !            This could happen if the data set contains negative special values
-    !             that are not overwritten with realistic values in cavities.
-    !TODO - Remove this bug check if the ocean can realistically have TF < 0.
-    do j = 1, ny
-       do i = 1, nx
-          if (thermal_forcing_lsrf(i,j) < 0.0d0) then
-             call parallel_globalindex(i, j, iglobal, jglobal)
-             write(message,*) &
-                  'Ocean thermal forcing error: negative TF at level k, i, j, lsrf, TF =', &
-                  k, iglobal, jglobal, lsrf(i,j), thermal_forcing_lsrf(i,j)
-             call write_log(message, GM_FATAL)
-          endif
        enddo
     enddo
 
@@ -2347,11 +2375,15 @@ module glissade_bmlt_float
 
   subroutine basin_number_extrapolate(&
            nx,         ny,  &
+           parallel,        &
            nbasin,          &
            basin_number)
 
     integer, intent(in) :: &
          nx, ny                     !> number of grid cells in each direction
+
+    type(parallel_type), intent(in) :: &
+         parallel                   !> info for parallel communication
 
     integer, intent(in) :: &
          nbasin                     !> number of basins
@@ -2396,16 +2428,16 @@ module glissade_bmlt_float
     enddo
 
     global_count_save = parallel_reduce_sum(local_count)
-    call parallel_halo(valid_mask)
 
-    call parallel_halo(basin_number)
+    call parallel_halo(valid_mask, parallel)
+    call parallel_halo(basin_number, parallel)
 
     ! Compute the maximum number of iterations.
     ! In the worst case, the initial field is filled only at one corner of the global domain and
     !  must be extrapolated to the opposite corner, one cell at a time.
     ! Halo updates after each iteration communicate valid values to neighboring tasks.
 
-    max_iter = max(ewtasks, nstasks) * max(nx-2*nhalo, ny-2*nhalo)
+    max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
 
     if (verbose_basin_number .and. main_task) then
        print*, 'Extrapolating basin numbers to cells with invalid values'
@@ -2437,7 +2469,7 @@ module glissade_bmlt_float
        enddo
 
        basin_number = basin_number_new
-       call parallel_halo(basin_number)
+       call parallel_halo(basin_number, parallel)
 
        ! Count the number of valid values and recompute the mask
 
@@ -2454,7 +2486,7 @@ module glissade_bmlt_float
        enddo
 
        global_count = parallel_reduce_sum(local_count)
-       call parallel_halo(valid_mask)
+       call parallel_halo(valid_mask, parallel)
 
        if (verbose_basin_number .and. main_task) then
           print*, iter, 'Basin number count =', global_count
@@ -2482,6 +2514,7 @@ module glissade_bmlt_float
 
   subroutine glissade_plume_melt_rate(&
        first_call,                      &
+       parallel,                        &
        nx,               ny,            &
        dx,               dy,            &
        x1,                              &
@@ -2516,6 +2549,9 @@ module glissade_bmlt_float
     logical, intent (in) :: &
          first_call             ! if true, then use simple initial conditions to start the plume calculation
                                 ! if false, then start from the input values of T_plume, S_plume and D_plume
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
     integer, intent(in) ::  &
          nx,     ny             ! number of grid cells in each dimension
@@ -2667,13 +2703,6 @@ module glissade_bmlt_float
          global_bndy_north,   & ! = 1 along north global boundary, else = 0
          global_bndy_south      ! = 1 along south global boundary, else = 0
 
-    !TODO - Are these work masks needed?
-    integer, dimension(nx,ny) :: &
-         ice_mask_work          ! work mask on ice grid
-
-    integer, dimension(nx-1,ny-1) :: &
-         velo_mask_work         ! work mask on velocity grid
-
     real(dp) :: &
          lsrf_min                         ! global min value of lsrf (m)
 
@@ -2776,11 +2805,6 @@ module glissade_bmlt_float
     ! Initialize some fields that are held fixed during the iteration
     !----------------------------------------------------------------      
 
-    ! set work masks to 1 everywhere
-    ! These are inputs to glissade_stagger and glissade_unstagger
-    ice_mask_work(:,:) = 1
-    velo_mask_work(:,:) = 1
-
     !WHL - debug
     ! Calve thin floating ice if necessary.  Generally, this should be done by CISM's calving solver.
     !TODO - If uncommenting these lines, then thck and lsrf must be intent(inout)
@@ -2866,7 +2890,7 @@ module glissade_bmlt_float
        enddo
     enddo
 
-    call parallel_halo(plume_mask_cell)
+    call parallel_halo(plume_mask_cell, parallel)
 
     ! Mask out the plume in halo cells that lie outside the global domain.
     ! Also, identify global boundary cells for later use.
@@ -2881,17 +2905,17 @@ module glissade_bmlt_float
     do j = 1, ny
        do i = 1, nx
 
-          call parallel_globalindex(i, j, iglobal, jglobal)
+          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 
-          if (iglobal < 1 .or. iglobal > global_ewn .or. &
-              jglobal < 1 .or. jglobal > global_nsn) then
+          if (iglobal < 1 .or. iglobal > parallel%global_ewn .or. &
+              jglobal < 1 .or. jglobal > parallel%global_nsn) then
              plume_mask_cell(i,j) = 0
           endif
 
           if (iglobal == 1) global_bndy_west(i,j) = 1
-          if (iglobal == global_ewn) global_bndy_east(i,j) = 1
+          if (iglobal == parallel%global_ewn) global_bndy_east(i,j) = 1
           if (jglobal == 1) global_bndy_south(i,j) = 1
-          if (jglobal == global_nsn) global_bndy_north(i,j) = 1
+          if (jglobal == parallel%global_nsn) global_bndy_north(i,j) = 1
 
        enddo
     enddo
@@ -2925,8 +2949,8 @@ module glissade_bmlt_float
        enddo
     enddo
 
-    call parallel_halo(edge_mask_east)
-    call parallel_halo(edge_mask_north)
+    call parallel_halo(edge_mask_east, parallel)
+    call parallel_halo(edge_mask_north, parallel)
 
     ! Mask out edge_mask_east and edge_mask_north at edges along or outside the global domain.
     ! Note: The west and east borders have iglobal indices 0 and global_ewn, respectively.
@@ -2936,15 +2960,15 @@ module glissade_bmlt_float
     do j = 1, ny
        do i = 1, nx
 
-          call parallel_globalindex(i, j, iglobal, jglobal)
+          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 
-          if (iglobal <= 0 .or. iglobal >= global_ewn .or. &  ! along or beyond EW boundary
-              jglobal <= 0 .or. jglobal >  global_nsn) then   ! beyond NS boundary
+          if (iglobal <= 0 .or. iglobal >= parallel%global_ewn .or. &  ! along or beyond EW boundary
+              jglobal <= 0 .or. jglobal >  parallel%global_nsn) then   ! beyond NS boundary
              edge_mask_east(i,j) = 0
           endif
 
-          if (jglobal <= 0 .or. jglobal >= global_nsn .or. &  ! along or beyond NS boundary
-              iglobal <= 0 .or. iglobal >  global_ewn) then   ! beyond EW boundary
+          if (jglobal <= 0 .or. jglobal >= parallel%global_nsn .or. &  ! along or beyond NS boundary
+              iglobal <= 0 .or. iglobal >  parallel%global_ewn) then   ! beyond EW boundary
              edge_mask_north(i,j) = 0
           endif
 
@@ -3072,7 +3096,7 @@ module glissade_bmlt_float
     enddo
 
     ! is this call needed?
-    call parallel_halo(theta_slope)
+    call parallel_halo(theta_slope, parallel)
 
     print*, ' '
     print*, 'plume_mask_cell, rank =', rtest
@@ -3618,7 +3642,7 @@ module glissade_bmlt_float
                D_plume)
 
           ! halo updates
-          call parallel_halo(D_plume)
+          call parallel_halo(D_plume, parallel)
 
           !WHL - some temporary diagnostics
           if (verbose_continuity) then
@@ -3765,8 +3789,8 @@ module glissade_bmlt_float
                bmlt_float)
 
           ! halo updates
-          call parallel_halo(T_plume)
-          call parallel_halo(S_plume)
+          call parallel_halo(T_plume, parallel)
+          call parallel_halo(S_plume, parallel)
 
           if (verbose_melt) then
 

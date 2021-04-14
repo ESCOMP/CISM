@@ -38,7 +38,6 @@ contains
 
 subroutine cism_init_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -50,14 +49,13 @@ subroutine cism_init_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
-
-  use cism_external_dycore_interface
-
-!  use glimmer_to_dycore
-
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
+  use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
+!  use glimmer_to_dycore
+
+  use cism_external_dycore_interface
 
   implicit none
 
@@ -82,7 +80,9 @@ subroutine cism_init_dycore(model)
   ! DMR -- open_log call commented out, since called in gci_init_interface()
   ! start logging
   ! call open_log(unit=50, fname=logname(commandline_configname))
-  
+  ! Note: In principle, the standalone CISM driver could support multiple ice sheet instances.
+  !       At least for now, assume that there is only one instance, with one config file.
+
   ! setup paths
   call filenames_init(commandline_configname)
 
@@ -237,7 +237,6 @@ end subroutine cism_init_dycore
 
 subroutine cism_run_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -248,12 +247,12 @@ subroutine cism_run_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
-
-  use cism_external_dycore_interface
-  
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use glimmer_paramets, only: thk0
+  use profile, only: t_startf, t_stopf
+
+  use cism_external_dycore_interface
 
   implicit none
 
@@ -394,22 +393,20 @@ end subroutine cism_run_dycore
 
 subroutine cism_finalize_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
-  use glissade
   use glimmer_log
   use glimmer_config
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
+  use glide_stop, only: glide_finalise
+  use glide_diagnostics
+  use profile, only: t_startf, t_stopf
 
   use cism_external_dycore_interface
   
-  use glide_stop, only: glide_finalise
-  use glide_diagnostics
-
   implicit none
 
   type(glide_global_type) :: model        ! model instance

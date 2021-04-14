@@ -41,10 +41,12 @@ module glint_commandline
 
   implicit none
 
-  character(len=5000)         :: commandline_history     !< complete command line
-  character(len=fname_length) :: commandline_configname  !< name of the configuration file
-  character(len=fname_length) :: commandline_resultsname !< name of results file
-  character(len=fname_length) :: commandline_climatename !< name of climate configuration file
+  character(len=5000)         :: commandline_history            !< complete command line
+  character(len=fname_length), dimension(:), allocatable :: &
+                                 commandline_configname         !< name of ice sheet configuration file(s)
+  character(len=fname_length) :: commandline_configname_scalar  !< configuration filenames, concatenated into a single string
+  character(len=fname_length) :: commandline_resultsname        !< name of results file
+  character(len=fname_length) :: commandline_climatename        !< name of climate configuration file
 
 contains
 
@@ -52,11 +54,23 @@ contains
   !!
   !! \author Magnus Hagdorn
   !! \date April 2009
+  !! Modified by William Lipscomb, March 2021, to allow multiple ice sheet instances,
+  !!  each with its own config file.
+  !! The command line should be of the form:
+  !! > ./cism_driver icesheet1.config icesheet2.config climate.config
+  !! There can be any number of ice sheet config files, followed by a climate config file that is listed last.
+  !! Note: Although Glint supports multiple ice sheet instances (plus a climate file) on the command line,
+  !!       Glimmer supports only a single instance (without a climate file).
+
   subroutine glint_GetCommandline()
+
+    use parallel_mod, only: main_task
     implicit none
 
-    integer numargs,nfiles
+    integer :: numargs, nfiles
     integer :: i
+    integer :: num_icesheet_config  ! number of ice sheet config files
+
 #ifndef HAVE_2003ARGS
     integer, external :: iargc
 #endif
@@ -68,15 +82,17 @@ contains
 
     ! get number of arguments and file names
     numargs = NARGS
+
     ! reconstruct command line to store commandline_history
     call GETARG(0,commandline_history)
-    do i=1,numargs
+
+    do i = 1,numargs
        call GETARG(i,argument)
        commandline_history = trim(commandline_history)//" "//trim(argument)
     end do
     
     if (numargs > 0) then
-       i=0
+       i = 0
        nfiles = 0
        ! loop over command line arguments
        do while (i < numargs)
@@ -89,7 +105,7 @@ contains
                 call glint_commandlineHelp()
                 stop
              case ('-r')
-                i = i+1
+                i = i + 1
                 if (i > numargs) then
                    write(*,*) 'Error, expect name of output file to follow -o option'
                    call glint_commandlineHelp()
@@ -97,7 +113,7 @@ contains
                 end if
                 call GETARG(i,commandline_resultsname)
              case default
-                write(*,*) 'Unkown option ',trim(argument)
+                write(*,*) 'Unknown option ',trim(argument)
                 call glint_commandlineHelp()
                 stop
              end select
@@ -107,12 +123,19 @@ contains
              argumentIdx(nfiles) = i
           end if
        end do
-       if (numargs >= 1) then
-          call GETARG(1,commandline_configname)
-          if (numargs > 1) then
-             ! call GETARG(1,commandline_configname)
-             call GETARG(2,commandline_climatename)
-          endif
+
+       if (numargs == 1) then      ! one ice sheet config file, no climate config file
+          if (.not.allocated(commandline_configname)) &
+               allocate(commandline_configname(1))
+          call GETARG(i,commandline_configname(1))
+       elseif (numargs > 1) then  ! one or more ice sheet config files, plus a climate config file
+          if (.not.allocated(commandline_configname)) &
+               allocate(commandline_configname(numargs-1))
+          do i = 1, numargs-1
+             call GETARG(i,commandline_configname(i))
+          enddo
+          ! assume the climate config file is listed last
+          call GETARG(numargs,commandline_climatename)
        else
           write(*,*) 'Need at least one argument'
           call glint_commandlineHelp()
@@ -121,24 +144,40 @@ contains
     else
        write(*,*) 'Enter name of climate configuration file'
        read(*,'(a)') commandline_climatename
-       write(*,*) 'Enter name of GLIDE configuration file to be read'
+       !TODO - Modify to allow > 1 ice sheet config files??
+       write(*,*) 'Enter name of ice sheet configuration file to be read'
+       allocate(commandline_configname(1))
        read(*,'(a)') commandline_configname
     end if
+
+    ! If running multiple instances, concatenate the ice sheet config names into a single string
+    commandline_configname_scalar = trim(commandline_configname(1))
+    num_icesheet_config = size(commandline_configname)
+    if (num_icesheet_config > 1) then
+       do i = 2, num_icesheet_config
+          commandline_configname_scalar = trim(commandline_configname_scalar)//' '//trim(commandline_configname(i))
+       enddo
+    endif
+
   end subroutine glint_GetCommandline
 
   !> print out command line
   !!
   !! \author Magnus Hagdorn
   !! \date April 2009
+  !! Modified by William Lipscomb, March 2021
   subroutine glint_PrintCommandline()
+
     implicit none
+    integer :: i
 
     write(*,*) 'Entire commandline'
     write(*,*) trim(commandline_history)
     write(*,*)
-    write(*,*) 'commandline_climatename: ',trim(commandline_climatename)
-    write(*,*) 'commandline_configname:  ', trim(commandline_configname)
-    write(*,*) 'commandline_resultsname: ', trim(commandline_resultsname)
+    write(*,*) 'commandline_climatename:   ', trim(commandline_climatename)
+    write(*,*) 'commandline_configname(s): ', trim(commandline_configname_scalar)
+    write(*,*) 'commandline_resultsname:   ', trim(commandline_resultsname)
+
   end subroutine glint_PrintCommandline
 
   !> print help message
@@ -156,5 +195,6 @@ contains
     write(*,*) '  -h:          this message'
     write(*,*) '  -r <fname>:  the name of the results file (default: results)'
   end subroutine glint_commandlineHelp
+
 end module glint_commandline
 

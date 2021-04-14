@@ -35,7 +35,9 @@ module glide_diagnostics
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use parallel
+  use parallel_mod, only: this_rank, main_task, lhalo, uhalo, &
+       parallel_type, broadcast, parallel_localindex, parallel_globalindex, &
+       parallel_reduce_sum, parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc
 
   implicit none
 
@@ -119,7 +121,7 @@ contains
 
     call parallel_localindex(model%numerics%idiag,       model%numerics%jdiag,       &
                              model%numerics%idiag_local, model%numerics%jdiag_local, &
-                             model%numerics%rdiag_local)
+                             model%numerics%rdiag_local, model%parallel)
 
     !WHL - debug
     if (main_task) then
@@ -154,8 +156,6 @@ contains
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
  
-    use parallel
-
     use glimmer_paramets, only: thk0, len0, vel0, tim0, unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
  
@@ -246,6 +246,9 @@ contains
        eps = 1.0d-11,         & ! small number
        eps_thck = 1.0d-11       ! threshold thickness (m) for writing diagnostics
 
+    type(parallel_type) :: parallel       ! info for parallel communication
+
+    parallel = model%parallel
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
@@ -688,8 +691,8 @@ contains
     jmax_global = 0
     max_thck_global = parallel_reduce_max(max_thck)
     if (max_thck == max_thck_global) then  ! max_thck lives on this processor
-       imax_global = (imax - lhalo) + global_col_offset
-       jmax_global = (jmax - lhalo) + global_row_offset
+       imax_global = (imax - lhalo) + parallel%global_col_offset
+       jmax_global = (jmax - lhalo) + parallel%global_row_offset
     endif
     imax_global = parallel_reduce_max(imax_global)
     jmax_global = parallel_reduce_max(jmax_global)
@@ -723,11 +726,11 @@ contains
     enddo
 
     call parallel_reduce_maxloc(xin=max_temp, xout=max_temp_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
     kmax_global = kmax
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
-    call broadcast(kmax_global, procnum)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+    call broadcast(kmax_global, proc = procnum)
 
     write(message,'(a25,f24.16,3i6)') 'Max temperature, i, j, k ',   &
                     max_temp_global, imax_global, jmax_global, kmax_global
@@ -755,11 +758,11 @@ contains
     enddo
 
     call parallel_reduce_minloc(xin=min_temp, xout=min_temp_global, xprocout=procnum)
-    call parallel_globalindex(imin, jmin, imin_global, jmin_global)
+    call parallel_globalindex(imin, jmin, imin_global, jmin_global, parallel)
     kmin_global = kmin
-    call broadcast(imin_global, procnum)
-    call broadcast(jmin_global, procnum)
-    call broadcast(kmin_global, procnum)
+    call broadcast(imin_global, proc = procnum)
+    call broadcast(jmin_global, proc = procnum)
+    call broadcast(kmin_global, proc = procnum)
 
     write(message,'(a25,f24.16,3i6)') 'Min temperature, i, j, k ',   &
                     min_temp_global, imin_global, jmin_global, kmin_global
@@ -781,13 +784,17 @@ contains
     enddo
 
     call parallel_reduce_maxloc(xin=max_bmlt, xout=max_bmlt_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global)
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
 
-    write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/yr), i, j    ',   &
-                    max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+    ! Write to diagnostics only if nonzero
+
+    if (abs(max_bmlt_global*thk0*scyr/tim0) > eps) then
+       write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/yr), i, j    ',   &
+            max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
 
     ! max surface speed
     imax = 0
@@ -807,9 +814,9 @@ contains
     enddo
 
     call parallel_reduce_maxloc(xin=max_spd_sfc, xout=max_spd_sfc_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global)
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
 
     write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/yr), i, j ',   &
                     max_spd_sfc_global*vel0*scyr, imax_global, jmax_global
@@ -833,10 +840,9 @@ contains
     enddo
 
     call parallel_reduce_maxloc(xin=max_spd_bas, xout=max_spd_bas_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global)
-    call broadcast(imax_global, procnum)
-    call broadcast(jmax_global, procnum)
-
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
     write(message,'(a25,f24.16,2i6)') 'Max base spd (m/yr), i, j',   &
                     max_spd_bas_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)

@@ -59,8 +59,11 @@ module glissade
   use glide_io
   use glide_lithot
   use glimmer_config
-  use glissade_test, only: glissade_test_halo, glissade_test_transport
+  use glissade_test, only: &
+       glissade_test_halo, glissade_test_transport, glissade_test_comm_row_col
   use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
+  use profile, only: t_startf, t_stopf
+  use parallel_mod, only: this_rank, main_task, comm, nhalo
 
   implicit none
 
@@ -68,12 +71,10 @@ module glissade
   logical, parameter :: verbose_glissade = .false.
 
   ! Change any of the following logical parameters to true to carry out simple tests
-  logical, parameter :: test_transport = .false.   ! if true, call test_transport subroutine
-  real(dp), parameter :: thk_init = 500.d0         ! initial thickness (m) for test_transport
-  logical, parameter :: test_halo = .false.        ! if true, call test_halo subroutine
-
-  real(dp), parameter :: eps08 = 1.0d-8   ! small number
-  real(dp), parameter :: eps11 = 1.0d-11  ! small number
+  logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
+  real(dp), parameter :: thk_init = 500.d0          ! initial thickness (m) for test_transport
+  logical, parameter :: test_halo = .false.         ! if true, call test_halo subroutine
+  logical, parameter :: test_comm_row_col = .false. ! if true, test the row and column communicators
 
 contains
 
@@ -87,7 +88,12 @@ contains
 
     ! initialise Glissade model instance
 
-    use parallel
+    use parallel_mod, only: parallel_type, distributed_gather_var,  &
+         distributed_grid, distributed_grid_active_blocks,  &
+         parallel_halo, parallel_halo_extrapolate, parallel_reduce_max, &
+         staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
+         parallel_create_comm_row, parallel_create_comm_col, not_parallel
+
     use glide_stop, only: register_model
     use glide_setup
     use glimmer_ncio
@@ -97,8 +103,10 @@ contains
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
+    use glimmer_paramets, only: eps11, thk0, len0, tim0
+    use glimmer_physcon, only: rhow, rhoi
     use glide_mask
-    use isostasy
+    use isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
@@ -107,14 +115,11 @@ contains
     use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
-    use glimmer_paramets, only: thk0, len0, tim0
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: &
          glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
     use glissade_utils, only: glissade_stdev
     use felix_dycore_interface, only: felix_velo_init
-    !WHL - debug
-    use mpi_mod
 
     implicit none
 
@@ -153,19 +158,17 @@ contains
 
     integer :: itest, jtest, rtest
     integer :: status, varid
-    type(glimmer_nc_input), pointer :: infile
 
-    !WHL - debug
-    integer :: ierror
-    real(dp), dimension(:,:), allocatable :: test_array
-    real(dp), dimension(:,:), allocatable :: global_test_array
-    logical, parameter :: test_comm_row_col = .false.
+    type(glimmer_nc_input), pointer :: infile
+    type(parallel_type) :: parallel   ! info for parallel communication
 
     !WHL - added for optional topg_stdev calculations
     logical, parameter :: compute_topg_stdev = .false.
     real(dp), dimension(:,:), allocatable :: topg_global, topg_stdev_global
     integer, parameter :: grid_ratio = 8   ! ratio between no. of grid cells on the input grid and
                                            ! the grid on which we want to compute topg_stdev; typically 2, 4, or 8
+
+    if (main_task) print*, 'In glissade_initialise'
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -208,14 +211,21 @@ contains
        call glimmer_nc_get_var(infile, 'ice_domain_mask', &
                                model%general%ice_domain_mask)
 
+
        if (model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
 
           ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
           ! The user can then resubmit (on an optimal number of processors) with model%options%compute_blocks = ACTIVE_BLOCKS.
 
+!          call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
+!                                              model%general%nx_block, model%general%ny_block, &
+!                                              model%general%ice_domain_mask,                  &
+!                                              inquire_only = .true.)
+
           call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
                                               model%general%nx_block, model%general%ny_block, &
                                               model%general%ice_domain_mask,                  &
+                                              model%parallel,                                 &
                                               inquire_only = .true.)
 
        else  ! compute_blocks = ACTIVE_BLOCKS_ONLY
@@ -229,9 +239,14 @@ contains
              model%general%global_bc = GLOBAL_BC_NO_ICE
           endif
 
+!          call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
+!                                              model%general%nx_block, model%general%ny_block, &
+!                                              model%general%ice_domain_mask)
+
           call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
                                               model%general%nx_block, model%general%ny_block, &
-                                              model%general%ice_domain_mask)
+                                              model%general%ice_domain_mask,                  &
+                                              model%parallel)
 
        endif   ! compute_blocks
 
@@ -240,11 +255,19 @@ contains
 
     elseif (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
 
-       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'outflow')
+!       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'outflow')
+
+       !WHL - temporary call to fill the parallel derived type
+       call distributed_grid(model%general%ewn, model%general%nsn, &
+                             model%parallel,    global_bc_in = 'outflow')
+
 
     elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
 
-       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'no_ice')
+!       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'no_ice')
+
+       call distributed_grid(model%general%ewn, model%general%nsn, &
+                             model%parallel,     global_bc_in = 'no_ice')
 
     elseif (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
 
@@ -252,13 +275,37 @@ contains
        !       The difference is that we also use no-penetration masks for (uvel,vvel) at the global boundary
        !       (computed by calling staggered_no_penetration_mask below).
 
-       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'no_penetration')
+!       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'no_penetration')
+
+       call distributed_grid(model%general%ewn, model%general%nsn, &
+                             model%parallel,     global_bc_in = 'no_penetration')
 
     else  ! global_bc = GLOBAL_BC_PERIODIC
 
-       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'periodic')
+!       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'periodic')
+
+       call distributed_grid(model%general%ewn, model%general%nsn, &
+                             model%parallel,  global_bc_in = 'periodic')
 
     endif
+
+    if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+
+       ! Set up row-based and column-based communicators (in addition to mpi_comm_world).
+       ! These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
+       ! For the row-based communicator, the task with the minimum rank in each row becomes main_task_row.
+       ! For the column-based communicator, the task with the minimum rank in each column becomes main_task_column.
+       call parallel_create_comm_row(comm, model%parallel)
+       call parallel_create_comm_col(comm, model%parallel)
+
+       if (test_comm_row_col) then
+          call glissade_test_comm_row_col(model)
+       endif
+
+    endif  ! HO_PRECOND_TRIDIAG_GLOBAL
+
+    ! Now that model%parallel has been set, copy to 'parallel' to save typing below
+    parallel = model%parallel
 
     model%general%ice_grid = coordsystem_new(0.d0,               0.d0,               &
                                              model%numerics%dew, model%numerics%dns, &
@@ -271,174 +318,12 @@ contains
     ! allocate arrays
     call glide_allocarr(model)
 
-    if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
-
-       !WHL - Optionally, set up row-based and column-based communicators (in addition to mpi_comm_world).
-       !      These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
-       !      For the row-based communicator, the task with the minimum rank in each row becomes main_task_row.
-       !      For the column-based communicator, the task with the minimum rank in each column becomes main_task_column.
-       call parallel_create_comm_row(comm)
-       call parallel_create_comm_col(comm)
-
-       !WHL - debug
-       if (test_comm_row_col) then
-
-          ! Test the new communicators
-
-          ! row gather
-
-          call mpi_barrier(comm_row,ierror)
-          call mpi_barrier(comm_col,ierror)
-
-          allocate(test_array(2,own_nsn))
-          do j = 1, own_nsn
-             do i = 1, 2
-                test_array(i,j) = (this_rank + 2) * real(i*j, dp)
-             enddo
-          enddo
-
-!!       if (this_rank <= 1) then
-!!       if (this_rank == 0) then
-          if (this_rank == 999) then
-             print*, ' '
-             print*, 'test_array, i = 1, this_rank =', this_rank
-             i = 1
-             do j = 1, own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'test_array, i = 2, this_rank =', this_rank
-             i = 2
-             do j = 1, own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-!!       print*, 'gather row array, this_rank =', this_rank
-
-          call distributed_gather_var_row(test_array, global_test_array)
-
-          if (main_task_row .and. this_rank == 0) then
-!!       if (main_task_row) then
-             do i = 1, 4
-                print*, 'Row global_test_array, this_rank, i =', this_rank, i
-                do j = 1, size(global_test_array,2)
-                   write(6,'(f6.0)',advance='no') global_test_array(i,j)
-                enddo
-                print*, ' '
-             enddo
-             print*, ' '
-             call flush(6)
-          endif
-
-!!       print*, 'scatter row array, this_rank =', this_rank
-
-          call distributed_scatter_var_row(test_array, global_test_array)
-
-          if (this_rank == 1) then
-!!       if (this_rank == 999) then
-             print*, ' '
-             print*, 'Scattered test_array, i = 1, this_rank =', this_rank
-             i = 1
-             do j = 1, own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'Scattered test_array, i = 2, this_rank =', this_rank
-             i = 2
-             do j = 1, own_nsn
-                write(6,'(f6.0)',advance='no') test_array(i,j)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-          deallocate(test_array)
-
-          ! column gather
-
-          call mpi_barrier(comm_row,ierror)
-          call mpi_barrier(comm_col,ierror)
-
-          allocate(test_array(2,own_ewn))
-          do j = 1, 2
-             do i = 1, own_ewn
-                test_array(j,i) = (this_rank + 2) * real(j*i, dp)
-             enddo
-          enddo
-
-!!       if (this_rank==0 .or. this_rank==2) then
-!!       if (this_rank==1 .or. this_rank==3) then
-          if (this_rank == 999) then
-             print*, ' '
-             print*, 'test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
-             j = 1
-             do i = 1, own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
-             j = 2
-             do i = 1, own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-!!       print*, 'gather col array, this_rank =', this_rank
-
-          call distributed_gather_var_col(test_array, global_test_array)
-
-!!       print*, 'gathered col array, this_rank =', this_rank
-
-          if (main_task_col .and. this_rank==1) then
-!!       if (main_task_col) then
-             do j = 1, 4
-                print*, 'Column global_test_array, this_rank, j =', this_rank, j
-                do i = 1, size(global_test_array,2)
-                   write(6,'(f6.0)',advance='no') global_test_array(j,i)
-                enddo
-                print*, ' '
-             enddo
-             print*, ' '
-          endif
-
-          call distributed_scatter_var_col(test_array, global_test_array)
-
-          if (this_rank == 3) then
-             print*, ' '
-             print*, 'Scattered test_array, j = 1, this_rank, own_ewn =', this_rank, own_ewn
-             j = 1
-             do i = 1, own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-             print*, 'Scattered test_array, j = 2, this_rank, own_ewn =', this_rank, own_ewn
-             j = 2
-             do i = 1, own_ewn
-                write(6,'(f6.0)',advance='no') test_array(j,i)
-             enddo
-             print*, ' '
-             print*, ' '
-          endif   ! this_rank
-
-          deallocate(test_array)
-
-          endif   ! test_comm_row_col
-
-    endif  ! HO_PRECOND_TRIDIAG_GLOBAL
-
     ! set masks at global boundary for no-penetration boundary conditions
     ! this subroutine includes a halo update
     if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
-       call staggered_no_penetration_mask(model%velocity%umask_no_penetration, model%velocity%vmask_no_penetration)
+       call staggered_no_penetration_mask(model%velocity%umask_no_penetration, &
+                                          model%velocity%vmask_no_penetration, &
+                                          parallel)
     endif
 
     ! set uniform basal heat flux (positive down)
@@ -507,7 +392,8 @@ contains
                                       model%general%ewn,       &
                                       model%general%nsn,       &
                                       model%numerics%dew*len0, &
-                                      model%numerics%dns*len0)
+                                      model%numerics%dns*len0, &
+                                      parallel)
     endif
 
     ! Write projection info to log
@@ -545,21 +431,21 @@ contains
 
     if (compute_topg_stdev) then
 
-       allocate(topg_global(global_ewn, global_nsn))
-       allocate(topg_stdev_global(global_ewn, global_nsn))
+       allocate(topg_global(parallel%global_ewn, parallel%global_nsn))
+       allocate(topg_stdev_global(parallel%global_ewn, parallel%global_nsn))
 
        ! gather topg to global grid
-       call distributed_gather_var(model%geometry%topg*thk0, topg_global)
+       call distributed_gather_var(model%geometry%topg*thk0, topg_global, parallel)
 
        if (main_task) then
-          call glissade_stdev(global_ewn,           global_nsn,           &
+          call glissade_stdev(parallel%global_ewn,  parallel%global_nsn,  &
                               grid_ratio,                                 &
                               model%numerics%idiag, model%numerics%jdiag, &
                               topg_global,          topg_stdev_global)
        endif
 
        ! scatter topg_stdev to processors, and rescale
-       call distributed_scatter_var(model%geometry%topg_stdev, topg_stdev_global)
+       call distributed_scatter_var(model%geometry%topg_stdev, topg_stdev_global, parallel)
        model%geometry%topg_stdev = model%geometry%topg_stdev/thk0
 
        deallocate(topg_global)
@@ -633,10 +519,10 @@ contains
     !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
     !        then the halos will receive the correct values.
 
-    call parallel_halo(model%geometry%thck)
-    call parallel_halo(model%climate%artm)
-    call parallel_halo(model%temper%temp)
-    call parallel_halo(model%temper%tempunstag)
+    call parallel_halo(model%geometry%thck, parallel)
+    call parallel_halo(model%climate%artm,  parallel)
+    call parallel_halo(model%temper%temp,   parallel)
+    call parallel_halo(model%temper%tempunstag, parallel)
 
     ! calculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
@@ -659,18 +545,20 @@ contains
 
     if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or.  &
         model%general%global_bc == GLOBAL_BC_NO_ICE) then
-       call parallel_halo_extrapolate(model%geometry%topg)
+       call parallel_halo_extrapolate(model%geometry%topg, parallel)
     else  ! other global BCs, including periodic
-       call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
+       call parallel_halo(model%geometry%topg, parallel, &
+                          periodic_offset_ew = model%numerics%periodic_offset_ew)
     endif
 
-    if (model%options%whichtemp == TEMP_ENTHALPY) call parallel_halo(model%temper%waterfrac)
+    if (model%options%whichtemp == TEMP_ENTHALPY) &
+         call parallel_halo(model%temper%waterfrac, parallel)
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
     ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
     !       (and also into the north and east rows of the global domain, which are not included 
     !       on the global staggered grid).
-    call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask)  ! = 1 for Dirichlet BCs
+    call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask, parallel)  ! = 1 for Dirichlet BCs
 
     !TODO - Remove call to init_velo in glissade_initialise?
     !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
@@ -702,6 +590,7 @@ contains
                              model%numerics%idiag_local, model%numerics%jdiag_local,&
                              model%numerics%rdiag_local,                            &
                              model%numerics%sigma,       model%numerics%stagsigma,  &
+                             model%numerics%dups,                                   &
                              model%geometry%thck*thk0,                              & ! m
                              model%climate%artm_corrected,                          & ! deg C
                              model%climate%acab*thk0/tim0,                          & ! m/s
@@ -755,7 +644,7 @@ contains
 
 !!       do k = 1, 2
        do k = 1, 3
-          call parallel_halo(model%general%ice_domain_mask)
+          call parallel_halo(model%general%ice_domain_mask, parallel)
           ice_domain_mask = model%general%ice_domain_mask   ! temporary copy
           do j = nhalo+1, model%general%nsn - nhalo
              do i = nhalo+1, model%general%ewn - nhalo
@@ -788,7 +677,7 @@ contains
 
        ! do a halo update and interpolate to the staggered grid
        ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
-       call parallel_halo(model%velocity%unstagbeta)
+       call parallel_halo(model%velocity%unstagbeta,  parallel)
        call glissade_stagger(model%general%ewn,          model%general%nsn,      &
                              model%velocity%unstagbeta,  model%velocity%beta,    &
                              stagger_margin_in = 0)
@@ -807,7 +696,7 @@ contains
 
           ! do a halo update and interpolate to the staggered grid
           ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
-          call parallel_halo(model%basal_physics%c_space_factor)
+          call parallel_halo(model%basal_physics%c_space_factor, parallel)
           call glissade_stagger(model%general%ewn,                  model%general%nsn,                       &
                                 model%basal_physics%c_space_factor, model%basal_physics%c_space_factor_stag, &
                                 stagger_margin_in = 0)
@@ -874,9 +763,9 @@ contains
     !TODO - Is this halo update necessary?
     if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or. &
         model%general%global_bc == GLOBAL_BC_NO_ICE) then
-       call parallel_halo_extrapolate(model%isostasy%relx)
+       call parallel_halo_extrapolate(model%isostasy%relx, parallel)
     else
-       call parallel_halo(model%isostasy%relx)
+       call parallel_halo(model%isostasy%relx, parallel)
     endif
 
     ! register the newly created model so that it can be finalised in the case
@@ -909,6 +798,7 @@ contains
 
     call glissade_marine_connection_mask(&
          model%general%ewn,          model%general%nsn,          &
+         parallel,                                               &
          model%numerics%idiag_local, model%numerics%jdiag_local, &
          model%numerics%rdiag_local,                             &
          model%geometry%thck * thk0, model%geometry%topg * thk0, &
@@ -1035,6 +925,7 @@ contains
 
           call glissade_thck_calving_threshold_init(&
                model%general%ewn,         model%general%nsn,            &
+               parallel,                                                &
                itest,   jtest,    rtest,                                &
                model%options%which_ho_calving_front,                    &
                model%geometry%thck*thk0,  model%geometry%topg*thk0,     &
@@ -1057,6 +948,7 @@ contains
 
        call glissade_calving_mask_init(&
             model%numerics%dew*len0,       model%numerics%dns*len0,        &
+            parallel,                                                      &
             model%geometry%thck*thk0,      model%geometry%topg*thk0,       &
             model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
             model%calving%calving_front_x, model%calving%calving_front_y,  &
@@ -1070,7 +962,7 @@ contains
     !        the halo update, then we need a halo update here too, to avoid symmetry issues in the velocity solver.
     !       I ran into this issue when running MISMIP+, which does cold starts (restart = 0) from files containing efvs.
     !       An update is done here regardless of code options, just to be on the safe side.
-    call parallel_halo(model%stress%efvs)
+    call parallel_halo(model%stress%efvs, parallel)
 
     ! recalculate the lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
@@ -1086,8 +978,10 @@ contains
     if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        ! update some masks
-       !TODO - Move these mask updates to the subroutine?
-       call glissade_get_masks(model%general%ewn, model%general%nsn,    &
+       !TODO: Move these mask updates to the thermal_forcing_init subroutine?
+       !TODO: Modify glissade_get_masks so that 'parallel' is not needed
+       call glissade_get_masks(model%general%ewn, model%general%nsn,       &
+                               parallel,                                   &
                                model%geometry%thck, model%geometry%topg,   &
                                model%climate%eus,   0.0d0,                 &  ! thklim = 0
                                ice_mask,                                   &
@@ -1097,6 +991,7 @@ contains
        ! update the grounded fraction, f_ground_cell
        call glissade_grounded_fraction(model%general%ewn,             &
                                        model%general%nsn,             &
+                                       parallel,                      &
                                        itest, jtest, rtest,           &  ! diagnostic only
                                        model%geometry%thck*thk0,      &
                                        model%geometry%topg*thk0,      &
@@ -1132,7 +1027,7 @@ contains
 
     ! Perform time-step of an ice model instance with the Glissade dycore
 
-    use parallel
+    use parallel_mod, only:  parallel_type, not_parallel
 
     use glimmer_paramets, only: tim0, len0, thk0
     use glimmer_physcon, only: scyr
@@ -1393,13 +1288,12 @@ contains
 
     ! Solve for basal melting beneath floating ice.
 
-    use glimmer_paramets, only: tim0, thk0, len0
+    use glimmer_paramets, only: eps08, tim0, thk0, len0
+    use glimmer_physcon, only: scyr
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
-
-    use parallel
 
     implicit none
 
@@ -1433,6 +1327,7 @@ contains
     real(dp) :: dew, dns
     integer :: itest, jtest, rtest
 
+    type(parallel_type) :: parallel   ! info for parallel communication
 
     ! set grid dimensions
     ewn = model%general%ewn
@@ -1445,6 +1340,8 @@ contains
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
+
+    parallel = model%parallel
 
     ! ------------------------------------------------------------------------
     ! Compute the basal melt rate beneath floating ice.
@@ -1459,7 +1356,9 @@ contains
     ! Compute masks:
     ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
 
+    !TODO: Modify glissade_get_masks so that 'parallel' is not needed
     call glissade_get_masks(ewn,                 nsn,                   &
+                            parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   0.0d0,                 &  ! thklim = 0
                             ice_mask,                                   &
@@ -1522,6 +1421,7 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_domain,       &
+            parallel,                              &
             ewn,                nsn,               &
             dew*len0,           dns*len0,          &  ! m
             itest,     jtest,   rtest,             &
@@ -1594,8 +1494,8 @@ contains
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_DEPTH, BMLT_FLOAT_MISOMIP and BMLT_FLOAT_POP_CPL
           !TODO - Call separate subroutines for each of these options?
 
-       !WHL - May want to comment out temporarily, if doing basal melting in the diagnostic solve for testing
        call glissade_basal_melting_float(model%options%whichbmlt_float,                         &
+                                         parallel,                                              &
                                          ewn,                        nsn,                       &
                                          model%numerics%dew*len0,    model%numerics%dns*len0,   &
                                          itest,                      jtest,                     &
@@ -1834,9 +1734,10 @@ contains
     ! Do the vertical thermal solve.
     ! First call a driver subroutine for vertical temperature or enthalpy evolution,
     ! and then update the basal water.
-    use parallel
+    use parallel_mod, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: tim0, thk0, len0
+    use glimmer_physcon, only: scyr
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat
     use glissade_transport, only: glissade_add_2d_anomaly
@@ -1859,6 +1760,8 @@ contains
     integer :: i, j, up
     integer :: itest, jtest, rtest
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     rtest = -999
     itest = 1
     jtest = 1
@@ -1867,6 +1770,8 @@ contains
        itest = model%numerics%idiag_local
        jtest = model%numerics%jdiag_local
     endif
+
+    parallel = model%parallel
 
     call t_startf('glissade_thermal_solve')
 
@@ -1930,20 +1835,24 @@ contains
                                           model%climate%artm,                                &
                                           linear_extrapolate_in = .true.)
 
+       call parallel_halo(model%climate%artm, parallel)
+
     endif   ! artm_input_function
 
-    call parallel_halo(model%climate%artm)
+    call parallel_halo(model%climate%artm, parallel)
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
     call glissade_therm_driver (model%options%whichtemp,                                      &
                                 model%options%temp_init,                                      &
                                 dt,                                                           & ! s
+                                model%parallel,                                               &
                                 model%general%ewn,          model%general%nsn,                &
                                 model%general%upn,                                            &
                                 model%numerics%idiag_local, model%numerics%jdiag_local,       &
                                 model%numerics%rdiag_local,                                   &
                                 model%numerics%sigma,       model%numerics%stagsigma,         &
+                                model%numerics%dups,                                          &
                                 model%numerics%thklim_temp*thk0,                              & ! m
                                 model%geometry%thck*thk0,                                     & ! m
                                 model%geometry%topg*thk0,                                     & ! m
@@ -1999,7 +1908,7 @@ contains
     !------------------------------------------------------------------------ 
     
     ! Note: bwat is needed in halos to compute effective pressure if which_ho_effecpress = HO_EFFECPRESS_BWAT
-    call parallel_halo(model%temper%bwat)
+    call parallel_halo(model%temper%bwat, parallel)
 
     call t_stopf('glissade_thermal_solve')
     
@@ -2020,10 +1929,11 @@ contains
     !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
-    use parallel
+    use parallel_mod, only: parallel_type, parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
+         parallel_reduce_max
 
-    use glimmer_paramets, only: tim0, thk0, vel0, len0
-    use glimmer_physcon, only: scyr
+    use glimmer_paramets, only: eps11, tim0, thk0, vel0, len0
+    use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
     use glissade_transport, only: glissade_mass_balance_driver, &
@@ -2090,11 +2000,13 @@ contains
     integer :: ewn, nsn, upn, nlev_smb
     integer :: itest, jtest, rtest
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     !WHL - debug
     real(dp) :: local_maxval, global_maxval
     character(len=100) :: message
 
-    logical, parameter :: verbose_smb = .true.
+    logical, parameter :: verbose_smb = .false.
 
     rtest = -999
     itest = 1
@@ -2109,6 +2021,8 @@ contains
     nsn = model%general%nsn
     upn = model%general%upn
     nlev_smb = model%climate%nlev_smb
+
+    parallel = model%parallel
 
     select case(model%options%whichevol)
 
@@ -2146,6 +2060,7 @@ contains
        ! ------------------------------------------------------------------------
 
        call glissade_get_masks(ewn,              nsn,              &
+                               parallel,                           &
                                model%geometry%thck*thk0,           &   ! m
                                model%geometry%topg*thk0,           &   ! m
                                model%climate%eus*thk0,             &   ! m
@@ -2161,6 +2076,7 @@ contains
 
           call glissade_calving_front_mask(ewn,                    nsn,              &
                                            model%options%which_ho_calving_front,     &
+                                           parallel,                                 &
                                            model%geometry%thck*thk0,                 &   ! m
                                            model%geometry%topg*thk0,                 &   ! m
                                            model%climate%eus*thk0,                   &   ! m
@@ -2193,18 +2109,18 @@ contains
        topg_unscaled(:,:) = model%geometry%topg(:,:) * thk0
 
        ! pre-transport halo updates for thickness and tracers
-       call parallel_halo(thck_unscaled)
-       call parallel_halo(topg_unscaled)
-       call parallel_halo_tracers(model%geometry%tracers)
-       call parallel_halo_tracers(model%geometry%tracers_usrf)
-       call parallel_halo_tracers(model%geometry%tracers_lsrf)
+       call parallel_halo(thck_unscaled, parallel)
+       call parallel_halo(topg_unscaled, parallel)
+       call parallel_halo_tracers(model%geometry%tracers, parallel)
+       call parallel_halo_tracers(model%geometry%tracers_usrf, parallel)
+       call parallel_halo_tracers(model%geometry%tracers_lsrf, parallel)
 
        ! pre-transport halo updates for velocity
        ! Velocity update might be needed if velo has not been updated in the halo since the previous diagnostic solve.
        !  (just to be on the safe side).
 
-       call staggered_parallel_halo(model%velocity%uvel)
-       call staggered_parallel_halo(model%velocity%vvel)
+       call staggered_parallel_halo(model%velocity%uvel, parallel)
+       call staggered_parallel_halo(model%velocity%vvel, parallel)
 
        ! --- Determine CFL limits ---
        ! Note: We are using the subcycled dt here (if subcycling is on).
@@ -2216,6 +2132,7 @@ contains
 
        call glissade_check_cfl(ewn,                       nsn,                       upn-1,                    &
                                model%numerics%dew * len0, model%numerics%dns * len0, model%numerics%sigma,     &
+                               parallel,                                                                       &
                                model%geomderv%stagthck * thk0,                                                 &
                                model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
                                model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
@@ -2280,6 +2197,7 @@ contains
                                          model%numerics%dew * len0, model%numerics%dns * len0, &
                                          ewn,          nsn,         upn-1,                     &
                                          model%numerics%sigma,                                 &
+                                         parallel,                                             &
                                          model%velocity%uvel(:,:,:) * vel0,                    &  ! m/s
                                          model%velocity%vvel(:,:,:) * vel0,                    &  ! m/s
                                          thck_unscaled(:,:),                                   &  ! m
@@ -2293,8 +2211,8 @@ contains
           ! halo updates for thickness and tracers
           !TODO: For outflow and no_ice BCs where halo routines can remove ice near the global boundary,
           !      keep track of the mass of ice removed, and incorporate it into the global mass balance.
-          call parallel_halo(thck_unscaled)
-          call parallel_halo_tracers(model%geometry%tracers)
+          call parallel_halo(thck_unscaled, parallel)
+          call parallel_halo_tracers(model%geometry%tracers, parallel)
 
        enddo     ! subcycling of transport
 
@@ -2363,7 +2281,7 @@ contains
              model%calving%calving_mask = 0
           endwhere
 
-          call parallel_halo(model%calving%calving_mask)
+          call parallel_halo(model%calving%calving_mask, parallel)
 
           if (verbose_calving .and. this_rank == rtest) then
              i = itest
@@ -2440,7 +2358,7 @@ contains
        ! For the non-default smb_input_function options, make sure the SMB is nonzero somewhere; else abort.
        ! For the default option, do not abort, since idealized tests often have a zero SMB.
 
-       call parallel_halo(model%climate%acab)
+       call parallel_halo(model%climate%acab, parallel)
 
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
            model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
@@ -2618,7 +2536,7 @@ contains
              model%climate%acab_anomaly(:,:) = (model%climate%smb_anomaly(:,:) * (rhow/rhoi) / 1000.d0) / scale_acab
           endif
 
-          call parallel_halo(model%climate%acab_anomaly)
+          call parallel_halo(model%climate%acab_anomaly, parallel)
 
           ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
           !       This is the reason for passing the previous time to the subroutine.
@@ -2665,6 +2583,8 @@ contains
           call glissade_extend_mask(model%general%ewn,   model%general%nsn,     &
                                     model%geometry%ice_sheet_mask,              &
                                     extended_mask = extended_ice_sheet_mask)
+
+          call parallel_halo(model%geometry%ice_sheet_mask, parallel)
 
           ! SMB is allowed to be positive only where ice_mask_smb = 1.
           ! Note: This code allows cells outside the ice sheet to melt.
@@ -2719,6 +2639,7 @@ contains
        ! ------------------------------------------------------------------------
 
        call glissade_get_masks(ewn,              nsn,              &
+                               parallel,                           &
                                thck_unscaled,                      &   ! m
                                topg_unscaled,                      &   ! m
                                model%climate%eus*thk0,             &   ! m
@@ -2732,6 +2653,7 @@ contains
 
        call glissade_calving_front_mask(ewn,                    nsn,                &
                                         model%options%which_ho_calving_front,       &
+                                        parallel,                                   &
                                         thck_unscaled,          topg_unscaled,      &   ! m
                                         model%climate%eus*thk0,                     &   ! m
                                         ice_mask,               floating_mask,      &
@@ -2796,6 +2718,7 @@ contains
                                          model%numerics%dew * len0, model%numerics%dns * len0, &
                                          ewn,         nsn,          upn-1,                     &
                                          model%numerics%sigma,                                 &
+                                         parallel,                                             &
                                          thck_unscaled(:,:),                                   &  ! m
                                          acab_unscaled(:,:),                                   &  ! m/s
                                          bmlt_unscaled(:,:),                                   &  ! m/s
@@ -2810,7 +2733,7 @@ contains
                                          model%options%which_ho_vertical_remap)
 
        !WHL - debug
-       call parallel_halo(thck_unscaled)
+       call parallel_halo(thck_unscaled, parallel)
 
        !-------------------------------------------------------------------------
        ! Cleanup
@@ -2937,7 +2860,7 @@ contains
     ! Calculate iceberg calving
     ! ------------------------------------------------------------------------ 
 
-    use parallel
+    use parallel_mod, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: thk0, tim0, len0
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
@@ -2991,6 +2914,8 @@ contains
                                           ! currently hardwired to 16 for ISMIP6
     integer :: bn    ! basin number
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     !WHL - debug
     logical, parameter :: verbose_retreat = .true.
 
@@ -3006,6 +2931,8 @@ contains
        itest = model%numerics%idiag_local
        jtest = model%numerics%jdiag_local
     endif
+
+    parallel = model%parallel
 
     ! Initialize
 
@@ -3121,6 +3048,7 @@ contains
           endif
 
           call glissade_get_masks(nx,                       ny,                         &
+                                  parallel,                                             &
                                   model%geometry%thck*thk0, model%geometry%topg*thk0,   &
                                   model%climate%eus*thk0,   0.0d0,                      &  ! thklim = 0
                                   ice_mask,                                             &
@@ -3158,7 +3086,7 @@ contains
              enddo
           enddo
 
-          call parallel_halo(model%calving%calving_mask)
+          call parallel_halo(model%calving%calving_mask, parallel)
 
        endif   ! expand_calving_mask
 
@@ -3228,6 +3156,7 @@ contains
                                model%options%whichcalving,        &
                                model%options%calving_domain,      &
                                model%options%which_ho_calving_front, &
+                               parallel,                          &
                                model%calving,                     &        ! calving object; includes calving_thck (m)
                                itest, jtest, rtest,               &
                                model%numerics%dt*tim0,            &        ! s
@@ -3244,6 +3173,7 @@ contains
     if (init_calving .and. model%options%cull_calving_front) then
 
        call glissade_cull_calving_front(nx,           ny,              &
+                                        parallel,                      &
                                         itest, jtest, rtest,           &
                                         thck_unscaled,                 &  ! m
                                         model%geometry%topg*thk0,      &  ! m
@@ -3269,8 +3199,8 @@ contains
        !   this can be numerically unstable.
 
        ! Update masks
-
        call glissade_get_masks(nx,                     ny,                         &
+                               parallel,                                           &
                                thck_unscaled,          model%geometry%topg*thk0,   &
                                model%climate%eus*thk0, model%numerics%thklim*thk0, &
                                ice_mask,                                           &
@@ -3289,6 +3219,7 @@ contains
        !  or are connected to the ocean through other cells with retreat_mask = 1.
 
        call glissade_ocean_connection_mask(nx,            ny,           &
+                                           parallel,                    &
                                            itest, jtest,  rtest,        &
                                            thck_unscaled, retreat_mask, &
                                            ocean_mask,                  &
@@ -3364,8 +3295,8 @@ contains
        ! Isthmus removal should always be followed by iceberg removal.
 
        ! Update the masks
-
        call glissade_get_masks(nx,                     ny,                         &
+                               parallel,                                           &
                                thck_unscaled,          model%geometry%topg*thk0,   &
                                model%climate%eus*thk0, model%numerics%thklim*thk0, &
                                ice_mask,                                           &
@@ -3376,6 +3307,7 @@ contains
        ! Compute f_ground_cell for isthmus removal
 
        call glissade_grounded_fraction(nx,          ny,               &
+                                       parallel,                      &
                                        itest, jtest, rtest,           &  ! diagnostic only
                                        thck_unscaled,                 &
                                        model%geometry%topg*thk0,      &
@@ -3414,6 +3346,7 @@ contains
        ! Update the basic masks
 
        call glissade_get_masks(nx,                     ny,                            &
+                               parallel,                                              &
                                thck_unscaled,          model%geometry%topg*thk0,      &
                                model%climate%eus*thk0, model%numerics%thklim*thk0,    &
                                ice_mask,               floating_mask = floating_mask, &
@@ -3425,6 +3358,7 @@ contains
 
           call glissade_calving_front_mask(nx,                     ny,                 &
                                            model%options%which_ho_calving_front,       &
+                                           parallel,                                   &
                                            thck_unscaled,                              &
                                            model%geometry%topg*thk0,                   &
                                            model%climate%eus*thk0,                     &
@@ -3459,6 +3393,7 @@ contains
        ! Compute the grounded ice fraction in each grid cell
 
        call glissade_grounded_fraction(nx,          ny,               &
+                                       parallel,                      &
                                        itest, jtest, rtest,           &  ! diagnostic only
                                        thck_unscaled,                 &
                                        model%geometry%topg*thk0,      &
@@ -3479,6 +3414,7 @@ contains
        !  to grounded cells (i.e., cells where f_ground_cell exceeds a threshold value).
 
        call glissade_remove_icebergs(nx,           ny,                     &
+                                     parallel,                             &
                                      itest, jtest, rtest,                  &
                                      thck_unscaled,                        &  ! m
                                      model%geometry%f_ground_cell,         &
@@ -3494,6 +3430,7 @@ contains
     if (model%options%limit_marine_cliffs) then   ! Impose a thickness limit on marine ice cliffs
 
        call glissade_limit_cliffs(nx,             ny,            &
+                                  parallel,                      &
                                   itest,  jtest,  rtest,         &
                                   model%numerics%dt*tim0,        &     ! s
                                   model%options%which_ho_calving_front, &
@@ -3512,7 +3449,7 @@ contains
 
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
-    call parallel_halo(model%geometry%thck)    ! Updated halo values of thck are needed below in calclsrf
+    call parallel_halo(model%geometry%thck, parallel)   ! Updated halo values of thck are needed below in calclsrf
 
     if (verbose_calving .and. this_rank == rtest) then
        print*, ' '
@@ -3551,8 +3488,9 @@ contains
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------ 
 
-    use parallel
-    use isostasy
+    use parallel_mod, only: parallel_type, parallel_halo, parallel_halo_extrapolate
+
+    use isostasy, only: isos_compute, isos_icewaterload
     use glimmer_paramets, only: thk0
     use glissade_masks, only: glissade_marine_connection_mask
 
@@ -3561,6 +3499,10 @@ contains
     type(glide_global_type), intent(inout) :: model   ! model instance
 
     ! --- Local variables ---
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    parallel = model%parallel
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
@@ -3611,15 +3553,17 @@ contains
 
        if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or. &
            model%general%global_bc == GLOBAL_BC_NO_ICE) then
-          call parallel_halo_extrapolate(model%geometry%topg)
+          call parallel_halo_extrapolate(model%geometry%topg, parallel)
        else  ! other global BCs, including periodic
-          call parallel_halo(model%geometry%topg, periodic_offset_ew = model%numerics%periodic_offset_ew)
+          call parallel_halo(model%geometry%topg, parallel, &
+                             periodic_offset_ew = model%numerics%periodic_offset_ew)
        endif
 
        ! update the marine connection mask, which depends on topg
 
        call glissade_marine_connection_mask(&
             model%general%ewn,          model%general%nsn,          &
+            parallel,                                               &
             model%numerics%idiag_local, model%numerics%jdiag_local, &
             model%numerics%rdiag_local,                             &
             model%geometry%thck * thk0, model%geometry%topg * thk0, &
@@ -3638,10 +3582,12 @@ contains
      ! This is needed at the end of each time step once the prognostic variables (thickness, tracers) have been updated.  
      ! It is also needed to fill out the initial state from the fields that have been read in.
 
-    use parallel
+    use parallel_mod, only: parallel_type, parallel_halo, &
+         staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
+         parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
     use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
@@ -3690,6 +3636,8 @@ contains
     real(dp) :: nudging_factor      ! factor in range [0,1], used for inversion of powerlaw_c
     real(dp) :: weaning_time        ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     !WHL - debug
     real(dp) :: my_max, my_min, global_max, global_min
     integer :: iglobal, jglobal, ii, jj
@@ -3706,6 +3654,8 @@ contains
        itest = model%numerics%idiag_local
        jtest = model%numerics%jdiag_local
     endif
+
+    parallel = model%parallel
 
     if (verbose_glissade .and. main_task) then
        print*, 'In glissade_diagnostic_variable_solve'
@@ -3725,7 +3675,7 @@ contains
     !       after computing isostasy.
     ! ------------------------------------------------------------------------
 
-    call parallel_halo(model%geometry%thck)
+    call parallel_halo(model%geometry%thck, parallel)
 
     ! ------------------------------------------------------------------------
     ! Update the upper and lower ice surface
@@ -3761,16 +3711,21 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                            parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask)
 
     call glissade_ice_sheet_mask(model%general%ewn,   model%general%nsn, &
+                                 parallel,                      &
                                  itest,    jtest,   rtest,      &
                                  ice_mask,                      &
                                  model%geometry%thck*thk0,      &
                                  model%geometry%ice_sheet_mask, &
                                  model%geometry%ice_cap_mask)
+
+    call parallel_halo(model%geometry%ice_sheet_mask, parallel)
+    call parallel_halo(model%geometry%ice_cap_mask, parallel)
 
     if (model%options%remove_ice_caps) then
 
@@ -3795,6 +3750,7 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+                            parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask,                                   &
@@ -3804,6 +3760,7 @@ contains
 
     call glissade_calving_front_mask(model%general%ewn,   model%general%nsn,     &
                                      model%options%which_ho_calving_front,       &
+                                     parallel,                                   &
                                      model%geometry%thck, model%geometry%topg,   &
                                      model%climate%eus,                          &
                                      ice_mask,            floating_mask,         &
@@ -3830,6 +3787,7 @@ contains
 
     call glissade_grounded_fraction(model%general%ewn,             &
                                     model%general%nsn,             &
+                                    parallel,                      &
                                     itest, jtest, rtest,           &  ! diagnostic only
                                     model%geometry%thck*thk0,      &
                                     model%geometry%topg*thk0,      &
@@ -3984,7 +3942,7 @@ contains
 
     !TODO - flwa halo update not needed?
     ! Halo update for flwa
-    call parallel_halo(model%temper%flwa)
+    call parallel_halo(model%temper%flwa, parallel)
 
     ! ------------------------------------------------------------------------
     ! Do some additional operations if this is the first time step.
@@ -4030,8 +3988,8 @@ contains
 !          call write_log('Using uvel, vvel from input or restart file at initial time')
        endif
 
-       call staggered_parallel_halo(model%velocity%uvel)
-       call staggered_parallel_halo(model%velocity%vvel)
+       call staggered_parallel_halo(model%velocity%uvel, parallel)
+       call staggered_parallel_halo(model%velocity%vvel, parallel)
 
        ! The DIVA solver option requires some additional fields on the staggered mesh for exact restart.
        ! If these fields were input on the extended mesh, they need to be copied to the standard staggered mesh.
@@ -4055,10 +4013,10 @@ contains
              model%stress%btracty(:,:) = model%stress%btracty_extend(1:model%general%ewn-1,1:model%general%nsn-1)
           endif
 
-          call staggered_parallel_halo(model%velocity%uvel_2d)
-          call staggered_parallel_halo(model%velocity%vvel_2d)
-          call staggered_parallel_halo(model%stress%btractx)
-          call staggered_parallel_halo(model%stress%btracty)
+          call staggered_parallel_halo(model%velocity%uvel_2d, parallel)
+          call staggered_parallel_halo(model%velocity%vvel_2d, parallel)
+          call staggered_parallel_halo(model%stress%btractx, parallel)
+          call staggered_parallel_halo(model%stress%btracty, parallel)
 
        endif   ! DIVA approx
              
@@ -4102,7 +4060,7 @@ contains
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
        if (model%options%which_ho_babc == HO_BABC_YIELD_PICARD) then
-          call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf)
+          call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf, parallel)
        endif
 
        ! Call the appropriate velocity solver
@@ -4338,8 +4296,8 @@ contains
 
     endif   ! restart
 
-    call parallel_halo(model%calving%tau_eigen1)
-    call parallel_halo(model%calving%tau_eigen2)
+    call parallel_halo(model%calving%tau_eigen1, parallel)
+    call parallel_halo(model%calving%tau_eigen2, parallel)
 
 
     if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
@@ -4456,8 +4414,8 @@ contains
        enddo
     enddo
 
-    call parallel_halo(model%calving%eps_eigen1)
-    call parallel_halo(model%calving%eps_eigen2)
+    call parallel_halo(model%calving%eps_eigen1, parallel)
+    call parallel_halo(model%calving%eps_eigen2, parallel)
 
     if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
        print*, ' '
@@ -4564,12 +4522,12 @@ contains
 
     ! DIVA needs a halo update for efvs, since the latest guess (in both local and halo cells)
     ! is used to start iterating for efvs in the next time step.
-    call parallel_halo(model%stress%efvs)
+    call parallel_halo(model%stress%efvs, parallel)
 
     !TODO - I don't think we need to update ubas, vbas, or velnorm, since these are diagnostic only
-    call staggered_parallel_halo(model%velocity%velnorm)
-    call staggered_parallel_halo(model%velocity%ubas)
-    call staggered_parallel_halo(model%velocity%vbas)
+    call staggered_parallel_halo(model%velocity%velnorm, parallel)
+    call staggered_parallel_halo(model%velocity%ubas, parallel)
+    call staggered_parallel_halo(model%velocity%vbas, parallel)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -4630,7 +4588,7 @@ contains
                    print*, 'bmlt_float_inversion:', model%inversion%bmlt_float_inversion(i,j) * scyr
                    print*, 'bmlt_applied old, new:', model%basal_melt%bmlt_applied_old(i,j) * scyr*thk0/tim0, &
                         model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'global i, j =', iglobal, jglobal
 !                   print*, ' '
 !                   print*, 'bmlt_applied:'
@@ -4664,7 +4622,7 @@ contains
 !                   print*, ' '
 !                   print*, 'task, i, j, global_max bmlt_float_inversion (m/yr):', this_rank, i, j, global_max * scyr
 !                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
-!                   call parallel_globalindex(i, j, iglobal, jglobal)
+!                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 !                   print*, 'global i, j =', iglobal, jglobal
 !                endif
 !             enddo
@@ -4679,7 +4637,7 @@ contains
 !                   print*, ' '
 !                   print*, 'task, i, j, global_min bmlt_float_inversion (m/yr):', this_rank, i, j, global_min * scyr
 !                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
-!                   call parallel_globalindex(i, j, iglobal, jglobal)
+!                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 !                   print*, 'global i, j =', iglobal, jglobal
 !                   exit
 !                endif
@@ -4701,7 +4659,7 @@ contains
                    print*, ' '
                    print*, 'task, i, j, global_max_diff dthck/dt (m/yr):', this_rank, i, j, global_max * scyr
                    print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'global i, j =', iglobal, jglobal
                 endif
 
@@ -4709,7 +4667,7 @@ contains
                    print*, ' '
                    print*, 'task, i, j, global_min_diff dthck/dt (m/yr):', this_rank, i, j, global_min * scyr
                    print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
-                   call parallel_globalindex(i, j, iglobal, jglobal)
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'global i, j =', iglobal, jglobal
                 endif
 
@@ -4767,7 +4725,7 @@ contains
        do j = nhalo+1, model%general%nsn-nhalo
           do i = nhalo+1, model%general%ewn-nhalo
              if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
-                call parallel_globalindex(i, j, iglobal, jglobal)
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                 if (model%geometry%floating_mask(i,j) == 1) then
                    if (grounded_mask_old(i,j) == 1) then
                       write(6,*) 'Floating_mask flip, G to F: i, j =', iglobal, jglobal
@@ -4846,18 +4804,22 @@ contains
     ! Clean up prognostic variables in ice-free cells.
     ! This means seting most tracers to zero (or min(artm,0) for the case of temperature).
 
-    use parallel, only: parallel_halo
+    use parallel_mod, only: parallel_halo
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
     integer :: nx, ny
     integer :: i, j
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     nx = model%general%ewn
     ny = model%general%nsn
 
+    parallel = model%parallel
+
     ! Make sure the ice thickness is updated in halo cells
-    call parallel_halo(model%geometry%thck)
+    call parallel_halo(model%geometry%thck, parallel)
 
     ! Set prognostic variables in ice-free columns to default values (usually zero).
     do j = 1, ny

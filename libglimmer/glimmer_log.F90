@@ -56,6 +56,7 @@
 module glimmer_log
 
   use glimmer_global, only : fname_length,dirsep
+  use parallel_mod, only: this_rank, main_task, parallel_stop
 
   implicit none
 
@@ -101,7 +102,7 @@ contains
     
   !> opens log file
   subroutine open_log(unit,fname)
-    use parallel
+
     implicit none
     integer, optional          :: unit   !< file unit to use
     character(len=*), optional :: fname  !< name of log file
@@ -132,8 +133,8 @@ contains
 
   !> write to log
   subroutine write_log(message,type,file,line)
+
     use glimmer_global, only : msg_length
-    use parallel
     implicit none
     character(len=*),intent(in)          :: message !< message to be written
     integer,intent(in),optional          :: type    !< Type of error to be generated (see list above).
@@ -184,14 +185,14 @@ contains
 
   !> start a new section
   subroutine write_log_div
-    use parallel
+
     implicit none
     if (main_task) write(glimmer_unit,*) '*******************************************************************************'
   end subroutine write_log_div
 
   !> close log file
   subroutine close_log
-    use parallel
+
     implicit none
     ! local variables
     character(len=8) :: date
@@ -240,7 +241,7 @@ contains
 
   ! This subroutine should be called when the log file is already open, but glimmer_unit
   ! needs to be set to a desired value (e.g. for CESM coupled runs).
-    use parallel
+
     implicit none
     integer, optional          :: unit   !> file unit to use
 

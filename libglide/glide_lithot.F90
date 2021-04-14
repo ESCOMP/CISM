@@ -101,10 +101,12 @@ contains
   end subroutine init_lithot    
 
   subroutine spinup_lithot(model)
-    use parallel
+
     use glide_types
     use glimmer_log
     use glide_mask
+    use parallel_mod, only: not_parallel
+
     implicit none
     type(glide_global_type),intent(inout) :: model       !> model instance
 

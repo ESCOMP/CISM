@@ -43,6 +43,8 @@ module glint_initialise
 
   use glint_type
   use glimmer_global, only: dp
+  use parallel_mod, only: main_task
+
   implicit none
 
   private
@@ -75,7 +77,6 @@ contains
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
 
     implicit none
 
@@ -334,7 +335,6 @@ contains
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
 
     implicit none
 
@@ -599,9 +599,9 @@ contains
     
     use glint_type         , only : glint_instance
     use glint_global_grid  , only : global_grid
-    use parallel           , only : main_task, global_ewn, global_nsn, distributed_gather_var
     use glimmer_coordinates, only : coordsystem_new
     use glide_types        , only : get_dew, get_dns
+    use parallel_mod       , only : parallel_type, distributed_gather_var
 
     implicit none
 
@@ -615,9 +615,16 @@ contains
 
     integer, dimension(:,:), allocatable :: out_mask_fulldomain
 
+    type(parallel_type) :: parallel     ! info for parallel communication
+    integer :: global_ewn, global_nsn   ! global array dimensions
+
     ! Beginning of code
 
-    call distributed_gather_var(instance%out_mask, out_mask_fulldomain)
+    parallel = instance%model%parallel
+    global_ewn = instance%model%parallel%global_ewn
+    global_nsn = instance%model%parallel%global_nsn
+
+    call distributed_gather_var(instance%out_mask, out_mask_fulldomain, parallel)
 
     if (main_task) then
 

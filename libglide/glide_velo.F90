@@ -694,7 +694,6 @@ contains
 
     !TODO Change the name of subroutine gridwvel?  It computes wgrd but not wvel.
 
-!!    use parallel
     implicit none 
 
     !------------------------------------------------------------------------------------
@@ -764,7 +763,6 @@ contains
     !> (This is equation 13 in {\em Payne and Dongelmans}.) Note that this is only 
     !> done if the thickness is greater than the threshold given by \texttt{numerics\%thklim}.
 
-!!    use parallel
     implicit none
 
     !------------------------------------------------------------------------------------
@@ -887,7 +885,6 @@ contains
     !> Constrain the vertical velocity field to obey a kinematic upper boundary 
     !> condition.
 
-!!    use parallel
     implicit none
 
     !------------------------------------------------------------------------------------

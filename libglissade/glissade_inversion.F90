@@ -31,7 +31,9 @@ module glissade_inversion
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
-  use parallel
+  use parallel_mod, only: this_rank, main_task, nhalo, &
+       parallel_type, parallel_halo, staggered_parallel_halo, &
+       parallel_reduce_min, parallel_reduce_max
 
   implicit none
 
@@ -47,10 +49,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-!!    logical, parameter :: verbose_inversion = .false.
-    logical, parameter :: verbose_inversion = .true.
-
-    real(dp), parameter :: eps08 = 1.0d-08  ! small number
+    logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .true.
 
 !***********************************************************************
 
@@ -65,7 +65,6 @@ contains
 
     use glissade_masks, only: glissade_get_masks
     use glissade_bmlt_float, only: basin_sum
-    use glissade_grounding_line, only: glissade_grounded_fraction
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -95,6 +94,10 @@ contains
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
     integer :: ewn, nsn
+
+    type(parallel_type) :: parallel    ! info for global communication
+
+    parallel = model%parallel
 
     ewn = model%general%ewn
     nsn = model%general%nsn
@@ -201,13 +204,15 @@ contains
 
        endif   ! not a restart
 
-       call parallel_halo(model%geometry%usrf_obs)
-       call parallel_halo(thck_obs)
+       call parallel_halo(model%geometry%usrf_obs, parallel)
+       call parallel_halo(thck_obs, parallel)
 
     endif  ! which_ho_cp_inversion or which_ho_bmlt_inversion
 
     ! Set masks that are used below
+    ! Modify glissade_get_masks so that 'parallel' is not needed
     call glissade_get_masks(ewn,                 nsn,                   &
+                            parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask,                                   &
@@ -235,8 +240,8 @@ contains
        ! If restarting, it should have been read in already.
        ! If not restarting, it will have been set to zero, which is an appropriate initial value.
 
-       call parallel_halo(model%geometry%marine_connection_mask)
-       call parallel_halo(model%inversion%bmlt_float_save)
+       call parallel_halo(model%geometry%marine_connection_mask, parallel)
+       call parallel_halo(model%inversion%bmlt_float_save, parallel)
 
     endif   ! which_ho_bmlt_inversion
 
@@ -333,7 +338,7 @@ contains
 
        endif   ! not a restart
 
-       call parallel_halo(model%inversion%floating_thck_target)
+       call parallel_halo(model%inversion%floating_thck_target, parallel)
 
     endif  ! which_ho_bmlt_basin_inversion
 
@@ -367,7 +372,7 @@ contains
                                            ice_mask,            &
                                            floating_mask)
 
-    use glimmer_paramets, only: tim0, thk0
+    use glimmer_paramets, only: eps08, tim0, thk0
     use glimmer_physcon, only: scyr
 
     implicit none
@@ -396,6 +401,9 @@ contains
          thck_projected          ! projected thickness after appyling bmlt_float_save * bmlt_weight
 
     real(dp) ::  &
+         local_maxval, global_maxval  ! max values of a given variable; = 0 if not yet read in
+
+    real(dp) ::  &
          nudging_factor,       & ! factor in range [0,1], used for inversion of bmlt_float
          weaning_time            ! time since the start of weaning (numerics%time - inversion%wean_tstart)
 
@@ -403,7 +411,9 @@ contains
     integer :: ewn, nsn
     integer :: itest, jtest, rtest
 
-    logical :: first_time = .true.
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    parallel = model%parallel
 
     rtest = -999
     itest = 1
@@ -502,47 +512,33 @@ contains
        thck_projected = thck_new_unscaled  &
                       - (model%inversion%bmlt_float_save * bmlt_weight * model%numerics%dt*tim0)
 
-       ! thickness tendency dH/dt from one step to the next (m/s)
-       ! Note: model%inversion%thck_save is in the restart file as needed for exact restart.
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, 'time, tstart:', model%numerics%time, model%numerics%tstart
        endif
 
-!!       if (first_time .and. model%options%is_restart == RESTART_FALSE) then
-       if (first_time) then
+       ! thickness tendency dH/dt from one step to the next (m/s)
 
-          first_time = .false.
+       ! Check whether model%inversion%thck_save has nonzero values.
+       ! If so, then use this field to compute dthck_dt_inversion.  This will be the case from the second time step forward,
+       !  including restarts (since model%inversion%thck_save is in the restart file).
+       ! If not, then set dthck_dt_inversion = 0.  This will be the case on the first step of a run.
 
-          if (model%options%is_restart == RESTART_TRUE) then
-             dthck_dt_inversion = (thck_projected - model%inversion%thck_save) / (model%numerics%dt * tim0)
-
-             if (verbose_inversion .and. this_rank == rtest) then
-                i = itest
-                j = jtest
-                print*, 'Compute dH/dt for inversion; restart = T'
-                print*, 'rank, i, j, H_proj, H_proj_save, dH/dt (m/yr):', &
-                     this_rank, i, j, thck_projected(i,j), model%inversion%thck_save(i,j), dthck_dt_inversion(i,j)*scyr
-                print*, 'bmlt_weight:', bmlt_weight(i,j)
-             endif
-          else
-             dthck_dt_inversion = 0.0d0  ! default to 0 on first step of the run
-          endif
-
-       else
-
+       local_maxval = maxval(model%inversion%thck_save)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval > eps08) then
           dthck_dt_inversion = (thck_projected - model%inversion%thck_save) / (model%numerics%dt * tim0)
-
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
              j = jtest
-             print*, 'Compute dH/dt for inversion'
+             print*, 'Compute dH/dt for inversion; restart = T'
              print*, 'rank, i, j, H_proj, H_proj_save, dH/dt (m/yr):', &
                   this_rank, i, j, thck_projected(i,j), model%inversion%thck_save(i,j), dthck_dt_inversion(i,j)*scyr
              print*, 'bmlt_weight:', bmlt_weight(i,j)
           endif
-
-       endif   ! first time
+       else
+          dthck_dt_inversion = 0.0d0  ! default to 0 on first step of the run
+       endif   ! max(thck_save) > eps11
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -571,6 +567,8 @@ contains
                                  model%inversion%bmlt_float_save,               &    ! m/s
                                  bmlt_weight,                                   &    ! [0,1]
                                  bmlt_float_new)                                     ! m/s
+
+          call parallel_halo(bmlt_float_new, parallel)
 
           ! Limit bmlt_float_new to physically reasonable values.
           ! Typically, bmlt_max_melt is greater in magnitude than bmlt_max_freeze.
@@ -695,6 +693,8 @@ contains
        floating_mask,                    &
        f_ground_cell,                    &
        float_fraction_factor)
+
+    use glimmer_paramets, only : eps08
 
     ! Based on the grounding-line options and the floating mask or fraction field,
     !  compute a weighting factor for reducing bmlt_float in cells containing the GL.
@@ -943,9 +943,8 @@ contains
        enddo   ! i
     enddo   ! j
 
-    call parallel_halo(bmlt_float_mask) ! diagnostic only
-    call parallel_halo(thck_target)     ! diagnostic only
-    call parallel_halo(bmlt_float_new)
+!    call parallel_halo(bmlt_float_mask) ! diagnostic only
+!    call parallel_halo(thck_target)     ! diagnostic only
 
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
@@ -1078,6 +1077,10 @@ contains
                                     ! Found that unweighted staggering can lead to low-frequency thickness oscillations
                                     !  in Antarctic runs, because of large dH/dt in floating cells
 
+    type(parallel_type) :: parallel
+
+    parallel = model%parallel
+
     rtest = -999
     itest = 1
     jtest = 1
@@ -1139,9 +1142,9 @@ contains
 
        endif   ! f_ground_weight
 
-       call staggered_parallel_halo(stag_thck_obs)
-       call staggered_parallel_halo(stag_thck)
-       call staggered_parallel_halo(stag_dthck_dt)
+       call staggered_parallel_halo(stag_thck_obs, parallel)
+       call staggered_parallel_halo(stag_thck, parallel)
+       call staggered_parallel_halo(stag_dthck_dt, parallel)
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '

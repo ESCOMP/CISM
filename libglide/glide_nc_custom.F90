@@ -61,30 +61,33 @@ contains
 
     do while(associated(oc))
        if (.not.oc%append) then
-          call glide_nc_filldvars(oc,model)
+          call glide_nc_filldvars(oc, model)
        endif
        oc=>oc%next
     end do
 
   end subroutine glide_nc_fillall
 
-  subroutine glide_nc_filldvars(outfile, model)
 
-    use parallel
+  subroutine glide_nc_filldvars(outfile,    model)
+
     use glide_types
     use glimmer_ncdf
     use glimmer_paramets, only : len0
+    use parallel_mod, only: parallel_inq_varid, parallel_put_var, parallel_enddef
+
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
 
-    integer i,status,varid
+    integer :: global_ewn, global_nsn    !> dimensions of global arrays
 
-    real(dp),dimension(global_ewn-1) :: x0_global
-    real(dp),dimension(global_ewn) :: x1_global
-    real(dp),dimension(global_nsn-1) :: y0_global
-    real(dp),dimension(global_nsn) :: y1_global
+    real(dp), dimension(:), allocatable ::  &
+         x0_global, y0_global,        &  ! (x,y) on staggered velocity grid
+         x1_global, y1_global            ! (x,y) on unstaggered scalar grid
+
+    integer i,status,varid
 
     ! check if we are still in define mode and if so leave it
     if (NCO%define_mode) then
@@ -92,6 +95,15 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
        NCO%define_mode = .FALSE.
     end if
+
+    ! allocate arrays
+    global_ewn = model%parallel%global_ewn
+    global_nsn = model%parallel%global_nsn
+
+    allocate(x0_global(global_ewn-1))
+    allocate(y0_global(global_nsn-1))
+    allocate(x1_global(global_ewn))
+    allocate(y1_global(global_nsn))
 
     ! horizontal dimensions
     ! (x1,y1) is the unstaggered scalar grid
@@ -195,6 +207,10 @@ contains
        status= parallel_put_var(NCO%id,varid,model%lithot%deltaz)
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
+
+    ! clean up
+    deallocate(x0_global, y0_global)
+    deallocate(x1_global, y1_global)
 
   end subroutine glide_nc_filldvars
 

@@ -30,16 +30,15 @@
 
 module glint_main
 
-  !>  This is the main glimmer module, which contains the top-level 
-  !>  subroutines and derived types comprising the glimmer ice model.
+  !>  This is the main Glint module, with the top-level subroutines and derived types for running Glint.
 
   use glimmer_global, only: dp, fname_length
   use glint_type
   use glint_global_grid
   use glad_constants
   use glint_anomcouple
-
   use glimmer_paramets, only: stdout, GLC_DEBUG
+  use parallel_mod, only: main_task, tasks
 
   implicit none
 
@@ -200,7 +199,6 @@ contains
     use glimmer_log
     use glimmer_filenames
     use glint_upscale, only: glint_upscaling
-    use parallel, only: main_task
     implicit none
 
     ! Subroutine argument declarations --------------------------------------------------------
@@ -611,7 +609,6 @@ contains
     use glimmer_filenames
     use glimmer_physcon, only: rearth
     use glint_upscale, only: glint_upscaling_gcm
-    use parallel, only: main_task
 
     implicit none
 
@@ -986,7 +983,7 @@ contains
     use glint_upscale, only: glint_upscaling
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
+
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------
@@ -1372,7 +1369,6 @@ contains
     use glint_upscale, only: glint_upscaling_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
 
     implicit none
 
@@ -1537,7 +1533,6 @@ contains
                                     params%instances(i),   &
                                     icets)
 
-
              ! Set flag
              if (present(ice_tstep)) then
                 ice_tstep = (ice_tstep .or. icets)
@@ -1554,8 +1549,9 @@ contains
                                       gfrac_temp,          gtopo_temp,        &
                                       grofi_temp,          grofl_temp,        &
                                       ghflx_temp )
-             
+
              call compute_ice_sheet_grid_mask(ice_sheet_grid_mask_temp, gfrac_temp)
+
              call compute_icemask_coupled_fluxes(icemask_coupled_fluxes_temp, &
                                                  ice_sheet_grid_mask_temp, &
                                                  params%instances(i))
@@ -1713,8 +1709,6 @@ contains
                                icemask_coupled_fluxes,    &
                                nec,                       &
                                frac_coverage)
-
-     use parallel, only: main_task
 
      ! Add the output for this instance to the global output
 

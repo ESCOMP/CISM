@@ -59,6 +59,7 @@ contains
                                orogflag)
 
     use glint_interp
+    use parallel_mod, only: parallel_type
 
     !> Downscale global input fields to the local ice sheet grid
 
@@ -75,23 +76,38 @@ contains
     real(dp),dimension(:,:),intent(in)   :: g_airpress   !> Global surface air pressure (Pa)
     logical,                intent(in)   :: orogflag
 
-    call interp_to_local(instance%lgrid_fulldomain, g_temp,       instance%downs, localdp=instance%artm)
-    call interp_to_local(instance%lgrid_fulldomain, g_temp_range, instance%downs, localdp=instance%arng,z_constrain=.true.)
-    call interp_to_local(instance%lgrid_fulldomain, g_precip,     instance%downs, localdp=instance%prcp,z_constrain=.true.)
+    ! local variables
+    type(parallel_type) :: parallel    ! info for parallel communication
+
+    parallel = instance%model%parallel
+
+    call interp_to_local(instance%lgrid_fulldomain, g_temp,       instance%downs, parallel, &
+         localdp=instance%artm)
+    call interp_to_local(instance%lgrid_fulldomain, g_temp_range, instance%downs, parallel, &
+         localdp=instance%arng,z_constrain=.true.)
+    call interp_to_local(instance%lgrid_fulldomain, g_precip,     instance%downs, parallel, &
+         localdp=instance%prcp,z_constrain=.true.)
 
     if (instance%whichacab==MASS_BALANCE_EBM) then
-       call interp_to_local(instance%lgrid_fulldomain, g_humid,   instance%downs, localdp=instance%humid,z_constrain=.true.)
-       call interp_to_local(instance%lgrid_fulldomain, g_lwdown,  instance%downs, localdp=instance%lwdown)
-       call interp_to_local(instance%lgrid_fulldomain, g_swdown,  instance%downs, localdp=instance%swdown)
-       call interp_to_local(instance%lgrid_fulldomain, g_airpress,instance%downs, localdp=instance%airpress,z_constrain=.true.)
+       call interp_to_local(instance%lgrid_fulldomain, g_humid,   instance%downs, parallel, &
+            localdp=instance%humid,z_constrain=.true.)
+       call interp_to_local(instance%lgrid_fulldomain, g_lwdown,  instance%downs, parallel, &
+            localdp=instance%lwdown)
+       call interp_to_local(instance%lgrid_fulldomain, g_swdown,  instance%downs, parallel, &
+            localdp=instance%swdown)
+       call interp_to_local(instance%lgrid_fulldomain, g_airpress,instance%downs, parallel, &
+            localdp=instance%airpress,z_constrain=.true.)
     end if
 
     if (orogflag) then
-       call interp_to_local(instance%lgrid_fulldomain, g_orog, instance%downs, localdp=instance%global_orog, z_constrain=.true.)
+       call interp_to_local(instance%lgrid_fulldomain, g_orog, instance%downs, parallel, &
+            localdp=instance%global_orog, z_constrain=.true.)
     end if
 
-    if (instance%whichprecip==PRECIP_RL .or. instance%whichacab==MASS_BALANCE_EBM) &
-         call interp_wind_to_local(instance%lgrid_fulldomain, g_zonwind, g_merwind, instance%downs, instance%xwind, instance%ywind)
+    if (instance%whichprecip==PRECIP_RL .or. instance%whichacab==MASS_BALANCE_EBM) then
+       call interp_wind_to_local(instance%lgrid_fulldomain, g_zonwind, g_merwind, &
+            instance%downs, instance%model%parallel, instance%xwind, instance%ywind)
+    endif
 
   end subroutine glint_downscaling
 
@@ -106,7 +122,7 @@ contains
     use glint_type
     use glint_interp, only: interp_to_local, copy_to_local
     use glimmer_log
-    use parallel, only: tasks, main_task, this_rank
+    use parallel_mod, only: tasks, main_task, this_rank
 
     ! Downscale global input fields from the global grid (with multiple elevation classes)
     ! to the local ice sheet grid.
@@ -120,10 +136,12 @@ contains
     real(dp),dimension(:,:,0:),intent(in) :: topo_g       ! Surface elevation (m)
     integer ,dimension(:,:),   intent(in),optional :: gmask  ! = 1 where global data are valid
                                                              ! = 0 elsewhere
+
+    ! local variables
+    type(parallel_type) :: parallel        ! info for parallel communication
     real(dp), parameter :: maskval = 0.d0  ! value written to masked out gridcells
 
     integer :: nxl, nyl, nec               ! local grid dimensions
-
     integer :: i, j, n
  
     real(dp), dimension(:,:,:), allocatable ::   &
@@ -132,7 +150,9 @@ contains
        topo_l      ! interpolation of global topography in each elev class to local grid
 
     real(dp) :: fact, usrf, thck
-                                               
+
+    parallel = instance%model%parallel
+
     nxl = instance%lgrid%size%pt(1)
     nyl = instance%lgrid%size%pt(2)
     nec = ubound(qsmb_g,3)
@@ -146,19 +166,22 @@ contains
     if (present(gmask)) then   ! set local field = maskval where the global field is masked out
                                ! (i.e., where instance%downs%lmask = 0)
        do n = 1, nec
-          call interp_to_local(instance%lgrid_fulldomain, qsmb_g(:,:,n), instance%downs, localdp=qsmb_l(:,:,n), &
-                               gmask = gmask, maskval=maskval)
-          call interp_to_local(instance%lgrid_fulldomain, tsfc_g(:,:,n), instance%downs, localdp=tsfc_l(:,:,n), &
-                               gmask = gmask, maskval=maskval)
-          call interp_to_local(instance%lgrid_fulldomain, topo_g(:,:,n), instance%downs, localdp=topo_l(:,:,n), &
-                               gmask = gmask, maskval=maskval)
+          call interp_to_local(instance%lgrid_fulldomain, qsmb_g(:,:,n), instance%downs, parallel, &
+               localdp=qsmb_l(:,:,n), gmask = gmask, maskval=maskval)
+          call interp_to_local(instance%lgrid_fulldomain, tsfc_g(:,:,n), instance%downs, parallel, &
+               localdp=tsfc_l(:,:,n), gmask = gmask, maskval=maskval)
+          call interp_to_local(instance%lgrid_fulldomain, topo_g(:,:,n), instance%downs, parallel, &
+               localdp=topo_l(:,:,n), gmask = gmask, maskval=maskval)
        enddo
 
     else    ! global field values are assumed to be valid everywhere
        do n = 1, nec
-          call interp_to_local(instance%lgrid_fulldomain, qsmb_g(:,:,n), instance%downs, localdp=qsmb_l(:,:,n))
-          call interp_to_local(instance%lgrid_fulldomain, tsfc_g(:,:,n), instance%downs, localdp=tsfc_l(:,:,n))
-          call interp_to_local(instance%lgrid_fulldomain, topo_g(:,:,n), instance%downs, localdp=topo_l(:,:,n))
+          call interp_to_local(instance%lgrid_fulldomain, qsmb_g(:,:,n), instance%downs, parallel, &
+               localdp=qsmb_l(:,:,n))
+          call interp_to_local(instance%lgrid_fulldomain, tsfc_g(:,:,n), instance%downs, parallel, &
+               localdp=tsfc_l(:,:,n))
+          call interp_to_local(instance%lgrid_fulldomain, topo_g(:,:,n), instance%downs, parallel, &
+               localdp=topo_l(:,:,n))
        enddo
 
     endif   ! gmask
@@ -168,11 +191,11 @@ contains
     ! elevation-dependent values are not constrained to a discrete elevation band. Also
     ! note that we do not consider gmask here.
 
-    call copy_to_local(instance%lgrid_fulldomain, qsmb_g(:,:,0), instance%downs, qsmb_l(:,:,0))
-    call copy_to_local(instance%lgrid_fulldomain, tsfc_g(:,:,0), instance%downs, tsfc_l(:,:,0))
+    call copy_to_local(instance%lgrid_fulldomain, qsmb_g(:,:,0), instance%downs, parallel, qsmb_l(:,:,0))
+    call copy_to_local(instance%lgrid_fulldomain, tsfc_g(:,:,0), instance%downs, parallel, tsfc_l(:,:,0))
 
     ! topo_l(:,:,0) isn't used right now, but compute it anyway for consistency
-    call copy_to_local(instance%lgrid_fulldomain, topo_g(:,:,0), instance%downs, topo_l(:,:,0))
+    call copy_to_local(instance%lgrid_fulldomain, topo_g(:,:,0), instance%downs, parallel, topo_l(:,:,0))
 
 !   Interpolate tsfc and qsmb to local topography using values in the neighboring 
 !    elevation classes (vertical interpolation).
@@ -244,8 +267,7 @@ contains
        enddo ! i
     enddo ! j
 
-!WHL - debug
-    if (main_task) then
+    if (GLC_DEBUG .and. main_task) then
        print*, 'glint_downscaling_gcm, max/min qsmb_g, this_rank =', this_rank
        do n = 0, nec
           print*, n, maxval(qsmb_g(:,:,n)), minval(qsmb_g(:,:,n))
@@ -258,7 +280,6 @@ contains
        print*, ' '
        print*, 'glint_downscaling_gcm, this_rank, max/min acab:', this_rank, maxval(instance%acab), minval(instance%acab)
     endif
-!WHL - end debug
 
     deallocate(qsmb_l, tsfc_l, topo_l)
     

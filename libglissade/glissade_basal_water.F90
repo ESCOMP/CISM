@@ -84,9 +84,6 @@ contains
     use glimmer_physcon, only: rhow, scyr
     use glide_types
 
-    !WHL - debug
-    use parallel
-
     integer, intent(in) :: &
          which_ho_bwat     !> basal water options
 

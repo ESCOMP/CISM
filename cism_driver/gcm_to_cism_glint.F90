@@ -46,7 +46,7 @@ module gcm_to_cism_glint
   use glimmer_writestats
 !  use glimmer_commandline
   use glimmer_paramets, only: GLC_DEBUG
-  use parallel, only: main_task
+  use parallel_mod, only: main_task
 
 type gcm_to_cism_type
 
@@ -133,10 +133,12 @@ type gcm_to_cism_type
   logical :: output_flag                    ! true if outputs have been set
 
   ! from glint_commandline.F90:
-  character(len=5000)         :: commandline_history     !< complete command line
-  character(len=fname_length) :: commandline_configname  !< name of the configuration file
+  character(len=5000)         :: commandline_history       !< complete command line
+  character(len=fname_length), dimension(:), allocatable :: &
+                                 commandline_configname    !< name of ice sheet configuration file(s)
+  character(len=fname_length) :: commandline_configname_scalar  !< name of ice sheet config files, concatenated in one string
   character(len=fname_length) :: commandline_results_fname !< name of results file
-  character(len=fname_length) :: commandline_climate_fname !< name of climate configur 
+  character(len=fname_length) :: commandline_climate_fname !< name of climate configuration file
 
 end type gcm_to_cism_type
 
@@ -153,6 +155,7 @@ subroutine g2c_glint_init(g2c)
   type(gcm_to_cism_type) :: g2c
 
   integer :: i,j    ! Array index counters
+  integer :: num_icesheet_config  ! number of ice sheet config files
 
   ! -------------------------------------------------------------------------------------
   ! Executable code starts here - Basic initialisation
@@ -169,9 +172,12 @@ subroutine g2c_glint_init(g2c)
   g2c%which_gcm = 1
 
   call glint_GetCommandline()
-
   g2c%commandline_history =  commandline_history         !< complete command line
-  g2c%commandline_configname =  commandline_configname   !< name of the configuration file
+
+  num_icesheet_config = size(commandline_configname)
+  allocate(g2c%commandline_configname(num_icesheet_config))
+  g2c%commandline_configname =  commandline_configname     !< name of ice sheet configuration file(s)
+  g2c%commandline_configname_scalar = commandline_configname_scalar  ! name of ice sheet config file(s), concatenated
   g2c%commandline_results_fname = commandline_resultsname  !< name of results file
   g2c%commandline_climate_fname = commandline_climatename  !< name of climate configuration 
 
@@ -183,11 +189,11 @@ subroutine g2c_glint_init(g2c)
 
   ! Initialise climate
 
-  call glex_clim_init(g2c%climate,g2c%commandline_climate_fname)
+  call glex_clim_init(g2c%climate, g2c%commandline_climate_fname)
 
   ! Set dimensions of global grids
 
-  call get_grid_dims(g2c%climate%clim_grid,g2c%nx,g2c%ny) ! Normal global grid
+  call get_grid_dims(g2c%climate%clim_grid, g2c%nx, g2c%ny) ! Normal global grid
   g2c%nxo=200 ; g2c%nyo=100                          ! Example grid used for orographic output
 
 !print *,"g2c% nxo, nyo, nx, ny: ",g2c%nxo,g2c%nyo,g2c%nx,g2c%ny,nxo,nyo
@@ -197,20 +203,23 @@ subroutine g2c_glint_init(g2c)
 
   if (verbose_glint .and. main_task) then
      print*, ' '
-     print*, 'Starting glint_example:'
-     print*, 'climatename = ', trim(g2c%commandline_climate_fname)
-     print*, 'configname = ', trim(g2c%commandline_configname)
+     print*, 'Initializing glint_example, number of ice sheet instances =', num_icesheet_config
+     do i = 1, num_icesheet_config
+        print*, i, 'icesheet configname = ', trim(g2c%commandline_configname(i))
+     enddo
+     print*, 'climate configname = ', trim(g2c%commandline_climate_fname)
      print*, 'climate%gcm_smb:', g2c%climate%gcm_smb
      print*, ' '
   endif
 
   ! Allocate global arrays
 
-  allocate(g2c%temp(g2c%nx,g2c%ny),g2c%precip(g2c%nx,g2c%ny),g2c%orog(g2c%nx,g2c%ny))
-  allocate(g2c%coverage(g2c%nx,g2c%ny),g2c%orog_out(g2c%nxo,g2c%nyo),g2c%albedo(g2c%nx,g2c%ny))
+  allocate(g2c%temp(g2c%nx,g2c%ny), g2c%precip(g2c%nx,g2c%ny), g2c%orog(g2c%nx,g2c%ny))
+  allocate(g2c%coverage(g2c%nx,g2c%ny), g2c%orog_out(g2c%nxo,g2c%nyo), g2c%albedo(g2c%nx,g2c%ny))
 !!Check this:
-  allocate(g2c%ice_frac(g2c%nx,g2c%ny),g2c%fw(g2c%nx,g2c%ny))
-  allocate(g2c%lats_orog(g2c%nyo),g2c%lons_orog(g2c%nxo),g2c%cov_orog(g2c%nxo,g2c%nyo),g2c%fw_in(g2c%nx,g2c%ny))
+  allocate(g2c%ice_frac(g2c%nx,g2c%ny), g2c%fw(g2c%nx,g2c%ny))
+  allocate(g2c%lats_orog(g2c%nyo), g2c%lons_orog(g2c%nxo), &
+           g2c%cov_orog(g2c%nxo,g2c%nyo), g2c%fw_in(g2c%nx,g2c%ny))
 
   ! Initialize global arrays
 
@@ -274,7 +283,7 @@ subroutine g2c_glint_init(g2c)
                                g2c%climate%clim_grid%lats,          &
                                g2c%climate%clim_grid%lons,          &
                                g2c%climate%climate_tstep,           &
-                               (/g2c%commandline_configname/),      &
+                               g2c%commandline_configname,          &
                                daysinyear=g2c%climate%days_in_year, &
                                glc_nec = g2c%glc_nec,               &
                                gfrac = g2c%gfrac,                   &
@@ -291,7 +300,7 @@ subroutine g2c_glint_init(g2c)
                            g2c%climate%clim_grid%lats, &
                            g2c%climate%clim_grid%lons, &
                            g2c%climate%climate_tstep, &
-                           (/g2c%commandline_configname/), &
+                           g2c%commandline_configname, &
                            orog=g2c%orog_out, &
                            albedo=g2c%albedo, &
                            ice_frac=g2c%ice_frac, &
@@ -400,7 +409,9 @@ subroutine g2c_glint_climate_time_step(g2c)
   g2c%time = g2c%time + g2c%climate%climate_tstep
 end subroutine g2c_glint_climate_time_step
 
+
 subroutine g2c_glint_check_finished(g2c,finished)
+
    type(gcm_to_cism_type) :: g2c
    logical :: finished
 
@@ -414,16 +425,17 @@ end subroutine g2c_glint_check_finished
 
 
 subroutine g2c_glint_end(g2c)
+
   type(gcm_to_cism_type) :: g2c
 
   ! Finalise/tidy up everything -----------------------------------------------------------
 
   call end_glint(g2c%ice_sheet)
-  call system_clock(g2c%clock,g2c%clock_rate)
+  call system_clock(g2c%clock, g2c%clock_rate)
   t2 = real(g2c%clock,kind=dp)/real(g2c%clock_rate,kind=dp)
-  call glimmer_write_stats(g2c%commandline_results_fname,g2c%commandline_configname,g2c%t2-g2c%t1)
-
-  ! 101 format(e12.5)
+  call glimmer_write_stats(g2c%commandline_results_fname,  &
+                           g2c%commandline_configname_scalar,  &
+                           g2c%t2-g2c%t1)
 
 end subroutine g2c_glint_end
 

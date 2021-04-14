@@ -57,7 +57,7 @@ module glissade_therm
     use glimmer_global, only : dp 
     use glide_types
     use glimmer_log
-    use parallel
+    use parallel_mod, only: this_rank, broadcast, parallel_globalindex
 
     implicit none
 
@@ -71,8 +71,6 @@ module glissade_therm
          maxtemp_threshold = 1.d11,   &
          mintemp_threshold = -100.d0
 
-    real(dp), dimension(:,:), allocatable :: dups   ! vertical grid quantities
-
     ! local parameter for debugging
     logical, parameter:: verbose_therm = .false.  ! set to true for diagnostic column output
 
@@ -84,6 +82,7 @@ module glissade_therm
                                   ewn,        nsn,        upn,   &
                                   itest,      jtest,      rtest, &
                                   sigma,      stagsigma,         &
+                                  dups,                          &
                                   thck,                          &
                                   artm,                          &
                                   acab,                          &
@@ -120,6 +119,9 @@ module glissade_therm
     real(dp), intent(in) :: &
          pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
 
+    real(dp), dimension(:,:), intent(out) ::   &
+         dups              ! vertical grid quantities
+
     real(dp), dimension(0:,:,:), intent(inout) ::  &
          temp              ! ice temperature
                            ! intent(inout) because it might have been read already from an input file,
@@ -141,7 +143,7 @@ module glissade_therm
 
     ! Precompute some grid quantities used in the vertical temperature solve
  
-    allocate(dups(upn+1,2))   !TODO - upn-1 instead?
+!!    allocate(dups(upn+1,2))   ! now allocated in glide_types
     dups(:,:) = 0.0d0
 
     up = 1
@@ -313,7 +315,7 @@ module glissade_therm
                                        temp,          &
                                        verbose_column)
 
-    use glimmer_physcon, only : pi, rhoi, shci, coni
+    use glimmer_physcon, only : pi, rhoi, shci, coni, scyr
 
     ! Initialize temperatures in a column based on the value of temp_init.
     ! Four possibilities:
@@ -527,9 +529,10 @@ module glissade_therm
   subroutine glissade_therm_driver(whichtemp,                         &
                                    temp_init,                         &
                                    dttem,                             &
+                                   parallel,                          &
                                    ewn,             nsn,       upn,   &
                                    itest,           jtest,     rtest, &
-                                   sigma,           stagsigma,        &
+                                   sigma,           stagsigma, dups,  &
                                    thklim_temp,                       &
                                    thck,            topg,             &
                                    lsrf,            eus,              &
@@ -556,7 +559,7 @@ module glissade_therm
     ! Note: SI units are used throughout this subroutine
 
     use glimmer_utils,  only : tridiag
-    use glimmer_physcon, only: shci, coni, rhoi, tocnfrz_sfc, dtocnfrz_dh
+    use glimmer_physcon, only: shci, coni, rhoi, rhow, scyr, tocnfrz_sfc, dtocnfrz_dh
     use glide_mask
     use glissade_masks, only: glissade_get_masks
 
@@ -570,6 +573,9 @@ module glissade_therm
     integer, intent(in) ::   &
          temp_init             ! option for initializing the temperature (used for thin ice)
 
+    type(parallel_type), intent(in) :: &
+         parallel              ! info for parallel communication
+
     integer, intent(in) ::   &
          ewn, nsn, upn,      & ! grid dimensions
          itest, jtest, rtest   ! coordinates of diagnostic point
@@ -582,6 +588,9 @@ module glissade_therm
     real(dp), dimension(:), intent(in) ::   &
          sigma,           &! vertical coordinate, located at layer interfaces
          stagsigma         ! staggered vertical coordinate, located at the center of each layer
+
+    real(dp), dimension(:,:), intent(in) ::   &
+         dups              ! vertical grid quantities
 
     real(dp), dimension(:,:), intent(in) ::  &
          thck,            &! ice thickness (m)
@@ -696,12 +705,12 @@ module glissade_therm
 
     endif
 
-
-
     ! Compute masks: ice_mask = 1 where thck > thklim_temp;
     !                floating_mask = 1 where ice is present (thck > thklim_temp) and floating;
+    !TODO: Modify glissade_get_masks so that 'parallel' is not needed
 
     call glissade_get_masks(ewn,           nsn,            &
+                            parallel,                      &
                             thck,          topg,           &
                             eus,           thklim_temp,    &
                             ice_mask,                      &
@@ -856,7 +865,7 @@ module glissade_therm
                                                        upn,         stagsigma,    &
                                                        subd,        diag,         &
                                                        supd,        rhsd,         &
-                                                       dups(:,:),                 &
+                                                       dups,                      &
                                                        floating_mask(ew,ns),      &
                                                        thck(ew,ns),               &
                                                        bpmp(ew,ns),               &
@@ -978,11 +987,11 @@ module glissade_therm
                 einit = einit * rhoi * shci * thck(ew,ns)
                 
                 ! compute matrix elements
-                !TODO - Pass dups?
                 call glissade_temperature_matrix_elements(dttem,                 &
                                                           upn,     stagsigma,    &
                                                           subd,    diag,         &
                                                           supd,    rhsd,         &            
+                                                          dups,                  &
                                                           which_ho_ground,       &
                                                           floating_mask(ew,ns),  &
                                                           f_ground_cell(ew,ns),  &
@@ -1146,7 +1155,7 @@ module glissade_therm
        end do    ! ns
 
        if (lstop) then
-          call parallel_globalindex(istop, jstop, istop_global, jstop_global)
+          call parallel_globalindex(istop, jstop, istop_global, jstop_global, parallel)
           call broadcast(istop_global, proc=this_rank)
           call broadcast(istop_global, proc=this_rank)
           print*, 'ERROR: Energy not conserved in glissade_therm, rank, i, j =', this_rank, istop, jstop
@@ -1263,7 +1272,7 @@ module glissade_therm
           mintemp = minval(temp(:,ew,ns))
           
           if (maxtemp > maxtemp_threshold) then
-             call parallel_globalindex(ew, ns, ew_global, ns_global)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              write(message,*) 'maxtemp < maxtemp_threshold: this_rank, i, j, i_global, j_global, maxtemp =', &
                   this_rank, ew, ns, ew_global, ns_global, maxtemp
              call write_log(message,GM_FATAL)
@@ -1276,7 +1285,7 @@ module glissade_therm
 !             do k = 1, upn
 !                print*, k, temp(k,ew,ns)
 !             enddo
-             call parallel_globalindex(ew, ns, ew_global, ns_global)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              write(message,*) 'mintemp < mintemp_threshold: this_rank, i, j, i_global, j_global, mintemp =', &
                   this_rank, ew, ns, ew_global, ns_global, mintemp
              call write_log(message,GM_FATAL)
@@ -1293,6 +1302,7 @@ module glissade_therm
                                                   upn,          stagsigma,      &
                                                   subd,         diag,           &
                                                   supd,         rhsd,           &
+                                                  dups,                         &
                                                   which_ho_ground,              &
                                                   floating_mask,                &
                                                   f_ground_cell,                &
@@ -1304,7 +1314,7 @@ module glissade_therm
 
     ! compute matrix elements for the tridiagonal solve
 
-    use glimmer_physcon,  only : rhoi, grav, coni
+    use glimmer_physcon,  only : rhoi, grav, coni, shci
 
     ! Note: Matrix elements (subd, supd, diag, rhsd) are indexed from 1 to upn+1,
     !        whereas temperature is indexed from 0 to upn.
@@ -1314,6 +1324,7 @@ module glissade_therm
     real(dp), intent(in) :: dttem       ! time step (s)
     integer, intent(in) :: upn          ! number of layer interfaces
     real(dp), dimension(upn-1), intent(in) :: stagsigma    ! sigma coordinate at temp nodes
+    real(dp), dimension(:,:), intent(in) :: dups   ! vertical grid quantities
 
     real(dp), dimension(:), intent(out) :: subd, diag, supd, rhsd
 
@@ -1475,7 +1486,8 @@ module glissade_therm
                                                upn,       stagsigma,        &
                                                subd,      diag,             &
                                                supd,      rhsd,             &
-                                               dups,      floating_mask,    &
+                                               dups,                        &
+                                               floating_mask,               &
                                                thck,      bpmp,             &
                                                temp,      waterfrac,        &
                                                enthalpy,  dissip,           &
@@ -1628,7 +1640,8 @@ module glissade_therm
     ! At each temperature point, compute the temperature part of the enthalpy.
     ! enth_T = enth for cold ice, enth_T < enth for temperate ice
 
-    do up = 0, upn
+    enth_T(0) = rhoi*shci*temp(0)  !WHL - not sure enth_T(0) is needed
+    do up = 1, upn
        enth_T(up) = (1.d0 - waterfrac(up)) * rhoi*shci*temp(up)
     enddo
 
@@ -1799,7 +1812,8 @@ module glissade_therm
     ! For the enthalpy scheme, any meltwater in excess of the maximum allowed
     !  meltwater fraction (0.01 by default) is drained to the bed.
 
-    use glimmer_physcon, only: rhoi, lhci
+    use glimmer_physcon, only: rhoi, lhci, scyr
+    use glimmer_paramets, only: eps08, eps11
 
     !-----------------------------------------------------------------
     ! Input/output arguments
@@ -1844,9 +1858,6 @@ module glissade_therm
          bflx_mlt             ! heat flux available for basal melting (W/m^2)
 
     integer :: up, ew, ns
-
-    real(dp), parameter :: eps08 = 1.d-08     ! small number used to evaluate whether T > Tpmp
-    real(dp), parameter :: eps11 = 1.d-11     ! smaller number used as a melt threshold
 
     bmlt_ground(:,:) = 0.0d0
 
@@ -2240,6 +2251,7 @@ module glissade_therm
     ! based on the shallow-ice approximation.
     
     use glimmer_physcon, only : gn   ! Glen's n
+    use glimmer_physcon, only: rhoi, shci, grav
 
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
 
@@ -2305,7 +2317,9 @@ module glissade_therm
     !  unstaggered vertical grid.  
     ! Note also that dissip and flwa must have the same vertical dimension 
     !  (1:upn on an unstaggered vertical grid, or 1:upn-1 on a staggered vertical grid).
-    
+
+    use glimmer_physcon, only: rhoi, shci
+
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
     integer, dimension(:,:), intent(in) :: ice_mask    ! = 1 where ice is present (thck > thklim), else = 0
 
