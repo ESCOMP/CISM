@@ -1945,6 +1945,7 @@ contains
        call glissade_bwat_flux_routing(&
             model%general%ewn,       model%general%nsn,       &
             model%numerics%dew*len0, model%numerics%dns*len0, &  ! m
+            model%parallel,                                   &
             itest, jtest, rtest,                              &
             model%options%ho_flux_routing_scheme,             &
             model%numerics%thklim_temp*thk0,                  &  ! m
