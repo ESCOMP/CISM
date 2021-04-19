@@ -89,6 +89,7 @@ contains
     ! initialise Glissade model instance
 
     use parallel_mod, only: parallel_type, distributed_gather_var,  &
+         distributed_scatter_var, parallel_finalise, &
          distributed_grid, distributed_grid_active_blocks,  &
          parallel_halo, parallel_halo_extrapolate, parallel_reduce_max, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
