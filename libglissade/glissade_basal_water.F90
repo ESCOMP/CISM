@@ -31,15 +31,17 @@ module glissade_basal_water
 
    use glimmer_global, only: dp
    use glimmer_paramets, only: eps11
+   use glimmer_physcon, only: rhoi, rhow, grav, scyr
    use glimmer_log
    use glide_types
-   use parallel_mod, only: main_task, this_rank, parallel_type, parallel_halo
+   use parallel_mod, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
 
    implicit none
 
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
+!!   logical, parameter :: verbose_bwat = .false.
    logical, parameter :: verbose_bwat = .true.
 
    integer, parameter :: pdiag = 5  ! range for diagnostic prints
@@ -92,7 +94,6 @@ contains
     ! Note: This subroutine assumes SI units.
     ! Currently, only a few simple options are supported.
 
-    use glimmer_physcon, only: rhow, scyr
     use glide_types
 
     integer, intent(in) :: &
@@ -168,6 +169,7 @@ contains
   subroutine glissade_bwat_flux_routing(&
        nx,            ny,      &
        dx,            dy,      &
+       parallel,               &
        itest, jtest,  rtest,   &
        flux_routing_scheme,    &
        thklim,                 &
@@ -182,8 +184,6 @@ contains
     ! This subroutine is a recoding of Jesse Johnson's steady-state water routing scheme in Glide.
     ! Needs to be parallelized for Glissade.
 
-    use glimmer_physcon, only: scyr
-    use glimmer_log
     use parallel_mod, only: tasks   ! while code is serial only
 
     ! Input/output arguments
@@ -194,6 +194,9 @@ contains
 
     real(dp), intent(in) ::  &
          dx, dy                     ! grid cell size (m)
+
+    type(parallel_type), intent(in) ::  &
+         parallel                   ! info for parallel communication
 
     integer, intent(in) ::  &
          flux_routing_scheme        ! flux routing scheme: D8, Dinf or FD8; see subroutine route_basal_water
@@ -268,6 +271,8 @@ contains
     integer,  dimension(:,:), allocatable :: mask_test
 
     !WHL - debug
+    !Note: This test works in serial, but does not work with parallel updates.
+    !      To use it again, would need to comment out parallel calls in fix_flats.
     if (test_fix_flats) then
 
        ! Solve the example problem of Garbrecht & Martz (1997)
@@ -299,6 +304,7 @@ contains
 
        call fix_flats(&
             nx_test, ny_test,  &
+            parallel,          &
             5,  5,   rtest,    &
             phi_test,          &
             mask_test)
@@ -310,10 +316,11 @@ contains
     !WHL - debug
     if (main_task) print*, 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
 
-    if (tasks > 1) then
-       call write_log('Flux routing not yet supported for tasks > 1', GM_FATAL)
-    endif
-
+    ! Uncomment if the following fields are not already up to date in halo cells
+!    call parallel_halo(thk,  parallel)
+!    call parallel_halo(topg, parallel)
+!    call parallel_halo(bwat, parallel)
+!    call parallel_halo(floating_mask, parallel)
 
     ! Compute effective pressure N as a function of water depth
     call effective_pressure(&
@@ -417,6 +424,7 @@ contains
     call route_basal_water(&
          nx,      ny,            &
          dx,      dy,            &
+         parallel,               &
          itest, jtest, rtest,    &
          flux_routing_scheme,    &
          head,                   &
@@ -522,7 +530,6 @@ contains
     !
     !     head =~ z_b + (rhoi/rhow) * H
 
-    use glimmer_physcon, only : rhoi, rhow, grav
     implicit none
 
     ! Input/output variables
@@ -557,6 +564,7 @@ contains
   subroutine route_basal_water(&
          nx,         ny,         &
          dx,         dy,         &
+         parallel,               &
          itest, jtest, rtest,    &
          flux_routing_scheme,    &
          head,                   &
@@ -565,18 +573,16 @@ contains
          bwatflx,                &
          lakes)
 
-    ! Route water from the basal melt field to its destination, recording the water flux along the route.
+    ! Route water from the basal melt field to its destination, recording the water flux along the way.
     ! Water flow direction is determined according to the gradient of the hydraulic head.
-    ! For the algorithm to function properly, surface depressions must be filled,
+    ! For the algorithm to work correctly, surface depressions must be filled,
     !  so that all cells have an outlet to the ice sheet margin.
-    !> This results in the lakes field, which is the difference between the filled head and the original head.
-    !> The method used is by Quinn et. al. (1991).
-    !>
-    !> Based on code by Jesse Johnson (2005), adapted from the glimmer_routing file by Ian Rutt.
+    ! This results in the lakes field, which is the difference between the filled head and the original head.
+    !  The method used is by Quinn et. al. (1991).
+    !
+    ! Based on code by Jesse Johnson (2005), adapted from the glimmer_routing file by Ian Rutt.
 
-    !TODO: This is a serial subroutine.
-    !      To run in Glissade, we need to add a global gather/scatter.
-    !      Ultimately, the goal is to make it fully parallel.
+    use parallel_mod, only: parallel_global_sum
 
     implicit none
 
@@ -585,14 +591,13 @@ contains
          itest, jtest, rtest     ! coordinates of diagnostic point
 
     real(dp), intent(in) ::  &
-         dx, dy                  ! grid spacing in each direction (m)
+         dx, dy                  ! grid cell size (m)
+
+    type(parallel_type), intent(in) ::  &
+         parallel                ! info for parallel communication
 
     integer, intent(in) ::  &
          flux_routing_scheme     ! flux routing scheme: D8, Dinf or FD8
-                                 ! D8: Flow is downhill toward the single cell with the lowest elevation.
-                                 ! Dinf: Flow is downhill toward the two cells with the lowest elevations.
-                                 ! FD8: Flow is downhill toward all cells with lower elevation.
-                                 ! D8 scheme gives the narrowest flow, and FD8 gives the most diffuse flow.
 
     real(dp), dimension(nx,ny), intent(in)  ::  &
          bmlt                    ! basal melt beneath grounded ice (m/s)
@@ -611,70 +616,84 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k, nn, ii, jj, ip, jp
+    integer :: nlocal            ! number of locally owned cells
+    integer :: count, count_max  ! iteration counters
+    integer :: i, j, k, ii, jj, ip, jp, p
     integer :: i1, j1, i2, j2, itmp, jtmp
-    integer :: p
+
+    logical :: finished    ! true when an iterative loop has finished
 
     integer,  dimension(:,:), allocatable ::  &
-         sorted            ! i and j indices of all cells, sorted from low to high potential
+         sorted_ij         ! i and j indices of all cells, sorted from low to high values of head
+
+    real(dp), dimension(-1:1,-1:1,nx,ny) ::  &
+         flux_fraction, &  ! fraction of flux from each cell that flows downhill to each of 8 neighbors
+         bwatflx_halo      ! water flux (m^3/s) routed to a neighboring halo cell; routed further in next iteration
 
     real(dp), dimension(nx,ny) ::  &
-         head_filled       ! head after depressions are filled (m)
+         head_filled,   &  ! head after depressions are filled (m)
+         bwatflx_accum, &  ! water flux (m^3/s) accumulated over multiple iterations
+         sum_bwatflx_halo  ! bwatflx summed over the first 2 dimensions in each grid cell
 
     integer, dimension(nx,ny) ::  &
-         flats             !
-
-    real(dp), dimension(-1:1,-1:1) ::  &
-         dists,         &  ! distance (m) to adjacent grid cell
-         slope             ! slope of head between adjacent grid cells
-
-    real(dp) ::  &
-         slope1,        &  ! largest value of slope array
-         slope2,        &  ! second largest value of slope array
-         sum_slope,     &  ! slope1 + slope2
-         slope_tmp         ! temporary slope value
-
-    logical :: flag
+         local_mask,     & ! = 1 for cells owned by the local processor, else = 0
+         halo_mask,      & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
+         margin_mask       ! = 1 for cells at the grounded ice margin, as defined by bwat_mask, else = 0
 
     real(dp) :: &
          total_flux_in, &  ! total input flux (m^3/s), computed as sum of bmlt*dx*dy
          total_flux_out, & ! total output flux (m^3/s), computed as sum of bwatflx at ice margin
-         flux_unrouted     ! total flux (m^3/s) that is not routed downhill (should = 0)
+         global_flux_sum   ! flux sum over all cells in global domain
 
-    integer, dimension(nx,ny) ::  &
-         margin_mask       ! = 1 for cells at the margin, as defined by bwat_mask
+    character(len=100) :: message
 
+    ! Allocate the sorted_ij array
 
-    ! Compute distances to adjacent grid cells for slope determination
+    nlocal = parallel%own_ewn * parallel%own_nsn
+    allocate(sorted_ij(nlocal,2))
 
-    dists(-1,:) = (/ sqrt(dx**2 + dy**2), dy, sqrt(dx**2 + dy**2) /)
-    dists(0,:) = (/ dx, 0.0d0, dx /)
-    dists(1,:) = dists(-1,:)
+    ! Compute mask of locally owned and halo cells.
+    ! These masks are used to transfer fluxes between processors on subsequent iterations.
 
-    ! Allocate local arrays
-
-    nn = nx*ny   ! For parallel code, change to locally owned cells only
-    allocate(sorted(nn,2))
+    local_mask = 0
+    halo_mask = 0
+    do j = nhalo, ny-nhalo+1
+       do i = nhalo, nx-nhalo+1
+          if (j == nhalo .or. j == ny-nhalo+1 .or. i == nhalo .or. i == nx-nhalo+1) then
+             halo_mask(i,j) = 1
+          elseif (j > nhalo .or. j <= ny-nhalo .or. i > nhalo .or. i <= nx-nhalo+1) then
+             local_mask(i,j) = 1
+          endif
+       enddo
+    enddo
 
     ! Initialize the filled field
+
     head_filled = head
 
     ! Fill depressions in head, so that no interior cells are sinks
-    call fill_depressions(&
-         nx,          ny,    &
-         head_filled,        &
-         bwat_mask)
 
+    call fill_depressions(&
+         nx,    ny,            &
+         parallel,             &
+         itest, jtest, rtest,  &
+         head_filled,          &
+         bwat_mask)
 
     ! Raise the head slightly in flat regions, so that all cells have downslope outlets
 
     call fix_flats(&
          nx,    ny,            &
+         parallel,             &
          itest, jtest, rtest,  &
          head_filled,          &
          bwat_mask)
 
+    ! Compute the lake depth
     lakes = head_filled - head
+
+    ! Update head with the filled values
+    head = head_filled
 
     p = pdiag
     if (verbose_bwat .and. this_rank == rtest) then
@@ -688,16 +707,12 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head_filled(i,j)
+             write(6,'(f10.3)',advance='no') head(i,j)
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
        print*, 'lakes (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
@@ -708,225 +723,203 @@ contains
        enddo
     endif
 
-    ! Update head with the filled values
-    head = head_filled
-
     ! Sort heights.
-    ! The 'sorted' array contains the i and j index for each cell, from lowest to highest value of the filled potential.
-    call heights_sort(&
-         nx,           ny,     &
-         itest, jtest, rtest,  &
-         head,         sorted)
+    ! The sorted_ij array stores the i and j index for each locally owned cell, from lowest to highest value.
+
+    call sort_heights(&
+         nx,    ny,    nlocal,  &
+         itest, jtest, rtest,   &
+         head,  sorted_ij)
 
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
        print*, 'sorted, from the top:'
-       do k = nx*ny, nx*ny-10, -1
-          i = sorted(k,1)
-          j = sorted(k,2)
-          print*, i, j, head(i,j)
+       do k = nlocal, nlocal-10, -1
+          i = sorted_ij(k,1)
+          j = sorted_ij(k,2)
+          print*, k, i, j, head(i,j)
        enddo
     endif
 
-    ! Initialise the water flux with the local basal melt, which will then be redistributed.
-    ! Multiply by area, so units are m^3/s.
+    call get_flux_fraction(&
+         nx,    ny,    nlocal,  &
+         dx,    dy,             &
+         itest, jtest, rtest,   &
+         flux_routing_scheme,   &
+         sorted_ij,             &
+         head,                  &
+         bwat_mask,             &
+         flux_fraction)
 
-    bwatflx = bmlt * dx * dy
+    ! Initialize bwatflx in locally owned cells with the basal melt, which will be routed downslope.
+    ! Multiply by area, so units are m^3/s.
+    ! The halo water flux, bwatflx_halo, holds water routed to halo cells;
+    !  it will be routed downhill on the next iteration.
+    ! The accumulated flux, bwatflx_accum, holds the total flux over multiple iterations.
+
+    bwatflx = 0.0d0
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          bwatflx(i,j) = bmlt(i,j) * dx * dy
+       enddo
+    enddo
+    bwatflx_halo = 0.0d0
+    bwatflx_accum = 0.0d0
 
     ! Compute total input of meltwater (m^3/s)
-    total_flux_in = sum(bwatflx)  ! need global sum for parallel code
-    if (verbose_bwat .and. main_task) then
+    total_flux_in = parallel_global_sum(bwatflx, parallel)
+
+    if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
-       print*, 'total input basal melt flux (m^3/s):', total_flux_in
+       print*, 'Total input basal melt flux (m^3/s):', total_flux_in
     endif
 
-    flux_unrouted = 0.0d0
+    ! Loop over locally owned cells, from highest to lowest.
+    ! During each iteration, there are two possible outcomes for routing:
+    ! (1) Routed to the ice sheet margin, to a cell with bwat_mask = 0.
+    !     In this case, the routing of that flux is done.
+    ! (2) Routed to a halo cell, i.e. a downslope cell on a neighboring processor.
+    !     In this case, the flux will be routed further downhill on the next iteration.
+    ! When all the water has been routed to the margin, we are done.
 
-    ! Begin loop over points, highest first
-    !TODO: need to parallelize this loop somehow
+    count = 0
+    !TODO - Not sure if this value of count_max is sufficient.  Need 3 iterations with 2 x 2 processors.
+    count_max = max(parallel%ewtasks, parallel%nstasks) + 1
+    finished = .false.
 
-    do k = nn,1,-1
+    do while (.not.finished)
 
-       ! Get x and y indices of current point
-       i = sorted(k,1)
-       j = sorted(k,2)
+       count = count + 1
+       if (verbose_bwat .and. this_rank == rtest) then
+          print*, 'flux routing, count =', count
+       endif
 
-       ! If the flux to this cell is nonzero, then route it to adjacent downhill cells
-       if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
+       do k = nlocal, 1, -1
 
-          slope = 0.0d0
+          ! Get i and j indices of current point
+          i = sorted_ij(k,1)
+          j = sorted_ij(k,2)
 
-          ! Loop over adjacent points and calculate slope
-          do jj = -1,1
-             do ii = -1,1
-                ! If this is the centre point, ignore
-                if (ii == 0 .and. jj == 0) then
-                   continue
-                else  ! compute slope
-                   ip = i + ii
-                   jp = j + jj
-                   if (ip >= 1 .and. ip <= nx .and. jp > 1 .and. jp <= ny) then
-                      if (head(ip,jp) < head(i,j)) then
-                         slope(ii,jj) = (head(i,j) - head(ip,jp)) / dists(ii,jj)
-                      endif
-                   endif
-                endif
-             enddo
-          enddo
-
-          !WHL - debug
-          if (this_rank == rtest .and. i == itest .and. j == jtest) then
-             print*, ' '
-             print*, 'slope: task, i, j =', rtest, i, j
-             print*, slope(:,1)
-             print*, slope(:,0)
-             print*, slope(:,-1)
-             print*, 'sum(slope) =', sum(slope)
-          endif
-
-          ! If there are places for the water to drain, distribute it according to the flux-routing scheme:
-          !  to the lowest-elevation neighbor (D8), the two lowest-elevation neighbors (Dinf), or
-          !  all lower-elevation neighbors (FD8).
-          ! The D8 and FD8 schemes have been tested with a simple dome problem.
-          ! Dinf is less suited for the dome problem because there are many ties for 2nd greatest slope,
-          !  so i2 and j2 for slope2 are not well defined.
-          ! Note that the flux in the source cell is not zeroed.
-
-          if (flux_routing_scheme == HO_FLUX_ROUTING_D8) then
-
-             ! route to the adjacent cell with the lowest elevation
-             slope1 = 0.0d0
-             if (sum(slope) > 0.d0) then
-                i1 = 0; j1 = 0
-                do jj = -1,1
-                   do ii = -1,1
-                      ip = i + ii
-                      jp = j + jj
-                      if (slope(ii,jj) > slope1) then
-                         slope1 = slope(ii,jj)
-                         i1 = ip
-                         j1 = jp
-                      endif
-                   enddo
-                enddo
-             endif
-
-             if (slope1 > 0.0d0) then
-                bwatflx(i1,j1) = bwatflx(i1,j1) + bwatflx(i,j)
-             else
-                flux_unrouted = flux_unrouted + bwatflx(i,j)
-                print*, 'Warning: Cell with no downhill neighbors, i, j, bwatflx =', &
-                     i, j, bwatflx(i,j)
-             endif
-
-             if (this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1 =', i1, j1, slope1
-             endif
-
-          !TODO - Remove Dinf scheme?
-          elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
-
-             ! route to the two adjacent cells with the lowest elevation
-             i1 = 0; j1 = 0
-             i2 = 0; j2 = 0
-             slope1 = 0.0d0
-             slope2 = 0.0d0
+          ! Apportion the flux among downslope neighbors
+          if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
              do jj = -1,1
                 do ii = -1,1
                    ip = i + ii
                    jp = j + jj
-                   if (slope(ii,jj) > slope1) then
-                      slope_tmp = slope1
-                      itmp = i1
-                      jtmp = j1
-                      slope1 = slope(ii,jj)
-                      i1 = ip
-                      j1 = jp
-                      slope2 = slope_tmp
-                      i2 = itmp
-                      j2 = itmp
-                   elseif (slope(ii,jj) > slope2) then
-                      slope2 = slope(ii,jj)
-                      i2 = ip
-                      j2 = jp
-                   endif
+                   if (flux_fraction(ii,jj,i,j) > 0.0d0) then
+                      if (halo_mask(ip,jp) == 1) then
+                         bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                      elseif (local_mask(ip,jp) == 1) then
+                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                      endif
+                   endif   ! flux_fraction > 0
                 enddo
              enddo
+          endif
 
-             sum_slope = slope1 + slope2
-             if (sum_slope > 0.0d0) then    ! divide the flux between cells (i1,j1) and (i2,j2)
-                if (slope1 > 0.0d0) then
-                   bwatflx(i1,j1) = bwatflx(i1,j1) + bwatflx(i,j)*slope1/sum_slope
-                endif
-                if (slope2 > 0.0d0) then
-                   bwatflx(i2,j2) = bwatflx(i2,j2) + bwatflx(i,j)*slope2/sum_slope
-                endif
-             else
-                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+       enddo  ! loop from high to low
+
+       ! Accumulate bwatflx from the latest iteration.
+       ! Reset to zero for the next iteration, if needed.
+
+       bwatflx_accum = bwatflx_accum + bwatflx
+       bwatflx = 0.0d0
+
+       ! If bwatflx_halo = 0 everywhere, then we are done.
+       ! If not, then communicate bwatflx_halo to neighboring tasks and route further downslope.
+
+       do j = 1, ny
+          do i = 1, nx
+             sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
+             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > 0.0d0) then
+                print*, 'Nonzero bwatflx_halo, rank, i, j, bwatflx_halo:', &
+                     this_rank, i, j, sum_bwatflx_halo(i,j)
              endif
+          enddo
+       enddo
+       global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
 
-             if (this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1:', i1, j1, slope1
-                print*, 'i2, j2, slope2:', i2, j2, slope2
-             endif
+       if (verbose_bwat .and. this_rank == rtest) &
+            print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
 
-          elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
+       if (global_flux_sum > 0.0d0) then
 
-             ! route to all adjacent downhill cells in proportion to grad(head)
-             if (sum(slope) > 0.d0) then
-                slope = slope / sum(slope)
-                do jj = -1,1
-                   do ii = -1,1
-                      ip = i + ii
-                      jp = j + jj
-                      if (slope(ii,jj) > 0.d0) then
-                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*slope(ii,jj)
-                      endif
-                   enddo
-                enddo
-             endif  ! sum(slope) > 0
+          finished = .false.
 
-          endif   ! flux_routing_scheme
+          ! Communicate bmltflx_halo to the halo cells of neighboring processors
+          call parallel_halo(bwatflx_halo(:,:,:,:), parallel)
 
-       endif  ! bwat_mask = 1 and bwatflx > 0
+          ! bmltflx_halo is now available in the halo cells of this processor.
+          ! Route downslope to the adjacent locally owned cells.
+          ! These fluxes will be routed further downslope during the next iteration.
 
-    enddo  ! loop from high to low
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (halo_mask(i,j) == 1 .and. sum(bwatflx_halo(:,:,i,j)) > 0.0d0) then
+                   do jj = -1,1
+                      do ii = -1,1
+                         if (bwatflx_halo(ii,jj,i,j) > 0.0d0) then
+                            ip = i + ii
+                            jp = j + jj
+                            if (local_mask(ip,jp) == 1) then
+                               bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
+                               if (verbose_bwat) then
+                                    print*, 'Nonzero bwatflx, rank, i, j:', this_rank, ip, jp, bwatflx(ip,jp)
+                                 endif
+                            endif
+                         endif   !  bwatflx_halo > 0 to this local cell
+                      enddo   ! ii
+                   enddo   ! jj
+                endif   ! bwatflx_halo > 0 from this halo cell
+             enddo   ! i
+          enddo   ! j
+
+          ! Reset bwatflx_halo for the next iteration
+          bwatflx_halo = 0.0d0
+
+          global_flux_sum = parallel_global_sum(bwatflx, parallel)
+          if (verbose_bwat .and. this_rank == rtest) then
+             ! Should be equal to the global sum of bwatflx_halo computed above
+             print*, 'After halo update, sum(bwatflx) =', global_flux_sum
+          endif
+
+       else   ! bwatflx_halo = 0 everywhere; no fluxes to route to adjacent processors
+          if (verbose_bwat .and. this_rank == rtest) print*, 'Done routing fluxes'
+          finished = .true.
+          bwatflx = bwatflx_accum
+       endif
+
+       if (count > count_max) then
+          call write_log('Hydrology error: too many iterations in route_basal_water', GM_FATAL)
+       endif
+
+    enddo  ! finished routing
 
     ! Identify cells just beyond the ice sheet margin, which can receive from upstream but not send downstream
-    margin_mask = 0
-    do j = 1, ny
-       do i = 1, nx
-          if (bwat_mask(i,j) == 0 .and. bwatflx(i,j) > 0.0d0) then
-             margin_mask(i,j) = 1
-          endif
-       enddo
-    enddo
+    where (bwat_mask == 0 .and. bwatflx > 0.0d0)
+       margin_mask = 1
+    elsewhere
+       margin_mask = 0
+    endwhere
 
-    ! Compute total output of meltwater (m^3/s)
+    ! Compute total output of meltwater (m^3/s) and check that input = output, within roundoff.
 
-    !WHL - debug
-!    print*, ' '
-!    print*, 'Margin cells: i, j, bwatflx:'
-    total_flux_out = 0.0d0
-    do j = 1, ny
-       do i = 1, nx
-          if (margin_mask(i,j) == 1) then
-             total_flux_out = total_flux_out + bwatflx(i,j)
-          endif
-       enddo
-    enddo
+    total_flux_out = parallel_global_sum(bwatflx*margin_mask, parallel)
 
-    if (verbose_bwat .and. main_task) then
-       print*, ' '
-       print*, 'total output basal melt flux (m^3/s):', total_flux_out
-       print*, 'total unrouted flux (m^3/s):', flux_unrouted
-       print*, 'Sum:', total_flux_out + flux_unrouted
+    if (verbose_bwat .and. this_rank == rtest) then
+       print*, 'Total output basal melt flux (m^3/s):', total_flux_out
+       print*, 'Difference between input and output =', total_flux_in - total_flux_out
     endif
 
-    !TODO - Add a bug check; should be equal
+    ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
+    if (abs(total_flux_in - total_flux_out) > eps11) then
+       write(message,*) 'Hydrology error: total water not conserved, diff =', &
+            total_flux_in - total_flux_out
+       call write_log(message, GM_FATAL)
+    endif
 
     ! clean up
-    deallocate(sorted)
+    deallocate(sorted_ij)
 
   end subroutine route_basal_water
 
@@ -951,7 +944,6 @@ contains
     !  or Manning flow, both of which take the form of a constant times water
     !  depth to a power, times grad(head) to a power.
 
-    use glimmer_physcon, only : grav
     use glissade_grid_operators, only: glissade_gradient_at_edges
 
     ! Input/ouput variables
@@ -1078,18 +1070,26 @@ contains
 !==============================================================
 
   subroutine fill_depressions(&
-       nx,   ny,    &
-       phi,         &
+       nx,    ny,            &
+       parallel,             &
+       itest, jtest, rtest,  &
+       phi,                  &
        phi_mask)
 
     ! Fill depressions in the input field phi
+
+    use parallel_mod, only: parallel_global_sum
 
     implicit none
 
     ! Input/output variables
 
     integer, intent(in) ::  &
-         nx, ny              ! number of grid cells in each direction
+         nx, ny,               & ! number of grid cells in each direction
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) ::  &
+         parallel            ! info for parallel communication
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          phi                 ! input field with depressions to be filled
@@ -1101,85 +1101,239 @@ contains
     ! Local variables --------------------------------------
 
     real(dp), dimension(nx,ny) ::  &
-         old_phi,          & ! old value of phi
-         pool                ! identifies cells that need to be filled
+         old_phi             ! old value of phi
 
-    real(dp) :: pvs(9), max_val
+    integer, dimension(nx,ny) :: &
+         depression_mask     ! = 1 for cells with upslope neighbors but no downslope neighbors
 
-    real(dp), parameter :: null = 1.d+20   ! large number
-    integer :: flag, i, j
+    real(dp) :: &
+         min_upslope_phi     ! min value of phi in an upslope neighbor
+
+    integer :: &
+         global_sum          ! global sum of cells with depression_mask = 1
+
+    real(dp), parameter :: big_number = 1.d+20
+    integer :: i, j, ii, jj, ip, jp, p
 
     integer :: count
     integer, parameter :: count_max = 200
 
-!!    logical, parameter :: verbose_depressions = .false.
-    logical, parameter :: verbose_depressions = .true.
+    logical :: finished      ! true when an iterative loop has finished
 
+    ! Uncomment if the input fields are not up to date in halos
+!    call parallel_halo(phi, parallel)
+!    call parallel_halo(phi_mask, parallel)
 
-    ! initialize
+    ! Identify cells in depressions.
+    ! These are cells with at least one upslope neighbor, but no downslope neighbors.
 
-    flag = 1
+    call find_depressions(&
+         nx,      ny,     &
+         phi,             &
+         phi_mask,        &
+         depression_mask)
+
+    ! The resulting mask applies to locally owned cells and one layer of halo cells.
+    ! A halo update brings it up to date in all halo cells.
+    ! TODO - Remove this update?  Need phi in halo, but not depression_mask.
+    call parallel_halo(depression_mask, parallel)
+
+    p = pdiag
+    if (verbose_bwat .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'fill_depressions, initial depression_mask:'
+       write(6,*) ' '
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(i10)',advance='no') depression_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! For each cell in a depression, raise to the level of the lowest-elevation upslope neighbor.
+
+    finished = .false.
     count = 0
 
-    do while (flag == 1)
+    do while (.not.finished)
 
        count = count + 1
-       if (verbose_depressions .and. main_task) then
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
           print*, 'fill_depressions, count =', count
        endif
 
-       flag = 0
        old_phi = phi
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (phi_mask(i,j) == 1) then
+             if (phi_mask(i,j) == 1 .and. depression_mask(i,j) == 1) then
 
-                if (any(old_phi(i-1:i+1,j-1:j+1) < old_phi(i,j))) then
-                   pool(i,j) = 0
-                else
-                   pool(i,j) = 1
-                end if
+                ! Find the adjacent upslope cell with the lowest elevation
+                min_upslope_phi = big_number
+                do jj = -1,1
+                   do ii = -1,1
+                      ! If this is the centre point, ignore
+                      if (ii == 0 .and. jj == 0) then
+                         continue
+                      else  ! check for an upslope gradient
+                         ip = i + ii
+                         jp = j + jj
+                         if (old_phi(ip,jp) - old_phi(i,j) > eps11) then   ! upslope neighbor
+                            min_upslope_phi = min(min_upslope_phi, old_phi(ip,jp))
+                         endif
+                      endif
+                   enddo
+                enddo
 
-                if (pool(i,j) == 1) then
-                   flag = 1
-                   pvs = (/ old_phi(i-1:i+1,j-1), old_phi(i-1:i+1,j+1), old_phi(i-1:i+1,j) /)
+                if (min_upslope_phi < big_number) then
+                   phi(i,j) = min_upslope_phi
+                endif
 
-                   where (pvs == old_phi(i,j))  ! equal to the original phi
-                      pvs = null
-                   end where
+                if (verbose_bwat) then
+!!                   print*, 'i, j, old phi, new phi:', i, j, old_phi(i,j), phi(i,j)
+                endif
 
-                   max_val = minval(pvs)
-
-                   if (max_val /= null) then
-                      phi(i,j) = max_val
-                   else
-                      flag = 0
-                   end if
-
-                   if (verbose_depressions) then
-                      print*, 'flag, i, j, old phi, new phi:', flag, i, j, old_phi(i,j), phi(i,j)
-                   endif
-
-                end if   ! pool = 1
-
-             end if   ! phi_mask = 1
+             end if   ! phi_mask = 1 and depression_mask = 1
           end do   ! i
        end do   ! j
+
+       ! The resulting phi is valid in all cells except the outer halo.
+       ! A halo update brings it up to date in all cells.
+       call parallel_halo(phi, parallel)
+
+       ! Find depressions in the updated phi field
+       ! The resulting depression_mask is valid in all cells except the outer halo.
+
+       call find_depressions(&
+            nx,      ny,     &
+            phi,             &
+            phi_mask,        &
+            depression_mask)
+
+       if (verbose_bwat .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'New depression_mask:'
+          write(6,*) ' '
+          do j = jtest+p, jtest-p, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-p, itest+p
+                write(6,'(i10)',advance='no') depression_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       ! Compute the number of cells in depressions on the global grid
+       ! If there are still depressions, then repeat; else exit
+
+       global_sum = parallel_global_sum(depression_mask, parallel)
+       if (global_sum > 0) then
+          finished = .false.
+       else
+          finished = .true.
+       endif
 
        if (count > count_max) then
           call write_log('Hydrology error: too many iterations in fill_depressions', GM_FATAL)
        endif
 
-    end do   ! flag = 1
+    end do   ! finished
 
   end subroutine fill_depressions
 
 !==============================================================
 
+  subroutine find_depressions(&
+       nx,     ny,       &
+       phi,              &
+       phi_mask,         &
+       depression_mask)
+
+    ! Compute a mask that = 1 for cells in depressions.
+    ! These are defined as cells with phi_mask = 1, at least one upslope neighbor,
+    !  and no downslope neighbors.
+    ! If the input phi and phi_mask are up to date in all halo cells,
+    !  then depression_mask will be valid in all cells except the outer halo.
+
+    ! Input/output arguments
+
+    integer, intent(in) ::  &
+         nx, ny                  ! number of grid cells in each direction
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         phi                     ! elevation field with potential depressions
+
+    integer, dimension(nx,ny), intent(in) :: &
+         phi_mask                ! = 1 for cells in the region where depressionss need to be identified
+
+    integer, dimension(nx,ny), intent(out) :: &
+         depression_mask         ! = 1 for cells with upslope neighbors but no downslope neighbors
+
+    ! Local variables
+
+    integer :: i, j, ii, jj, ip, jp
+
+    ! initialize
+    depression_mask = 0
+
+    ! In the first pass, set depression_mask = 1 if phi_mask = 1 and a cell has any upslope neighbors
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (phi_mask(i,j) == 1) then
+             !TODO - Add an exit statement?
+             do jj = -1,1
+                do ii = -1,1
+                   ! If this is the centre point, ignore
+                   if (ii == 0 .and. jj == 0) then
+                      continue
+                   else  ! check for an upslope gradient
+                      ip = i + ii
+                      jp = j + jj
+                      if (phi(ip,jp) - phi(i,j) > eps11) then
+                         depression_mask(i,j) = 1
+                      endif
+                   endif
+                enddo   ! ii
+             enddo   ! jj
+          endif   ! phi_mask = 1
+       enddo   ! i
+    enddo   ! j
+
+    ! In the second pass, set depression_mask = 0 if a cell has any downslope neighbors.
+    ! We are left with cells that have at least one upslope neighbor, but no downslope neighbors.
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (phi_mask(i,j) == 1) then
+             !TODO - Add an exit statement?
+             do jj = -1,1
+                do ii = -1,1
+                   ! If this is the centre point, ignore
+                   if (ii == 0 .and. jj == 0) then
+                      continue
+                   else  ! check for a downslope gradient
+                      ip = i + ii
+                      jp = j + jj
+                      if (phi(i,j) - phi(ip,jp) > eps11) then
+                         depression_mask(i,j) = 0
+                      endif
+                   endif
+                enddo   ! ii
+             enddo   ! jj
+          endif   ! phi_mask = 1
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine find_depressions
+
+!==============================================================
+
   subroutine fix_flats(&
        nx,    ny,            &
+       parallel,             &
        itest, jtest, rtest,  &
        phi,                  &
        phi_mask)
@@ -1192,55 +1346,62 @@ contains
     !    over flat surfaces in raster digital elevation models, J. Hydrol., 193,
     !    204-213.
 
+    use parallel_mod, only: parallel_global_sum
+
     implicit none
 
     ! Input/output variables
 
     integer, intent(in) ::  &
-         nx, ny,               & ! number of grid cells in each direction
-         itest, jtest, rtest     ! coordinates of diagnostic point
+         nx, ny,                & ! number of grid cells in each direction
+         itest, jtest, rtest      ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) ::  &
+         parallel                 ! info for parallel communication
 
     real(dp), dimension(nx,ny), intent(inout) :: &
-         phi                    ! input field with flat regions to be fixed
+         phi                      ! input field with flat regions to be fixed
 
     integer, dimension(nx,ny), intent(in) ::  &
-         phi_mask               ! = 1 where any flat regions of phi will need to be fixed, else = 0
-                                ! corresponds to the grounded ice sheet (bmlt_mask) for the flux-routing problem
+         phi_mask                 ! = 1 where any flat regions of phi will need to be fixed, else = 0
+                                  ! corresponds to the grounded ice sheet (bmlt_mask) for the flux-routing problem
 
     ! Local variables --------------------------------------
 
     real(dp), dimension(nx,ny) ::  &
-         phi_input,           & ! input value of phi, before any corrections
-         phi_new,             & ! new value of phi, after incremental corrections
-         dphi1,               & ! sum of increments applied in step 1
-         dphi2                  ! sum of increments applied in step 2
+         phi_input,             & ! input value of phi, before any corrections
+         phi_new,               & ! new value of phi, after incremental corrections
+         dphi1,                 & ! sum of increments applied in step 1
+         dphi2                    ! sum of increments applied in step 2
 
     integer, dimension(nx,ny) :: &
-         flat_mask,           & ! = 1 for cells with phi_mask = 1 and without a downslope gradient, else = 0
-         flat_mask_input,     & ! flat_mask as computed from phi_input
-         n_uphill,            & ! number of uphill neighbors for each cell, as computed from input phi
-         n_downhill             ! number of downhill neighbors for each cell, as computed from input phi
+         flat_mask,             & ! = 1 for cells with phi_mask = 1 and without a downslope gradient, else = 0
+         flat_mask_input,       & ! flat_mask as computed from phi_input
+         n_uphill,              & ! number of uphill neighbors for each cell, as computed from input phi
+         n_downhill,            & ! number of downhill neighbors for each cell, as computed from input phi
+         incremented_mask,      & ! = 1 for cells that have already been incremented (in step 2)
+         unincremented_mask,    & ! = 1 for cells in input flat regions, not yet incremented
+         incremented_neighbor_mask  ! = 1 for cells that have not been incremented, but have an incremented neighbor
 
-    logical, dimension(nx,ny) :: &
-         incremented,         & ! = T for cells that have already been incremented (in step 2)
-         incremented_neighbor   ! = T for cells that have not been incremented, but have an incremented neighbor
- 
-    logical :: finished         ! true when a loop has finished
+    integer :: &
+         global_sum               ! global sum of cells meeting a mask criterion
+
+    logical :: finished           ! true when an iterative loop has finished
 
     real(dp), parameter :: &
-         phi_increment = 2.0d-5    ! fractional increment in phi (Garbrecht & Martz use 2.0e-5)
+         phi_increment = 2.0d-5   ! fractional increment in phi (Garbrecht & Martz use 2.0e-5)
 
     integer :: i, j, ii, jj, ip, jp, p
     integer :: count
     integer, parameter :: count_max = 50
 
-    !WHL - debug
-!!    logical, parameter :: verbose_fix_flats = .false.
-    logical, parameter :: verbose_fix_flats = .true.
+    ! Uncomment if the input fields are not up to date in halos
+!    call parallel_halo(phi, parallel)
+!    call parallel_halo(phi_mask, parallel)
 
     p = pdiag
 
-    if (verbose_fix_flats .and. this_rank == rtest) then
+    if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
        print*, 'In fix_flats, rtest, itest, jtest =', rtest, itest, jtest
        print*, ' '
@@ -1258,7 +1419,7 @@ contains
           write(6,*) ' '
        enddo
        write(6,*) ' '
-       print*, 'mask:'
+       print*, 'phi_mask:'
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
@@ -1302,6 +1463,7 @@ contains
 
     ! Identify the flat regions in the input field.
     ! This includes all cells with phi_mask = 1 and without downslope neighbors.
+    ! The resulting flat_mask is valid in all cells except the outer halo.
 
     call find_flats(&
          nx,    ny,           &
@@ -1310,7 +1472,7 @@ contains
          phi_mask,            &
          flat_mask_input)
 
-    if (verbose_fix_flats .and. this_rank == rtest) then
+    if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
        print*, 'n_uphill:'
        do j = jtest+p, jtest-p, -1
@@ -1348,25 +1510,35 @@ contains
     count = 0
 
     ! Increment phi in all cells with flat_mask = 1 (no downslope gradient).
-    ! Repeat until all cells have a downslope gradient.
+    ! Repeat until all cells on the global grid have a downslope gradient.
 
     do while(.not.finished)
 
        count = count + 1
-       if (verbose_fix_flats .and. this_rank == rtest) then
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
           print*, 'step 1, count =', count
        endif
 
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (flat_mask(i,j) == 1) then
-                dphi1(i,j) = dphi1(i,j) + phi_increment
-             endif
-          enddo
-       enddo
+       where (flat_mask == 1)
+          dphi1 = dphi1 + phi_increment
+       endwhere
 
-       if (verbose_fix_flats .and. this_rank == rtest) then
+       call parallel_halo(dphi1, parallel)
+
+       phi_new = phi_input + dphi1
+
+       ! From the original flat region, identify cells that still have no downslope gradient.
+       ! The resulting flat_mask is valid in all cells except the outer halo.
+
+       call find_flats(&
+            nx,    ny,             &
+            itest, jtest, rtest,   &
+            phi_new,               &
+            flat_mask_input,       &
+            flat_mask)
+
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
           print*, 'Updated dphi1/phi_increment:'
           do j = jtest+p, jtest-p, -1
@@ -1376,22 +1548,6 @@ contains
              enddo
              write(6,*) ' '
           enddo
-       endif
-
-       ! From the original flat region, identify cells that still have no downslope gradient.
-
-       phi_new = phi_input + dphi1
-
-       call find_flats(&
-            nx,    ny,             &
-            itest, jtest, rtest,   &
-            phi_new,               &
-            flat_mask_input,       &
-            flat_mask)
-
-!       call parallel_halo(flat_mask, parallel)
-
-       if (verbose_fix_flats .and. this_rank == rtest) then
           print*, ' '
           print*, 'Updated flat_mask:'
           do j = jtest+p, jtest-p, -1
@@ -1403,10 +1559,19 @@ contains
           enddo
        endif
 
-       ! If any flat cells remain, then repeat; else exit
-       finished = .true.
-       if (sum(flat_mask) > 0) then
+       ! Compute the number of cells in the remaining flat regions on the global grid.
+       ! If there are no such cells, then exit the loop.
+
+       global_sum = parallel_global_sum(flat_mask, parallel)
+
+       if (verbose_bwat .and. this_rank == rtest) then
+          print*, 'global sum of flat_mask =', global_sum
+       endif
+
+       if (global_sum > 0) then
           finished = .false.
+       else
+          finished = .true.
        endif
 
        if (count > count_max) then
@@ -1418,27 +1583,30 @@ contains
     ! Step 2: Gradient away from higher terrain
 
     dphi2 = 0.0d0
-    incremented = .false.
+    incremented_mask = 0
     finished = .false.
     count = 0
 
     ! In the first pass, increment the elevation in all cells of the input flat region that are
     !  adjacent to higher terrain and have no adjacent downhill cell.
+    ! The resulting dphi2 and incremented_mask are valid in all cells except the outer halo.
+    ! Need a halo update for incremented_mask to compute incremented_neighbor_mask below.
 
     do j = 2, ny-1
        do i = 2, nx-1
           if (flat_mask_input(i,j) == 1) then
              if (n_uphill(i,j) >= 1 .and. n_downhill(i,j) == 0) then
                 dphi2(i,j) = dphi2(i,j) + phi_increment
-                incremented(i,j) = .true.
+                incremented_mask(i,j) = 1
              endif
           endif
        enddo
     enddo
 
-!    call parallel_halo(incremented, parallel)
+    call parallel_halo(dphi2, parallel)
+    call parallel_halo(incremented_mask, parallel)
 
-    if (verbose_fix_flats .and. this_rank == rtest) then
+    if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
        print*, 'step 2, input flat_mask:'
        do j = jtest+p, jtest-p, -1
@@ -1459,11 +1627,14 @@ contains
        enddo
     endif
 
-    ! If no cells are incremented in the first pass, then skip step 2.
+    ! Compute the number of cells incremented in the first pass.
+    ! If no cells are incremented, then skip step 2.
     ! This will be the case if the flat region lies at the highest elevation in the domain.
 
-    if (.not.any(incremented)) then
-       if (verbose_fix_flats .and. this_rank == rtest) then
+    global_sum = parallel_global_sum(incremented_mask, parallel)
+
+    if (global_sum == 0) then
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
           print*, 'No cells to increment; skip step 2'
        endif
@@ -1481,16 +1652,18 @@ contains
     do while(.not.finished)
 
        count = count + 1
-       if (verbose_fix_flats .and. this_rank == rtest) then
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
           print*, 'step 2, count =', count
        endif
 
        ! Identify cells that have not been incremented, but are adjacent to incremented cells
-       incremented_neighbor = .false.
+       ! The resulting incremented_neighbor mask is valid in all cells except the outer halo.
+
+       incremented_neighbor_mask = 0
        do j = 2, ny-1
           do i = 2, nx-1
-             if (flat_mask_input(i,j) == 1 .and. .not.incremented(i,j)) then
+             if (flat_mask_input(i,j) == 1 .and. incremented_mask(i,j) == 0) then
                 do jj = -1,1
                    do ii = -1,1
                       ! If this is the centre point, ignore
@@ -1499,8 +1672,8 @@ contains
                       else  ! check for an incremented neighbor
                          ip = i + ii
                          jp = j + jj
-                         if (incremented(ip,jp)) then
-                            incremented_neighbor(i,j) = .true.
+                         if (incremented_mask(ip,jp) == 1) then
+                            incremented_neighbor_mask(i,j) = 1
                          endif
                       endif
                    enddo   ! ii
@@ -1509,31 +1682,30 @@ contains
           enddo   ! i
        enddo   ! j
 
-!       call parallel_halo(incremended_neighbor, parallel)
-
        ! Increment cells of type (1) and (2)
        ! Note: n_downhill was computed before step 1.
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (incremented(i,j)) then
+             if (incremented_mask(i,j) == 1) then
                 dphi2(i,j) = dphi2(i,j) + phi_increment
-             elseif (n_downhill(i,j) == 0 .and. incremented_neighbor(i,j)) then
+             elseif (n_downhill(i,j) == 0 .and. incremented_neighbor_mask(i,j) == 1) then
                 dphi2(i,j) = dphi2(i,j) + phi_increment
-                incremented(i,j) = .true.
+                incremented_mask(i,j) = 1
              endif
           enddo
        enddo
 
-!       call parallel_halo(incremented, parallel)
+       call parallel_halo(dphi2, parallel)
+       call parallel_halo(incremented_mask, parallel)
 
-       if (verbose_fix_flats .and. this_rank == rtest) then
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
-          print*, 'incremented_neighbor:'
+          print*, 'incremented_neighbor_mask:'
           do j = jtest+p, jtest-p, -1
              write(6,'(i6)',advance='no') j
              do i = itest-p, itest+p
-                write(6,'(L10)',advance='no') incremented_neighbor(i,j)
+                write(6,'(i10)',advance='no') incremented_neighbor_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1547,17 +1719,25 @@ contains
           enddo
        endif
 
-       ! Check for cells that are in the input flat region and have not been incremented.
-       ! If there are no such cells, then exit the loop.
-       finished = .true.
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (flat_mask_input(i,j) == 1 .and. .not.incremented(i,j)) then
-                finished = .false.
-                exit
-             endif
-          enddo
-       enddo
+       ! Compute the number of cells in the input flat region that have not been incremented.
+       ! If all the flat cells have been incremented, then exit the loop.
+
+       where (flat_mask_input == 1 .and. incremented_mask == 0)
+          unincremented_mask = 1
+       elsewhere
+          unincremented_mask = 0
+       endwhere
+       global_sum = parallel_global_sum(unincremented_mask, parallel)
+
+
+       if (global_sum > 0) then
+          if (verbose_bwat .and. this_rank == rtest) then
+             print*, 'number of flat cells not yet incremented =', global_sum
+          endif
+          finished = .false.
+       else
+          finished = .true.
+       endif
 
        if (count > count_max) then
           call write_log('Hydrology error: abort in step 2 of fix_flats', GM_FATAL)
@@ -1570,8 +1750,9 @@ contains
 
     ! Add the increments from steps 1 and 2
     ! The result is a surface with gradients both toward lower terrain and away from higher terrain.
+    ! No halo update is needed here, since dphi1 and dphi2 have been updated in halos.
 
-    phi = phi + dphi1 + dphi2
+    phi = phi_input + dphi1 + dphi2
 
     ! Check for cells with flat_mask = 1 (no downslope gradient).
     ! Such cells are possible because of cancelling dphi1 and dphi2.
@@ -1582,12 +1763,13 @@ contains
     do while (.not.finished)
 
        count = count + 1
-       if (verbose_fix_flats .and. this_rank == rtest) then
+       if (verbose_bwat .and. this_rank == rtest) then
           print*, ' '
           print*, 'step 3, count =', count
        endif
 
-       ! Identify cells without downslope neighbors
+       ! Identify cells without downslope neighbors.
+       ! The resulting flat_mask is valid in all cells except the outer halo.
 
        call find_flats(&
             nx,    ny,           &
@@ -1596,17 +1778,23 @@ contains
             phi_mask,            &
             flat_mask)
 
-       ! Add a half increment to any cells without downslope neighbors.
-       ! If all cells have downslope neighbors, then exit.
+       ! Add a half increment to any cells without downslope neighbors
+       where (flat_mask == 1)
+          phi = phi + 0.5d0 * phi_increment
+       endwhere
 
-       if (verbose_fix_flats .and. this_rank == rtest) then
-          print*, 'sum(flat_mask) =', sum(flat_mask)
+       call parallel_halo(phi, parallel)
+
+       ! Compute the number of cells without downslope neighbors.
+       ! If there are no such cells, then exit the loop.
+
+       global_sum = parallel_global_sum(flat_mask, parallel)
+
+       if (verbose_bwat .and. this_rank == rtest) then
+          print*, 'global sum of flat_mask =', global_sum
        endif
 
-       if (sum(flat_mask) > 0) then
-          where (flat_mask == 1)
-             phi = phi + 0.5d0 * phi_increment
-          endwhere
+       if (global_sum > 0) then
           finished = .false.
        else
           finished = .true.
@@ -1618,7 +1806,7 @@ contains
 
     enddo   ! step 3 finished
 
-    if (verbose_fix_flats .and. this_rank == rtest) then
+    if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
        print*, 'Final phi:'
        do j = jtest+p, jtest-p, -1
@@ -1700,70 +1888,307 @@ contains
 
 !==============================================================
 
-  subroutine heights_sort(&
-       nx,    ny,            &
-       itest, jtest, rtest,  &
-       head,  sorted)
+  subroutine sort_heights(&
+       nx,    ny,    nlocal,  &
+       itest, jtest, rtest,   &
+       phi,   sorted_ij)
 
     ! Create an array with the x and y location of each cell, sorted from from low to high values of head.
-    ! TODO: Adapt for parallel code.  Sort only the locally owned grid cells?
+    ! Note: This subroutine sorts locally owned cells and excludes halo cells.
 
     ! Input/output arguments
 
     integer, intent(in) ::  &
          nx, ny,               & ! number of grid cells in each direction
+         nlocal,               & ! number of locally owned cells
          itest, jtest, rtest     ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         head                    ! hydraulic head (m), to be sorted from low to high
+         phi                     ! input field, to be sorted from low to high
 
-    integer, dimension(nx*ny,2), intent(inout) :: &
-         sorted                  ! i and j indices of each cell, sorted from from low to high head
+    integer, dimension(nlocal,2), intent(inout) :: &
+         sorted_ij               ! i and j indices of each cell, sorted from from low phi to high phi
 
     ! Local variables
 
-    integer :: nn, i, j, k
-    real(dp), dimension(nx*ny) :: vect
-    integer, dimension(nx*ny) :: ind
+    integer :: i, j, k
+    integer :: ilo, ihi, jlo, jhi
+    integer :: nx_local, ny_local
 
-    nn = nx*ny
+    real(dp), dimension(nlocal) :: vect
+    integer, dimension(nlocal) :: ind
 
-    ! Fill a work vector with head values
+    ! Set array bounds for locally owned cells
+    ilo = nhalo+1
+    ihi = nx - nhalo
+    jlo = nhalo+1
+    jhi = ny - nhalo
+    nx_local = ihi-ilo+1
+    ny_local = jhi-jlo+1
+
+    ! Fill a work vector with head values of locally owned cells
     k = 1
-    do i = 1, nx
-       do j = 1, ny
-          vect(k) = head(i,j)
+    do i = ilo, ihi
+       do j = jlo, jhi
+          vect(k) = phi(i,j)
           k = k + 1
        enddo
     enddo
 
     ! Sort the vector from low to high values
+    ! The resulting 'ind' vector contains the k index for each cell, arranged from lowest to highest.
+    ! E.g., if the lowest-ranking cell has k = 5 and the highest-ranking cell has k = 50,
+    !  then ind(1) = 5 and ind(nlocal) = 50.
+
     call indexx(vect, ind)
 
-    ! Fill the 'sorted' array with the i and j values of each cell
-    do k = 1, nn
-       sorted(k,1) = floor(real(ind(k)-1)/real(ny)) + 1
-       sorted(k,2) = mod(ind(k)-1,ny)+1
-    enddo
-
-    ! Fill the 'vect' array with head values
-    ! Note: This array is not an output field; used only for a bug check
-
-    do k = 1, nn
-       vect(k) = head(sorted(k,1), sorted(k,2))
-    enddo
-
-    !WHL - debug
     if (verbose_bwat .and. this_rank == rtest) then
-!!       print*, ' '
-!!       print*, 'k, x, y, head:'
-       do k = nn-20, nn
-          vect(k) = head(sorted(k,1), sorted(k,2))
-!!          print*, k, sorted(k,1), sorted(k,2), vect(k)
+       print*, ' '
+       print*, 'Sort from low to high, nlocal =', nlocal
+       print*, 'k, local i and j, ind(k), phi:'
+       do k = nlocal, nlocal-10, -1
+          i = floor(real(ind(k)-1)/real(ny_local)) + 1 + nhalo
+          j = mod(ind(k)-1,ny_local) + 1 + nhalo
+          print*, k, i, j, ind(k), phi(i,j)
        enddo
     endif
 
-  end subroutine heights_sort
+    ! Fill the sorted_ij array with the i and j values of each cell.
+    ! Note: These are the i and j values we would have if there were no halo cells.
+    do k = 1, nlocal
+       sorted_ij(k,1) = floor(real(ind(k)-1)/real(ny_local)) + 1
+       sorted_ij(k,2) = mod(ind(k)-1,ny_local) + 1
+    enddo
+
+    ! Correct the i and j values in the sorted array for halo offsets
+    sorted_ij(:,:) = sorted_ij(:,:) + nhalo
+
+  end subroutine sort_heights
+
+!==============================================================
+
+  subroutine get_flux_fraction(&
+       nx,    ny,    nlocal,  &
+       dx,    dy,             &
+       itest, jtest, rtest,   &
+       flux_routing_scheme,   &
+       sorted_ij,             &
+       head,                  &
+       bwat_mask,             &
+       flux_fraction)
+
+    ! For each cell, compute the flux fraction sent to each of the 8 neighbors,
+    ! based on the chosen flux routing scheme (D8, Dinf or FD8).
+
+    ! Input/output arguments
+
+    integer, intent(in) ::  &
+         nx, ny,               & ! number of grid cells in each direction
+         nlocal,               & ! number of locally owned cells
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    real(dp), intent(in) ::  &
+         dx, dy                  ! grid spacing in each direction (m)
+
+    integer, intent(in) ::  &
+         flux_routing_scheme     ! flux routing scheme: D8, Dinf or FD8
+                                 ! D8: Flow is downhill toward the single cell with the lowest elevation.
+                                 ! Dinf: Flow is downhill toward the two cells with the lowest elevations.
+                                 ! FD8: Flow is downhill toward all cells with lower elevation.
+                                 ! D8 scheme gives the narrowest flow, and FD8 gives the most diffuse flow.
+
+    integer, dimension(nlocal,2), intent(in) :: &
+         sorted_ij               ! i and j indices of each cell, sorted from from low phi to high phi
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         head                    ! hydraulic head (m)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         bwat_mask               ! = 1 for cells in the region where basal water fluxes can be nonzero
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
+         flux_fraction           ! fraction of flux from a cell that flows downhill to each of 8 neighbors
+
+    ! Local variables
+
+    integer :: i, j, k, ii, jj, ip, jp, i1, i2, j1, j2, itmp, jtmp
+
+    real(dp), dimension(-1:1,-1:1) ::  &
+         dists,         &  ! distance (m) to adjacent grid cell
+         slope             ! slope of head between adjacent grid cells, positive downward
+
+    real(dp) ::  &
+         slope1,        &  ! largest value of slope array
+         slope2,        &  ! second largest value of slope array
+         sum_slope,     &  ! sum of positive downward slopes
+         slope_tmp         ! temporary slope value
+
+    ! Compute distances to adjacent grid cells for slope determination
+
+    dists(-1,:) = (/ sqrt(dx**2 + dy**2), dy, sqrt(dx**2 + dy**2) /)
+    dists(0,:) = (/ dx, 0.0d0, dx /)
+    dists(1,:) = dists(-1,:)
+
+    ! Loop through locally owned cells and compute the flux fraction sent to each neighbor cell.
+    ! This fraction is stored in an array of dimension (-1:1,-1:1,nx,ny).
+    ! The (0,0) element refers to the cell itself and is equal to 0 for each i and j.
+
+    flux_fraction = 0.0d0
+
+    do k = nlocal, 1, -1
+
+       ! Get i and j indices of current point
+       i = sorted_ij(k,1)
+       j = sorted_ij(k,2)
+
+       if (bwat_mask(i,j) == 1) then
+
+          ! Compute the slope between this cell and each neighbor.
+          ! Slopes are defined as positive for downhill neighbors, and zero otherwise.
+
+          slope = 0.0d0
+
+          ! Loop over adjacent points and calculate slope
+          do jj = -1,1
+             do ii = -1,1
+                ! If this is the centre point, ignore
+                if (ii == 0 .and. jj == 0) then
+                   continue
+                else  ! compute slope
+                   ip = i + ii
+                   jp = j + jj
+                   if (ip >= 1 .and. ip <= nx .and. jp > 1 .and. jp <= ny) then
+                      if (head(ip,jp) < head(i,j)) then
+                         slope(ii,jj) = (head(i,j) - head(ip,jp)) / dists(ii,jj)
+                      endif
+                   endif
+                endif
+             enddo
+          enddo
+
+          sum_slope = sum(slope)
+
+          !WHL - debug
+          if (this_rank == rtest .and. i == itest .and. j == jtest) then
+             print*, ' '
+             print*, 'slope: task, i, j =', rtest, i, j
+             print*, slope(:,1)
+             print*, slope(:,0)
+             print*, slope(:,-1)
+             print*, 'sum(slope) =', sum(slope)
+          endif
+
+          ! Distribute the downslope flux according to the flux-routing scheme:
+          !  to the lowest-elevation neighbor (D8), the two lowest-elevation neighbors (Dinf), or
+          !  all lower-elevation neighbors (FD8).
+          ! The D8 and FD8 schemes have been tested with a simple dome problem.
+          ! Dinf is less suited for the dome problem because there are many ties for 2nd greatest slope,
+          !  so i2 and j2 for slope2 are not well defined.
+
+          if (flux_routing_scheme == HO_FLUX_ROUTING_D8) then
+
+             ! route to the adjacent cell with the lowest elevation
+             slope1 = 0.0d0
+             if (sum_slope > 0.d0) then
+                i1 = 0; j1 = 0
+                do jj = -1,1
+                   do ii = -1,1
+                      ip = i + ii
+                      jp = j + jj
+                      if (slope(ii,jj) > slope1) then
+                         slope1 = slope(ii,jj)
+                         i1 = ip
+                         j1 = jp
+                      endif
+                   enddo
+                enddo
+             endif
+
+             if (slope1 > 0.0d0) then
+                ii = i1 - i
+                jj = j1 - j
+                flux_fraction(ii,jj,i,j) = 1.0d0   ! route the entire flux to one downhill cell
+             else
+                ! Do a fatal abort?
+                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+             endif
+
+             if (this_rank == rtest .and. i == itest .and. j == jtest) then
+                print*, 'i1, j1, slope1 =', i1, j1, slope1
+             endif
+
+          elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
+
+             ! route to the two adjacent cells with the lowest elevation
+             i1 = 0; j1 = 0
+             i2 = 0; j2 = 0
+             slope1 = 0.0d0
+             slope2 = 0.0d0
+             do jj = -1,1
+                do ii = -1,1
+                   ip = i + ii
+                   jp = j + jj
+                   if (slope(ii,jj) > slope1) then
+                      slope_tmp = slope1
+                      itmp = i1
+                      jtmp = j1
+                      slope1 = slope(ii,jj)
+                      i1 = ip
+                      j1 = jp
+                      slope2 = slope_tmp
+                      i2 = itmp
+                      j2 = itmp
+                   elseif (slope(ii,jj) > slope2) then
+                      slope2 = slope(ii,jj)
+                      i2 = ip
+                      j2 = jp
+                   endif
+                enddo
+             enddo
+
+             sum_slope = slope1 + slope2    ! divide the flux between cells (i1,j1) and (i2,j2)
+             if (sum_slope > 0.0d0) then
+                if (slope1 > 0.0d0) then
+                   ii = i1 - i
+                   jj = j1 - j
+                   flux_fraction(ii,jj,i,j) = slope1/sum_slope
+                endif
+                if (slope2 > 0.0d0) then
+                   ii = i2 - i
+                   jj = j2 - j
+                   flux_fraction(ii,jj,i,j) = slope2/sum_slope
+                endif
+             else
+                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+             endif
+
+             if (this_rank == rtest .and. i == itest .and. j == jtest) then
+                print*, 'i1, j1, slope1:', i1, j1, slope1
+                print*, 'i2, j2, slope2:', i2, j2, slope2
+             endif
+
+          elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
+
+             ! route to all adjacent downhill cells in proportion to grad(head)
+             if (sum_slope > 0.d0) then
+                do jj = -1,1
+                   do ii = -1,1
+                      ip = i + ii
+                      jp = j + jj
+                      if (slope(ii,jj) > 0.d0) then
+                         flux_fraction(ii,jj,i,j) = slope(ii,jj)/sum_slope
+                      endif
+                   enddo
+                enddo
+             endif  ! sum(slope) > 0
+
+          endif   ! flux_routing_scheme: D8, Dinf, FD8
+
+       endif  ! bwat_mask = 1
+
+    enddo  ! loop from high to low
+
+  end subroutine get_flux_fraction
 
 !==============================================================
 
@@ -1779,8 +2204,6 @@ contains
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   subroutine indexx(array, index)
-
-    use glimmer_log
 
     !> Performs an index sort of \texttt{array} and returns the result in
     !> \texttt{index}. The order of elements in \texttt{array} is unchanged.

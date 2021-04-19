@@ -287,12 +287,19 @@ module cism_parallel
      module procedure parallel_get_var_real8_2d
   end interface
 
+  interface parallel_global_sum
+     module procedure parallel_global_sum_integer_2d
+     module procedure parallel_global_sum_real4_2d
+     module procedure parallel_global_sum_real8_2d
+  end interface
+
   interface parallel_halo
      module procedure parallel_halo_integer_2d
      module procedure parallel_halo_logical_2d
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
      module procedure parallel_halo_real8_3d
+     module procedure parallel_halo_real8_4d
   end interface
 
   interface parallel_halo_extrapolate
@@ -5817,6 +5824,93 @@ contains
 
 !=======================================================================
 
+  function parallel_global_sum_integer_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D integer field
+
+    integer,dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    integer :: local_sum
+    integer :: parallel_global_sum_integer_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_integer_2d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_integer_2d
+
+!=======================================================================
+
+  function parallel_global_sum_real4_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D single-precision field
+
+    real(sp),dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    real(sp) :: local_sum
+    real(sp) :: parallel_global_sum_real4_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0.0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_real4_2d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_real4_2d
+
+!=======================================================================
+
+  function parallel_global_sum_real8_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D double-precision field
+
+    real(dp),dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_real8_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0.0d0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_real8_2d
+
+!=======================================================================
+
   subroutine parallel_localindex(iglobal, jglobal, ilocal, jlocal, rlocal, parallel)
 
     ! Calculates the local i,j indices and rank from the global i,j indices
@@ -6518,6 +6612,130 @@ contains
     end associate
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_real8_4d(a, parallel)
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    real(dp),dimension(size(a,1), size(a,2), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
+    real(dp),dimension(size(a,1), size(a,2), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
+    real(dp),dimension(size(a,1), size(a,2), parallel%local_ewn, lhalo) :: nsend,srecv
+    real(dp),dimension(size(a,1), size(a,2), parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    ! begin
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south,        &
+         southwest_corner  => parallel%southwest_corner,   &
+         southeast_corner  => parallel%southeast_corner,   &
+         northeast_corner  => parallel%northeast_corner,   &
+         northwest_corner  => parallel%northwest_corner    &
+         )
+
+    ! staggered grid
+    if (size(a,3)==local_ewn-1.and.size(a,4)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,3)/=local_ewn.or.size(a,4)/=local_nsn) then
+         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:,:) = &
+         a(:,:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:,:,:lhalo,1+lhalo:local_nsn-uhalo) = wrecv(:,:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(:,:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = erecv(:,:,:,:)
+
+    nsend(:,:,:,:) = a(:,:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:,:) = a(:,:,:,1+lhalo:1+lhalo+uhalo-1)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:,:,:lhalo) = srecv(:,:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,:,:,local_nsn-uhalo+1:) = nrecv(:,:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,:,local_ewn-uhalo+1:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:,:lhalo,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,:,local_nsn-uhalo+1:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:,:lhalo) = 0.d0
+       endif
+
+    elseif (no_ice_bc) then
+
+       ! Set values to zero in cells adjacent to the global boundary;
+       ! includes halo cells and one row of locally owned cells
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,:,local_ewn-uhalo:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:,:lhalo+1,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,:,local_nsn-uhalo:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:,:lhalo+1) = 0.d0
+       endif
+
+       ! Some interior blocks have a single cell at a corner of the global boundary.
+       ! Set values in corner cells to zero, along with adjacent halo cells.
+       if (southwest_corner) a(:,:,:lhalo+1,:lhalo+1) = 0.d0
+       if (southeast_corner) a(:,:,local_ewn-lhalo:,:lhalo+1) = 0.d0
+       if (northeast_corner) a(:,:,local_ewn-lhalo:,local_nsn-lhalo:) = 0.d0
+       if (northwest_corner) a(:,:,:lhalo+1,local_nsn-lhalo:) = 0.d0
+
+    endif   ! outflow or no_ice bc
+
+    end associate
+
+  end subroutine parallel_halo_real8_4d
 
 !=======================================================================
 
