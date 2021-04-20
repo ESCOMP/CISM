@@ -160,7 +160,7 @@ contains
   subroutine glide_scale_params(model)
     !> scale parameters
     use glide_types
-    use glimmer_physcon,  only: scyr, gn
+    use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
 
     implicit none
@@ -1996,7 +1996,7 @@ contains
     use glimmer_config
     use glide_types
     use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt, n_glen
 
     implicit none
     type(ConfigSection), pointer :: section
@@ -2021,6 +2021,7 @@ contains
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
 #endif
+    call GetValue(section,'n_glen', n_glen)
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
@@ -2206,7 +2207,7 @@ contains
 
   subroutine print_parameters(model)
 
-    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav, n_glen
     use glide_types
     use glimmer_log
     implicit none
@@ -2369,6 +2370,9 @@ contains
     call write_log(message)
 
     write(message,*) 'triple point of water (K)     : ', trpt
+    call write_log(message)
+
+    write(message,*) 'Glen flow law exponent        : ', n_glen
     call write_log(message)
 
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
