@@ -57,7 +57,7 @@
   module glissade_velo_higher
 
     use glimmer_global, only: dp
-    use glimmer_physcon, only: gn, rhoi, rhoo, grav, scyr, pi
+    use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
     use glimmer_paramets, only: eps08, eps10, thk0, len0, tim0, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
@@ -2082,7 +2082,7 @@
           ! gn = exponent in Glen's flow law (= 3 by default)
           do k = 1, nz-1
              if (flwa(k,i,j) > 0.0d0) then
-                flwafact(k,i,j) = 0.5d0 * flwa(k,i,j)**(-1.d0/real(gn,dp))  
+                flwafact(k,i,j) = 0.5d0 * flwa(k,i,j)**(-1.d0/n_glen)
              endif
           enddo
        enddo
@@ -4222,6 +4222,7 @@
                                      usrf,                              &
                                      dusrf_dx,         dusrf_dy,        &
                                      flwa,             efvs,            &
+                                     whichefvs,        efvs_constant,   &
                                      whichgradient_margin,              &
                                      max_slope,                         &
                                      uvel,             vvel)
@@ -6426,6 +6427,7 @@
                                       usrf,                              &
                                       dusrf_dx,         dusrf_dy,        &
                                       flwa,             efvs,            &
+                                      whichefvs,        efvs_constant,   &
                                       whichgradient_margin,              &
                                       max_slope,                         &
                                       uvel,             vvel)
@@ -6485,6 +6487,12 @@
     real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
        flwa,           &  ! temperature-based flow factor A, Pa^{-n} yr^{-1}
        efvs               ! effective viscosity, Pa yr
+
+    integer, intent(in) :: &
+       whichefvs          ! option for effective viscosity calculation
+
+    real(dp), intent(in) :: &
+       efvs_constant      ! constant value of effective viscosity (Pa yr)
 
     integer, intent(in) ::  &
        whichgradient_margin     ! option for computing gradient at ice margin
@@ -6840,7 +6848,7 @@
 
           ! Compute vertical integration factor at each active vertex
           ! This is int_b_to_z{-2 * A * tau^2 * rho*g*(s-z) * dz},
-          !  similar to the factor computed in Glide and glissade_velo_sia..
+          !  similar to the factor computed in Glide and glissade_velo_sia.
           ! Note: tau_xz ~ rho*g*(s-z)*ds_dx; ds_dx term is computed on edges below
 
           do j = 1, ny-1
@@ -6921,9 +6929,27 @@
                 tau_eff_sq = stagtau_parallel_sq(i,j)   &
                            + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
 
-                ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
-                !       only for gn = 3 (in which case (n-1)/2 = 1).
-                fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
+                ! Note: The first formula below is correct for whichefvs = 2 (efvs computed from effective strain rate),
+                !        but not for whichefvs = 0 (constant efvs) or whichefvs = 1 (multiple of flow factor).
+                !       For these options we need a modified formula.
+                !
+                ! Recall: efvs = 1/2 * A^(-1/n) * eps_e^[(1-n)/n]
+                !              = 1/2 * A^(-1/n) * [A tau_e^n]^[(1-n)/n]
+                !              = 1/2 * A^(-1) * tau_e^(1-n)
+                !  =>   1/efvs = 2 * A * tau_e(n-1)
+                !
+                ! Thus, for options 0 and 1, we can replace 2 * A * tau_e^(n-1) below with 1/efvs.
+
+                if (whichefvs == HO_EFVS_NONLINEAR) then
+                   fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0) &
+                        * (sigma(k+1) - sigma(k))*stagthck(i,j)
+                else   ! HO_EFVS_CONSTANT, HO_EFVS_FLOWFACT
+                   if (efvs(k,i,j) > 0.0d0) then
+                      fact = (sigma(k+1) - sigma(k))*stagthck(i,j) / efvs(k,i,j)
+                   else
+                      fact = 0.0d0
+                   endif
+                endif
 
                 ! reset velocity to prescribed basal value if Dirichlet condition applies
                 ! else compute velocity at this level 
@@ -7876,15 +7902,6 @@
     integer, intent(in) :: i, j, k, p
 
     !----------------------------------------------------------------
-    ! Local parameters
-    !----------------------------------------------------------------
-
-    real(dp), parameter ::   &
-       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp),  &! exponent (1-n)/n in effective viscosity relation
-       p2_effstr = p_effstr/2                          ! exponent (1-n)/(2n) in effective viscosity relation
-
-                                                               
-    !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
 
@@ -7896,8 +7913,14 @@
         
     integer :: n
 
+    real(dp) :: &
+       p_effstr                 ! exponent (1-n)/n in effective viscosity relation
+
     real(dp), parameter :: p2 = -1.d0/3.d0
   
+    ! Set exponent that depends on Glen's exponent
+    p_effstr  = (1.d0 - n_glen)/n_glen
+
     select case(whichefvs)
 
     case(HO_EFVS_CONSTANT)
@@ -7988,11 +8011,11 @@
        ! Compute effective viscosity (PGB 2012, eq. 4)
        ! Units: flwafact has units Pa yr^{1/n}
        !        effstrain has units yr^{-1}
-       !        p2_effstr = (1-n)/(2n) 
-       !                  = -1/3 for n=3
+       !        p_effstr = (1-n)/n 
+       !                  = -2/3 for n=3
        ! Thus efvs has units Pa yr
  
-       efvs = flwafact * effstrainsq**p2_effstr
+       efvs = flwafact * effstrainsq**(p_effstr/2.d0)
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
           print*, ' '
@@ -8081,8 +8104,8 @@
     ! Local parameters
     !----------------------------------------------------------------
 
-    real(dp), parameter ::   &
-       p_effstr = (1.d0 - real(gn,dp)) / real(gn,dp)    ! exponent (1-n)/n in effective viscosity relation
+    real(dp) ::  &
+       p_effstr              ! exponent (1-n)/n in effective viscosity relation
                                                                
     !----------------------------------------------------------------
     ! Local variables
@@ -8107,6 +8130,9 @@
 
     integer :: n, k
 
+    ! Set exponent that depends on Glen's exponent
+    p_effstr = (1.d0 - n_glen) / n_glen
+
     select case(whichefvs)
 
     case(HO_EFVS_CONSTANT)
@@ -8125,7 +8151,7 @@
        !
        ! Units: flwafact has units Pa yr^{1/n}
        !        effstrain has units yr^{-1}
-       !        p_effstr = (1-n)/n 
+       !        p_effstr = (1-n)/n
        !                 = -2/3 for n=3
        ! Thus efvs has units Pa yr
    
@@ -8321,14 +8347,6 @@
     integer, intent(in) :: i, j, p
 
     !----------------------------------------------------------------
-    ! Local parameters
-    !----------------------------------------------------------------
-
-    real(dp), parameter ::   &
-       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp), &! exponent (1-n)/n in effective viscosity relation
-       p2_effstr = p_effstr/2                         ! exponent (1-n)/(2n) in effective viscosity relation
-                                                               
-    !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
 
@@ -8346,10 +8364,16 @@
     integer :: n, k
     real(dp) :: du_dz, dv_dz
 
+    real(dp) :: &
+       p_effstr              ! exponent (1-n)/n in effective viscosity relation
+
     !WHL - For ISMIP-HOM, the cubic solve is not robust.  It leads to oscillations
     !      in successive iterations between uvel_2d/vvel_2d and btractx/btracty
     !TODO - Remove the cubic solve for efvs, unless we find a way to make it robust?
     logical, parameter :: cubic = .false.
+
+    ! Set exponent that depends on Glen's exponent
+    p_effstr  = (1.d0 - n_glen)/n_glen
 
     select case(whichefvs)
 
@@ -8493,7 +8517,8 @@
           effstrainsq = effstrain_min**2          &
                       + du_dx**2 + dv_dy**2 + du_dx*dv_dy + 0.25d0*(dv_dx + du_dy)**2  &
                       + 0.25d0 * (du_dz**2 + dv_dz**2)
-          efvs(k) = flwafact(k) * effstrainsq**p2_effstr
+          efvs(k) = flwafact(k) * effstrainsq**(p_effstr/2.d0)
+
        enddo
 
     endif   ! cubic
