@@ -1640,10 +1640,11 @@ module glissade_therm
     ! At each temperature point, compute the temperature part of the enthalpy.
     ! enth_T = enth for cold ice, enth_T < enth for temperate ice
 
-    enth_T(0) = rhoi*shci*temp(0)  !WHL - not sure enth_T(0) is needed
-    do up = 1, upn
+    do up = 1, upn-1
        enth_T(up) = (1.d0 - waterfrac(up)) * rhoi*shci*temp(up)
     enddo
+    enth_T(0) = rhoi*shci*temp(0)
+    enth_T(up) = rhoi*shci*temp(up)
 
 !WHL - debug
     if (verbose_column) then
@@ -2250,8 +2251,7 @@ module glissade_therm
     ! Compute the dissipation source term associated with strain heating,
     ! based on the shallow-ice approximation.
     
-    use glimmer_physcon, only : gn   ! Glen's n
-    use glimmer_physcon, only: rhoi, shci, grav
+    use glimmer_physcon, only: rhoi, shci, grav, n_glen
 
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
 
@@ -2267,11 +2267,13 @@ module glissade_therm
     real(dp), dimension(:,:,:), intent(out) ::  &
          dissip       ! interior heat dissipation (deg/s)
     
-    integer, parameter :: p1 = gn + 1  
-
     integer :: ew, ns
     real(dp), dimension(upn-1) :: sia_dissip_fact  ! factor in SIA dissipation calculation
     real(dp) :: geom_fact         ! geometric factor
+
+    real(dp) :: p1                ! exponent = n_glen + 1
+
+    p1 = n_glen + 1.0d0
 
     ! Two methods of doing this calculation: 
     ! 1. find dissipation at u-pts and then average
