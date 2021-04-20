@@ -45,7 +45,7 @@ contains
 
     ! set scale factors for I/O (can't have non-integer powers)
 
-    use glimmer_physcon, only : scyr, gn
+    use glimmer_physcon, only : scyr
     use glimmer_paramets, only : thk0, tim0, vel0, vis0, len0, acc0, tau0, evs0
     implicit none
 
