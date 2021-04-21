@@ -456,7 +456,11 @@ contains
     ! handle relaxed/equilibrium topo
     ! Initialise isostasy first
 
-    call init_isostasy(model)
+    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+
+       call init_isostasy(model)
+
+    endif
 
     select case(model%isostasy%whichrelaxed)
 
