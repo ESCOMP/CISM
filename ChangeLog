@@ -1,5 +1,16 @@
 CISM Changelog
 
+Changes in CISM tag cism_main_2.01.002
+======================================
+ESCOMP/cism/main from approx e1713c31 (6/9/19) to 0be5b9c (4/21/21)
+
+This tag begins use of the "Main" branch as the default in ESCOMP/CISM. It also brings in all of the code changes from the cism_development branch. These changes include:
+* Support for running ISMIP6 standalone ice sheet experiments, including options to read SMB and ocean forcing and to invert for basal sliding and melting parameters.
+* New schemes for sub-ice-shelf melting and CESM ocean coupling.
+* Optimization of some parallel functions to speed up computation.
+* Support for multiple ice sheet instances when CISM is coupled to CESM.
+* Some code clean-up and a few bug fixes.
+
 Changes in CISM Version 2.0
 ===========================
 
