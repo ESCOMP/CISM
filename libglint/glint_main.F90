@@ -521,6 +521,7 @@ contains
        ! arbitrarily setting them as true for now (I think that preserves their old
        ! behavior). But more generally: do we need the upscaling at all for this non-gcm
        ! case?
+
        if (main_task) then
           
           if (present(orog)) &
@@ -958,9 +959,8 @@ contains
 
     !> Main Glint subroutine.
     !>
-    !> This should be called daily or hourly, depending on
-    !> the mass-balance scheme being used. It does all necessary 
-    !> spatial and temporal averaging, and calls the dynamics 
+    !> This should be called daily or hourly, depending on the mass-balance scheme.
+    !> It does all necessary spatial and temporal averaging, and calls the dynamics
     !> part of the model when required. 
     !>
     !> Input fields should be taken as means over the period since the last call.
@@ -1018,8 +1018,9 @@ contains
     ! Internal variables ----------------------------------------------------------------------------
 
     integer :: i, j
-    real(dp),dimension(:,:),allocatable :: albedo_temp, if_temp, vf_temp, sif_temp, svf_temp,  &
-                                           sd_temp, wout_temp, orog_out_temp, win_temp
+    real(dp),dimension(:,:),allocatable :: &
+         albedo_temp, if_temp, vf_temp, sif_temp, svf_temp,  &
+         sd_temp, wout_temp, orog_out_temp, win_temp
     real(dp) :: twin_temp,twout_temp,icevol_temp
     type(output_flags) :: out_f
     logical :: icets
@@ -1213,6 +1214,7 @@ contains
              ! arbitrarily setting them as true for now (I think that preserves their old
              ! behavior). But more generally: do we need the upscaling at all for this
              ! non-gcm case?
+
              if (main_task) then
              
                 if (present(orog_out)) &
@@ -1246,8 +1248,8 @@ contains
                                        area_weighting=.true.)
 
                 if (present(snow_depth)) &
-                     snow_depth = splice_field(snow_depth, &
-                                       sd_temp,params%instances(i)%frac_coverage,&
+                     snow_depth = splice_field(snow_depth, sd_temp, &
+                                       params%instances(i)%frac_coverage,&
                                        area_weighting=.true.)
 
                 if (present(water_in)) &
@@ -1263,28 +1265,18 @@ contains
              end if
 
              ! Add total water variables to running totals
-             ! WJS (1-15-13): These fields are only valid in single-task runs; multi-task
-             ! runs should generate an error in glint_i_tstep if you try to compute any of
-             ! these. But to be safe, we check here, too
+             ! Note: The fields twin_temp, twout_temp and icevol_temp are global sums for instance(i).
+             !       Here, these fields are accumulated over multiple instances, if present.
 
              if (present(total_water_in))  then
-                if (tasks > 1) call write_log('total_water_in is only valid when running with a single task', &
-                                              GM_FATAL, __FILE__, __LINE__)
-
                 total_water_in  = total_water_in  + twin_temp
              end if
 
              if (present(total_water_out)) then
-                if (tasks > 1) call write_log('total_water_out is only valid when running with a single task', &
-                                              GM_FATAL, __FILE__, __LINE__)
-
                 total_water_out = total_water_out + twout_temp
              end if
 
              if (present(ice_volume)) then
-                if (tasks > 1) call write_log('ice_volume is only valid when running with a single task', &
-                                              GM_FATAL, __FILE__, __LINE__)
-
                 ice_volume      = ice_volume      + icevol_temp
              end if
 
@@ -1296,6 +1288,12 @@ contains
           endif ! time = next_time
 
        enddo    ! ninstances
+
+       if (GLC_DEBUG .and. main_task) then
+          write(6,'(a17, i4, e15.8)') 'total water_in  =', this_rank, total_water_in
+          write(6,'(a17, i4, e15.8)') 'total water_out =', this_rank, total_water_out
+          write(6,'(a17, i4, e15.8)') 'ice_volume      =', this_rank, ice_volume
+       endif
 
        ! Scale output water fluxes to be in mm/s
 

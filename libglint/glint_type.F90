@@ -501,9 +501,11 @@ contains
 
     if (instance%whichacab /= MASS_BALANCE_GCM) then  ! not getting SMB from GCM
 
-       !TODO - Get the PDD scheme to work with multiple task?
+       !WHL - Removed the fatal error associated with runs on multiple tasks.
+       !      The Glint PDD option should now work on multiple tasks, except for flow routing
+       !       of the water output, which is supported only in serial.
        if (tasks > 1) then
-          call write_log('GLINT: Must use GCM mass balance option to run on more than one processor', GM_FATAL)
+!          call write_log('GLINT: Must use GCM mass balance option to run on more than one processor', GM_FATAL)
        endif
 
        write(message,*) 'ice_albedo  ',instance%ice_albedo
