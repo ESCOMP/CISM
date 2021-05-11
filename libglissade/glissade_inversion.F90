@@ -31,7 +31,7 @@ module glissade_inversion
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
-  use parallel_mod, only: this_rank, main_task, nhalo, &
+  use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, staggered_parallel_halo, &
        parallel_reduce_min, parallel_reduce_max
 

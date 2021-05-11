@@ -38,7 +38,7 @@ module glint_main
   use glad_constants
   use glint_anomcouple
   use glimmer_paramets, only: stdout, GLC_DEBUG
-  use parallel_mod, only: main_task, tasks
+  use cism_parallel, only: main_task, tasks
 
   implicit none
 

@@ -37,7 +37,7 @@ contains
   subroutine glimmer_write_stats(resname, cfgname, wallTime)
 
     use glimmer_global, only : dp
-    use parallel_mod, only: main_task
+    use cism_parallel, only: main_task
     implicit none
     character(len=*), intent(in) :: resname    !< name of the output result file
     character(len=*), intent(in) :: cfgname    !< name of ice sheet configuration file

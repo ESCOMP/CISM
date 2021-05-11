@@ -480,7 +480,7 @@ contains
 
     use glimmer_log
     use glimmer_physcon, only: pi, rearth
-    use parallel_mod, only: parallel_type, parallel_globalindex, &
+    use cism_parallel, only: parallel_type, parallel_globalindex, &
          parallel_reduce_max, parallel_reduce_min
 
     type(proj_stere),intent(inout) :: params

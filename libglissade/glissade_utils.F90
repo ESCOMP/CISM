@@ -33,7 +33,7 @@ module glissade_utils
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use parallel_mod, only: this_rank, main_task
+  use cism_parallel, only: this_rank, main_task
 
   implicit none
 
@@ -60,7 +60,7 @@ contains
     !TODO: In this and the next two subroutines, we could pass in thck, topg, etc. instead of the model derived type.
 
     use glimmer_paramets, only: thk0
-    use parallel_mod, only: parallel_reduce_max
+    use cism_parallel, only: parallel_reduce_max
 
     !----------------------------------------------------------------
     ! Input-output arguments

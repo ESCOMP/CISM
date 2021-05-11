@@ -271,7 +271,7 @@ contains
     use glide_types
     use glimmer_log
     use glimmer_filenames
-    use parallel_mod, only: main_task, broadcast
+    use cism_parallel, only: main_task, broadcast
 
     implicit none
 
@@ -403,7 +403,7 @@ contains
     use glide_types
     use glimmer_config
     use glimmer_log
-    use parallel_mod, only: main_task
+    use cism_parallel, only: main_task
 
     implicit none
 
@@ -840,7 +840,7 @@ contains
 
     use glide_types
     use glimmer_log
-    use parallel_mod, only: tasks
+    use cism_parallel, only: tasks
 
     implicit none
 
@@ -2872,7 +2872,7 @@ contains
 
     use glide_types
     use glimmer_log
-    use parallel_mod, only: tasks
+    use cism_parallel, only: tasks
 
     implicit none
     type(glide_global_type)  :: model

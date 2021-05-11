@@ -54,7 +54,7 @@ module glide_types
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
   use glimmer_sparse_type, only: sparse_matrix_type
-  use parallel_mod, only: parallel_type
+  use cism_parallel, only: parallel_type
 
   implicit none
 

@@ -59,7 +59,7 @@ contains
                                orogflag)
 
     use glint_interp
-    use parallel_mod, only: parallel_type
+    use cism_parallel, only: parallel_type
 
     !> Downscale global input fields to the local ice sheet grid
 
@@ -122,7 +122,7 @@ contains
     use glint_type
     use glint_interp, only: interp_to_local, copy_to_local
     use glimmer_log
-    use parallel_mod, only: tasks, main_task, this_rank
+    use cism_parallel, only: tasks, main_task, this_rank
 
     ! Downscale global input fields from the global grid (with multiple elevation classes)
     ! to the local ice sheet grid.

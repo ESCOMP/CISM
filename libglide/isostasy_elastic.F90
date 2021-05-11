@@ -136,7 +136,7 @@ contains
     !> The main difference is that this subroutine uses a global gather and scatter to compute
     !>  the load for simulations on more than one task.
 
-    use parallel_mod, only: this_rank, main_task, &
+    use cism_parallel, only: this_rank, main_task, &
          parallel_type, distributed_gather_var, distributed_scatter_var, parallel_halo
 
     implicit none

@@ -211,7 +211,7 @@ contains
     ! print eismint_climate configuration
 
     use glimmer_log
-    use parallel_mod, only: tasks
+    use cism_parallel, only: tasks
 
     implicit none
 

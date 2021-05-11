@@ -137,7 +137,7 @@ contains
   
   subroutine NAME_io_create(outfile,model,data)
 
-    use parallel_mod, only: parallel_type, &
+    use cism_parallel, only: parallel_type, &
          parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
     use glide_types
     use DATAMOD
@@ -230,7 +230,7 @@ contains
 
   subroutine NAME_io_write(outfile,data)
 
-    use parallel_mod, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
+    use cism_parallel, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
     use DATAMOD
     use glimmer_paramets
     use glimmer_physcon
@@ -408,7 +408,7 @@ contains
     ! Read data from forcing files
     use glimmer_log
     use glide_types
-    use parallel_mod, only: main_task
+    use cism_parallel, only: main_task
 
     implicit none
     type(DATATYPE) :: data
@@ -499,7 +499,7 @@ contains
   subroutine NAME_io_read(infile,data)
 
     ! read variables from a netCDF file
-    use parallel_mod, only: parallel_type, &
+    use cism_parallel, only: parallel_type, &
          parallel_inq_varid, parallel_get_att, distributed_get_var, parallel_get_var
     use glimmer_log
     use DATAMOD
@@ -527,7 +527,7 @@ contains
   subroutine NAME_io_checkdim(infile,model,data)
 
     ! check if dimension sizes in file match dims of model
-    use parallel_mod, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
+    use cism_parallel, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
     use glimmer_log
     use glide_types
     use DATAMOD
@@ -556,7 +556,7 @@ contains
     !        will be too large, because this subroutine will be called more than once per time step.
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
-    use parallel_mod, only: parallel_inq_varid
+    use cism_parallel, only: parallel_inq_varid
     use glide_types
     use DATAMOD
     implicit none
@@ -578,7 +578,7 @@ contains
 
   subroutine NAME_avg_reset(outfile,data)
 
-    use parallel_mod, only: parallel_inq_varid
+    use cism_parallel, only: parallel_inq_varid
     use DATAMOD
     implicit none
     type(glimmer_nc_output), pointer :: outfile

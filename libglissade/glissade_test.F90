@@ -52,7 +52,7 @@ contains
 
   subroutine glissade_test_halo(model)
 
-    use parallel_mod, only: main_task, this_rank, uhalo, lhalo, staggered_lhalo, staggered_uhalo, &
+    use cism_parallel, only: main_task, this_rank, uhalo, lhalo, staggered_lhalo, staggered_uhalo, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalID_scalar, &
          parallel_globalindex, parallel_halo_tracers
 
@@ -833,7 +833,7 @@ contains
     ! Optionally, these communicators can be used when solving a 1D system of equations
     !  along a single row or column of the domain.
 
-    use parallel_mod, only: parallel_type, this_rank, main_task, &
+    use cism_parallel, only: parallel_type, this_rank, main_task, &
          distributed_gather_var_row, distributed_gather_var_col, &
          distributed_scatter_var_row, distributed_scatter_var_col
     use mpi_mod
