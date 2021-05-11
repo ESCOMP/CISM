@@ -39,7 +39,7 @@ module glad_timestep
   use glad_type
   use glad_constants
   use glimmer_global, only: dp
-  use parallel_mod, only: tasks, main_task, this_rank
+  use cism_parallel_mod, only: tasks, main_task, this_rank
 
   implicit none
 

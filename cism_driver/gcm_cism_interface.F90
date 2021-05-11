@@ -60,7 +60,7 @@ subroutine gci_init_interface(which_gcm,g2c)
   use glimmer_config
   use glide
   use glide_types
-  use parallel_mod, only: main_task
+  use cism_parallel_mod, only: main_task
  
   use cism_front_end 
 

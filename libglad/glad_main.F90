@@ -44,7 +44,7 @@ module glad_main
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   use glimmer_paramets, only: stdout, GLC_DEBUG, unphys_val
-  use parallel_mod, only: main_task, this_rank
+  use cism_parallel_mod, only: main_task, this_rank
 
   implicit none
   private
@@ -512,7 +512,7 @@ contains
 
     ! Output arrays do NOT have halo cells
 
-    use parallel_mod, only: parallel_type, parallel_convert_haloed_to_nonhaloed
+    use cism_parallel_mod, only: parallel_type, parallel_convert_haloed_to_nonhaloed
     
     ! Subroutine argument declarations --------------------------------------------------------
 
@@ -598,7 +598,7 @@ contains
     use glimmer_physcon, only : celsius_to_kelvin
     use glide_types, only : get_ewn, get_nsn, get_nzocn
     use glad_output_fluxes, only : calculate_average_output_fluxes
-    use parallel_mod, only : parallel_type, parallel_convert_nonhaloed_to_haloed
+    use cism_parallel_mod, only : parallel_type, parallel_convert_nonhaloed_to_haloed
 
     implicit none
 
@@ -971,7 +971,7 @@ contains
 
     use glad_output_states, only : set_output_states
     use glide_types, only : get_ewn, get_nsn
-    use parallel_mod, only : parallel_type, parallel_convert_haloed_to_nonhaloed
+    use cism_parallel_mod, only : parallel_type, parallel_convert_haloed_to_nonhaloed
 
     ! Subroutine argument declarations --------------------------------------------------------
 

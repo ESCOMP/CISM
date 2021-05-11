@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   parallel_slap.F90 - part of the Community Ice Sheet Model (CISM)  
+!   cism_parallel_mod.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -24,7 +24,7 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-module parallel_mod
+module cism_parallel_mod
 
   use netcdf
   use glimmer_global, only : dp, sp
@@ -4196,6 +4196,6 @@ contains
 
 !=======================================================================
 
-end module parallel_mod
+end module cism_parallel_mod
 
 !=======================================================================

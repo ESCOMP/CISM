@@ -51,7 +51,7 @@ module glad_input_averages
   use glimmer_global, only : dp
   use glimmer_paramets, only: GLC_DEBUG, stdout
   use glimmer_log
-  use parallel_mod, only : main_task
+  use cism_parallel_mod, only : main_task
   
   implicit none
   private

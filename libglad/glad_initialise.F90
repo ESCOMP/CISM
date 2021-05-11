@@ -71,7 +71,7 @@ contains
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel_mod, only: main_task
+    use cism_parallel_mod, only: main_task
 
     implicit none
 
