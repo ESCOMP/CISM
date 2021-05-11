@@ -2,6 +2,12 @@ CISM Changelog
 
 Changes in CISM tag cism_main_2.01.002
 ======================================
+ESCOMP/cism/main 792e43f and 410b384
+
+This tag simply renames parallel_mod to cism_parallel to address a naming conflict in CESM.
+
+Changes in CISM tag cism_main_2.01.002
+======================================
 ESCOMP/cism/main from approx e1713c31 (6/9/19) to 0be5b9c (4/21/21)
 
 This tag begins use of the "Main" branch as the default in ESCOMP/CISM. It also brings in all of the code changes from the cism_development branch. These changes include:
