@@ -63,7 +63,7 @@ module glissade
        glissade_test_halo, glissade_test_transport, glissade_test_comm_row_col
   use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
   use profile, only: t_startf, t_stopf
-  use parallel_mod, only: this_rank, main_task, comm, nhalo
+  use cism_parallel, only: this_rank, main_task, comm, nhalo
 
   implicit none
 
@@ -88,7 +88,7 @@ contains
 
     ! initialise Glissade model instance
 
-    use parallel_mod, only: parallel_type, distributed_gather_var,  &
+    use cism_parallel, only: parallel_type, distributed_gather_var,  &
          distributed_scatter_var, parallel_finalise, &
          distributed_grid, distributed_grid_active_blocks,  &
          parallel_halo, parallel_halo_extrapolate, parallel_reduce_max, &
@@ -1028,7 +1028,7 @@ contains
 
     ! Perform time-step of an ice model instance with the Glissade dycore
 
-    use parallel_mod, only:  parallel_type, not_parallel
+    use cism_parallel, only:  parallel_type, not_parallel
 
     use glimmer_paramets, only: tim0, len0, thk0
     use glimmer_physcon, only: scyr
@@ -1735,7 +1735,7 @@ contains
     ! Do the vertical thermal solve.
     ! First call a driver subroutine for vertical temperature or enthalpy evolution,
     ! and then update the basal water.
-    use parallel_mod, only: parallel_type, parallel_halo
+    use cism_parallel, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: tim0, thk0, len0
     use glimmer_physcon, only: scyr
@@ -1930,7 +1930,7 @@ contains
     !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
-    use parallel_mod, only: parallel_type, parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
+    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
          parallel_reduce_max
 
     use glimmer_paramets, only: eps11, tim0, thk0, vel0, len0
@@ -2861,7 +2861,7 @@ contains
     ! Calculate iceberg calving
     ! ------------------------------------------------------------------------ 
 
-    use parallel_mod, only: parallel_type, parallel_halo
+    use cism_parallel, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: thk0, tim0, len0
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
@@ -3489,7 +3489,7 @@ contains
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------ 
 
-    use parallel_mod, only: parallel_type, parallel_halo, parallel_halo_extrapolate
+    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_extrapolate
 
     use isostasy, only: isos_compute, isos_icewaterload
     use glimmer_paramets, only: thk0
@@ -3583,7 +3583,7 @@ contains
      ! This is needed at the end of each time step once the prognostic variables (thickness, tracers) have been updated.  
      ! It is also needed to fill out the initial state from the fields that have been read in.
 
-    use parallel_mod, only: parallel_type, parallel_halo, &
+    use cism_parallel, only: parallel_type, parallel_halo, &
          staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
@@ -4805,7 +4805,7 @@ contains
     ! Clean up prognostic variables in ice-free cells.
     ! This means seting most tracers to zero (or min(artm,0) for the case of temperature).
 
-    use parallel_mod, only: parallel_halo
+    use cism_parallel, only: parallel_halo
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 

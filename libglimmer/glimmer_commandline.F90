@@ -39,7 +39,7 @@ module glimmer_commandline
 
   use glimmer_global, only: fname_length
 
-  use parallel_mod, only: main_task
+  use cism_parallel, only: main_task
 
   implicit none
 

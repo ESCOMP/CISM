@@ -46,7 +46,7 @@
     use glide_types   ! for preconditioning options
     use glimmer_log
     use profile, only: t_startf, t_stopf
-    use parallel_mod, only: this_rank, main_task, &
+    use cism_parallel, only: this_rank, main_task, &
          parallel_type, staggered_parallel_halo, parallel_reduce_sum
 
     implicit none
@@ -4634,7 +4634,7 @@
                                       first_time,   gather_data)
 
     use glimmer_utils, only: tridiag
-    use parallel_mod, only: distributed_gather_var_row, distributed_gather_var_col, &
+    use cism_parallel, only: distributed_gather_var_row, distributed_gather_var_col, &
          distributed_gather_all_var_row, distributed_gather_all_var_col, &
          distributed_scatter_var_row, distributed_scatter_var_col
 

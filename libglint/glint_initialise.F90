@@ -43,7 +43,7 @@ module glint_initialise
 
   use glint_type
   use glimmer_global, only: dp
-  use parallel_mod, only: main_task
+  use cism_parallel, only: main_task
 
   implicit none
 
@@ -601,7 +601,7 @@ contains
     use glint_global_grid  , only : global_grid
     use glimmer_coordinates, only : coordsystem_new
     use glide_types        , only : get_dew, get_dns
-    use parallel_mod       , only : parallel_type, distributed_gather_var
+    use cism_parallel       , only : parallel_type, distributed_gather_var
 
     implicit none
 

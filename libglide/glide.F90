@@ -149,7 +149,7 @@ contains
     use glide_bwater
     use glimmer_paramets, only: len0
     use glimmer_physcon, only: rhoi, rhow
-    use parallel_mod, only: distributed_grid
+    use cism_parallel, only: distributed_grid
 
     type(glide_global_type), intent(inout) :: model     ! model instance
 

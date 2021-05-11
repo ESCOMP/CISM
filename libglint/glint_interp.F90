@@ -177,7 +177,7 @@ contains
     use glimmer_utils
     use glimmer_coordinates
     use glimmer_log
-    use parallel_mod, only : parallel_type, tasks
+    use cism_parallel, only : parallel_type, tasks
 
     ! Argument declarations
 
@@ -248,7 +248,7 @@ contains
     use glimmer_utils
     use glimmer_coordinates
     use glimmer_log
-    use parallel_mod, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
+    use cism_parallel, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
 
     !TODO - Not sure we need localsp now that the code is fully double precision 
 
@@ -489,7 +489,7 @@ contains
     ! on the main task.
 
     use glimmer_coordinates
-    use parallel_mod, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
+    use cism_parallel, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
 
     ! Argument declarations
 
@@ -695,7 +695,7 @@ contains
     !> \texttt{interp\_to\_local} routine.
     !> \end{itemize}
 
-    use parallel_mod, only : main_task, parallel_type, distributed_gather_var
+    use cism_parallel, only : main_task, parallel_type, distributed_gather_var
 
     ! Arguments
 
@@ -785,7 +785,7 @@ contains
     !> \item \texttt{gboxn} is the same size as \texttt{global}
     !> \end{itemize}
 
-    use parallel_mod, only : main_task, parallel_type, distributed_gather_var
+    use cism_parallel, only : main_task, parallel_type, distributed_gather_var
 
     ! Arguments
 
@@ -854,7 +854,7 @@ contains
     !> \item \texttt{gboxn} is the same size as \texttt{global}
     !> \end{itemize}
 
-    use parallel_mod, only : main_task, parallel_type, distributed_gather_var
+    use cism_parallel, only : main_task, parallel_type, distributed_gather_var
 
     ! Arguments
 
@@ -1006,7 +1006,7 @@ contains
     use glint_global_grid
     use glimmer_coordinates
     use glimmer_map_trans
-    use parallel_mod, only : main_task
+    use cism_parallel, only : main_task
 
     ! Arguments
 
