@@ -56,7 +56,7 @@
 module glimmer_log
 
   use glimmer_global, only : fname_length,dirsep
-  use parallel_mod, only: this_rank, main_task, parallel_stop
+  use cism_parallel, only: this_rank, main_task, parallel_stop
 
   implicit none
 

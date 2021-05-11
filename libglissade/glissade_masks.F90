@@ -42,7 +42,7 @@
     use glimmer_log
     use glimmer_physcon, only: rhoi, rhoo
     use glide_types
-    use parallel_mod, only: this_rank, main_task, nhalo, parallel_globalindex, &
+    use cism_parallel, only: this_rank, main_task, nhalo, parallel_globalindex, &
          parallel_type, parallel_halo, parallel_reduce_sum
 
     implicit none

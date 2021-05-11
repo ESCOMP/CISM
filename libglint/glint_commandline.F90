@@ -64,7 +64,7 @@ contains
 
   subroutine glint_GetCommandline()
 
-    use parallel_mod, only: main_task
+    use cism_parallel, only: main_task
     implicit none
 
     integer :: numargs, nfiles

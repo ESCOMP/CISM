@@ -33,7 +33,7 @@ module felix_dycore_interface
    use glimmer_log
    use glissade_grid_operators, only: glissade_stagger 
    !use glimmer_to_dycore
-   use parallel_mod, only: this_rank, nhalo
+   use cism_parallel, only: this_rank, nhalo
    implicit none
    private
 

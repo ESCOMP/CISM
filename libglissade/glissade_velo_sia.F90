@@ -62,7 +62,7 @@
     use glide_types
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
                                        glissade_gradient_at_edges
-    use parallel_mod, only: this_rank, main_task, nhalo, &
+    use cism_parallel, only: this_rank, main_task, nhalo, &
          parallel_halo, staggered_parallel_halo
 
     implicit none

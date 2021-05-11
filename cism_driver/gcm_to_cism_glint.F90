@@ -46,7 +46,7 @@ module gcm_to_cism_glint
   use glimmer_writestats
 !  use glimmer_commandline
   use glimmer_paramets, only: GLC_DEBUG
-  use parallel_mod, only: main_task
+  use cism_parallel, only: main_task
 
 type gcm_to_cism_type
 

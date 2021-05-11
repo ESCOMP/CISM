@@ -39,7 +39,7 @@
   module glissade_velo_higher_trilinos
 
     use glimmer_global, only: dp
-    use parallel_mod, only: this_rank, main_task, nhalo, staggered_parallel_halo
+    use cism_parallel, only: this_rank, main_task, nhalo, staggered_parallel_halo
 
     implicit none
     private

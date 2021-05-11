@@ -88,7 +88,7 @@
          trilinos_test
 #endif
 
-    use parallel_mod, only: this_rank, main_task, nhalo, tasks, &
+    use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
          parallel_reduce_max, parallel_reduce_sum, not_parallel
 

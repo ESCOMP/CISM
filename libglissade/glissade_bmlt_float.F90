@@ -40,7 +40,7 @@ module glissade_bmlt_float
   use glimmer_paramets, only: unphys_val
   use glimmer_log
   use glide_types
-  use parallel_mod, only: this_rank, main_task, nhalo, &
+  use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_min, parallel_reduce_max
 

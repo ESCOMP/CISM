@@ -103,7 +103,7 @@ contains
   !> read a configuration file
   subroutine ConfigRead(fname,config,fileunit)
     !> read configuration file
-    use parallel_mod, only: main_task, broadcast
+    use cism_parallel, only: main_task, broadcast
     use glimmer_log
 
     implicit none
