@@ -28,7 +28,7 @@ program cism_driver
 !  use glimmer_commandline
 !  use glide
   use gcm_cism_interface
-  use parallel_mod, only: parallel_initialise, parallel_finalise
+  use cism_parallel, only: parallel_initialise, parallel_finalise
 
   integer :: which_gcm = GCM_GLINT_MODEL
   type(gcm_to_cism_type) :: g2c

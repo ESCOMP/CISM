@@ -264,7 +264,7 @@ contains
 
     use glimmer_log
     use glad_constants, only: hours2years
-    use parallel_mod, only: tasks
+    use cism_parallel, only: tasks
 
     implicit none
 

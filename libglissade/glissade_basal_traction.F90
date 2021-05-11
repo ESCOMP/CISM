@@ -50,7 +50,7 @@
   use glimmer_paramets, only : vel0, tau0
   use glimmer_log
   use glide_types
-  use parallel_mod, only : this_rank, main_task, parallel_type, &
+  use cism_parallel, only : this_rank, main_task, parallel_type, &
        parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
 
   implicit none

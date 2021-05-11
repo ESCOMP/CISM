@@ -43,7 +43,7 @@
     use glimmer_global, only: dp
     use glimmer_log
     use glissade_remap, only: glissade_horizontal_remap, make_remap_mask, puny
-    use parallel_mod, only: this_rank, main_task, nhalo, lhalo, uhalo, staggered_lhalo, staggered_uhalo, &
+    use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, staggered_lhalo, staggered_uhalo, &
          parallel_type, parallel_reduce_max, parallel_reduce_sum, parallel_reduce_minloc, &
          parallel_globalindex, broadcast
 

@@ -35,7 +35,7 @@ module glide_diagnostics
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use parallel_mod, only: this_rank, main_task, lhalo, uhalo, &
+  use cism_parallel, only: this_rank, main_task, lhalo, uhalo, &
        parallel_type, broadcast, parallel_localindex, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc
 
