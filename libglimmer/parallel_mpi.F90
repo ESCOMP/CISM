@@ -24,7 +24,7 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-module parallel_mod
+module cism_parallel
 
   use netcdf
   use glimmer_global, only : dp, sp
@@ -9691,7 +9691,7 @@ contains
 
   !=======================================================================
 
-end module parallel_mod
+end module cism_parallel
 
 !=======================================================================
 

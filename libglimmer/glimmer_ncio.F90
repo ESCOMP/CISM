@@ -36,7 +36,7 @@ module glimmer_ncio
   !> written by Magnus Hagdorn, 2004
 
   use glimmer_ncdf
-  use parallel_mod, only: parallel_type, parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
+  use cism_parallel, only: parallel_type, parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
        parallel_put_att, parallel_def_var, parallel_def_dim, parallel_inq_varid, parallel_inq_dimid,  &
        parallel_inquire_dimension, parallel_redef, parallel_enddef, parallel_sync
 

@@ -177,7 +177,7 @@ contains
 
     use glimmer_paramets, only: thk0, GLC_DEBUG
     use glimmer_log
-    use parallel_mod, only: tasks, main_task
+    use cism_parallel, only: tasks, main_task
 
     ! Arguments ----------------------------------------------------------------------------
  

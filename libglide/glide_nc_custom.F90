@@ -74,7 +74,7 @@ contains
     use glide_types
     use glimmer_ncdf
     use glimmer_paramets, only : len0
-    use parallel_mod, only: parallel_inq_varid, parallel_put_var, parallel_enddef
+    use cism_parallel, only: parallel_inq_varid, parallel_put_var, parallel_enddef
 
     implicit none
 

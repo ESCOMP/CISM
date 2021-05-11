@@ -35,7 +35,7 @@ module glide_mask
     ! masking ice thicknesses
 
     use glimmer_global, only : dp
-    use parallel_mod, only: lhalo, uhalo, parallel_type, parallel_halo, parallel_reduce_sum
+    use cism_parallel, only: lhalo, uhalo, parallel_type, parallel_halo, parallel_reduce_sum
 
     implicit none
 
