@@ -2583,7 +2583,7 @@ contains
     !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
     !  processors that include these rows.
     ! Note: For no_ice BC, we assume (uvel,vvel) = 0 along the global boundary.
-    !       In this case, vertices along the southern and western rows of the global boundary
+    !       In this case, vertices along the southern and western edges of the global boundary
     !        are not considered to be locally owned by any task.
 
     if (outflow_bc .and. this_rank <= west) then  ! on west edge of global domain
@@ -5674,6 +5674,59 @@ contains
 !!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
   end function parallel_get_var_real8_2d
+
+!=======================================================================
+
+  subroutine parallel_global_edge_mask(global_edge_mask, parallel)
+
+    ! Create a mask = 1 in locally owned cells at the edge of the global domain,
+    ! = 0 elsewhere
+
+    integer, dimension(:,:), intent(out) :: global_edge_mask
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south)
+
+    ! Check array dimensions
+
+    ! unknown grid
+    if (size(global_edge_mask,1)/=local_ewn .or. size(global_edge_mask,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
+            ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Identify cells at the edge of the global domain
+
+    global_edge_mask = 0
+
+    if (this_rank >= east) then  ! at east edge of global domain
+       global_edge_mask(local_ewn-uhalo,:) = 1
+    endif
+
+    if (this_rank <= west) then  ! at west edge of global domain
+       global_edge_mask(lhalo+1,:) = 1
+    endif
+
+    if (this_rank >= north) then  ! at north edge of global domain
+       global_edge_mask(:,local_nsn-uhalo) = 1
+    endif
+
+    if (this_rank <= south) then  ! at south edge of global domain
+       global_edge_mask(:,lhalo+1) = 1
+    endif
+
+    call parallel_halo(global_edge_mask, parallel)
+
+    end associate
+
+  end subroutine parallel_global_edge_mask
 
 !=======================================================================
 

@@ -160,6 +160,7 @@ module glide_types
   integer, parameter :: OVERWRITE_ACAB_NONE = 0
   integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
   integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
+  integer, parameter :: OVERWRITE_ACAB_INPUT_MASK = 3
 
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
@@ -402,8 +403,11 @@ module glide_types
 
     integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no_penetration, 3 for no_ice
 
-    !WHL - added to handle the active-blocks option
+    ! added to handle the active-blocks option
     integer, dimension(:,:), pointer :: ice_domain_mask => null()  ! = 1 for cells that are potentially active
+
+    ! mask to identify cells at the edge of the global domain
+    integer, dimension(:,:), pointer :: global_edge_mask => null() ! = 1 for cells at edge of global domain
 
     integer :: nx_block = 0      ! user-specified block sizes
     integer :: ny_block = 0      ! one task per block; optionally, tasks not assigned to inactive blocks
@@ -592,6 +596,7 @@ module glide_types
     !> \item[0] Do not overwrite acab anywhere
     !> \item[1] Overwrite acab where input acab = 0
     !> \item[2] Overwrite acab where input thickness <= threshold value
+    !> \item[3] Overwrite acab where input mask = 1
     !> \end{description}
 
     integer :: gthf = 0
@@ -2526,6 +2531,9 @@ contains
     ! ice domain mask (to identify active blocks)
     call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
 
+    ! mask to identify cells at global domain edge
+    call coordsystem_allocate(model%general%ice_grid, model%general%global_edge_mask)
+
     ! temperature arrays
 
     !NOTE: In the glide dycore (whichdycore = DYCORE_GLIDE), the temperature and 
@@ -2972,6 +2980,8 @@ contains
         deallocate(model%general%lon)
     if (associated(model%general%ice_domain_mask)) &
         deallocate(model%general%ice_domain_mask)
+    if (associated(model%general%global_edge_mask)) &
+        deallocate(model%general%global_edge_mask)
 
     ! vertical sigma coordinates
 
