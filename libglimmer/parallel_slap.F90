@@ -2403,6 +2403,42 @@ contains
 
 !=======================================================================
 
+  subroutine parallel_global_edge_mask(global_edge_mask, parallel)
+
+    ! Create a mask = 1 in locally owned cells at the edge of the global domain,
+    ! = 0 elsewhere
+
+    integer, dimension(:,:), intent(out) :: global_edge_mask
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    ! Check array dimensions
+
+    ! unknown grid
+    if (size(global_edge_mask,1)/=local_ewn .or. size(global_edge_mask,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
+            ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Identify cells at the edge of the global domain
+
+    global_edge_mask = 0
+
+    global_edge_mask(lhalo+1,:) = 1
+    global_edge_mask(local_ewn-uhalo,:) = 1
+    global_edge_mask(:,lhalo+1) = 1
+    global_edge_mask(:,local_nsn-uhalo) = 1
+
+    end associate
+
+  end subroutine parallel_global_edge_mask
+
+!=======================================================================
+
   !TODO - Is function parallel_globalID still needed? No longer called except from glissade_test_halo.
 
   function parallel_globalID(locns, locew, upstride, parallel)
