@@ -959,10 +959,11 @@ contains
          'artm and d(artm)/dz input as function of (x,y)', &
          'artm input as function of (x,y,z)             ' /)
 
-    character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
+    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
          'overwrite acab where input acab = 0       ', &
-         'overwrite acab where input thck <= minthck' /)
+         'overwrite acab where input thck <= minthck', &
+         'overwrite acab based on input mask        ' /)
 
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
@@ -3347,7 +3348,7 @@ contains
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
-        ! This mask is set at model initialization based on the input acab or ice thickness.
+        ! This mask is read in at model initialization, or is set based on the input acab or ice thickness.
         if (options%overwrite_acab /= 0) then
            call glide_add_to_restart_variable_list('overwrite_acab_mask', model_id)
         endif
