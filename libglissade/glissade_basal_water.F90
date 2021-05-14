@@ -30,11 +30,11 @@
 module glissade_basal_water
 
    use glimmer_global, only: dp
-   use glimmer_paramets, only: eps11
+   use glimmer_paramets, only: eps11, eps08
    use glimmer_physcon, only: rhoi, rhow, grav, scyr
    use glimmer_log
    use glide_types
-   use parallel_mod, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
+   use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
 
    implicit none
 
@@ -45,6 +45,7 @@ module glissade_basal_water
    logical, parameter :: verbose_bwat = .true.
 
    integer, parameter :: pdiag = 5  ! range for diagnostic prints
+!!   integer, parameter :: pdiag = 3  ! range for diagnostic prints
 
 contains
 
@@ -167,24 +168,21 @@ contains
 !==============================================================
 
   subroutine glissade_bwat_flux_routing(&
-       nx,            ny,      &
-       dx,            dy,      &
-       parallel,               &
-       itest, jtest,  rtest,   &
-       flux_routing_scheme,    &
-       thklim,                 &
-       thck,                   &
-       topg,                   &
-       bmlt,                   &
-       floating_mask,          &
-       bwat,                   &
-       bwatflx,                &
-       head)
+       nx,            ny,            &
+       dx,            dy,            &
+       parallel,                     &
+       itest, jtest,  rtest,         &
+       flux_routing_scheme,          &
+       thck,          topg,          &
+       thklim,                       &
+       bwat_mask,     floating_mask, &
+       bmlt,          bwat,          &
+       bwatflx,       head)
 
     ! This subroutine is a recoding of Jesse Johnson's steady-state water routing scheme in Glide.
-    ! Needs to be parallelized for Glissade.
+    ! It has been parallelized for Glissade.
 
-    use parallel_mod, only: tasks   ! while code is serial only
+    use cism_parallel, only: tasks   ! while code is serial only
 
     ! Input/output arguments
 
@@ -201,16 +199,21 @@ contains
     integer, intent(in) ::  &
          flux_routing_scheme        ! flux routing scheme: D8, Dinf or FD8; see subroutine route_basal_water
 
-    real(dp), intent(in) ::  &
-         thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
-
     real(dp), dimension(nx,ny), intent(in) ::  &
-         thck,               &      ! ice thickness (m)
-         topg,               &      ! bed topography (m)
+         thck,                    & ! ice thickness (m)
+         topg,                    & ! bed topography (m)
          bmlt                       ! basal melt rate (m/s)
 
-    integer, dimension(nx,ny), intent(in) :: &
+    real(dp), intent(in) ::  &
+         thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
+                                    ! Note: This is typically model%geometry%thklim_temp
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         bwat_mask,               & ! mask to identify cells through which basal water is routed;
+                                    ! = 0 for floating and ocean cells; cells at global domain edge;
+                                    !  and cells with thck = 0 and forced negative SMB
          floating_mask              ! = 1 if ice is present (thck > thklim) and floating, else = 0
+
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
          bwat                       ! basal water depth (m)
@@ -225,12 +228,8 @@ contains
 
     !TODO - Make effecpress in/out?
     real(dp), dimension(nx, ny) ::  &
-         effecpress,    & ! effective pressure
-         lakes            ! difference between filled head and original head (m)
-
-    integer, dimension(nx,ny) :: &
-         bwat_mask        ! mask to identify cells through which basal water is routed;
-                          ! = 1 if ice is present (thck > thklim) and not floating, else = 0
+         effecpress,              & ! effective pressure
+         lakes                      ! difference between filled head and original head (m)
 
     ! parameters related to effective pressure
     real(dp), parameter :: &
@@ -314,21 +313,25 @@ contains
     endif
 
     !WHL - debug
-    if (main_task) print*, 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
+    if (this_rank == rtest) then
+       print*, 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
+    endif
 
     ! Uncomment if the following fields are not already up to date in halo cells
 !    call parallel_halo(thk,  parallel)
 !    call parallel_halo(topg, parallel)
-!    call parallel_halo(bwat, parallel)
-!    call parallel_halo(floating_mask, parallel)
+    call parallel_halo(bwat, parallel)
+    call parallel_halo(bmlt, parallel)
 
     ! Compute effective pressure N as a function of water depth
+
     call effective_pressure(&
          bwat,                 &
          c_effective_pressure, &
          effecpress)
 
     ! Compute the hydraulic head
+
     call compute_head(&
          nx,     ny,    &
          thck,          &
@@ -385,10 +388,6 @@ contains
        enddo
        print*, ' '
        print*, 'bmlt (m/yr):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
@@ -398,11 +397,17 @@ contains
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'Before fill: head (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
+       print*, 'bwat_mask:'
+       write(6,*) ' '
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(i10)',advance='no') bwat_mask(i,j)
+          enddo
+          write(6,*) ' '
        enddo
+       print*, ' '
+       print*, 'Before fill: head (m):'
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
@@ -413,14 +418,8 @@ contains
        enddo
     endif
 
-    ! Compute a mask: = 1 where ice is present and not floating
-    where (thck > thklim .and. floating_mask == 0)
-       bwat_mask = 1
-    elsewhere
-       bwat_mask = 0
-    endwhere
-
     ! Route basal water down the gradient of hydraulic head, giving a water flux
+
     call route_basal_water(&
          nx,      ny,            &
          dx,      dy,            &
@@ -434,6 +433,7 @@ contains
          lakes)
 
     ! Convert the water flux to a basal water depth
+
     call flux_to_depth(&
          nx,       ny,           &
          dx,       dy,           &
@@ -448,8 +448,7 @@ contains
 
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
-       print*, 'bwatflx (m^3/s):'
-       write(6,'(a3)',advance='no') '   '
+       write(6,*) 'bwatflx (m^3/s):'
        do i = itest-p, itest+p
           write(6,'(i10)',advance='no') i
        enddo
@@ -463,10 +462,6 @@ contains
        enddo
        print*, ' '
        print*, 'bwat (mm):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
@@ -582,7 +577,10 @@ contains
     !
     ! Based on code by Jesse Johnson (2005), adapted from the glimmer_routing file by Ian Rutt.
 
-    use parallel_mod, only: parallel_global_sum
+    use cism_parallel, only: parallel_global_sum
+
+    !WHL - debug
+    use cism_parallel, only: parallel_globalindex, parallel_reduce_max
 
     implicit none
 
@@ -641,11 +639,16 @@ contains
          margin_mask       ! = 1 for cells at the grounded ice margin, as defined by bwat_mask, else = 0
 
     real(dp) :: &
-         total_flux_in, &  ! total input flux (m^3/s), computed as sum of bmlt*dx*dy
+         total_flux_in,  & ! total input flux (m^3/s), computed as sum of bmlt*dx*dy
          total_flux_out, & ! total output flux (m^3/s), computed as sum of bwatflx at ice margin
+         err,            & ! relative error
          global_flux_sum   ! flux sum over all cells in global domain
 
     character(len=100) :: message
+
+    !WHL - debug
+    real(dp) :: bmlt_max, bmlt_max_global
+    integer :: imax, jmax, rmax, iglobal, jglobal
 
     ! Allocate the sorted_ij array
 
@@ -756,11 +759,25 @@ contains
     ! The halo water flux, bwatflx_halo, holds water routed to halo cells;
     !  it will be routed downhill on the next iteration.
     ! The accumulated flux, bwatflx_accum, holds the total flux over multiple iterations.
+    ! Note: This subroutine conserves water only if bmlt >= 0 everywhere.
+    !       One way to account for refreezing would be to do the thermal calculation after
+    !        computing bwat in this subroutine.  At that point, refreezing would take away
+    !        from the bwat computed here.  In the next time step, positive values of bmlt
+    !        would provide a new source for bwat.
+    ! In other words, the sequence would be:
+    ! (1) Ice transport and calving
+    ! (2) Basal water routing: apply bmlt and diagnose bwat
+    ! (3) Vertical heat flow:
+    !     (a) compute bmlt
+    !     (b) use bmlt < 0 to reduce bwat
+    !     (c) save bmlt > 0 for the next time step (and write to restart)
+    ! (4) Diagnose velocity
 
     bwatflx = 0.0d0
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           bwatflx(i,j) = bmlt(i,j) * dx * dy
+          bwatflx(i,j) = max(bwatflx(i,j), 0.0d0)   ! not conservative unless refreezing is handled elsewhere
        enddo
     enddo
     bwatflx_halo = 0.0d0
@@ -783,8 +800,11 @@ contains
     ! When all the water has been routed to the margin, we are done.
 
     count = 0
-    !TODO - Not sure if this value of count_max is sufficient.  Need 3 iterations with 2 x 2 processors.
-    count_max = max(parallel%ewtasks, parallel%nstasks) + 1
+    ! Note: It is hard to predict how many iterations will be sufficient.
+    !       With Dinf or FD8, we can have flow back and forth across processor boundaries,
+    !        requiring many iterations to reach the margin.
+    !       For Greenland 4 km, Dinf requires ~20 iterations on 4 cores, and FD8 can require > 40.
+    count_max = 50
     finished = .false.
 
     do while (.not.finished)
@@ -826,30 +846,54 @@ contains
        bwatflx = 0.0d0
 
        ! If bwatflx_halo = 0 everywhere, then we are done.
-       ! If not, then communicate bwatflx_halo to neighboring tasks and route further downslope.
+       ! (If the remaining flux is very small (< eps11), discard it to avoid
+       !  unnecessary extra iterations.)
+       ! If bwatflx_halo remains, then communicate it to neighboring tasks and
+       !  continue routing on the next iteration.
 
        do j = 1, ny
           do i = 1, nx
              sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
-             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > 0.0d0) then
-                print*, 'Nonzero bwatflx_halo, rank, i, j, bwatflx_halo:', &
-                     this_rank, i, j, sum_bwatflx_halo(i,j)
+!!             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > 0.0d0) then
+             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 10) then
+               print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
+                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
+               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+               print*, '     iglobal, jglobal:', iglobal, jglobal
              endif
           enddo
        enddo
        global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
 
-       if (verbose_bwat .and. this_rank == rtest) &
-            print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
+       if (verbose_bwat .and. this_rank == rtest) then
+          print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
+          print*, ' '
+          print*, 'sum_bwatflx_halo:'
+          write(6,*) ' '
+          do j = jtest+p, jtest-p, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-p, itest+p
+                write(6,'(e10.3)',advance='no') sum_bwatflx_halo(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'rank, i, j, bwatflx_halo:'
+          do j = jtest+1, jtest
+             do i = itest-4, itest + 4
+                write(6, '(3i5,9e10.3)') this_rank, i, j, bwatflx_halo(:,:,i,j)
+             enddo
+          enddo
+       endif
 
-       if (global_flux_sum > 0.0d0) then
+       if (global_flux_sum > eps11) then
 
           finished = .false.
 
           ! Communicate bmltflx_halo to the halo cells of neighboring processors
           call parallel_halo(bwatflx_halo(:,:,:,:), parallel)
 
-          ! bmltflx_halo is now available in the halo cells of this processor.
+          ! bmltflx_halo is now available in the halo cells of the local processor.
           ! Route downslope to the adjacent locally owned cells.
           ! These fluxes will be routed further downslope during the next iteration.
 
@@ -864,7 +908,7 @@ contains
                             if (local_mask(ip,jp) == 1) then
                                bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
                                if (verbose_bwat) then
-                                    print*, 'Nonzero bwatflx, rank, i, j:', this_rank, ip, jp, bwatflx(ip,jp)
+!!!                                    print*, 'Nonzero bwatflx, rank, i, j:', this_rank, ip, jp, bwatflx(ip,jp)
                                  endif
                             endif
                          endif   !  bwatflx_halo > 0 to this local cell
@@ -912,10 +956,12 @@ contains
     endif
 
     ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
-    if (abs(total_flux_in - total_flux_out) > eps11) then
-       write(message,*) 'Hydrology error: total water not conserved, diff =', &
-            total_flux_in - total_flux_out
-       call write_log(message, GM_FATAL)
+    if (total_flux_in > 0.0d0) then
+       err = abs((total_flux_in - total_flux_out)/total_flux_in)
+       if (err > eps11) then
+          write(message,*) 'Hydrology error: total water not conserved, relative error =', err
+          call write_log(message, GM_FATAL)
+       endif
     endif
 
     ! clean up
@@ -1037,7 +1083,7 @@ contains
 
     p_exponent = 1.d0 / (p_flux_to_depth + 1.d0)
 
-    ! Note: In Sommers et al. (2018), Eq. 6, the basal water flux q (m^2/s) is
+    ! Note: In Sommers et al. (2018), Eq. 5, the basal water flux q (m^2/s) is
     !              q = (b^3 * g) / [(12*nu)(1 + omega*Re)] * (-grad(h))
     !       where nu = kinematic viscosity of water = 1.787d-06 m^2/s
     !          omega = 0.001
@@ -1078,7 +1124,9 @@ contains
 
     ! Fill depressions in the input field phi
 
-    use parallel_mod, only: parallel_global_sum
+    use cism_parallel, only: parallel_global_sum
+!WHL - debug
+    use cism_parallel, only: parallel_globalindex
 
     implicit none
 
@@ -1110,7 +1158,7 @@ contains
          min_upslope_phi     ! min value of phi in an upslope neighbor
 
     integer :: &
-         global_sum          ! global sum of cells with depression_mask = 1
+         sum_mask            ! global sum of cells with depression_mask = 1
 
     real(dp), parameter :: big_number = 1.d+20
     integer :: i, j, ii, jj, ip, jp, p
@@ -1119,6 +1167,9 @@ contains
     integer, parameter :: count_max = 200
 
     logical :: finished      ! true when an iterative loop has finished
+
+    !WHL - debug
+    integer :: iglobal, jglobal
 
     ! Uncomment if the input fields are not up to date in halos
 !    call parallel_halo(phi, parallel)
@@ -1156,13 +1207,14 @@ contains
 
     finished = .false.
     count = 0
+    sum_mask = 0
 
     do while (.not.finished)
 
        count = count + 1
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'fill_depressions, count =', count
+!!          print*, ' '
+          print*, 'fill_depressions, count, sum_mask =', count, sum_mask
        endif
 
        old_phi = phi
@@ -1192,8 +1244,12 @@ contains
                    phi(i,j) = min_upslope_phi
                 endif
 
-                if (verbose_bwat) then
-!!                   print*, 'i, j, old phi, new phi:', i, j, old_phi(i,j), phi(i,j)
+                if (verbose_bwat .and. this_rank == rtest) then
+!                   print*, 'r, i, j, old phi, new phi:', this_rank, i, j, old_phi(i,j), phi(i,j)
+!                   if (count > 30) then
+!                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!                      print*, '    iglobal, jglobal:', iglobal, jglobal
+!                   endif
                 endif
 
              end if   ! phi_mask = 1 and depression_mask = 1
@@ -1224,13 +1280,23 @@ contains
              enddo
              write(6,*) ' '
           enddo
+          print*, ' '
+          print*, 'New phi:'
+          write(6,*) ' '
+          do j = jtest+p, jtest-p, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-p, itest+p
+                write(6,'(f10.3)',advance='no') phi(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
        endif
 
        ! Compute the number of cells in depressions on the global grid
        ! If there are still depressions, then repeat; else exit
 
-       global_sum = parallel_global_sum(depression_mask, parallel)
-       if (global_sum > 0) then
+       sum_mask = parallel_global_sum(depression_mask, parallel)
+       if (sum_mask > 0) then
           finished = .false.
        else
           finished = .true.
@@ -1346,7 +1412,7 @@ contains
     !    over flat surfaces in raster digital elevation models, J. Hydrol., 193,
     !    204-213.
 
-    use parallel_mod, only: parallel_global_sum
+    use cism_parallel, only: parallel_global_sum
 
     implicit none
 
@@ -1414,7 +1480,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') phi(i,j)
+             write(6,'(f10.3)',advance='no') phi(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -1812,7 +1878,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') phi(i,j)
+             write(6,'(f10.3)',advance='no') phi(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -1830,8 +1896,6 @@ contains
 
     ! Compute a mask that = 1 for cells in flat regions.
     ! These are defined as cells with phi_mask = 1 and without a downslope gradient.
-    ! Note: This definition includes some cells that have the same elevation as
-    !       adjacent cells in the flat region, but have a nonzero downslope gradient.
 
     ! Input/output arguments
 
@@ -2023,6 +2087,9 @@ contains
          sum_slope,     &  ! sum of positive downward slopes
          slope_tmp         ! temporary slope value
 
+    !WHL - debug
+    real(dp) :: sum_frac
+
     ! Compute distances to adjacent grid cells for slope determination
 
     dists(-1,:) = (/ sqrt(dx**2 + dy**2), dy, sqrt(dx**2 + dy**2) /)
@@ -2137,7 +2204,7 @@ contains
                       j1 = jp
                       slope2 = slope_tmp
                       i2 = itmp
-                      j2 = itmp
+                      j2 = jtmp
                    elseif (slope(ii,jj) > slope2) then
                       slope2 = slope(ii,jj)
                       i2 = ip
@@ -2165,6 +2232,24 @@ contains
              if (this_rank == rtest .and. i == itest .and. j == jtest) then
                 print*, 'i1, j1, slope1:', i1, j1, slope1
                 print*, 'i2, j2, slope2:', i2, j2, slope2
+                print*, 'sum_slope:', sum_slope
+                print*, 'slope(:, 1):', slope(:, 1)
+                print*, 'slope(:, 0):', slope(:, 0)
+                print*, 'slope(:,-1):', slope(:,-1)
+                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+             endif
+
+             !WHL - bug check - make sure fractions add to 1
+             sum_frac = 0.0d0
+             do jj = -1,1
+                do ii = -1,1
+                   sum_frac = sum_frac + flux_fraction(ii,jj,i,j)
+                enddo
+             enddo
+             if (abs(sum_frac - 1.0d0) > eps11) then
+!!                print*, 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
