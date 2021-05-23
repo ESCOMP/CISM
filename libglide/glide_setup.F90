@@ -745,6 +745,7 @@ contains
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
+    call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
     call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
     call GetValue(section,'read_lat_lon',model%options%read_lat_lon)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
@@ -1075,12 +1076,13 @@ contains
          'Dinf; route flux to two lower-elevation neighbors', &
          'FD8; route flux to all lower-elevation neighbors ' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
+    character(len=*), dimension(0:5), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
          'reduced effecpress near pressure melting point       ', &
          'reduced effecpress where there is melting at the bed ', &
          'reduced effecpress where bed is connected to ocean   ', &
-         'reduced effecpress with increasing basal water       '/)
+         'reduced effecpress with increasing basal water (B/vP)', &
+         'reduced effecpress with increasing basal water (ramp)'/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration          ', &
@@ -1413,6 +1415,11 @@ contains
 
        if (model%options%adjust_input_thickness) then
           write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
+          call write_log(message)
+       endif
+
+       if (model%options%smooth_input_usrf) then
+          write(message,*) ' Input usrf will be smoothed'
           call write_log(message)
        endif
 

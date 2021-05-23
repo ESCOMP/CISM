@@ -116,8 +116,8 @@ contains
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
-    use glissade_utils, only: &
-         glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
+    use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
+         glissade_smooth_topography, glissade_adjust_topography
     use glissade_utils, only: glissade_stdev
     use felix_dycore_interface, only: felix_velo_init
 
@@ -395,7 +395,15 @@ contains
        call glissade_adjust_thickness(model)
     endif
 
-    ! Optionally, smooth the input topography with a 9-point Laplacian smoother.
+    ! Optionally, smooth the input surface elevation with a Laplacian smoother.
+    ! This subroutine does not change the topg, but returns thck consistent with the new usrf.
+    ! If the initial usrf is rough, then multiple smoothing passes may be needed to stabilize the flow.
+
+    if (model%options%smooth_input_usrf .and. model%options%is_restart == RESTART_FALSE) then
+       call glissade_smooth_usrf(model, nsmooth = 5)
+    endif   ! smooth_input_usrf
+
+    ! Optionally, smooth the input topography with a Laplacian smoother.
 
     if (model%options%smooth_input_topography .and. model%options%is_restart == RESTART_FALSE) then
        call glissade_smooth_topography(model)
@@ -624,17 +632,17 @@ contains
     if (make_ice_domain_mask) then
 
        where (model%geometry%thck > 0.0d0 .or. model%geometry%topg > 0.0d0)
+!!       where (model%geometry%thck > 0.0d0)  ! uncomment for terrestrial margins
           model%general%ice_domain_mask = 1
        elsewhere
           model%general%ice_domain_mask = 0
        endwhere
 
-       ! Extend the mask a couple of cells in each direction to be on the safe side.
+       ! Extend the mask a few cells in each direction to be on the safe side.
        ! The number of buffer layers could be made a config parameter.
 
        allocate(ice_domain_mask(model%general%ewn,model%general%nsn))
 
-!!       do k = 1, 2
        do k = 1, 3
           call parallel_halo(model%general%ice_domain_mask, parallel)
           ice_domain_mask = model%general%ice_domain_mask   ! temporary copy
@@ -1918,23 +1926,22 @@ contains
     if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
 
        !WHL - Temporary code for debugging: Make up a simple basal melt field.
-       model%basal_hydro%head(:,:) = &
-            model%geometry%thck(:,:)*thk0 + (rhow/rhoi)*model%geometry%topg(:,:)*thk0
-       head_max = maxval(model%basal_hydro%head)  ! max on local processor
-       head_max = parallel_reduce_max(head_max)   ! global max
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
-             if (head_max - model%basal_hydro%head(i,j) < 1000.d0) then
+!       model%basal_hydro%head(:,:) = &
+!            model%geometry%thck(:,:)*thk0 + (rhow/rhoi)*model%geometry%topg(:,:)*thk0
+!       head_max = maxval(model%basal_hydro%head)  ! max on local processor
+!       head_max = parallel_reduce_max(head_max)   ! global max
+!       do j = 1, model%general%nsn
+!          do i = 1, model%general%ewn
+!             if (head_max - model%basal_hydro%head(i,j) < 1000.d0) then
 !!             if (head_max - model%basal_hydro%head(i,j) < 200.d0) then
-                bmlt_ground_unscaled(i,j) = 1.0d0/scyr    ! units are m/s
-             else
-                bmlt_ground_unscaled(i,j) = 0.0d0
-             endif
-          enddo
-       enddo
+!                bmlt_ground_unscaled(i,j) = 1.0d0/scyr    ! units are m/s
+!             else
+!                bmlt_ground_unscaled(i,j) = 0.0d0
+!             endif
+!          enddo
+!       enddo
 
        ! Compute some masks needed below
-
 
        call glissade_get_masks(&
             model%general%ewn,    model%general%nsn,      &
@@ -1973,34 +1980,6 @@ contains
              bwat_mask = 0
           endwhere
        endif
-
-       !WHL - debug
-       print*, ' '
-       print*, 'edge_mask:'
-       write(6,'(a6)',advance='no') '      '
-       do i = itest-5, itest+5
-          write(6,'(i5)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+5, jtest-5, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-5, itest+5
-             write(6,'(i5)',advance='no') model%general%global_edge_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, ' '
-       print*, 'overwrite_acab_mask:'
-       write(6,*) ' '
-       do j = jtest+5, jtest-5, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-5, itest+5
-             write(6,'(i5)',advance='no') model%climate%overwrite_acab_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
 
        call parallel_halo(bwat_mask, parallel)
 
@@ -3196,6 +3175,14 @@ contains
        ! Note: Currently hardwired to include 13 of the 16 ISMIP6 basins.
        !       Does not include the three largest shelves (Ross, Filchner-Ronne, Amery)
 
+       call glissade_get_masks(nx,                       ny,                         &
+                               parallel,                                             &
+                               model%geometry%thck*thk0, model%geometry%topg*thk0,   &
+                               model%climate%eus*thk0,   0.0d0,                      &  ! thklim = 0
+                               ice_mask,                                             &
+                               floating_mask = floating_mask,                        &
+                               land_mask = land_mask)
+
        if (init_calving .and. model%options%expand_calving_mask) then
 
           ! Identify basins whose floating ice will be added to the calving mask
@@ -3212,14 +3199,6 @@ contains
                 print*, bn, mask_basin(bn)
              enddo
           endif
-
-          call glissade_get_masks(nx,                       ny,                         &
-                                  parallel,                                             &
-                                  model%geometry%thck*thk0, model%geometry%topg*thk0,   &
-                                  model%climate%eus*thk0,   0.0d0,                      &  ! thklim = 0
-                                  ice_mask,                                             &
-                                  floating_mask = floating_mask,                        &
-                                  land_mask = land_mask)
 
           if (verbose_calving .and. this_rank==rtest) then
              print*, ' '
@@ -3617,6 +3596,12 @@ contains
     ! halo updates
     call parallel_halo(model%geometry%thck, parallel)   ! Updated halo values of thck are needed below in calclsrf
 
+    ! update the upper and lower surfaces
+
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
+                        model%climate%eus,   model%geometry%lsrf)
+    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+
     if (verbose_calving .and. this_rank == rtest) then
        print*, ' '
        print*, 'Final calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
@@ -3636,13 +3621,16 @@ contains
           enddo
           write(6,*) ' '
        enddo
+       print*, ' '
+       print*, 'Final usrf (m):'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j) * thk0
+          enddo
+          write(6,*) ' '
+       enddo
     endif  ! verbose_calving
-
-    ! update the upper and lower surfaces
-
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
-                        model%climate%eus,   model%geometry%lsrf)
-    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
   end subroutine glissade_calving_solve
 

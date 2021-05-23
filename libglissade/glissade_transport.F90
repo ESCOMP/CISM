@@ -1092,7 +1092,8 @@
          maxvel = maxvvel
          indices_adv = maxloc(abs(vvel_layer(:,xs:xe,ys:ye)))
       endif
-      indices_adv(2:3) = indices_adv(2:3) + staggered_lhalo  ! want the i,j coordinates WITH the halo present - we got indices into the slice of owned cells
+      indices_adv(2:3) = indices_adv(2:3) + staggered_lhalo  ! want the i,j coordinates WITH the halo present -
+                                                             ! we got indices into the slice of owned cells
       ! Finally, determine maximum allowable time step based on advectice CFL condition.
       my_allowable_dt_adv = dew / (maxvel + 1.0d-20)
 

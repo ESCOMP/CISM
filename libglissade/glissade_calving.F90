@@ -1392,6 +1392,7 @@ contains
     real(dp),  dimension(nx,ny) ::  &
          thck_calving_front    ! effective ice thickness at the calving front
 
+    !TODO - Make this a config parameter?
     real(dp), parameter :: &   ! threshold for counting cells as grounded
          f_ground_threshold = 0.10d0
 
@@ -1632,7 +1633,7 @@ contains
          ocean_plus_thin_ice_mask         ! = 1 for ocean cells and cells with thin floating ice
 
     ! Both floating and weakly grounded cells can be identified as isthmuses and removed;
-    !  isthmuses_f_ground_threshold is used to identify weakly grounded cells.
+    !  isthmus_f_ground_threshold is used to identify weakly grounded cells.
     real(dp), parameter :: &   ! threshold for counting cells as grounded
          isthmus_f_ground_threshold = 0.50d0
 
