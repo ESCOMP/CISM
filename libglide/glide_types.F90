@@ -295,6 +295,7 @@ module glide_types
   integer, parameter :: HO_EFFECPRESS_BMLT = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
   integer, parameter :: HO_EFFECPRESS_BWAT = 4
+  integer, parameter :: HO_EFFECPRESS_BWAT_RAMP = 5
 
   !WHL - added Picard acceleration option
   integer, parameter :: HO_NONLIN_PICARD = 0
@@ -676,6 +677,9 @@ module glide_types
     logical :: adjust_input_thickness = .false.
     !> if true, then adjust thck to maintain usrf, instead of deriving usrf from topg and thck
 
+    logical :: smooth_input_usrf = .false.
+    !> if true, then apply Laplacian smoothing to usrf at initialization
+
     logical :: smooth_input_topography = .false.
     !> if true, then apply Laplacian smoothing to the topography at initialization
 
@@ -863,7 +867,8 @@ module glide_types
     !> \item[1] N is reduced where the bed is at or near the pressure melting point
     !> \item[2] N is reduced where there is melting at the bed
     !> \item[3] N is reduced due to connection of subglacial water to the ocean
-    !> \item[4] N is reduced where basal water is present
+    !> \item[4] N is reduced where basal water is present, following Bueler/van Pelt
+    !> \item[5] N is reduced where basal water is present, with a ramp function
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
