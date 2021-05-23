@@ -850,7 +850,7 @@ contains
 
        if (present(bwat)) then
 
-          ! Reduce N where basal water is present.
+          ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
           ! The effective pressure decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
           ! Note: Instead of using a linear ramp for the variation between overburden and the small value
           !       (as for the BPMP and BMLT options above), we use the published formulation of Bueler & van Pelt (2015).
@@ -876,13 +876,39 @@ contains
 !!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
 !!                      * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
-                   !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
-                   !      This might lead to smoother variations in N with spatial variation in bwat.
-!!                 basal_physics%effecpress(i,j) = overburden(i,j) * &
-!!                      (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
-
                    ! limit so as not to exceed overburden
                    basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+                end if
+             enddo
+          enddo
+
+       endif   ! present(bwat)
+
+       where (floating_mask == 1)
+          ! set to zero for floating ice
+          basal_physics%effecpress = 0.0d0
+       end where
+
+    case(HO_EFFECPRESS_BWAT_RAMP)  ! Similar to HO_EFFECPRESS_BWAT, but with a ramp function
+
+       ! Initialize for the case where bwat isn't present, and also for points with bwat == 0
+
+       basal_physics%effecpress(:,:) = overburden(:,:)
+
+       if (present(bwat)) then
+
+          ! Reduce N where basal water is present.
+          ! The effective pressure decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
+
+          do j = 1, nsn
+             do i = 1, ewn
+                if (bwat(i,j) > 0.0d0) then
+
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
+
+                   basal_physics%effecpress(i,j) = overburden(i,j) * &
+                        (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+
                 end if
              enddo
           enddo

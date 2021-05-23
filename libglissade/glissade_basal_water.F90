@@ -44,7 +44,7 @@ module glissade_basal_water
 !!   logical, parameter :: verbose_bwat = .false.
    logical, parameter :: verbose_bwat = .true.
 
-   integer, parameter :: pdiag = 5  ! range for diagnostic prints
+   integer, parameter :: pdiag = 4  ! range for diagnostic prints
 !!   integer, parameter :: pdiag = 3  ! range for diagnostic prints
 
 contains
@@ -641,7 +641,7 @@ contains
     real(dp) :: &
          total_flux_in,  & ! total input flux (m^3/s), computed as sum of bmlt*dx*dy
          total_flux_out, & ! total output flux (m^3/s), computed as sum of bwatflx at ice margin
-         err,            & ! relative error
+         err,            & ! water conservation error
          global_flux_sum   ! flux sum over all cells in global domain
 
     character(len=100) :: message
@@ -957,10 +957,12 @@ contains
 
     ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
     if (total_flux_in > 0.0d0) then
-       err = abs((total_flux_in - total_flux_out)/total_flux_in)
+       err = abs(total_flux_in - total_flux_out)
        if (err > eps11) then
-          write(message,*) 'Hydrology error: total water not conserved, relative error =', err
-          call write_log(message, GM_FATAL)
+!          write(message,*) 'Hydrology error: total water not conserved, error =', err
+!          call write_log(message, GM_FATAL)
+          write(message,*) 'WARNING: Hydrology error: total water not conserved, error =', err
+          call write_log(message, GM_WARNING)
        endif
     endif
 
@@ -1162,14 +1164,17 @@ contains
 
     real(dp), parameter :: big_number = 1.d+20
     integer :: i, j, ii, jj, ip, jp, p
-
-    integer :: count
-    integer, parameter :: count_max = 200
-
-    logical :: finished      ! true when an iterative loop has finished
-
-    !WHL - debug
     integer :: iglobal, jglobal
+
+    logical :: &
+         finished_local, finished_global      ! true when an iterative loop has finished
+
+    integer :: count_local, count_global
+
+    !WHL - Might need to increase count_global_max on large domains with many processors
+    integer, parameter :: count_global_max = 500
+
+    logical, parameter :: verbose_depression = .false.
 
     ! Uncomment if the input fields are not up to date in halos
 !    call parallel_halo(phi, parallel)
@@ -1190,78 +1195,22 @@ contains
     call parallel_halo(depression_mask, parallel)
 
     p = pdiag
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'fill_depressions, initial depression_mask:'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') depression_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
 
     ! For each cell in a depression, raise to the level of the lowest-elevation upslope neighbor.
 
-    finished = .false.
-    count = 0
+    count_global = 0
+    finished_global = .false.
     sum_mask = 0
 
-    do while (.not.finished)
+    outer: do while (.not.finished_global)
 
-       count = count + 1
-       if (verbose_bwat .and. this_rank == rtest) then
-!!          print*, ' '
-          print*, 'fill_depressions, count, sum_mask =', count, sum_mask
-       endif
+       count_global = count_global + 1
 
-       old_phi = phi
+       count_local = 0
+       finished_local = .false.
 
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (phi_mask(i,j) == 1 .and. depression_mask(i,j) == 1) then
-
-                ! Find the adjacent upslope cell with the lowest elevation
-                min_upslope_phi = big_number
-                do jj = -1,1
-                   do ii = -1,1
-                      ! If this is the centre point, ignore
-                      if (ii == 0 .and. jj == 0) then
-                         continue
-                      else  ! check for an upslope gradient
-                         ip = i + ii
-                         jp = j + jj
-                         if (old_phi(ip,jp) - old_phi(i,j) > eps11) then   ! upslope neighbor
-                            min_upslope_phi = min(min_upslope_phi, old_phi(ip,jp))
-                         endif
-                      endif
-                   enddo
-                enddo
-
-                if (min_upslope_phi < big_number) then
-                   phi(i,j) = min_upslope_phi
-                endif
-
-                if (verbose_bwat .and. this_rank == rtest) then
-!                   print*, 'r, i, j, old phi, new phi:', this_rank, i, j, old_phi(i,j), phi(i,j)
-!                   if (count > 30) then
-!                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!                      print*, '    iglobal, jglobal:', iglobal, jglobal
-!                   endif
-                endif
-
-             end if   ! phi_mask = 1 and depression_mask = 1
-          end do   ! i
-       end do   ! j
-
-       ! The resulting phi is valid in all cells except the outer halo.
-       ! A halo update brings it up to date in all cells.
-       call parallel_halo(phi, parallel)
-
-       ! Find depressions in the updated phi field
-       ! The resulting depression_mask is valid in all cells except the outer halo.
+       ! Identify cells in depressions.
+       ! These are cells with at least one upslope neighbor, but no downslope neighbors.
 
        call find_depressions(&
             nx,      ny,     &
@@ -1269,9 +1218,20 @@ contains
             phi_mask,        &
             depression_mask)
 
-       if (verbose_bwat .and. this_rank == rtest) then
+       ! Check the global sum
+       sum_mask = parallel_global_sum(depression_mask, parallel)
+       if (sum_mask > 0) then
+          finished_global = .false.
+       else
+          finished_global = .true.
+          exit outer
+       endif
+
+       if (verbose_depression .and. this_rank == rtest) then
           print*, ' '
-          print*, 'New depression_mask:'
+          print*, 'fill_depressions, count_global, sum_mask =', count_global, sum_mask
+          print*, ' '
+          print*, 'Current depression_mask:'
           write(6,*) ' '
           do j = jtest+p, jtest-p, -1
              write(6,'(i6)',advance='no') j
@@ -1281,7 +1241,7 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'New phi:'
+          print*, 'Current phi:'
           write(6,*) ' '
           do j = jtest+p, jtest-p, -1
              write(6,'(i6)',advance='no') j
@@ -1292,21 +1252,107 @@ contains
           enddo
        endif
 
-       ! Compute the number of cells in depressions on the global grid
-       ! If there are still depressions, then repeat; else exit
+       inner: do while (.not.finished_local)
 
-       sum_mask = parallel_global_sum(depression_mask, parallel)
-       if (sum_mask > 0) then
-          finished = .false.
-       else
-          finished = .true.
-       endif
+          count_local = count_local + 1
 
-       if (count > count_max) then
-          call write_log('Hydrology error: too many iterations in fill_depressions', GM_FATAL)
-       endif
+          if (verbose_depression .and. this_rank == rtest) then
+             print*, 'fill_depressions, count_local =', count_local
+          endif
 
-    end do   ! finished
+          old_phi = phi
+
+          ! Include one row of halo cells in the loop so the global iteration converges faster
+          ! Note: This requires nhalo >= 2
+          do j = nhalo, ny-nhalo+1
+             do i = nhalo, nx-nhalo+1
+                if (phi_mask(i,j) == 1 .and. depression_mask(i,j) == 1) then
+
+                   ! Find the adjacent upslope cell with the lowest elevation
+                   min_upslope_phi = big_number
+                   do jj = -1,1
+                      do ii = -1,1
+                         ! If this is the centre point, ignore
+                         if (ii == 0 .and. jj == 0) then
+                            continue
+                         else  ! check for an upslope gradient
+                            ip = i + ii
+                            jp = j + jj
+                            if (old_phi(ip,jp) - old_phi(i,j) > eps11) then   ! upslope neighbor
+                               min_upslope_phi = min(min_upslope_phi, old_phi(ip,jp))
+                            endif
+                         endif
+                      enddo
+                   enddo
+
+                   if (min_upslope_phi < big_number) then
+                      phi(i,j) = min_upslope_phi
+                   endif
+
+                   !WHL - debug
+!                   if (verbose_depression .and. this_rank == rtest) then
+!                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!                      print*, 'r, i, j, old phi, new phi, iglobal, jglobal:', &
+!                           this_rank, i, j, old_phi(i,j), phi(i,j), iglobal, jglobal
+!                   endif
+
+                end if   ! phi_mask = 1 and depression_mask = 1
+             end do   ! i
+          end do   ! j
+
+          ! Find depressions in the updated phi field
+
+          call find_depressions(&
+               nx,      ny,     &
+               phi,             &
+               phi_mask,        &
+               depression_mask)
+
+          if (verbose_depression .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'New depression_mask:'
+             write(6,*) ' '
+             do j = jtest+p, jtest-p, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-p, itest+p
+                   write(6,'(i10)',advance='no') depression_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'New phi:'
+             write(6,*) ' '
+             do j = jtest+p, jtest-p, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-p, itest+p
+                   write(6,'(f10.3)',advance='no') phi(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          ! If there are still depressions, then repeat; else exit the local loop
+
+          finished_local = .true.
+          jloop: do j = nhalo+1, ny-nhalo
+             do i = nhalo+1, nx-nhalo
+                if (depression_mask(i,j) == 1) then
+                   finished_local = .false.
+                   exit jloop
+                endif
+             enddo
+          enddo jloop
+
+       enddo inner   ! finished_local
+
+       ! Do a halo update to bring phi up to date in halo cells
+       call parallel_halo(phi, parallel)
+
+    end do outer   ! finished_global
+
+    if (verbose_bwat .and. this_rank == rtest) then
+       print*, 'Filled depressions, count =', count_global
+    endif
 
   end subroutine fill_depressions
 
