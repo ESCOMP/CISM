@@ -649,7 +649,6 @@ contains
     !WHL - debug
     real(dp) :: bmlt_max, bmlt_max_global
     integer :: imax, jmax, rmax, iglobal, jglobal
-
     ! Allocate the sorted_ij array
 
     nlocal = parallel%own_ewn * parallel%own_nsn
@@ -670,27 +669,18 @@ contains
        enddo
     enddo
 
-    ! Initialize the filled field
-
-    head_filled = head
-
-    ! Fill depressions in head, so that no interior cells are sinks
+    ! Fill depressions in the head field, so that no interior cells are sinks
 
     call fill_depressions(&
          nx,    ny,            &
          parallel,             &
          itest, jtest, rtest,  &
-         head_filled,          &
-         bwat_mask)
+         head,                 &
+         bwat_mask,            &
+         head_filled)
 
-    ! Raise the head slightly in flat regions, so that all cells have downslope outlets
-
-    call fix_flats(&
-         nx,    ny,            &
-         parallel,             &
-         itest, jtest, rtest,  &
-         head_filled,          &
-         bwat_mask)
+ ! Note: In an earlier code version, fix_flats was called here.
+ !       It is not needed, however, if the fill_depressions scheme is run with epsilon > 0.
 
     ! Compute the lake depth
     lakes = head_filled - head
@@ -701,7 +691,7 @@ contains
     p = pdiag
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
-       print*, 'After fill: head_filled (m):'
+       print*, 'After fill: head (m):'
        write(6,'(a3)',advance='no') '   '
        do i = itest-p, itest+p
           write(6,'(i10)',advance='no') i
@@ -1121,13 +1111,35 @@ contains
        nx,    ny,            &
        parallel,             &
        itest, jtest, rtest,  &
-       phi,                  &
-       phi_mask)
+       phi_in,               &
+       phi_mask,             &
+       phi)
 
-    ! Fill depressions in the input field phi
+    ! Fill depressions in the input field, phi_in.
+    ! The requirements for the output field, phi_out, are:
+    ! (1) phi_out >= phi_in everywhere
+    ! (2) For each cell with phi_mask = 1, there is a descending path to the boundary.
+    !     That is, phi1 >= phi2 for any two adjacent cells along the path, where the flow
+    !     is from cell 1 to cell 2.
+    ! (3) phi_out is the lowest surface consistent with properties (1) and (2).
+    !
+    ! The algorithm is based on this paper:
+    ! Planchon, O., and F. Darboux (2001): A fast, simple and versatile algorithm
+    !  to fill the depressions of digital elevation models, Catena (46), 159-176.
+    !
+    ! The basic idea is:
+    ! Let phi = the current best guess for phi_out.
+    ! Initially, set phi = phi_in on the boundary, and set phi = a large number elsewhere.
+    ! Loop through the domain.  For each cell c, with value phi(c) not yet fixed as a known value,
+    !  compute phi_min8(n), the current minimum of phi in the 8 neighbor cells.
+    ! If phi_in(c) > phi_min8(n) + eps, then set phi(c) = phi_in(c) and mark that cell as having a known value,
+    !  since phi(c) cannot go any lower.  Here, eps is a small number greater than zero.
+    ! If phi_in(c) < phi_min8(n) + eps, but phi(c) > phi_min8(c) + eps, set phi(c) = phi_min8(n) + eps.
+    !  Do not mark the cell as having a known value, because it might be lowered further.
+    ! Continue until no further lowering of phi is possible.  At that point, phi = phi_out.
+    ! Note: Setting eps = 0 would result in flat surfaces that would need to be fixed later.
 
-    use cism_parallel, only: parallel_global_sum
-!WHL - debug
+    use cism_parallel, only: parallel_reduce_sum
     use cism_parallel, only: parallel_globalindex
 
     implicit none
@@ -1141,305 +1153,241 @@ contains
     type(parallel_type), intent(in) ::  &
          parallel            ! info for parallel communication
 
-    real(dp), dimension(nx,ny), intent(inout) :: &
-         phi                 ! input field with depressions to be filled
+    real(dp), dimension(nx,ny), intent(in) :: &
+         phi_in              ! input field with depressions to be filled
 
     integer, dimension(nx,ny), intent(in) ::  &
          phi_mask            ! = 1 in the domain where depressions need to be filled, else = 0
-                             ! corresponds to the grounded ice sheet for the flux-routing problem
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         phi                 ! output field with depressions filled
 
     ! Local variables --------------------------------------
 
-    real(dp), dimension(nx,ny) ::  &
-         old_phi             ! old value of phi
-
-    integer, dimension(nx,ny) :: &
-         depression_mask     ! = 1 for cells with upslope neighbors but no downslope neighbors
-
-    real(dp) :: &
-         min_upslope_phi     ! min value of phi in an upslope neighbor
+    logical, dimension(nx,ny) ::  &
+         known               ! = true for cells where the final phi(i,j) is known
 
     integer :: &
-         sum_mask            ! global sum of cells with depression_mask = 1
+         local_lowered,    & ! local sum of cells where phi is lowered
+         global_lowered      ! global sum of cells where phi is lowered
 
-    real(dp), parameter :: big_number = 1.d+20
+    real(dp) :: &
+         phi_min8            ! current minval of phi in a cell's 8 neighbors,
+                             ! considering only cells with phi_mask = 1
+
+    real(dp) :: epsilon      ! small increment in phi, either epsilon_edge or epsilon_diag
+
+    logical :: finished      ! true when an iterative loop has finished
+
+    integer :: count         ! iteration counter
+
     integer :: i, j, ii, jj, ip, jp, p
     integer :: iglobal, jglobal
+    integer :: i1, i2, istep, j1, j2, jstep
 
-    logical :: &
-         finished_local, finished_global      ! true when an iterative loop has finished
+    real(dp), parameter :: big_number = 1.d+20   ! initial large value for phi
 
-    integer :: count_local, count_global
+    ! According to Planchon & Darboux (2001), there should be one value of epsilon for edge neighbors
+    !  and another value for corner neighbors.
+    real(dp), parameter :: &
+         epsilon_edge = 1.d-4,          & ! small increment in phi to avoid flat regions, applied to edge neighbors
+         epsilon_diag = 1.d-4*sqrt(2.d0)  ! small increment in phi to avoid flat regions, applied to diagonal neighbors
 
-    !WHL - Might need to increase count_global_max on large domains with many processors
-    integer, parameter :: count_global_max = 500
+    !WHL - Typically, it takes ~10 iterations to fill all depressions on a large domain.
+    integer, parameter :: count_max = 100
 
-    logical, parameter :: verbose_depression = .false.
+!!    logical, parameter :: verbose_depression = .false.
+    logical, parameter :: verbose_depression = .true.
 
-    ! Uncomment if the input fields are not up to date in halos
-!    call parallel_halo(phi, parallel)
-!    call parallel_halo(phi_mask, parallel)
+    ! Initial halo update, in case phi_in is not up to date in halo cells
+    call parallel_halo(phi_in, parallel)
 
-    ! Identify cells in depressions.
-    ! These are cells with at least one upslope neighbor, but no downslope neighbors.
+    ! Initialize phi to a large value
+    where (phi_mask == 1)
+       phi = big_number
+       known = .false.
+    elsewhere
+       phi = 0.0d0
+       known = .true.
+    endwhere
 
-    call find_depressions(&
-         nx,      ny,     &
-         phi,             &
-         phi_mask,        &
-         depression_mask)
+    ! Set phi = phi_in for boundary cells.
+    ! A boundary cell is a cell with phi_mask = 1, adjacent to one or more cells with phi_mask = 0.
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (phi_mask(i,j) == 1) then
+             if (phi_mask(i-1,j+1)==0 .or. phi_mask(i,j+1)==0 .or. phi_mask(i+1,j+1)==0 .or. &
+                 phi_mask(i-1,j)  ==0               .or.           phi_mask(i+1,j)  ==0 .or. &
+                 phi_mask(i-1,j-1)==0 .or. phi_mask(i,j-1)==0 .or. phi_mask(i+1,j-1)==0) then
+                phi(i,j) = phi_in(i,j)
+                known(i,j) = .true.
+             endif
+          endif
+       enddo
+    enddo
 
     ! The resulting mask applies to locally owned cells and one layer of halo cells.
     ! A halo update brings it up to date in all halo cells.
-    ! TODO - Remove this update?  Need phi in halo, but not depression_mask.
-    call parallel_halo(depression_mask, parallel)
+
+    call parallel_halo(phi, parallel)
 
     p = pdiag
 
-    ! For each cell in a depression, raise to the level of the lowest-elevation upslope neighbor.
+    if (verbose_depression .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'Initial phi:'
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(e11.4)',advance='no') phi(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
 
-    count_global = 0
-    finished_global = .false.
-    sum_mask = 0
+    count = 0
+    finished = .false.
 
-    outer: do while (.not.finished_global)
+    do while (.not.finished)
 
-       count_global = count_global + 1
+       count = count + 1
+       local_lowered = 0
 
-       count_local = 0
-       finished_local = .false.
-
-       ! Identify cells in depressions.
-       ! These are cells with at least one upslope neighbor, but no downslope neighbors.
-
-       call find_depressions(&
-            nx,      ny,     &
-            phi,             &
-            phi_mask,        &
-            depression_mask)
-
-       ! Check the global sum
-       sum_mask = parallel_global_sum(depression_mask, parallel)
-       if (sum_mask > 0) then
-          finished_global = .false.
-       else
-          finished_global = .true.
-          exit outer
+       if (verbose_depression .and. this_rank == rtest) then
+          write(6,*) ' '
+          print*, 'fill_depressions, count =', count
        endif
+
+       ! Loop through cells
+       ! Iterate until phi cannot be lowered further.
+       !
+       ! To vary the route through the cells and reduce the required number of iterations,
+       ! we alternate between four possible sequences:
+       ! (1) j lo to hi, i lo to hi
+       ! (2) j hi to lo, i hi to lo
+       ! (3) j lo to hi, i hi to lo
+       ! (4) j hi to lo, i lo to hi
+       ! Other sequences would be possible with i before j, but these are not Fortran-friendly.
+
+       if (mod(count,4) == 1) then
+          j1 = 2; j2 = ny-1; jstep = 1
+          i1 = 2; i2 = nx-1; istep = 1
+       elseif (mod(count,4) == 2) then
+          j1 = ny-1; j2 = 2; jstep = -1
+          i1 = nx-1; i2 = 2; istep = -1
+       elseif (mod(count,4) == 3) then
+          j1 = 2; j2 = ny-1; jstep = 1
+          i1 = nx-1; i2 = 2; istep = -1
+       elseif (mod(count,4) == 0) then
+          j1 = ny-1; j2 = 2; jstep = -1
+          i1 = 2; i2 = nx-1; istep = 1
+       endif
+
+       do j = j1, j2, jstep
+          do i = i1, i2, istep
+             if (phi_mask(i,j) == 1 .and. .not.known(i,j)) then
+
+                ! In each cell, compute the min value of phi in the 8 neighbors
+                phi_min8 = big_number
+                do jj = -1,1
+                   do ii = -1,1
+                      ! If this is the centre point, ignore
+                      if (ii == 0 .and. jj == 0) then
+                         continue
+                      else  ! check whether this neighbor has the minimum phi value
+                         ip = i + ii
+                         jp = j + jj
+                         if (phi(ip,jp) < phi_min8) phi_min8 = phi(ip,jp)
+                         if (mod(ii+jj,2) == 0) then  ! diagonal neighbor
+                            epsilon = epsilon_diag
+                         else   ! edge neighbor
+                            epsilon = epsilon_edge
+                         endif
+                      endif
+                   enddo
+                enddo
+
+                ! If phi_in(i,j) > phi_min8 + eps, set phi(i,j) = phi_in(i,j); mark cell as known.
+                ! Else if phi(i,j) > phi_min8 + eps, set phi(i,j) = phi_min8 + eps; do not mark as known.
+                ! Note: epsilon could be either epsilon_edge or epsilon_diag.
+
+                if (phi_in(i,j) > phi_min8 + epsilon) then
+
+                   !WHL - debug
+                   if (verbose_depression .and. count >= 20) then
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, ' '
+                      print*, 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      print*, '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      print*, '   phi_min8 =', phi_min8
+                      print*, '   new phi = phi_in'
+                   endif
+
+                   phi(i,j) = phi_in(i,j)
+                   known(i,j) = .true.
+                   local_lowered = local_lowered + 1
+
+                elseif (phi(i,j) > phi_min8 + epsilon) then
+
+                   !WHL - debug
+                   if (verbose_depression .and. count >= 20) then
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, ' '
+                      print*, 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      print*, '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      print*, '   phi_min8 =', phi_min8
+                      print*, '   new phi = phi_min8'
+                   endif
+
+                   phi(i,j) = phi_min8 + epsilon
+                   local_lowered = local_lowered + 1
+
+                endif  ! phi_in > phi_min8 + eps, phi > phi_min8 + eps
+
+             end if   ! phi_mask = 1 and .not.known
+          end do   ! i
+       end do   ! j
 
        if (verbose_depression .and. this_rank == rtest) then
           print*, ' '
-          print*, 'fill_depressions, count_global, sum_mask =', count_global, sum_mask
-          print*, ' '
-          print*, 'Current depression_mask:'
-          write(6,*) ' '
+          print*, 'New phi:'
           do j = jtest+p, jtest-p, -1
              write(6,'(i6)',advance='no') j
              do i = itest-p, itest+p
-                write(6,'(i10)',advance='no') depression_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Current phi:'
-          write(6,*) ' '
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f10.3)',advance='no') phi(i,j)
+                write(6,'(f11.4)',advance='no') phi(i,j)
              enddo
              write(6,*) ' '
           enddo
        endif
 
-       inner: do while (.not.finished_local)
+       ! If one or more cells was lowered, then repeat; else exit the local loop.
 
-          count_local = count_local + 1
+       global_lowered = parallel_reduce_sum(local_lowered)
 
+       if (global_lowered == 0) then
+          finished = .true.
           if (verbose_depression .and. this_rank == rtest) then
-             print*, 'fill_depressions, count_local =', count_local
+             print*, 'finished lowering'
           endif
-
-          old_phi = phi
-
-          ! Include one row of halo cells in the loop so the global iteration converges faster
-          ! Note: This requires nhalo >= 2
-          do j = nhalo, ny-nhalo+1
-             do i = nhalo, nx-nhalo+1
-                if (phi_mask(i,j) == 1 .and. depression_mask(i,j) == 1) then
-
-                   ! Find the adjacent upslope cell with the lowest elevation
-                   min_upslope_phi = big_number
-                   do jj = -1,1
-                      do ii = -1,1
-                         ! If this is the centre point, ignore
-                         if (ii == 0 .and. jj == 0) then
-                            continue
-                         else  ! check for an upslope gradient
-                            ip = i + ii
-                            jp = j + jj
-                            if (old_phi(ip,jp) - old_phi(i,j) > eps11) then   ! upslope neighbor
-                               min_upslope_phi = min(min_upslope_phi, old_phi(ip,jp))
-                            endif
-                         endif
-                      enddo
-                   enddo
-
-                   if (min_upslope_phi < big_number) then
-                      phi(i,j) = min_upslope_phi
-                   endif
-
-                   !WHL - debug
-!                   if (verbose_depression .and. this_rank == rtest) then
-!                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!                      print*, 'r, i, j, old phi, new phi, iglobal, jglobal:', &
-!                           this_rank, i, j, old_phi(i,j), phi(i,j), iglobal, jglobal
-!                   endif
-
-                end if   ! phi_mask = 1 and depression_mask = 1
-             end do   ! i
-          end do   ! j
-
-          ! Find depressions in the updated phi field
-
-          call find_depressions(&
-               nx,      ny,     &
-               phi,             &
-               phi_mask,        &
-               depression_mask)
-
+       else
+          finished = .false.
           if (verbose_depression .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'New depression_mask:'
-             write(6,*) ' '
-             do j = jtest+p, jtest-p, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-p, itest+p
-                   write(6,'(i10)',advance='no') depression_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'New phi:'
-             write(6,*) ' '
-             do j = jtest+p, jtest-p, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-p, itest+p
-                   write(6,'(f10.3)',advance='no') phi(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             print*, 'cells lowered on this iteration:', global_lowered
           endif
+          call parallel_halo(phi, parallel)
+       endif
 
-          ! If there are still depressions, then repeat; else exit the local loop
+       if (count > count_max) then
+          call write_log('Hydrology error, exceeded max number of global iterations', GM_FATAL)
+       endif
 
-          finished_local = .true.
-          jloop: do j = nhalo+1, ny-nhalo
-             do i = nhalo+1, nx-nhalo
-                if (depression_mask(i,j) == 1) then
-                   finished_local = .false.
-                   exit jloop
-                endif
-             enddo
-          enddo jloop
-
-       enddo inner   ! finished_local
-
-       ! Do a halo update to bring phi up to date in halo cells
-       call parallel_halo(phi, parallel)
-
-    end do outer   ! finished_global
+    enddo  ! finished
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'Filled depressions, count =', count_global
+       print*, 'Filled depressions, count =', count
     endif
 
   end subroutine fill_depressions
-
-!==============================================================
-
-  subroutine find_depressions(&
-       nx,     ny,       &
-       phi,              &
-       phi_mask,         &
-       depression_mask)
-
-    ! Compute a mask that = 1 for cells in depressions.
-    ! These are defined as cells with phi_mask = 1, at least one upslope neighbor,
-    !  and no downslope neighbors.
-    ! If the input phi and phi_mask are up to date in all halo cells,
-    !  then depression_mask will be valid in all cells except the outer halo.
-
-    ! Input/output arguments
-
-    integer, intent(in) ::  &
-         nx, ny                  ! number of grid cells in each direction
-
-    real(dp), dimension(nx,ny), intent(inout) :: &
-         phi                     ! elevation field with potential depressions
-
-    integer, dimension(nx,ny), intent(in) :: &
-         phi_mask                ! = 1 for cells in the region where depressionss need to be identified
-
-    integer, dimension(nx,ny), intent(out) :: &
-         depression_mask         ! = 1 for cells with upslope neighbors but no downslope neighbors
-
-    ! Local variables
-
-    integer :: i, j, ii, jj, ip, jp
-
-    ! initialize
-    depression_mask = 0
-
-    ! In the first pass, set depression_mask = 1 if phi_mask = 1 and a cell has any upslope neighbors
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (phi_mask(i,j) == 1) then
-             !TODO - Add an exit statement?
-             do jj = -1,1
-                do ii = -1,1
-                   ! If this is the centre point, ignore
-                   if (ii == 0 .and. jj == 0) then
-                      continue
-                   else  ! check for an upslope gradient
-                      ip = i + ii
-                      jp = j + jj
-                      if (phi(ip,jp) - phi(i,j) > eps11) then
-                         depression_mask(i,j) = 1
-                      endif
-                   endif
-                enddo   ! ii
-             enddo   ! jj
-          endif   ! phi_mask = 1
-       enddo   ! i
-    enddo   ! j
-
-    ! In the second pass, set depression_mask = 0 if a cell has any downslope neighbors.
-    ! We are left with cells that have at least one upslope neighbor, but no downslope neighbors.
-
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (phi_mask(i,j) == 1) then
-             !TODO - Add an exit statement?
-             do jj = -1,1
-                do ii = -1,1
-                   ! If this is the centre point, ignore
-                   if (ii == 0 .and. jj == 0) then
-                      continue
-                   else  ! check for a downslope gradient
-                      ip = i + ii
-                      jp = j + jj
-                      if (phi(i,j) - phi(ip,jp) > eps11) then
-                         depression_mask(i,j) = 0
-                      endif
-                   endif
-                enddo   ! ii
-             enddo   ! jj
-          endif   ! phi_mask = 1
-       enddo   ! i
-    enddo   ! j
-
-  end subroutine find_depressions
 
 !==============================================================
 
@@ -1457,6 +1405,10 @@ contains
     ! Garbrecht, J., and L. W. Mertz (1997), The assignment of drainage direction
     !    over flat surfaces in raster digital elevation models, J. Hydrol., 193,
     !    204-213.
+    !
+    ! Note: This subroutine is not currently called, because the depression-filling algorithm
+    !        above is configured not to leave any flats.
+    !       I am leaving it here in case it is useful for debugging.
 
     use cism_parallel, only: parallel_global_sum
 
@@ -1505,7 +1457,7 @@ contains
 
     integer :: i, j, ii, jj, ip, jp, p
     integer :: count
-    integer, parameter :: count_max = 50
+    integer, parameter :: count_max = 100
 
     ! Uncomment if the input fields are not up to date in halos
 !    call parallel_halo(phi, parallel)
@@ -1942,6 +1894,7 @@ contains
 
     ! Compute a mask that = 1 for cells in flat regions.
     ! These are defined as cells with phi_mask = 1 and without a downslope gradient.
+    ! Note: This subroutine is not currently called.  See the comment in fix_flats.
 
     ! Input/output arguments
 
@@ -2049,6 +2002,8 @@ contains
     ! The resulting 'ind' vector contains the k index for each cell, arranged from lowest to highest.
     ! E.g., if the lowest-ranking cell has k = 5 and the highest-ranking cell has k = 50,
     !  then ind(1) = 5 and ind(nlocal) = 50.
+    ! Note: For a large problem with a small number of processors, the code can fail here
+    !       because of too much recursion.
 
     call indexx(vect, ind)
 
@@ -2372,6 +2327,9 @@ contains
     !> Michael Lamont (http://linux.wku.edu/~lamonml/kb.html), originally written
     !> in C, and issued under the GNU General Public License. The conversion to
     !> Fortran 90, and modification to do an index sort was done by Ian Rutt.
+    !>
+    !> Note: For a large problem with a small number of processors, the code can
+    !        fail here with a seg fault because there is too much recursion.
 
     implicit none
 

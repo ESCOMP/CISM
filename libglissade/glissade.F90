@@ -736,10 +736,6 @@ contains
 
     if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == RESTART_FALSE) then
 
-       !WHL - debug
-       if (main_task) print*, 'overwrite_acab value (m/yr):', &
-            model%climate%overwrite_acab_value * scyr*thk0/tim0
-
        call glissade_overwrite_acab_mask(model%options%overwrite_acab,          &
                                          model%climate%acab,                    &
                                          model%geometry%thck,                   &
@@ -1980,6 +1976,11 @@ contains
              bwat_mask = 0
           endwhere
        endif
+
+       !WHL - debug - Set mask = 0 where thck = 0 for dome test
+!       where (model%geometry%thck == 0)
+!          bwat_mask = 0
+!       endwhere
 
        call parallel_halo(bwat_mask, parallel)
 
