@@ -1945,7 +1945,7 @@ module glide_types
                                                  !> Where u > umax, let u = umax when evaluating beta(u)
 
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
-     !       to simulate a plastic bed..
+     !       to simulate a plastic bed.
      real(dp),dimension(:,:)  ,pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model
 
   end type glide_basal_physics
