@@ -123,8 +123,8 @@ def main():
     #yp = 15
     #xp = 15
     # =====================================================================
-    print 'Using x index of '+str(xp)+'='+str(x0[xp])
-    print 'Using y index of '+str(yp)+'='+str(y0[yp])
+    print( 'Using x index of '+str(xp)+'='+str(x0[xp]))
+    print( 'Using y index of '+str(yp)+'='+str(y0[yp]))
 
     thk = filein.variables['thk'][:]
     if netCDF_module == 'Scientific.IO.NetCDF':

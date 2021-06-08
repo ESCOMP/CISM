@@ -227,15 +227,15 @@ else:
 if options.experiment == 'all':
     experiments = As
     Astat       = Astatus
-    print 'Plotting all the MISMIP experiments'
+    print('Plotting all the MISMIP experiments')
 elif options.experiment == 'advance':
     experiments = AsAdvance
     Astat       = AstatusAdvance
-    print 'Plotting advance experiments'
+    print('Plotting advance experiments')
 elif options.experiment == 'retreat':
     experiments = AsRetreat
     Astat       = AstatusRetreat
-    print 'Plotting retreat experiments'
+    print('Plotting retreat experiments')
 else:
     sys.exit('Please specify experiment(s) from this list: all, advance, retreat')
 
@@ -269,7 +269,7 @@ for expt in experiments:
        xgval[count] = ncid.variables["xGL"][-1][-1]
        ncid.close()
     except:
-       print 'Results for experiment',stat,'and',expt,'is not available'
+       print('Results for experiment',stat,'and',expt,'is not available')
        
 
     # Switch back to original directory.

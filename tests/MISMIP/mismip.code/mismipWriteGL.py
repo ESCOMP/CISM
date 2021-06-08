@@ -143,15 +143,15 @@ else:
 if options.experiment == 'all':
     experiments = As
     Astat       = Astatus
-    print 'Writing all the MISMIP experiments'
+    print('Writing all the MISMIP experiments')
 elif options.experiment == 'advance':
     experiments = AsAdvance
     Astat       = AstatusAdvance
-    print 'Writing advance experiments'
+    print('Writing advance experiments')
 elif options.experiment == 'retreat':
     experiments = AsRetreat
     Astat       = AstatusRetreat
-    print 'Writing retreat experiments'
+    print('Writing retreat experiments')
 else:
     sys.exit('Please specify experiment(s) from this list: all, advance, retreat')
 
@@ -180,8 +180,8 @@ for expt in experiments:
     else:
         file = 'mismip_' + expt + '.out.nc'
 
-    print 'Creating a MISMIP grounding-line file for experiment', expt
-    print 'Attempting to read CISM file', file
+    print('Creating a MISMIP grounding-line file for experiment', expt)
+    print('Attempting to read CISM file', file)
 
     # Open the CISM output file, get needed dimensions.
     # Note: (x0,y0) are dimensions of the staggered (velocity) grid
@@ -202,7 +202,7 @@ for expt in experiments:
    # Initialize some variables and arrays.
    # Read in some fields needed to compute diagnostics similar to the one of MISMIP+.
 
-    print 'Reading in CISM variables...'
+    print('Reading in CISM variables...')
 
     try:
         # These array names are somewhat arbitrary.  Sometime I have used CISM names;
@@ -240,7 +240,7 @@ for expt in experiments:
 
     outfilename = expt + model + '.nc'
     ncfile = Dataset(outfilename, 'w')
-    print 'Created output file', outfilename
+    print('Created output file', outfilename)
 
     # Set dimensions.
     glptdim = ncfile.createDimension('nPointGL', size = None)
@@ -264,11 +264,11 @@ for expt in experiments:
     vMeanGL        = ncfile.createVariable('vMeanGL',        'f4', ('nPointGL', 'nTime'))
 
     # Loop over time slices and fill variables.
-    print 'Adding grounding-line variables to output file...'
+    print('Adding grounding-line variables to output file...')
 
     for iTime in range(nTime):
 
-        print '   Time slice:', iTime
+        print('Time slice:', iTime)
 
         # Add the scalar data for this time slice.
         time[iTime]         = t[iTime]

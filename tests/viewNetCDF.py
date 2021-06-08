@@ -5,11 +5,11 @@
 ######## Check to see that there is a command line argument ########
 from sys import argv, exit
 if len(argv) == 1 or argv[1][0] == '-':
-  print 'USAGE:\n'
-  print '  python viewNetCDF.py filename [-m]\n'
-  print '    -m   Place additional options in a menubar at the top of the window.'
-  print '         The default is to have these options in a pop-up menu which is'
-  print '         opened using the right mouse button.\n'
+  print( 'USAGE:\n')
+  print( '  python viewNetCDF.py filename [-m]\n')
+  print( '    -m   Place additional options in a menubar at the top of the window.')
+  print( '         The default is to have these options in a pop-up menu which is')
+  print( '         opened using the right mouse button.\n')
   exit(0)
 
 ######## Import the required Python modules ########
@@ -112,9 +112,9 @@ def new():
 def getValue(event):
   x, y = map(int,map(round,[event.xdata, event.ydata]))
   if len(numpy.shape(data)) == 1:
-    print 'The value of',v,'at',x,'is',data[x]
+    print( 'The value of',v,'at',x,'is',data[x])
   else:
-    print 'The value of',v,'at ('+str(x)+','+str(y)+') is',data[y,x]
+    print( 'The value of',v,'at ('+str(x)+','+str(y)+') is',data[y,x])
 
 ######## A function to loop for animation ########
 ANIMATION_IS_DISABLED = True
@@ -131,8 +131,8 @@ def animationloop():
   time_or_level = animation.get()-1
   if len(netCDFfile.variables[v].dimensions)<(3+time_or_level):
     d = ('time','level')[time_or_level]
-    print 'WARNING:',v,'does not have a',d,'dimension;'
-    print '         Animation was aborted.'
+    print( 'WARNING:',v,'does not have a',d,'dimension;')
+    print( '         Animation was aborted.')
     plot()
     return
   entryWidget = (timeentry,levelentry)[time_or_level]
@@ -143,12 +143,12 @@ def animationloop():
   delay = parse(delayentry,float,0.0)
   plotbutton.config(text='STOP',fg='red',command=stopanimation)
   pyplot.clf()
-  print 'entering actual loop',start,finish
+  print( 'entering actual loop',start,finish)
   if use_thread:
     thread.start_new_thread(actualloop,(start,finish,entryWidget,delay))
   else:
     actualloop(start,finish,entryWidget,delay)
-  print 'Hello!'
+  print( 'Hello!')
 
 def actualloop(start,finish,entryWidget,delay):
   global stopflag
@@ -197,12 +197,12 @@ def plot():
     data = numpy.array(eval('netCDFfile.variables[v]['+indices+']'))
     mask = (data != data) # look for NaN
     if numpy.any(mask):
-      print 'Masking',numpy.sum(mask),'NaN values in',v
+      print( 'Masking',numpy.sum(mask),'NaN values in',v)
       data = numpy.ma.masked_array(data,mask)
     if logarithm.get() == 1:
       mask0 = (data <= 0)
       if numpy.any(mask0):
-        print 'Masking',numpy.sum(mask0),'values in',v,'that are less than or equal to zero.'
+        print( 'Masking',numpy.sum(mask0),'values in',v,'that are less than or equal to zero.')
         data = numpy.ma.masked_array(data,mask0)
       if parse(vminentry,float,0) <= 0: vminentry.delete(0,END)
       if parse(vmaxentry,float,0) <= 0: vmaxentry.delete(0,END)
@@ -303,9 +303,9 @@ def printattributes():
       filename = 'viewNetCDF'+str(i)+'.trash'
       if filename not in glob('*.trash'): break
     if verbose:
-      print 'Creating temporary file:',filename
+      print( 'Creating temporary file:',filename)
     trash = NetCDFFile(filename,'w')
-    print '\nGLOBAL ATTRIBUTES OF',argv[1]
+    print( '\nGLOBAL ATTRIBUTES OF',argv[1])
     for attribute in dir(netCDFfile):
       if attribute not in dir(trash):
         print attribute +":", getattr(netCDFfile,attribute )
@@ -313,15 +313,15 @@ def printattributes():
     ignore = dir(variable)
     trash.close()
     if verbose:
-      print 'Deleting:',filename
+      print( 'Deleting:',filename)
     remove(filename)
 
   v = variables[int(variablelist.curselection()[0])]
-  print '\nATTRIBUTES OF',v
+  print( '\nATTRIBUTES OF',v)
   v = netCDFfile.variables[v]
   for attribute in dir(v):
     if attribute not in ignore:
-      print attribute+':',getattr(v,attribute)
+      print( attribute+':',getattr(v,attribute))
 
 ######## A function to set the super title ########
 suptitle = None
@@ -501,4 +501,4 @@ else:
 ######## Display the GUI window ########
 mainloop()
 netCDFfile.close()
-print plotCounter,'plots were produced'
+print( plotCounter,'plots were produced')
