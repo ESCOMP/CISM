@@ -13,7 +13,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -57,7 +57,7 @@ contains
 
     ! Initialise a GLAD ice model instance for GCM coupling
 
-    use glimmer_paramets, only: GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG, thk0
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -71,7 +71,7 @@ contains
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
+    use cism_parallel, only: main_task
 
     implicit none
 
@@ -90,6 +90,8 @@ contains
     ! Internal
 
     integer :: config_fileunit
+    logical :: do_ice_evolution
+    integer :: nzocn
 
     config_fileunit = 99
     if (present(gcm_config_unit)) then
@@ -123,18 +125,26 @@ contains
       endif
     endif
 
+    ! read glad configuration
+    call glad_i_readconfig(instance, config)
+    call glad_i_printconfig(instance)
+
+    do_ice_evolution = (instance%evolve_ice == EVOLVE_ICE_TRUE)
+
     if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
 
        ! initialise the model
        call glide_initialise(instance%model)
 
        ! compute the initial diagnostic state
-       call glide_init_state_diagnostic(instance%model)
+       call glide_init_state_diagnostic(instance%model, &
+            evolve_ice = do_ice_evolution)
 
     else       ! glam/glissade HO dycore     
 
        ! initialise the model
-       call glissade_initialise(instance%model)
+       call glissade_initialise(instance%model, &
+            evolve_ice = do_ice_evolution)
 
        ! compute the initial diagnostic state
        call glissade_diagnostic_variable_solve(instance%model)
@@ -144,11 +154,6 @@ contains
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
 
     instance%glide_time = instance%model%numerics%tstart
-
-    ! read glad configuration
-
-    call glad_i_readconfig(instance, config)    
-    call glad_i_printconfig(instance)    
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file (specific to glad - other configs,
@@ -187,6 +192,7 @@ contains
                                      get_ewn(instance%model), &
                                      get_nsn(instance%model))
 
+
     ! Allocate arrays appropriately
 
     call glad_i_allocate_gcm(instance, force_start)
@@ -196,8 +202,9 @@ contains
     call glad_i_readdata(instance)
 
     ! initialise the mass-balance accumulation
+    nzocn = get_nzocn(instance%model) ! used for ocean related fields
 
-    call glad_mbc_init(instance%mbal_accum, instance%lgrid)
+    call glad_mbc_init(instance%mbal_accum, instance%lgrid, nzocn)
 
     ! If flag set to force frequent coupling (for testing purposes),
     ! then decrease all coupling timesteps to very short intervals
@@ -259,7 +266,7 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%timecounter)
+                                 tstep_count = instance%model%numerics%tstep_count)
 
     ! Write netCDF output for this instance
 
@@ -302,7 +309,7 @@ contains
 
     call glide_calclsrf(instance%model%geometry%thck,instance%model%geometry%topg, &
          instance%model%climate%eus,instance%model%geometry%lsrf)
-    instance%model%geometry%usrf = instance%model%geometry%thck + instance%model%geometry%lsrf
+    instance%model%geometry%usrf = max(0.d0, instance%model%geometry%thck + instance%model%geometry%lsrf)
 
   end subroutine glad_i_readdata
 

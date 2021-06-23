@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -99,9 +99,6 @@ contains
        eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / acab_scale
        eismint_climate%nmsb(2) = eismint_climate%nmsb(2) / acab_scale
 
-    case(4)   ! MISMIP-1
-       eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / acab_scale
-
     end select
        
   end subroutine eismint_initialise
@@ -188,11 +185,10 @@ contains
        return
     end if
     
-    !mismip tests
+    !exact verification
+    !TODO - Is this test still supported?
 
-    !TODO - Assign reasonable default values if not present in config file
-
-    call GetSection(config,section,'MISMIP-1')
+    call GetSection(config,section,'EXACT')
     if (associated(section)) then
        eismint_climate%eismint_type = 4
        dummy=>NULL()
@@ -202,68 +198,11 @@ contains
            deallocate(dummy)
            dummy=>NULL()
        end if
-       call GetValue(section,'massbalance',dummy,3)
-       if (associated(dummy)) then
-           eismint_climate%nmsb = dummy
-           deallocate(dummy)
-           dummy=>NULL()
-       end if
        return
     end if
 
-    !exact verification
-    !TODO - Is this test currently supported?
-
-    call GetSection(config,section,'EXACT')
-    if (associated(section)) then
-       eismint_climate%eismint_type = 5
-       dummy=>NULL()
-       call GetValue(section,'temperature',dummy,2)
-       if (associated(dummy)) then
-           eismint_climate%airt = dummy
-           deallocate(dummy)
-           dummy=>NULL()
-       end if
-       return
-    end if
-
-    ! Standard higher-order tests
-    ! These do not require EISMINT-type input parameters.
-
-    call GetSection(config,section,'DOME-TEST')
-    if (associated(section)) then
-        return
-    end if
-
-    call GetSection(config,section,'ISMIP-HOM-TEST')
-    if (associated(section)) then
-        return
-    end if
-
-    call GetSection(config,section,'SHELF-TEST')
-    if (associated(section)) then 
-        return
-    end if
-
-    call GetSection(config,section,'STREAM-TEST')
-    if (associated(section)) then 
-        return
-    end if
-
-    call GetSection(config,section,'ROSS-TEST')
-    if (associated(section)) then 
-        return
-    end if
-
-    call GetSection(config,section,'GIS-TEST')
-    if (associated(section)) then 
-        return
-    end if
-
-    !TODO - Any other allowed tests to add here?
-
-    ! Abort if one of the above cases has not been specified.
-    call write_log('No EISMINT forcing selected',GM_FATAL)
+    ! Other tests (DOME-TEST, ISMIP-HOM-TEST, etc.) do not require
+    ! EISMINT-type input parameters.
 
   end subroutine eismint_readconfig
 
@@ -272,7 +211,8 @@ contains
     ! print eismint_climate configuration
 
     use glimmer_log
-    use parallel, only: tasks
+    use cism_parallel, only: tasks
+
     implicit none
 
     type(eismint_climate_type) :: eismint_climate   ! structure holding climate info
@@ -412,10 +352,6 @@ contains
        end do
 
     case(4)
-       !mismip 1
-       model%climate%acab = eismint_climate%nmsb(1)
-
-    case(5)
        !verification 
        call exact_surfmass(eismint_climate,model,time,1.d0,eismint_climate%airt(2))
 
@@ -483,9 +419,6 @@ contains
        end do
 
     case(4)
-       model%climate%artm = eismint_climate%airt(1)
-
-    case(5)
        !call both massbalance and surftemp at the same time to save computing time. 
        call exact_surfmass(eismint_climate,model,time,0.d0,eismint_climate%airt(2))
     end select

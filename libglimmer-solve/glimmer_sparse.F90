@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -49,11 +49,6 @@ module glimmer_sparse
         type(slap_solver_workspace), pointer :: slap => null()
   end type
 
-
-    ! These module level parameters are assigned from similar parameters defined in glide_types.F90
-    integer, parameter :: SPARSE_HO_NONLIN_PICARD = HO_NONLIN_PICARD
-    integer, parameter :: SPARSE_HO_NONLIN_JFNK = HO_NONLIN_JFNK
-
     ! The first three options use the SLAP solver and work only on one processor.
     integer, parameter :: SPARSE_SOLVER_PCG_INCH = HO_SPARSE_PCG_INCH     ! SLAP PCG with incomplete Cholesky preconditioner
     integer, parameter :: SPARSE_SOLVER_BICG = HO_SPARSE_BICG          ! SLAP biconjugate gradient
@@ -62,29 +57,18 @@ module glimmer_sparse
     integer, parameter :: STANDALONE_PCG_CHRONGEAR = HO_SPARSE_PCG_CHRONGEAR    ! Native PCG, parallel-enabled, Chronopoulos-Gear solver
     integer, parameter :: STANDALONE_TRILINOS_SOLVER = HO_SPARSE_TRILINOS  ! Trilinos solver
 
-
-
 contains
 
 
 
-    subroutine sparse_solver_default_options(method, opt, nonlinear)
+    subroutine sparse_solver_default_options(method, opt)
 
-        use parallel
         integer, intent(in) :: method                 ! sparse solver: BiCG, GMRES, PCG, etc.
-        integer, optional, intent(in) :: nonlinear    ! Picard vs. JFNK flag 
         type(sparse_solver_options), target :: opt    !TODO - intent inout or out?
 
         opt%base%method = method
         opt%base%tolerance  = 1.0d-08   !WHL - used to be 1e-11
         opt%base%maxiters = 200
-
-        if ( present(nonlinear) )then
-            if (nonlinear .eq. SPARSE_HO_NONLIN_PICARD) opt%base%tolerance  = 1.0d-08 ! Picard
-            if (nonlinear .eq. SPARSE_HO_NONLIN_JFNK) opt%base%tolerance  = 1.0d-03 ! JFNK
-        else   ! Picard
-            opt%base%tolerance  = 1.0d-08
-        end if
 
         !TODO - Remove calls to not_parallel?
         !       These seem unnecessary when running SLAP solver.  Commented out for now.
@@ -122,7 +106,6 @@ contains
 
     subroutine sparse_allocate_workspace(matrix, options, workspace, max_nonzeros_arg)
 
-        use parallel
         !> Allocate solver workspace.  This needs to be done once
         !> (when the maximum number of nonzero entries is first known)
         !> This function need not be safe to call on already allocated memory
@@ -307,7 +290,7 @@ contains
     end subroutine sparse_interpret_error
 
     subroutine sparse_easy_solve(matrix, rhs, answer, err, iter, method_arg, &
-                                 calling_file, calling_line, nonlinear_solver )
+                                 calling_file, calling_line)
 
         !This subroutine wraps the basic (though probably the most inefficient)
         !workflow to solve a sparse matrix using the sparse matrix solver
@@ -326,7 +309,6 @@ contains
         integer, intent(out) :: iter
         
         integer, optional, intent(in) :: method_arg         ! solver method: BiCG, GMRES, PCG, etc.
-        integer, optional, intent(in) :: nonlinear_solver   ! Picard or JFNK
 
         character(*), optional :: calling_file
         integer, optional :: calling_line
@@ -336,7 +318,6 @@ contains
 
         integer :: ierr
         integer :: method
-        integer :: nonlinear
 
         if (present(method_arg)) then
             method = method_arg
@@ -344,17 +325,10 @@ contains
             method = SPARSE_SOLVER_BICG
         endif
  
-        if (present(nonlinear_solver)) then
-            nonlinear = nonlinear_solver
-        else
-            nonlinear = SPARSE_HO_NONLIN_PICARD  
-        endif
-
         if (verbose_slap) then
            print*, ' '
            print*, 'In sparse_easy_solve'
            print*, 'method (0=BiCG, 1=GMRES, 2=PCG_INCH) =', method
-           print*, 'nonlinear (0=Picard, 1=JFNK) =', nonlinear
            print*, 'matrix%order =', matrix%order
            print*, 'matrix%nonzeros =', matrix%nonzeros
            print*, 'size(rhs) =', size(rhs)
@@ -364,7 +338,7 @@ contains
            print*, 'size(val) =', size(matrix%val)
         endif
 
-        call sparse_solver_default_options(method, opt, nonlinear)
+        call sparse_solver_default_options(method, opt)
 
         call sparse_allocate_workspace(matrix, opt, wk)
 

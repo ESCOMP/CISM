@@ -5,7 +5,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -70,13 +70,19 @@ module glimmer_paramets
 !          See comments below for details.
 
 
-  ! unphysical value used for initializing certain variables (e.g., temperature) so we can tell
-  ! later if they were read from an input file or otherwise computed correctly
-  real(dp), parameter :: unphys_val = -999.d0   
-                                                
-! scaling parameters
+  ! Unphysical value used for initializing certain variables (e.g., temperature) so we can tell
+  !  later if they were read from an input file or otherwise computed correctly
+  real(dp), parameter :: unphys_val = -99999.d0
 
-! The fundamental scaling parameters are thk0, len0, and vel0. The others are derived from these.
+
+  ! Other numerical constants
+  real(dp), parameter :: eps08 = 1.0d-08  ! small number, useful for some thresholds
+  real(dp), parameter :: eps10 = 1.0d-10  ! another small number
+  real(dp), parameter :: eps11 = 1.0d-11  ! another small number
+
+  ! scaling parameters
+
+  ! The fundamental scaling parameters are thk0, len0, and vel0. The others are derived from these.
 
 !SCALING - DFM, 2, Oct 2012 - made scaled vs. unscaled values for thk0, len0, 
 ! and vel0 switchable by the reconstituted NO_RESCALE compilation flag. 
@@ -93,9 +99,6 @@ module glimmer_paramets
   real(dp), parameter :: thk0 = 1.d0        ! no scaling of thickness
   real(dp), parameter :: len0 = 1.d0        ! no scaling of length
   real(dp), parameter :: vel0 = 1.d0 / scyr ! yr * s^{-1}  
-!Note - With the new value of vel0, the serial JFNK solver barely converges
-!       for the first time step of the dome test.  The Picard solver does fine.
-!       Safer to use old scaling for now.
 ! end (no rescaling)
 #endif
 

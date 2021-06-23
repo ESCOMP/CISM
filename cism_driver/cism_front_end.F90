@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -38,7 +38,6 @@ contains
 
 subroutine cism_init_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
@@ -50,13 +49,13 @@ subroutine cism_init_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
-
-  use cism_external_dycore_interface
-
-!  use glimmer_to_dycore
-
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use glimmer_paramets, only: thk0
+  use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
+!  use glimmer_to_dycore
+
+  use cism_external_dycore_interface
 
   implicit none
 
@@ -71,10 +70,7 @@ subroutine cism_init_dycore(model)
   integer :: wd
   logical :: do_glide_init
 
-  integer :: tstep_count
-
   !  print *,'Entering cism_init_dycore'
-
 
   !TODO - call this only for parallel runs?
   ! call parallel_initialise     
@@ -84,7 +80,9 @@ subroutine cism_init_dycore(model)
   ! DMR -- open_log call commented out, since called in gci_init_interface()
   ! start logging
   ! call open_log(unit=50, fname=logname(commandline_configname))
-  
+  ! Note: In principle, the standalone CISM driver could support multiple ice sheet instances.
+  !       At least for now, assume that there is only one instance, with one config file.
+
   ! setup paths
   call filenames_init(commandline_configname)
 
@@ -124,12 +122,11 @@ subroutine cism_init_dycore(model)
   endif
 
   call CheckSections(config)
- 
- ! fill dimension variables on output files
+
+  ! fill dimension variables on output files
   call glide_nc_fillall(model)
 
   time = model%numerics%tstart
-  tstep_count = 0
   model%numerics%time = time    ! MJH added 1/10/13 - the initial diagnostic glissade solve won't know 
                                 !                     the correct time on a restart unless we set it here.
 
@@ -214,10 +211,12 @@ subroutine cism_init_dycore(model)
     call t_stopf('initial_diag_var_solve')
 
     ! Write initial diagnostic output to log file
+    ! Note: tstep_count is set to 0 at model initialization and then is incremented in cism_run_dycore
+    !  before each call to a dycore.
 
     call t_startf('initial_write_diagnostics')
     call glide_write_diagnostics(model,        time,       &
-                                 tstep_count = tstep_count)
+                                 tstep_count = model%numerics%tstep_count)
     call t_stopf('initial_write_diagnostics')
 
   end if ! whichdycore .ne. DYCORE_BISICLES
@@ -225,34 +224,35 @@ subroutine cism_init_dycore(model)
 
   ! --- Output the initial state -------------
 
-  call t_startf('initial_io_writeall')                                                          
-  call glide_io_writeall(model, model, time=time)          ! MJH The optional time argument needs to be supplied 
-                                                           !     since we have not yet set model%numerics%time
-                                                           !WHL - model%numerics%time is now set above
-  call t_stopf('initial_io_writeall')
+  if (model%options%is_restart == RESTART_FALSE) then
+     call t_startf('initial_io_writeall')
+     call glide_io_writeall(model, model, time=time)          ! MJH The optional time argument needs to be supplied 
+                                                              !     since we have not yet set model%numerics%time
+                                                              !WHL - model%numerics%time is now set above
+     call t_stopf('initial_io_writeall')
+  endif
 
 end subroutine cism_init_dycore
 
 
 subroutine cism_run_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
   use glissade
   use eismint_forcing
   use glimmer_log
   use glimmer_config
-  use glide_nc_custom, only: glide_nc_fillall
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
-  use glide_io, only: glide_io_writeall, glide_io_writeall
-
-  use cism_external_dycore_interface
-  
+  use glide_io, only: glide_io_writeall
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use glimmer_paramets, only: thk0
+  use profile, only: t_startf, t_stopf
+
+  use cism_external_dycore_interface
 
   implicit none
 
@@ -263,7 +263,6 @@ subroutine cism_run_dycore(model)
   real(kind=dp) :: dt                     ! current time step to use
   real(kind=dp) :: time_eps               ! tolerance within which times are equal 
   integer :: clock,clock_rate
-  integer :: tstep_count
 
   integer*4 :: external_dycore_model_index
 
@@ -271,7 +270,6 @@ subroutine cism_run_dycore(model)
   external_dycore_model_index = 1
 
   time = model%numerics%tstart
-  tstep_count = 0
   time_eps = model%numerics%tinc/1000.0d0
 
   ! ------------- Begin time step loop -----------------
@@ -284,9 +282,13 @@ subroutine cism_run_dycore(model)
 
       !!! SFP moved block of code for applying time dependent forcing read in from netCDF here,
       !!! as opposed to at the end of the time step (commented it out in it's original location for now)
-      !!! This is a short-term fix. See additioanl discussion as part of issue #19 (in cism-piscees github repo).
+      !!! This is a short-term fix. See additional discussion as part of issue #19 (in cism-piscees github repo).
 
       ! Forcing from a 'forcing' data file - will read time slice if needed
+      ! Note: Forcing is read from the appropriate time slice after every dynamic time step.
+      !       This is not strictly necessary if there are multiple time steps per forcing time slice.
+      !       We would need additional logic if we wanted to read a new time slice only when needed
+      !        to replace the current data.  TODO: Add this logic?
       call t_startf('read_forcing')
       call glide_read_forcing(model, model)
       call t_stopf('read_forcing')
@@ -294,7 +296,6 @@ subroutine cism_run_dycore(model)
       ! Increment time step
       if (model%options%whichdycore /= DYCORE_BISICLES) then
         time = time + model%numerics%tinc
-        tstep_count = tstep_count + 1
         model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
       endif
 ! print *,"external_dycore_type: ",model%options%external_dycore_type
@@ -340,11 +341,13 @@ subroutine cism_run_dycore(model)
       call t_stopf('tstep')
       !endif
 
+!      print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
+
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 
       call t_startf('write_diagnostics')
       call glide_write_diagnostics(model,        time,       &
-                                  tstep_count = tstep_count)
+                                   tstep_count = model%numerics%tstep_count)
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance
@@ -390,23 +393,20 @@ end subroutine cism_run_dycore
 
 subroutine cism_finalize_dycore(model)
 
-  use parallel
   use glimmer_global
   use glide
-  use glissade
   use glimmer_log
   use glimmer_config
-  use glide_nc_custom, only: glide_nc_fillall
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
+  use glide_stop, only: glide_finalise
+  use glide_diagnostics
+  use profile, only: t_startf, t_stopf
 
   use cism_external_dycore_interface
   
-  use glide_stop, only: glide_finalise
-  use glide_diagnostics
-
   implicit none
 
   type(glide_global_type) :: model        ! model instance

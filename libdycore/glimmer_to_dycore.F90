@@ -9,7 +9,7 @@ module glimmer_to_dycore
   ! dynamic core model.
   use glide_types
   !use mpi_mod
-  use parallel
+  !use parallel
   !use simple_forcing
 
   contains

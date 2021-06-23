@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -445,7 +445,7 @@ contains
     ! setup outputs
     call GetSection(config,section,'GLINT output')
     do while(associated(section))
-       output => handle_output(section,output,0.d0,configstring)
+       output => handle_output(section,output,configstring)
        if (.not.associated(instance%out_first)) then
           instance%out_first => output
        end if
@@ -473,7 +473,7 @@ contains
 
     use glimmer_log
     use glad_constants, only: hours2years
-    use parallel, only: tasks
+    use cism_parallel, only: tasks
 
     implicit none
 

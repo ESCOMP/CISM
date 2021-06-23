@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -25,13 +25,12 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 program cism_driver
 
-  use parallel
 !  use glimmer_commandline
 !  use glide
   use gcm_cism_interface
-  use parallel
+  use cism_parallel, only: parallel_initialise, parallel_finalise
 
-  integer :: which_gcm = GCM_DATA_MODEL
+  integer :: which_gcm = GCM_GLINT_MODEL
   type(gcm_to_cism_type) :: g2c
 
   if (command_argument_count() == 0) then
@@ -50,4 +49,5 @@ program cism_driver
   call gci_finalize_interface(g2c)
 
   call parallel_finalise
+
 end program cism_driver

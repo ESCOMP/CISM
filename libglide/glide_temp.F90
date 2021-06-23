@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -63,6 +63,7 @@ module glide_temp
 
   use glide_types
   use glimmer_global, only : dp 
+  use glimmer_log
 
   !TODO - Remove 'oldglide' logic when comparisons are complete  
   use glimmer_paramets, only : oldglide
@@ -81,13 +82,13 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
     use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_log
-    use parallel, only: lhalo, uhalo
+    use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
 
     integer, parameter :: p1 = gn + 1  
     integer :: up, ns, ew
+    character(len=200) :: message
 
     !TODO - Change VERT_DIFF, etc. to integers?
     if (VERT_DIFF==0.)   call write_log('Vertical diffusion is switched off')
@@ -207,8 +208,8 @@ contains
 
     elseif ( minval(model%temper%temp(1:model%general%upn, &
                     1+lhalo:model%general%ewn-lhalo, 1+uhalo:model%general%nsn-uhalo)) > &
-                    (-1.0d0 * trpt) ) then    ! trpt = 273.15 K
-                                              ! Default initial temps in glide_types are unphys_val = -999
+                    (-1.0d0 * trpt) ) then    ! trpt = 273.16 K
+                                              ! Default initial temps are unphys_val (a large negative number)
 
        ! Temperature has already been initialized from an input file.
        ! (We know this because the unphysical initial values have been overwritten.)
@@ -266,10 +267,27 @@ contains
              end do
           end do
 
+       else
+          write(message,*) 'ERROR: glide does not support temp_init = ', model%options%temp_init
+          call write_log(message, GM_FATAL)
+
        endif ! model%options%temp_init
 
     endif    ! restart file, input file, or other options
 
+    ! Diagnose basal ice temperature.
+    ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
+    ! However, it is set to zero for ice-free columns, which may not be the case for temp(upn).
+
+    do ns = 1, model%general%nsn
+       do ew = 1, model%general%ewn
+          if (model%geometry%thck(ew,ns) > 0.0d0) then
+             model%temper%btemp(ew,ns) = model%temper%temp(model%general%upn,ew,ns)
+          else
+             model%temper%btemp(ew,ns) = 0.0d0
+          endif
+       enddo
+    enddo
 
     ! ====== Calculate initial value of flwa ==================
 
@@ -318,6 +336,7 @@ contains
 
   ! Local variables and parameters
 
+  character(len=200) :: message
   real(dp) :: tbed                           ! initial temperature at bed
   real(dp) :: pmptb                          ! pressure melting point temp at the bed
   real(dp), dimension(size(sigma)) :: pmpt   ! pressure melting point temp thru the column
@@ -354,6 +373,10 @@ contains
 
      call calcpmpt(pmpt(:), thck, sigma(:))
      temp(:) = min(temp(:), pmpt(:) - pmpt_offset)
+
+  case default
+     write(message,*) 'ERROR: glide does not support temp_init = ', temp_init
+     call write_log(message, GM_FATAL)
 
   end select
 
@@ -619,7 +642,7 @@ contains
                            model%geomderv%dusrfdns, &
                            model%velocity%ubas, &
                            model%velocity%vbas, &
-                           model%temper%bmlt_ground, &
+                           model%basal_melt%bmlt, &
                            GLIDE_IS_FLOAT(model%geometry%thkmask))
 
        ! Transform basal temperature and pressure melting point onto velocity grid
@@ -642,6 +665,20 @@ contains
         ! DO NOTHING. That is, hold T const. at initially assigned value
 
     end select   ! whichtemp
+
+    ! Diagnose basal ice temperature
+    ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
+    ! However, it is set to zero for ice-free columns, which may not be the case for temp(upn).
+
+    do ns = 1, model%general%nsn
+       do ew = 1, model%general%ewn
+          if (model%geometry%thck(ew,ns) > 0.0d0) then
+             model%temper%btemp(ew,ns) = model%temper%temp(model%general%upn,ew,ns)
+          else
+             model%temper%btemp(ew,ns) = 0.0d0
+          endif
+       enddo
+    enddo
 
     ! Rescale dissipation term to deg C/s (instead of deg C)
     !WHL - Treat dissip above as a rate (deg C/s) instead of deg 
@@ -923,12 +960,12 @@ contains
                             thck,        stagthck,      &
                             dusrfdew,    dusrfdns,      &
                             ubas,        vbas,          &
-                            bmlt_ground, floater)
+                            bmlt,        floater)
 
     type(glide_global_type) :: model
     real(dp), dimension(:,0:,0:), intent(in) :: temp
     real(dp), dimension(:,:), intent(in) :: thck,  stagthck, dusrfdew, dusrfdns, ubas, vbas  
-    real(dp), dimension(:,:), intent(inout) :: bmlt_ground   ! scaled basal rate, m/s * tim0/thk0
+    real(dp), dimension(:,:), intent(inout) :: bmlt          ! scaled basal rate, m/s * tim0/thk0
                                                              ! > 0 for melting, < 0 for freeze-on
     logical, dimension(:,:), intent(in) :: floater
 
@@ -961,7 +998,7 @@ contains
                 !*sfp* NOTE that multiplication by this term has been moved up from below
                 slterm = model%tempwk%f(4) * slterm 
 
-                bmlt_ground(ew,ns) = 0.0d0
+                bmlt(ew,ns) = 0.0d0
 
                 !*sfp* changed this so that 'slterm' is multiplied by f(4) const. above ONLY for the 0-order SIA case,
                 ! since for the HO and SSA cases a diff. const. needs to be used
@@ -979,7 +1016,7 @@ contains
                 up = model%general%upn - 1
 
                 do while (abs(temp(up,ew,ns)-pmptemp(up)) < 1.d-3 .and. up >= 3)
-                   bmlt_ground(ew,ns) = bmlt_ground(ew,ns) + newmlt
+                   bmlt(ew,ns) = bmlt(ew,ns) + newmlt
                    newmlt = model%tempwk%f(3) * model%tempwk%dupc(up) * thck(ew,ns) * model%temper%dissip(up,ew,ns)
                    up = up - 1
                 end do
@@ -987,18 +1024,18 @@ contains
                 up = up + 1
 
                 if (up == model%general%upn) then
-                   bmlt_ground(ew,ns) = newmlt - &
+                   bmlt(ew,ns) = newmlt - &
                         model%tempwk%f(1) * ( (temp(up-2,ew,ns) - pmptemp(up-2)) * model%tempwk%dupa(up) &
                         + (temp(up-1,ew,ns) - pmptemp(up-1)) * model%tempwk%dupb(up) ) / thck(ew,ns) 
                 else
-                   bmlt_ground(ew,ns) = bmlt_ground(ew,ns) + max(0.d0, newmlt - &
+                   bmlt(ew,ns) = bmlt(ew,ns) + max(0.d0, newmlt - &
                         model%tempwk%f(1) * ( (temp(up-2,ew,ns) - pmptemp(up-2)) * model%tempwk%dupa(up) &
                         + (temp(up-1,ew,ns) - pmptemp(up-1)) * model%tempwk%dupb(up) ) / thck(ew,ns)) 
                 end if
 
              else
 
-                bmlt_ground(ew,ns) = 0.d0
+                bmlt(ew,ns) = 0.d0
 
              end if
 
@@ -1007,7 +1044,7 @@ contains
           ! do nothing because the plume model will have written the bmlt field
           else
 
-              bmlt_ground(ew,ns) = 0.d0
+              bmlt(ew,ns) = 0.d0
 
           end if
        end do
@@ -1017,8 +1054,8 @@ contains
 
     if (model%options%periodic_ew) then
        do ns = 2,model%general%nsn-1
-          bmlt_ground(1,ns) = bmlt_ground(model%general%ewn-1,ns)
-          bmlt_ground(model%general%ewn,ns) = bmlt_ground(2,ns)
+          bmlt(1,ns) = bmlt(model%general%ewn-1,ns)
+          bmlt(model%general%ewn,ns) = bmlt(2,ns)
        end do
     end if
 
@@ -1170,8 +1207,7 @@ contains
        !       We are not updating flwa in the glide temperature halo.
 
        ! The flwa, temp, and sigma arrays should have the same vertical dimension, 1:upn.
-       ! These quantities are defined at layer interfaces (not layer midpoints as in the
-       !  glam/glissade dycore).
+       ! These quantities are defined at layer interfaces (not layer midpoints as in the glissade dycore).
 
     real(dp),dimension(:),      intent(in)    :: sigma     !> Vertical coordinate
     real(dp),                   intent(in)    :: thklim    !> thickness threshold
@@ -1203,13 +1239,12 @@ contains
     !------------------------------------------------------------------------------------ 
    
 !      Some notes:
-!      vis0 = 1.39e-032 Pa-3 s-1 for glam dycore (and here for glide)
+!      vis0 = 1.39e-032 Pa-3 s-1
 !           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
 !      vis0*scyr = 4.39e-025 Pa-2 yr-1
-!      For glam: default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
+!      default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
 !      Result is default_flwa =   227657117 (unitless) if flow factor = 1
 !        This is the value given to thin ice.
-!
 !      In old glide, default_flwa is just set to the flow factor (called 'fiddle')
 !         vis0 = 3.17E-024 Pa-3 s-1 for old glide dycore = 1d-16 Pa-3 yr-1 / scyr
 !
@@ -1302,7 +1337,7 @@ contains
     !> temperature, $T_0$ is the triple point of water, $\rho$ is the ice density, and 
     !> $\Phi$ is the (constant) rate of change of melting point temperature with pressure.
 
-    use glimmer_physcon, only : trpt
+    use glimmer_physcon, only : celsius_to_kelvin
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
@@ -1331,9 +1366,9 @@ contains
     ! Actual calculation is done here - constants depend on temperature -----------------
 
     where (tempcor >= -10.0d0)         
-      calcga = arrfact(1) * exp(arrfact(3) / (tempcor + trpt))
+      calcga = arrfact(1) * exp(arrfact(3) / (tempcor + celsius_to_kelvin))
     elsewhere
-      calcga = arrfact(2) * exp(arrfact(4) / (tempcor + trpt))
+      calcga = arrfact(2) * exp(arrfact(4) / (tempcor + celsius_to_kelvin))
     end where
 
   end subroutine patebudd

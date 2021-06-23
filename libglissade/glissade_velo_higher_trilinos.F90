@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -39,8 +39,7 @@
   module glissade_velo_higher_trilinos
 
     use glimmer_global, only: dp
-!    use glimmer_log, only: write_log
-    use parallel
+    use cism_parallel, only: this_rank, main_task, nhalo, staggered_parallel_halo
 
     implicit none
     private
@@ -59,6 +58,7 @@
 !****************************************************************************
 
   subroutine trilinos_global_id_3d(nx,         ny,         nz,   &
+                                   parallel,                     &
                                    nNodesSolve,                  &
                                    iNodeIndex, jNodeIndex, kNodeIndex,  &
                                    global_node_id,               &
@@ -75,6 +75,9 @@
     integer, intent(in) ::   &
        nx, ny,             &  ! number of grid cells in each direction
        nz                     ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+       parallel               ! info for parallel communication
 
     integer, intent(in) ::             &
        nNodesSolve            ! number of nodes where we solve for velocity
@@ -113,7 +116,7 @@
        enddo
     enddo
 
-    call staggered_parallel_halo(global_vertex_id)
+    call staggered_parallel_halo(global_vertex_id, parallel)
 
     do j = 1, ny-1         ! loop over all vertices, including halo
        do i = 1, nx-1
@@ -141,6 +144,7 @@
 !****************************************************************************
 
   subroutine trilinos_global_id_2d(nx,             ny,           &
+                                   parallel,                     &
                                    nVerticesSolve,               &
                                    iVertexIndex,   jVertexIndex, &
                                    global_vertex_id,             &
@@ -156,6 +160,9 @@
 
     integer, intent(in) ::   &
        nx, ny                  ! number of grid cells in each direction
+
+    type(parallel_type), intent(in) :: &
+       parallel                ! info for parallel communication
 
     integer, intent(in) ::             &
        nVerticesSolve          ! number of nodes where we solve for velocity
@@ -191,7 +198,7 @@
        enddo
     enddo
 
-    call staggered_parallel_halo(global_vertex_id)
+    call staggered_parallel_halo(global_vertex_id, parallel)
 
     !----------------------------------------------------------------
     ! Associate a unique global index with each unknown on the active vertices
@@ -331,7 +338,7 @@
        indxA             ! maps relative (x,y,z) coordinates to an index between 1 and 9  
                          ! index order is (i,j)
    
-    logical, dimension(9,nx-1,ny-1), intent(out) ::  &
+    logical, dimension(nx-1,ny-1,9), intent(out) ::  &
        Afill        ! true wherever the matrix value is potentially nonzero
                     ! and should be sent to Trilinos
 
@@ -362,7 +369,7 @@
                 if (active_vertex(i+iA,j+jA)) then
 
                    m = indxA(iA,jA)
-                   Afill(m,i,j) = .true.
+                   Afill(i,j,m) = .true.
                    
                 endif  ! active_vertex(i+iA,j+jA)
 
@@ -425,7 +432,7 @@
 
     real(dp), dimension(27,nz,nx-1,ny-1), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
+       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction
                           ! other dimensions = (k,i,j) indices
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
@@ -592,13 +599,13 @@
        indxA                 ! maps relative (x,y) coordinates to an index between 1 and 9
                              ! index order is (i,j)
 
-    logical, dimension(9,nx-1,ny-1), intent(in) ::  &
+    logical, dimension(nx-1,ny-1,9), intent(in) ::  &
        Afill              ! true for matrix values to be sent to Trilinos
 
-    real(dp), dimension(9,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1,9), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
-                          ! other dimensions = (i,j) indices
+       Avu, Avv           ! 3rd dimension = node and its nearest neighbors in x, y and z direction
+                          ! 1st and 2nd dimensions = (i,j) indices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        bu, bv             ! assembled load (rhs) vector, divided into 2 parts
@@ -644,15 +651,15 @@
 
              m = indxA(iA,jA)
 
-             if (Afill(m,i,j)) then
+             if (Afill(i,j,m)) then
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA) - 1
-                matrix_value(ncol) = Auu(m,i,j)
+                matrix_value(ncol) = Auu(i,j,m)
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA)
-                matrix_value(ncol) = Auv(m,i,j)
+                matrix_value(ncol) = Auv(i,j,m)
 
              endif
 
@@ -681,15 +688,15 @@
 
              m = indxA(iA,jA)
 
-             if (Afill(m,i,j)) then
+             if (Afill(i,j,m)) then
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA) - 1
-                matrix_value(ncol) = Avu(m,i,j)
+                matrix_value(ncol) = Avu(i,j,m)
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA)
-                matrix_value(ncol) = Avv(m,i,j)
+                matrix_value(ncol) = Avv(i,j,m)
 
              endif
 
@@ -903,8 +910,6 @@
     ! Small test matrices for Trilinos solver
     !--------------------------------------------------------
     
-    use parallel
-      
     !--------------------------------------------------------
     ! Local variables
     !--------------------------------------------------------

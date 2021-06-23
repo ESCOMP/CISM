@@ -10,7 +10,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -40,14 +40,14 @@ module NAME_io
   ! written by Magnus Hagdorn, 2004
 
   use DATAMOD
+  use glimmer_ncdf
 
   implicit none
 
   private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
        is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
 
-  character(310), save :: restart_variable_list=''    ! list of variables needed for a restart
-!TODO change 310 to a variable - see glimmer_ncdf.F90 in the definition for type glimmer_nc_stat for other instances of this value.
+  character(glimmer_nc_vars_len), save :: restart_variable_list=''    ! list of variables needed for a restart
 
   interface is_enabled  ! MJH 10/21/13: Interface needed for determining if arrays have been enabled.  See notes below in NAME_io_create.
     module procedure is_enabled_0dint
@@ -68,7 +68,6 @@ contains
     ! open all netCDF files for output
     use DATAMOD
     use glide_types
-    use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(glide_global_type) :: model
@@ -94,7 +93,6 @@ contains
     ! if necessary write to netCDF files
     use DATAMOD
     use glide_types
-    use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -138,16 +136,17 @@ contains
   end subroutine NAME_io_writeall
   
   subroutine NAME_io_create(outfile,model,data)
-    use parallel
+
+    use cism_parallel, only: parallel_type, &
+         parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
     use glide_types
     use DATAMOD
-    use glimmer_ncdf
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
     use glimmer_paramets
+    use glimmer_physcon
     use glimmer_scales
-    use glimmer_log
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
@@ -230,10 +229,11 @@ contains
   end subroutine NAME_io_create
 
   subroutine NAME_io_write(outfile,data)
-    use parallel
+
+    use cism_parallel, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
     use DATAMOD
-    use glimmer_ncdf
     use glimmer_paramets
+    use glimmer_physcon
     use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
@@ -245,6 +245,9 @@ contains
     real(dp) :: tavgf
     integer status, varid
     integer up
+    type(parallel_type) :: parallel
+
+    parallel = DATAPATH%parallel
      
     tavgf = outfile%total_time
     if (tavgf.ne.0.d0) then
@@ -253,6 +256,7 @@ contains
 
     ! write variables
     !GENVAR_WRITE!
+
   end subroutine NAME_io_write
 
 
@@ -367,7 +371,6 @@ contains
     ! read from netCDF file
     use DATAMOD
     use glide_types
-    use glimmer_ncdf
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -396,14 +399,16 @@ contains
        end if
        ic=>ic%next
     end do
+
   end subroutine NAME_io_readall
 
 
   subroutine NAME_read_forcing(data, model)
+
     ! Read data from forcing files
     use glimmer_log
     use glide_types
-    use glimmer_ncdf
+    use cism_parallel, only: main_task
 
     implicit none
     type(DATATYPE) :: data
@@ -411,8 +416,10 @@ contains
 
     ! Locals
     type(glimmer_nc_input), pointer :: ic
-    integer :: t
-    real(dp) :: eps ! a tolerance to use for stepwise constant forcing
+    integer :: t, t_prev
+    real(dp) :: current_forcing_time   ! current time with reference to the forcing file
+    real(dp) :: eps                    ! a tolerance to use for stepwise constant forcing
+    logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step.
     eps = model%numerics%tinc * 1.0d-4
@@ -421,21 +428,59 @@ contains
     ic=>model%funits%frc_first
     do while(associated(ic))
 
-       !print *, 'possible forcing times', ic%times
+!       if (main_task .and. verbose_read_forcing) print *, 'possible forcing times', ic%times
 
        ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
+
+       ! Compute the current forcing time.
+       ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
+       !  plus a small number to allow for roundoff error.
+       current_forcing_time = model%numerics%time + ic%time_offset + eps
+
+       ! If cycling repeatedly through a subset of the forcing data, make a further correction:
+       ! compute the current time relative to time_start_cycle.
+       if (ic%nyear_cycle > 0 .and. current_forcing_time > ic%time_start_cycle) then
+          current_forcing_time = ic%time_start_cycle &
+               + mod(current_forcing_time - ic%time_start_cycle, real(ic%nyear_cycle,dp))
+       endif
+
+       if (main_task .and. verbose_read_forcing) then
+          print*, 'In glide_read_forcing, model time + eps =', model%numerics%time + eps
+          print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+          print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+          print*, 'current forcing time =', current_forcing_time
+       endif
+
+       ! Find the time index associated with the previous model time step
+       t_prev = 0
+       do t = ic%nt, 1, -1  ! look through the time array backwards
+          if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+             t_prev = t
+             if (main_task .and. verbose_read_forcing) print*, 'Previous time index =', t_prev
+             exit
+          end if
+       enddo
+
        ! Find the current time in the file
        do t = ic%nt, 1, -1  ! look through the time array backwards
-          if ( ic%times(t) <= model%numerics%time + eps) then
-            ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+          if ( ic%times(t) <= current_forcing_time) then
+             ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+             if (main_task .and. verbose_read_forcing) &
+                  print*, 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
 
-            ! Set the desired time to be read
-            ic%current_time = t
-            ic%nc%just_processed = .false.  ! set this to false so file will be read.
-            !print *, 'time, forcing index, forcing time', model%numerics%time, ic%current_time, ic%times(ic%current_time)
-            exit  ! once we find the time, exit the loop
-          endif
-          end do  ! if we get to end of loop without exiting, then this file will not be read at this time.
+             ! If this time index (t) is larger than the previous index (t_prev), then read a new time slice.
+             ! Otherwise, we already have the current slice, and there is nothing new to read.
+             if (t > t_prev) then
+                ! Set the desired time to be read
+                ic%current_time = t
+                ic%nc%just_processed = .false.  ! set this to false so file will be read.
+                if (main_task .and. verbose_read_forcing) print*, 'Read new forcing slice: t, times(t) =', t, ic%times(t)
+             endif ! t > t_prev
+
+             exit  ! once we find the time, exit the loop
+          end if   ! ic%times(t) <= model%numerics%time + eps
+
+       end do  ! if we get to end of loop without exiting, then this file will not be read at this time
 
        ! move on to the next forcing file
        ic=>ic%next
@@ -452,10 +497,11 @@ contains
 
 
   subroutine NAME_io_read(infile,data)
+
     ! read variables from a netCDF file
-    use parallel
+    use cism_parallel, only: parallel_type, &
+         parallel_inq_varid, parallel_get_att, distributed_get_var, parallel_get_var
     use glimmer_log
-    use glimmer_ncdf
     use DATAMOD
     use glimmer_paramets
     use glimmer_scales
@@ -469,16 +515,20 @@ contains
     integer status,varid
     integer up
     real(dp) :: scaling_factor
+    type(parallel_type) :: parallel
+
+    parallel = DATAPATH%parallel
 
     ! read variables
     !GENVAR_READ!
+
   end subroutine NAME_io_read
 
   subroutine NAME_io_checkdim(infile,model,data)
+
     ! check if dimension sizes in file match dims of model
-    use parallel
+    use cism_parallel, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
     use glimmer_log
-    use glimmer_ncdf
     use glide_types
     use DATAMOD
     implicit none
@@ -499,10 +549,16 @@ contains
   !*****************************************************************************  
 #ifdef HAVE_AVG
   subroutine NAME_avg_accumulate(outfile,data,model)
-    use parallel
+
+    ! Accumulate time averages for 'tavg' variables
+    ! NOTE: This subroutine works for tavg variables that are written to exactly one output file.
+    !       If we try to write tavg variables to multiple output files, the accumulated values
+    !        will be too large, because this subroutine will be called more than once per time step.
+    ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
+
+    use cism_parallel, only: parallel_inq_varid
     use glide_types
     use DATAMOD
-    use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -521,9 +577,9 @@ contains
   end subroutine NAME_avg_accumulate
 
   subroutine NAME_avg_reset(outfile,data)
-    use parallel
+
+    use cism_parallel, only: parallel_inq_varid
     use DATAMOD
-    use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -545,7 +601,6 @@ contains
 
   !> apply default type to be used in netCDF file
   integer function get_xtype(outfile,xtype)
-    use glimmer_ncdf
     implicit none
     type(glimmer_nc_output), pointer :: outfile !< derived type holding information about output file
     integer, intent(in) :: xtype                !< the external netCDF type

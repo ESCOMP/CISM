@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -60,23 +60,21 @@
 !    use glimmer_log, only: write_log
 
     use glide_types
-    use glissade_grid_operators, only: glissade_stagger, glissade_centered_gradient, &
+    use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
                                        glissade_gradient_at_edges
-    use parallel
+    use cism_parallel, only: this_rank, main_task, nhalo, &
+         parallel_halo, staggered_parallel_halo
 
     implicit none
 
     private
     public :: glissade_velo_sia_solve
 
-    logical, parameter :: verbose = .false.
+    logical, parameter :: verbose_sia = .false.
     logical, parameter :: verbose_geom = .false.
     logical, parameter :: verbose_bed = .false.
     logical, parameter :: verbose_interior = .false.
     logical, parameter :: verbose_bfric = .false.
-
-    integer :: itest, jtest    ! coordinates of diagnostic point                                                                                    
-    integer :: rtest           ! task number for processor containing diagnostic point
 
   contains
 
@@ -153,6 +151,9 @@
        temp,        &           ! temperature (deg C)
        flwa                     ! flow factor in units of Pa^(-n) yr^(-1)
 
+    type(parallel_type) :: &
+         parallel               ! info for parallel communication
+
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
@@ -173,7 +174,10 @@
 
     integer, dimension(nx,ny) ::     &
        ice_mask,            & ! = 1 where ice is present, else = 0
-       land_mask              ! = 1 for cells where topography is above sea level
+       land_mask              ! = 1 for land cells, else = 0
+
+    integer :: itest, jtest   ! coordinates of diagnostic point
+    integer :: rtest          ! task number for processor containing diagnostic point
 
     integer :: i, j, k
 
@@ -185,39 +189,41 @@
 !    ny = model%general%nsn
 !    nz = model%general%upn
 
-     dx = model%numerics%dew
-     dy = model%numerics%dns
+    parallel = model%parallel
 
-     thklim = model%numerics%thklim
-     eus    = model%climate%eus
-     btrc_const = model%velowk%btrac_const
-     whichbtrc = model%options%whichbtrc
-     whichgradient_margin = model%options%which_ho_gradient_margin
+    dx = model%numerics%dew
+    dy = model%numerics%dns
 
-     sigma    => model%numerics%sigma(:)
-     thck     => model%geometry%thck(:,:)
-     usrf     => model%geometry%usrf(:,:)
-     topg     => model%geometry%topg(:,:)
+    thklim = model%numerics%thklim
+    eus    = model%climate%eus
+    btrc_const = model%velowk%btrac_const
+    whichbtrc = model%options%whichbtrc
+    whichgradient_margin = model%options%which_ho_gradient_margin
 
-     bwat     => model%temper%bwat(:,:)
-     btrc     => model%velocity%btrc(:,:)
-     bfricflx => model%temper%bfricflx(:,:)
-     temp     => model%temper%temp(:,:,:)
-     flwa     => model%temper%flwa(:,:,:)
+    sigma    => model%numerics%sigma(:)
+    thck     => model%geometry%thck(:,:)
+    usrf     => model%geometry%usrf(:,:)
+    topg     => model%geometry%topg(:,:)
 
-     uvel     => model%velocity%uvel(:,:,:)
-     vvel     => model%velocity%vvel(:,:,:)
+    bwat     => model%temper%bwat(:,:)
+    btrc     => model%velocity%btrc(:,:)
+    bfricflx => model%temper%bfricflx(:,:)
+    temp     => model%temper%temp(:,:,:)
+    flwa     => model%temper%flwa(:,:,:)
 
-     rtest = -999
-     itest = 1
-     jtest = 1
-     if (this_rank == model%numerics%rdiag_local) then
-        rtest = model%numerics%rdiag_local
-        itest = model%numerics%idiag_local
-        jtest = model%numerics%jdiag_local
-     endif
+    uvel     => model%velocity%uvel(:,:,:)
+    vvel     => model%velocity%vvel(:,:,:)
 
-    if (verbose .and. this_rank==rtest) then
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    if (verbose_sia .and. this_rank==rtest) then
        print*, 'In glissade_velo_sia_solve'
        print*, 'rank, itest, jtest =', rtest, itest, jtest
     endif
@@ -238,11 +244,13 @@
 
     !------------------------------------------------------------------------------
     ! Compute masks: 
-    ! (1) ice mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
-    ! (2) land mask = 1 in cells where topography is at or above sea level
+    ! (1) ice_mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
+    ! (2) land_mask = 1 in land cells
     !------------------------------------------------------------------------------
 
+    ! Modify glissade_get_masks so that 'parallel' is not needed
     call glissade_get_masks(nx,          ny,         &
+                            parallel,                &
                             thck,        topg,       &
                             eus,         thklim,     &
                             ice_mask,                &
@@ -280,7 +288,7 @@
                              bwat(:,:),    stagbwat(:,:),   &
                              ice_mask,     stagger_margin_in = 1)
 
-    elseif (whichbtrc == BTRC_CONSTANT_TPMP) then
+    elseif (whichbtrc == BTRC_CONSTANT_BPMP) then
 
        call glissade_stagger(nx,           ny,         &
                              temp(nz,:,:), stagbtemp,  &
@@ -301,29 +309,37 @@
 
     ! Compute surface elevation gradient
     !
-    ! Here a centered gradient is OK because the interior velocities
-    !  are computed along cell edges, so checkerboard noise is damped
-    !  (unlike Glissade finite-element calculations).
-    ! gradient_margin_in = 0 (HO_GRADIENT_MARGIN_ALL) gives a Glide-style gradient
-    !  (ice-free cells included in the gradient).  This works well for shallow-ice problems.
-    ! gradient_margin_in = 1 (HO_GRADIENT_MARGIN_ICE_LAND) computes the gradient
-    !  using ice-covered and/or land points.  It is equivalent to HO_GRADIENT_MARGIN_ALL
-    !  for the land-based problems where an SIA solver would usually be applied, and is the
-    !  default value.  Requires passing in the surface elevation and a land mask.
-    ! gradient_margin_in = 2 (HO_GRADIENT_MARGIN_ICE) computes the gradient
-    !  using ice-covered points only.  This scheme is very inaccurate for the
-    !  Halfar problem because it underestimates margin velocities.
+    ! Note: This is a standard second-order centered gradient.
+    !       For the higher-order velocity solvers, a centered gradient can lead
+    !        to checkerboard noise in the surface elevation field, because a checkerboard
+    !        pattern is invisible to the gradient operator.
+    !       For the SIA solver, however, checkerboard noise is damped, because
+    !        interior ice velocities are computed at cell edges rather than vertices.
+    !
+    ! Possible settings for whichgradient_margin:
+    !   HO_GRADIENT_MARGIN_LAND = 0
+    !   HO_GRADIENT_MARGIN_HYBRID = 1
+    !   HO_GRADIENT_MARGIN_MARINE = 2
+    !
+    ! gradient_margin_in = 0 computes gradients at all edges, even if one cell
+    !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
+    !  floating cells lying above ice-free ocean cells, because the gradient is too big.
+    !  It generally is the best choice for land-based shallow-ice problems.
+    ! gradient_margin_in = 1 computes gradients at edges where an ice-covered cell
+    !  lies above ice-free land. It should give the same results as method 0 for
+    !  problems without marine ice (unless there are nunataks).
+    ! gradient_margin_in = 2 computes gradients only at edges with ice-covered cells
+    !  on each side.  This is appropriate for problems with ice shelves, but is
+    !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
 
-    call glissade_centered_gradient(nx,        ny,          &
-                                    dx,        dy,          &
-                                    usrf,                   &
-                                    dusrf_dx,  dusrf_dy,    &
-                                    ice_mask,               &
-                                    gradient_margin_in = whichgradient_margin, &
-                                    usrf = usrf,            &
-                                    land_mask = land_mask)
+    call glissade_gradient(nx,        ny,          &
+                           dx,        dy,          &
+                           usrf,                   &
+                           dusrf_dx,  dusrf_dy,    &
+                           ice_mask,               &
+                           gradient_margin_in = whichgradient_margin)
 
-    if (verbose .and. main_task) then
+    if (verbose_sia .and. main_task) then
        print*, ' '
        print*, 'In glissade_velo_sia_solve'
     endif
@@ -438,16 +454,21 @@
     call glissade_velo_sia_interior(nx,       ny,       nz,  &
                                     dx,       dy,            &
                                     sigma,    thklim,        &
-                                    usrf,     stagthck,      &
+                                    itest, jtest, rtest,     &
+                                    usrf,                    &
+                                    thck,     stagthck,      &
                                     dusrf_dx, dusrf_dy,      &
                                     stagflwa,                &
-                                    ice_mask, land_mask,     &
+                                    ice_mask,                &
+                                    land_mask,               &
                                     whichgradient_margin,    &
                                     ubas,     vbas,          &
                                     uvel,     vvel)
 
-    if (verbose_interior .and. main_task) then
+    call staggered_parallel_halo(uvel, parallel)
+    call staggered_parallel_halo(vvel, parallel)
 
+    if (verbose_interior .and. main_task) then
        print*, ' '
        print*, 'stagthck:'
        do i = 1, nx-1
@@ -507,9 +528,19 @@
     !------------------------------------------------------------------------------
 
     call glissade_velo_sia_bfricflx(nx,           ny,            &
-                                    nhalo,        ice_mask,      &
+                                    itest,jtest,  rtest,         &
+                                    ice_mask,                    &
                                     uvel(nz,:,:), vvel(nz,:,:),  &
                                     btrc,         bfricflx)
+
+    call parallel_halo(bfricflx, parallel)
+
+    if (verbose_bfric .and. this_rank==rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+    endif
 
     ! Convert back to dimensionless units before returning
     ! Note: bfricflx already has the desired units (W/m^2).
@@ -713,7 +744,7 @@
                    btrc(i,j) = 0.d0
                 end if
 
-             case(BTRC_CONSTANT_TPMP)
+             case(BTRC_CONSTANT_BPMP)
 
                 ! constant where basal temperature equal to pressure melting point, else = 0
                 ! This is the actual condition for EISMINT-2 experiment H, which may not be 
@@ -757,15 +788,16 @@
   subroutine glissade_velo_sia_interior(nx,       ny,      nz,  &
                                         dx,       dy,           &
                                         sigma,    thklim,       &
-                                        usrf,     stagthck,     &
+                                        itest, jtest, rtest,    &
+                                        usrf,                   &
+                                        thck,     stagthck,     &
                                         dusrf_dx, dusrf_dy,     &
                                         stagflwa,               &
-                                        ice_mask, land_mask,    &
+                                        ice_mask,               &
+                                        land_mask,              &
                                         whichgradient_margin,   &
                                         ubas,     vbas,         &
                                         uvel,     vvel)
-
-    use parallel
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -782,7 +814,11 @@
     real(dp), dimension(nz) ::   &
        sigma                    ! vertical sigma coordinate, [0,1]
 
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! coordinates of diagnostic point
+
     real(dp), dimension(nx,ny), intent(in) ::   &
+       thck,                  & ! ice thickness (m)
        usrf                     ! upper surface elevation (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
@@ -795,7 +831,7 @@
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask,              & ! = 1 where ice is present, else = 0
-       land_mask                ! = 1 for cells where topography is above sea level
+       land_mask                ! = 1 for land cells, else = 0
 
     integer, intent(in) ::   &
        whichgradient_margin     ! option for computing gradient at ice margin
@@ -893,20 +929,19 @@
 
     ! Compute ice velocity components at cell edges (u at E edge, v at N edge; relative to bed).
     ! Then interpolate the edge velocities to cell vertices.
-    ! Note: By default, whichgradient_margin = HO_GRADIENT_MARGIN_ICE_LAND = 1, which generally
-    !       works well for shallow-ice problems.  Using HO_GRADIENT_MARGIN_ALL = 0 gives
-    !       identical results for land-based problems.  Using HO_GRADIENT_MARGIN_ICE_ONLY = 2
-    !       is likely to give less accurate results.
-    ! See comments above the call to glissade_centered_gradient.
+    ! Note: The higher-order default is whichgradient_margin = HO_GRADIENT_MARGIN_HYBRID = 1,
+    !       which is appropriate for HO problems where we compute lateral spreading at ice cliffs.
+    !       The SIA solver does not do this, so this option is a bad idea for SIA problems
+    !        with marine ice. (In fact, the SIA is generally ill-suited for problems with marine ice.)
 
     call glissade_gradient_at_edges(nx,               ny,             &
                                     dx,               dy,             &
                                     usrf,                             &
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
+                                    ice_mask,                         &
                                     gradient_margin_in = whichgradient_margin, &
-                                    ice_mask = ice_mask,              &
-                                    land_mask = land_mask,            &
-                                    usrf = usrf)
+                                    usrf = usrf,                      &
+                                    land_mask = land_mask)
     
     do k = nz-1, 1, -1
 
@@ -948,9 +983,6 @@
        
     enddo           ! k
 
-    call staggered_parallel_halo(uvel)
-    call staggered_parallel_halo(vvel)
-
     if (verbose_interior .and. main_task) then
        print*, ' '
        print*, 'diffu (m^2/yr):'
@@ -965,14 +997,15 @@
           enddo
           print*, ' '
        enddo
-    endif   ! verbose_interior
+    endif
 
   end subroutine glissade_velo_sia_interior
 
 !****************************************************************************
 
   subroutine glissade_velo_sia_bfricflx(nx,            ny,            &
-                                        nhalo,         ice_mask,      &
+                                        itest, jtest,  rtest,         &
+                                        ice_mask,                     &
                                         uvel,          vvel,          &
                                         btrc,          bfricflx)
 
@@ -995,8 +1028,10 @@
     !----------------------------------------------------------------
 
     integer, intent(in) ::      &
-       nx, ny,                  &    ! horizontal grid dimensions
-       nhalo                         ! number of halo layers
+       nx, ny                   ! horizontal grid dimensions
+
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask               ! = 1 where ice is present, else = 0
@@ -1057,14 +1092,7 @@
        enddo
     enddo
 
-    call parallel_halo(bfricflx)
-
-    if (verbose_bfric .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
-    endif
+    ! Note: halo update of bfricflx is done in the calling subroutine
 
   end subroutine glissade_velo_sia_bfricflx
 

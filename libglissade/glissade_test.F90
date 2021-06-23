@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -44,7 +44,7 @@ module glissade_test
   implicit none
 
   private
-  public :: glissade_test_halo, glissade_test_transport
+  public :: glissade_test_halo, glissade_test_transport, glissade_test_comm_row_col
 
 contains
 
@@ -52,7 +52,9 @@ contains
 
   subroutine glissade_test_halo(model)
 
-    use parallel
+    use cism_parallel, only: main_task, this_rank, uhalo, lhalo, staggered_lhalo, staggered_uhalo, &
+         parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalID_scalar, &
+         parallel_globalindex, parallel_halo_tracers
 
     ! various tests of parallel halo updates
 
@@ -60,6 +62,8 @@ contains
     ! (34x34 with nhalo = 2), as for the standard dome problem
 
     type(glide_global_type), intent(inout) :: model      ! model instance
+
+    type(parallel_type) :: parallel   ! info for parallel communication
 
     integer, dimension (:,:), allocatable    ::  pgID       ! unique global ID for parallel runs  
     real(dp), dimension (:,:), allocatable   ::  pgIDr4     ! unique global ID for parallel runs  
@@ -76,7 +80,15 @@ contains
     real(dp), dimension(:,:), allocatable   :: r8var
     real(dp), dimension(:,:,:), allocatable :: r8var_3d
 
-    integer :: i, j, k
+    integer,  dimension(:,:), allocatable   :: intvar_2d_stag
+    integer,  dimension(:,:,:), allocatable   :: intvar_3d_stag
+    real(dp), dimension(:,:), allocatable :: r8var_2d_stag
+    real(dp), dimension(:,:,:), allocatable :: r8var_3d_stag
+    real(dp), dimension(:,:,:,:), allocatable :: r8var_4d_stag
+
+    real(dp), dimension (:,:,:,:), allocatable ::  tracers
+
+    integer :: i, j, k, ig, jg
     integer :: nx, ny, nz
 
     integer, parameter :: rdiag = 0         ! rank for diagnostic prints 
@@ -87,12 +99,19 @@ contains
     nx = model%general%ewn
     ny = model%general%nsn
     nz = model%general%upn
+    parallel = model%parallel
 
     allocate(logvar(nx,ny))
     allocate(intvar(nx,ny))
     allocate(r4var(nx,ny))
     allocate(r8var(nx,ny))
     allocate(r8var_3d(nz,nx,ny))
+
+    allocate(intvar_2d_stag(nx-1,ny-1))
+    allocate(intvar_3d_stag(nz,nx-1,ny-1))
+    allocate(r8var_2d_stag(nx-1,ny-1))
+    allocate(r8var_3d_stag(nz,nx-1,ny-1))
+    allocate(r8var_4d_stag(2,nz,nx-1,ny-1))
 
     allocate(pgID(nx,ny))
     allocate(pgIDr4(nx,ny))
@@ -106,13 +125,14 @@ contains
        print*, ' '
        print*, 'nx, ny, nz =', nx, ny, nz
        print*, 'uhalo, lhalo =', uhalo, lhalo
-       print*, 'global_ewn, global_nsn =', global_ewn, global_nsn
+       print*, 'global_ewn, global_nsn =', parallel%global_ewn, parallel%global_nsn
        print*, ' '
     endif
 
-    print*, 'this_rank, global_row/col offset =', this_rank, global_row_offset, global_col_offset
+    print*, 'this_rank, global_row/col offset =', &
+         this_rank, parallel%global_row_offset, parallel%global_col_offset
 
-    ! Test the 5 standard parallel_halo routines for scalars: logical_2d, integer_2d, real4_2d, real8_2d, real8_3d
+    ! Test some standard parallel_halo routines for scalars: logical_2d, integer_2d, real4_2d, real8_2d, real8_3d
 
     ! logical 2D field
 
@@ -132,13 +152,205 @@ contains
        enddo
     endif
 
-    call parallel_halo(logvar)
+    call parallel_halo(logvar, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
        write(6,*) 'After parallel_halo_update, this_rank =', this_rank
        do j = ny, 1, -1
           write(6,'(34l3)') logvar(:,j)
+       enddo
+    endif
+
+
+    ! staggered 2D int field
+
+    intvar_2d_stag(:,:) = 0.0d0
+
+    do j = staggered_lhalo, ny-staggered_uhalo-1
+       do i = staggered_lhalo, nx-staggered_uhalo-1
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          intvar_2d_stag(i,j) = 100*ig + jg
+       enddo
+    enddo
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       print*, 'intvar_2d_stag: this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, nx-1
+             write(6,'(i6)',advance='no') intvar_2d_stag(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    call staggered_parallel_halo(intvar_2d_stag, parallel)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, nx-1
+             write(6,'(i6)',advance='no') intvar_2d_stag(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! staggered 3D integer field
+
+    intvar_3d_stag(:,:,:) = 0.0d0
+
+    do j = staggered_lhalo, ny-staggered_uhalo-1
+       do i = staggered_lhalo, nx-staggered_uhalo-1
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          intvar_3d_stag(:,i,j) = 100*ig + jg
+       enddo
+    enddo
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       print*, 'intvar_3d_stag: this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, nx-1
+             write(6,'(i6)',advance='no') intvar_3d_stag(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    call staggered_parallel_halo(intvar_3d_stag, parallel)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+          do i = 1, nx-1
+             write(6,'(i6)',advance='no') intvar_3d_stag(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! staggered 2D real field
+
+    r8var_2d_stag(:,:) = 0.0d0
+
+    do j = staggered_lhalo, ny-staggered_uhalo-1
+       do i = staggered_lhalo, nx-staggered_uhalo-1
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          r8var_2d_stag(i,j) = 100.d0*real(ig,dp) + real(jg,dp)
+       enddo
+    enddo
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       print*, 'r8var_2d_stag: this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+!!          do i = 1, nx/2 + 2
+          do i = 1, nx-1
+             write(6,'(f6.0)',advance='no') r8var_2d_stag(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    call staggered_parallel_halo(r8var_2d_stag, parallel)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+!!          do i = 1, nx/2 + 2
+          do i = 1, nx-1
+             write(6,'(f6.0)',advance='no') r8var_2d_stag(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! staggered 3D real field
+
+    r8var_3d_stag(:,:,:) = 0.0d0
+
+    do j = staggered_lhalo, ny-staggered_uhalo-1
+       do i = staggered_lhalo, nx-staggered_uhalo-1
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          r8var_3d_stag(:,i,j) = 100.d0*real(ig,dp) + real(jg,dp)
+       enddo
+    enddo
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       print*, 'r8var_3d_stag: this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+!!          do i = 1, nx/2 + 2
+          do i = 1, nx-1
+             write(6,'(f6.0)',advance='no') r8var_3d_stag(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    call staggered_parallel_halo(r8var_3d_stag, parallel)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_update, this_rank =', this_rank, parallel
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+!!          do i = 1, nx/2 + 2
+          do i = 1, nx-1
+             write(6,'(f6.0)',advance='no') r8var_3d_stag(1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! staggered 4D real field
+
+    r8var_4d_stag(:,:,:,:) = 0.0d0
+
+    do j = staggered_lhalo, ny-staggered_uhalo-1
+       do i = staggered_lhalo, nx-staggered_uhalo-1
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          r8var_4d_stag(:,:,i,j) = 100.d0*real(ig,dp) + real(jg,dp)
+       enddo
+    enddo
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       print*, 'r8var_4d_stag: this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+!!          do i = 1, nx/2 + 2
+          do i = 1, nx-1
+             write(6,'(f6.0)',advance='no') r8var_4d_stag(1,1,i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    call staggered_parallel_halo(r8var_4d_stag, parallel)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
+       do j = ny-1, 1, -1
+          write(6,'(i6)',advance='no') j
+!!          do i = 1, nx/2 + 2
+          do i = 1, nx-1
+             write(6,'(f6.0)',advance='no') r8var_4d_stag(1,1,i,j)
+          enddo
+          write(6,*) ' '
        enddo
     endif
 
@@ -150,7 +362,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgID(i,j) = parallel_globalID_scalar(i,j,nz)    ! function in parallel_mpi.F90
+       pgID(i,j) = parallel_globalID_scalar(i,j,nz,parallel)    ! function in parallel_mpi.F90
     enddo
     enddo
 
@@ -162,7 +374,7 @@ contains
        enddo
     endif
 
-    call parallel_halo(pgID)
+    call parallel_halo(pgID, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -178,7 +390,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgIDr4(i,j) = real(parallel_globalID_scalar(i,j,nz))
+       pgIDr4(i,j) = real(parallel_globalID_scalar(i,j,nz,parallel))
     enddo
     enddo
 
@@ -190,7 +402,7 @@ contains
        enddo
     endif
 
-    call parallel_halo(pgIDr4)
+    call parallel_halo(pgIDr4, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -206,7 +418,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgIDr8(i,j) = real(parallel_globalID_scalar(i,j,nz), dp)
+       pgIDr8(i,j) = real(parallel_globalID_scalar(i,j,nz,parallel), dp)
     enddo
     enddo
 
@@ -218,7 +430,7 @@ contains
        enddo
     endif
 
-    call parallel_halo(pgIDr8)
+    call parallel_halo(pgIDr8, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -235,7 +447,8 @@ contains
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
        do k = 1, nz
-          pgIDr8_3d(k,i,j) = real(parallel_globalID_scalar(i,j,nz),dp) + real(k,dp)    ! function in parallel_mpi.F90
+          ! function in parallel_mpi.F90
+          pgIDr8_3d(k,i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp) + real(k,dp)
        enddo
     enddo
     enddo
@@ -250,7 +463,7 @@ contains
        enddo
     endif
 
-    call parallel_halo(pgIDr8_3d)
+    call parallel_halo(pgIDr8_3d, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -268,7 +481,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgIDstagi(i,j) = parallel_globalID_scalar(i,j,nz)    ! function in parallel_mpi.F90
+       pgIDstagi(i,j) = parallel_globalID_scalar(i,j,nz,parallel)    ! function in parallel_mpi.F90
     enddo
     enddo
 
@@ -281,7 +494,7 @@ contains
        enddo
     endif
 
-    call staggered_parallel_halo(pgIDstagi)
+    call staggered_parallel_halo(pgIDstagi, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -297,7 +510,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgIDstagr(i,j) = real(parallel_globalID_scalar(i,j,nz),dp)    ! function in parallel_mpi.F90
+       pgIDstagr(i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp)    ! function in parallel_mpi.F90
     enddo
     enddo
 
@@ -310,7 +523,7 @@ contains
        enddo
     endif
 
-    call staggered_parallel_halo(pgIDstagr)
+    call staggered_parallel_halo(pgIDstagr, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -327,7 +540,8 @@ contains
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
        do k = 1, nz
-          pgIDstagr3(k,i,j) = real(parallel_globalID_scalar(i,j,nz),dp) + real(k,dp)    ! function in parallel_mpi.F90
+          ! function in parallel_mpi.F90
+          pgIDstagr3(k,i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp) + real(k,dp)
        enddo
     enddo
     enddo
@@ -342,7 +556,7 @@ contains
        enddo
     endif
 
-    call staggered_parallel_halo(pgIDstagr3)
+    call staggered_parallel_halo(pgIDstagr3, parallel)
 
     if (this_rank == rdiag) then
        write(6,*) ' '
@@ -365,19 +579,54 @@ contains
     deallocate(pgIDstagr)
     deallocate(pgIDstagr3)
 
+    ! Test tracer update routine
+
+    allocate(tracers(nx,ny,2,2))  ! 2 tracers, 2 layers
+    tracers(:,:,:,:) = 0.d0
+
+    do k = 1, 2
+       do j = 1+lhalo, ny-uhalo
+       do i = 1+lhalo, nx-uhalo
+          ! function in parallel_mpi.F90
+          tracers(i,j,:,k) = real(parallel_globalID_scalar(i,j,k,parallel),dp) + real(k,dp)
+       enddo
+       enddo
+    enddo
+
+    k = 1
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'Parallel global ID (real 3D), k, this_rank =', k, this_rank
+       do j = ny, 1, -1
+          write(6,'(29f6.0)') tracers(:,j,1,k)
+       enddo
+    endif
+
+    call parallel_halo_tracers(tracers, parallel)
+
+    if (this_rank == rdiag) then
+       write(6,*) ' '
+       write(6,*) 'After parallel_halo_tracer update, this_rank =', this_rank
+       do j = ny, 1, -1
+          write(6,'(29f6.0)') tracers(:,j,1,k)
+       enddo
+    endif
+
+    deallocate(tracers)
+
+    stop
+
   end subroutine glissade_test_halo
 
 !=======================================================================
 
   subroutine glissade_test_transport(model)
 
-    use parallel
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
     use glimmer_paramets, only: len0, thk0, tim0
     use glimmer_physcon, only: pi, scyr
-
-    use glide_diagnostics
 
     !-------------------------------------------------------------------
     ! Test transport of a cylinder or block of ice once around the domain and
@@ -414,6 +663,8 @@ contains
 
     type(glide_global_type), intent(inout) :: model      ! model instance
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     integer :: ntracers   ! number of tracers to be transported
 
     real(dp), dimension(:,:,:), allocatable :: uvel, vvel   ! uniform velocity field (m/yr)
@@ -424,7 +675,7 @@ contains
 
     integer, parameter :: rdiag = 0         ! rank for diagnostic prints 
 
-    real(dp), parameter :: umag = 100.     ! uniform speed (m/yr)
+    real(dp), parameter :: umag = 100.      ! uniform speed (m/yr)
 
     ! Set angle of motion
     !WHL - Tested all of these angles (eastward, northward, and northeastward)
@@ -454,13 +705,14 @@ contains
     ny = model%general%nsn
     nz = model%general%upn
 
+    parallel = model%parallel
+
     allocate(uvel(nz,nx-1,ny-1))
     allocate(vvel(nz,nx-1,ny-1))
-
     ! Find the length of the path around the domain and back to the starting point
 
-    lenx = global_ewn * dx
-    leny = global_nsn * dy
+    lenx = parallel%global_ewn * dx
+    leny = parallel%global_nsn * dy
     theta_c = atan(leny/lenx)   ! 0 <= theta_c <= pi/2
 
     if ( (theta >= -theta_c   .and. theta <= theta_c) .or.   &
@@ -544,10 +796,9 @@ contains
                                       dx,                        dy,                        &
                                       nx,                        ny,                        &
                                       nz-1,                      model%numerics%sigma,      &
+                                      parallel,                                             &
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
-                                      model%climate%acab(:,:),                              &
-                                      model%temper%bmlt_ground(:,:),                        &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
@@ -567,12 +818,148 @@ contains
 
     enddo  ! ntstep
 
-    if (main_task) print*, 'Done in glissade_test_parallel'
+    if (main_task) print*, 'Done in glissade_test_transport'
 
     deallocate(uvel)
     deallocate(vvel)
 
   end subroutine glissade_test_transport
+
+!=======================================================================
+
+  subroutine glissade_test_comm_row_col(model)
+
+    ! Test the communicators for rows and columns of processors.
+    ! Optionally, these communicators can be used when solving a 1D system of equations
+    !  along a single row or column of the domain.
+
+    use cism_parallel, only: parallel_type, this_rank, main_task, &
+         distributed_gather_var_row, distributed_gather_var_col, &
+         distributed_scatter_var_row, distributed_scatter_var_col
+    use mpi_mod
+
+    type(glide_global_type), intent(inout) :: model      ! model instance
+
+    integer :: i, j, ierror
+    real(dp), dimension(:,:), allocatable :: test_array
+    real(dp), dimension(:,:), allocatable :: global_test_array
+    type(parallel_type) :: parallel
+
+    parallel = model%parallel
+
+    ! Test the row and column communicators
+
+    ! row gather/scatter
+
+    ! mpi barriers not strictly needed, but can make print statements cleaner
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_nsn))
+
+    do j = 1, parallel%own_nsn
+       do i = 1, 2
+          test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 1) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_row(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_row) then
+    if (parallel%main_task_row .and. this_rank == 0) then
+       do i = 1, 2*parallel%tasks_row
+          print*, 'Gathered row test_array, this_rank, i =', this_rank, i
+          do j = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_row(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'Scattered test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+    ! column gather/scatter
+
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_ewn))
+    do j = 1, 2
+       do i = 1, parallel%own_ewn
+          test_array(j,i) = (this_rank + 2) * real(j*i, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 2) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'test_array: j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_col(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_col) then
+    if (parallel%main_task_col .and. this_rank == 0) then
+       do j = 1, 2*parallel%tasks_col
+          print*, 'Gathered column test_array, this_rank, j =', this_rank, j
+          do i = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(j,i)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_col(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'Scattered test_array, j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+  end subroutine glissade_test_comm_row_col
 
 !=======================================================================
 

@@ -1,5 +1,22 @@
 CISM Changelog
 
+Changes in CISM tag cism_main_2.01.002
+======================================
+ESCOMP/cism/main 792e43f and 410b384
+
+This tag simply renames parallel_mod to cism_parallel to address a naming conflict in CESM.
+
+Changes in CISM tag cism_main_2.01.002
+======================================
+ESCOMP/cism/main from approx e1713c31 (6/9/19) to 0be5b9c (4/21/21)
+
+This tag begins use of the "Main" branch as the default in ESCOMP/CISM. It also brings in all of the code changes from the cism_development branch. These changes include:
+* Support for running ISMIP6 standalone ice sheet experiments, including options to read SMB and ocean forcing and to invert for basal sliding and melting parameters.
+* New schemes for sub-ice-shelf melting and CESM ocean coupling.
+* Optimization of some parallel functions to speed up computation.
+* Support for multiple ice sheet instances when CISM is coupled to CESM.
+* Some code clean-up and a few bug fixes.
+
 Changes in CISM Version 2.0
 ===========================
 
@@ -17,7 +34,7 @@ CISM version 2.0, which originated from Glimmer-CISM and Glimmer, has a number o
 * new and updated documentation
 
 More information including full documentation of the code can be found at:
-http://oceans11.lanl.gov/cism/
+https://github.com/CISM/cism-documentation
 
 CISM version 2.0 will be hosted at the CISM Github organization:
 https://github.com/cism/cism

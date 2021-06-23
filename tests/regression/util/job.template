@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #PBS -A PBS_A
 #PBS -q PBS_q
 #PBS -N PBS_N 

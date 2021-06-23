@@ -10,7 +10,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -222,7 +222,6 @@ contains
     use glimmer_paramets, only: thk0, thk_scale, GLC_DEBUG
     use glide_grid_operators, only: glide_geometry_derivs
 
-    !EIB! use glide_deriv, only : df_field_2d_staggered 
     implicit none
     ! subroutine arguments
     type(glide_global_type) :: model
@@ -643,7 +642,7 @@ contains
          if (model%options%basal_mbal==1) then   ! basal melt rate included in continuity equation
              model%solver_data%rhsd(model%geometry%thck_index(ew,ns)) =                     &
                    model%solver_data%rhsd(model%geometry%thck_index(ew,ns))                 &
-                 - model%temper%bmlt_ground(ew,ns) * model%numerics%dt  ! basal melt is positive for mass loss
+                 - model%basal_melt%bmlt(ew,ns) * model%numerics%dt  ! basal melt is positive for mass loss
          end if
 
       end if   ! calc_rhs
@@ -914,7 +913,7 @@ contains
                          model%numerics%dew,                 &
                          model%numerics%dns )
                     !EIB! gc2 acab input, not sure why the difference
-                    !model%climate%acab(:,ns)-real(model%options%basal_mbal)*real(model%temper%bmlt_ground(:,ns),sp),           &
+                    !model%climate%acab(:,ns)-real(model%options%basal_mbal)*real(model%basal_melt%bmlt(:,ns),sp),           &
 
           call tridiag(model%thckwk%alpha(1:n),    &
                        model%thckwk%beta(1:n),     &
@@ -943,7 +942,7 @@ contains
                          model%numerics%dns,                 &
                          model%numerics%dew )
                       !EIB! again, input difference
-                      !model%climate%acab(ew, :)-real(model%options%basal_mbal)*real(model%temper%bmlt_ground(ew, :),sp),          &
+                      !model%climate%acab(ew, :)-real(model%options%basal_mbal)*real(model%basal_melt%bmlt(ew, :),sp),          &
                       
           call tridiag(model%thckwk%alpha(1:n),    &
                        model%thckwk%beta(1:n),     &

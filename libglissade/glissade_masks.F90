@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -39,77 +39,126 @@
   module glissade_masks
 
     use glimmer_global, only: dp
+    use glimmer_log
     use glimmer_physcon, only: rhoi, rhoo
-    use glissade_grid_operators     
-    use glide_types  ! grounding line options
-    use parallel
+    use glide_types
+    use cism_parallel, only: this_rank, main_task, nhalo, parallel_globalindex, &
+         parallel_type, parallel_halo, parallel_reduce_sum
 
     implicit none
 
-    ! All variables, functions and subroutines in this module are public
+    private
+    public :: glissade_get_masks, glissade_calving_front_mask,      &
+              glissade_marine_cliff_mask, glissade_ice_sheet_mask,  &
+              glissade_ocean_connection_mask,                       &
+              glissade_marine_connection_mask, glissade_lake_mask,  &
+              glissade_extend_mask, glissade_fill, glissade_fill_with_buffer
 
-    ! public parameters
+    public :: initial_color, fill_color, boundary_color
 
-    ! integer mask values
-    integer, parameter :: mask_value_land          =  1   ! topg >= eus
-    integer, parameter :: mask_value_active_ice    =  2   ! thick enough to be active
-    integer, parameter :: mask_value_floating_ice  =  4   ! active and floating
-    integer, parameter :: mask_value_margin        =  8   ! margin between active ice and inactive/zero ice; includes both active and inactive cells
-    integer, parameter :: mask_value_ice           =  16  ! thickness > 0; giving this the highest value so it is obvious during visualization
+    ! colors for fill subroutines
+    integer, parameter :: initial_color = 0   ! initial color, represented by integer
+    integer, parameter :: fill_color = 1      ! fill color, represented by integer
+    integer, parameter :: boundary_color = -1 ! boundary color, represented by integer
 
   contains
 
 !****************************************************************************
 
-  !TODO - Remove this subroutine and replace with glissade_calculate_masks.
+  subroutine glissade_get_masks(nx,          ny,          &
+                                parallel,                 &
+                                thck,        topg,        &
+                                eus,         thklim,      &
+                                ice_mask,                 &
+                                floating_mask,            &
+                                ocean_mask,               &
+                                land_mask,                &
+                                grounding_line_mask,      &
+                                active_ice_mask)
 
-  subroutine glissade_get_masks(nx,          ny,         &
-                                thck,        topg,       &
-                                eus,         thklim,     &
-                                ice_mask,    floating_mask, &
-                                ocean_mask,  land_mask)
-                                  
+    !TODO: Modify glissade_get_masks so that 'parallel' is not needed
     !----------------------------------------------------------------
     ! Compute various masks for the Glissade dycore.
+    !
+    ! There are different ways to handle masks.
+    ! The approach in Glide was to define an integer cell_mask array,
+    !  in which each bit encodes information about whether a cell is ice-covered
+    !  or ice-free, floating or grounded, etc.
+    ! The approach here is to compute a separate 2D integer array for
+    !  each kind of mask. This uses more memory but also is more transparent.
+    !
+    ! The basic masks used for Glissade dynamic calculations are as follows:
+    !
+    ! (1) ice_mask = 1 where ice is present (thck > thklim), else = 0
+    ! (2) floating_mask = 1 if ice is present (thck > thklim) and floating, else = 0
+    ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thklim, else = 0
+    ! (4) land_mask = 1 if the topography is at or above sea level (topg >= eus), else = 0
+    ! (5) grounding_line_mask = 1 if a cell is adjacent to the grounding line, else = 0
+    ! (6) active_ice_mask = 1 for dynamically active cells, else = 0
+    !     With the subgrid calving front scheme, cells that lie on the calving front and have
+    !     thck < thck_calving_front are inactive. Otherwise, all cells with ice_mask = 1 are active.
+    !
+    ! where thck = ice thickness
+    !       thklim = threshold thickness for ice to be dynamically active
+    !       topg = bed topography
+    !       eus = eustatic sea level (= 0 by default)
+    !
+    ! Notes:
+    ! (1) thck, thklim, topg and eus can either have units of length (e.g., meters)
+    !     or be dimensionless, as long as they are defined consistently.
+    ! (2) ice_mask is always computed; the other masks are optional.
+    ! (3) Thermal calculations may have a different threshold, thklim_temp
+    !     (where generally thklim_temp < thklim).
+    !     This mask can be computed by replacing thklim with thklim_temp in the subroutine call.
+    ! (4) For some calculations it may be useful to call this subroutine with thklim = 0
+    !     so as to identify all cells with nonzero ice thickness, not just dynamically active cells.
     !----------------------------------------------------------------
     
-    use parallel  ! halo update for ocean_edge_mask
-
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
 
     integer, intent(in) ::   &
-       nx,  ny                ! number of grid cells in each direction
+         nx,  ny                ! number of grid cells in each direction
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
     ! Default dimensions are meters, but this subroutine will work for
     ! any units as long as thck, topg, eus and thklim have the same units.
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-       thck,                 &! ice thickness (m)
-       topg                   ! elevation of topography (m)
+         thck,                & ! ice thickness (m)
+         topg                   ! elevation of topography (m)
 
-    real(dp), intent(in) ::  &
-       eus,                  &! eustatic sea level (m), = 0. by default
-       thklim                 ! minimum ice thickness for active cells (m)
+    real(dp), intent(in) :: &
+         eus,                 & ! eustatic sea level (m), = 0. by default
+         thklim                 ! minimum ice thickness for active cells (m)
 
     integer, dimension(nx,ny), intent(out) ::  &
-       ice_mask               ! = 1 if thck > thklim, else = 0  
+         ice_mask               ! = 1 if thck > thklim, else = 0  
 
     integer, dimension(nx,ny), intent(out), optional ::  &
-       floating_mask,        &! = 1 if thck > thklim and ice is floating, else = 0
-       ocean_mask,           &! = 1 if topg is below sea level and thk <= thklim, else = 0
-       land_mask              ! = 1 if topg is at or above sea level
+         floating_mask,       & ! = 1 if thck > thklim and ice is floating, else = 0
+         ocean_mask,          & ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         land_mask,           & ! = 1 if topg is at or above sea level, else = 0
+         grounding_line_mask, & ! = 1 if a cell is adjacent to the grounding line, else = 0
+         active_ice_mask        ! = 1 if dynamically active, else = 0
 
     !----------------------------------------------------------------
     ! Local arguments
     !----------------------------------------------------------------
 
-    integer :: i, j
+    integer :: i, j, ii, jj
+
+    integer, dimension(nx,ny) ::  &
+         grounded_mask          ! = 1 if ice is present and grounded, else = 0
 
     !----------------------------------------------------------------
     ! Compute masks in cells
     !----------------------------------------------------------------
+
+    ice_mask(:,:) = 0
 
     do j = 1, ny
        do i = 1, nx
@@ -121,7 +170,7 @@
           endif
 
           if (present(ocean_mask)) then
-             if (topg(i,j) < eus .and. thck(i,j) <= thklim) then
+             if (topg(i,j) < eus .and. ice_mask(i,j) == 0) then
                 ocean_mask(i,j) = 1
              else
                 ocean_mask(i,j) = 0
@@ -143,902 +192,1440 @@
                 land_mask(i,j) = 0
              endif
           endif
-          
-       enddo
-    enddo
+
+          ! Note: active_ice_mask will be overwritten if the subgrid calving front scheme is used
+          if (present(active_ice_mask)) then
+             active_ice_mask(i,j) = ice_mask(i,j)
+          endif
+
+       enddo  ! i
+    enddo  ! j
+
+    ! halo updates
+    ! Note: These are not strictly needed because the above loops include halo cells.
+    !       However, they are included in case the user calls this subroutine without
+    !        first updating thck in halo cells.
+    !TODO: Drop the halo updates and require the user to update thck before the call?
+
+    call parallel_halo(ice_mask, parallel)
+    if (present(floating_mask)) call parallel_halo(floating_mask, parallel)
+    if (present(active_ice_mask)) call parallel_halo(active_ice_mask, parallel)
+
+    ! Identify grounded cells; this mask is used in some calculations below
+    if (present(floating_mask)) then
+       where (ice_mask == 1 .and. floating_mask == 0)
+          grounded_mask = 1
+       elsewhere
+          grounded_mask = 0
+       endwhere
+    endif
+
+    ! Optionally, compute grounding line mask using grounded_mask, floating_mask and ocean_mask
+    !TODO: Move grounding_line_mask to a different subroutine?
+
+    if (present(grounding_line_mask)) then
+
+       if (.not.present(floating_mask) .or. .not.present(ocean_mask)) then
+          call write_log('Need floating_mask and ocean_mask to compute grounding_line_mask', GM_FATAL)
+       endif
+
+       grounding_line_mask(:,:) = 0
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+
+             if (grounded_mask(i,j) == 1) then
+                ! check whether one or more neighbors is a floating or ocean cell
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (floating_mask(ii,jj) == 1 .or. ocean_mask(ii,jj) == 1) then
+                         grounding_line_mask(i,j) = 1
+                      endif
+                   enddo
+                enddo
+             elseif (floating_mask(i,j) == 1) then
+                ! check whether one or more neighbors is a grounded cell
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (grounded_mask(ii,jj) == 1) then
+                         grounding_line_mask(i,j) = 1
+                      endif
+                   enddo
+                enddo
+             endif   ! grounded_mask or floating_mask
+
+          enddo   ! i
+       enddo   ! j
+
+       !TODO: Drop this halo call?
+       call parallel_halo(grounding_line_mask, parallel)
+
+    endif   ! present(grounding_line_mask)
+
+    ! Note: Halo calls are not included for the ocean and land masks.
+    !       Halo values will still be correct, provided that topg is correct in halo cells.
+    !       The reason not to include these calls is that for outflow global BCs,
+    !        we may not want to set ocean_mask and land_mask = 0 in halo cells (as would be
+    !        done automatically for outflow BCs). Instead, we want to compute ocean_mask
+    !        and land_mask in halo cells based on topg (which for outflow BCs is extrapolated
+    !        to halo cells from adjacent physical cells). 
+    !       In particular, setting ocean_mask = 1 in the global halo ensures that calving_front
+    !        cells are treated correctly just inside the global halo.
+
+!!    if (present(ocean_mask)) call parallel_halo(ocean_mask)
+!!    if (present(land_mask)) call parallel_halo(land_mask)
 
   end subroutine glissade_get_masks
 
 !****************************************************************************
 
-  subroutine glissade_grounded_fraction(nx,          ny,                      &
-                                        thck,        topg,                    &
-                                        eus,         ice_mask,                &
-                                        whichground, whichflotation_function, &
-                                        f_ground,    f_flotation)
+  subroutine glissade_calving_front_mask(&
+       nx,                     ny,                   &
+       which_ho_calving_front,                       &
+       parallel,                                     &
+       thck,                   topg,                 &
+       eus,                                          &
+       ice_mask,               floating_mask,        &
+       ocean_mask,             land_mask,            &
+       calving_front_mask,     thck_calving_front,   &
+       active_ice_mask,        marine_interior_mask, &
+       effective_areafrac,     marine_cliff_mask)
 
-    !----------------------------------------------------------------
-    ! Compute fraction of ice that is grounded.
-    ! This fraction is computed at vertices based on the thickness and
-    !  topography of the four neighboring cell centers.
-    !
-    ! There are three options for computing the grounded fraction, based on the value of whichground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 0 or 1 based on flotation criterion
-    ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
-    ! (2) HO_GROUND_ALL: f_ground = 1 for all cells with ice
-    !
-    ! Notes on whichground:
-    !       Both (0) and (1) rely on computing a flotation function at cell centers
-    !       and interpolating it to vertices.  Method (0) stipulates that a vertex
-    !       is floating if the flotation function has a value associated with floating.
-    !       Method (1) interpolates the flotation function over the bounding box of
-    !       each vertex and analytically integrates to compute the grounded and floating
-    !       fractions.
-    !
-    ! In addition, there are three options for the flotation function that is interpolated 
-    ! from cell centers to vertices as part of the computation of f_ground:
-    ! (0) f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    ! (1) f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    ! (2) f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating
-    ! These apply to whichground = 0 or 1; they are irrelevant for whichground = 2.
-    !
-    ! Notes on whichflotation_function:
-    !       Results can be sensitive to the choice of flotation function.
-    !       For instance, one such function, used by Pattyn et al. (2006) and Gladstone (2010), is 
-    !           f = (-rhow*b) / (rhoi*H)
-    !       This function generally works well, but consider a case where one floating cell
-    !        (in a fjord, say) is surrounded by grounded cells.  We can have f ~ 10 for the
-    !        floating cell and f ~ 0.5 for the grounded cells, so the average > 1 and the vertex
-    !        is deemed to be floating with beta = 0.  This can lead to excessive velocities.
-    !
-    !       Another choice is the inverse of the first:
-    !           f = (rhoi*H) / (-rhow*b)
-    !       This function is negative for land-based ice (b > 0) and grows without bound as b -> 0.
-    !        So it needs to be capped at a large positive value if b > 0 or is small and negative.
-    !        This function has the virtue that strongly grounded cells have f >> 1, while floating
-    !        cells have 0 < f < 1. So if there are 1 or 2 strongly grounded cells at a vertex, 
-    !        then the vertex is deemed to be grounded (or mostly grounded), and excessive velocites 
-    !        are less likely.
-    !
-    !       A third choice (suggested by Xylar Asay-Davis) is the following:
-    !           f = -rhoi*b - rhoi*H
-    !       If positive, this function is equal to the thickness of the ocean cavity beneath floating ice.
-    !       If negative, this function implies that the ice is grounded.
-    !       
-    !       Currently (as of Sept. 2015), the inverse Pattyn function (1) is the default, but the user can
-    !        change this by setting which_ho_flotation_function in the config file.
-    !----------------------------------------------------------------
-    
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
+    ! Compute a calving_front mask, effective calving_front thickness, and related fields.
+    ! Note: With the subgrid calving front scheme, cells that lie on the calving front and have
+    !       thck < thck_calving_front are inactive. Otherwise, all cells with ice_mask = 1 are active.
 
     integer, intent(in) ::   &
-       nx,  ny                ! number of grid cells in each direction
+         nx,  ny,              &  ! number of grid cells in each direction
+         which_ho_calving_front   ! subgrid calving front option
 
-    ! Default dimensions are meters, but this subroutine will work for
-    ! any units as long as thck and topg have the same units.
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+
+    ! Default dimensions are meters, but this subroutine will work for any units
+    !  as long as thck, topg, and eus have the same units.
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-       thck,                 &! ice thickness (m)
-       topg                   ! elevation of topography (m)
+         thck,                  & ! ice thickness (m)
+         topg                     ! elevation of topography (m)
 
     real(dp), intent(in) :: &
-       eus                    ! eustatic sea level (= 0 by default)
+         eus                      ! eustatic sea level (m), = 0. by default
 
-    integer, dimension(nx,ny), intent(in) ::   &
-       ice_mask               ! = 1 for cells where ice is present (thk > thklim), else = 0
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask,              & ! = 1 if thck > thklim, else = 0
+         floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
+         ocean_mask,            & ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         land_mask                ! = 1 if topg is at or above sea level, else = 0
 
-    ! see comments above for more information about these options
-    integer, intent(in) ::     &
-       whichground,            &! option for computing f_ground
-       whichflotation_function  ! option for computing f_flotation
-
-    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
-       f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
-                              ! set to special value where vmask = 0
+    integer, dimension(nx,ny), intent(out) ::  &
+         calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
 
     real(dp), dimension(nx,ny), intent(out) :: &
-       f_flotation            ! flotation function
-                              ! originally f_pattyn = (-rhow*b) / (rhoi*thck), but added two more options
-                              ! see comments above
+         thck_calving_front       ! effective ice thickness at the calving front
+
+    integer, dimension(nx,ny), intent(out), optional ::  &
+         active_ice_mask,       & ! = 1 if dynamically active, else = 0
+         marine_interior_mask,  & ! = 1 if ice is marine-based and borders no ocean cells, else = 0
+         marine_cliff_mask        ! = 1 if ice is grounded and marine-based and borders at least one ocean
+                                  !     or inactive calving_front cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(out), optional :: &
+         effective_areafrac       ! effective ice-covered fraction, in range [0,1]
+                                  ! 0 < f < 1 for partial calving-front cells
 
     !----------------------------------------------------------------
-    ! Local variables
+    ! Local arguments
     !----------------------------------------------------------------
-           
+
+    integer :: i, j, ii, jj
+
+    integer, dimension(nx,ny) :: &
+         interior_marine_mask   ! same as marine_interior mask; used internally
+
+    real(dp), dimension(nx,ny) :: &
+         thck_flotation         ! flotation thickness
+
+    integer :: sum_cell         ! temporary sums
+    real(dp) :: sum_thck
+
+    ! Compute a calving front mask and effective calving front thickness.
+    ! Optionally, compute some related fields.
+
+    if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+       calving_front_mask(:,:) = 0
+       interior_marine_mask(:,:) = 0
+
+       ! Identify calving front cells (floating cells that border ice-free ocean)
+       ! and marine-based interior cells (marine-based cells not at the calving front).
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (floating_mask(i,j) == 1) then
+                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                   calving_front_mask(i,j) = 1
+                else
+                   interior_marine_mask(i,j) = 1
+                endif
+             elseif (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0 .and. topg(i,j) < eus) then  ! grounded marine-based ice
+                interior_marine_mask(i,j) = 1
+             endif
+          enddo
+       enddo
+
+       call parallel_halo(calving_front_mask, parallel)
+       call parallel_halo(interior_marine_mask, parallel)
+
+       ! Compute thck_calving_front, an effective thickness for calving-front cells.
+       ! It is set to the mean thickness in adjacent marine interior cells.
+       ! Note: For CF cells without any marine interior neighbors, we return thck_calving_front = 0.
+       ! TODO: Make sure this doesn't lead to numerical problems.
+
+       thck_calving_front(:,:) = 0.0d0
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (calving_front_mask(i,j) == 1) then
+
+                sum_cell = 0
+                sum_thck = 0.0d0
+
+                do jj = j-1, j+1
+                   do ii = i-1, i+1
+                      if (interior_marine_mask(ii,jj) == 1) then
+                         sum_cell = sum_cell + 1
+                         sum_thck = sum_thck + thck(ii,jj)
+                      endif
+                   enddo
+                enddo
+                if (sum_cell > 0) then
+                   thck_calving_front(i,j) = sum_thck/sum_cell
+                endif
+
+             endif
+          enddo
+       enddo
+
+       call parallel_halo(thck_calving_front, parallel)
+
+       ! Limit thck_calving_front so as not to exceed the flotation thickness
+       where (thck_calving_front > 0.0d0)
+          thck_flotation = -(rhoo/rhoi) * (topg - eus)
+          thck_calving_front = min(thck_calving_front, thck_flotation)
+       endwhere
+
+       ! Optionally, copy interior_marine_mask to marine_interior_mask for output.
+       ! The reason to have two copies of the same mask is to allow thck_calving_front to be computed,
+       !   whether or not marine_interior_mask is present.
+
+       if (present(marine_interior_mask)) then
+          marine_interior_mask = interior_marine_mask
+       endif
+
+       ! Optionally, use the ratio thck/thck_calving_front to compute effective_areafrac.
+       ! TODO - Think about whether we should have effective_areafrac = 1 for ice-free land.
+
+       if (present(effective_areafrac)) then
+
+          do j = 1, ny
+             do i = 1, nx
+                if (calving_front_mask(i,j) == 1 .and. thck_calving_front(i,j) > 0.0d0) then
+                   effective_areafrac(i,j) = thck(i,j) / thck_calving_front(i,j)
+                   effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
+                elseif (ocean_mask(i,j) == 1) then
+                   effective_areafrac(i,j) = 0.0d0
+                else  ! non-CF ice-covered cells and/or land cells
+                   effective_areafrac(i,j) = 1.0d0
+                endif
+             enddo
+          enddo
+
+       endif   ! present(effective_areafrac)
+
+       ! Optionally, update the active_ice_mask so that CF cells with thck < thck_calving_front are inactive,
+       ! but those with thck >= thck_calving_front are active.
+
+       if (present(active_ice_mask)) then
+
+          ! initialize
+          active_ice_mask(:,:) = 0
+
+          ! Mark ice-filled cells as active.
+          ! Calving-front cells, however, are inactive, unless they have thck >= thck_calving front.
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (ice_mask(i,j) == 1) then
+                   if (calving_front_mask(i,j) == 0) then
+                      active_ice_mask(i,j) = 1
+                   elseif (calving_front_mask(i,j) == 1) then
+                      !WHL - If two adjacent cells are being restored to the same thickness, there is a
+                      !       chance of flickering here, with the CF cell alternately being restored to
+                      !       slightly greater or slightly less than the thickness of its interior neighbor.
+                      !      For this reason, let the cell be active if thck is very close to thck_calving front,
+                      !       but slightly less.
+                      if (thck_calving_front(i,j) > 0.0d0 .and. &
+                          thck(i,j) >= 0.999d0*thck_calving_front(i,j)) then
+                         active_ice_mask(i,j) = 1
+                      endif
+                   endif   ! calving_front_mask
+                endif  ! ice_mask
+             enddo
+          enddo
+
+          call parallel_halo(active_ice_mask, parallel)
+
+       endif   ! present(active_ice_mask)
+
+    else   ! no subgrid calving front scheme
+
+       calving_front_mask(:,:) = 0
+       interior_marine_mask(:,:) = 0
+       thck_calving_front(:,:) = 0.0d0
+
+       ! Identify calving front cells (floating cells that border ice-free ocean)
+       ! and marine-based interior cells (marine-based cells not at the calving front).
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (floating_mask(i,j) == 1) then
+                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                   calving_front_mask(i,j) = 1
+                   thck_calving_front(i,j) = thck(i,j)
+                else
+                   interior_marine_mask(i,j) = 1
+                endif
+             elseif (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0 .and. topg(i,j) < eus) then  ! grounded marine-based ice
+                interior_marine_mask(i,j) = 1
+             endif
+          enddo
+       enddo
+
+       call parallel_halo(calving_front_mask, parallel)
+       call parallel_halo(thck_calving_front, parallel)
+       call parallel_halo(interior_marine_mask, parallel)
+
+       ! Optionally, copy interior_marine_mask to marine_interior_mask for output.
+       if (present(marine_interior_mask)) then
+          marine_interior_mask = interior_marine_mask
+       endif
+
+       if (present(effective_areafrac)) then
+          where (ice_mask == 1 .or. land_mask == 1)
+             effective_areafrac = 1.0d0
+          elsewhere
+             effective_areafrac = 0.0d0
+          endwhere
+       endif
+
+       if (present(active_ice_mask)) then
+          active_ice_mask(:,:) = ice_mask(:,:)
+       endif
+
+    endif  ! which_ho_calving_front
+
+  end subroutine glissade_calving_front_mask
+
+!****************************************************************************
+
+  subroutine glissade_marine_cliff_mask(&
+       nx,                     ny,                   &
+       ice_mask,               floating_mask,        &
+       land_mask,              active_ice_mask,      &
+       marine_cliff_mask)
+
+    ! Compute a mask to identify marine cliff cells.
+    ! These are defined as cells with grounded marine ice, adjacent to ice-free ocean cells
+    !  and/or inactive calving front cells.
+
+    integer, intent(in) ::   &
+         nx,  ny                  ! number of grid cells in each direction
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask,              & ! = 1 if thck > thklim, else = 0
+         floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
+         land_mask,             & ! = 1 if topg is at or above sea level, else = 0
+         active_ice_mask          ! = 1 if dynamically active, else = 0
+
+    integer, dimension(nx,ny), intent(out), optional ::  &
+         marine_cliff_mask        ! = 1 if ice is grounded and marine-based and borders at least one ocean
+                                  !     or inactive calving_front cell, else = 0
+
+    !----------------------------------------------------------------
+    ! Local arguments
+    !----------------------------------------------------------------
+
     integer :: i, j
 
-    integer, dimension(nx-1,ny-1) ::   &
-       vmask              ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
-    real(dp), dimension(nx-1,ny-1) :: &
-       stagf_flotation       ! f_flotation interpolated to staggered grid
+    marine_cliff_mask(:,:) = 0
 
-    real(dp) :: a, b, c, d       ! coefficients in bilinear interpolation
-                                 ! f(x,y) = a + b*x + c*y + d*x*y
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1 .and. land_mask(i,j) == 0 .and. floating_mask(i,j) == 0) then ! grounded marine-based ice
+             if ( (land_mask(i-1,j) == 0 .and. active_ice_mask(i-1,j) == 0) .or. &  ! adjacent to inactive CF or ocean
+                  (land_mask(i+1,j) == 0 .and. active_ice_mask(i+1,j) == 0) .or. &
+                  (land_mask(i,j-1) == 0 .and. active_ice_mask(i,j-1) == 0) .or. &
+                  (land_mask(i,j+1) == 0 .and. active_ice_mask(i,j+1) == 0) ) then
+                marine_cliff_mask(i,j) = 1
+             endif   ! marine cliff cell
+          endif  ! grounded marine-based ice
+       enddo  ! i
+    enddo   ! j
 
-    real(dp) :: f1, f2, f3, f4   ! f_flotation at different cell centers
+    !Note: Halo update moved to higher level
+!    call parallel_halo(marine_cliff_mask)
 
-    real(dp) ::  &
-       var,                 &! combination of f_flotation terms that determines regions to be integrated
-       f_flotation_vertex    ! f_flotation interpolated to vertex
+  end subroutine glissade_marine_cliff_mask
 
-    integer :: nfloat     ! number of grounded vertices of a cell (0 to 4)
+!****************************************************************************
 
-    logical, dimension(nx,ny) :: &
-       cfloat              ! true if flotation condition is satisfied at cell center, else = false
+  subroutine glissade_ice_sheet_mask(nx,            ny,     &
+                                     parallel,              &
+                                     itest, jtest,  rtest,  &
+                                     ice_mask,      thck,   &
+                                     ice_sheet_mask,        &
+                                     ice_cap_mask)
 
-    logical, dimension(2,2) ::   &
-       logvar              ! set locally to float or .not.float, depending on nfloat
+    ! Define masks that identify the ice sheet as distinct from ice caps.
+    ! An ice cap is defined as a patch of ice separate from the main ice sheet.
 
-    real(dp) ::   &
-       f_corner, &         ! fractional area in a corner region of the cell
-       f_corner1, f_corner2,  &
-       f_trapezoid         ! fractional area in a trapezoidal region of the cell
+    ! The algorithm is as follows:
+    ! (1) Mark all cells with ice (ice_mask = 1) with the initial color.
+    !     Mark other cells with the boundary color.
+    ! (2) Seed the fill by giving the fill color to some cells that are definitely
+    !     part of the ice sheet (based on thck > minthck_ice_sheet).
+    ! (3) Recursively fill all cells that are connected to filled cells by a path
+    !     that passes through ice-covered cells only.
+    ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
+    ! (5) Once the fill is done, any cells that still have the initial color and
+    !     are on land are considered to be ice caps.
+    !
+    ! Note: The recursive fill applies to edge neighbors, not corner neighbors.
+    !        The path back to ice sheet cells must go through edges, not corners.
+    !       The ice sheet seeding criterion can be changed by adjusting minthck_ice_sheet.
 
-    logical :: adjacent   ! true if two grounded vertices are adjacent (rather than opposite)
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask               !> = 1 if ice is present (thck > thklim)
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck                   !> ice thickness (m)
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         ice_sheet_mask         !> = 1 for ice sheet cells
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         ice_cap_mask           !> = 1 for ice cap cells, separately from the main ice sheet
 
     real(dp), parameter :: &
-       eps10 = 1.d-10     ! small number
+         minthck_ice_sheet = 2000.d0  !> thickness threshold (m) for initializing ice sheet cells
 
-    !WHL - debug
-    integer, parameter :: it = 1, jt = 1, rtest = 9999
+    ! local variables
 
-    !TODO - Test MISMIP sensitivity to the value of this cap
-    ! This needs to be big enough that one land-based cell at a vertex is sufficient to ground the others
-    real(dp), parameter :: grounding_factor_max = 10.d0  
+    integer :: i, j, iter
 
-    !----------------------------------------------------------------
-    ! Compute ice mask at vertices (= 1 if any surrounding cells have ice)
-    !----------------------------------------------------------------
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
 
-    do j = 1, ny-1
-       do i = 1, nx-1
-          if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or.   &
-              ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1 ) then
-             vmask(i,j) = 1
+    integer, dimension(nx,ny) ::  &
+         color                  !> color variable for the fill
+
+    logical, parameter :: verbose_ice_sheet_mask = .false.
+
+    ! initialize
+    ! Note: Ice-covered cells receive the initial color, and ice-free cells receive the boundary color.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (ice_mask(i,j) == 1) then
+             color(i,j) = initial_color
           else
-             vmask(i,j) = 0
+             color(i,j) = boundary_color
           endif
        enddo
     enddo
 
-    ! Compute flotation function at cell centers
+    ! Loop through cells, identifying cells that are definitely part of the ice sheet
+    !  based on a threshold ice thickness. 
+    ! Fill these cells and then recursively fill ice-covered neighbors.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
 
-    if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
+    global_count_save = 0
 
-       ! grounded if f_flotation <= 1, else floating
+    do iter = 1, max_iter
 
-       do j = 1, ny
-       do i = 1, nx
-          if (ice_mask(i,j) == 1) then
-             f_flotation(i,j) = -rhoo*(topg(i,j) - eus) / (rhoi*thck(i,j))
-          else
-             f_flotation(i,j) = 0.d0  ! treat as grounded
-          endif
-       enddo
-       enddo
+       if (iter == 1) then   ! identify ice sheet cells that can seed the fill
 
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-
-       ! grounded if f_flotation >= 1, else floating
-
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then  ! ice is present
-                if (topg(i,j) - eus >= 0.0d0) then  ! land-based cell
-                   f_flotation(i,j) = grounding_factor_max
-                else    ! marine cell
-                   f_flotation(i,j) = rhoi*thck(i,j) / (-rhoo*(topg(i,j) - eus))
-                   f_flotation(i,j) = min(f_flotation(i,j), grounding_factor_max)
+          do j = 1, ny
+             do i = 1, nx
+                if (color(i,j) == initial_color .and. thck(i,j) >= minthck_ice_sheet) then
+                   ! assign the fill color to this cell, and recursively fill ice-covered neighbors
+                   call glissade_fill(nx,    ny,    &
+                                      i,     j,     &
+                                      color, ice_mask)
                 endif
-             else  ! ice-free cell
-                if (topg(i,j) - eus >= 0.0d0) then  ! land-based cell
-                   f_flotation(i,j) = grounding_factor_max
-                else    ! marine cell
-                   f_flotation(i,j) = 0.d0
-                endif
-             endif  ! ice_mask
+             enddo
           enddo
-       enddo
 
-    elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
+       else  ! iter > 1
 
-       ! grounded if f_flotation <= 0, else floating
-       ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
-       ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
- 
-       do j = 1, ny
-          do i = 1, nx
-             if (ice_mask(i,j) == 1) then
-                f_flotation(i,j) = -rhoo*(topg(i,j) - eus) - rhoi*thck(i,j)
-             else
-                f_flotation(i,j) = 0.d0
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
+
+          call parallel_halo(color, parallel)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, ice_mask)
              endif
           enddo
-       enddo
 
-    endif  ! whichflotation_function
-
-    ! Interpolate f_flotation to staggered mesh
-
-    ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation.
-    ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
-
-    call glissade_stagger(nx,          ny,             &
-                          f_flotation, stagf_flotation,   &
-                          ice_mask,    stagger_margin_in = 1)
-
-    ! initialize f_ground
-    f_ground(:,:) = 0.d0
-
-    ! Compute f_ground according to the value of whichground
-
-    select case(whichground)
-
-    case(HO_GROUND_NO_GLP)   ! default: no grounding-line parameterization
-                             ! f_ground = 1 if stagf_flotation <=1, f_ground = 0 if stagf_flotation > 1
-
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-          ! grounded if stagf_flotation <= 1, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) <= 1.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
-          enddo
-
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-
-          ! grounded if stagf_flotation >= 1, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) >= 1.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
-          enddo
-
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-       
-          ! grounded if stagf_flotation <= 0, else floating
-
-          do j = 1, ny-1
-             do i = 1, nx-1
-                if (vmask(i,j) == 1) then
-                   if (stagf_flotation(i,j) <= 0.d0) then
-                      f_ground(i,j) = 1.d0
-                   else
-                      f_ground(i,j) = 0.d0
-                   endif
-                endif
-             enddo
-          enddo
-   
-       endif   ! whichflotation_function
-
-    case(HO_GROUND_GLP)      ! grounding-line parameterization
-
-       ! Identify cells that contain floating ice
-
-       if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-          ! grounded if f_flotation <= 1, else floating
-
+          ! east halo layers
+          i = nx - nhalo + 1
           do j = 1, ny
-             do i = 1, nx
-                if (f_flotation(i,j) > 1.d0) then
-                   cfloat(i,j) = .true.
-                else
-                   cfloat(i,j) = .false.
-                endif
-             enddo
-          enddo
-          
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-          
-          ! grounded if f_flotation >= 1, else floating
-
-          do j = 1, ny
-             do i = 1, nx
-                if (f_flotation(i,j) < 1.d0) then
-                   cfloat(i,j) = .true.
-                else
-                   cfloat(i,j) = .false.
-                endif
-             enddo
-          enddo
-          
-       elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-
-          ! grounded if f_flotation <= 0, else floating
-
-          do j = 1, ny
-             do i = 1, nx
-                if (f_flotation(i,j) > 0.d0) then
-                   cfloat(i,j) = .true.
-                else
-                   cfloat(i,j) = .false.
-                endif
-             enddo
-          enddo
-          
-       endif
-       
-       !WHL - debug
-       if (this_rank == rtest) then
-          i = it; j = jt
-          print*, 'i, j =', i, j
-          print*, 'f_flotation(i:i+1,j+1):', f_flotation(i:i+1,j+1)
-          print*, 'f_flotation(i:i+1,j)  :', f_flotation(i:i+1,j)
-          print*, 'cfloat(i:i+1,j+1):', cfloat(i:i+1,j+1)
-          print*, 'cfloat(i:i+1,j)  :', cfloat(i:i+1,j)
-       endif
-       
-       ! Loop over vertices, computing f_ground for each vertex with vmask = 1
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-
-             if (vmask(i,j) == 1) then  ! ice is present in at least one neighboring cell
-
-                !WHL TODO: Another option here would be to use the largest grounded value in place of the missing values.
-
-                if (ice_mask(i,j+1)==1 .and. ice_mask(i+1,j+1)==1 .and.  &
-                    ice_mask(i,j)  ==1 .and. ice_mask(i+1,j)  ==1) then
-
-                   ! ice is present in all 4 neighboring cells; interpolate f_flotation to find f_ground
-
-                   ! Count the number of floating cells surrounding this vertex
-
-                   nfloat = 0
-                   if (cfloat(i,j))     nfloat = nfloat + 1
-                   if (cfloat(i+1,j))   nfloat = nfloat + 1
-                   if (cfloat(i+1,j+1)) nfloat = nfloat + 1
-                   if (cfloat(i,j+1))   nfloat = nfloat + 1
-
-                   !WHL - debug
-                   if (i==it .and. j==jt .and. this_rank == rtest) then
-                      print*, ' '
-                      print*, 'nfloat =', nfloat
-                   endif
-
-                   ! Given nfloat, compute f_ground for each vertex
-                   ! First the easy cases...
-                
-                   if (nfloat == 0) then
-
-                      f_ground(i,j) = 1.d0    ! fully grounded
-
-                   elseif (nfloat == 4) then
-
-                      f_ground(i,j) = 0.d0    ! fully floating
-
-                   ! For the other cases the grounding line runs through the rectangular region 
-                   !  around this vertex.
-                   ! Using the values at the 4 neighboring cells, we approximate f_flotation(x,y) as
-                   !  a bilinear function f(x,y) = a + bx + cy + dxy over the region.
-                   ! To find f_ground, we integrate over the region with f(x,y) <= 1
-                   !  (or alternatively, we find f_float = 1 - f_ground by integrating
-                   !  over the region with f(x,y) > 1).
-                   !  
-                   ! There are 3 patterns to consider:
-                   ! (1) nfloat = 1 or nfloat = 3 (one cell neighbor is not like the others)
-                   ! (2) nfloat = 2, and adjacent cells are floating
-                   ! (3) nfloat = 2, and diagonally opposite cells are floating
-
-                   elseif (nfloat == 1 .or. nfloat == 3) then
- 
-                      if (nfloat==1) then
-                         logvar(1:2,1:2) = cfloat(i:i+1,j:j+1)
-                      else  ! nfloat = 3
-                         logvar(1:2,1:2) = .not.cfloat(i:i+1,j:j+1)
-                      endif
-                      
-                      ! Identify the cell that is not like the others
-                      ! (i.e., the only floating cell if nfloat = 1, or the only
-                      !  grounded cell if nfloat = 3)
-                      !
-                      ! Diagrams below are for the case nfloat = 1.
-                      ! If nfloat = 3, the F and G labels are switched.
-
-                      if (logvar(1,1)) then             ! no rotation
-                         f1 = f_flotation(i,j)          !   G-----G
-                         f2 = f_flotation(i+1,j)        !   |     |
-                         f3 = f_flotation(i+1,j+1)      !   |     |
-                         f4 = f_flotation(i,j+1)        !   F-----G
-
-                      elseif (logvar(2,1)) then         ! rotate by 90 degrees
-                         f4 = f_flotation(i,j)          !   G-----G
-                         f1 = f_flotation(i+1,j)        !   |     |
-                         f2 = f_flotation(i+1,j+1)      !   |     |
-                         f3 = f_flotation(i,j+1)        !   G-----F
-
-                      elseif (logvar(2,2)) then         ! rotate by 180 degrees
-                         f3 = f_flotation(i,j)          !   G-----F
-                         f4 = f_flotation(i+1,j)        !   |     |
-                         f1 = f_flotation(i+1,j+1)      !   |     |
-                         f2 = f_flotation(i,j+1)        !   G-----G
-
-                      elseif (logvar(1,2)) then         ! rotate by 270 degrees
-                         f2 = f_flotation(i,j)          !   F-----G
-                         f3 = f_flotation(i+1,j)        !   |     |
-                         f4 = f_flotation(i+1,j+1)      !   |     |
-                         f1 = f_flotation(i,j+1)        !   G-----G
-                      endif
-                      
-                      ! Compute coefficients in f(x,y) = a + b*x + c*y + d*x*y
-                      ! Note: x is to the right and y is up if the southwest cell is not like the others.
-                      !       For the other cases we solve the same problem with x and y rotated.
-                      !       The rotations are handled by rotating f1, f2, f3 and f4 above.
-
-                      a = f1
-                      b = f2 - f1
-                      c = f4 - f1
-                      d = f1 + f3 - f2 - f4
-
-                      !WHL - debug
-                      if (i==it .and. j==jt .and. this_rank == rtest) then
-                         print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
-                         print*, 'a, b, c, d =', a, b, c, d
-                      endif
-
-                      ! Compute the fractional area of the corner region 
-                      ! (floating if nfloat = 1, grounded if nfloat = 3)
-                      !
-                      ! Here are the relevant integrals:
-                      !
-                      ! (1) d /= 0:
-                      !     integral_0^x0 {y(x) dx}, where x0   = (1-a)/b
-                      !                                    y(x) = (1 - (a+b*x)) / (c+d*x)
-                      !     = [bc - ad + d) ln(1 + d(1-a)/(bc)) - (1-a)d] / d^2
-                      !
-                      ! (2) d = 0:
-                      !     integral_0^x0 {y(x) dx}, where x0   = (1-a)/b
-                      !                                    y(x) = (1 - (a+b*x)) / c
-                      !     = (a-1)(a-1) / (2bc)
-                      !
-                      ! Note: We cannot have bc = 0, because f_flotation varies in both x and y
-
-                      if (abs(d) > eps10) then
-                         f_corner = ((b*c - a*d + d) * log(1.d0 + d*(1.d0 - a)/(b*c)) - (1.d0 - a)*d) / (d*d)
-                      else
-                         f_corner = (a - 1.d0)*(a - 1.d0) / (2.d0*b*c)
-                      endif
-
-                      if (nfloat==1) then  ! f_corner is the floating area
-                         f_ground(i,j) = 1.d0 - f_corner
-                      else                 ! f_corner is the grounded area
-                         f_ground(i,j) = f_corner
-                      endif
-
-                      !WHL - debug
-                      if (i==it .and. j==jt .and. this_rank == rtest) then
-                         print*, 'f_corner =', f_corner
-                         print*, 'f_ground =', f_ground(i,j)
-                      endif
-
-                   elseif (nfloat == 2) then
-
-                      ! first the 4 cases where the 2 grounded cells are adjacent
-                      ! We integrate over the trapezoid in the floating part of the cell
-
-                      if (cfloat(i,j) .and. cfloat(i+1,j)) then  ! no rotation
-                         adjacent = .true.              !   G-----G
-                         f1 = f_flotation(i,j)          !   |     |
-                         f2 = f_flotation(i+1,j)        !   |     |
-                         f3 = f_flotation(i+1,j+1)      !   |     |
-                         f4 = f_flotation(i,j+1)        !   F-----F
-
-                      elseif (cfloat(i+1,j) .and. cfloat(i+1,j+1)) then  ! rotate by 90 degrees
-                         adjacent = .true.              !   G-----F
-                         f4 = f_flotation(i,j)          !   |     |
-                         f1 = f_flotation(i+1,j)        !   |     |
-                         f2 = f_flotation(i+1,j+1)      !   |     |
-                         f3 = f_flotation(i,j+1)        !   G-----F
-
-                      elseif (cfloat(i+1,j+1) .and. cfloat(i,j+1)) then  ! rotate by 180 degrees
-                         adjacent = .true.              !   F-----F
-                         f3 = f_flotation(i,j)          !   |     |
-                         f4 = f_flotation(i+1,j)        !   |     |
-                         f1 = f_flotation(i+1,j+1)      !   |     |
-                         f2 = f_flotation(i,j+1)        !   G-----G
-
-                      elseif (cfloat(i,j+1) .and. cfloat(i,j)) then   ! rotate by 270 degrees
-                         adjacent = .true.              !   F-----G
-                         f2 = f_flotation(i,j)          !   |     |
-                         f3 = f_flotation(i+1,j)        !   |     |
-                         f4 = f_flotation(i+1,j+1)      !   |     |
-                         f1 = f_flotation(i,j+1)        !   F-----G
-
-                      else   ! the 2 grounded cells are diagonally opposite
-
-                         adjacent = .false.
-
-                         ! We will integrate assuming the two corner regions lie in the lower left
-                         ! and upper right, i.e. one of these patterns:
-                         !
-                         !   F-----G       G-----F
-                         !   |     |       |     |
-                         !   |  F  |       |  G  |
-                         !   |     |       |     |
-                         !   G-----F       F-----G
-                         !
-                         ! Two other patterns are possible, with corner regions in the lower right
-                         ! and upper left; these require a rotation before integrating: 
-                         
-                         !   G-----F       F-----G
-                         !   |     |       |     |
-                         !   |  F  |       |  G  |
-                         !   |     |       |     |
-                         !   F-----G       G-----F
-                         !   
-                         var = f_flotation(i+1,j)*f_flotation(i,j+1) - f_flotation(i,j)*f_flotation(i+1,j+1)   &
-                             + f_flotation(i,j) + f_flotation(i+1,j+1) - f_flotation(i+1,j) - f_flotation(i,j+1)
-
-                         if (var >= 0.d0) then   ! we have one of the top two patterns
-                            f1 = f_flotation(i,j)
-                            f2 = f_flotation(i+1,j)
-                            f3 = f_flotation(i+1,j+1)
-                            f4 = f_flotation(i,j+1)
-                         else   ! we have one of the bottom two patterns; rotate coordinates by 90 degrees
-                            f4 = f_flotation(i,j)
-                            f1 = f_flotation(i+1,j)
-                            f2 = f_flotation(i+1,j+1)
-                            f3 = f_flotation(i,j+1)
-                         endif
-
-                      endif  ! grounded cells are adjacent
-
-                      ! Compute coefficients in f(x,y) = a + b*x + c*y + d*x*y
-                      a = f1
-                      b = f2 - f1
-                      c = f4 - f1
-                      d = f1 + f3 - f2 - f4
-
-                      ! Integrate the corner areas
-
-                      !WHL - debug
-                      if (i==it .and. j==jt .and. this_rank == rtest) then
-                         print*, 'adjacent =', adjacent
-                         print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
-                         print*, 'a, b, c, d =', a, b, c, d
-                      endif
-
-                      if (adjacent) then
-
-                         ! Compute the area of the floating part of the cell
-                         ! Here are the relevant integrals:
-                         !
-                         ! (1) d /= 0:
-                         !     integral_0^1 {y(x) dx}, where y(x) = (1 - (a+b*x)) / (c+d*x)
-                         !                                  
-                         !     = [bc - ad + d) ln(1 + d/c) - bd] / d^2
-                         !
-                         ! (2) d = 0:
-                         !     integral_0^1 {y(x) dx}, where y(x) = (1 - (a+b*x)) / c
-                         !                                 
-                         !     = -(2a + b - 2) / (2c)
-                         !
-                         ! Note: We cannot have c = 0, because the passage of the GL
-                         !       through the region from left to right implies variation in y.
-                         
-                         if (abs(d) > eps10) then
-                            f_trapezoid = ((b*c - a*d + d) * log(1 + d/c) - b*d) / (d*d)
-                         else
-                            f_trapezoid = -(2.d0*a + b - 2.d0) / (2.d0*c)
-                         endif
-
-                         f_ground(i,j) = 1.d0 - f_trapezoid
-
-                         !WHL - debug
-                         if (i==it .and. j==jt .and. this_rank == rtest) then
-                            print*, 'f_trapezoid =', f_trapezoid
-                            print*, 'f_ground =', f_ground(i,j)
-                         endif
-
-                      else   ! grounded vertices are diagonally opposite
-
-                         ! bug check: make sure some signs are positive as required by the formulas
-                         if (b*c - d*(1.d0-a) < 0.d0) then
-                            print*, 'Grounding line error: bc - d(1-a) < 0'
-                            stop
-                         elseif (b*c < 0.d0) then
-                            print*, 'Grounding line error: bc < 0'
-                            stop
-                         elseif ((b+d)*(c+d) < 0.d0) then
-                            print*, 'Grounding line error: (b+d)(c+d) < 0'
-                            stop
-                         endif
-
-                         ! Compute the combined areas of the two corner regions.
-                         ! For the lower left region, the integral is the same as above
-                         ! (for the case nfloat = 1 or nfloat = 3, with d /= 0).
-                         ! For the upper right region, here is the integral:
-                         !
-                         !     integral_x1^1 {(1-y(x)) dx}, where x1  = (1-a-c)/(b+d)
-                         !                                       y(x) = (1 - (a+b*x)) / (c+d*x)
-                         !     = {(bc - ad + d) ln[(bc + d(1-a))/((b+d)(c+d))] + d(a + b + c + d - 1)} / d^2
-                         !
-                         ! The above integral is valid only if (bc + d(1-a)) > 0.
-                         ! If this quantity = 0, then the grounding line lies along two lines,
-                         ! x0 = (1-a)/b and y0 = (1-a)/c.
-                         ! The lower left area is x0*y0 = (1-a)^2 / (bc).
-                         ! The upper right area is (1-x0)*(1-y0) = (a+b-1)(a+c-1) / (bc)
-                         !
-                         ! Note that this pattern is not possible with d = 0
-
-                         !WHL - debug
-                         if (i==it .and. j==jt .and. this_rank == rtest) then
-                            print*, 'Pattern 3: i, j, bc + d(1-a) =', i, j, b*c + d*(1.d0-a)
-                         endif
-
-                         if (abs(b*c + d*(1.d0-a)) > eps10) then  ! the usual case
-                            f_corner1 = ((b*c - a*d + d) * log(1.d0 + d*(1.d0-a)/(b*c)) - (1.d0-a)*d) / (d*d)
-                            f_corner2 = ((b*c - a*d + d) * log((b*c + d*(1.d0-a))/((b+d)*(c+d)))  &
-                                      + d*(a + b + c + d - 1)) / (d*d)
-                         else 
-                            f_corner1 = (1.d0 - a)*(1.d0 - a) / (b*c)
-                            f_corner2 = (a + b - 1.d0)*(a + c - 1.d0) / (b*c)
-                         endif
-                         
-                         ! Determine whether the central point (1/2,1/2) is grounded or floating.
-                         ! (Note: f_flotation_vertex /= stagf_flotation(i,j), although likely to be close)
-                         ! Then compute the grounded area.
-                         ! If the central point is floating, the corner regions are grounded;
-                         ! if the central point is grounded, the corner regions are floating.
-
-                         f_flotation_vertex = a + 0.5d0*b + 0.5d0*c + 0.25d0*d
-                         if (f_flotation_vertex > 1.d0) then  ! the central point is floating; corners are grounded
-                            f_ground(i,j) = f_corner1 + f_corner2
-                         else                              ! the central point is grounded; corners are floating
-                            f_ground(i,j) = 1.d0 - (f_corner1 + f_corner2)
-                         endif
-
-                         !WHL - debug
-                         if (i==it .and. j==jt .and. this_rank == rtest) then
-                            print*, 'f_flotation_v =', f_flotation_vertex
-                            print*, 'f_corner1 =', f_corner1
-                            print*, 'f_corner2 =', f_corner2
-                            print*, 'f_ground =', f_ground(i,j)
-                         endif
-
-                      endif  ! adjacent or opposite
-
-                   endif     ! nfloat
-
-                else   ! one or more neighboring cells is ice-free, so bilinear interpolation is not possible
-                       ! In this case, set f_ground = 0 or 1 based on stagf_flotation at vertex
-                       !TODO - Possibly eliminate this branch of the 'if' by using replacement values in ice-free cells
-
-                   if (whichflotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-
-                      if (stagf_flotation(i,j) <= 1.d0) then
-                         f_ground(i,j) = 1.d0
-                      else
-                         f_ground(i,j) = 0.d0
-                      endif
-                      
-                   elseif (whichflotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
-
-                      if (stagf_flotation(i,j) >= 1.d0) then
-                         f_ground(i,j) = 1.d0
-                      else
-                         f_ground(i,j) = 0.d0
-                      endif
-                      
-                   elseif (whichflotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
-
-                      if (stagf_flotation(i,j) <= 0.d0) then
-                         f_ground(i,j) = 1.d0
-                      else
-                         f_ground(i,j) = 0.d0
-                      endif
-
-                   endif
-
-                endif     ! ice_mask = 1 in all 4 neighboring cells
-             endif        ! vmask = 1
-          enddo           ! i
-       enddo              ! j
-
-    case(HO_GROUND_ALL)   ! all vertices with ice-covered neighbors are assumed grounded, 
-                          ! regardless of thck and topg
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-             if (vmask(i,j) == 1) then
-                f_ground(i,j) = 1.d0
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, ice_mask)
              endif
           enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, ice_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, ice_mask)
+             endif
+          enddo
+
+       endif  ! iter = 1
+
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) local_count = local_count + 1
+          enddo
        enddo
 
-    end select
+       global_count = parallel_reduce_sum(local_count)
 
-  end subroutine glissade_grounded_fraction
+       if (global_count == global_count_save) then
+          if (verbose_ice_sheet_mask .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_ice_sheet_mask .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
+       endif
 
-!****************************************************************************
+    enddo  ! max_iter
 
-  subroutine glissade_calculate_masks(nx,            ny,             &
-                                      thck,                          &
-                                      topg,          eus,            &
-                                      thklim_ground, thklim_float,   &
-                                      cell_mask)
-                                  
-    !----------------------------------------------------------------
-    ! Compute an integer mask in each grid cell for the Glissade dycore.
-    !----------------------------------------------------------------
-    
-    use parallel
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::   &
-         nx,  ny                ! number of grid cells in each direction
-
-    ! Preferred dimensions are meters, but this subroutine will work for
-    ! any length units as long as thck, topg, eus and thklim have the same units.
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         thck,                 &! ice thickness
-         topg                   ! elevation of bedrock topography
-
-    real(dp), intent(in) ::  &
-         eus,                  &! eustatic sea level, = 0. by default
-         thklim_ground,        &! min thickness for active grounded ice (land-based or marine)
-         thklim_float           ! min thickness for active floating ice
-
-    integer, dimension(nx,ny), intent(out) ::  &
-         cell_mask              ! integer mask that encodes information about each cell 
-
-    real(dp) :: &
-         h_flotation            ! flotation thickness, (rhoo/rhoi)*(eus-topg)
-
-    integer :: i, j
-
-    ! initialize
-    cell_mask(:,:) = 0
-
-    ! identify cells with ice (active or not)
-
-    where (thck > 0.0d0)
-       cell_mask = ior(cell_mask, mask_value_ice)
-    endwhere
-
-    ! identify land cells, active ice, floating ice
+    ! Any cells with the fill color are considered to be part of the land-based ice sheet.
+    ! Any cells with the initial color are deemed to be ice caps.
+ 
+    ice_sheet_mask(:,:) = 0.0d0
+    ice_cap_mask(:,:) = 0.0d0
 
     do j = 1, ny
        do i = 1, nx
-          if (topg(i,j) >= eus) then  ! land cell
-             cell_mask(i,j) = ior(cell_mask(i,j), mask_value_land)
-             if (thck(i,j) > thklim_ground) then   ! active
-                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
-             endif
-          else  ! marine cell, topg < eus
-             h_flotation = (rhoo/rhoi)*(eus - topg(i,j))  ! flotation thickness
-             if (thck(i,j) < h_flotation) then  ! floating
-                if (thck(i,j) > thklim_float) then  ! active
-                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
-                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_floating_ice)
-                endif
-             else   ! grounded marine ice
-                if (thck(i,j) > thklim_ground) then  ! active
-                   cell_mask(i,j) = ior(cell_mask(i,j), mask_value_active_ice)
-                endif
-             endif  ! floating
-          endif  ! land
-       enddo  ! i
-    enddo  ! j
+          if (color(i,j) == initial_color) then
+             ice_cap_mask(i,j) = 1
+          elseif (color(i,j) == fill_color) then
+             ice_sheet_mask(i,j) = 1
+          endif
+       enddo
+    enddo
 
-    ! identify cells on the margin between active ice and inactive/zero ice
-    ! Note: Both active and inactive cells are included in the mask.
+    call parallel_halo(ice_sheet_mask, parallel)
+    call parallel_halo(ice_cap_mask, parallel)
+
+  end subroutine glissade_ice_sheet_mask
+
+!****************************************************************************
+
+  subroutine glissade_ocean_connection_mask(nx,            ny,          &
+                                            parallel,                   &
+                                            itest, jtest,  rtest,       &
+                                            thck,          input_mask,  &
+                                            ocean_mask,                 &
+                                            ocean_connection_mask)
+
+    ! Create a masks consisting of cells with input_mask = 1, which either
+    ! are adjacent to the ocean, or are connected to the ocean through other cells
+    ! with input_mask = 1.
+
+    ! The algorithm is as follows:
+    ! (1) Assign the initial color to cells with input_mask = 1.
+    !     Mark other cells with the boundary color.
+    ! (2) Seed the fill by giving the fill color to cells that have input_mask = 1
+    !     and are adjacent to ocean cells (ocean_mask = 1).
+    ! (3) Recursively fill all cells that have input_mask = 1 and are connected
+    !     to the ocean by a path that passes through other cells with input_mask = 1.
+    ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
+    ! (5) Once the fill is done, all cells with the fill color are assigned
+    !     to ocean_connection_mask.
+    !
+    ! Note: The logic is general enough that we could replace ocean_mask and
+    !       ocean_connection_mask with generic input and output masks.
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck                   !> ice thickness (m)
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         input_mask,          & !> = 1 for cells that meet some criterion specified elsewhere
+         ocean_mask             !> = 1 for ice-free cells with topg below sea level
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         ocean_connection_mask  !> = 1 for cells with input_mask = 1, connected to the ocean
+                                !>   through other such cells
+
+    ! local variables
+
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
+
+    integer, dimension(nx,ny) ::  &
+         color                   ! color variable for the fill
+
+    logical, parameter :: verbose_ocean_connection_mask = .false.
+
+    ! initialize
+    ! Note: Cells with input_mask = 1 receive the initial color, and other cells receive the boundary color.
+
+    where (input_mask == 1)
+       color = initial_color
+    elsewhere
+       color = boundary_color
+    endwhere
+
+    ! Identifying cells that have the initial color and are adjacent to the ocean.
+    ! Fill these cells and then recursively fill neighbors that have the initial color.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
+    global_count_save = 0
+
+    do iter = 1, max_iter
+
+       if (iter == 1) then   ! identify cells adjacent to the ocean, which can seed the fill
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (color(i,j) == initial_color .and.  &
+                     (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                      ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) ) then
+                   ! assign the fill color to this cell, and recursively fill neighbors with input_mask = 1
+                   call glissade_fill(nx,    ny,    &
+                                      i,     j,     &
+                                      color, input_mask)
+                endif
+             enddo
+          enddo
+
+       else  ! iter > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must already have the fill color.
+
+          call parallel_halo(color, parallel)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, input_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, input_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, input_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, input_mask)
+             endif
+          enddo
+
+       endif  ! iter = 1
+
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) local_count = local_count + 1
+          enddo
+       enddo
+
+       global_count = parallel_reduce_sum(local_count)
+
+       if (global_count == global_count_save) then
+          if (verbose_ocean_connection_mask .and. main_task) &
+               print*, 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_ocean_connection_mask .and. main_task) &
+               print*, 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
+       endif
+
+    enddo  ! max_iter
+
+    ! Any cells with the fill color are deemed to be ocean-connected.
+    ocean_connection_mask(:,:) = 0
+
+    where (color == fill_color)
+       ocean_connection_mask = 1
+    elsewhere
+       ocean_connection_mask = 0
+    endwhere
+
+    !TODO: Move this update to a higher level?
+    call parallel_halo(ocean_connection_mask, parallel)
+
+  end subroutine glissade_ocean_connection_mask
+
+!****************************************************************************
+
+  subroutine glissade_marine_connection_mask(nx,           ny,             &
+                                             parallel,                     &
+                                             itest, jtest, rtest,          &
+                                             thck,         topg,           &
+                                             eus,          thklim,         &
+                                             marine_connection_mask)
+
+    ! Identify cells that have a marine path to the ocean.
+    ! The path can include grounded marine-based ice.
+    ! The ocean is identified as ice-free cells with bed elevation below sea level,
+    !  or optionally with bed elevation below some threshold value.
+
+    ! subroutine arguments
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    ! Note: Input thck and topg need to be correct in halo cells
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck,                   & !> ice thickness (m)
+         topg                      !> elevation of topography (m)
+
+    real(dp), intent(in) :: &
+         eus,                    & !> eustatic sea level (m), = 0. by default
+         thklim                    !> minimum ice thickness for active cells (m)
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         marine_connection_mask    !> = 1 for ocean cells and cells connected to the ocean through marine-based ice
+
+    ! local variables
+
+    integer, dimension(nx,ny) ::  &
+         ocean_mask,          &  !> = 1 where topg - eus is below sea level and ice is absent, else = 0
+         ocean_mask_temp,     &  !> temporary version of ocean_mask
+         marine_mask,         &  !> marine-based cells; topg - eus < 0
+         color                   ! integer 'color' mask to mark filled cells
+
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
+
+    !Note: could make this a config parameter if different values are desired for different grids
+    real(dp), parameter :: &
+         ocean_topg_threshold = -500.d0   !> ocean threshold elevation (m) to seed the fill; negative below sea level
+
+    logical, parameter :: verbose_marine_connection = .false.
+
+    ! Compute ocean_mask, which is used to seed the fill.
+    ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
+    !  with topg - eus < ocean_topg_threshold.
+
+    where (thck <= thklim .and. topg - eus < ocean_topg_threshold)
+       ocean_mask = 1
+    elsewhere
+       ocean_mask = 0
+    endwhere
+
+    ! Occasionally, e.g. in Greenland fjords, a cell could be marked as ice-free ocean even though it is landlocked.
+    ! To make this less likely, set ocean_mask = 0 for any cells with non-ocean neighbors.
+    ! This logic could be iterated if needed.
+
+    ocean_mask_temp = ocean_mask
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ocean_mask_temp(i-1,j) == 0 .or. ocean_mask_temp(i+1,j) == 0 .or.  &
+              ocean_mask_temp(i,j-1) == 0 .or. ocean_mask_temp(i,j+1) == 0) then
+             ocean_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(ocean_mask, parallel)
+
+    ! initialize
+    ! Compute a marine mask; = 1 for all cells with topg - eus < 0.
+    ! Marine-based cells receive the initial color; land cells receive the boundary color.
+    ! Seed the fill with ocean cells.
+
+    where (ocean_mask == 1)
+       marine_mask = 1
+       color = fill_color
+    elsewhere (topg - eus < 0.0d0)  ! marine-based cells
+       marine_mask = 1
+       color = initial_color
+    elsewhere   ! land cells
+       marine_mask = 0
+       color = boundary_color
+    endwhere
+
+    if (verbose_marine_connection .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_marine_connection_mask, itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'marine_mask'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') marine_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! Loop through cells, identifying marine-based cells that border the ocean.
+    ! Fill each such cell, and then recursively fill marine-based neighbor cells.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+    ! The result is a mask that all marine-based cells connected to the ocean are filled.
+
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
+    global_count_save = 0
+
+    do iter = 1, max_iter
+
+       if (iter == 1) then   ! identify marine-based cells adjacent to ocean cells, which can seed the fill
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (marine_mask(i,j) == 1) then
+                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or.   &
+                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+
+                      if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
+
+                         ! assign the fill color to this cell, and recursively fill marine-based neighbor cells
+                         call glissade_fill(nx,    ny,    &
+                                            i,     j,     &
+                                            color, marine_mask)
+                      endif
+                   endif  ! adjacent to ocean
+                endif  ! marine-based
+             enddo  ! i
+          enddo  ! j
+
+       else  ! iter > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
+          !       but also must have marine_mask = 1.
+
+          call parallel_halo(color, parallel)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, marine_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, marine_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, marine_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. marine_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, marine_mask)
+             endif
+          enddo
+
+       endif  ! iter = 1
+
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) local_count = local_count + 1
+          enddo
+       enddo
+
+       global_count = parallel_reduce_sum(local_count)
+
+       if (global_count == global_count_save) then
+          if (verbose_marine_connection .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_marine_connection .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
+       endif
+
+    enddo  ! max_iter
+
+    call parallel_halo(color, parallel)
+
+    ! Set the marine connection mask.  This includes:
+    ! (1) cells that are already ocean
+    ! (2) cells with the fill color, meaning they are marine-based cells connected to the ocean
+
+    marine_connection_mask(:,:) = 0
+
+    do j = 1, ny
+       do i = 1, nx
+          if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
+             marine_connection_mask(i,j) = 1
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(marine_connection_mask, parallel)
+
+    if (verbose_marine_connection .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'color, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') color(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'marine_connection_mask, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') marine_connection_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_marine_connection_mask
+
+!****************************************************************************
+
+  subroutine glissade_lake_mask(nx,           ny,             &
+                                parallel,                     &
+                                itest, jtest, rtest,          &
+                                floating_mask,                &
+                                ocean_mask,                   &
+                                lake_mask,                    &
+                                ocean_connection_mask)
+
+  ! TODO - Rewrite this subroutine with marine_connection_mask as an input.
+  !        Lake cells are just floating cells without a marine connection.
+
+  ! Identify interior lake cells: cells that are floating but are not connected
+  !  to the ocean along a path through other floating cells.
+  ! Optionally, identify cells with an ocean connection: either ice-free ocean,
+  !  or floating and connected through other floating cells to the ocean.
+  ! Note: The path to the ocean must pass through edge neighbors, not corner neighbors.
+
+    integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
+
+    ! Note: The calling subroutine decides how to define floating_mask.
+    !       E.g., it could be defined based on f_ground_cell with which_ho_ground = 2.
+    ! Each input mask needs to be correct in halo cells
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         floating_mask,          & !> = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask                !> = 1 where topg - eus is below sea level and ice is absent, else = 0
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         lake_mask                 !> = 1 for floating cells disconnected from the ocean, else = 0
+
+    integer, dimension(nx,ny), intent(out), optional ::  &
+         ocean_connection_mask     !> = 1 for ocean cells, and cells connected to the ocean through floating ice
+
+    ! local variables
+
+    integer, dimension(nx,ny) ::  &
+         color,                  & ! integer 'color' mask to mark filled cells
+         border_mask               ! = 1 for grounded marine ice adjacent to ocean-connected cells
+
+    integer :: i, j, iter
+
+    integer :: &
+         max_iter,             & ! max(ewtasks, nstasks)
+         local_count,          & ! local counter for filled values
+         global_count,         & ! global counter for filled values
+         global_count_save       ! globalcounter for filled values from previous iteration
+
+    logical, parameter :: verbose_lake = .false.
+
+    integer :: ig, jg
+
+    if (verbose_lake .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_lake_mask, itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'floating_mask'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') floating_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! initialize
+    ! Floating cells receive the initial color;
+    !  grounded cells and ice-free cells receive the boundary color.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (floating_mask(i,j) == 1) then
+             color(i,j) = initial_color
+          else    ! grounded or ice-free
+             color(i,j) = boundary_color
+          endif
+       enddo
+    enddo
+
+    ! Loop through cells, identifying floating cells that border the ocean.
+    ! Fill each such floating cell, and then recursively fill floating neighbor cells.
+    ! We may have to do this several times to incorporate connections between neighboring processors.
+    ! The result is a mask that identifies (with the fill color) all floating cells connected to the ocean.
+
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
+    global_count_save = 0
+
+    do iter = 1, max_iter
+
+       if (iter == 1) then   ! identify floating cells adjacent to ocean cells, which can seed the fill
+
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (floating_mask(i,j) == 1) then
+                   if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or.   &
+                       ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+
+                      if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
+
+                         ! assign the fill color to this cell, and recursively fill floating neighbor cells
+                         call glissade_fill(nx,    ny,    &
+                                            i,     j,     &
+                                            color, floating_mask)
+                      endif
+                   endif  ! adjacent to ocean
+                endif  ! floating
+             enddo  ! i
+          enddo  ! j
+
+       else  ! count > 1
+
+          ! Check for halo cells that were just filled on neighbor processors
+          ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
+          !       but also must have floating_mask = 1.
+
+          call parallel_halo(color, parallel)
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i+1,   j,     &
+                                   color, floating_mask)
+             endif
+          enddo
+
+          ! east halo layers
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i-1,   j,     &
+                                   color, floating_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j+1,   &
+                                   color, floating_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color .and. floating_mask(i,j) == 1) then
+                call glissade_fill(nx,    ny,    &
+                                   i,     j-1,   &
+                                   color, floating_mask)
+             endif
+          enddo
+
+       endif  ! iter = 1
+
+       ! Count the number of filled cells.  If converged, then exit the loop.
+
+       local_count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) local_count = local_count + 1
+          enddo
+       enddo
+
+       global_count = parallel_reduce_sum(local_count)
+
+       if (global_count == global_count_save) then
+          if (verbose_lake .and. main_task) &
+               print*, 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+          if (verbose_lake .and. main_task) &
+               print*, 'Convergence check: iter, global_count =', iter, global_count
+          global_count_save = global_count
+       endif
+
+    enddo  ! max_iter
+
+    call parallel_halo(color, parallel)
+
+    ! Identify lake cells: floating cells that still have the initial color.
+
+    lake_mask(:,:) = 0
+
+    do j = 1, ny
+       do i = 1, nx
+          if (color(i,j) == initial_color .and. floating_mask(i,j) == 1) then
+             lake_mask(i,j) = 1
+
+             if (verbose_lake .and. this_rank == rtest) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
+             endif
+
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(lake_mask, parallel)
+
+    if (verbose_lake .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'lake_mask, rank =', this_rank
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') lake_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    if (present(ocean_connection_mask)) then
+
+       ! Identify cells connected to the ocean.  This includes:
+       ! (1) cells that are already ocean
+       ! (2) floating cells with the fill color, meaning they are connected to the ocean via other floating cells
+
+       ocean_connection_mask(:,:) = 0
+
+       do j = 1, ny
+          do i = 1, nx
+             if (ocean_mask(i,j) == 1 .or. color(i,j) == fill_color) then
+                ocean_connection_mask(i,j) = 1
+             endif
+          enddo
+       enddo
+
+       !TODO: Is this halo call needed?
+       call parallel_halo(ocean_connection_mask, parallel)
+
+       if (verbose_lake .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'color, rank =', this_rank
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') color(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'ocean_connection_mask, rank =', this_rank
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif  ! present(ocean_connection_mask)
+
+  end subroutine glissade_lake_mask
+
+!****************************************************************************
+
+  subroutine glissade_extend_mask(nx,       ny,  &
+                                  input_mask,      &
+                                  extended_mask)
+
+    ! Compute a mask that includes
+    ! (1) cells with input_mask = 1
+    ! (2) cells that are adjacent to cells with input_mask = 1
+    ! For now, assume that both edge and diagonal neighbors are adjacent.
+    ! If needed, could add an option to choose only edge neighbors.
+
+    integer, intent(in) ::   &
+         nx,  ny                !> number of grid cells in each direction
+
+    integer, dimension(nx,ny), intent(in) :: &
+         input_mask             !> input mask to be extended
+
+    integer, dimension(nx,ny), intent(out) :: &
+         extended_mask          !> input mask extended by adding neighbor cells
+
+    ! local variables
+
+    integer :: i, j
+
+    extended_mask(:,:) = 0
 
     do j = 2, ny-1
        do i = 2, nx-1
-          if (mask_is_active_ice(cell_mask(i,j))) then
-             if (.not.mask_is_active_ice(cell_mask(i-1,j)) .or. .not.mask_is_active_ice(cell_mask(i+1,j)) .or.  &
-                 .not.mask_is_active_ice(cell_mask(i,j-1)) .or. .not.mask_is_active_ice(cell_mask(i,j+1))) then
-                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_margin)
-             endif
-          else   ! inactive or zero ice
-             if (mask_is_active_ice(cell_mask(i-1,j)) .or. mask_is_active_ice(cell_mask(i+1,j)) .or.  &
-                 mask_is_active_ice(cell_mask(i,j-1)) .or. mask_is_active_ice(cell_mask(i,j+1))) then
-                cell_mask(i,j) = ior(cell_mask(i,j), mask_value_margin)
-             endif
-          endif  ! active
-       enddo  ! i
-    enddo  ! j
+          if (input_mask(i,j) == 1) then
+             extended_mask(i,j) = 1
+          elseif (input_mask(i,j-1)   == 1 .or. input_mask(i,j+1)   == 1   .or.  &
+                  input_mask(i-1,j+1) == 1 .or. input_mask(i+1,j+1) == 1 .or.  &
+                  input_mask(i-1,j)   == 1 .or. input_mask(i+1,j)   == 1 .or.  &
+                  input_mask(i-1,j-1) == 1 .or. input_mask(i+1,j-1) == 1) then
+             extended_mask(i,j) = 1
+          endif
+       enddo
+    enddo
 
-    ! halo update, since margin mask was not calculated for all cells
+    !Note: Halo update moved to higher level
+!    call parallel_halo(extended_mask)
 
-    call parallel_halo(cell_mask)
-
-  end subroutine glissade_calculate_masks
+  end subroutine glissade_extend_mask
 
 !****************************************************************************
 
-! The following logical functions will decode bit masks
+  recursive subroutine glissade_fill(nx,  ny,         &
+                                     i,   j,          &
+                                     color,           &
+                                     fill_mask)
+
+    ! Given a cell (i,j), determine whether it should be given the fill color
+    !  and recursively fill neighbor cells.
+    ! This subroutine differs from the subroutine above in that cell (i,j) is filled and
+    !  the subroutine is called recursively only if fill_mask = 1.
+    ! In the subroutine above, cell (i,j) can be filled when active_ice_mask = 0,
+    !  but the subroutine is called recursively only if active_ice_mask = 1.
+
+    integer, intent(in) :: nx, ny                       !> domain size
+    integer, intent(in) :: i, j                         !> horizontal indices of current cell
+
+    integer, dimension(nx,ny), intent(inout) :: &
+         color                                          !> color (initial, fill or boundary)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         fill_mask                                      !> = 1 if the cell satisfies the fill criterion
+
+    if (color(i,j) /= fill_color .and. color(i,j) /= boundary_color .and. fill_mask(i,j) == 1) then
+
+       ! assign the fill color to this cell
+       color(i,j) = fill_color
+
+       ! recursively call this subroutine for each neighbor to see if it should be filled
+       !TODO - May want to rewrite this to avoid recursion, which can crash the code when
+       !       the recursion stack is very large on fine grids.
+       if (i > 1)  call glissade_fill(nx,    ny,  &
+                                      i-1,   j,   &
+                                      color, fill_mask)
+
+       if (i < nx) call glissade_fill(nx,    ny,  &
+                                      i+1,   j,   &
+                                      color, fill_mask)
+
+       if (j > 1)  call glissade_fill(nx,    ny, &
+                                      i,     j-1, &
+                                      color, fill_mask)
+
+       if (j < ny) call glissade_fill(nx,    ny,  &
+                                      i,     j+1, &
+                                      color, fill_mask)
+
+    endif   ! not fill color or boundary color
+
+  end subroutine glissade_fill
 
 !****************************************************************************
 
-  function mask_is_land(mask)
+  recursive subroutine glissade_fill_with_buffer(&
+       nx,  ny,         &
+       i,   j,          &
+       color,           &
+       fill_mask)
 
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_land
+    ! Given a domain with an initial color, a boundary color and a fill color,
+    !  recursively assign the fill color to all cells that are connected to cells
+    !  with the fill color.  The connection must pass through cell edges (not vertices).
+    ! Note: "with_buffer" refers to the idea that we fill not only cells with fill_mask = 1,
+    !       but also cells with fill_mask = 0, provided the cell does not already have
+    !       the fill color or boundary color.  But only cells with fill_mask = 1 result
+    !       in additional filling.
+    !       This logic is used, for example, with iceberg removal, where fill_mask = active_ice_mask.
+    !       In this case we fill not only active cells, but also a buffer layer of inactive cells.
+    !       Thus, both active cells and inactive buffer cells are filled and are spared from removal.
 
-    mask_is_land = iand(mask, mask_value_land) == mask_value_land
-    
-  end function mask_is_land
+    integer, intent(in) :: nx, ny                       !> domain size
+    integer, intent(in) :: i, j                         !> horizontal indices of current cell
 
-!****************************************************************************
+    integer, dimension(nx,ny), intent(inout) :: &
+         color                                          !> color (initial, fill or boundary)
 
-  function mask_is_ice(mask)
+    integer, dimension(nx,ny), intent(in) :: &
+         fill_mask                                      !> = 1 if the cell satisfies the fill criterion
 
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_ice
+    if (color(i,j) /= fill_color .and. color(i,j) /= boundary_color) then
 
-    mask_is_ice = iand(mask, mask_value_ice) == mask_value_ice
-    
-  end function mask_is_ice
+       ! assign the fill color to this cell
+       color(i,j) = fill_color
 
-!****************************************************************************
+       ! If fill_mask = 1, then fill this cell but do not call the subroutine recursively
 
-  function mask_is_active_ice(mask)
+       if (fill_mask(i,j) == 0) return   ! skip the recursion
 
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_active_ice
+       ! recursively call this subroutine for each neighbor to see if it should be filled
+       !TODO - May want to rewrite this to avoid recursion, which can crash the code when
+       !       the recursion stack is very large on fine grids.
+       if (i > 1)  call glissade_fill_with_buffer(nx,    ny,  &
+                                                  i-1,   j,   &
+                                                  color, fill_mask)
 
-    mask_is_active_ice = iand(mask, mask_value_active_ice) == mask_value_active_ice
-    
-  end function mask_is_active_ice
+       if (i < nx) call glissade_fill_with_buffer(nx,    ny,  &
+                                                  i+1,   j,   &
+                                                  color, fill_mask)
 
-!****************************************************************************
+       if (j > 1)  call glissade_fill_with_buffer(nx,    ny, &
+                                                  i,     j-1, &
+                                                  color, fill_mask)
 
-  function mask_is_floating_ice(mask)
+       if (j < ny) call glissade_fill_with_buffer(nx,    ny,  &
+                                                  i,     j+1, &
+                                                  color, fill_mask)
 
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_floating_ice
+    endif   ! not fill color or boundary color
 
-    mask_is_floating_ice = iand(mask, mask_value_floating_ice) == mask_value_floating_ice
-    
-  end function mask_is_floating_ice
-
-!****************************************************************************
-
-  function mask_is_margin(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_margin
-
-    mask_is_margin = iand(mask, mask_value_margin) == mask_value_margin
-    
-  end function mask_is_margin
-
-!****************************************************************************
-
-  function mask_is_ocean(mask)
-
-    integer, intent(in) :: mask   ! mask with encoded info
-    logical :: mask_is_ocean
-
-    mask_is_ocean = (.not.mask_is_land(mask) .and. .not.mask_is_active_ice(mask))
-    
-  end function mask_is_ocean
+  end subroutine glissade_fill_with_buffer
 
 !****************************************************************************
 

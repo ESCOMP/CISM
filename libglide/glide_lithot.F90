@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -101,10 +101,12 @@ contains
   end subroutine init_lithot    
 
   subroutine spinup_lithot(model)
-    use parallel
+
     use glide_types
     use glimmer_log
     use glide_mask
+    use cism_parallel, only: not_parallel
+
     implicit none
     type(glide_global_type),intent(inout) :: model       !> model instance
 

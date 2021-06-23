@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -103,8 +103,9 @@ contains
   !> read a configuration file
   subroutine ConfigRead(fname,config,fileunit)
     !> read configuration file
-    use parallel
+    use cism_parallel, only: main_task, broadcast
     use glimmer_log
+
     implicit none
 
     character(len=*), intent(in) :: fname    !< the name of the file to be read
@@ -478,7 +479,7 @@ contains
     implicit none
     type(ConfigSection), pointer :: section     !< the section from which the value is loaded
     character(len=*),intent(in) :: name         !< the name of the key
-    real(dp), pointer, dimension(:) :: val !< on exit this will hold the values
+    real(dp), pointer, dimension(:) :: val      !< on exit this will hold the values
     integer,intent(in), optional :: numval      !< maximum number of values to be read
 
     ! local variables
@@ -791,7 +792,7 @@ contains
     use glimmer_log
     implicit none
     type(ConfigSection), pointer :: section !< the section from which the value is loaded
-    character(len=*),intent(in) :: name     !< the name of the key
+    character(len=*), intent(in) :: name    !< the name of the key
     character(len=*), intent(inout) :: val  !< the value
     
     type(ConfigValue), pointer :: value

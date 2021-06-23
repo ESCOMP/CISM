@@ -1,6 +1,6 @@
-#! /usr/bin/env python
+#!/usr/bin/env python2
 
-# Copyright (C) 2005, 2006, 2007, 2009, 2010
+# Copyright (C) 2005-2018
 # Glimmer-CISM contributors - see AUTHORS file for list of contributors
 #
 # This file is part of Glimmer-CISM.
@@ -23,7 +23,11 @@
 
 # python script used to generate source code files given a variable definition file
 
-import ConfigParser, sys, time, string,re, os.path
+import sys, time, string,re, os.path
+if sys.version_info[0] == 2:
+    from ConfigParser import SafeConfigParser as config_parser
+else:
+    from configparser import ConfigParser as config_parser
 
 NOATTRIB = ['name','dimensions','dimlen','data','factor','load','hot','type','average','coordinates']
 dimensions = {}
@@ -40,7 +44,8 @@ def is_dimvar(var):
     this is assumed to be the case if no time dim is present
     """
 
-    if len(string.split(var['dimensions'],',')) == 1 and 'dimlen' in var:
+    dimstr = var['dimensions']
+    if len(dimstr.split(',')) == 1 and 'dimlen' in var:
         return True
     else:
         return False
@@ -68,19 +73,19 @@ class Variables(dict):
         dict.__init__(self)
 
         # reading variable configuration file
-        vars = ConfigParser.ConfigParser()
-        vars.readfp(open(filename))
+        vars = config_parser()
+        vars.read(filename)
 
         self.__have_avg = False
 
         for v in vars.sections():
             if v == 'VARSET':
-                for (name, value) in vars.items(v):
+                for name, value in vars.items(v, raw=True):
                     module[name]=value
                 continue
             vardef = {}
             vardef['name'] = v
-            for (name, value) in vars.items(v):
+            for name, value in vars.items(v, raw=True):
                 vardef[name] = value
             if 'type' not in vardef:
                 vardef['type'] = 'float'
@@ -147,7 +152,7 @@ class PrintVars:
 
         filename: name of file to be processed."""
         if os.path.basename(filename) != self.canhandle:
-            raise NotImplementedError, 'Can only handle %s'%self.canhandle
+            raise NotImplementedError('Can only handle {}'.format(self.canhandle))
 
         self.infile = open(filename,'r')
         if outname==None:
@@ -169,7 +174,7 @@ class PrintVars:
     def print_var(self, var):
         """Template for writing single variable"""
 
-        raise NotImplementedError, 'You should use one of the derived classes'
+        raise NotImplementedError('You should use one of the derived classes')
 
     def write(self,vars):
         """Merge file with definitions"""
@@ -177,9 +182,9 @@ class PrintVars:
         self.print_warning()
         for l in self.infile.readlines():
             for token in self.handletoken:
-                if string.find(l,token) is not -1:
+                if l.find(token) is not -1:
                     break
-            if string.find(l,token) is not -1:
+            if l.find(token) is not -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             else:
@@ -247,9 +252,9 @@ class PrintNC_template(PrintVars):
             for k in module.keys():
                 l = l.replace(k.upper(),module[k])
             for token in self.handletoken:
-                if string.find(l,token) is not -1:
+                if l.find(token) is not -1:
                     break
-            if string.find(l,token) is not -1:
+            if l.find(token) is not -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             elif '!GENVAR_DIMS!' in l:
@@ -275,7 +280,7 @@ class PrintNC_template(PrintVars):
     def print_vardef(self,var):
         """Write single variable block to stream for ncdf_file."""
 
-        dims = string.split(var['dimensions'],',')
+        dims = var['dimensions'].split(',')
         dims.reverse()
         dimstring = dimid(dims[0].strip())
         for d in dims[1:]:
@@ -319,6 +324,20 @@ class PrintNC_template(PrintVars):
                                                                                             attrib))
                 self.stream.write("%s         '%s')\n"%(spaces*' ', var[attrib]))
         if not is_dimvar(var):
+           #WHL, 8/19: Adding _FillValue and missing_value as attributes. For now, assume 1.0e20 for floats, 1.0d20 for doubles.
+            #          For integers, set to the smallest (i.e., most negative) 4-byte integer.
+            #          I found that Ferret sometimes has trouble plotting values of 0.0 when _FillValue and missing_value are not set.
+            if var['type'] == 'float':
+                self.stream.write("%s    if (get_xtype(outfile,NF90_FLOAT) == NF90_DOUBLE) then\n"%(spaces*' '))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, '_FillValue', 1.0d20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'missing_value', 1.0d20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    elseif (get_xtype(outfile,NF90_FLOAT) == NF90_FLOAT) then\n"%(spaces*' '))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, '_FillValue', 1.0e20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'missing_value', 1.0e20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    endif\n"%(spaces*' '))
+            elif var['type'] == 'int':
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '_FillValue', -2147483647)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, 'missing_value', -2147483647)\n"%(spaces*' ',idstring))
             self.stream.write("%s    if (glimmap_allocated(model%%projection)) then\n"%(spaces*' '))
             self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'grid_mapping',glimmer_nc_mapvarname)\n"%(spaces*' ',idstring))
             attrib='coordinates'
@@ -340,7 +359,7 @@ class PrintNC_template(PrintVars):
     def print_dimensions(self):
         """Set up dimensions."""
 
-        dims = dimensions.keys()
+        dims = list(dimensions.keys())
         dims.sort()
         # generate list of dimension ids
         for d in dims:
@@ -361,7 +380,7 @@ class PrintNC_template(PrintVars):
     def print_checkdims(self):
         """Produce code for checking dimension sizes"""
 
-        dims = dimensions.keys()
+        dims = list(dimensions.keys())
         dims.sort()
         for d in dims:
             if dimensions[d]!='-1':
@@ -380,7 +399,7 @@ class PrintNC_template(PrintVars):
 
         # skip variables associated with dimension 
         if not is_dimvar(var):
-            dims = string.split(var['dimensions'],',')
+            dims = var['dimensions'].split(',')
             dims.reverse()
             for i in range(0,len(dims)):
                 dims[i] = dims[i].strip()
@@ -403,6 +422,9 @@ class PrintNC_template(PrintVars):
                 #*MJH* added to deal w/ writing of vars associated w/ stag vert coord w/bnd
                 elif dims[i] == 'stagwbndlevel':
                     dimstring = dimstring + 'up+1'  # goes to index up+1
+                #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
+                elif dims[i] == 'zocn':
+                    dimstring = dimstring + 'up'
                 else:
                     dimstring = dimstring + '1'
                 
@@ -423,11 +445,23 @@ class PrintNC_template(PrintVars):
                 spaces = ' '*3
                 self.stream.write("       do up=0,NCO%nstagwbndlevel\n")  # starts with index 0
 
+            #*WHL* added to handle writing of vars associated w/ ocean vert coord
+            if  'zocn' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%nzocn\n")
+
             data = var['data']
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
-            self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
-                                                                                                               spaces,data, dimstring))
+
+            #WHL: Call parallel_put_var to write scalars; else call distributed_put_var
+            if dimstring == 'outfile%timecounter':   # scalar variable; no dimensions except time
+                self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
+            else:
+                self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, parallel, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
             self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
 
             if  'level' in dims:
@@ -441,6 +475,10 @@ class PrintNC_template(PrintVars):
             if  'stagwbndlevel' in dims:
                 self.stream.write("       end do\n")
 
+            #*WHL* added to handle writing of vars associated w/ ocean vert coord
+            if  'zocn' in dims:
+                self.stream.write("       end do\n")
+
             # remove self since it's not time dependent
             if 'time' not in dims:
                 self.stream.write("       NCO%%do_var(%s) = .False.\n"%(var_type(var)))
@@ -452,7 +490,7 @@ class PrintNC_template(PrintVars):
 
         if 'load' in var:
             if var['load'].lower() in ['1','true','t']:
-                dims = string.split(var['dimensions'],',')
+                dims = var['dimensions'].split(',')
                 dims.reverse()
                 for i in range(0,len(dims)):
                     dims[i] = dims[i].strip()
@@ -475,6 +513,9 @@ class PrintNC_template(PrintVars):
                     #*MJH* added to deal w/ writing of vars associated w/ stag vert coord w/ bnd
                     elif dims[i] == 'stagwbndlevel':
                         dimstring = dimstring + 'up+1'   # goes to index up+1
+                    #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
+                    elif dims[i] == 'zocn':
+                        dimstring = dimstring + 'up'
                     else:
                         dimstring = dimstring + '1'
 
@@ -495,8 +536,19 @@ class PrintNC_template(PrintVars):
                     spaces = ' '*3
                     self.stream.write("       do up=0,NCI%nstagwbndlevel\n")  # starts at index 0
 
-                self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
-                                                                                                               spaces,var['data'], dimstring))
+                #*WHL* added to handle writing of vars associated w/ ocean vert coord
+                if  'zocn' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%nzocn\n")
+
+                #WHL: Call parallel_get_var to get scalars; else call distributed_get_var
+                if dimstring == 'infile%current_time':   # scalar variable; no dimensions except time
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
+                                                                                                                   spaces,var['data']))
+                else:
+                    self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, parallel, (/%s/))\n"%(spaces,
+                                                                                      spaces,var['data'], dimstring))
                 self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
                 self.stream.write("%s       status = parallel_get_att(NCI%%id, varid,'scale_factor',scaling_factor)\n"%(spaces))
                 self.stream.write("%s       if (status.ne.NF90_NOERR) then\n"%(spaces))
@@ -514,6 +566,20 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data']))
                 self.stream.write("%s       end if\n"%(spaces))
 
+                #*WHL* added to read x1 and y1 into global arrays called x1_global and y1_global
+                if var['name'] == 'x1' or var['name'] == 'y1':
+                    self.stream.write("%s       ! Also read this variable into a global array\n"%(spaces))
+                    name_global = var['name']+'_global'
+                    data_global = var['data']+'_global'
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
+                                                                                                               spaces,data_global))
+                    self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
+                    self.stream.write("%s       if (abs(scaling_factor-1.0d0).gt.1.d-17) then\n"%(spaces))
+                    self.stream.write("%s          call write_log(\"scaling %s\",GM_DIAGNOSTIC)\n"%(spaces,name_global))
+                    self.stream.write("%s          %s = &\n"%(spaces,data_global))
+                    self.stream.write("%s               %s*scaling_factor\n"%(spaces,data_global))
+                    self.stream.write("%s       end if\n"%(spaces))
+
                 if  'level' in dims:
                     self.stream.write("       end do\n")
 
@@ -523,6 +589,10 @@ class PrintNC_template(PrintVars):
 
                 #*MJH* added to handle writing of vars associated w/ stag vert coord w/ bnd
                 if  'stagwbndlevel' in dims:
+                    self.stream.write("       end do\n")
+
+                #*WHL* added to handle writing of vars associated w/ ocean vert coord
+                if  'zocn' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13
@@ -535,7 +605,7 @@ class PrintNC_template(PrintVars):
     def print_var_accessor(self,var):
         """Write accessor function to stream."""
 
-        dims = string.split(var['dimensions'],',')
+        dims = var['dimensions'].split(',')
         dimlen = len(dims)-1
         if dimlen>0:
             dimstring = ", dimension(:"+",:"*(dimlen-1)+")"
@@ -546,6 +616,7 @@ class PrintNC_template(PrintVars):
             self.stream.write("  subroutine %s_get_%s(data,outarray)\n"%(module['name'],var['name']))
             self.stream.write("    use glimmer_scales\n")
             self.stream.write("    use glimmer_paramets\n")
+            self.stream.write("    use glimmer_physcon\n")
             self.stream.write("    use %s\n"%module['datamod'])
             self.stream.write("    implicit none\n")
             self.stream.write("    type(%s) :: data\n"%module['datatype'])
@@ -570,6 +641,7 @@ class PrintNC_template(PrintVars):
                 self.stream.write("  subroutine %s_set_%s(data,inarray)\n"%(module['name'],var['name']))
                 self.stream.write("    use glimmer_scales\n")
                 self.stream.write("    use glimmer_paramets\n")
+                self.stream.write("    use glimmer_physcon\n")
                 self.stream.write("    use %s\n"%module['datamod'])
                 self.stream.write("    implicit none\n")
                 self.stream.write("    type(%s) :: data\n"%module['datatype'])
@@ -616,12 +688,12 @@ class PrintNC_template(PrintVars):
 def usage():
     """Short help message."""
 
-    print 'Usage generate_ncvars.py vardef [outfile0.in [,... [,outfileN.in]]]'
-    print 'generate source code files given a variable definition file'
-    print ''
-    print 'vardef: file containing variable definition'
-    print 'outfile.in: output template to be processed'
-    print 'print variables if no templates are given'
+    print('Usage generate_ncvars.py vardef [outfile0.in [,... [,outfileN.in]]]')
+    print('generate source code files given a variable definition file')
+    print('')
+    print('vardef: file containing variable definition')
+    print('outfile.in: output template to be processed')
+    print('print variables if no templates are given')
 
 HandleFile={}
 HandleFile['ncdf_template.F90.in'] = PrintNC_template
@@ -632,16 +704,16 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         usage()
         sys.exit(1)
-
+    
     vars = Variables(sys.argv[1])
 
     if len(sys.argv) == 2:
         for v in vars.keys():
-            print v
+            print(v)
             for o in vars[v]:
-                print '%s: %s'%(o, vars[v][o])
-            print ''
-            print module
+                print('{}: {}'.format(o, vars[v][o]))
+            print('')
+            print(module)
     else:
         for f in sys.argv[2:]:
             base_f = os.path.basename(f)

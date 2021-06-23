@@ -13,34 +13,36 @@ name:     glint_mbal
 datatype: glint_instance
 # module where type is defined
 datamod:  glint_type
+# path to parallel derived type
+datapath: data%model
 
 [x0]
 dimensions:    x0
 units:         meter
 long_name:     Cartesian x-coordinate, velocity grid
 standard_name: projection_x_coordinate
-dimlen:        global_ewn-1
+dimlen:        model%parallel%global_ewn-1
 
 [y0]
 dimensions:    y0
 units:         meter
 long_name:     Cartesian y-coordinate, velocity grid
 standard_name: projection_y_coordinate
-dimlen:        global_nsn-1
+dimlen:        model%parallel%global_nsn-1
 
 [x1]
 dimensions:    x1
 units:         meter
 long_name:     Cartesian x-coordinate
 standard_name: projection_x_coordinate
-dimlen:        global_ewn
+dimlen:        model%parallel%global_ewn
 
 [y1]
 dimensions:    y1
 units:         meter
 long_name:     Cartesian y-coordinate
 standard_name: projection_y_coordinate
-dimlen:        global_nsn
+dimlen:        model%parallel%global_nsn
 
 # --- MJH  8/29/2014 -----------------------------------------------
 # Because glint is calling glide_nc_fillall() these glide dimension variables

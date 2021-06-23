@@ -13,7 +13,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -43,6 +43,8 @@ module glint_initialise
 
   use glint_type
   use glimmer_global, only: dp
+  use cism_parallel, only: main_task
+
   implicit none
 
   private
@@ -60,7 +62,7 @@ contains
 
     !> Initialise a GLINT ice model instance
 
-    use glimmer_paramets, only: GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG, thk0
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -75,7 +77,6 @@ contains
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
 
     implicit none
 
@@ -292,7 +293,7 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%timecounter)
+                                 tstep_count = instance%model%numerics%tstep_count)
 
     ! Write netCDF output for this instance
 
@@ -319,7 +320,7 @@ contains
 
     ! Initialise a GLINT ice model instance for GCM coupling
 
-    use glimmer_paramets, only: GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG, thk0
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -334,7 +335,6 @@ contains
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
 
     implicit none
 
@@ -536,7 +536,7 @@ contains
 
     call glide_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
-                                 tstep_count = instance%model%numerics%timecounter)
+                                 tstep_count = instance%model%numerics%tstep_count)
 
     ! Write netCDF output for this instance
 
@@ -579,7 +579,7 @@ contains
 
     call glide_calclsrf(instance%model%geometry%thck,instance%model%geometry%topg, &
          instance%model%climate%eus,instance%model%geometry%lsrf)
-    instance%model%geometry%usrf = instance%model%geometry%thck + instance%model%geometry%lsrf
+    instance%model%geometry%usrf = max(0.d0, instance%model%geometry%thck + instance%model%geometry%lsrf)
 
   end subroutine glint_i_readdata
 
@@ -599,9 +599,9 @@ contains
     
     use glint_type         , only : glint_instance
     use glint_global_grid  , only : global_grid
-    use parallel           , only : main_task, global_ewn, global_nsn, distributed_gather_var
     use glimmer_coordinates, only : coordsystem_new
     use glide_types        , only : get_dew, get_dns
+    use cism_parallel       , only : parallel_type, distributed_gather_var
 
     implicit none
 
@@ -615,9 +615,16 @@ contains
 
     integer, dimension(:,:), allocatable :: out_mask_fulldomain
 
+    type(parallel_type) :: parallel     ! info for parallel communication
+    integer :: global_ewn, global_nsn   ! global array dimensions
+
     ! Beginning of code
 
-    call distributed_gather_var(instance%out_mask, out_mask_fulldomain)
+    parallel = instance%model%parallel
+    global_ewn = instance%model%parallel%global_ewn
+    global_nsn = instance%model%parallel%global_nsn
+
+    call distributed_gather_var(instance%out_mask, out_mask_fulldomain, parallel)
 
     if (main_task) then
 

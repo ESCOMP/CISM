@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -33,8 +33,6 @@
 
 module glissade_velo
 
-    use parallel
-
     ! Driver for Glissade velocity solvers
 
     implicit none
@@ -53,6 +51,7 @@ contains
       use glissade_velo_higher, only: glissade_velo_higher_solve
       use glissade_velo_sia, only: glissade_velo_sia_solve
       use glide_mask
+      use profile, only: t_startf, t_stopf
 
       type(glide_global_type),intent(inout) :: model
 
@@ -84,30 +83,16 @@ contains
                              model%general%ewn-1,     model%general%nsn-1,       &
                              model%climate%eus,       model%geometry%stagmask)
 
-         if (model%options%which_ho_nonlinear == HO_NONLIN_PICARD ) then ! Picard (standard solver)
+         ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
+         !        before calling glissade_velo_higher_solve.
+         !       These updates are done in subroutine glissade_diagnostic_variable_solve
+         !        in module glissade.F90.
 
-            ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
-            !        before calling glissade_velo_higher_solve.
-            !       These updates are done in subroutine glissade_diagnostic_variable_solve
-            !        in module glissade.F90.
-
-            call t_startf('glissade_velo_higher_solver')
-            call glissade_velo_higher_solve(model,                                             &
-                                            model%general%ewn,      model%general%nsn,         &
-                                            model%general%upn)
-            call t_stopf('glissade_velo_higher_solver')
-
-         else if (model%options%which_ho_nonlinear == HO_NONLIN_JFNK) then
-
-            !TODO - Create a JFNK solver?
-
-            call write_log('JFNK not supported for Glissade velocity solver', GM_FATAL)
-
-         else   
-
-            call write_log('Invalid which_ho_nonlinear option.', GM_FATAL)
-
-         end if  ! which_ho_nonlinear
+         call t_startf('glissade_velo_higher_solver')
+         call glissade_velo_higher_solve(model,                                             &
+                                         model%general%ewn,      model%general%nsn,         &
+                                         model%general%upn)
+         call t_stopf('glissade_velo_higher_solver')
 
       endif   ! which_ho_approx
 

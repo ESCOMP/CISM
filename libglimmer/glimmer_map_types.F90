@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -106,6 +106,10 @@ module glimmer_map_types
      real(dp) :: ik0                                !< inverse of k0
      real(dp) :: sinp                               !< sin of latitude_of_projection_origin
      real(dp) :: cosp                               !< cos of latitude_of_projection_origin
+     !WHL - Added local area factor for stereographic projections.
+     ! TODO: Add area factor for other projections?
+     logical :: compute_area_factor = .false.
+     real(dp), dimension(:,:), pointer :: area_factor => null()   !< scale factor for area of each grid cell
   end type proj_stere
 
   ! Global mapping parameters ----------------------------------

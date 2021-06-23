@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -35,7 +35,8 @@ module profile
 
 #if (defined CCSMCOUPLED || defined CESMTIMERS)
   use perf_mod
-  use parallel
+  !TODO - Add an 'only' for 'use cism_parallel'?
+  use cism_parallel
 #endif
 
   use glimmer_global, only: dp

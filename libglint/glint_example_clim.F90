@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -235,6 +235,12 @@ contains
     if (params%gcm_smb) then
        call write_log ('Will pass surface mass balance (not PDD info) to Glint')
     endif
+
+    write(message,*)'Total years       :', params%total_years
+    call write_log(message)
+    call write_log('   NOTE: GLINT total years will override the end time in the ice sheet dycore')
+    write(message,*)'Climate tstep (hr):', params%climate_tstep
+    call write_log(message)
        
     call write_log('')
 
@@ -699,9 +705,11 @@ contains
     integer :: lower,upper
 
     real(dp) :: fyear
+    integer  :: nt     ! used to access the number of years of available forcing 
 
     ! Calculate fraction of year
-    fyear = real(mod(time,real(params%hours_in_year,dp))) / real(params%hours_in_year,dp)
+    nt = size(params%st_time)
+    fyear = mod(time / real(params%hours_in_year,dp), params%st_time(nt))
 
     ! Do temperature interpolation
     call bracket_point(fyear, params%st_time, lower, upper, pos)

@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -83,6 +83,7 @@ module glad_type
 
      real(dp),dimension(:,:),pointer :: artm => null() !> Annual mean air temperature
      real(dp),dimension(:,:),pointer :: acab => null() !> Annual mass balance (m/y water equiv)
+     real(dp),dimension(:,:,:),pointer :: thermal_forcing => null() !> 3-D thermal forcing field
 
      ! Arrays to accumulate mass-balance quantities --------------
 
@@ -128,14 +129,17 @@ contains
     integer,            intent(in)    :: force_start !> glad forcing start time (hours)
     
     integer :: ewn,nsn    ! dimensions of local grid
+    integer :: nzocn      ! dimnension of ocean layer
 
     ewn = get_ewn(instance%model)
     nsn = get_nsn(instance%model)
+    nzocn = get_nzocn(instance%model)
 
     ! First deallocate if necessary
 
     if (associated(instance%artm))          deallocate(instance%artm)
     if (associated(instance%acab))          deallocate(instance%acab)
+    if (associated(instance%thermal_forcing))    deallocate(instance%thermal_forcing)
 
     if (associated(instance%lat))           deallocate(instance%lat)
     if (associated(instance%lon))           deallocate(instance%lon)
@@ -149,6 +153,7 @@ contains
 
     allocate(instance%artm(ewn,nsn));          instance%artm = 0.d0
     allocate(instance%acab(ewn,nsn));          instance%acab = 0.d0
+    allocate(instance%thermal_forcing(nzocn,ewn,nsn));     instance%thermal_forcing = 0.d0
 
     allocate(instance%lat(ewn,nsn));           instance%lat  = 0.d0
     allocate(instance%lon(ewn,nsn));           instance%lon  = 0.d0
@@ -158,7 +163,7 @@ contains
     allocate(instance%hflx_tavg(ewn,nsn));    instance%hflx_tavg = 0.d0
     
     call initialize_glad_input_averages(instance%glad_inputs, ewn=ewn, nsn=nsn, &
-         next_av_start=force_start)
+         nzocn=nzocn, next_av_start=force_start)
 
     call initialize_glad_output_fluxes(instance%glad_output_fluxes, ewn=ewn, nsn=nsn)
     
@@ -220,7 +225,7 @@ contains
     implicit none
 
     type(glad_instance)         :: instance  !> GLAD instance
-    type(ConfigSection), pointer :: config !> structure holding sections of configuration file
+    type(ConfigSection), pointer :: config   !> structure holding sections of configuration file
     
     ! local variables
     type(ConfigSection), pointer :: section
@@ -234,7 +239,7 @@ contains
     ! setup outputs
     call GetSection(config,section,'GLAD output')
     do while(associated(section))
-       output => handle_output(section,output,0.d0,configstring)
+       output => handle_output(section,output,configstring)
        if (.not.associated(instance%out_first)) then
           instance%out_first => output
        end if
@@ -262,7 +267,7 @@ contains
 
     use glimmer_log
     use glad_constants, only: hours2years
-    use parallel, only: tasks
+    use cism_parallel, only: tasks
 
     implicit none
 

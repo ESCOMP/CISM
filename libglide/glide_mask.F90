@@ -4,7 +4,7 @@
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   Copyright (C) 2005-2014
+!   Copyright (C) 2005-2018
 !   CISM contributors - see AUTHORS file for list of contributors
 !
 !   This file is part of CISM.
@@ -35,20 +35,21 @@ module glide_mask
     ! masking ice thicknesses
 
     use glimmer_global, only : dp
+    use cism_parallel, only: lhalo, uhalo, parallel_type, parallel_halo, parallel_reduce_sum
 
     implicit none
 
 contains
 
-!TODO - Remove iarea and ivol calculation?  They can be computed elsewhere.
+!TODO - Remove iarea and ivol calculations?  They are now computed in glide_write_diag..
 
 !TODO - Write a new subroutine (in addition to glide_set_mask) to compute mask for staggered grid?
 !       This subroutine is now called from glissade_velo_driver with stagthck and stagtopg
 !       as input arguments.
 
-  subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask, iarea, ivol, exec_serial)
+  subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask, iarea, ivol, &
+                            exec_serial, parallel)
 
-    use parallel
     use glide_types
     use glimmer_physcon, only : rhoi, rhoo
     implicit none
@@ -60,7 +61,9 @@ contains
     real(dp), intent(in) :: eus                  ! Sea level
     integer, dimension(:,:), intent(inout) :: mask   ! Output mask
     real(dp), intent(inout), optional :: ivol, iarea ! Area and volume of ice
-    logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.
+
+    logical, optional :: exec_serial             !JEFF If executing in serial in MPI program.
+    type(parallel_type), optional :: parallel    ! info for parallel communication
 
     ! local variables
     integer ew,ns
@@ -179,21 +182,13 @@ contains
              MASK(ew,ns) = ior(MASK(ew,ns),GLIDE_MASK_MARGIN)
           end if
 
-!       The GLIDE_MASK_COMP_DOMAIN_BND condition is currently used in glam_strs2.F90.
-
-         !Mark domain boundaries
-         !if (ns == 1 .or. ns == nsn .or. ew == 1 .or. ew == ewn) then
-         if (parallel_boundary(ew,ewn,ns,nsn)) then
-! SFP: commenting out for now, while trying to get periodic bcs working
-!            mask(ew, ns) = ior(mask(ew, ns), GLIDE_MASK_COMP_DOMAIN_BND)
-         end if
        end do
     end do
 
     !JEFF Don't call halo update if running in serial mode
     !WHL - I think the halo update will now work in serial mode.
-    if (.NOT. exec_serial_flag) then
-       call parallel_halo(mask)
+    if (.NOT. exec_serial_flag .and. present(parallel)) then
+       call parallel_halo(mask, parallel)
     endif
 
   end subroutine glide_set_mask
@@ -223,7 +218,9 @@ contains
   end subroutine augment_kinbc_mask
 
   subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
-    use parallel
+
+    use glimmer_paramets, only : len0, thk0
+
     implicit none
     real(dp), dimension(:,:) :: thck
     real(dp) :: dew, dns, thklim
@@ -247,17 +244,20 @@ contains
     if (.NOT. exec_serial) then
        sum(1) = iarea
        sum(2) = ivol
-       call global_sum(sum)
+       sum = parallel_reduce_sum(sum)
        iarea = sum(1)
        ivol  = sum(2)
     endif
+
+    ! convert from model units to SI units
+    iarea = iarea*len0*len0
+    ivol = ivol*len0*len0*thk0
 
   end subroutine get_area_vol
  
   subroutine calc_iareaf_iareag(dew, dns, mask, iareaf, iareag, exec_serial)
     
-    use parallel
-
+    use glimmer_paramets, only : len0 
     implicit none
     real(dp), intent(in) :: dew, dns
     real(dp), intent(out) :: iareaf, iareag
@@ -293,19 +293,23 @@ contains
     if (.NOT. exec_serial_flag) then
        sum(1) = iareaf
        sum(2) = iareag
-       call global_sum(sum)
+       sum = parallel_reduce_sum(sum)
        iareaf = sum(1)
        iareag = sum(2)
     endif
 
+    ! convert from model units to SI units (m^2)
+    iareag = iareag*len0*len0
+    iareaf = iareaf*len0*len0
+
   end subroutine calc_iareaf_iareag
 
-    subroutine glide_marine_margin_normal(thck, mask, marine_bc_normal, exec_serial)
+    subroutine glide_marine_margin_normal(thck, mask, marine_bc_normal, &
+                                          exec_serial, parallel)
 
       !TODO - Remove subroutine glide_marine_margin_normal?  Old PBJ routine.
       !       Also can remove calc_normal_45deg
 
-      use parallel
         use glimmer_physcon, only:pi
         implicit none
         !> This subroutine derives from the given mask the normal to an ice shelf
@@ -313,7 +317,9 @@ contains
         real(dp), dimension(:,:), intent(in) :: thck
         integer, dimension(:,:), intent(in) :: mask
         real(dp), dimension(:,:), intent(out) :: marine_bc_normal
-        logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.
+
+        logical, optional :: exec_serial  !JEFF If executing in serial in MPI program
+        type(parallel_type), optional :: parallel    ! info for parallel communication
 
         integer :: i, j, dx, dy, k
         logical :: exec_serial_flag
@@ -391,10 +397,10 @@ contains
                 end if
             end do
         end do
-        if (.NOT. exec_serial_flag) then
-           call parallel_halo(marine_bc_normal)
+        if (.NOT. exec_serial_flag .and. present(parallel)) then
+           call parallel_halo(marine_bc_normal, parallel)
         endif
-    end subroutine
+      end subroutine glide_marine_margin_normal
 
     function calc_normal_45deg(thck3x3)
         use glimmer_physcon, only: pi
@@ -492,11 +498,14 @@ contains
     !marine ice margin, where upwinding and downwinding is used to avoid
     !differencing across the boundary.
 
-    subroutine upwind_from_mask(mask, direction_x, direction_y, exec_serial)
-      use parallel
+    subroutine upwind_from_mask(mask, direction_x, direction_y, &
+                                exec_serial, parallel)
+
         integer, dimension(:,:), intent(in) :: mask
         double precision, dimension(:,:), intent(out) :: direction_x, direction_y
+
         logical, optional :: exec_serial  !JEFF If executing in serial in MPI program.
+        type(parallel_type), optional :: parallel    ! info for parallel communication
 
         integer :: i,j
         logical :: exec_serial_flag
@@ -580,9 +589,9 @@ contains
             end do
         end do
 
-        if (.NOT. exec_serial_flag) then
-            call parallel_halo(direction_x)
-            call parallel_halo(direction_y)
+        if (.NOT. exec_serial_flag .and. present(parallel)) then
+            call parallel_halo(direction_x, parallel)
+            call parallel_halo(direction_y, parallel)
         endif
 
     end subroutine upwind_from_mask
