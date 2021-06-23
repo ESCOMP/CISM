@@ -43,6 +43,9 @@ module glad_initialise
 
   use glad_type
   use glimmer_global, only: dp
+! use glc_constants, only : stdout     ! BK for debugging -- module not available
+  use glimmer_paramets, only: stdout   ! BK for debugging
+  use shr_sys_mod, only: shr_sys_flush ! BK for debugging
   implicit none
 
   private
@@ -91,6 +94,8 @@ contains
 
     integer :: config_fileunit
 
+    character(*), parameter :: subName = "(glad_i_initialise_gcm) "
+
     config_fileunit = 99
     if (present(gcm_config_unit)) then
        config_fileunit = gcm_config_unit
@@ -98,6 +103,7 @@ contains
 
     ! initialise model
 
+    write(stdout,*) subName,"call glide_config" ; call shr_sys_flush(stdout)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart
@@ -110,6 +116,7 @@ contains
          if (present(gcm_restart_file)) then
 
             ! read the restart file
+            write(stdout,*) subName,"call glad_read_restart_gcm" ; call shr_sys_flush(stdout)
             call glad_read_restart_gcm(instance%model, gcm_restart_file)
             instance%model%options%is_restart = 1
  
@@ -126,17 +133,21 @@ contains
     if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
 
        ! initialise the model
+       write(stdout,*) subName,"call glide_initialise" ; call shr_sys_flush(stdout)
        call glide_initialise(instance%model)
 
        ! compute the initial diagnostic state
+       write(stdout,*) subName,"call glide_init_state_diagnostic" ; call shr_sys_flush(stdout)
        call glide_init_state_diagnostic(instance%model)
 
     else       ! glam/glissade HO dycore     
 
        ! initialise the model
+       write(stdout,*) subName,"call glissade_initialise" ; call shr_sys_flush(stdout)
        call glissade_initialise(instance%model)
 
        ! compute the initial diagnostic state
+       write(stdout,*) subName,"call glissade_diagnostic_variable_solve" ; call shr_sys_flush(stdout)
        call glissade_diagnostic_variable_solve(instance%model)
 
     endif
@@ -147,6 +158,7 @@ contains
 
     ! read glad configuration
 
+    write(stdout,*) subName,"call glad_i_readconfig" ; call shr_sys_flush(stdout)
     call glad_i_readconfig(instance, config)    
     call glad_i_printconfig(instance)    
 
@@ -266,6 +278,8 @@ contains
     call glide_io_writeall(instance%model, instance%model)
     call glad_io_writeall(instance, instance%model)
     call glad_mbal_io_writeall(instance, instance%model, outfiles=instance%out_first)
+
+    write(stdout,*) subName,"exit" ; call shr_sys_flush(stdout)
 
   end subroutine glad_i_initialise_gcm
 
