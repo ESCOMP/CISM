@@ -63,9 +63,6 @@ module glissade
   use glimmer_config
   use glissade_test, only: glissade_test_halo, glissade_test_transport
 
-  use glimmer_paramets, only: stdout   ! BK for debugging
-  use shr_sys_mod, only: shr_sys_flush ! BK for debugg
-
   implicit none
 
   integer, private, parameter :: dummyunit=99
@@ -127,7 +124,6 @@ contains
     character(len=100), external :: glimmer_version_char
 
     integer :: i, j
-    character(*),parameter :: subName = "(glissade_initialise) "
 
     call write_log(trim(glimmer_version_char()))
 
@@ -210,7 +206,6 @@ contains
     ! If no bheatflx field is present in the input file, then we default to the 
     !  prescribed uniform value, model%paramets%geot.
 
-    write(stdout,*) subName,"if (model%options%gthf == GTHF_UNIFORM) " ; call shr_sys_flush(stdout)
     if (model%options%gthf == GTHF_UNIFORM) then
 
        ! Check to see if this flux was present in the input file
@@ -225,7 +220,6 @@ contains
 
     endif
 
-    write(stdout,*) subName,"initialise glissade components " ; call shr_sys_flush(stdout)
     ! initialise glissade components
 
     ! Update some variables in halo cells
@@ -252,7 +246,6 @@ contains
 
     !TODO - Remove glissade_init_temp option
     if (call_glissade_therm) then
-       write(stdout,*) subName,"call glissade_init_therm " ; call shr_sys_flush(stdout)
        call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
                                 model%general%ewn,          model%general%nsn,         &
                                 model%general%upn,                                     &
@@ -261,12 +254,10 @@ contains
                                 model%climate%artm,                                    & ! deg C
                                 model%temper%temp)                                       ! deg C
     else
-       write(stdout,*) subName,"call glissade_init_temp " ; call shr_sys_flush(stdout)
        call glissade_init_temp(model)
     endif
 
     ! Initialize basal hydrology model, if enabled
-    write(stdout,*) subName,"call bwater_init " ; call shr_sys_flush(stdout)
     call bwater_init(model)
 
     if (model%options%gthf == GTHF_COMPUTE) then

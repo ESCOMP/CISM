@@ -46,7 +46,6 @@ module glad_main
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   
   use glimmer_paramets, only: stdout, GLC_DEBUG
-  use shr_sys_mod, only: shr_sys_flush
 
   implicit none
   private
@@ -166,13 +165,8 @@ contains
     ! Internal variables -----------------------------------------------------------------------
 
     type(ConfigSection), pointer :: global_config
-
-    character(*),parameter :: subName = "(glad_initialize) "
     
     ! Begin subroutine code --------------------------------------------------------------------
-
-    write(stdout,*) subName,"enter..."
-    call shr_sys_flush(stdout)
 
 
     if (present(gcm_debug)) then
@@ -243,8 +237,6 @@ contains
        allocate(params%config_fnames(params%ninstances))
        params%config_fnames(:) = paramfile(:)
     end if
-    write(stdout,*) subName,'Number of instances =', params%ninstances
-    call shr_sys_flush(stdout)
 
     allocate(params%instances(params%ninstances))
 
@@ -275,18 +267,13 @@ contains
 
     integer :: forcing_start_time
     type(ConfigSection), pointer :: instance_config
-    character(*),parameter :: subName = "(glad_initialize_instance) "
     
     ! Begin subroutine code --------------------------------------------------------------------
 
-    write(stdout,*) subName,'instance index = ', instance_index
-    call shr_sys_flush(stdout)
     if (GLC_DEBUG .and. main_task) then
        write(stdout,*) 'Read config file and initialize instance #', instance_index
     end if
 
-    write(stdout,*) subName,"call ConfigRead"
-    call shr_sys_flush(stdout)
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
          instance_config, params%gcm_fileunit)
 
@@ -296,14 +283,12 @@ contains
        forcing_start_time = params%start_time
     end if
 
-    write(stdout,*) subName,"call glad_i_initialise_gcm"
-    call shr_sys_flush(stdout)
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
                                forcing_start_time,  params%time_step,        &
                                params%gcm_restart,  params%gcm_restart_file, &
                                params%gcm_fileunit, test_coupling )
 
-    params%instances(instance_index)%region_index = instance_index ! BK
+    params%instances(instance_index)%region_index = instance_index
 
   end subroutine glad_initialize_instance
 
@@ -620,11 +605,7 @@ contains
 
     integer :: av_start_time  ! value of time from the last occasion averaging was restarted (hours)
 
-    character(*),parameter :: subName = "(glad_gcm) "
-
     ! Begin subroutine code --------------------------------------------------------------------
-
-    write(stdout,*) subName,'enter, instance index = ', instance_index
 
     ! Reset output flag
 
@@ -743,7 +724,6 @@ contains
        if (GLC_DEBUG .and. main_task) then
           write(stdout,*) 'Done in glad_gcm'
        endif
-       write(stdout,*) subName,'exit, instance index = ', instance_index
 
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
 

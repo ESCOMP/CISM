@@ -58,8 +58,6 @@ module glissade_therm
     use glide_types
     use glimmer_log
     use parallel
-    use glimmer_paramets, only: stdout   ! BK for debugging
-    use shr_sys_mod, only: shr_sys_flush ! BK for debugging
 
     implicit none
 
@@ -130,17 +128,10 @@ module glissade_therm
 
     integer :: up, ns, ew
 
-    logical, save :: firstCall = .true. ! BK hack wrt dups should not be a module variable
-    character(*),parameter :: subName = "(glissade_init_therm) " ; call shr_sys_flush(stdout)
-
-    write(stdout,*) subName,"allocate(dups(upn+1,2)) BEFORe " ; call shr_sys_flush(stdout)
     ! Precompute some grid quantities used in the vertical temperature solve
  
-    if (firstCall) allocate(dups(upn+1,2))   !TODO - upn-1 instead?
-!   allocate(dups(upn+1,2))   !TODO - upn-1 instead?
-    firstCall = .false.
+    allocate(dups(upn+1,2))   !TODO - upn-1 instead?
     dups(:,:) = 0.0d0
-    write(stdout,*) subName,"allocate(dups(upn+1,2)) AFTER " ; call shr_sys_flush(stdout)
 
     up = 1
     dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - sigma(up)) )
@@ -167,7 +158,6 @@ module glissade_therm
                    // 'Glissade dycore must be initialized with tempstag, not temp.', GM_FATAL)
     endif
 
-    write(stdout,*) subName,"Initialize ice temperature " ; call shr_sys_flush(stdout)
     !==== Initialize ice temperature.============
     ! Five possibilities:
     ! (1) Set ice temperature to 0 C everywhere in column (TEMP_INIT_ZERO)
@@ -230,7 +220,6 @@ module glissade_therm
        end do
        
     endif    ! restart file, input file, or other options
-    write(stdout,*) subName,"exit"
 
   end subroutine glissade_init_therm
 

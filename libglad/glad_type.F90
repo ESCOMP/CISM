@@ -40,7 +40,6 @@ module glad_type
   use glad_input_averages, only : glad_input_averages_type, initialize_glad_input_averages
   use glad_mbal_coupling, only : glad_mbc
   use glad_output_fluxes, only : glad_output_fluxes_type, initialize_glad_output_fluxes
-! use history_tape_base , only : history_tape_base_type BK
   
   implicit none
 
@@ -64,7 +63,6 @@ module glad_type
 
      character(32)                    :: region_code = "xxx"!> short string to ID instance's region in history & restart files
      integer                          :: region_index = -1  !> the index number of this region instance
-!    class(history_tape_base_type), allocatable :: history_tape !> a history tape that belongs to this instance BK: can't be at this low level
 
      type(coordsystem_type)           :: lgrid              !> Local grid for interfacing with glide (grid on this task)
                                                             !> (WJS: Note that origin may be incorrect with multiple tasks;
