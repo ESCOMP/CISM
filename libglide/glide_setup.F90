@@ -883,11 +883,10 @@ contains
          'advective-diffusive balance ',&
          'temp from external file     ' /)
 
-    character(len=*), dimension(0:3), parameter :: flow_law = (/ &
-         'const 1e-16 Pa^-n a^-1      ', &
+    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+         'uniform factor flwa         ', &
          'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ', &
-         'read flwa/flwastag from file' /)
+         'Paterson and Budd           ' /)
 
     !TODO - Rename slip_coeff to which_btrc?
     character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &
@@ -2034,9 +2033,9 @@ contains
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
