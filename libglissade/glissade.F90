@@ -1899,7 +1899,7 @@ contains
                                 model%temper%btemp_ground,                                    & ! deg C
                                 model%temper%btemp_float,                                     & ! deg C
                                 bmlt_ground_unscaled)                                           ! m/s
-                                     
+
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
 
@@ -1977,6 +1977,7 @@ contains
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
+    use glide_stop, only: glide_finalise
 
     implicit none
 
@@ -2165,21 +2166,25 @@ contains
                                model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
                                model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
                                model%numerics%dt_transport * tim0 / scyr,                                      &
+                               model%numerics%adaptive_cfl_threshold,                                          &
                                model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt)
 
        ! Set the transport timestep.
        ! The timestep is model%numerics%dt by default, but optionally can be reduced for subcycling
 
+       !WHL - debug
+!      if (main_task) then
+!         print*, 'Checked advective CFL threshold'
+!         print*, 'model dt (yr) =', model%numerics%dt * tim0/scyr
+!         print*, 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
+!      endif
+
+       advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+
        if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
 
-          !WHL - debug
-!          if (main_task) then
-!             print*, 'Check advective CFL threshold'
-!             print*, 'model dt (yr) =', model%numerics%dt * tim0/scyr
-!             print*, 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
-!          endif
+          ! subcycle the transport when advective_cfl exceeds the threshold
 
-          advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
           if (advective_cfl > model%numerics%adaptive_cfl_threshold) then
 
              ! compute the number of subcycles
@@ -2192,14 +2197,29 @@ contains
                 print*, 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
                 print*, 'nsubcyc =', nsubcyc
              endif
+
           else
              nsubcyc = 1
           endif
           dt_transport = model%numerics%dt * tim0 / real(nsubcyc,dp)   ! convert to s
 
        else  ! no adaptive subcycling
-          nsubcyc = model%numerics%subcyc
-          dt_transport = model%numerics%dt_transport * tim0  ! convert to s
+
+          advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+
+          ! If advective_cfl exceeds 1.0, then abort cleanly.  Otherwise, set dt_transport and proceed.
+          ! Note: Usually, it would be enough to write a fatal abort message.
+          !       The call to glide_finalise was added to allow CISM to finish cleanly when running
+          !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
+          if (advective_cfl > 1.0d0) then
+             if (main_task) print*, 'advective CFL violation; call glide_finalise and exit cleanly'
+             call glide_finalise(model, crash=.true.)
+             stop
+          else
+             nsubcyc = model%numerics%subcyc
+             dt_transport = model%numerics%dt_transport * tim0  ! convert to s
+          endif
+
        endif
 
        !-------------------------------------------------------------------------
