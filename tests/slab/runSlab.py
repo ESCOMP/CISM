@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-#FIXME: More detailed description of this test case!!!
 """
 Run an experiment with an ice "slab". 
 """
@@ -8,10 +7,12 @@ Run an experiment with an ice "slab".
 # Authors
 # -------
 # Modified from dome.py by Matt Hoffman, Dec. 16, 2013
-#    Test case described in sections 5.1-2 of:
-#    J.K. Dukoqicz, 2012. Reformulating the full-Stokes ice sheet model for a 
-#    more efficient computational solution. The Cryosphere, 6, 21-34. www.the-cryosphere.net/6/21/2012/
-# Reconfigured by Joseph H Kennedy at ORNL on April 27, 2015 to work with the regression testing
+#    Test case described in sections 5.1- 5.2 of:
+#    J.K. Dukowicz, 2012. Reformulating the full-Stokes ice sheet model for a
+#    more efficient computational solution. The Cryosphere, 6, 21-34,
+#    https://doi.org/10.5194/tc-6-21-2012.
+# Reconfigured by Joseph H Kennedy at ORNL on April 27, 2015 to work with the regression testing.
+# Revised by William Lipscomb in 2021 to support more options.
 
 import os
 import sys
@@ -19,10 +20,10 @@ import errno
 import subprocess
 import configparser 
 
-import numpy
+import numpy as np
 import netCDF
-from math import sqrt, tan, pi, cos
 
+from math import sqrt, sin, cos, tan, pi
 
 # Parse the command line options
 # ------------------------------
@@ -56,11 +57,36 @@ parser.add_argument('-q', '--quiet', action='store_true',
 parser.add_argument('-s','--setup-only', action='store_true',
         help="Set up the test, but don't actually run it.")
 
-
-# Additional test specific options:
-#parser.add_argument('--scale', type=unsigned_int, default=0, 
-#        help="Scales the problem size by 2**SCALE. SCALE=0 creates a 31x31 grid, SCALE=1 " 
-#            +"creates a 62x62 grid, and SCALE=2 creates a 124x124 grid.")
+# Additional options to set grid, solver, physics parameters, etc.:
+#Note: The default mu_n = 0.0 is not actually used.
+#      Rather, mu_n is computed below, unless mu_n > 0 is specified in the command line.
+#      For n = 1, the default is mu_1 = 1.0e6 Pa yr.
+parser.add_argument('-a','--approx', default='BP',
+        help="Stokes approximation (SIA, SSA, BP, L1L2, DIVA)")
+parser.add_argument('-beta','--beta', default=2000.0,
+        help="Friction parameter beta (Pa (m/yr)^{-1})")
+parser.add_argument('-dh','--delta_thck', default=0.0,
+        help="Thickness perturbation (m)")
+parser.add_argument('-dt','--tstep', default=0.01,
+        help="Time step (yr)")
+parser.add_argument('-gn','--glen_exponent', default=1,
+        help="Exponent in Glen flow law")
+parser.add_argument('-l','--levels', default=10,
+        help="Number of vertical levels")
+parser.add_argument('-mu','--mu_n', default=0.0,
+        help="Viscosity parameter mu_n (Pa yr^{1/n})")
+parser.add_argument('-nt','--n_tsteps', default=0,
+        help="Number of timesteps")
+parser.add_argument('-nx','--nx_grid', default=50,
+        help="Number of grid cells in x direction")
+parser.add_argument('-ny','--ny_grid', default=5,
+        help="Number of grid cells in y direction")
+parser.add_argument('-r','--resolution', default=100.0,
+        help="Grid resolution (m)")
+parser.add_argument('-theta','--theta', default=5.0,
+        help="Slope angle (deg)")
+parser.add_argument('-thk','--thickness', default=1000.0,
+        help="Ice thickness (m)")
 
 
 # Some useful functions
@@ -112,28 +138,11 @@ def prep_commands(args, config_name):
 
     return commands
 
-
-# Hard coded test specific parameters
 # -----------------------------------
-#FIXME: Some of these could just be options!
-
-# Physical parameters 
-n = 1 # flow law parameter - only the n=1 case is currently supported
-# (implementing the n=3 case would probably require implementing a new efvs option in CISM)
-rhoi = 910.0 # kg/m3
-grav = 9.1801 # m^2/s
-
-# Test case parameters
-theta = 18  # basal inclination angle (degrees)  unpub. man. uses example with theta=18
-thickness = 1000.0  # m  thickness in the rotated coordinate system, not in CISM coordinates
+# Hard-cosed test case parameters
+rhoi = 917.0     # kg/m^3
+grav = 9.81      # m^2/s
 baseElevation = 1000.0 # arbitrary height to keep us well away from sea level
-
-efvs = 2336041.42829      # hardcoded in CISM for constant viscosity setting (2336041.42829 Pa yr)
-
-eta = 10.0   # unpub. man. uses example with eta=10.0
-beta = eta / thickness / efvs**-n / (rhoi * grav * thickness)**(n-1)  # Pa yr m^-1
-# Note: Fig. 3 in Ducowicz (2013) uses eta=18, where eta=beta*H/efvs
-  
   
 # the main script function
 # ------------------------
@@ -142,24 +151,24 @@ def main():
     Run the slab test.
     """
 
-    print("WARNING: THIS TEST CASE IS IN DEVELOPMENT. USE AT YOUR OWN RISK!")
-
     # check that file name modifier, if it exists, starts with a '-'
     if not (args.modifier == '') and not args.modifier.startswith('-') :
         args.modifier = '-'+args.modifier
          
     # get the configuration
     # ---------------------
+
+    dx = float(args.resolution)
+    dy = dx
+    nx = int(args.nx_grid)
+    ny = int(args.ny_grid)
+    nz = int(args.levels)
+    dt = float(args.tstep)
+    tend = float(args.n_tsteps) * dt
+
     try:
         config_parser = configparser.ConfigParser()
         config_parser.read( args.config )
-        
-        nz = int(config_parser.get('grid','upn'))
-        nx = int(config_parser.get('grid','ewn'))
-        ny = int(config_parser.get('grid','nsn'))
-        dx = float(config_parser.get('grid','dew'))
-        dy = float(config_parser.get('grid','dns'))
-        
         file_name = config_parser.get('CF input', 'name')
         root, ext = os.path.splitext(file_name)
 
@@ -169,7 +178,8 @@ def main():
         print(error)
         sys.exit(1)
     
-    res = str(nx).zfill(4)
+    res=str(int(dx)).zfill(5)  # 00100 for 100m, 01000 for 1000m, etc.
+
     if args.parallel > 0:
         mod = args.modifier+'.'+res+'.p'+str(args.parallel).zfill(3)
     else:
@@ -180,31 +190,145 @@ def main():
     out_name = root+mod+'.out'+ext
 
     
-    # Setup the domain
+    # Set up the domain
     # ----------------
-    offset = 1.0 * float(nx)*dx * tan(theta * pi/180.0)
 
-
-    # create the new config file
+    # Create the new config file
     # --------------------------
     if not args.quiet: 
         print("\nCreating config file: "+config_name)
     
+    # Set grid and time parameters
     config_parser.set('grid', 'upn', str(nz))
     config_parser.set('grid', 'ewn', str(nx))
     config_parser.set('grid', 'nsn', str(ny))
     config_parser.set('grid', 'dew', str(dx))
     config_parser.set('grid', 'dns', str(dy))
+    config_parser.set('time', 'dt',  str(dt))
+    config_parser.set('time', 'tend',str(tend))
+
+    # Set physics parameters that are needed to create the config file and the input netCDF file.
+    # Note: rhoi and grav are hardwired above.
+
+    # ice thickness
+    thickness = float(args.thickness)
+
+    # friction parameter beta (Pa (m/yr)^{-1})
+    beta = float(args.beta)
+
+    # basal inclination angle (degrees)
+    theta = float(args.theta)
+    theta_rad = theta * pi/180.0   # convert to radians
+
+    # flow law exponent
+    # Any value n >= 1 is supported.
+    gn = float(args.glen_exponent)
+
+    # Note: Fig. 3 in Dukowicz (2012) uses eta = 18 and theta = 18 deg.
+    #       This gives u(1) = 10.0 * u(0), where u(1) = usfc and u(0) = ubas.
+
+    # viscosity coefficient mu_n, dependent on n (Pa yr^{1/n})
+    #      The nominal default is mu_n = 0.0, but this value is never used.
+    #      If a nonzero value is specified on the command line, it is used;
+    #        else, mu_n is computed here.  The goal is to choose a value mu_n(n) that
+    #        will result in vertical shear similar to a default case with n = 1 and mu_1,
+    #        provided we have similar values of H and theta.
+    #      In the Dukowicz unpublished manuscript, the viscosity mu is given by
+    #             mu = mu_n * eps_e^[(1-n)/n], where eps_e is the effective strain rate.
+    #      For n = 1, we choose a default value of 1.0e6 Pa yr.
+    #      For n > 1, we choose mu_n (units of Pa yr^{1/n}) to match the surface velocity
+    #       we would have with n = 1 and the same values of H and theta.
+    #      The general velocity solution is
+    #      u(z') = u_b + du(z')
+    #        where u_b = rhoi * grav * sin(theta) * cos(theta) / beta
+    #          and du(z') = 2^{(1-n)/2}/(n+1) * sin^n(theta) * cos(theta)
+    #                     * (rhoi*grav*H/mu_n)^n * H * [1 - (1 - z'/H)^{n+1}]
+    #      For z' = H and general n, we have
+    #             du_n(H) = 2^{(1-n)/2}/(n+1) * sin^n(theta) * cos(theta)
+    #                     * (rhoi*grav*H/mu_n)^n * H
+    #      For z' = H and n = 1, we have
+    #             du_1(H) = (1/2) * sin(theta) * cos(theta) * (rhoi*grav*H/mu_1) * H
+    #      If we equate du_n(H) with du_1(H), we can solve for mu_n:
+    #              mu_n = [ 2^{(3-n)/(2n)}/(n+1) * sin^{n-1}(theta) * (rhoi*grav*H)^{n-1} * mu_1 ]^{1/n}
+    #              with units Pa yr^{1/n}
+    #      This value should give nearly the same shearing velocity du(H) for exponent n > 1
+    #        as we would get for n = 1, given mu_1 and the same values of H and theta.
+
+    if float(args.mu_n) > 0.0:
+        mu_n = float(args.mu_n)
+        mu_n_pwrn = mu_n**gn
+    else:
+        mu_1 = 1.0e6   # default value for mu_1 (Pa yr)
+        mu_n_pwrn = 2.0**((3.0-gn)/2.0)/(gn+1.0) * sin(theta_rad)**(gn-1.0) \
+                  * (rhoi*grav*thickness)**(gn-1.0) * mu_1   # (mu_n)^n
+        mu_n = mu_n_pwrn**(1.0/gn)
+
+    # Given mu_n, compute the temperature-independent flow factor A = 1 / [2^((1+n)/2) * mu_n^n].
+    # This is how CISM incorporates a prescribed mu_n (with flow_law = 0, i.e. constant flwa).
+    # Note: The complicated exponent of 2 in the denominator results from CISM and the Dukowicz papers
+    #       having different conventions for the squared effective strain rate, eps_sq.
+    #       In CISM:     mu = 1/2 * A^(-1/n) * eps_sq_c^((1-n)/(2n))
+    #        where eps_sq_c = 1/2 * eps_ij * eps_ij
+    #                eps_ij = strain rate tensor
+    #       In Dukowicz: mu = mu_n * eps_sq_d^((1-n)/(2n))
+    #        where eps_sq_d = eps_ij * eps_ij = 2 * eps_sq_c
+    #       Equating the two values of mu, we get mu_n * 2^((1-n)/(2n)) = 1/2 * A^(-1/n),
+    #        which we solve to find A = 1 / [2^((1+n)/2) * mu_n^n]
+    #       Conversely, we have  mu_n = 1 / [2^((1+n)/(2n)) * A^(1/n)]
+    #TODO: Modify the Dukowicz derivations to use the same convention as CISM.
+    flwa = 1.0 / (2.0**((1.0+gn)/2.0) * mu_n_pwrn)
+
+    # Find the dimensionless parameter eta
+    # This is diagnostic only; not used directly by CISM
+    eta = (beta * thickness / mu_n**gn) * (rhoi * grav * thickness)**(gn-1)
+
+    # periodic offset; depends on theta and dx
+    offset = 1.0 * float(nx)*dx * tan(theta_rad)
+
+    # Print some values
+    print('nx   = ' + str(nx))
+    print('ny   = ' + str(ny))
+    print('nz   = ' + str(nz))
+    print('dt   = ' + str(dt))
+    print('tend = ' + str(tend))
+    print('rhoi = ' + str(rhoi))
+    print('grav = ' + str(grav))
+    print('thck = ' + str(thickness))
+    print('beta = ' + str(beta))
+    print('gn   = ' + str(gn))
+    print('mu_n = ' + str(mu_n))
+    print('flwa = ' + str(flwa))
+    print('eta  = ' + str(eta))
+    print('theta   = ' + str(theta))
+    print('offset  = ' + str(offset))
+
+    # Write some options and parameters to the config file
 
     config_parser.set('parameters', 'periodic_offset_ew', str(offset))
-    
+    config_parser.set('parameters', 'rhoi', str(rhoi))
+    config_parser.set('parameters', 'grav', str(grav))
+    config_parser.set('parameters', 'n_glen', str(gn))
+    config_parser.set('parameters', 'default_flwa', str(flwa))
+
+    if (args.approx == 'SIA'):
+        approx = 0
+    elif (args.approx == 'SSA'):
+        approx = 1
+    elif (args.approx == 'BP'):
+        approx = 2
+    elif (args.approx == 'L1L2'):
+        approx = 3
+    elif (args.approx == 'DIVA'):
+        approx = 4
+    config_parser.set('ho_options', 'which_ho_approx', str(approx))
+
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)
     config_parser.set('CF output', 'xtype', 'double')
-    
+    config_parser.set('CF output', 'frequency', str(tend))    # write output at start and end of run
+
     with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
-
 
     # create the input netCDF file
     # ----------------------------
@@ -222,8 +346,8 @@ def main():
     nc_file.createDimension('x0',nx-1) # staggered grid 
     nc_file.createDimension('y0',ny-1)
 
-    x = dx*numpy.arange(nx,dtype='float32')
-    y = dx*numpy.arange(ny,dtype='float32')
+    x = dx*np.arange(nx,dtype='float32')
+    y = dx*np.arange(ny,dtype='float32')
 
     nc_file.createVariable('time','f',('time',))[:] = [0]
     nc_file.createVariable('x1','f',('x1',))[:] = x
@@ -231,19 +355,48 @@ def main():
     nc_file.createVariable('x0','f',('x0',))[:] = dx/2 + x[:-1] # staggered grid
     nc_file.createVariable('y0','f',('y0',))[:] = dy/2 + y[:-1]
 
-
     # Calculate values for the required variables.
-    thk  = numpy.zeros([1,ny,nx],dtype='float32')
-    topg = numpy.zeros([1,ny,nx],dtype='float32')
-    artm = numpy.zeros([1,ny,nx],dtype='float32')
-    unstagbeta = numpy.zeros([1,ny,nx],dtype='float32')
+    thk  = np.zeros([1,ny,nx],dtype='float32')
+    topg = np.zeros([1,ny,nx],dtype='float32')
+    artm = np.zeros([1,ny,nx],dtype='float32')
+    unstagbeta = np.zeros([1,ny,nx],dtype='float32')
 
     # Calculate the geometry of the slab of ice
-    thk[:] = thickness / cos(theta * pi/180.0)
+    # Note: Thickness is divided by cos(theta), since thck in CISM is the vertical distance
+    #       from bed to surface.  On a slanted bed, this is greater than the distance measured
+    #       in the direction perpendicular to the bed.
+    #      Why does topg use a tan function?  Is the bed slanted?
+    #      Do we need unstagbeta instead of beta?  Compare to ISMIP-HOM tests.
+
+    thk[:] = thickness / cos(theta_rad)
     xmax = x[:].max()
     for i in range(nx):
-        topg[0,:,i] = (xmax - x[i]) * tan(theta * pi/180.0) + baseElevation
+        topg[0,:,i] = (xmax - x[i]) * tan(theta_rad) + baseElevation
     unstagbeta[:] = beta
+
+    # Optionally, add a small perturbation to the thickness field
+
+    if args.delta_thck:
+        dh = float(args.delta_thck)
+        for i in range(nx):
+
+            # Apply a Gaussian perturbation, using the Box-Mueller algorithm:
+            # https://en.wikipedia.org/wiki/Normal_distribution#Generating_values_from_normal_distribution
+
+            mu = 0.0      # mean of normal distribution
+            sigma = 1.0   # stdev of normal distribution
+
+            rnd1 = np.random.random()   # two random numbers between 0 and 1
+            rnd2 = np.random.random()
+
+            # Either of the next two lines will sample a number at random from a normal distribution
+            rnd_normal = mu + sigma * sqrt(-2.0 * np.log(rnd1)) * cos(2.0*pi*rnd2)
+#            rnd_normal = mu + sigma * sqrt(-2.0 * np.log(rnd2)) * sin(2.0*pi*rnd1)
+
+            dthk = dh * rnd_normal
+            thk[0,:,i] = thk[0,:,i] + dthk
+            print(i, dthk, thk[0,ny/2,i])
+            thk_in = thk   # for comparing later to final thk
 
     # Create the required variables in the netCDF file.
     nc_file.createVariable('thk', 'f',('time','y1','x1'))[:] = thk
@@ -274,6 +427,8 @@ def main():
             print("\nRunning CISM slab test")
             print(  "======================\n")
 
+            print('command_list =' + str(command_list))
+
         process = subprocess.check_call(str.join("; ",command_list), shell=True)
    
         try:
@@ -289,6 +444,7 @@ def main():
         if not args.quiet: 
             print("\nFinished running the CISM slab test")
             print(  "===================================\n")
+
     else:
         run_script = args.output_dir+os.sep+root+mod+".run" 
         
@@ -304,7 +460,6 @@ def main():
             print(  "======================================")
             print(  "   To run the test, use: "+run_script)
 
-    print("WARNING: THIS TEST CASE IS IN DEVELOPMENT. USE AT YOUR OWN RISK!")
 
 # Run only if this is being run as a script.
 if __name__=='__main__':
@@ -314,4 +469,3 @@ if __name__=='__main__':
     
     # run the script
     sys.exit(main())
-
