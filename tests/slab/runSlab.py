@@ -330,6 +330,7 @@ def main():
         approx = 4
     elif (args.approx == 'HYBRID'):
         approx = 5
+
     config_parser.set('ho_options', 'which_ho_approx', str(approx))
 
     config_parser.set('CF input', 'name', file_name)
@@ -412,7 +413,6 @@ def main():
             thk[0,:,i] = thk[0,:,i] + dthk
             print(i, dthk, thk[0,ny//2,i])
             thk_in = thk   # for comparing later to final thk
-
 
     # Create the required variables in the netCDF file.
     nc_file.createVariable('thk', 'f',('time','y1','x1'))[:] = thk
