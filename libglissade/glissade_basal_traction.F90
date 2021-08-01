@@ -217,7 +217,67 @@ contains
              beta(:,:) = basal_physics%ho_beta_large    ! Pa yr/m
           endwhere
 
+<<<<<<< HEAD
     case(HO_BABC_PSEUDO_PLASTIC)
+=======
+
+
+
+
+
+
+    case(HO_BABC_ZOET_IVERSON)
+
+       ! Based on the law experimentally derived by Zoet and Iverson (2020). Very similar to the Pseudo_Plastic law
+       ! tau _c is computed by multiplying the effective pressure by tan (phi), in which phi is the friction angle dependent on the bed height
+       ! tau_b= tau_c* u_b^(1/p-1)/(u_b+u_t)^(1/p)
+       ! see Zoet & Iverson 2020 in Science
+       p=basal_physics%powerlaw_m
+       u_t=basal_physics%zoet_iverson_ut
+       phimin = basal_physics%pseudo_plastic_phimin
+       phimax = basal_physics%pseudo_plastic_phimax
+       bedmin = basal_physics%pseudo_plastic_bedmin
+       bedmax = basal_physics%pseudo_plastic_bedmax
+       
+       if (which_cp_inversion == HO_CP_INVERSION_NONE) then !no inversion, regular ZI	  
+	       do ns = 1, nsn-1
+		  do ew = 1, ewn-1
+		     ! compute tan(phi) based on bed elevation
+		     bed = topg(ew,ns) - eus
+		     if (bed <= bedmin) then
+			phi = phimin
+		     elseif (bed >= bedmax) then
+			phi = phimax
+		     else   ! bed elevation is between bedmin and bedmax
+			phi = phimin + ((bed - bedmin)/(bedmax - bedmin)) * (phimax - phimin)
+		     endif
+		     basal_physics%phi(ew,ns) = phi
+		     tanphi = tan(phi * pi/180.d0)
+
+		     ! compute beta based on tan(phi), N and u
+		     tau_c = tanphi * basal_physics%effecpress_stag(ew,ns)
+		     beta(ew,ns) = tau_c *(speed(ew,ns)**(1/p-1))/(speed(ew,ns)+u_t)**(1/p)
+
+		     !WHL - debug
+		     
+		  enddo
+	       enddo
+       
+       elseif (which_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
+               which_cp_inversion == HO_CP_INVERSION_APPLY) then !invert for c_p (=N*tan(phi))
+
+          do ns =1 , nsn-1
+             do ew = 1, ewn-1
+                beta(ew,ns)=powerlaw_c_inversion(ew,ns)  * basal_physics%effecpress_stag(ew,ns) &
+                * (speed(ew,ns)**(1/p-1))/(speed(ew,ns)+u_t)**(1/p)
+            enddo
+          enddo
+       endif
+
+
+
+   case(HO_BABC_PSEUDO_PLASTIC)
+>>>>>>> 0751c1d6... With new 0-1 inversion for ZI law
 
        ! Pseudo-plastic sliding law from PISM:
        !
