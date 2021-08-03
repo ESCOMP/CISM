@@ -214,6 +214,12 @@ data:          data%basal_physics%mintauf
 factor:        scale_tau
 load:          1
 
+[phi]
+dimensions:    time, y0, x0
+units:         deg
+long_name:     Phi used in the Zoet Iverson and Pseudoplastic sliding law
+data:          data%basal_physics%phi
+
 [btractx]
 dimensions:    time, y0, x0
 units:         Pa

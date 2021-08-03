@@ -90,7 +90,7 @@ contains
   ! assumed to have the units given below.
      
   use glimmer_paramets, only: len0
-  use glimmer_physcon, only: gn, pi
+  use glimmer_physcon, only: gn, pi, grav
   use glissade_grid_operators, only: glissade_stagger
 
   implicit none
@@ -119,7 +119,7 @@ contains
   real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction at vertices, 0 <= f_ground <= 1
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
-
+!  real(dp), intent(out), dimension(:,:) :: phi   
   integer, intent(in)           :: which_ho_beta_limit           ! option to limit beta for grounded ice
                                                                  ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
   integer, intent(in), optional :: which_ho_cp_inversion         ! basal inversion option
@@ -131,6 +131,7 @@ contains
   ! Note: Adding fields for parallel ISHOM-C test case
   real(dp), dimension(:,:), allocatable :: beta_global          ! beta on the global grid
   real(dp), dimension(:,:), allocatable :: beta_extend          ! beta extended to the ice grid (dimensions ewn, nsn)
+
 
   real(dp) :: smallnum = 1.0d-2  ! m/yr
 
@@ -161,12 +162,16 @@ contains
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
   real(dp) :: taub_coulomb   ! basal shear stress given by Coulomb friction as in Tsai et al. (2015)
+  ! variables for the Zoet-Iverson law
+  real(dp) :: p              ! exponent in the Zoet-Iverson, currently set to the same variabkle as used in the Pseudo-plastic law
+  real(dp) :: u_t            ! yield speed in the Zoet-Iverson law
+
 
   ! variables for pseudo-plastic law
   real(dp) :: q              ! exponent for pseudo-plastic law (unitless)
                              ! q = 1 for linear, q = 0 for plastic, 0 < q < 1 for power law
   real(dp) :: u0             ! threshold velocity for pseudo-plastic law (m/yr)
-  real(dp) :: phi            ! phi for pseudoplastic law (degress, 0 < phi < 90)
+  real(dp) :: phi            ! phi for pseudoplastic law (degress, 0 < phi < 90) 
   real(dp) :: tanphi         ! tan(phi) for pseudo-plastic law (unitless)
   real(dp) :: bed            ! bed elevation, topg - eus (m)
   real(dp) :: phimin, phimax ! min and max values of phi for pseudo-plastic law (degrees)
@@ -217,9 +222,6 @@ contains
              beta(:,:) = basal_physics%ho_beta_large    ! Pa yr/m
           endwhere
 
-<<<<<<< HEAD
-    case(HO_BABC_PSEUDO_PLASTIC)
-=======
 
 
 
@@ -277,7 +279,6 @@ contains
 
 
    case(HO_BABC_PSEUDO_PLASTIC)
->>>>>>> 0751c1d6... With new 0-1 inversion for ZI law
 
        ! Pseudo-plastic sliding law from PISM:
        !
@@ -297,11 +298,11 @@ contains
        bedmax = basal_physics%pseudo_plastic_bedmax
 
        q = basal_physics%pseudo_plastic_q
-       u0 = basal_physics%pseudo_plastic_u0
+       u0 = basal_physics%pseudo_plastic_u0 
+       p = basal_physics%powerlaw_m
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
-
              ! compute tan(phi) based on bed elevation
              bed = topg(ew,ns) - eus
              if (bed <= bedmin) then
@@ -311,11 +312,12 @@ contains
              else   ! bed elevation is between bedmin and bedmax
                 phi = phimin + ((bed - bedmin)/(bedmax - bedmin)) * (phimax - phimin)
              endif
+!             basal_physics%phi(ew,ns) = phi
              tanphi = tan(phi * pi/180.d0)
 
              ! compute beta based on tan(phi), N and u
              tau_c = tanphi * basal_physics%effecpress_stag(ew,ns) 
-             beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
+             beta(ew,ns) = tau_c / (u0**(1/p) * speed(ew,ns)**(1.0d0 - (1/p)))
 
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
@@ -328,7 +330,7 @@ contains
           enddo
        enddo
 
-    case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
+   case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
                                 ! that plastic-till sliding behavior is enforced (see additional notes in documentation).
 
       !!! NOTE: Eventually, this option could provide the till yield stress as calculate from the basal processes submodel.
@@ -337,7 +339,6 @@ contains
       
       beta(:,:) = basal_physics%mintauf(:,:)*tau0 &                                      ! plastic yield stress (converted to Pa)
                          / dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 + (smallnum)**2 )   ! velocity components (m/yr)
-
       !!! since beta is updated here, communicate that info to halos
       call staggered_parallel_halo(beta, parallel)
 
@@ -635,11 +636,31 @@ contains
 
        !TODO - Add basal inversion option for Tsai, in addition to Schoof
 
+       phimin = basal_physics%pseudo_plastic_phimin
+       phimax = basal_physics%pseudo_plastic_phimax
+       bedmin = basal_physics%pseudo_plastic_bedmin
+       bedmax = basal_physics%pseudo_plastic_bedmax
+
+
        do ns = 1, nsn-1
           do ew = 1, ewn-1
+
+             ! compute tan(phi) based on bed elevation
+             bed = topg(ew,ns) - eus
+             if (bed <= bedmin) then
+                phi = phimin
+             elseif (bed >= bedmax) then
+                phi = phimax
+             else   ! bed elevation is between bedmin and bedmax
+                phi = phimin + ((bed - bedmin)/(bedmax - bedmin)) * (phimax - phimin)
+             endif
+!            basal_physics%phi(ew,ns)=phi
+             tanphi = tan(phi * pi/180.d0)
              
-             taub_powerlaw = basal_physics%powerlaw_c * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
-             taub_coulomb  = basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)
+
+! TVDA changed this and therefore removed the speed dependency, replace back with powerlaw_c * speed ** 1/m
+             taub_powerlaw = rhoi*thck(ew,ns)*grav*tanphi
+             taub_coulomb  = tanphi * basal_physics%effecpress_stag(ew,ns)
 
              if (taub_coulomb <= taub_powerlaw) then   ! apply Coulomb stress, which is smaller
                 beta(ew,ns) = taub_coulomb / speed(ew,ns)
@@ -827,6 +848,17 @@ contains
     real(dp) :: f_pattyn          ! rhoo*(eus-topg)/(rhoi*thck)
     real(dp) :: f_pattyn_capped   ! f_pattyn capped to lie in range [0,1]
 
+    real(dp) :: pp_phimin   !min phi for the PISM pik method
+    real(dp) :: pp_phibedmin ! value for which this is valid
+    real(dp) :: pp_phimax ! phi max 
+    real(dp) :: pp_phibedmax ! value for which this is max
+
+    real(dp) :: pp_lambdabedmin  ! bed value for which lambda is 1
+    real(dp) :: pp_lambdabedmax ! value for which lambda is 0
+
+    real(dp) :: lambdabed ! extra subtract eus for the PISMPIK method to calculate lambda
+    real(dp) :: lambda    ! lambda from the PISM - PIK method
+    real(dp) :: bed       ! bedheight topg-eus
     integer :: i, j
 
     logical, parameter :: verbose_effecpress = .false.
@@ -1038,6 +1070,43 @@ contains
        !            If we were to set N = 0 where f_pattyn_capped = 1 (i.e., defining 0^0 = 0), then we would have a
        !             sudden sharp increase in N_stag (the effective pressure at the vertex) when f_pattyn_capped at a cell center
        !             falls from 1 to a value slightly below 1.  This sudden increase would occur despite the use of a GLP.
+
+    case(HO_EFFECPRESS_PISMPIK)
+
+      pp_phimin=basal_physics%pismpik_phimin
+      pp_phimax=basal_physics%pismpik_phimax
+      pp_phibedmin=basal_physics%pismpik_phibedmin
+      pp_phibedmax=basal_physics%pismpik_phibedmax
+
+      pp_lambdabedmin=basal_physics%pismpik_lambdabedmin
+      pp_lambdabedmax=basal_physics%pismpik_lambdabedmax
+
+      do j = 1, nsn
+        do i = 1 , ewn
+          bed=topg(i,j)-eus
+          lambdabed=bed-eus
+          if (floating_mask(i,j) == 0 ) then
+           ! compute lambda 
+            if (lambdabed < pp_lambdabedmin) then
+              lambda=1.0d0
+            elseif (lambdabed > pp_lambdabedmax) then
+              lambda=0.0d0
+            else 
+              lambda=1-(pp_lambdabedmin-lambdabed)/(pp_lambdabedmin-pp_lambdabedmax)
+            endif 
+
+            ! calculate the actual pressure
+            basal_physics%effecpress(i,j)=overburden(i,j)*(1-0.96d0*lambda)
+            
+
+
+          else
+            basal_physics%effecpress(i,j)=0.0d0
+          end if
+        end do
+      end do
+
+
 
     end select
 

@@ -1030,7 +1030,7 @@ contains
          'no slip (using large B^2)                        ', &
          'beta from external file                          ', &
          'no slip (Dirichlet implementation)               ', &
-         'till yield stress (Newton)                       ', &
+         'Zoet-Iverson sliding law                         ', &
          'beta as in ISMIP-HOM test C                      ', &
          'power law                                        ', &
          'Coulomb friction law w/ effec press              ', &
@@ -1699,7 +1699,8 @@ contains
           call write_log(message)
           ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
           if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
-              model%options%which_ho_babc == HO_BABC_POWERLAW) then
+              model%options%which_ho_babc == HO_BABC_POWERLAW  .or.   &
+              model%options%which_ho_babc == HO_BABC_ZOET_IVERSON ) then
              ! inversion for Cp is supported
           else
              call write_log('Error, Cp inversion is not supported for this basal BC option')
@@ -1741,11 +1742,6 @@ contains
           call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
        end if
 
-       ! unsupported ho-babc options
-       if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
-         call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
-              &USE AT YOUR OWN RISK.', GM_WARNING)
-       endif
        if (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
          call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
               &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
@@ -2048,6 +2044,11 @@ contains
     call GetValue(section,'damage_constant',    model%calving%damage_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
+    call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
+    call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
+    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
+    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
     call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
@@ -2087,6 +2088,7 @@ contains
     call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_c)
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
     call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
+    call GetValue(section, 'zoet_iverson_ut', model%basal_physics%zoet_iverson_ut)
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
@@ -2107,6 +2109,10 @@ contains
     call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
     call GetValue(section, 'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
+
+    ! parameters for Tim's Zoet law
+! phi should not be in here since it is not a config parameter
+!    call GetValue(section, 'phi', model%basal_physics%phi)
 
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
@@ -2482,6 +2488,11 @@ contains
        write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+    elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then 
+       write(message,*) 'Yield speed u_t in the Zoet-Iverson law      : ', model%basal_physics%zoet_iverson_ut
+       call write_log(message)
+       write(message, *) 'm-exponent for power law behaviour          : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
        write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
@@ -3372,13 +3383,6 @@ contains
        call glide_add_to_restart_variable_list('bmlt_float_inversion')
     endif
 
-    ! The bmlt_basin inversion option needs a thickness target for floating ice
-    ! Note: deltaT_basin is added to the restart file above.
-    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('floating_thck_target')
-    endif
-
-    ! geothermal heat flux option
     select case (options%gthf)
       case(GTHF_COMPUTE)
          ! restart needs to know lithosphere temperature

@@ -253,7 +253,7 @@ module glide_types
   integer, parameter :: HO_BABC_BETA_LARGE = 4
   integer, parameter :: HO_BABC_BETA_EXTERNAL = 5
   integer, parameter :: HO_BABC_NO_SLIP = 6
-  integer, parameter :: HO_BABC_YIELD_NEWTON = 7
+  integer, parameter :: HO_BABC_ZOET_IVERSON = 7
   integer, parameter :: HO_BABC_ISHOMC = 8
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
@@ -261,6 +261,7 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
   integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
   integer, parameter :: HO_BABC_SIMPLE = 14
+
 
   integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
   integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
@@ -287,6 +288,7 @@ module glide_types
   integer, parameter :: HO_EFFECPRESS_BMLT = 2
   integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
   integer, parameter :: HO_EFFECPRESS_BWAT = 4
+  integer, parameter :: HO_EFFECPRESS_PISMPIK = 5
 
   !WHL - added Picard acceleration option
   integer, parameter :: HO_NONLIN_PICARD = 0
@@ -776,7 +778,7 @@ module glide_types
     !> \item[4] very large value for beta to enforce no slip everywhere 
     !> \item[5] beta field passed in from .nc input file as part of standard i/o
     !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
-    !> \item[7] treat beta value as till yield stress (in Pa) using Newton-type iteration (in development)
+    !> \item[7] Zoet - Iverson law combining Coulomb and powerlaw behaviour 
     !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
     !> \item[9] power law
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
@@ -837,6 +839,7 @@ module glide_types
     !> \item[2] N is reduced where there is melting at the bed
     !> \item[3] N is reduced due to connection of subglacial water to the ocean
     !> \item[4] N is reduced where basal water is present
+    !> \item[5] N is computed using the PISM-PIK method
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1276,7 +1279,6 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: unstagbeta  => null()  !> basal shear coefficient on ice grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: tau_x => null()        !> SIA basal shear stress, x-dir
     real(dp),dimension(:,:)  ,pointer :: tau_y => null()        !> SIA basal shear stress, y-dir
-
     !> mask that specifies where the velocity being read in should be held constant as a dirichlet condition
     integer, dimension(:,:), pointer  :: kinbcmask => null()    
 
@@ -1832,7 +1834,7 @@ module glide_types
      ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *COULOMB_POWERLAW_SCHOOF AND *COULOMB_POWERLAW_TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
-
+     real(dp), dimension(:,:), pointer :: phi => null()
      real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
@@ -1841,11 +1843,18 @@ module glide_types
      real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !> basal melting range over which N ramps from a small value to full overburden (m/yr)
      real(dp) :: p_ocean_penetration = 0.0d0        !> p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
+     ! Zoet Iverson parameters
+
+    
+     real(dp) :: zoet_iverson_ut= 200.d0     ! > threshold velocity for Zoet -Iverson law (m/yr)
+
+
+
      ! parameters for pseudo-plastic sliding law (based on PISM)
      ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
      ! where the yield stress tau_c = tan(phi) * N
      ! N = effective pressure
-
+         
      real(dp) :: pseudo_plastic_q = 0.5d0        !> exponent for pseudo-plastic law (unitless), 0 <= q <= 1
                                                  !> q = 1 => linear sliding law; q = 0 => plastic; intermediate values => power law
      real(dp) :: pseudo_plastic_u0 = 100.d0      !> threshold velocity for pseudo-plastic law (m/yr)
@@ -1855,6 +1864,16 @@ module glide_types
      real(dp) :: pseudo_plastic_phimax =   40.d0 !> max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
      real(dp) :: pseudo_plastic_bedmin = -700.d0 !> bed elevation (m) below which phi = phimin
      real(dp) :: pseudo_plastic_bedmax =  700.d0 !> bed elevation (m) above which phi = phimax
+
+     real(dp) :: pismpik_phimin = 5.d0 !> minimum phi for lowest bedheights to compute N on the PISM-PIK way
+     real(dp) :: pismpik_phimax = 20.d0 !> maxvalue
+     real(dp) :: pismpik_phibedmin = -1000 !> bedheight where phimin is valid
+     real(dp) :: pismpik_phibedmax = 0 !> bedheight where phimax is valid, between a linear function is made
+
+     real(dp) :: pismpik_lambdabedmin = 0 !> bedrock - sealevel value from where lambda=1
+     real(dp) :: pismpik_lambdabedmax = 1000 !> bedrock - sealevel from where lambda=0
+
+
 
      ! parameters for friction powerlaw
      real(dp) :: friction_powerlaw_k = 8.4d-9    !> coefficient (m y^-1 Pa^-2) for the friction power law based on effective pressure
@@ -2697,6 +2716,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
+       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%phi)
 !!       endif
     endif  ! glissade
 
@@ -3125,6 +3145,8 @@ contains
         deallocate(model%basal_physics%c_space_factor_stag)
     if (associated(model%basal_physics%mintauf)) &
        deallocate(model%basal_physics%mintauf)
+    if (associated(model%basal_physics%phi)) &
+       deallocate(model%basal_physics%phi)
 
     ! basal melt arrays
 

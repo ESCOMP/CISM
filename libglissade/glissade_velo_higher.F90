@@ -734,7 +734,8 @@
        f_flotation,          &  ! flotation function = (rhoi*thck) / (-rhoo*(topg-eus)) by default
                                 ! used to be f_pattyn = -rhoo*(topg-eus) / (rhoi*thck)
        f_ground,             &  ! grounded ice fraction at vertices, 0 <= f_ground <= 1
-       f_ground_cell            ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
+       f_ground_cell,        &    ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
+       phi                   
 
     !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
     integer, dimension(:,:), pointer ::   &
