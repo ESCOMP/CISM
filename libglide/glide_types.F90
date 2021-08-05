@@ -104,7 +104,6 @@ module glide_types
   integer, parameter :: FLWA_CONST_FLWA = 0
   integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
   integer, parameter :: FLWA_PATERSON_BUDD = 2
-  integer, parameter :: FLWA_INPUT = 3
 
   integer, parameter :: BTRC_ZERO = 0
   integer, parameter :: BTRC_CONSTANT = 1
@@ -470,7 +469,6 @@ module glide_types
     !> \item[1] \emph{Paterson and Budd} relationship, 
     !> with temperature set to $-5^{\circ}\mathrm{C}$ 
     !> \item[2] \emph{Paterson and Budd} relationship
-    !> \item[3] Read flwa/flwastag from file
     !> \end{description}
 
     integer :: whichbtrc = 0
@@ -2148,6 +2146,7 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
+  !TODO - Set default geot = 0, so that idealized tests by default have no mass loss
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
