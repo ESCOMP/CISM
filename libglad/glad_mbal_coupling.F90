@@ -104,9 +104,7 @@ contains
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  subroutine glad_accumulate_input_gcm(params, time, acab, artm, thermal_forcing) !, &
-!                                       thermal_forcing2, thermal_forcing3, thermal_forcing4,  &
-!                                       thermal_forcing5, thermal_forcing6, thermal_forcing7)
+  subroutine glad_accumulate_input_gcm(params, time, acab, artm, thermal_forcing)
 
     ! In glint, this was done in glint_downscale.F90
     
@@ -115,7 +113,7 @@ contains
 
     real(dp),dimension(:,:),intent(in) :: acab   ! Surface mass balance (m)
     real(dp),dimension(:,:),intent(in) :: artm   ! Mean air temperature (degC)
-    real(dp),dimension(:,:,:),intent(in) :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
+    real(dp),dimension(:,:,:),intent(in) :: thermal_forcing   ! Ocean thermal_forcing (degK)
 
     ! Things to do the first time
 
@@ -161,7 +159,7 @@ contains
     integer,                intent(in)   :: dt     !> mbal accumulation time (hours)
     real(dp),dimension(:,:),intent(out)  :: artm   !> Mean air temperature (degC)
     real(dp),dimension(:,:),intent(out)  :: acab   !> Mass-balance (m/yr)
-    real(dp),dimension(:,:,:),intent(out)  :: thermal_forcing   ! Mean thermal_forcing at level 0 (degK)
+    real(dp),dimension(:,:,:),intent(out)  :: thermal_forcing   ! Ocean thermal_forcing (degK)
 
     if (.not. params%new_accum) then
        params%artm_save = params%artm_save / real(params%av_count,dp)
