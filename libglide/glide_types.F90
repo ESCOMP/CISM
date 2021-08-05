@@ -137,9 +137,12 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_ISMIP6_MEDIAN = 1
   integer, parameter :: BMLT_FLOAT_ISMIP6_PCT95 = 2
 
-  integer, parameter :: DATA_OCEAN_ONLY = 0
-  integer, parameter :: DATA_OCEAN_ICE = 1
-  integer, parameter :: DATA_CISM_OCEAN_MASK = 2
+  integer, parameter :: OCEAN_DATA_INTERNAL = 0
+  integer, parameter :: OCEAN_DATA_EXTERNAL = 1
+  integer, parameter :: OCEAN_DATA_GLAD = 2
+
+  integer, parameter :: OCEAN_DATA_EXTRAPOLATE_FALSE = 0
+  integer, parameter :: OCEAN_DATA_EXTRAPOLATE_TRUE = 1
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
@@ -522,12 +525,18 @@ module glide_types
     !> \item[2] High level of forcing (e.g., pct95)
     !> \end{description}
 
-    integer :: ocean_data_domain = 0
+    integer :: ocean_data_domain = 1
 
     !> \begin{description}
-    !> \item[0] ocean data on ocean domain only; extrapolate data to shelf cavities
-    !> \item[1] ocean data available everywhere; already extrapolated to shelf cavities
-    !> \item[2] ocean data applied where CISM has ice-free ocean; extrapolated to shelf cavities
+    !> \item[0] ocean data computed internally by CISM
+    !> \item[1] ocean data read from external file
+    !> \item[2] ocean data received from coupler via Glad
+    !> \end{description}
+
+    integer :: ocean_data_extrapolate = 0
+    !> \begin{description}
+    !> \item[0] ocean data not extrapolated to shelf cavities
+    !> \item[1] ocean data extrapolated to shelf cavities
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.

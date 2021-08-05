@@ -66,6 +66,7 @@ contains
     use glide
     use glissade
     use glide_io
+    use glide_types
     use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
     use glad_io
     use glad_mbal_io
@@ -200,16 +201,21 @@ contains
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
           call glide_set_artm(instance%model, instance%artm)
 
+          ! Note: CISM has several thermal forcing options, as determined by ocean_data_domain:
+          !        compute internally, read from external file, or receive from Glad.
+          !       Only if receiving from Glad do we set instance%model%ocean_data%thermal_forcing here.
+          !
           ! Note: The ocean thermal forcing is reset only on the first ice dynamics timestep within this loop.
-          ! The reason is that CISM has the option of extrapolating thermal forcing from open ocean
-          !  (i.e., the overlap region between the ocean and ice sheet domains) into sub-shelf cavities.
-          ! It is more efficient to do this extrapolation only once within the mass_balance timestep
-          !  (with minor subsequent adjustments if CISM ice shelves retreat) than to extrapolate
-          !  from the open ocean every ice dynamics time step.
+          !       The reason is that CISM has the option of extrapolating thermal forcing from open ocean
+          !        (i.e., the overlap region between the ocean and ice sheet domains) into sub-shelf cavities.
+          !       It is more efficient to do this extrapolation only once within the mass_balance timestep
+          !        (with minor subsequent adjustments if CISM ice shelves retreat) than to extrapolate
+          !        from the open ocean every ice dynamics time step.
 
           if (iter == 1) then
-             if ( associated(instance%model%ocean_data%thermal_forcing) ) then
-                ! GL: At this point, glide_set does not work for 3D variables.
+             if ( associated(instance%model%ocean_data%thermal_forcing) .and. &
+                  instance%model%options%ocean_data_domain == OCEAN_DATA_GLAD) then
+                ! GRL: At this point, glide_set does not work for 3D variables.
                 instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
              endif
           endif

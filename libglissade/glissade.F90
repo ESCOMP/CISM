@@ -1289,12 +1289,13 @@ contains
 
     ! Solve for basal melting beneath floating ice.
 
-    use glimmer_paramets, only: eps08, tim0, thk0, len0
+    use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
     use glimmer_physcon, only: scyr
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
+    use cism_parallel, only:  parallel_reduce_max
 
     implicit none
 
@@ -1323,6 +1324,7 @@ contains
     real(dp) :: tf_anomaly_basin  ! basin number where anomaly is applied;
                                   ! for default value of 0, apply to all basins
 
+    real(dp) :: local_maxval, global_maxval   ! max values of a given variable
     integer :: i, j
     integer :: ewn, nsn
     real(dp) :: dew, dns
@@ -1391,6 +1393,25 @@ contains
           print*, 'Compute bmlt_float at runtime from current thermal forcing'
        endif
 
+       !Note: Currently, there is no difference between ocean_data_domain = 0
+       !       (compute internally) and ocean_data_domain = 1 (read from file).
+       !      Thermal forcing is initialized to zero and then is loaded from
+       !       the input or forcing file, if present.
+       !      If ocean_data_domain = 2, then the thermal forcing is set by Glad;
+       !       any values read from an input or forcing file are overwritten.
+       !      CISM is not yet able to compute thermal forcing internally.
+       !TODO: Add code to compute thermal forcing internally.
+
+       ! Check for positive values of thermal forcing.
+       ! If whichbmlt_float = BMLT_FLOAT_THERMAL_FORCING, but there are no positive values,
+       !  something is probably wrong.
+
+       local_maxval = maxval(model%ocean_data%thermal_forcing)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval <= eps11) then
+          call write_log('thermal forcing <= 0 everywhere, GM_WARNING')
+       endif
+
        !-----------------------------------------------
        ! Optionally, apply a uniform thermal forcing anomaly everywhere.
        ! This anomaly can be phased in linearly over a prescribed timescale.
@@ -1421,7 +1442,7 @@ contains
 
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
-            model%options%ocean_data_domain,       &
+            model%options%ocean_data_extrapolate,  &
             parallel,                              &
             ewn,                nsn,               &
             dew*len0,           dns*len0,          &  ! m
@@ -1449,6 +1470,7 @@ contains
        !       This means that the anomaly is potentially much larger for new cavities
        !        than for cavities initially present.
        ! Note: bmlt_float is a basal melting potential; it is reduced below for partly or fully grounded ice.
+       ! TODO: Remove option (2), which was used for ISMIP6 Antarctica but is now deprecated.
 
        if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
 
@@ -1492,7 +1514,8 @@ contains
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
-    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, BMLT_FLOAT_DEPTH, BMLT_FLOAT_MISOMIP and BMLT_FLOAT_POP_CPL
+    else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, &
+          !  BMLT_FLOAT_DEPTH, and BMLT_FLOAT_MISOMIP
           !TODO - Call separate subroutines for each of these options?
 
        call glissade_basal_melting_float(model%options%whichbmlt_float,                         &

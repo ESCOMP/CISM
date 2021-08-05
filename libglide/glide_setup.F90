@@ -722,6 +722,7 @@ contains
     call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
     call GetValue(section,'bmlt_float_ismip6_magnitude',model%options%bmlt_float_ismip6_magnitude)
     call GetValue(section,'ocean_data_domain',model%options%ocean_data_domain)
+    call GetValue(section,'ocean_data_extrapolate',model%options%ocean_data_extrapolate)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
@@ -936,9 +937,13 @@ contains
          'highest forcing magnitude '  /)
 
     character(len=*), dimension(0:2), parameter :: ocean_data_domain = (/ &
-         'data from external ocean model domain; extrapolate to cavities', &
-         'ocean data already extrapolated to ice shelf cavities         ', &
-         'apply data in CISM ice-free ocean; extrapolate to cavities    ' /)
+         'ocean data computed internally by CISM', &
+         'ocean data read from external file    ', &
+         'ocean data from coupler via Glad      ' /)
+
+    character(len=*), dimension(0:1), parameter :: ocean_data_extrapolate = (/ &
+         'ocean data not extrapolated to cavities', &
+         'ocean data extrapolated to cavities    ' /)
 
     character(len=*), dimension(0:1), parameter :: smb_input = (/ &
          'SMB input in units of m/yr ice  ', &
@@ -1521,6 +1526,9 @@ contains
        endif
        write(message,*) 'ocean data domain       : ', model%options%ocean_data_domain, &
             ocean_data_domain(model%options%ocean_data_domain)
+       call write_log(message)
+       write(message,*) 'ocean data extrapolate  : ', model%options%ocean_data_extrapolate, &
+            ocean_data_extrapolate(model%options%ocean_data_extrapolate)
        call write_log(message)
     endif
 

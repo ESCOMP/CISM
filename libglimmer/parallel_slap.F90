@@ -215,6 +215,11 @@ module cism_parallel
      module procedure distributed_scatter_var_col_real8_2d
   end interface
 
+  interface parallel_boundary_value
+     module procedure parallel_boundary_value_real8_2d
+     module procedure parallel_boundary_value_real8_3d
+  end interface parallel_boundary_value
+
   interface parallel_convert_haloed_to_nonhaloed
      module procedure parallel_convert_haloed_to_nonhaloed_real4_2d
      module procedure parallel_convert_haloed_to_nonhaloed_real8_2d
@@ -1836,16 +1841,91 @@ contains
 
 !=======================================================================
 
-  function parallel_boundary(ew,ewn,ns,nsn)
+  function parallel_boundary(ew, ns, parallel)
 
     implicit none
     logical :: parallel_boundary
-    integer :: ew,ewn,ns,nsn
+    integer :: ew, ns
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
     ! begin
-    parallel_boundary = (ew==1 .or. ew==ewn .or. ns==1 .or. ns==nsn)
+    parallel_boundary = (ew==1 .or. ew==local_ewn .or. &
+                         ns==1 .or. ns==local_nsn)
+
+    end associate
 
   end function parallel_boundary
+
+!=======================================================================
+
+  ! subroutines belonging to the parallel_boundary_value interface
+
+  subroutine parallel_boundary_value_real8_2d(&
+       field,          &
+       boundary_value, &
+       parallel)
+
+    ! Insert a specified value into cells on the global boundary.
+    ! Typically called with value = 0.0 or an special value.
+
+    real(dp), dimension(:,:), intent(inout) :: field
+    real(dp), intent(in) :: boundary_value
+    type(parallel_type) :: parallel
+
+    integer :: ew, ns
+
+    ! begin
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    do ns = 1, local_nsn
+       do ew = 1, local_ewn
+          if (parallel_boundary(ew, ns, parallel)) then
+             field(ew,ns) = boundary_value
+          endif
+       enddo
+    enddo
+
+    end associate
+
+  end subroutine parallel_boundary_value_real8_2d
+
+
+  subroutine parallel_boundary_value_real8_3d(&
+       field,          &
+       boundary_value, &
+       parallel)
+
+    ! Insert a specified value into cells on the global boundary.
+    ! Typically called with value = 0.0 or an special value.
+
+    real(dp), dimension(:,:,:), intent(inout) :: field
+    real(dp), intent(in) :: boundary_value
+    type(parallel_type) :: parallel
+
+    integer :: ew, ns
+
+    ! begin
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    do ns = 1, local_nsn
+       do ew = 1, local_ewn
+          if (parallel_boundary(ew, ns, parallel)) then
+             field(:,ew,ns) = boundary_value
+          endif
+       enddo
+    enddo
+
+    end associate
+
+  end subroutine parallel_boundary_value_real8_3d
 
 !=======================================================================
 
