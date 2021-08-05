@@ -125,10 +125,10 @@ module glad_main
   ! When coupled to CESM, Glad receives several fields from the coupler on the ice sheet grid:
   !   qsmb = surface mass balance (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
-  !   salinity1..7 = ocean salinity at levels 0,10,19,26,30,33,35 (g/kg)
-  !   tocn1..7     = ocean temperatures at levels 0,10,19,26,30,33,35 (deg K)
+  !   salinity = ocean salinity at one or more ocean levels (g/kg)
+  !   tocn = ocean temperature at one or more levels (deg K)
   ! Both qsmb and tsfc are computed in the CESM land model.
-  ! Both set of fields salinity1..7 and tocan1..7 are computed in POP.
+  ! Both salinity and tocn are computed in the CESM ocean model.
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
@@ -584,13 +584,17 @@ contains
 
     ! Main Glad subroutine for GCM coupling.
     !
-    ! It does all necessary temporal averaging, 
-    ! and calls the dynamic ice sheet model when required. 
+    ! It does all temporal averaging and calls the dynamic ice sheet model when required.
     !
     ! Input fields should be taken as means over the period since the last call.
     ! See the user documentation for more information.
     !
-    ! Input fields are assumed to NOT have halo cells
+    ! Input fields are assumed to NOT have halo cells.
+    !
+    ! Glad accumulates and averages ocean thermal_forcing based on salinity and tocn,
+    ! but this thermal forcing is used by CISM only if model%options%ocean_data_domain = 2.
+    ! Otherwise, CISM will compute thermal_forcing internally (ocean_data_domain = 0)
+    ! or read it from an external file (ocean_data_domain = 1).
 
     use glimmer_utils
     use glad_timestep, only : glad_i_tstep_gcm
@@ -711,13 +715,14 @@ contains
                thermal_forcing_haloed(k,:,:))
        enddo
 
+
        if (verbose_glad .and. this_rank == rtest) then
           i = itest
           j = jtest
           print*, 'r, i, j =', this_rank, i, j
           print*, 'k, zocn, temperature, salinity, thermal forcing:'
           do k = 1, nzocn
-             write(6,'(i4, 4f10.3)') k, zocn(k), &
+             write(6,'(i4, 4f11.3)') k, zocn(k), &
                   tocn_haloed(k,i,j), salinity_haloed(k,i,j), thermal_forcing_haloed(k,i,j)
           enddo
        endif
@@ -799,7 +804,7 @@ contains
              j = jtest
              print*, 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
              do k = 1, nzocn
-                write(6,'(i4, 2f10.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
+                write(6,'(i4, 2f11.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
              enddo
           endif
 

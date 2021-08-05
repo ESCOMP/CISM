@@ -41,7 +41,7 @@ module glissade_bmlt_float
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task, nhalo, &
-       parallel_type, parallel_halo, parallel_globalindex, &
+       parallel_type, parallel_halo, parallel_globalindex, parallel_boundary_value, &
        parallel_reduce_sum, parallel_reduce_min, parallel_reduce_max
 
   implicit none
@@ -52,7 +52,6 @@ module glissade_bmlt_float
        basin_sum, basin_average
 
     logical :: verbose_bmlt_float = .false.
-!!    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -827,7 +826,9 @@ module glissade_bmlt_float
          ! This melt rate can be subtracted from the runtime melt rate to give a runtime anomaly.
          ! Note: On restart, bmlt_float_baseline is read from the restart file.
 
-          if (verbose_bmlt_float .and. main_task) print*, 'Compute baseline bmlt_float at initialization'
+          if (verbose_bmlt_float .and. main_task) then
+             print*, 'Compute baseline bmlt_float at initialization'
+          endif
 
           ! Compute some masks
           !TODO: Modify glissade_get_masks so that 'parallel' is not needed
@@ -843,7 +844,7 @@ module glissade_bmlt_float
 
           call glissade_bmlt_float_thermal_forcing(&
                model%options%bmlt_float_thermal_forcing_param,   &
-               model%options%ocean_data_domain,                  &
+               model%options%ocean_data_extrapolate,             &
                parallel,                                         &
                ewn,                     nsn,                     &
                model%numerics%dew*len0, model%numerics%dew*len0, &  ! m
@@ -879,6 +880,10 @@ module glissade_bmlt_float
 
           if (basin_number_min < 1) then
 
+             if (verbose_bmlt_float .and. main_task) then
+                print*, 'Extrapolate basin numbers'
+             endif
+
              call basin_number_extrapolate(&
                   ewn,             nsn,     &
                   parallel,                 &
@@ -897,7 +902,7 @@ module glissade_bmlt_float
 
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
-       ocean_data_domain,         &
+       ocean_data_extrapolate,    &
        parallel,                  &
        nx,        ny,             &
        dew,       dns,            &
@@ -923,7 +928,7 @@ module glissade_bmlt_float
     integer, intent(in) :: &
          bmlt_float_thermal_forcing_param, & !> melting parameterization used to derive melt rate from thermal forcing;
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
-         ocean_data_domain                   !> = 0 if TF is provided on ocean domain only; = 1 if extrapolated under ice
+         ocean_data_extrapolate              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
 
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
@@ -939,6 +944,7 @@ module glissade_bmlt_float
     integer, dimension(nx,ny), intent(in) :: &
          ice_mask,               & !> = 1 where ice is present (H > 0) else = 0
          marine_connection_mask    !> = 1 for cells with a marine connection to the ocean, else = 0
+                                   !> Note: marine_connection_mask includes paths through grounded marine-based cells
 
     integer, dimension(nx,ny), intent(inout) :: &
          ocean_mask                !> = 1 for ice-free ocean, else = 0;
@@ -1002,6 +1008,11 @@ module glissade_bmlt_float
          tf_anomaly,                   &  ! local version of tf_anomaly_in
          tf_anomaly_basin                 ! local version of tf_anomaly_basin_in
 
+    ! Note: This range ought to cover all regions where ice is present, but could be modified if desired.
+    real(dp), parameter ::  &
+         thermal_forcing_max = 20.d0,  &  ! max allowed value of thermal forcing (K)
+         thermal_forcing_min = -5.d0      ! min allowed value of thermal forcing (K)
+
     !TODO - Make H0_float a config parameter?
     real(dp), parameter ::  &
          H0_float = 50.d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
@@ -1010,7 +1021,8 @@ module glissade_bmlt_float
        print*, ' '
        print*, 'In subroutine glissade_bmlt_float_thermal_forcing'
        print*, '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
-       print*, '   ocean_data_domain =', ocean_data_domain
+       print*, '   ocean_data_extrapolate =', ocean_data_extrapolate
+       print*, '   nbasin =', ocean_data%nbasin
     endif
 
     if (present(tf_anomaly_in)) then
@@ -1031,41 +1043,11 @@ module glissade_bmlt_float
     ! Make sure thermal_forcing is up to date in halo cells.
     call parallel_halo(ocean_data%thermal_forcing, parallel)
 
-    !WHL - Commented out the code below because this subroutine no longer uses ocean_mask to compute marine_connection_mask.
-    !      If CISM mis-identifies landlocked fjord cells as marine-connected, when there is no
-    !       marine-connected path to these cells from cells with valid data, the code will fail.
-    !      One possible fix is to increase the magnitude of ocean_topg_threshold in glissade_masks;
-    !       another is to prevent cells with non-ocean neighbors (or neighbors of neighbors) from seeding the fill.
-
-!    if (ocean_data_domain == DATA_OCEAN_ONLY) then
-       ! When coupling to POP or another ocean model, TF is received at each coupling interval,
-       !  with unphys_val assigned to CISM cells that are outside the POP domain.
-       ! Some CISM cells (e.g., in fjords) may be identified as ocean (ocean_mask = 1),
-       !  but not have valid TF data.  We do not want to count these cells as ocean cells
-       !  when computing marine_connection_mask, because then cells can be identified as
-       !  marine-connected without having a path to valid data.
-       ! Assume that if level k = 1 has valid data, there is valid data through the column.
-!       do j = 1, ny
-!          do i = 1, nx
-!             if (ocean_data%thermal_forcing(1,i,j) == unphys_val) then
-!                ocean_mask(i,j) = 0
-!             endif
-!          enddo
-!       enddo
-!    endif
-
-    if (ocean_data_domain == DATA_CISM_OCEAN_MASK) then
-       ! Set the thermal forcing to have unphysical values in cells where ocean_mask = 0.
-       ! TF will then be extrapolated into these cells at runtime, if the cells contain ice shelf cavities.
-       if (main_task .and. verbose_bmlt_float) print*, 'Set TF = unphys_val where CISM ocean_mask = 0'
-       do j = 1, ny
-          do i = 1, nx
-             if (ocean_mask(i,j) == 0) then
-                ocean_data%thermal_forcing(:,i,j) = unphys_val
-             endif
-          enddo
-       enddo
-    endif
+    ! Insert an unphysical value at the global boundary.
+    ! This is done to handle the case that global_bc = no_ice,
+    !  which puts zeroes in global boundary cells.
+    ! We do not want these zeroes to be interpreted as realistic thermal_forcing values.
+    call parallel_boundary_value(ocean_data%thermal_forcing, unphys_val, parallel)
 
     ! Set thermal_forcing_mask
     ! This mask identifies cells where we could have basal melting and need valid TF data.
@@ -1095,17 +1077,16 @@ module glissade_bmlt_float
     call parallel_halo(thermal_forcing_mask, parallel)
 
     !-----------------------------------------------
-    ! If thermal forcing data is provided only over the ocean domain,
-    ! then extrapolate the data to ice shelf cavities.
-    ! Note: For POP coupling, thermal forcing is received once per mass balance time step.
+    ! Optionally, extrapolate the ocean forcing data to ice shelf cavities.
+    ! Note: For coupled modeling (OCEAN_DATA_GLAD), thermal forcing is received once per mass balance time step.
+    !       Typically, it is computed only on the ocean grid and needs to be extrapolated to cavities.
     !       During the first ice sheet dynamics time step within a mass balance time step,
     !        several tens of iterations typically are needed to extrapolate open-ocean values
     !        into large shelf cavities.
     !       On subsequent steps, only a few iterations are needed to extrapolate into newly floating cells.
     !-----------------------------------------------
 
-    if (ocean_data_domain == DATA_OCEAN_ONLY .or. &
-        ocean_data_domain == DATA_CISM_OCEAN_MASK) then
+    if (ocean_data_extrapolate == OCEAN_DATA_EXTRAPOLATE_TRUE) then
 
        if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, ' '
@@ -1197,11 +1178,11 @@ module glissade_bmlt_float
           enddo
        endif
 
-    else    ! ocean_data_domain = DATA_OCEAN_ICE; no need to extrapolate
+    else    ! ocean data are already given everywhere; do not extrapolate
 
        if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, ' '
-          print*, 'TF to interpolate, rank, i, j =', rtest, itest, jtest
+          print*, 'TF to interpolate to lsrf, rank, i, j =', rtest, itest, jtest
           do k = kmin_diag, kmax_diag
              print*, ' '
              print*, 'kocn =', k
@@ -1214,7 +1195,7 @@ module glissade_bmlt_float
           enddo
        endif
 
-    endif   ! ocean_data_domain
+    endif   ! ocean_data_extrapolate
 
     !-----------------------------------------------
     ! Interpolate the thermal forcing to the lower ice surface.
@@ -1245,17 +1226,23 @@ module glissade_bmlt_float
          thermal_forcing_in,                 &
          ocean_data%thermal_forcing_lsrf)
 
-    ! Bug check: Make sure there are no negative values of thermal forcing.
-    !            This could happen if the data set contains negative special values
-    !             that are not overwritten with realistic values in cavities.
-    !TODO - Remove this bug check if the ocean can realistically have TF < 0.
+    ! Bug check: Make sure there are no extreme values of thermal forcing.
+    !            This could happen, for example, if the input thermal forcing has special values
+    !             that are not overwritten with realistic values via extrapolation.
+
     do j = 1, ny
        do i = 1, nx
-          if (ocean_data%thermal_forcing_lsrf(i,j) < 0.0d0) then
+          if (ocean_data%thermal_forcing_lsrf(i,j) > thermal_forcing_max) then
              call parallel_globalindex(i, j, iglobal, jglobal, parallel)
              write(message,*) &
-                  'Ocean thermal forcing error: negative TF at level k, i, j, lsrf, TF =', &
-                  k, iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
+                  'Ocean thermal forcing error: extreme TF at i, j, lsrf, TF =', &
+                  iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
+             call write_log(message, GM_FATAL)
+          elseif (ocean_data%thermal_forcing_lsrf(i,j) < thermal_forcing_min) then
+             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+             write(message,*) &
+                  'Ocean thermal forcing error: extreme TF at i, j, lsrf, TF =', &
+                  iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
              call write_log(message, GM_FATAL)
           endif
        enddo
@@ -1368,8 +1355,8 @@ module glissade_bmlt_float
             thermal_forcing_basin,           &
             itest, jtest, rtest)
 
-       !WHL - For diagnostics, compute the average value of deltaT_basin each basin.
-       !      Note: Each cell in the basin should have this average value.
+       ! For diagnostics, compute the average value of deltaT_basin each basin.
+       ! Note: Each cell in the basin should have this average value.
 
        call basin_average(&
             nx,        ny,                   &
@@ -1488,7 +1475,6 @@ module glissade_bmlt_float
        enddo
     endif
 
-    !WHL - debug
     ! Reduce the melt rate in cells with thin floating ice,
     !  to reflect that these cells are only partly ice-filled.
     ! Note: This code gives bmlt_float = 0 in ice-free ocean cells,
@@ -1570,6 +1556,7 @@ module glissade_bmlt_float
     integer, dimension(nx,ny), intent(in) ::  &
          thermal_forcing_mask, & ! = 1 where thermal forcing and bmlt_float are potentially nonzero, else = 0
          marine_connection_mask  ! = 1 for cells with marine connection to the ocean, else = 0
+                                 ! Note: marine_connection_mask includes paths through grounded marine-based cells
 
    real(dp), intent(in) :: &
          unphys_val,           & ! unphysical value given to cells/levels not yet filled
@@ -1603,7 +1590,7 @@ module glissade_bmlt_float
          max_iter,             & ! max(nx,ny) * max(ewtasks, nxtasks)
          local_count,          & ! local counter for filled values
          global_count,         & ! global counter for filled values
-         global_count_save       ! globalcounter for filled values from previous iteration
+         global_count_save       ! global counter for filled values from previous iteration
 
     integer :: i, j, k, iter
     integer :: iglobal, jglobal
@@ -1616,9 +1603,9 @@ module glissade_bmlt_float
 
     ! Note: If thermal forcing is close to but not quite equal to unphys_val (e.g., because of roundoff error),
     !       it is interpreted as equal to unphys_val.
-    real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg C)
+    real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg K)
 
-    ! Count the number of filled levels/cells in the input thermal forcing field.
+    ! Count the number of filled levels/cells with valid values in the input thermal_forcing.
 
     local_count = 0
     do j = 1+nhalo, ny-nhalo
@@ -1911,18 +1898,23 @@ module glissade_bmlt_float
 
        call parallel_halo(thermal_forcing, parallel)
 
+       ! Insert an unphysical value at the global boundary.
+       ! This is done to handle the case that global_bc = no_ice,
+       !  which puts zeroes in global boundary cells.
+       ! We do not want these zeroes to be interpreted as realistic thermal_forcing values.
+       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
+
        ! Every several iterations, count the total number of filled cells/levels in the global domain.
        ! If this number has not increased since the previous iteration, then exit the loop.
        ! Note: Typically there are several ice sheet dynamics time steps per mass balance time step.
-       !       The thermal forcing field from the ocean model (ocean_data_domain = DATA_OCEAN_ONLY) is
-       !        updated at the start of the mass balance time step.  Just after this update, the extrapolation
-       !        typically requires several tens of iterations to converge.  But subsequent updates within this
+       !       The thermal forcing field from the ocean model (for OCEAN_DATA_GLAD) is updated
+       !        at the start of the mass balance time step.  Just after this update, the extrapolation
+       !        typically requires 100 or more iterations to converge.  But subsequent updates within this
        !        mass balance time step may require < 5 iterations.  For this reason, we check frequently
        !        for convergence in the first few steps, and then less frequently as the number of iterations grows.
 
        ! Check after iterations 1, 2, and 5, then after 10, 20, etc.
        if (iter == 1 .or. iter == 2 .or. iter == 5 .or. mod(iter, 10) == 0) then
-
           local_count = 0
           do j = 1+nhalo, ny-nhalo
              do i = 1+nhalo,  nx-nhalo
@@ -1955,13 +1947,8 @@ module glissade_bmlt_float
 
     enddo   ! max_iter
 
-    ! Make sure thermal forcing is non-negative
-    where (thermal_forcing /= unphys_val)
-       thermal_forcing = max(thermal_forcing, 0.0d0)
-    endwhere
-
     ! Bug check:
-    ! Make sure all levels from ktop to kbot are filled in floating cells (except lakes).
+    ! Make sure all levels from ktop to kbot are filled in cells with thermal_forcing_mask = 1.
 
     do j = 1, ny
        do i = 1, nx
@@ -1970,12 +1957,12 @@ module glissade_bmlt_float
                 if (thermal_forcing(k,i,j) == unphys_val) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'i, j, ktop, kbot =', i, j, ktop(i,j), kbot(i,j)
-                   write(message,*) &
-                        'Ocean data extrapolation error: did not fill level k, i, j =', k, iglobal, jglobal
+                   write(message,*) 'Ocean data extrapolation error: unphys value in level k, i, j:', &
+                        k, iglobal, jglobal, thermal_forcing(k,i,j)
                    call write_log(message, GM_FATAL)
                 endif
              enddo   ! k
-          endif   ! floating and not lake
+          endif   ! thermal_forcing_mask
        enddo   ! i
     enddo   ! j
 
