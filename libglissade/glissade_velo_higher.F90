@@ -759,7 +759,8 @@
        tau_eff                  ! effective stress (Pa)
 
     real(dp), dimension(:,:), pointer ::  &
-       powerlaw_c_inversion     ! Cp (for basal friction) computed from inversion, on staggered grid
+       powerlaw_c_inversion,   &! Cp (for basal friction) computed from inversion, on staggered grid
+       coulomb_c_inversion      ! Cc (for basal friction) computed from inversion, on staggered grid
 
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
@@ -769,7 +770,8 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
-       which_cp_inversion, &    ! option to invert for basal friction parameters
+       which_cp_inversion, &    ! option to invert for basal friction parameter Cp
+       which_cc_inversion, &    ! option to invert for basal friction parameter Cc
        whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
@@ -1132,6 +1134,7 @@
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
      powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
+     coulomb_c_inversion  => model%inversion%coulomb_c_inversion(:,:)
 
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
@@ -1149,6 +1152,7 @@
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
      which_cp_inversion   = model%options%which_ho_cp_inversion
+     which_cc_inversion   = model%options%which_ho_cc_inversion
      whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
@@ -2832,9 +2836,11 @@
                          beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
-                         which_cp_inversion,               &
-                         powerlaw_c_inversion,             &
-                         itest, jtest, rtest)
+                         which_ho_cp_inversion = which_cp_inversion,            &
+                         which_ho_cc_inversion = which_cc_inversion,            &
+                         powerlaw_c_inversion = powerlaw_c_inversion,           &
+                         coulomb_c_inversion = coulomb_c_inversion,             &
+                         itest = itest, jtest = jtest, rtest = rtest)
 
 !          if (verbose_beta) then
 !             maxbeta = maxval(beta_internal(:,:))
