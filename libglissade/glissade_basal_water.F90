@@ -44,8 +44,8 @@ module glissade_basal_water
 !!   logical, parameter :: verbose_bwat = .false.
    logical, parameter :: verbose_bwat = .true.
 
-   integer, parameter :: pdiag = 4  ! range for diagnostic prints
-!!   integer, parameter :: pdiag = 3  ! range for diagnostic prints
+!!   integer, parameter :: pdiag = 4  ! range for diagnostic prints
+   integer, parameter :: pdiag = 3  ! range for diagnostic prints
 
 contains
 
@@ -844,13 +844,12 @@ contains
        do j = 1, ny
           do i = 1, nx
              sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
-!!             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > 0.0d0) then
-             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 10) then
-               print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
-                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
-               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-               print*, '     iglobal, jglobal:', iglobal, jglobal
-             endif
+!             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 50) then
+!               print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
+!                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
+!               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!               print*, '     iglobal, jglobal:', iglobal, jglobal
+!             endif
           enddo
        enddo
        global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)

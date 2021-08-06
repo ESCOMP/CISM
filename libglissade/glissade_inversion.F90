@@ -40,7 +40,8 @@ module glissade_inversion
   private
   public :: verbose_inversion, glissade_init_inversion, &
             glissade_inversion_bmlt_float,      &
-            glissade_inversion_basal_friction,  &
+            glissade_inversion_basal_friction_powerlaw,  &
+            glissade_inversion_basal_friction_coulomb,  &
             glissade_inversion_bmlt_basin
 
   !-----------------------------------------------------------------------------
@@ -113,10 +114,11 @@ contains
     endif
 
     !----------------------------------------------------------------------
-    ! If inverting for Cp or bmlt_float, then set the target elevation, usrf_obs.
+    ! If inverting for Cp, Cc, or bmlt_float, then set the target elevation, usrf_obs.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
        ! We are inverting for usrf_obs, so check whether it has been read in already.
@@ -207,7 +209,7 @@ contains
        call parallel_halo(model%geometry%usrf_obs, parallel)
        call parallel_halo(thck_obs, parallel)
 
-    endif  ! which_ho_cp_inversion or which_ho_bmlt_inversion
+    endif  ! inversion for Cp, Cc or bmlt
 
     ! Set masks that are used below
     ! Modify glissade_get_masks so that 'parallel' is not needed
@@ -245,13 +247,14 @@ contains
 
     endif   ! which_ho_bmlt_inversion
 
+
     !----------------------------------------------------------------------
-    ! computations specific to powerlaw_c (= Cp) inversion
+    ! computations specific to powerlaw_c (Cp) and coulomb_c (Cc) inversion
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
 
-       ! initialize powerlaw_inversion, if not already read in
+       ! initialize powerlaw_c_inversion, if not already read in
        var_maxval = maxval(model%inversion%powerlaw_c_inversion)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
@@ -272,7 +275,30 @@ contains
           enddo
        endif
 
-    endif   ! which_ho_cp_inversion
+    elseif (model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE) then
+
+       ! initialize coulomb_c_inversion, if not already read in
+       var_maxval = maxval(model%inversion%coulomb_c_inversion)
+       var_maxval = parallel_reduce_max(var_maxval)
+       if (var_maxval > 0.0d0) then
+          ! do nothing; coulomb_c_inversion has been read in already (e.g., when restarting)
+       else
+          ! initialize to a uniform value of 1.0, implying full overburden pressure
+          model%inversion%coulomb_c_inversion(:,:) = 1.0d0
+       endif  ! var_maxval > 0
+
+       if (verbose_inversion .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'glissade_init_inversion: coulomb_c_inversion:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%inversion%coulomb_c_inversion(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif   ! Cp or Cc inversion
 
     !----------------------------------------------------------------------
     ! computations specific to inversion of deltaT_basin
@@ -1043,7 +1069,7 @@ contains
 
 !***********************************************************************
 
-  subroutine glissade_inversion_basal_friction(model)
+  subroutine glissade_inversion_basal_friction_powerlaw(model)
 
     use glimmer_paramets, only: tim0, thk0
     use glimmer_physcon, only: scyr
@@ -1095,7 +1121,7 @@ contains
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
 
-       ! Compute the new value of powerlaw_c_inversion.
+       ! Compute the new value of powerlaw_c_inversion
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -1158,7 +1184,7 @@ contains
        endif
 
        ! Invert for powerlaw_c_inversion
-       call invert_basal_friction(model%numerics%dt*tim0,                 &  ! s
+       call invert_basal_friction_powerlaw(model%numerics%dt*tim0,                 &  ! s
                                   ewn,               nsn,                 &
                                   itest,    jtest,   rtest,               &
                                   model%inversion%babc_timescale,         &  ! s
@@ -1171,9 +1197,8 @@ contains
                                   stag_dthck_dt,                          &  ! m/s
                                   model%inversion%powerlaw_c_inversion)
 
-    else
+    else   ! do not adjust powerlaw_c_inversion; just print optional diagnostics
 
-       ! do not adjust powerlaw_c_inversion; just print optional diagnostics
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
           print*, 'f_ground at vertices:'
@@ -1193,7 +1218,7 @@ contains
           enddo
        endif
 
-    endif   ! which_ho_inversion
+    endif   ! which_ho_cp_inversion
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cp to a nonzero value everywhere and never sets Cp = 0;
@@ -1203,11 +1228,179 @@ contains
        model%inversion%powerlaw_c_inversion = model%inversion%powerlaw_c_min
     endwhere
 
-  end subroutine glissade_inversion_basal_friction
+  end subroutine glissade_inversion_basal_friction_powerlaw
 
 !***********************************************************************
 
-  subroutine invert_basal_friction(dt,                       &
+  subroutine glissade_inversion_basal_friction_coulomb(model)
+
+    use glimmer_paramets, only: tim0, thk0
+    use glimmer_physcon, only: scyr
+    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
+
+    implicit none
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    ! --- Local variables ---
+
+    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
+         thck_obs                ! observed ice thickness, derived from usrf_obs and topg
+
+    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+         stag_thck,            & ! ice thickness on staggered grid
+         stag_thck_obs,        & ! thck_obs on staggered grid
+         stag_dthck_dt           ! dthck_dt on staggered grid
+
+    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+         stag_smoothed          ! work array to hold a smoothed field
+
+    integer :: i, j
+    integer :: ewn, nsn
+    integer :: itest, jtest, rtest
+
+    real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
+
+    logical :: &
+         f_ground_weight = .true.   ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
+                                    ! Found that unweighted staggering can lead to low-frequency thickness oscillations
+                                    !  in Antarctic runs, because of large dH/dt in floating cells
+
+    type(parallel_type) :: parallel
+
+    parallel = model%parallel
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+
+    if (model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE) then
+
+       !TODO - Put the following code in a subroutine to avoid duplication
+       !       with the Cp inversion subroutine above
+       ! Compute the new value of coulomb_c_inversion
+
+       ! Given the surface elevation target, compute the thickness target.
+       ! (This can change in time if the bed topography is dynamic.)
+       call usrf_to_thck(model%geometry%usrf_obs,  &
+                         model%geometry%topg,      &
+                         model%climate%eus,        &
+                         thck_obs)
+
+       if (f_ground_weight) then
+          ! Interpolation will give a greater weight to cells that are fully grounded.
+
+          ! Interpolate thck_obs to the staggered grid
+          call glissade_stagger_real_mask(&
+               ewn,         nsn,               &
+               thck_obs,    stag_thck_obs,     &
+               model%geometry%f_ground_cell)
+
+          ! Interpolate thck to the staggered grid
+          call glissade_stagger_real_mask(&
+               ewn,                  nsn,       &
+               model%geometry%thck,  stag_thck, &
+               model%geometry%f_ground_cell)
+
+          ! Interpolate dthck_dt to the staggered grid
+          call glissade_stagger_real_mask(&
+               ewn,                      nsn,           &
+               model%geometry%dthck_dt,  stag_dthck_dt, &
+               model%geometry%f_ground_cell)
+
+       else
+          ! Interpolation will equally weight the values in all four neighbor cells, including ice-free cells.
+
+          ! Interpolate thck_obs to the staggered grid
+          call glissade_stagger(ewn,         nsn,              &
+                                thck_obs,    stag_thck_obs)
+
+          ! Interpolate thck to the staggered grid
+          call glissade_stagger(ewn,                  nsn,             &
+                                model%geometry%thck,  stag_thck)
+
+          ! Interpolate dthck_dt to the staggered grid
+          call glissade_stagger(ewn,                      nsn,             &
+                                model%geometry%dthck_dt,  stag_dthck_dt)
+
+       endif   ! f_ground_weight
+
+       call staggered_parallel_halo(stag_thck_obs, parallel)
+       call staggered_parallel_halo(stag_thck, parallel)
+       call staggered_parallel_halo(stag_dthck_dt, parallel)
+
+       if (verbose_inversion .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'stag_thck at vertices:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') stag_thck(i,j)*thk0
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       ! Invert for coulomb_c_inversion
+       ! Note: The logic of this subroutine is the same as for powerlaw_c_inversion.
+       !       The only difference is that the max and min allowed values are different.
+       call invert_basal_friction_coulomb(model%numerics%dt*tim0,                 &  ! s
+                                  ewn,               nsn,                 &
+                                  itest,    jtest,   rtest,               &
+                                  model%inversion%babc_timescale,         &  ! s
+                                  model%inversion%babc_thck_scale,        &  ! m
+                                  model%inversion%coulomb_c_max,          &
+                                  model%inversion%coulomb_c_min,          &
+                                  model%geometry%f_ground,                &
+                                  stag_thck*thk0,                         &  ! m
+                                  stag_thck_obs*thk0,                     &  ! m
+                                  stag_dthck_dt,                          &  ! m/s
+                                  model%inversion%coulomb_c_inversion)
+
+    else   ! do not adjust coulomb_c_inversion; just print optional diagnostics
+
+       ! do not adjust coulomb_c_inversion; just print optional diagnostics
+       if (verbose_inversion .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'f_ground at vertices:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') model%geometry%f_ground(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'coulomb_c_inversion:'
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.4)',advance='no') model%inversion%coulomb_c_inversion(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    endif   ! which_ho_cc_inversion
+
+    ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
+    ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cc = 0;
+    !       this check is just to be on the safe side.
+
+    where (model%inversion%coulomb_c_inversion == 0.0d0)
+       model%inversion%coulomb_c_inversion = model%inversion%coulomb_c_min
+    endwhere
+
+  end subroutine glissade_inversion_basal_friction_coulomb
+
+!***********************************************************************
+
+  subroutine invert_basal_friction_powerlaw(dt,                       &
                                    nx,            ny,        &
                                    itest, jtest,  rtest,     &
                                    babc_timescale,           &
@@ -1382,7 +1575,188 @@ contains
        enddo
     endif   ! verbose_inversion
 
-  end subroutine invert_basal_friction
+  end subroutine invert_basal_friction_powerlaw
+
+!***********************************************************************
+
+  ! Note: It may be possible to merge this subroutine with the powerlaw version,
+  !       if the logic ends up being very similar.
+  subroutine invert_basal_friction_coulomb(dt,                       &
+                                   nx,            ny,        &
+                                   itest, jtest,  rtest,     &
+                                   babc_timescale,           &
+                                   babc_thck_scale,          &
+                                   coulomb_c_max,            &
+                                   coulomb_c_min,            &
+                                   f_ground,                 &
+                                   stag_thck,                &
+                                   stag_thck_obs,            &
+                                   stag_dthck_dt,            &
+                                   coulomb_c_inversion)
+
+    ! Compute a spatially varying basal friction field, coulomb_c_inversion, defined at cell vertices.
+    ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
+    ! Where stag_thck > stag_thck_obs, coulomb_c is reduced to increase sliding.
+    ! Where stag_thck < stag_thck_obs, coulomb_c is increased to reduce sliding.
+    ! Note: coulomb_c is constrained to lie within a prescribed range.
+    ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
+    !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
+    !        errors are greater in magnitude than errors in usrf, and we do not want to underweight the errors.
+    !       With dynamic topography, we would either invert based on usrf, or else adjust thck_obs to match usrf_obs.
+
+    real(dp), intent(in) ::  dt  ! time step (s)
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         babc_timescale,       & ! inversion timescale (s); must be > 0
+         babc_thck_scale,      & ! thickness inversion scale (m); must be > 0
+         coulomb_c_max,        & ! upper bound for coulomb_c, unitless in range [0,1]
+         coulomb_c_min           ! lower bound for coulomb_c, unitless in range [0,1]
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+         f_ground,             & ! grounded fraction at vertices, 0 to 1
+         stag_thck,            & ! ice thickness at vertices (m)
+         stag_thck_obs,        & ! observed ice thickness at vertices (m)
+         stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
+
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
+         coulomb_c_inversion     ! coulomb_c_inversion field to be adjusted
+
+    ! local variables
+
+    real(dp), dimension(nx-1,ny-1) ::  &
+         stag_dthck,           & ! stag_thck - stag_thck_obs
+         dcoulomb_c              ! change in coulomb_c
+
+    real(dp) :: term1, term2
+    integer :: i, j
+
+    ! Initialize
+    dcoulomb_c(:,:) = 0.0d0
+
+    ! Compute difference between current and target thickness
+    stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
+
+    ! optional diagnostics
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'Old coulomb_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') coulomb_c_inversion(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'stag_thck - stag_thck_obs:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') stag_dthck(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'stag_dthck_dt (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') stag_dthck_dt(i,j)*scyr
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'f_ground'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') f_ground(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
+
+    ! Loop over vertices where f_ground > 0
+    ! Note: f_ground should be computed before transport, so that if a vertex is grounded
+    !       before transport and fully floating afterward, coulomb_c_inversion is computed here.
+
+    do j = 1, ny-1
+       do i = 1, nx-1
+
+          if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
+
+             ! Compute the rate of change of coulomb_c, based on stag_dthck and stag_dthck_dt.
+             ! This rate of change is proportional to the sum of two terms:
+             !     dCp/dt = -Cp * (1/tau) * (H - H_obs)/H0 + (2*tau/H0) * dH/dt
+             ! where tau = babc_timescale and H0 = babc_thck_scale.
+             ! This equation is similar to that of a damped harmonic oscillator:
+             !     m * d2x/dt2 = -k*x - c*dx/dt
+             ! where m is the mass, k is a spring constant, and c is a damping term.
+             ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
+             !  In this case the system reaches equilibrium as quickly as possible without oscillating.
+             ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
+             !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
+             ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/Cp)*dCp/dt with d2x/dt2,
+             !  we obtain the equation solved here.
+
+             term1 = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
+             term2 = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+
+             dcoulomb_c(i,j) = coulomb_c_inversion(i,j) * (term1 + term2) * dt
+
+             ! Limit to prevent a large relative change in one step
+             if (abs(dcoulomb_c(i,j)) > 0.05d0 * coulomb_c_inversion(i,j)) then
+                if (dcoulomb_c(i,j) > 0.0d0) then
+                   dcoulomb_c(i,j) =  0.05d0 * coulomb_c_inversion(i,j)
+                else
+                   dcoulomb_c(i,j) = -0.05d0 * coulomb_c_inversion(i,j)
+                endif
+             endif
+
+             ! Update coulomb_c
+             coulomb_c_inversion(i,j) = coulomb_c_inversion(i,j) + dcoulomb_c(i,j)
+
+             ! Limit to a physically reasonable range
+             coulomb_c_inversion(i,j) = min(coulomb_c_inversion(i,j), coulomb_c_max)
+             coulomb_c_inversion(i,j) = max(coulomb_c_inversion(i,j), coulomb_c_min)
+
+             !WHL - debug
+             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                 print*, ' '
+                print*, 'Invert for coulomb_c: rank, i, j =', rtest, itest, jtest
+                print*, 'thck, thck_obs, dthck, dthck_dt:', &
+                     stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
+                print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
+                print*, 'dcoulomb_c, newcoulomb_c =', dcoulomb_c(i,j), coulomb_c_inversion(i,j)
+             endif
+
+          else   ! f_ground = 0
+
+             ! do nothing; keep the old value
+
+          endif  ! f_ground > 0
+
+       enddo  ! i
+    enddo  ! j
+
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'New coulomb_c:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.4)',advance='no') coulomb_c_inversion(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif   ! verbose_inversion
+
+  end subroutine invert_basal_friction_coulomb
 
 !***********************************************************************
 
@@ -1642,20 +2016,20 @@ contains
           print*, 'bmlt_basin_timescale (yr) =', bmlt_basin_timescale/scyr
           print*, 'dbmlt_dtemp_scale (m/yr/degC) =', dbmlt_dtemp_scale
           print*, ' '
-          print*, 'basin number, area target (km^2), volume target (km^3), mean thickness target (m):'
+          print*, 'basin, area target (km^2), vol target (km^3), mean H target (m):'
           do nb = 1, nbasin
              write(6,'(i6,3f12.3)') nb, floating_area_target_basin(nb)/1.d6, &
                   floating_volume_target_basin(nb)/1.d9, floating_thck_target_basin(nb)
           enddo
           print*, ' '
-          print*, 'basin number, mean thickness (m), thickness diff (m), dthck_dt (m/yr):'
+          print*, 'basin, mean thickness (m), thickness diff (m), dthck_dt (m/yr):'
           do nb = 1, nbasin
              write(6,'(i6,3f12.3)') nb, floating_thck_basin(nb), &
                   (floating_thck_basin(nb) - floating_thck_target_basin(nb)), &
                   floating_dthck_dt_basin(nb)*scyr
           enddo
           print*, ' '
-          print*, 'basin number, term1*dt, term2*dt, dTbasin, new deltaT_basin:'
+          print*, 'basin, term1*dt, term2*dt, dTbasin, new deltaT_basin:'
           do nb = 1, nbasin
              write(6,'(i6,4f12.6)') nb, &
                   dt/dbmlt_dtemp_scale * (floating_thck_basin(nb) - floating_thck_target_basin(nb)) / (bmlt_basin_timescale**2), &
