@@ -784,6 +784,7 @@ contains
     call GetValue(section, 'use_c_space_factor',          model%options%use_c_space_factor)
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_cp_inversion',       model%options%which_ho_cp_inversion)
+    call GetValue(section, 'which_ho_cc_inversion',       model%options%which_ho_cc_inversion)
     call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
     call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
@@ -1037,7 +1038,7 @@ contains
          'no slip (using large B^2)                        ', &
          'beta from external file                          ', &
          'no slip (Dirichlet implementation)               ', &
-         'till yield stress (Newton)                       ', &
+         'Zoet-Iverson sliding law                         ', &
          'beta as in ISMIP-HOM test C                      ', &
          'power law                                        ', &
          'Coulomb friction law w/ effec press              ', &
@@ -1051,9 +1052,14 @@ contains
          'beta is limited, then scaled by f_ground_cell    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_cp_whichinversion = (/ &
-         'no inversion for basal friction parameters            ', &
-         'invert for basal friction parameters                  ', &
-         'apply basal friction parameters from earlier inversion' /)
+         'no inversion for basal friction parameter Cp            ', &
+         'invert for basal friction parameter Cp                  ', &
+         'apply basal friction parameter Cp from earlier inversion' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_cc_whichinversion = (/ &
+         'no inversion for basal friction parameter Cc            ', &
+         'invert for basal friction parameter Cc                  ', &
+         'apply basal friction parameter Cc from earlier inversion' /)
 
     character(len=*), dimension(0:2), parameter :: ho_bmlt_whichinversion = (/ &
          'no inversion for basal melt rate            ', &
@@ -1738,6 +1744,26 @@ contains
           call write_log('Error, Cp inversion input out of range', GM_FATAL)
        end if
 
+       if (model%options%which_ho_cc_inversion /= HO_CC_INVERSION_NONE) then
+          write(message,*) 'ho_cc_whichinversion    : ',model%options%which_ho_cc_inversion,  &
+                            ho_cc_whichinversion(model%options%which_ho_cc_inversion)
+          call write_log(message)
+          ! Note: Inversion for Cc is currently supported only for the Zoet-Iverson law
+          if (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
+             ! inversion for Cc is supported
+          else
+             call write_log('Error, Cc inversion is not supported for this basal BC option')
+             write(message,*) 'Cc inversion is supported only for these options: ', &
+                  HO_BABC_ZOET_IVERSON
+             call write_log(message, GM_FATAL)
+          endif
+       endif
+
+       if (model%options%which_ho_cc_inversion < 0 .or. &
+           model%options%which_ho_cc_inversion >= size(ho_cc_whichinversion)) then
+          call write_log('Error, Cc inversion input out of range', GM_FATAL)
+       end if
+
        if (model%options%which_ho_bmlt_inversion /= HO_BMLT_INVERSION_NONE) then
           write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
                             ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
@@ -1766,10 +1792,6 @@ contains
        end if
 
        ! unsupported ho-babc options
-       if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
-         call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
-              &USE AT YOUR OWN RISK.', GM_WARNING)
-       endif
        if (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
          call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
               &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
@@ -2122,6 +2144,7 @@ contains
     call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_c)
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
     call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
+    call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
@@ -2498,6 +2521,11 @@ contains
                HO_THERMAL_AFTER_TRANSPORT, HO_THERMAL_SPLIT_TIMESTEP
           call write_log(message, GM_WARNING)
        endif
+    elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
+       write(message,*) 'threshold speed for Zoet-Iverson law (m/yr): ', model%basal_physics%zoet_iverson_ut
+       call write_log(message)
+       write(message,*) 'm exponent for Zoet-Iverson law            : ', model%basal_physics%powerlaw_m
+       call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_ISHOMC) then
        if (model%general%ewn /= model%general%nsn) then
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
@@ -3402,6 +3430,14 @@ contains
        call glide_add_to_restart_variable_list('dthck_dt', model_id)
     elseif (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
        call glide_add_to_restart_variable_list('powerlaw_c_inversion', model_id)
+    endif
+
+    if (options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE) then
+       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('coulomb_c_inversion')
+       call glide_add_to_restart_variable_list('dthck_dt')
+    elseif (options%which_ho_cp_inversion == HO_CC_INVERSION_APPLY) then
+       call glide_add_to_restart_variable_list('coulomb_c_inversion')
     endif
 
     if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
