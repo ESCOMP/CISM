@@ -1161,6 +1161,13 @@ long_name:     spatially varying C for powerlaw sliding, staggered grid
 data:          data%inversion%powerlaw_c_inversion
 load:          1
 
+[coulomb_c_inversion]
+dimensions:    time, y0, x0
+units:         1
+long_name:     spatially varying C for Coulomb sliding, staggered grid
+data:          data%inversion%coulomb_c_inversion
+load:          1
+
 [thck_inversion_save]
 dimensions:    time, y1,x1
 units:         meter

@@ -79,7 +79,9 @@ contains
                        beta,                         &
                        which_ho_beta_limit,          &
                        which_ho_cp_inversion,        &
+                       which_ho_cc_inversion,        &
                        powerlaw_c_inversion,         &
+                       coulomb_c_inversion,          &
                        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
@@ -122,8 +124,10 @@ contains
 
   integer, intent(in)           :: which_ho_beta_limit           ! option to limit beta for grounded ice
                                                                  ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
-  integer, intent(in), optional :: which_ho_cp_inversion         ! basal inversion option
+  integer, intent(in), optional :: which_ho_cp_inversion         ! basal inversion option for Cp
+  integer, intent(in), optional :: which_ho_cc_inversion         ! basal inversion option for Cc
   real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion, on staggered grid
+  real(dp), intent(in), dimension(:,:), optional :: coulomb_c_inversion   ! Cc from inversion, on staggered grid
   integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
 
   ! Local variables
@@ -174,7 +178,8 @@ contains
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
   real(dp) :: numerator, denominator
 
-  integer :: which_cp_inversion  ! option to invert for basal friction parameters
+  integer :: which_cp_inversion  ! option to invert for basal friction parameter Cp
+  integer :: which_cc_inversion  ! option to invert for basal friction parameter Cc
 
   character(len=300) :: message
 
@@ -183,10 +188,17 @@ contains
   logical, parameter :: verbose_beta = .false.
 
   !TODO - Make which_ho_cp_inversion a non-optional argument?
+  !       Alternatively, put in basal physics derived type?
   if (present(which_ho_cp_inversion)) then
      which_cp_inversion = which_ho_cp_inversion
   else
      which_cp_inversion = HO_CP_INVERSION_NONE
+  endif
+
+  if (present(which_ho_cc_inversion)) then
+     which_cc_inversion = which_ho_cc_inversion
+  else
+     which_cc_inversion = HO_CC_INVERSION_NONE
   endif
 
   ! Compute the ice speed: used in power laws where beta = beta(u).
@@ -287,6 +299,63 @@ contains
        !      But keeping it for historical reasons since many config files use it
 
        beta(:,:) = basal_physics%ho_beta_large      ! Pa yr/m  (= 1.0d10 by default)
+
+    case(HO_BABC_ZOET_IVERSON)
+
+       ! Use the sliding law suggested by Zoet & Iverson (2020):
+       !     tau_b = C_c * N * [u_b/(u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
+       ! where C_c = a constant in the range [0,1]
+       !       N   = effective pressure
+       !       u_t = threshold speed controlling the transition between powerlaw and Coulomb behavior
+       !       m   = powerlaw exponent
+
+       m = basal_physics%powerlaw_m
+
+       !TODO - Move powerlaw_c_inversion and coulomb_c_inversion to basal physics type
+       !       Later, maybe change to *_2d?
+
+       if (which_cc_inversion == HO_CC_INVERSION_NONE) then
+
+          ! Set beta assuming a spatially uniform value of coulomb_c
+
+          do ns = 1, parallel%global_nsn
+             do ew = 1, parallel%global_ewn
+                tau_c = basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)
+                beta(ew,ns) = tau_c * speed(ew,ns)**(1.0d0/m - 1.0d0)  &
+                     / (speed(ew,ns) + basal_physics%zoet_iverson_ut)**(1.0d0/m)
+
+                !WHL - debug
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest) .and. &
+                     this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(6,*) 'Cc, N, speed, beta =', &
+                        coulomb_c, basal_physics%effecpress_stag(ew,ns), speed(ew,ns), beta(ew,ns)
+                endif
+
+             enddo
+          enddo
+
+       elseif (which_cc_inversion == HO_CC_INVERSION_COMPUTE .or.   &
+               which_cc_inversion == HO_CC_INVERSION_APPLY) then  ! use coulomb_c from inversion
+
+          ! Use coulomb_c from inversion
+
+          do ns = 1, nsn-1
+             do ew = 1, ewn-1
+                tau_c = coulomb_c_inversion(ew,ns) * basal_physics%effecpress_stag(ew,ns)
+                beta(ew,ns) = tau_c * speed(ew,ns)**(1.0d0/m - 1.0d0)  &
+                     / (speed(ew,ns) + basal_physics%zoet_iverson_ut)**(1.0d0/m)
+
+                !WHL - debug
+                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest) .and. &
+                     this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(6,*) 'Cc, N, speed, beta =', &
+                        coulomb_c_inversion(ew,ns), basal_physics%effecpress_stag(ew,ns), speed(ew,ns), beta(ew,ns)
+                endif
+
+             enddo
+          enddo
+
+       endif   ! which_ho_cc_inversion
 
     case(HO_BABC_ISHOMC)          ! prescribe according to ISMIP-HOM test C
 
@@ -684,14 +753,14 @@ contains
    !TODO - Move this halo update to a higher level?
    call staggered_parallel_halo(beta, parallel)
 
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest) then
-                      ew = itest; ns = jtest
-                      write(6,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
-                           rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
-                   endif
-                endif
+   !WHL - debug
+   if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+      if (this_rank == rtest) then
+         ew = itest; ns = jtest
+         write(6,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
+              rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
+      endif
+   endif
 
   end subroutine calcbeta
 

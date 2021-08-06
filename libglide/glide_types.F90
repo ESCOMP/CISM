@@ -256,7 +256,7 @@ module glide_types
   integer, parameter :: HO_BABC_BETA_LARGE = 4
   integer, parameter :: HO_BABC_BETA_EXTERNAL = 5
   integer, parameter :: HO_BABC_NO_SLIP = 6
-  integer, parameter :: HO_BABC_YIELD_NEWTON = 7
+  integer, parameter :: HO_BABC_ZOET_IVERSON = 7
   integer, parameter :: HO_BABC_ISHOMC = 8
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
@@ -271,6 +271,10 @@ module glide_types
   integer, parameter :: HO_CP_INVERSION_NONE = 0
   integer, parameter :: HO_CP_INVERSION_COMPUTE = 1
   integer, parameter :: HO_CP_INVERSION_APPLY = 2
+
+  integer, parameter :: HO_CC_INVERSION_NONE = 0
+  integer, parameter :: HO_CC_INVERSION_COMPUTE = 1
+  integer, parameter :: HO_CC_INVERSION_APPLY = 2
 
   integer, parameter :: HO_BMLT_INVERSION_NONE = 0
   integer, parameter :: HO_BMLT_INVERSION_COMPUTE = 1
@@ -797,7 +801,7 @@ module glide_types
     !> \item[4] very large value for beta to enforce no slip everywhere 
     !> \item[5] beta field passed in from .nc input file as part of standard i/o
     !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
-    !> \item[7] treat beta value as till yield stress (in Pa) using Newton-type iteration (in development)
+    !> \item[7] Zoet-Iverson law combining Coulomb and powerlaw behavior
     !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
     !> \item[9] power law
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
@@ -824,6 +828,15 @@ module glide_types
     !> \item[0] no inversion
     !> \item[1] invert for basal friction parameter Cp
     !> \item[2] apply Cp from a previous inversion
+    !> \end{description}
+
+    integer :: which_ho_cc_inversion = 0
+    !> Flag for basal inversion options: invert for Cc = coulomb_c
+    !> Note: Cc inversion is currently supported for which_ho_babc = 7 only
+    !> \begin{description}
+    !> \item[0] no inversion
+    !> \item[1] invert for basal friction parameter Cc
+    !> \item[2] apply Cc from a previous inversion
     !> \end{description}
 
     integer :: which_ho_bmlt_inversion = 0
@@ -856,7 +869,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] D8; send flux to lowest-elevation neighbor
     !> \item[1] Dinf; divide flux between two lower-elevation neighbors
-    !> \item[2] FD8; divide flux amond all lower-elevation neighbors
+    !> \item[2] FD8; divide flux among all lower-elevation neighbors
     !> \end{description}
 
     integer :: which_ho_effecpress = 0
@@ -1598,19 +1611,25 @@ module glide_types
           wean_bmlt_float_tend = 0.0d0,     & !> end time (yr) for weighted nudging of bmlt_float
           wean_bmlt_float_timescale = 0.0d0   !> time scale for weaning of bmlt_float
 
-     ! fields and parameters for powerlaw_c inversion
+     ! fields and parameters for powerlaw_c and coulomb_c inversion
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_inversion => null(), &      !> powerlaw_c_inversion on staggered grid, Pa (m/yr)^(-1/3)
+          powerlaw_c_inversion => null(), &      !> 2D powerlaw_c from inversion on staggered grid, Pa (m/yr)^(-1/3)
+          coulomb_c_inversion => null(), &       !> 2D coulomb_c from inversion on staggered grid, unitless in range [0,1]
           thck_save => null()                    !> saved thck field (m); used to compute dthck_dt_inversion
 
      ! parameters for inversion of basal friction coefficients
-     ! Note: These values work well for MISMIP+, but may not be optimal for whole ice sheets.
 
      real(dp) ::  &
           powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
           powerlaw_c_min = 1.0d2                 !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
+
+     ! Note: coulomb_c_max = 1.0 to cap effecpress at overburden
+     ! TODO: Test different values of coulomb_c_min
+     real(dp) ::  &
+          coulomb_c_max = 1.0d0,              &  !> max value of coulomb_c, unitless
+          coulomb_c_min = 1.0d-3                 !> min value of coulomb_c, unitless
 
      ! parameters for adjusting powerlaw_c_inversion
      ! Note: inversion_babc_timescale is later rescaled to SI units (s).
@@ -1903,6 +1922,11 @@ module glide_types
      real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !> basal melting range over which N ramps from a small value to full overburden (m/yr)
      real(dp) :: p_ocean_penetration = 0.0d0        !> p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
 
+     ! parameters for the Zoet-Iverson sliding law
+     ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
+     ! Here, tan(phi) is replaced by coulomb_c
+     real(dp) :: zoet_iverson_ut= 200.d0            !> threshold velocity for Zoet-Iverson law (m/yr)
+
      ! parameters for pseudo-plastic sliding law (based on PISM)
      ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
      ! where the yield stress tau_c = tan(phi) * N
@@ -1923,7 +1947,7 @@ module glide_types
                                                  !> The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
 
      ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
-     real(dp) :: coulomb_c = 0.42d0              !> basal stress constant (no dimension)
+     real(dp) :: coulomb_c = 0.42d0              !> basal stress constant; unitless in range [0,1]
                                                  !> Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
      real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
@@ -2389,6 +2413,7 @@ contains
     !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
     !> \item \texttt{powerlaw_c_inversion(ewn-1,nsn-1)}
+    !> \item \texttt{coulomb_c_inversion(ewn-1,nsn-1)}
     !> \item \texttt{thck_save(ewn,nsn)}
 
     !> In \texttt{model\%plume}:
@@ -2818,19 +2843,24 @@ contains
 
     ! inversion arrays (Glissade only)
 
-    ! Always allocate powerlaw_c_inversion so it can be passed as an argument
+    ! Always allocate powerlaw_c_inversion and coulomb_c_inversion so they can be passed as arguments
     allocate(model%inversion%powerlaw_c_inversion(1,1))
-
-    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
-    endif
+    allocate(model%inversion%coulomb_c_inversion(1,1))
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
         model%options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
        call coordsystem_allocate(model%general%velo_grid,model%inversion%powerlaw_c_inversion)
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
+    elseif (model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
+            model%options%which_ho_cc_inversion == HO_CC_INVERSION_APPLY) then
+       call coordsystem_allocate(model%general%velo_grid,model%inversion%coulomb_c_inversion)
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
+    endif
+
+    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
     endif
 
     if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or. &
@@ -3243,6 +3273,8 @@ contains
         deallocate(model%inversion%bmlt_float_inversion)
     if (associated(model%inversion%powerlaw_c_inversion)) &
         deallocate(model%inversion%powerlaw_c_inversion)
+    if (associated(model%inversion%coulomb_c_inversion)) &
+        deallocate(model%inversion%coulomb_c_inversion)
     if (associated(model%inversion%thck_save)) &
         deallocate(model%inversion%thck_save)
     if (associated(model%inversion%floating_thck_target)) &

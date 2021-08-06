@@ -838,12 +838,13 @@ contains
     !  so it should be called before computing the calving mask.
 
     if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+        model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or. &
         model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
        call glissade_init_inversion(model)
 
-    endif  ! which_ho_cp_inversion or which_ho_bmlt_inversion
+    endif  ! inversion for Cp, Cc or bmlt
 
     ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
 
@@ -3766,7 +3767,8 @@ contains
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_inversion, only: &
-         glissade_inversion_basal_friction, glissade_inversion_bmlt_basin, verbose_inversion
+         glissade_inversion_basal_friction_powerlaw, glissade_inversion_basal_friction_coulomb,  &
+         glissade_inversion_bmlt_basin, verbose_inversion
 
     implicit none
 
@@ -4024,7 +4026,7 @@ contains
 
     endif
 
-    ! If inverting for Cp = powerlaw_c_inversion, then update it here
+    ! If inverting for Cp = powerlaw_c_inversion, then update it here.
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
@@ -4033,16 +4035,28 @@ contains
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
-
           ! first call after a restart; do not update powerlaw_c
-
        else
-
-          call glissade_inversion_basal_friction(model)
-
+          call glissade_inversion_basal_friction_powerlaw(model)
        endif
 
     endif   ! which_ho_cp_inversion
+
+
+    ! If inverting for Cc = coulomb_c_inversion, then update it here.
+
+    if ( model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or. &
+         model%options%which_ho_cc_inversion == HO_CC_INVERSION_APPLY) then
+
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+          ! first call after a restart; do not update coulomb_c
+       else
+          call glissade_inversion_basal_friction_coulomb(model)
+       endif
+
+    endif   ! which_ho_cc_inversion
+
 
     ! If inverting for deltaT_basin, then update it here
     ! Note: We do not need to update deltaT_basin if simply applying a value from a previous inversion.
@@ -4884,6 +4898,7 @@ contains
     ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
     if (verbose_inversion .and.  &
         (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
+         model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
          model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE)  .and.  &
         model%numerics%time > model%numerics%tstart) then
        do j = nhalo+1, model%general%nsn-nhalo
