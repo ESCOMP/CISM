@@ -974,7 +974,9 @@ module glissade_bmlt_float
          bmlt_float         !> basal melt rate for floating ice (m/s)
 
     real(dp), intent(in), optional ::  &
-         tf_anomaly_in,   &   !> uniform thermal forcing anomaly (deg C), applied everywhere
+         tf_anomaly_in      !> uniform thermal forcing anomaly (deg C), applied everywhere
+
+    integer, intent(in), optional :: &
          tf_anomaly_basin_in  !> basin where anomaly is applied; for default value of 0, apply to all basins
 
     ! local variables
@@ -1005,7 +1007,9 @@ module glissade_bmlt_float
          deltaT_basin_avg                 ! basin average value of deltaT_basin
 
     real(dp) :: &
-         tf_anomaly,                   &  ! local version of tf_anomaly_in
+         tf_anomaly                       ! local version of tf_anomaly_in
+
+    integer ::  &
          tf_anomaly_basin                 ! local version of tf_anomaly_basin_in
 
     ! Note: This range ought to cover all regions where ice is present, but could be modified if desired.
@@ -1235,14 +1239,14 @@ module glissade_bmlt_float
           if (ocean_data%thermal_forcing_lsrf(i,j) > thermal_forcing_max) then
              call parallel_globalindex(i, j, iglobal, jglobal, parallel)
              write(message,*) &
-                  'Ocean thermal forcing error: extreme TF at i, j, lsrf, TF =', &
-                  iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
+                  'Ocean thermal forcing error: extreme TF at rank, i, j, iglobal, jglobal, lsrf, TF =', &
+                  this_rank, i, j, iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
              call write_log(message, GM_FATAL)
           elseif (ocean_data%thermal_forcing_lsrf(i,j) < thermal_forcing_min) then
              call parallel_globalindex(i, j, iglobal, jglobal, parallel)
              write(message,*) &
-                  'Ocean thermal forcing error: extreme TF at i, j, lsrf, TF =', &
-                  iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
+                  'Ocean thermal forcing error: extreme TF at rank, i, j, iglobal, jglobal, lsrf, TF =', &
+                  this_rank, i, j, iglobal, jglobal, lsrf(i,j), ocean_data%thermal_forcing_lsrf(i,j)
              call write_log(message, GM_FATAL)
           endif
        enddo
