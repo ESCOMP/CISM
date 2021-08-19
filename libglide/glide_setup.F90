@@ -990,8 +990,8 @@ contains
          'calving based on grid location  ', &
          'ice thickness threshold         ', &
          'eigencalving scheme             ', & 
-         'damage-based calving scheme     ', & 
-         'Huybrechts grounding-line scheme' /) 
+         'eigenthickness scheme           ', &
+         'damage-based calving scheme     ' /)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1446,14 +1446,13 @@ contains
 
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == EIGENCALVING) then
+       elseif (model%options%whichcalving == EIGENCALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CALVING_GRID_MASK) then
+       elseif (model%options%whichcalving == CALVING_EIGENTHICKNESS) then
+          call write_log('Error, eigenthickness option is supported for Glissade dycore only', GM_FATAL)
+       elseif (model%options%whichcalving == CALVING_GRID_MASK) then
           call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CALVING_DAMAGE) then
+       elseif (model%options%whichcalving == CALVING_DAMAGE) then
           call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
@@ -2098,8 +2097,9 @@ contains
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
     call GetValue(section,'lateral_rate_max',   model%calving%lateral_rate_max)
-    call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
+    call GetValue(section,'eigencalving_constant',   model%calving%eigencalving_constant)
     call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
+    call GetValue(section,'eigenthickness_constant', model%calving%eigenthickness_constant)
     call GetValue(section,'damage_constant',    model%calving%damage_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
@@ -2317,6 +2317,7 @@ contains
     ! thickness-based calving options
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
         model%options%whichcalving == EIGENCALVING           .or. &
+        model%options%whichcalving == CALVING_EIGENTHICKNESS .or. &
         model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%calving%timescale <= 0.0d0) then
@@ -2324,7 +2325,8 @@ contains
           call write_log(message, GM_FATAL)
        endif
 
-       if (model%options%whichcalving == EIGENCALVING .or. &
+       if (model%options%whichcalving == EIGENCALVING           .or. &
+           model%options%whichcalving == CALVING_EIGENTHICKNESS .or. &
            model%options%whichcalving == CALVING_DAMAGE) then
           if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
              write(message,*) &
@@ -2342,7 +2344,7 @@ contains
              call write_log(message)
           endif
        elseif (model%options%whichcalving == EIGENCALVING) then
-          if (model%calving%minthck == 0.0d0) then
+          if (model%calving%minthck <= 0.0d0) then
              write(message,*) 'Error: Eigencalving requires minthck > 0'
              call write_log(message, GM_FATAL)
           else
@@ -2352,6 +2354,9 @@ contains
           write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
           call write_log(message)
           write(message,*) 'eigenvalue 2 weight (unitless)       : ', model%calving%eigen2_weight
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_EIGENTHICKNESS) then
+          write(message,*) 'eigenthickness constant (unitless)   : ', model%calving%eigenthickness_constant
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
           if (model%calving%minthck == 0.0d0) then
@@ -2368,7 +2373,7 @@ contains
           write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
           call write_log(message)
        endif
-    endif   ! CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE
+    endif   ! CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_EIGENTHICKNESS, CALVING_DAMAGE
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (.not.model%options%remove_icebergs) then
@@ -3364,8 +3369,12 @@ contains
         ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-        if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
+        if (options%whichcalving == EIGENCALVING .or. &
+            options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1')
+           call glide_add_to_restart_variable_list('tau_eigen2')
+        elseif (options%whichcalving == CALVING_EIGENTHICKNESS) then
+           ! The eigenthickness calculation uses only the second eigenvalue
            call glide_add_to_restart_variable_list('tau_eigen2')
         endif
 

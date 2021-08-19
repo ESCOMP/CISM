@@ -47,7 +47,8 @@ module glissade_calving
             glissade_limit_cliffs
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -484,10 +485,13 @@ contains
                                                                      !> used with CALVING_FLOAT_FRACTION
 !    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * max(dt/timescale, 1)
                                                                      !> if timescale = 0, then calving_thck = thck
-!    real(dp), intent(in)                     :: thck_calving_threshold  !> calve ice in the calving domain if thck < thck_calving_threshold (m);
-                                                                         !> used with CALVING_THCK_THRESHOLD, EIGENCALVING and CALVING_DAMAGE
+                                                                         !>  used with CALVING_THCK_THRESHOLD, EIGENCALVING and CALVING_DAMAGE
+                                                                         !> For CALVING_EIGENTHICKNESS, this threshold is time-varying
 !    real(dp), intent(in)                     :: eigencalving_constant   !> eigencalving constant; m/s (lateral calving rate) per Pa (tensile stress)
 !    real(dp), intent(in)                     :: eigen2_weight       !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
+!    real(dp), intent(in)                     :: eigenthickness_constant !> eigenthickness constant (unitless);
+                                                                         !> calving triggered when H < eigen_const*tau_eigen2/(rhoi*g)
+!    real(dp), dimension(:,:), intent(inout)  :: thck_calving_threshold  !> calve ice in the calving domain if thck < thck_calving_threshold (m);
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen1          !> first eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen2          !> second eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(inout)  :: tau_eff             !> effective stress (Pa) for calving; derived from tau_eigen1/2
@@ -595,14 +599,15 @@ contains
 
     if (which_calving == EIGENCALVING .or. which_calving == CALVING_DAMAGE) then
 
-       ! These two methods have several features in common:
+       ! These methods have several features in common:
        ! (1) The eigenvalues of the 2D horizontal stress tensor are key fields controlling the calving rate.
        ! (2) A lateral calving rate is computed in calving-front cells, then converted to a thinning rate.
-       ! (3) The thinning rate is applied to CF cells and, if sufficiently large, to adjacent interior cells.
+       ! (3) The thinning rate is then applied to CF cells.
        !
-       ! The main difference is that for eigencalving, the lateral calving rate is based on current stresses
-       !  at the calving front, whereas for damage-based calving, the lateral calving rate is based on damage,
-       !  which accumulates in floating cells due to stresses and then is advected downstream to the calving front.
+       ! The differences are as follows:
+       !  *  For eigencalving, the lateral calving rate is based on current stress at the calving front.
+       !  *  For damage-based calving, the calving rate is based on damage,
+       !     which accumulates in floating cells due to stresses and then is advected downstream to the CF.
        !
        ! At some point, we may want to prognose damage in a way that depends on other factors such as mass balance.
 
@@ -626,7 +631,6 @@ contains
                                floating_mask = floating_mask, &
                                ocean_mask = ocean_mask,       &
                                land_mask = land_mask)
-
 
        call glissade_calving_front_mask(nx,            ny,              &
                                         which_ho_calving_front,         &
@@ -890,11 +894,13 @@ contains
     endif  ! eigencalving or damage-based calving
 
 
-    if (which_calving == CALVING_THCK_THRESHOLD .or. which_calving == EIGENCALVING    &
-                                                .or. which_calving == CALVING_DAMAGE) then
+    if (which_calving == CALVING_THCK_THRESHOLD .or. which_calving == EIGENCALVING .or.   &
+        which_calving == CALVING_EIGENTHICKNESS .or. which_calving == CALVING_DAMAGE) then
 
        ! Note: Eigencalving or damage-based calving, if done above, is followed by thickness-based calving.
-       !       This helps get rid of thin ice near the CF where stress eigenvalues might be small.
+       !        This helps get rid of thin ice near the CF where stress eigenvalues might be small.
+       !       Eigenthickness is like regular thickness-based calving, except that the thickness threshold
+       !        varies spatially and is proportional to tau_eigen2 (if > 0).
 
        ! Get masks
        ! For eigencalving, masks were computed above, but should be recomputed before doing more calving
@@ -919,6 +925,35 @@ contains
                                calving_front_mask,                &
                                thck_calving_front)
 
+       ! For CALVING_EIGENTHICKNESS, compute the current thickness threshold
+       ! Let the threshold H_c = c * tau2 / (rhoi*g), where
+       !   c = empirical constant (unitless)
+       !   tau2 = max(tau_eigen2, 0.)
+       ! Note: tau_eigen2 is extrapolated to inactive CF cells after the previous velocity solve
+       !       and is in the restart file if needed.
+
+       if (which_calving == CALVING_EIGENTHICKNESS) then
+          if (verbose_calving .and. this_rank == rtest) then
+             print*, 'eigenthickess_constant =', calving%eigenthickness_constant
+          endif
+
+          ! Compute the stress terms tau2 on floating ice where tau_eigen2 > 0
+          tau2 = max(calving%tau_eigen2, 0.0d0)
+          where (floating_mask == 0) tau2 = 0.0d0
+          call parallel_halo(tau2, parallel)
+
+          do j = 1, ny
+             do i = 1, nx
+                if (calving_front_mask(i,j) == 1) then
+                   calving%thck_calving_threshold(i,j) = &
+                        calving%eigenthickness_constant * tau2(i,j) / (rhoi*grav)
+                else
+                   calving%thck_calving_threshold(i,j) = 0.0d0
+                endif
+             enddo
+          enddo
+       endif   ! eigenthickness
+
        if (verbose_calving .and. this_rank == rtest) then
           print*, ' '
           print*, 'Thickness-based calving:'
@@ -937,6 +972,15 @@ contains
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
                 write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'tau_eigen2 (Pa), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') calving%tau_eigen2(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1021,10 +1065,9 @@ contains
 
        !WHL - debug
        if (verbose_calving .and. this_rank == rtest) then
-
           print*, ' '
           print*, 'Did thickness-based calving, task =', this_rank 
-         print*, ' '
+          print*, ' '
           print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
@@ -1090,22 +1133,6 @@ contains
           elsewhere
              calving_law_mask = .false.
           endwhere
-
-       case(CALVING_HUYBRECHTS)    ! Huybrechts grounding line scheme for Greenland initialization
-
-          if (eus > -80.d0) then
-             where (relx <= 2.d0*eus)
-                calving_law_mask = .true.
-             elsewhere
-                calving_law_mask = .false.
-             end where
-          elseif (eus <= -80.d0) then
-             where (relx <= (2.d0*eus - 0.25d0*(eus + 80.d0)**2.d0))
-                calving_law_mask = .true.
-             elsewhere
-                calving_law_mask = .false.
-             end where
-          end if
 
        end select
 

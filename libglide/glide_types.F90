@@ -188,8 +188,8 @@ module glide_types
   integer, parameter :: CALVING_GRID_MASK = 5
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
   integer, parameter :: EIGENCALVING = 7
-  integer, parameter :: CALVING_DAMAGE = 8
-  integer, parameter :: CALVING_HUYBRECHTS = 9
+  integer, parameter :: CALVING_EIGENTHICKNESS = 8
+  integer, parameter :: CALVING_DAMAGE = 9
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -634,11 +634,12 @@ module glide_types
     !> \item[4] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glide_types)  
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
-    !> \item[6] Set thickness to zero if ice at marine margin is thinner than
-    !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Set thickness to zero based on stress (eigencalving) criterion
-    !> \item[8] Calve ice that is sufficiently damaged
-    !> \item[9] Huybrechts grounding line scheme for Greenland initialization
+    !> \item[6] Calve ice at the marine margin if thinner than a threshold value
+    !>          (variable 'calving_minthck' in glide_types)
+    !> \item[7] Calve ice based on a stress (eigencalving) criterion
+    !> \item[8] Calve ice thinner than c*tau2/(rhoi*g),
+    !>          where tau2 = eigenvalue and c = scalar constant
+    !> \item[9] Calve ice that is sufficiently damaged
     !> \end{description}
 
     integer :: calving_init = 0
@@ -1460,6 +1461,8 @@ module glide_types
      real(dp) :: eigencalving_constant = 0.01d0  !> eigencalving constant, lateral calving rate (m/yr) per unit stress (Pa)
                                                  !> (whichcalving = EIGENCALVING)
      real(dp) :: eigen2_weight = 1.0d0           !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
+     real(dp) :: eigenthickness_constant = 100.d0!> eigenthickness constant; calving triggered when H < eigen_const*tau_eigen2/(rhoi*g)
+                                                 !> (whichcalving = EIGENTHICKNESS)
      real(dp) :: damage_constant = 1.0d-7        !> damage constant; rate of change of damage (1/yr) per unit stress (Pa)
                                                  !> (whichcalving = CALVING_DAMAGE) 
      real(dp) :: damage_threshold = 0.75d0       !> threshold at which ice column is deemed sufficiently damaged to calve

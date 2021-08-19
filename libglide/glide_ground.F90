@@ -118,35 +118,6 @@ contains
           thck = 0.0d0
        end where
 
-    ! Huybrechts grounding line scheme for Greenland initialization
-
-    case(CALVING_HUYBRECHTS)   ! used to be case(7)
-
-       !WHL - Previously, this code assumed that eus and relx have units of meters.
-       !      Changed to be consistent with dimensionless thickness units.  
-!       if(eus > -80.d0) then
-!          where (relx <= 2.d0*eus)
-!             calving_thck = thck
-!             thck = 0.0d0
-!          end where
-!       elseif (eus <= -80.d0) then
-!          where (relx <= (2.d0*eus - 0.25d0*(eus + 80.d0)**2.d0))
-!             calving_thck = thck
-!             thck = 0.0d0
-!          end where
-!       end if
-       if (eus*thk0 > -80.d0) then
-          where (relx*thk0 <= 2.d0*eus*thk0)
-             calving_thck = thck
-             thck = 0.0d0
-          end where
-       elseif (eus*thk0 <= -80.d0) then
-          where (relx*thk0 <= (2.d0*eus*thk0 - 0.25d0*(eus*thk0 + 80.d0)**2.d0))
-             calving_thck = thck
-             thck = 0.0d0
-          end where
-       end if
-       
     end select
     
   end subroutine glide_calve_ice
