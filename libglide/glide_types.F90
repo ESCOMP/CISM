@@ -1289,8 +1289,8 @@ module glide_types
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
     real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D $x$-velocity; typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity; typically the vertical average
-    real(dp),dimension(:,:)  ,pointer :: ubas  => null()      !> basal $x$-velocity
-    real(dp),dimension(:,:)  ,pointer :: vbas  => null()      !> basal $y$-velocity
+    real(dp),dimension(:,:)  ,pointer :: ubas  => null()      !> basal $x$-velocity at cell vertices
+    real(dp),dimension(:,:)  ,pointer :: vbas  => null()      !> basal $y$-velocity at cell vertices
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
 
@@ -2742,7 +2742,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagtopg)
 
        ! Basal Physics
-       !WHL - Since the number of basal BC options is proliferating, simplify the logic by allocating the following arrays
+       !WHL - Since the number of basal BC options has proliferated, simplify the logic by allocating the following arrays
        !      whenever running glissade
 !!       if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
 !!            (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
@@ -2762,13 +2762,13 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_tavg)
+    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
 
     !WHL - debug
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_old)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_diff)
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
-       call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)

@@ -632,7 +632,6 @@ contains
        end if
 
        ! Calculate basal melt rate --------------------------------------------------
-       ! Note: bmlt_float = 0 for Glide
 
        call glide_calcbmlt(model, &
                            model%temper%temp, &
@@ -644,6 +643,10 @@ contains
                            model%velocity%vbas, &
                            model%basal_melt%bmlt, &
                            GLIDE_IS_FLOAT(model%geometry%thkmask))
+
+       ! Copy bmlt to bmlt_ground, so that bmlt_ground is available for diagnostics.
+       ! Note: bmlt_float = 0 for Glide.
+       model%basal_melt%bmlt_ground = model%basal_melt%bmlt
 
        ! Transform basal temperature and pressure melting point onto velocity grid
        ! We need stagbpmp for one of the basal traction cases.

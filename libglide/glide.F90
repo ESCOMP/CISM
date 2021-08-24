@@ -85,8 +85,6 @@ contains
     type(ConfigSection), pointer :: ncconfig
     integer :: unit
 
-    integer :: k   !WHL - debug
-
     unit = 99
     if (present(fileunit)) then
        unit = fileunit
@@ -910,9 +908,6 @@ contains
     use glide_ground, only: glide_calve_ice
 
     type(glide_global_type), intent(inout) :: model    ! model instance
-
-    !debug
-    integer :: j
 
     ! ------------------------------------------------------------------------ 
     ! Calculate flow evolution by various different methods
