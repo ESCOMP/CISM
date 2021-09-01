@@ -119,13 +119,11 @@ contains
 
     ! TODO(wjs, 2015-03-18) Could the logic here be replaced by the use of some existing
     ! mask? For now I am simply re-implementing the logic that was in glint.
-    !
-    ! (2021-08-31) See also comments in https://github.com/ESCOMP/CISM/issues/39
 
     usrf = thk0 * geometry%usrf(i,j)
 
-    if (usrf >= 0.d0) then
-       ! points at or above sea level are assumed to be land or ice sheet
+    if (usrf > 0.d0) then
+       ! points not at sea level are assumed to be land or ice sheet
        is_in_active_grid = .true.
     else
        is_in_active_grid = .false.
