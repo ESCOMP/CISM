@@ -119,6 +119,8 @@ contains
 
     ! TODO(wjs, 2015-03-18) Could the logic here be replaced by the use of some existing
     ! mask? For now I am simply re-implementing the logic that was in glint.
+    !
+    ! (2021-09-01) See also https://github.com/ESCOMP/CISM/issues/41
 
     usrf = thk0 * geometry%usrf(i,j)
 
