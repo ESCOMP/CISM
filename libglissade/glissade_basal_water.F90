@@ -219,7 +219,7 @@ contains
          bwat                       ! basal water depth (m)
 
     real(dp), dimension(nx,ny), intent(out) ::  &
-         bwatflx,                 & ! basal water flux (m^3/s)
+         bwatflx,                 & ! basal water flux (m/yr)
          head                       ! hydraulic head (m)
 
     ! Local variables
@@ -236,7 +236,7 @@ contains
          c_effective_pressure = 0.0d0                   ! for now estimated as N = c/bwat
 
     ! parameters related to subglacial fluxes
-    ! The basal water flux is given by Sommers et al. (2018), Eq. 5:
+    ! The water flux q is given by Sommers et al. (2018), Eq. 5:
     !
     !           q = (b^3*g)/[(12*nu)*(1 + omega*Re)] * (-grad(h))
     !
@@ -247,6 +247,11 @@ contains
     !   omega = parameter controlling transition between laminar and turbulent flow
     !      Re = Reynolds number (large for turbulent flow)
     !       h = hydraulic head (m)
+    !
+    ! Note: In the equation above and the calculation below, bwatflx has units of m^3/s,
+    !        i.e., volume per second entering and exiting a grid cell.
+    !       For output, bwatflx has units of m/yr, i.e. volume per unit area per year entering and exiting a grid cell.
+    !       With the latter convention, bwatflx is independent of grid resolution..
     !
     ! By default, we set Re = 0, which means the flow is purely laminar, as in Sommers et al. (2018), Eq. 6.
 
@@ -260,7 +265,6 @@ contains
          c_flux_to_depth = 1.0d0/((12.0d0*visc_water)*(1.0d0 + omega_hydro*Reynolds)), & ! proportionality coefficient in Eq. 6
          p_flux_to_depth = 2.0d0,                     & ! exponent for water depth; = 2 if q is proportional to b^3
          q_flux_to_depth = 1.0d0                        ! exponent for potential gradient; = 1 if q is linearly proportional to grad(h)
-
 
     ! WHL - debug fix_flats subroutine
     logical :: test_fix_flats = .false.
@@ -446,9 +450,12 @@ contains
          bwat_mask,              &
          bwat)
 
+    ! Convert bwatflx units to m/yr for output
+    bwatflx(:,:) = bwatflx(:,:) * scyr/(dx*dy)
+
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
-       write(6,*) 'bwatflx (m^3/s):'
+       write(6,*) 'bwatflx (m/yr):'
        do i = itest-p, itest+p
           write(6,'(i10)',advance='no') i
        enddo
