@@ -116,8 +116,6 @@ module glide_types
   integer, parameter :: BWATER_LOCAL = 1
   integer, parameter :: BWATER_FLUX  = 2
   integer, parameter :: BWATER_CONST = 3
-  ! option 4 is deprecated; if selected, the code will throw a fatal error
-  integer, parameter :: BWATER_OCEAN_PENETRATION = 4
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
@@ -268,13 +266,14 @@ module glide_types
   integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
   integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
 
-  integer, parameter :: HO_CP_INVERSION_NONE = 0
-  integer, parameter :: HO_CP_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_CP_INVERSION_APPLY = 2
+  integer, parameter :: HO_POWERLAW_C_CONSTANT = 0
+  integer, parameter :: HO_POWERLAW_C_INVERSION = 1
+  integer, parameter :: HO_POWERLAW_C_EXTERNAL = 2
 
-  integer, parameter :: HO_CC_INVERSION_NONE = 0
-  integer, parameter :: HO_CC_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_CC_INVERSION_APPLY = 2
+  integer, parameter :: HO_COULOMB_C_CONSTANT = 0
+  integer, parameter :: HO_COULOMB_C_INVERSION = 1
+  integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
+  integer, parameter :: HO_COULOMB_C_ELEVATION = 3
 
   integer, parameter :: HO_BMLT_INVERSION_NONE = 0
   integer, parameter :: HO_BMLT_INVERSION_COMPUTE = 1
@@ -293,15 +292,12 @@ module glide_types
   integer, parameter :: HO_FLUX_ROUTING_DINF = 1
   integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
 
-  !TODO - Remove option 2? Rarely used
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
-  integer, parameter :: HO_EFFECPRESS_BMLT = 2
-  integer, parameter :: HO_EFFECPRESS_OCEAN_PENETRATION = 3
-  integer, parameter :: HO_EFFECPRESS_BWAT = 4
-  integer, parameter :: HO_EFFECPRESS_BWAT_RAMP = 5
+  integer, parameter :: HO_EFFECPRESS_BWAT = 2
+  integer, parameter :: HO_EFFECPRESS_BWATFLX = 3
+  integer, parameter :: HO_EFFECPRESS_BWAT_BVP = 4
 
-  !WHL - added Picard acceleration option
   integer, parameter :: HO_NONLIN_PICARD = 0
   integer, parameter :: HO_NONLIN_PICARD_ACCEL = 1
 
@@ -821,22 +817,21 @@ module glide_types
     !> \item[1] limited using beta_grounded_min, then multiplied by f_ground
     !> \end{description}
 
-    integer :: which_ho_cp_inversion = 0
-    !> Flag for basal inversion options: invert for Cp = powerlaw_c
-    !> Note: Cp inversion is currently supported for which_ho_babc = 9 and 11 only
+    integer :: which_ho_powerlaw_c = 0
+    !> Flag for basal powerlaw_c options
     !> \begin{description}
-    !> \item[0] no inversion
-    !> \item[1] invert for basal friction parameter Cp
-    !> \item[2] apply Cp from a previous inversion
+    !> \item[0] powerlaw_c = spatially uniform constant
+    !> \item[1] powerlaw_c = 2D field found by inversion
+    !> \item[2] powerlaw_c = 2D field read from external file
     !> \end{description}
 
-    integer :: which_ho_cc_inversion = 0
-    !> Flag for basal inversion options: invert for Cc = coulomb_c
-    !> Note: Cc inversion is currently supported for which_ho_babc = 7 only
+    integer :: which_ho_coulomb_c = 0
+    !> Flag for basal coulomb_c options
     !> \begin{description}
-    !> \item[0] no inversion
-    !> \item[1] invert for basal friction parameter Cc
-    !> \item[2] apply Cc from a previous inversion
+    !> \item[0] coulomb_c = spatially uniform constant
+    !> \item[1] coulomb_c = 2D field found by inversion
+    !> \item[2] coulomb_c = 2D field read from external file
+    !> \item[3] coulomb_c = function of bed elevation
     !> \end{description}
 
     integer :: which_ho_bmlt_inversion = 0
@@ -877,10 +872,9 @@ module glide_types
     !> \begin{description}
     !> \item[0] N = overburden pressure, rhoi*grav*thck
     !> \item[1] N is reduced where the bed is at or near the pressure melting point
-    !> \item[2] N is reduced where there is melting at the bed
-    !> \item[3] N is reduced due to connection of subglacial water to the ocean
+    !> \item[2] N is reduced where basal water is present, with a ramp function
+    !> \item[3] N is reduced where there is a nonzero water flux at the bed
     !> \item[4] N is reduced where basal water is present, following Bueler/van Pelt
-    !> \item[5] N is reduced where basal water is present, with a ramp function
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1578,7 +1572,7 @@ module glide_types
   type glide_inversion
 
      !TODO - Break into different derived types for each kind of inversion?
-
+     !       Remove the 2D bmlt inversion, keeping bmlt_basin inversion only?
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
@@ -1586,7 +1580,6 @@ module glide_types
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
 
      ! fields and parameters for bmlt_float inversion
-
      real(dp), dimension(:,:), pointer :: &
           bmlt_float_save => null(),           & !> saved value of bmlt_float; potential melt rate (m/s)
           bmlt_float_inversion => null()         !> applied basal melt rate, computed by inversion (m/s)
@@ -1613,25 +1606,11 @@ module glide_types
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
 
-     ! Note: powerlaw_c has units of Pa (m/yr)^(-1/3)
+     !Note: Moved powerlaw_c_2d and coulomb_c_2d to basal_physics type
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_inversion => null(), &      !> 2D powerlaw_c from inversion on staggered grid, Pa (m/yr)^(-1/3)
-          coulomb_c_inversion => null(), &       !> 2D coulomb_c from inversion on staggered grid, unitless in range [0,1]
           thck_save => null()                    !> saved thck field (m); used to compute dthck_dt_inversion
 
-     ! parameters for inversion of basal friction coefficients
-
-     real(dp) ::  &
-          powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
-          powerlaw_c_min = 1.0d2                 !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
-
-     ! Note: coulomb_c_max = 1.0 to cap effecpress at overburden
-     ! TODO: Test different values of coulomb_c_min
-     real(dp) ::  &
-          coulomb_c_max = 1.0d0,              &  !> max value of coulomb_c, unitless
-          coulomb_c_min = 1.0d-3                 !> min value of coulomb_c, unitless
-
-     ! parameters for adjusting powerlaw_c_inversion
+     ! parameters for adjusting powerlaw_c_2d during inversion
      ! Note: inversion_babc_timescale is later rescaled to SI units (s).
      real(dp) ::  &
           babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
@@ -1867,7 +1846,7 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: head => null()      !> Hydraulic head (m)
 
      ! parameter for constant basal water
-     ! Note: This parameter applies to teh case HO_BWAT_CONSTANT.
+     ! Note: This parameter applies to the case HO_BWAT_CONSTANT.
      ! For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
      real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
 
@@ -1917,10 +1896,12 @@ module glide_types
      real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
-     real(dp) :: effecpress_delta = 0.02d0          !> multiplier for effective pressure N where the bed is saturated and/or thawed (unitless)
-     real(dp) :: effecpress_bpmp_threshold = 0.1d0  !> temperature range over which N ramps from a small value to full overburden (deg C)
-     real(dp) :: effecpress_bmlt_threshold = 1.0d-3 !> basal melting range over which N ramps from a small value to full overburden (m/yr)
-     real(dp) :: p_ocean_penetration = 0.0d0        !> p-exponent parameter for ocean penetration parameterization (unitless, 0 <= p <= 1)
+     real(dp) :: effecpress_delta = 0.02d0            !> multiplier for effective pressure N where the bed is saturated or thawed (unitless)
+     real(dp) :: effecpress_bpmp_threshold = 0.1d0    !> temperature range over which N ramps up from a small value to overburden (deg C)
+     real(dp) :: effecpress_bwat_threshold = 1.0d-3   !> bwat range over which N ramps down from overburden to a small value (m)
+     !TODO - Test the bwatflx threshold
+     real(dp) :: effecpress_bwatflx_threshold = 1.0d0 !> bwatflx range over which N ramps down from overburden to a small value (m/yr)
+     real(dp) :: p_ocean_penetration = 0.0d0          !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (unitless, 0 <= p <= 1)
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -1944,9 +1925,16 @@ module glide_types
 
      ! parameters for friction powerlaw
      real(dp) :: friction_powerlaw_k = 8.4d-9    !> coefficient (m y^-1 Pa^-2) for the friction power law based on effective pressure
-                                                 !> The default value is from Bindschadler (1983) based on fits to observations, converted to CISM units.
+                                                 !> default value from Bindschadler (1983) based on fits to observations,
+                                                 !>  converted to CISM units
+
+     ! Note: powerlaw_c has units of Pa (m/yr)^(-1/powerlaw_m); default value assumes powerlaw_m = 3
+     real(dp), dimension(:,:), pointer :: &
+          powerlaw_c_2d => null(), &                  !> 2D powerlaw_c on staggered grid, Pa (m/yr)^(-1/3)
+          coulomb_c_2d => null()                      !> 2D coulomb_c on staggered grid, unitless in range [0,1]
 
      ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
+     !TODO - Change default to 1.0?
      real(dp) :: coulomb_c = 0.42d0              !> basal stress constant; unitless in range [0,1]
                                                  !> Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
@@ -1964,6 +1952,19 @@ module glide_types
      real(dp) :: powerlaw_c = 1.0d4              !> friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !> exponent in power law (unitless)
       
+     ! max and min parameter values
+
+     real(dp) ::  &
+          powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
+          powerlaw_c_min = 1.0d2                 !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
+
+     ! Note: coulomb_c_max = 1.0 to cap effecpress at overburden
+     ! TODO: Test different values of coulomb_c_min
+     real(dp) ::  &
+          coulomb_c_max = 1.0d0,              &  !> max value of coulomb_c, unitless
+          coulomb_c_min = 1.0d-3                 !> min value of coulomb_c, unitless
+
+
      ! parameter to limit the min value of beta for various power laws
      real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
                                                  !> Where u > umax, let u = umax when evaluating beta(u)
@@ -2412,8 +2413,8 @@ contains
     !> In \texttt{model\%inversion}:
     !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_inversion(ewn-1,nsn-1)}
-    !> \item \texttt{coulomb_c_inversion(ewn-1,nsn-1)}
+    !> \item \texttt{powerlaw_c_2d(ewn-1,nsn-1)}
+    !> \item \texttt{coulomb_c_2d(ewn-1,nsn-1)}
     !> \item \texttt{thck_save(ewn,nsn)}
 
     !> In \texttt{model\%plume}:
@@ -2841,19 +2842,13 @@ contains
        endif
     endif  ! Glissade
 
-    ! inversion arrays (Glissade only)
+    ! inversion and basal physics arrays (Glissade only)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c_2d)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_2d)
 
-    ! Always allocate powerlaw_c_inversion and coulomb_c_inversion so they can be passed as arguments
-    allocate(model%inversion%powerlaw_c_inversion(1,1))
-    allocate(model%inversion%coulomb_c_inversion(1,1))
-
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
-       call coordsystem_allocate(model%general%velo_grid,model%inversion%powerlaw_c_inversion)
+    if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
-    elseif (model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
-            model%options%which_ho_cc_inversion == HO_CC_INVERSION_APPLY) then
-       call coordsystem_allocate(model%general%velo_grid,model%inversion%coulomb_c_inversion)
+    elseif (model%options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
     endif
 
@@ -3271,10 +3266,10 @@ contains
         deallocate(model%inversion%bmlt_float_save)
     if (associated(model%inversion%bmlt_float_inversion)) &
         deallocate(model%inversion%bmlt_float_inversion)
-    if (associated(model%inversion%powerlaw_c_inversion)) &
-        deallocate(model%inversion%powerlaw_c_inversion)
-    if (associated(model%inversion%coulomb_c_inversion)) &
-        deallocate(model%inversion%coulomb_c_inversion)
+    if (associated(model%basal_physics%powerlaw_c_2d)) &
+        deallocate(model%basal_physics%powerlaw_c_2d)
+    if (associated(model%basal_physics%coulomb_c_2d)) &
+        deallocate(model%basal_physics%coulomb_c_2d)
     if (associated(model%inversion%thck_save)) &
         deallocate(model%inversion%thck_save)
     if (associated(model%inversion%floating_thck_target)) &
