@@ -831,8 +831,8 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
+        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or. &
         model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
@@ -3760,6 +3760,7 @@ contains
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
+    use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: &
          glissade_inversion_basal_friction_powerlaw, glissade_inversion_basal_friction_coulomb,  &
          glissade_inversion_bmlt_basin, verbose_inversion
@@ -3798,6 +3799,8 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
+    integer :: ewn, nsn, upn
+
     !WHL - debug
     real(dp) :: my_max, my_min, global_max, global_min
     integer :: iglobal, jglobal, ii, jj
@@ -3816,6 +3819,10 @@ contains
     endif
 
     parallel = model%parallel
+
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+    upn = model%general%upn
 
     if (verbose_glissade .and. main_task) then
        print*, 'In glissade_diagnostic_variable_solve'
@@ -3855,10 +3862,10 @@ contains
     !  (and optionally for SIA-based dissipation).
     ! ------------------------------------------------------------------------
 
-    call glissade_stagger(model%general%ewn,   model%general%nsn,  &
+    call glissade_stagger(ewn,                 nsn,  &
                           model%geometry%thck, model%geomderv%stagthck)
 
-    call glissade_gradient(model%general%ewn,       model%general%nsn,       &
+    call glissade_gradient(ewn,                     nsn,       &
                            model%numerics%dew,      model%numerics%dns,      &
                            model%geometry%usrf,                              &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns)
@@ -3870,13 +3877,13 @@ contains
     ! Optionally, the ice sheet mask can be used to block inception outside the existing ice sheet.
     ! ------------------------------------------------------------------------
 
-    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+    call glissade_get_masks(ewn,                 nsn,     &
                             parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
                             ice_mask)
 
-    call glissade_ice_sheet_mask(model%general%ewn,   model%general%nsn, &
+    call glissade_ice_sheet_mask(ewn,      nsn, &
                                  parallel,                      &
                                  itest,    jtest,   rtest,      &
                                  ice_mask,                      &
@@ -3909,7 +3916,7 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-    call glissade_get_masks(model%general%ewn,   model%general%nsn,     &
+    call glissade_get_masks(ewn,                 nsn,                   &
                             parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
                             model%climate%eus,   model%numerics%thklim, &
@@ -3918,7 +3925,7 @@ contains
                             ocean_mask = ocean_mask,                    &
                             land_mask = land_mask)
 
-    call glissade_calving_front_mask(model%general%ewn,   model%general%nsn,     &
+    call glissade_calving_front_mask(ewn,                 nsn,     &
                                      model%options%which_ho_calving_front,       &
                                      parallel,                                   &
                                      model%geometry%thck, model%geometry%topg,   &
@@ -3945,8 +3952,7 @@ contains
     ! (e.g., on the first time step of a restart).
     ! ------------------------------------------------------------------------
 
-    call glissade_grounded_fraction(model%general%ewn,             &
-                                    model%general%nsn,             &
+    call glissade_grounded_fraction(ewn,          nsn,             &
                                     parallel,                      &
                                     itest, jtest, rtest,           &  ! diagnostic only
                                     model%geometry%thck*thk0,      &
@@ -4011,8 +4017,8 @@ contains
 
     else
 
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, nsn
+          do i = 1, ewn
              model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) * thk0 &
                                           / (model%numerics%dt * tim0)
           enddo
@@ -4020,12 +4026,12 @@ contains
 
     endif
 
-    ! If inverting for Cp = powerlaw_c_inversion, then update it here.
+    ! If inverting for Cp = powerlaw_c_2d, then update it here.
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
-    if ( model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
-         model%options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
+    if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
+         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
@@ -4037,10 +4043,10 @@ contains
     endif   ! which_ho_cp_inversion
 
 
-    ! If inverting for Cc = coulomb_c_inversion, then update it here.
+    ! If inverting for Cc = coulomb_c_2d, then update it here.
 
-    if ( model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or. &
-         model%options%which_ho_cc_inversion == HO_CC_INVERSION_APPLY) then
+    if ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
+         model%options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
@@ -4065,8 +4071,7 @@ contains
        else
 
           call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &
-                                             model%general%ewn,                         &
-                                             model%general%nsn,                         &
+                                             ewn, nsn,                                  &
                                              model%numerics%dew * len0,                 &  ! m
                                              model%numerics%dns * len0,                 &  ! m
                                              itest, jtest, rtest,                       &
@@ -4102,7 +4107,7 @@ contains
                               model%options%whichtemp,            &
                               model%numerics%stagsigma,           &
                               model%geometry%thck * thk0,         &  ! scale to m
-                              model%temper%temp(1:model%general%upn-1,:,:),  &
+                              model%temper%temp(1:upn-1,:,:),     &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
                               model%paramets%flow_enhancement_factor,       &
@@ -4128,8 +4133,8 @@ contains
        ! Compute the pressure melting point temperature, which is needed
        ! by certain basal sliding laws.
 
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, nsn
+          do i = 1, ewn
              call glissade_pressure_melting_point(model%geometry%thck(i,j) * thk0, &
                                                   model%temper%bpmp(i,j))
           enddo
@@ -4153,8 +4158,8 @@ contains
        if  ( (maxval(abs(model%velocity%uvel_extend)) /= 0.0d0) .or. & 
              (maxval(abs(model%velocity%vvel_extend)) /= 0.0d0) ) then
           call write_log('Using uvel_extend, vvel_extend from input or restart file at initial time')
-          model%velocity%uvel(:,:,:) = model%velocity%uvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
-          model%velocity%vvel(:,:,:) = model%velocity%vvel_extend(:,1:model%general%ewn-1,1:model%general%nsn-1)
+          model%velocity%uvel(:,:,:) = model%velocity%uvel_extend(:,1:ewn-1,1:nsn-1)
+          model%velocity%vvel(:,:,:) = model%velocity%vvel_extend(:,1:ewn-1,1:nsn-1)
 !       elseif ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 
 !                (maxval(abs(model%velocity%vvel)) /= 0.0d0) ) then
 !          call write_log('Using uvel, vvel from input or restart file at initial time')
@@ -4172,8 +4177,8 @@ contains
           if  ( (maxval(abs(model%velocity%uvel_2d_extend)) /= 0.0d0) .or. & 
                 (maxval(abs(model%velocity%vvel_2d_extend)) /= 0.0d0) ) then
              call write_log('Using uvel_2d_extend, vvel_2d_extend from input or restart file at initial time')
-             model%velocity%uvel_2d(:,:) = model%velocity%uvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
-             model%velocity%vvel_2d(:,:) = model%velocity%vvel_2d_extend(1:model%general%ewn-1,1:model%general%nsn-1)
+             model%velocity%uvel_2d(:,:) = model%velocity%uvel_2d_extend(1:ewn-1,1:nsn-1)
+             model%velocity%vvel_2d(:,:) = model%velocity%vvel_2d_extend(1:ewn-1,1:nsn-1)
 !          elseif ( (maxval(abs(model%velocity%uvel_2d)) /= 0.0d0) .or. & 
 !                   (maxval(abs(model%velocity%vvel_2d)) /= 0.0d0) ) then
 !             call write_log('Using uvel_2d, vvel_2d from input or restart file at initial time')
@@ -4181,8 +4186,8 @@ contains
 
           if  ( (maxval(abs(model%stress%btractx_extend)) /= 0.0d0) .or. & 
                 (maxval(abs(model%stress%btracty_extend)) /= 0.0d0) ) then
-             model%stress%btractx(:,:) = model%stress%btractx_extend(1:model%general%ewn-1,1:model%general%nsn-1)
-             model%stress%btracty(:,:) = model%stress%btracty_extend(1:model%general%ewn-1,1:model%general%nsn-1)
+             model%stress%btractx(:,:) = model%stress%btractx_extend(1:ewn-1,1:nsn-1)
+             model%stress%btracty(:,:) = model%stress%btracty_extend(1:ewn-1,1:nsn-1)
           endif
 
           call staggered_parallel_halo(model%velocity%uvel_2d, parallel)
@@ -4193,6 +4198,29 @@ contains
        endif   ! DIVA approx
              
     endif   ! time = tstart
+
+    !------------------------------------------------------------------------------
+    ! Compute the effective pressure N at the bed.
+    ! Although N is not needed for all sliding options, it is computed here just in case.
+    ! Note: effective pressure is part of the basal_physics derived type.
+    ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
+    !       just before the velocity solve. Then they will be consistent with the
+    !       current thickness field.
+    !------------------------------------------------------------------------------
+
+    !TODO - Use btemp_ground instead of temp(nz)?
+    call calc_effective_pressure(model%options%which_ho_effecpress, &
+                                 ewn,           nsn,                &
+                                 model%basal_physics,               &
+                                 model%basal_hydro,                 &
+                                 ice_mask,      floating_mask,      &
+                                 model%geometry%thck * thk0,        &
+                                 model%geometry%topg * thk0,        &
+                                 model%climate%eus * thk0,          &
+                                 model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
+                                 model%basal_hydro%bwat * thk0,     &   ! m
+                                 model%basal_hydro%bwatflx,         &   ! m/yr
+                                 itest, jtest,  rtest)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
@@ -4263,9 +4291,7 @@ contains
 
           ! Compute dissipation based on the shallow-ice approximation
 
-          call glissade_interior_dissipation_sia(model%general%ewn,              &
-                                                 model%general%nsn,              &
-                                                 model%general%upn,              &
+          call glissade_interior_dissipation_sia(ewn,  nsn,    upn,              &
                                                  model%numerics%stagsigma(:),    &
                                                  ice_mask,                       &
                                                  model%geomderv%stagthck * thk0, & ! scale to m
@@ -4275,9 +4301,7 @@ contains
                                                  model%temper%dissip)
           
        else    ! first-order dissipation                                                                                                                                                               
-          call glissade_interior_dissipation_first_order(model%general%ewn,          &
-                                                         model%general%nsn,          &
-                                                         model%general%upn,          &
+          call glissade_interior_dissipation_first_order(ewn,  nsn,    upn,          &
                                                          ice_mask,                   &
                                                          model%stress%tau%scalar * tau0,  &  ! scale to Pa
                                                          model%stress%efvs * evs0,   &  ! scale to Pa s
@@ -4292,25 +4316,21 @@ contains
        j = jtest
        print*, 'itest, jtest =', i, j
        print*, 'k, dissip (deg/yr):'
-       do k = 1, model%general%upn-1
+       do k = 1, upn-1
           print*, k, model%temper%dissip(k,i,j)*scyr
        enddo
-       print*, 'ubas, vbas =', model%velocity%uvel(model%general%upn,i,j),  &
-            model%velocity%vvel(model%general%upn,i,j)
+       print*, 'ubas, vbas =', model%velocity%uvel(upn,i,j), model%velocity%vvel(upn,i,j)
        print*, 'btraction =',  model%velocity%btraction(:,i,j)
        print*, 'bfricflx =', model%temper%bfricflx(i,j)
        print*, ' '
        print*, 'After glissade velocity solve (or restart): uvel, k = 1:'
        write(6,'(a8)',advance='no') '          '
-!!          do i = 1, model%general%ewn-1
        do i = itest-5, itest+5
           write(6,'(i12)',advance='no') i
        enddo
        print*, ' '
-!!          do j = model%general%nsn-1, 1, -1
        do j = jtest+2, jtest-2, -1
           write(6,'(i8)',advance='no') j
-!!             do i = 1, model%general%ewn-1
           do i = itest-5, itest+5
              write(6,'(f12.3)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
           enddo
@@ -4319,15 +4339,12 @@ contains
        print*, ' '
        print*, 'After glissade velocity solve (or restart): vvel, k = 1:'
        write(6,'(a8)',advance='no') '          '
-!!          do i = 1, model%general%ewn-1
        do i = itest-5, itest+5
           write(6,'(i12)',advance='no') i
        enddo
        print*, ' '
-!!          do j = model%general%nsn-1, 1, -1
        do j = jtest+2, jtest-2, -1
           write(6,'(i8)',advance='no') j
-!!             do i = 1, model%general%ewn-1
           do i = itest-5, itest+5
              write(6,'(f12.3)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
           enddo
@@ -4374,14 +4391,14 @@ contains
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
                                   + model%numerics%stagsigma(k) * model%velocity%vvel(k,:,:)
 
-    do k = 2, model%general%upn-1
+    do k = 2, upn-1
        model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
                                      + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
        model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
                                      + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
     enddo
 
-    k = model%general%upn  ! basal velocity associated with bottom half of layer (upn-1)
+    k = upn  ! basal velocity associated with bottom half of layer (upn-1)
     model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
@@ -4401,15 +4418,15 @@ contains
        model%calving%tau_eigen1(:,:) = 0.0d0
        model%calving%tau_eigen2(:,:) = 0.0d0
 
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, nsn
+          do i = 1, ewn
 
              ! compute vertically averaged stress components
              tau_xx = 0.0d0
              tau_yy = 0.0d0
              tau_xy = 0.0d0
 
-             do k = 1, model%general%upn-1
+             do k = 1, upn-1
                 dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
                 tau_xx = tau_xx + tau0 * model%stress%tau%xx(k,i,j) * dsigma
                 tau_yy = tau_yy + tau0 * model%stress%tau%yy(k,i,j) * dsigma
@@ -4438,8 +4455,8 @@ contains
 
        ! Extrapolate tau eigenvalues to inactive CF cells where the stress tensor is not computed.
 
-       do j = 2, model%general%nsn-1
-          do i = 2, model%general%ewn-1
+       do j = 2, nsn-1
+          do i = 2, ewn-1
              if (calving_front_mask(i,j) == 1 .and. &
                   model%calving%tau_eigen1(i,j) == 0.0d0 .and. model%calving%tau_eigen2(i,j) == 0.0d0) then
 
@@ -4521,15 +4538,15 @@ contains
     model%calving%eps_eigen1(:,:) = 0.0d0
     model%calving%eps_eigen2(:,:) = 0.0d0
 
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
+    do j = 1, nsn
+       do i = 1, ewn
 
           ! compute vertically averaged strain rate components
           eps_xx = 0.0d0
           eps_yy = 0.0d0
           eps_xy = 0.0d0
 
-          do k = 1, model%general%upn-1
+          do k = 1, upn-1
              dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
              eps_xx = eps_xx + model%velocity%strain_rate%xx(k,i,j) * dsigma
              eps_yy = eps_yy + model%velocity%strain_rate%yy(k,i,j) * dsigma
@@ -4558,8 +4575,8 @@ contains
 
     ! Extrapolate eigenvalues to inactive CF cells where the strain rate is not computed.
 
-    do j = 2, model%general%nsn-1
-       do i = 2, model%general%ewn-1
+    do j = 2, nsn-1
+       do i = 2, ewn-1
           if (calving_front_mask(i,j) == 1 .and. &
               model%calving%eps_eigen1(i,j) == 0.0d0 .and. model%calving%eps_eigen2(i,j) == 0.0d0) then
 
@@ -4615,9 +4632,9 @@ contains
 
     ! Compute the vertical mean effective viscosity
     model%stress%efvs_vertavg = 0.0d0
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
-          do k = 1, model%general%upn-1
+    do j = 1, nsn
+       do i = 1, ewn
+          do k = 1, upn-1
              model%stress%efvs_vertavg(i,j) = model%stress%efvs_vertavg(i,j)  &
                                             + model%stress%efvs(k,i,j) * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
           enddo
@@ -4628,9 +4645,9 @@ contains
     ! Note: Units of divu and strain_rate components are s^{-1}.
     model%velocity%divu(:,:) = 0.0d0
 
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
-          do k = 1, model%general%upn-1
+    do j = 1, nsn
+       do i = 1, ewn
+          do k = 1, upn-1
              dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
              model%velocity%divu(i,j) = model%velocity%divu(i,j) + &
                   (model%velocity%strain_rate%xx(k,i,j) + model%velocity%strain_rate%yy(k,i,j)) * dsigma
@@ -4649,8 +4666,8 @@ contains
     model%velocity%uvel_extend(:,:,:) = 0.d0
     model%velocity%vvel_extend(:,:,:) = 0.d0
 
-    do j = 1, model%general%nsn-1
-       do i = 1, model%general%ewn-1
+    do j = 1, nsn-1
+       do i = 1, ewn-1
           model%velocity%uvel_extend(:,i,j) = model%velocity%uvel(:,i,j)
           model%velocity%vvel_extend(:,i,j) = model%velocity%vvel(:,i,j)             
        enddo
@@ -4662,8 +4679,8 @@ contains
 
        model%velocity%uvel_2d_extend(:,:) = 0.d0
        model%velocity%vvel_2d_extend(:,:) = 0.d0
-       do j = 1, model%general%nsn-1
-          do i = 1, model%general%ewn-1
+       do j = 1, nsn-1
+          do i = 1, ewn-1
              model%velocity%uvel_2d_extend(i,j) = model%velocity%uvel_2d(i,j)
              model%velocity%vvel_2d_extend(i,j) = model%velocity%vvel_2d(i,j)             
           enddo
@@ -4671,8 +4688,8 @@ contains
 
        model%stress%btractx_extend(:,:) = 0.d0
        model%stress%btracty_extend(:,:) = 0.d0
-       do j = 1, model%general%nsn-1
-          do i = 1, model%general%ewn-1
+       do j = 1, nsn-1
+          do i = 1, ewn-1
              model%stress%btractx_extend(i,j) = model%stress%btractx(i,j)
              model%stress%btracty_extend(i,j) = model%stress%btracty(i,j)   
           enddo
@@ -4712,10 +4729,10 @@ contains
     ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
     ! However, it is set to zero for ice-free columns (unlike temp(upn) = min(artm,0.0) for ice-free columns)
     ! TODO - Make btemp a prognostic array, and limit the 3D temp array to internal layer temperatures?
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
+    do j = 1, nsn
+       do i = 1, ewn
           if (model%geometry%thck(i,j) > 0.0d0) then
-             model%temper%btemp(i,j) = model%temper%temp(model%general%upn,i,j)
+             model%temper%btemp(i,j) = model%temper%temp(upn,i,j)
           else
              model%temper%btemp(i,j) = 0.0d0
           endif
@@ -4751,8 +4768,8 @@ contains
        global_max = parallel_reduce_max(my_max)
 
        if (abs((my_max - global_max)/global_max) < 1.0d-6) then
-          do j = nhalo+1, model%general%nsn-nhalo
-             do i = nhalo+1, model%general%ewn-nhalo
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
                 if (abs((model%basal_melt%bmlt_applied_diff(i,j) - global_max)/global_max) < 1.0d-6) then
                    ii = i; jj = j
                    print*, ' '
@@ -4787,8 +4804,8 @@ contains
        !WHL - Will have multiple prints if the same limit is reached in multiple cells
        ! TODO - Just print for one cell?
 !       if (abs((my_max - global_max)/global_max) < 1.0d-3) then
-!          do j = nhalo+1, model%general%nsn-nhalo
-!             do i = nhalo+1, model%general%ewn-nhalo
+!          do j = nhalo+1, nsn-nhalo
+!             do i = nhalo+1, ewn-nhalo
 !                if (ice_mask(i,j) == 1 .and. &
 !                     abs((model%inversion%bmlt_float_inversion(i,j) - global_max)/global_max) < 1.0d-3) then
 !                   print*, ' '
@@ -4802,8 +4819,8 @@ contains
 !       endif
 
 !       if (abs((my_min - global_min)/global_min) < 1.0d-3) then
-!          do j = nhalo+1, model%general%nsn-nhalo
-!             do i = nhalo+1, model%general%ewn-nhalo
+!          do j = nhalo+1, nsn-nhalo
+!             do i = nhalo+1, ewn-nhalo
 !                if (ice_mask(i,j) == 1 .and. &
 !                     abs((model%inversion%bmlt_float_inversion(i,j) - global_min)/global_min) < 1.0d-11) then
 !                   print*, ' '
@@ -4824,8 +4841,8 @@ contains
        global_min = parallel_reduce_min(my_min)
 
        if (abs((my_max - global_max)/global_max) < 1.0d-6) then
-          do j = nhalo+1, model%general%nsn-nhalo
-             do i = nhalo+1, model%general%ewn-nhalo
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
 
                 if (abs((model%geometry%dthck_dt(i,j) - global_max)/global_max) < 1.0d-6) then
                    print*, ' '
@@ -4856,8 +4873,8 @@ contains
     ! set integer masks in the geometry derived type
 
     ! unstaggered grid
-    do j = 1, model%general%nsn
-       do i = 1, model%general%ewn
+    do j = 1, nsn
+       do i = 1, ewn
           if (ice_mask(i,j) == 1) then
              model%geometry%ice_mask(i,j) = 1
              if (floating_mask(i,j) == 1) then
@@ -4877,8 +4894,8 @@ contains
 
     ! staggered grid
     ! set ice_mask_stag = 1 at vertices with ice_mask = 1 in any neighbor cell
-    do j = 1, model%general%nsn - 1
-       do i = 1, model%general%ewn - 1
+    do j = 1, nsn-1
+       do i = 1, ewn-1
           if (ice_mask(i,j+1)==1 .or. ice_mask(i+1,j+1)==1 .or. &
               ice_mask(i,j)  ==1 .or. ice_mask(i+1,j)  ==1) then
              model%geometry%ice_mask_stag(i,j) = 1
@@ -4891,12 +4908,12 @@ contains
     !WHL - inversion debug
     ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
     if (verbose_inversion .and.  &
-        (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
-         model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
+        (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
          model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE)  .and.  &
         model%numerics%time > model%numerics%tstart) then
-       do j = nhalo+1, model%general%nsn-nhalo
-          do i = nhalo+1, model%general%ewn-nhalo
+       do j = nhalo+1, nsn-nhalo
+          do i = nhalo+1, ewn-nhalo
              if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                 if (model%geometry%floating_mask(i,j) == 1) then
@@ -4921,7 +4938,7 @@ contains
     ! Note: gl_flux_east and gl_flux_north are signed fluxes computed at cell edges;
     !       gl_flux is cell-based and is found by summing magnitudes of edge fluxes.
 
-    call glissade_grounding_line_flux(model%general%ewn,    model%general%nsn,   &
+    call glissade_grounding_line_flux(ewn,                  nsn,                 &
                                       model%numerics%dew,   model%numerics%dns,  &
                                       model%numerics%sigma,                      &
                                       model%geometry%thck,                       &

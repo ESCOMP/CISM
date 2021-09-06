@@ -117,8 +117,8 @@ contains
     ! If inverting for Cp, Cc, or bmlt_float, then set the target elevation, usrf_obs.
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE .or.  &
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
+        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
 
        ! We are inverting for usrf_obs, so check whether it has been read in already.
@@ -252,16 +252,16 @@ contains
     ! computations specific to powerlaw_c (Cp) and coulomb_c (Cc) inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
 
        ! initialize powerlaw_c_inversion, if not already read in
-       var_maxval = maxval(model%inversion%powerlaw_c_inversion)
+       var_maxval = maxval(model%basal_physics%powerlaw_c_2d)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
           ! do nothing; powerlaw_c_inversion has been read in already (e.g., when restarting)
        else
           ! initialize to a uniform value (which can be set in the config file)
-          model%inversion%powerlaw_c_inversion(:,:) = model%basal_physics%powerlaw_c
+          model%basal_physics%powerlaw_c_2d(:,:) = model%basal_physics%powerlaw_c
        endif  ! var_maxval > 0
 
        if (verbose_inversion .and. this_rank == rtest) then
@@ -269,30 +269,30 @@ contains
           print*, 'glissade_init_inversion: powerlaw_c_inversion:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.1)',advance='no') model%inversion%powerlaw_c_inversion(i,j)
+                write(6,'(f10.1)',advance='no') model%basal_physics%powerlaw_c_2d(i,j)
              enddo
              write(6,*) ' '
           enddo
        endif
 
-    elseif (model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE) then
+    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
        ! initialize coulomb_c_inversion, if not already read in
-       var_maxval = maxval(model%inversion%coulomb_c_inversion)
+       var_maxval = maxval(model%basal_physics%coulomb_c_2d)
        var_maxval = parallel_reduce_max(var_maxval)
        if (var_maxval > 0.0d0) then
-          ! do nothing; coulomb_c_inversion has been read in already (e.g., when restarting)
+          ! do nothing; coulomb_c_2d has been read in already (e.g., when restarting)
        else
           ! initialize to a uniform value of 1.0, implying full overburden pressure
-          model%inversion%coulomb_c_inversion(:,:) = 1.0d0
+          model%basal_physics%coulomb_c_2d(:,:) = 1.0d0
        endif  ! var_maxval > 0
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
-          print*, 'glissade_init_inversion: coulomb_c_inversion:'
+          print*, 'glissade_init_inversion: coulomb_c_2d:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%inversion%coulomb_c_inversion(i,j)
+                write(6,'(f10.3)',advance='no') model%basal_physics%coulomb_c_2d(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -680,7 +680,7 @@ contains
        else  ! no nudging
 
           ! Note: To hold the inverted bmlt_float fixed, we would typically set which_ho_inversion = HO_INVERSION_APPLY.
-          !       Alternatively, if running with which_ho_inversion = HO_INVERSION_COMPUTE,
+          !       Alternatively, if running with which_ho_bmlt_inversion = HO_BMLT_INVERSION_COMPUTE,
           !        nudging is turned off when time > wean_bmlt_float_tend.
 
           if (verbose_inversion .and. main_task) print*, 'Apply saved value of bmlt_float inversion'
@@ -1119,9 +1119,9 @@ contains
     ewn = model%general%ewn
     nsn = model%general%nsn
 
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
 
-       ! Compute the new value of powerlaw_c_inversion
+       ! Compute the new value of powerlaw_c_2d
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -1189,15 +1189,15 @@ contains
                                   itest,    jtest,   rtest,               &
                                   model%inversion%babc_timescale,         &  ! s
                                   model%inversion%babc_thck_scale,        &  ! m
-                                  model%inversion%powerlaw_c_max,         &
-                                  model%inversion%powerlaw_c_min,         &
+                                  model%basal_physics%powerlaw_c_max,     &
+                                  model%basal_physics%powerlaw_c_min,     &
                                   model%geometry%f_ground,                &
                                   stag_thck*thk0,                         &  ! m
                                   stag_thck_obs*thk0,                     &  ! m
                                   stag_dthck_dt,                          &  ! m/s
-                                  model%inversion%powerlaw_c_inversion)
+                                  model%basal_physics%powerlaw_c_2d)
 
-    else   ! do not adjust powerlaw_c_inversion; just print optional diagnostics
+    else   ! do not adjust powerlaw_c_2d; just print optional diagnostics
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
@@ -1209,23 +1209,23 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'powerlaw_c_inversion:'
+          print*, 'powerlaw_c_2d:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') model%inversion%powerlaw_c_inversion(i,j)
+                write(6,'(f10.2)',advance='no') model%basal_physics%powerlaw_c_2d(i,j)
              enddo
              write(6,*) ' '
           enddo
        endif
 
-    endif   ! which_ho_cp_inversion
+    endif   ! which_ho_powerlaw_c
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cp to a nonzero value everywhere and never sets Cp = 0;
     !       this check is just to be on the safe side.
 
-    where (model%inversion%powerlaw_c_inversion == 0.0d0)
-       model%inversion%powerlaw_c_inversion = model%inversion%powerlaw_c_min
+    where (model%basal_physics%powerlaw_c_2d == 0.0d0)
+       model%basal_physics%powerlaw_c_2d = model%basal_physics%powerlaw_c_min
     endwhere
 
   end subroutine glissade_inversion_basal_friction_powerlaw
@@ -1282,11 +1282,11 @@ contains
     ewn = model%general%ewn
     nsn = model%general%nsn
 
-    if (model%options%which_ho_cc_inversion == HO_CC_INVERSION_COMPUTE) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
        !TODO - Put the following code in a subroutine to avoid duplication
        !       with the Cp inversion subroutine above
-       ! Compute the new value of coulomb_c_inversion
+       ! Compute the new value of coulomb_c_2d
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -1348,7 +1348,7 @@ contains
           enddo
        endif
 
-       ! Invert for coulomb_c_inversion
+       ! Invert for coulomb_c_2d
        ! Note: The logic of this subroutine is the same as for powerlaw_c_inversion.
        !       The only difference is that the max and min allowed values are different.
        call invert_basal_friction_coulomb(model%numerics%dt*tim0,                 &  ! s
@@ -1356,17 +1356,17 @@ contains
                                   itest,    jtest,   rtest,               &
                                   model%inversion%babc_timescale,         &  ! s
                                   model%inversion%babc_thck_scale,        &  ! m
-                                  model%inversion%coulomb_c_max,          &
-                                  model%inversion%coulomb_c_min,          &
+                                  model%basal_physics%coulomb_c_max,      &
+                                  model%basal_physics%coulomb_c_min,      &
                                   model%geometry%f_ground,                &
                                   stag_thck*thk0,                         &  ! m
                                   stag_thck_obs*thk0,                     &  ! m
                                   stag_dthck_dt,                          &  ! m/s
-                                  model%inversion%coulomb_c_inversion)
+                                  model%basal_physics%coulomb_c_2d)
 
     else   ! do not adjust coulomb_c_inversion; just print optional diagnostics
 
-       ! do not adjust coulomb_c_inversion; just print optional diagnostics
+       ! do not adjust coulomb_c_2d; just print optional diagnostics
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
           print*, 'f_ground at vertices:'
@@ -1377,23 +1377,23 @@ contains
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'coulomb_c_inversion:'
+          print*, 'coulomb_c_2d:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') model%inversion%coulomb_c_inversion(i,j)
+                write(6,'(f10.4)',advance='no') model%basal_physics%coulomb_c_2d(i,j)
              enddo
              write(6,*) ' '
           enddo
        endif
 
-    endif   ! which_ho_cc_inversion
+    endif   ! which_ho_coulomb_c
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cc = 0;
     !       this check is just to be on the safe side.
 
-    where (model%inversion%coulomb_c_inversion == 0.0d0)
-       model%inversion%coulomb_c_inversion = model%inversion%coulomb_c_min
+    where (model%basal_physics%coulomb_c_2d == 0.0d0)
+       model%basal_physics%coulomb_c_2d = model%basal_physics%coulomb_c_min
     endwhere
 
   end subroutine glissade_inversion_basal_friction_coulomb
@@ -1411,9 +1411,9 @@ contains
                                    stag_thck,                &
                                    stag_thck_obs,            &
                                    stag_dthck_dt,            &
-                                   powerlaw_c_inversion)
+                                   powerlaw_c_2d)
 
-    ! Compute a spatially varying basal friction field, powerlaw_c_inversion, defined at cell vertices.
+    ! Compute a spatially varying basal friction field, powerlaw_c_2d, defined at cell vertices.
     ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
     ! Where stag_thck > stag_thck_obs, powerlaw_c is reduced to increase sliding.
     ! Where stag_thck < stag_thck_obs, powerlaw_c is increased to reduce sliding.
@@ -1444,7 +1444,7 @@ contains
          stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
 
     real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
-         powerlaw_c_inversion    ! powerlaw_c_inversion field to be adjusted
+         powerlaw_c_2d           ! powerlaw_c field to be adjusted
 
     ! local variables
 
@@ -1469,7 +1469,7 @@ contains
        print*, 'Old powerlaw_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') powerlaw_c_inversion(i,j)
+             write(6,'(f10.2)',advance='no') powerlaw_c_2d(i,j)
           enddo
           print*, ' '
        enddo
@@ -1525,23 +1525,23 @@ contains
              term1 = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
              term2 = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
-             dpowerlaw_c(i,j) = powerlaw_c_inversion(i,j) * (term1 + term2) * dt
+             dpowerlaw_c(i,j) = powerlaw_c_2d(i,j) * (term1 + term2) * dt
 
              ! Limit to prevent a large relative change in one step
-             if (abs(dpowerlaw_c(i,j)) > 0.05d0 * powerlaw_c_inversion(i,j)) then
+             if (abs(dpowerlaw_c(i,j)) > 0.05d0 * powerlaw_c_2d(i,j)) then
                 if (dpowerlaw_c(i,j) > 0.0d0) then
-                   dpowerlaw_c(i,j) =  0.05d0 * powerlaw_c_inversion(i,j)
+                   dpowerlaw_c(i,j) =  0.05d0 * powerlaw_c_2d(i,j)
                 else
-                   dpowerlaw_c(i,j) = -0.05d0 * powerlaw_c_inversion(i,j)
+                   dpowerlaw_c(i,j) = -0.05d0 * powerlaw_c_2d(i,j)
                 endif
              endif
 
              ! Update powerlaw_c
-             powerlaw_c_inversion(i,j) = powerlaw_c_inversion(i,j) + dpowerlaw_c(i,j)
+             powerlaw_c_2d(i,j) = powerlaw_c_2d(i,j) + dpowerlaw_c(i,j)
 
              ! Limit to a physically reasonable range
-             powerlaw_c_inversion(i,j) = min(powerlaw_c_inversion(i,j), powerlaw_c_max)
-             powerlaw_c_inversion(i,j) = max(powerlaw_c_inversion(i,j), powerlaw_c_min)
+             powerlaw_c_2d(i,j) = min(powerlaw_c_2d(i,j), powerlaw_c_max)
+             powerlaw_c_2d(i,j) = max(powerlaw_c_2d(i,j), powerlaw_c_min)
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
@@ -1550,7 +1550,7 @@ contains
                 print*, 'thck, thck_obs, dthck, dthck_dt:', &
                      stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
                 print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
-                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), powerlaw_c_inversion(i,j)
+                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), powerlaw_c_2d(i,j)
              endif
 
           else   ! f_ground = 0
@@ -1569,7 +1569,7 @@ contains
        print*, 'New powerlaw_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') powerlaw_c_inversion(i,j)
+             write(6,'(f10.2)',advance='no') powerlaw_c_2d(i,j)
           enddo
           print*, ' '
        enddo
@@ -1592,9 +1592,9 @@ contains
                                    stag_thck,                &
                                    stag_thck_obs,            &
                                    stag_dthck_dt,            &
-                                   coulomb_c_inversion)
+                                   coulomb_c_2d)
 
-    ! Compute a spatially varying basal friction field, coulomb_c_inversion, defined at cell vertices.
+    ! Compute a spatially varying basal friction field, coulomb_c_2d, defined at cell vertices.
     ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
     ! Where stag_thck > stag_thck_obs, coulomb_c is reduced to increase sliding.
     ! Where stag_thck < stag_thck_obs, coulomb_c is increased to reduce sliding.
@@ -1625,7 +1625,7 @@ contains
          stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
 
     real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
-         coulomb_c_inversion     ! coulomb_c_inversion field to be adjusted
+         coulomb_c_2d            ! coulomb_c_2d field to be adjusted
 
     ! local variables
 
@@ -1650,7 +1650,7 @@ contains
        print*, 'Old coulomb_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') coulomb_c_inversion(i,j)
+             write(6,'(f10.2)',advance='no') coulomb_c_2d(i,j)
           enddo
           print*, ' '
        enddo
@@ -1706,23 +1706,23 @@ contains
              term1 = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
              term2 = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
-             dcoulomb_c(i,j) = coulomb_c_inversion(i,j) * (term1 + term2) * dt
+             dcoulomb_c(i,j) = coulomb_c_2d(i,j) * (term1 + term2) * dt
 
              ! Limit to prevent a large relative change in one step
-             if (abs(dcoulomb_c(i,j)) > 0.05d0 * coulomb_c_inversion(i,j)) then
+             if (abs(dcoulomb_c(i,j)) > 0.05d0 * coulomb_c_2d(i,j)) then
                 if (dcoulomb_c(i,j) > 0.0d0) then
-                   dcoulomb_c(i,j) =  0.05d0 * coulomb_c_inversion(i,j)
+                   dcoulomb_c(i,j) =  0.05d0 * coulomb_c_2d(i,j)
                 else
-                   dcoulomb_c(i,j) = -0.05d0 * coulomb_c_inversion(i,j)
+                   dcoulomb_c(i,j) = -0.05d0 * coulomb_c_2d(i,j)
                 endif
              endif
 
              ! Update coulomb_c
-             coulomb_c_inversion(i,j) = coulomb_c_inversion(i,j) + dcoulomb_c(i,j)
+             coulomb_c_2d(i,j) = coulomb_c_2d(i,j) + dcoulomb_c(i,j)
 
              ! Limit to a physically reasonable range
-             coulomb_c_inversion(i,j) = min(coulomb_c_inversion(i,j), coulomb_c_max)
-             coulomb_c_inversion(i,j) = max(coulomb_c_inversion(i,j), coulomb_c_min)
+             coulomb_c_2d(i,j) = min(coulomb_c_2d(i,j), coulomb_c_max)
+             coulomb_c_2d(i,j) = max(coulomb_c_2d(i,j), coulomb_c_min)
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
@@ -1731,7 +1731,7 @@ contains
                 print*, 'thck, thck_obs, dthck, dthck_dt:', &
                      stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
                 print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
-                print*, 'dcoulomb_c, newcoulomb_c =', dcoulomb_c(i,j), coulomb_c_inversion(i,j)
+                print*, 'dcoulomb_c, newcoulomb_c =', dcoulomb_c(i,j), coulomb_c_2d(i,j)
              endif
 
           else   ! f_ground = 0
@@ -1750,7 +1750,7 @@ contains
        print*, 'New coulomb_c:'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') coulomb_c_inversion(i,j)
+             write(6,'(f10.4)',advance='no') coulomb_c_2d(i,j)
           enddo
           print*, ' '
        enddo
