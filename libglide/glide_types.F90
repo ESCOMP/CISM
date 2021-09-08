@@ -1862,7 +1862,7 @@ module glide_types
      ! The following 4 parameters give a linear increase in phi between elevations bedmin and bedmax
      real(dp) :: pseudo_plastic_phimin =    5.d0 !> min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
      real(dp) :: pseudo_plastic_phimax =   40.d0 !> max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
-     real(dp) :: pseudo_plastic_bedmin = -700.d0 !> bed elevation (m) below which phi = phimin
+     real(dp) :: pseudo_plastic_bedmin = -300.d0 !> bed elevation (m) below which phi = phimin
      real(dp) :: pseudo_plastic_bedmax =  700.d0 !> bed elevation (m) above which phi = phimax
 
      ! parameters for friction powerlaw
