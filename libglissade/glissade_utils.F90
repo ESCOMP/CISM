@@ -77,6 +77,10 @@ contains
     integer :: i, j
     integer :: nx, ny
     integer :: itest, jtest, rtest
+    ! The following variables give the boundaries of a box going from itest-3 to itest+3,
+    ! and jtest-3 to jtest+3, but limited to stay within the range of the local points
+    ! owned by rdiag_local
+    integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
     logical, parameter :: verbose_adjust_thickness = .true.
 
@@ -92,6 +96,10 @@ contains
        rtest = model%numerics%rdiag_local
        itest = model%numerics%idiag_local
        jtest = model%numerics%jdiag_local
+       itest_m3 = max(itest-3, 1)
+       itest_p3 = min(itest+3, nx)
+       jtest_m3 = max(jtest-3, 1)
+       jtest_p3 = min(jtest+3, ny)
     endif
 
     ! Make sure ursf was read in with nonzero values.
@@ -109,32 +117,32 @@ contains
           print*, 'adjust thck: itest, jtest, rank =', itest, jtest, rtest
           print*, ' '
           print*, 'Before thck adjustment, usrf (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
           print*, 'Before thck adjustment, thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
           print*, 'Before thck adjustment, topg (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
           print*, 'Before thck adjustment, cavity thickness (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
                      - model%geometry%topg(i,j)) * thk0
              enddo
@@ -167,32 +175,32 @@ contains
           print*, 'adjust thck: itest, jtest, rank =', itest, jtest, rtest
           print*, ' '
           print*, 'After thck adjustment, usrf (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
           print*, 'After thck adjustment, thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
           print*, 'After thck adjustment, topg (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
           print*, 'After thck adjustment, cavity thickness (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
+          do j = jtest_p3, jtest_m3, -1
+             do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
                      - model%geometry%topg(i,j)) * thk0
              enddo
@@ -241,6 +249,10 @@ contains
     integer :: i, j
     integer :: nx, ny
     integer :: itest, jtest, rtest
+    ! The following variables give the boundaries of a box going from itest-3 to itest+3,
+    ! and jtest-3 to jtest+3, but limited to stay within the range of the local points
+    ! owned by rdiag_local
+    integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
     logical, parameter :: verbose_smooth_topg = .false.
 
@@ -256,6 +268,10 @@ contains
        rtest = model%numerics%rdiag_local
        itest = model%numerics%idiag_local
        jtest = model%numerics%jdiag_local
+       itest_m3 = max(itest-3, 1)
+       itest_p3 = min(itest+3, nx)
+       jtest_m3 = max(jtest-3, 1)
+       jtest_p3 = min(jtest+3, ny)
     endif
 
     ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
@@ -278,24 +294,24 @@ contains
        print*, 'itest, jtest, rank =', itest, jtest, rtest
        print*, ' '
        print*, 'Before Laplacian smoother, topg (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
+       do j = jtest_p3, jtest_m3, -1
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
        print*, 'Before Laplacian smoother, usrf (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
+       do j = jtest_p3, jtest_m3, -1
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
        print*, 'Before Laplacian smoother, thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
+       do j = jtest_p3, jtest_m3, -1
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -336,24 +352,24 @@ contains
        print*, 'itest, jtest, rank =', itest, jtest, rtest
        print*, ' '
        print*, 'After Laplacian smoother, topg (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
+       do j = jtest_p3, jtest_m3, -1
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
        print*, 'After Laplacian smoother, usrf (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
+       do j = jtest_p3, jtest_m3, -1
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
        print*, 'After Laplacian smoother, thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
+       do j = jtest_p3, jtest_m3, -1
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -389,6 +405,10 @@ contains
     integer :: i, j
     integer :: nx, ny
     integer :: itest, jtest, rtest
+    ! The following variables give the boundaries of a box going from itest-3 to itest+3,
+    ! and jtest-3 to jtest+3, but limited to stay within the range of the local points
+    ! owned by rdiag_local
+    integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
     real(dp) :: factor
 
@@ -421,6 +441,10 @@ contains
        rtest = model%numerics%rdiag_local
        itest = model%numerics%idiag_local
        jtest = model%numerics%jdiag_local
+       itest_m3 = max(itest-3, 1)
+       itest_p3 = min(itest+3, nx)
+       jtest_m3 = max(jtest-3, 1)
+       jtest_p3 = min(jtest+3, ny)
     endif
 
     xmin = model%paramets%adjust_topg_xmin
@@ -452,9 +476,9 @@ contains
        print*, ' '
        print*, 'Input usrf (m):'
        print*, ' '
-       do j = jtest+3, jtest-3, -1
+       do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
-          do i = itest-3, itest+3
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -462,9 +486,9 @@ contains
        print*, ' '
        print*, 'Input thck (m):'
        print*, ' '
-       do j = jtest+3, jtest-3, -1
+       do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
-          do i = itest-3, itest+3
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -472,9 +496,9 @@ contains
        print*, ' '
        print*, 'Input lsrf (m):'
        print*, ' '
-       do j = jtest+3, jtest-3, -1
+       do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
-          do i = itest-3, itest+3
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%lsrf(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -486,13 +510,13 @@ contains
        print*, 'Input topography (m):'
        print*, ' '
        write(6,'(a10)',advance='no') '  y1 \ x1 '
-       do i = itest-3, itest+3
+       do i = itest_m3, itest_p3
           write(6,'(f10.0)',advance='no') model%general%x1(i)
        enddo
        print*, ' '
-       do j = jtest+3, jtest-3, -1
+       do j = jtest_p3, jtest_m3, -1
           write(6,'(f10.0)',advance='no') model%general%y1(j)
-          do i = itest-3, itest+3
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -553,13 +577,13 @@ contains
        print*, 'New topography (m):'
        print*, ' '
        write(6,'(a10)',advance='no') '  y1 \ x1 '
-       do i = itest-3, itest+3
+       do i = itest_m3, itest_p3
           write(6,'(f10.0)',advance='no') model%general%x1(i)
        enddo
        print*, ' '
-       do j = jtest+3, jtest-3, -1
+       do j = jtest_p3, jtest_m3, -1
           write(6,'(f10.0)',advance='no') model%general%y1(j)
-          do i = itest-3, itest+3
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
           enddo
           write(6,*) ' '
@@ -577,9 +601,9 @@ contains
        print*, ' '
        print*, 'Corrected thck (m):'
        print*, ' '
-       do j = jtest+3, jtest-3, -1
+       do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
-          do i = itest-3, itest+3
+          do i = itest_m3, itest_p3
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
           enddo
           write(6,*) ' '
