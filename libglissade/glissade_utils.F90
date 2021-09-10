@@ -95,11 +95,11 @@ contains
     if (this_rank == model%numerics%rdiag_local) then
        rtest = model%numerics%rdiag_local
        itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
        itest_m3 = max(itest-3, 1)
        itest_p3 = min(itest+3, nx)
        jtest_m3 = max(jtest-3, 1)
        jtest_p3 = min(jtest+3, ny)
-       jtest = model%numerics%jdiag_local
     endif
 
     ! Make sure ursf was read in with nonzero values.
@@ -267,11 +267,11 @@ contains
     if (this_rank == model%numerics%rdiag_local) then
        rtest = model%numerics%rdiag_local
        itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
        itest_m3 = max(itest-3, 1)
        itest_p3 = min(itest+3, nx)
        jtest_m3 = max(jtest-3, 1)
        jtest_p3 = min(jtest+3, ny)
-       jtest = model%numerics%jdiag_local
     endif
 
     ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
@@ -440,11 +440,11 @@ contains
     if (this_rank == model%numerics%rdiag_local) then
        rtest = model%numerics%rdiag_local
        itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
        itest_m3 = max(itest-3, 1)
        itest_p3 = min(itest+3, nx)
        jtest_m3 = max(jtest-3, 1)
        jtest_p3 = min(jtest+3, ny)
-       jtest = model%numerics%jdiag_local
     endif
 
     xmin = model%paramets%adjust_topg_xmin
