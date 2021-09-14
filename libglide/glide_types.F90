@@ -249,8 +249,8 @@ module glide_types
   !TODO - Deprecate the last two options? Rarely if ever used.
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
-  integer, parameter :: HO_BABC_YIELD_PICARD = 2
-  integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 3
+  integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 2
+  integer, parameter :: HO_BABC_PSEUDO_PLASTIC_OLD = 3
   integer, parameter :: HO_BABC_BETA_LARGE = 4
   integer, parameter :: HO_BABC_BETA_EXTERNAL = 5
   integer, parameter :: HO_BABC_NO_SLIP = 6
@@ -262,6 +262,7 @@ module glide_types
   integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
   integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
   integer, parameter :: HO_BABC_SIMPLE = 14
+  integer, parameter :: HO_BABC_YIELD_PICARD = 15
 
   integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
   integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
@@ -793,8 +794,8 @@ module glide_types
     !> \begin{description}
     !> \item[0] spatially uniform value; low value of 10 Pa/(m/yr) by default
     !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
-    !> \item[2] treat beta value as a till yield stress (in Pa) using Picard iteration 
-    !> \item[3] pseudo-plastic basal sliding law; can model linear, power-law or plastic behavior
+    !> \item[2] pseudo-plastic basal sliding law; new version with coulomb_c options
+    !> \item[3] pseudo-plastic basal sliding law; old version with tan(phi)
     !> \item[4] very large value for beta to enforce no slip everywhere 
     !> \item[5] beta field passed in from .nc input file as part of standard i/o
     !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
@@ -806,6 +807,7 @@ module glide_types
     !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
     !> \item[13] power law using effective pressure
     !> \item[14] simple hard-coded pattern (useful for debugging)
+    !> \item[15] treat beta value as a till yield stress (in Pa) using Picard iteration
     !> \end{description}
 
     logical :: use_c_space_factor = .false.
@@ -1921,6 +1923,8 @@ module glide_types
      real(dp) :: pseudo_plastic_u0 = 100.d0      !> threshold velocity for pseudo-plastic law (m/yr)
 
      ! The following 4 parameters give a linear increase in phi between elevations bedmin and bedmax
+     ! Note: These four parameters are used with option HO_BABC_PSEUDO_PLASTIC_OLD
+     !       This option will be deprecated but was used for many CESM runs and is kept for backward compatibility
      real(dp) :: pseudo_plastic_phimin =    5.d0 !> min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
      real(dp) :: pseudo_plastic_phimax =   40.d0 !> max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
      real(dp) :: pseudo_plastic_bedmin = -300.d0 !> bed elevation (m) below which phi = phimin
@@ -1962,11 +1966,12 @@ module glide_types
           powerlaw_c_min = 1.0d2                 !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
 
      ! Note: coulomb_c_max = 1.0 to cap effecpress at overburden
-     ! TODO: Test different values of coulomb_c_min
+     ! Note: The appropriate value of coulomb_c_min can depend on how much N is reduced below overburden.
      real(dp) ::  &
           coulomb_c_max = 1.0d0,              &  !> max value of coulomb_c, unitless
-          coulomb_c_min = 1.0d-3                 !> min value of coulomb_c, unitless
-
+          coulomb_c_min = 1.0d-3,             &  !> min value of coulomb_c, unitless
+          coulomb_c_bedmax =  700.d0,         &  !> bed elevation (m) above which coulomb_c = coulomb_c_max
+          coulomb_c_bedmin = -300.d0             !> bed elevation (m) below which coulomb_c = coulomb_c_min
 
      ! parameter to limit the min value of beta for various power laws
      real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
