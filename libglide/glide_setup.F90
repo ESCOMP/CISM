@@ -1030,11 +1030,11 @@ contains
          'vertical thermal solve after transport     ', &
          'vertical thermal solve split into two parts' /)
 
-    character(len=*), dimension(0:14), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:15), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
-         'till yield stress (Picard)                       ', &
-         'pseudo-plastic sliding law                       ', &
+         'pseudo-plastic sliding law, new C_c options      ', &
+         'pseudo-plastic sliding law, old tan(phi) options ', &
          'no slip (using large B^2)                        ', &
          'beta from external file                          ', &
          'no slip (Dirichlet implementation)               ', &
@@ -1045,7 +1045,8 @@ contains
          'Coulomb friction law w/ effec press, const flwa_b', &
          'min of Coulomb stress and power-law stress (Tsai)', &
          'power law using effective pressure               ', &
-         'simple pattern of beta                           ' /)
+         'simple pattern of beta                           ', &
+         'till yield stress (Picard)                       ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichbeta_limit = (/ &
          'absolute beta limit based on beta_grounded_min   ', &
@@ -2144,6 +2145,10 @@ contains
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
     call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
     call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
+    call GetValue(section, 'coulomb_c_max', model%basal_physics%coulomb_c_max)
+    call GetValue(section, 'coulomb_c_min', model%basal_physics%coulomb_c_min)
+    call GetValue(section, 'coulomb_c_bedmax', model%basal_physics%coulomb_c_bedmax)
+    call GetValue(section, 'coulomb_c_bedmin', model%basal_physics%coulomb_c_bedmin)
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
@@ -2158,7 +2163,6 @@ contains
     call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
 
     ! pseudo-plastic parameters
-    !TODO - Put pseudo-plastic and other basal sliding parameters in a separate section
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
@@ -2492,19 +2496,23 @@ contains
        call write_log(message)
        write(message,*) 'small (thawed) beta (Pa yr/m) : ',model%basal_physics%ho_beta_small
        call write_log(message)
-    elseif (model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC) then
+    elseif (model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC_OLD .or.  &
+            model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC) then
        write(message,*) 'pseudo-plastic q              : ',model%basal_physics%pseudo_plastic_q
        call write_log(message)
        write(message,*) 'pseudo-plastic u0             : ',model%basal_physics%pseudo_plastic_u0
        call write_log(message)
-       write(message,*) 'pseudo-plastic phi_min (deg)  : ',model%basal_physics%pseudo_plastic_phimin
-       call write_log(message)
-       write(message,*) 'pseudo-plastic phi_max (deg)  : ',model%basal_physics%pseudo_plastic_phimax
-       call write_log(message)
-       write(message,*) 'pseudo-plastic bed min (m)    : ',model%basal_physics%pseudo_plastic_bedmin
-       call write_log(message)
-       write(message,*) 'pseudo-plastic bed max (m)    : ',model%basal_physics%pseudo_plastic_bedmax
-       call write_log(message)
+       if (model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC_OLD) then
+          write(message,*) 'pseudo-plastic phi_min (deg)  : ',model%basal_physics%pseudo_plastic_phimin
+          call write_log(message)
+          write(message,*) 'pseudo-plastic phi_max (deg)  : ',model%basal_physics%pseudo_plastic_phimax
+          call write_log(message)
+          write(message,*) 'pseudo-plastic bed min (m)    : ',model%basal_physics%pseudo_plastic_bedmin
+          call write_log(message)
+          write(message,*) 'pseudo-plastic bed max (m)    : ',model%basal_physics%pseudo_plastic_bedmax
+          call write_log(message)
+       endif
+       ! Note: For the new Coulomb_C elevation option, phimin/phimax/bedmin/bedmax are written below.
        if (model%options%which_ho_assemble_beta == HO_ASSEMBLE_BETA_STANDARD) then
           call write_log('WARNING: local beta assembly is recommended for the pseudo-plastic sliding law')
           write(message,*) 'Set which_ho_assemble_beta =', HO_ASSEMBLE_BETA_LOCAL
@@ -2569,6 +2577,18 @@ contains
             &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       call write_log(message)
+    endif
+
+    ! Coulomb elevation parameters
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
+       write(message,*) 'coulomb_c_max                                : ',model%basal_physics%coulomb_c_max
+       call write_log(message)
+       write(message,*) 'coulomb_c_min                                : ',model%basal_physics%coulomb_c_min
+       call write_log(message)
+       write(message,*) 'coulomb_c_bedmax (m)                         : ',model%basal_physics%coulomb_c_bedmax
+       call write_log(message)
+       write(message,*) 'coulomb_c_bedmin (m)                         : ',model%basal_physics%coulomb_c_bedmin
        call write_log(message)
     endif
 
