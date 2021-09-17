@@ -1481,6 +1481,7 @@ contains
        !        than for cavities initially present.
        ! Note: bmlt_float is a basal melting potential; it is reduced below for partly or fully grounded ice.
        ! TODO: Remove option (2), which was used for ISMIP6 Antarctica but is now deprecated.
+       !       Might be simplest to remove HO_BMLT_INVERSION altogether.
 
        if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
 
