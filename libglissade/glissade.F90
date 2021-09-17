@@ -1352,8 +1352,7 @@ contains
     ! Note: model%basal_melt is a derived type with various fields and parameters
     ! ------------------------------------------------------------------------
 
-    !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float subroutine?
-    !      Break plume and mismip+ into separate subroutines?
+    !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float?
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_bmlt_float_solve'
 
@@ -1535,8 +1534,7 @@ contains
                                          model%geometry%topg*thk0,                              & ! m
                                          model%climate%eus*thk0,                                & ! m
                                          model%basal_melt,                                      & ! bmlt_float in m/s
-                                         model%ocean_data,                                      &
-                                         model%plume)
+                                         model%ocean_data)
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
