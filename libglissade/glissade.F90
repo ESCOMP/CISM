@@ -4026,7 +4026,7 @@ contains
 
     endif
 
-    ! If inverting for Cp = powerlaw_c_2d, then update it here.
+    ! If inverting for Cp = powerlaw_c, then update it here.
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
@@ -4043,7 +4043,7 @@ contains
     endif   ! which_ho_cp_inversion
 
 
-    ! If inverting for Cc = coulomb_c_2d, then update it here.
+    ! If inverting for Cc = coulomb_c, then update it here.
 
     if ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
          model%options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
