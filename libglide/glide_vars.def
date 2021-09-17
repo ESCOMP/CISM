@@ -364,109 +364,11 @@ data:          data%ocean_data%basin_number
 load:          1
 type:          int
 
-[deltaT_basin_local_median]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_local_median
-data:          data%ocean_data%deltaT_basin_local_median
-load:          1
-
-[deltaT_basin_local_pct5]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_local_pct5
-data:          data%ocean_data%deltaT_basin_local_pct5
-load:          1
-
-[deltaT_basin_local_pct95]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_local_pct95
-data:          data%ocean_data%deltaT_basin_local_pct95
-load:          1
-
-[deltaT_basin_nonlocal_median]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_nonlocal_median
-data:          data%ocean_data%deltaT_basin_nonlocal_median
-load:          1
-
-[deltaT_basin_nonlocal_pct5]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_nonlocal_pct5
-data:          data%ocean_data%deltaT_basin_nonlocal_pct5
-load:          1
-
-[deltaT_basin_nonlocal_pct95]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_nonlocal_pct95
-data:          data%ocean_data%deltaT_basin_nonlocal_pct95
-load:          1
-
 [deltaT_basin]
 dimensions:    time, y1, x1
 units:         degrees K
 long_name:     deltaT_basin
 data:          data%ocean_data%deltaT_basin
-load:          1
-
-[gamma0_local_median]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_local_median
-data:          data%ocean_data%gamma0_local_median
-load:          1
-
-[gamma0_local_pct5]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_local_pct5
-data:          data%ocean_data%gamma0_local_pct5
-load:          1
-
-[gamma0_local_pct95]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_local_pct95
-data:          data%ocean_data%gamma0_local_pct95
-load:          1
-
-[gamma0_nonlocal_median]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_nonlocal_median
-data:          data%ocean_data%gamma0_nonlocal_median
-load:          1
-
-[gamma0_nonlocal_pct5]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_nonlocal_pct5
-data:          data%ocean_data%gamma0_nonlocal_pct5
-load:          1
-
-[gamma0_nonlocal_pct95]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_nonlocal_pct95
-data:          data%ocean_data%gamma0_nonlocal_pct95
-load:          1
-
-[gamma0]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0
-data:          data%ocean_data%gamma0
-load:          1
-
-[thermal_forcing_baseline]
-dimensions:    time, zocn, y1, x1
-units:         degree_Celsius
-long_name:     thermal_forcing_baseline
-data:          data%ocean_data%thermal_forcing_baseline(up,:,:)
 load:          1
 
 [thermal_forcing]
