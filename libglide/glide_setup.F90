@@ -720,7 +720,6 @@ contains
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
-    call GetValue(section,'bmlt_float_ismip6_magnitude',model%options%bmlt_float_ismip6_magnitude)
     call GetValue(section,'ocean_data_domain',model%options%ocean_data_domain)
     call GetValue(section,'ocean_data_extrapolate',model%options%ocean_data_extrapolate)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
@@ -932,11 +931,6 @@ contains
          'ISMIP6 local quadratic                    ', &
          'ISMIP6 nonlocal quadratic                 ', &
          'ISMIP6 nonlocal quadratic, slope-dependent' /)
-
-    character(len=*), dimension(0:2), parameter :: bmlt_float_ismip6_magnitude = (/ &
-         'lowest forcing magnitude  ', &
-         'median forcing magnitude  ', &
-         'highest forcing magnitude '  /)
 
     character(len=*), dimension(0:2), parameter :: ocean_data_domain = (/ &
          'ocean data computed internally by CISM', &
@@ -1536,13 +1530,6 @@ contains
        write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
        call write_log(message)
-       if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-          write(message,*) 'magnitude of forcing    : ', model%options%bmlt_float_ismip6_magnitude, &
-               bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
-          call write_log(message)
-       endif
        write(message,*) 'ocean data domain       : ', model%options%ocean_data_domain, &
             ocean_data_domain(model%options%ocean_data_domain)
        call write_log(message)
@@ -3272,11 +3259,7 @@ contains
               options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
              call glide_add_to_restart_variable_list('basin_number')
-             ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes.
-             ! Only need one of these for restart (since param and magnitude will not change during the run).
-             ! Similarly for gamma0 (a scalar).
              call glide_add_to_restart_variable_list('deltaT_basin')
-             call glide_add_to_restart_variable_list('gamma0')
           endif
 
     end select  ! whichbmlt_float
