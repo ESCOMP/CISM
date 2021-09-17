@@ -923,7 +923,7 @@ contains
          'constant melt rate                    ', &
          'depth-dependent melt rate             ', &
          'melt rate from external file          ', &
-         'melt rate from MISOMIP T/S profile    ', &
+         'melt rate from MISOMIP T/S profile    ', &   ! not supported
          'melt rate from thermal forcing        ' /)
 
     character(len=*), dimension(0:3), parameter :: bmlt_float_thermal_forcing_param = (/ &
@@ -1526,7 +1526,9 @@ contains
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       call write_log('Error, BMLT_FLOAT_MISOMIP option is not supported', GM_FATAL)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
        call write_log(message)
