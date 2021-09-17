@@ -1611,11 +1611,11 @@ module glide_types
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
 
-     !Note: Moved powerlaw_c_2d and coulomb_c_2d to basal_physics type
+     !Note: Moved powerlaw_c and coulomb_c to basal_physics type
      real(dp), dimension(:,:), pointer :: &
           thck_save => null()                    !> saved thck field (m); used to compute dthck_dt_inversion
 
-     ! parameters for adjusting powerlaw_c_2d during inversion
+     ! parameters for adjusting powerlaw_c during inversion
      ! Note: inversion_babc_timescale is later rescaled to SI units (s).
      real(dp) ::  &
           babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
@@ -1937,17 +1937,8 @@ module glide_types
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/powerlaw_m); default value assumes powerlaw_m = 3
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c_2d => null(), &                  !> 2D powerlaw_c on staggered grid, Pa (m/yr)^(-1/3)
-          coulomb_c_2d => null()                      !> 2D coulomb_c on staggered grid, unitless in range [0,1]
-
-     ! parameters for Coulomb friction sliding law (default values from Pimentel et al. 2010)
-     !TODO - Change default to 1.0?
-     real(dp) :: coulomb_c = 0.42d0              !> basal stress constant; unitless in range [0,1]
-                                                 !> Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
-     real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
-     real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
-     real(dp) :: flwa_basal = 1.0d-16            !> Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
-                                                 !> = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
+          powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/3)
+          coulomb_c => null()                    !> coulomb_c on staggered grid, unitless in range [0,1]
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
      ! The default values are from Asay-Davis et al. (2016).
@@ -1956,22 +1947,28 @@ module glide_types
      ! Note: The Tsai et al. Coulomb friction law uses coulomb_c above, with
      !       effective pressure N as in Leguy et al. (2014) with p_ocean_penetration = 1.
 
-     real(dp) :: powerlaw_c = 1.0d4              !> friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
+     real(dp) :: powerlaw_c_const = 1.0d4        !> friction coefficient in power law, units of Pa m^(-1/3) yr^(1/3)
      real(dp) :: powerlaw_m = 3.d0               !> exponent in power law (unitless)
-      
-     ! max and min parameter values
+     real(dp) :: powerlaw_c_max = 1.0d5          !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
+     real(dp) :: powerlaw_c_min = 1.0d2          !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
 
-     real(dp) ::  &
-          powerlaw_c_max = 1.0d5,             &  !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
-          powerlaw_c_min = 1.0d2                 !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
-
+     ! parameters for Coulomb friction law
+     !TODO - Change default coulomb_c_const to 1.0?
      ! Note: coulomb_c_max = 1.0 to cap effecpress at overburden
      ! Note: The appropriate value of coulomb_c_min can depend on how much N is reduced below overburden.
-     real(dp) ::  &
-          coulomb_c_max = 1.0d0,              &  !> max value of coulomb_c, unitless
-          coulomb_c_min = 1.0d-3,             &  !> min value of coulomb_c, unitless
-          coulomb_c_bedmax =  700.d0,         &  !> bed elevation (m) above which coulomb_c = coulomb_c_max
-          coulomb_c_bedmin = -300.d0             !> bed elevation (m) below which coulomb_c = coulomb_c_min
+     real(dp) :: coulomb_c_const = 0.42d0        !> basal stress constant; unitless in range [0,1]
+     real(dp) :: coulomb_c_max = 1.0d0           !> max value of coulomb_c, unitless
+     real(dp) :: coulomb_c_min = 1.0d-3          !> min value of coulomb_c, unitless
+     real(dp) :: coulomb_c_bedmax =  700.d0      !> bed elevation (m) above which coulomb_c = coulomb_c_max
+     real(dp) :: coulomb_c_bedmin = -300.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_min
+
+     ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
+     ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
+     !TODO - Remove these constants?
+     real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
+     real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
+     real(dp) :: flwa_basal = 1.0d-16            !> Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
+                                                 !> = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameter to limit the min value of beta for various power laws
      real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
@@ -1979,7 +1976,7 @@ module glide_types
 
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed.
-     real(dp),dimension(:,:)  ,pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model
+     real(dp),dimension(:,:), pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model
 
   end type glide_basal_physics
 
@@ -2421,8 +2418,8 @@ contains
     !> In \texttt{model\%inversion}:
     !> \item \texttt{bmlt_float_save(ewn,nsn)}
     !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
-    !> \item \texttt{powerlaw_c_2d(ewn-1,nsn-1)}
-    !> \item \texttt{coulomb_c_2d(ewn-1,nsn-1)}
+    !> \item \texttt{powerlaw_c(ewn-1,nsn-1)}
+    !> \item \texttt{coulomb_c(ewn-1,nsn-1)}
     !> \item \texttt{thck_save(ewn,nsn)}
 
     !> In \texttt{model\%plume}:
@@ -2851,8 +2848,8 @@ contains
     endif  ! Glissade
 
     ! inversion and basal physics arrays (Glissade only)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c_2d)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_2d)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
 
     if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
@@ -3274,10 +3271,10 @@ contains
         deallocate(model%inversion%bmlt_float_save)
     if (associated(model%inversion%bmlt_float_inversion)) &
         deallocate(model%inversion%bmlt_float_inversion)
-    if (associated(model%basal_physics%powerlaw_c_2d)) &
-        deallocate(model%basal_physics%powerlaw_c_2d)
-    if (associated(model%basal_physics%coulomb_c_2d)) &
-        deallocate(model%basal_physics%coulomb_c_2d)
+    if (associated(model%basal_physics%powerlaw_c)) &
+        deallocate(model%basal_physics%powerlaw_c)
+    if (associated(model%basal_physics%coulomb_c)) &
+        deallocate(model%basal_physics%coulomb_c)
     if (associated(model%inversion%thck_save)) &
         deallocate(model%inversion%thck_save)
     if (associated(model%inversion%floating_thck_target)) &

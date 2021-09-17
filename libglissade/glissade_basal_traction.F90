@@ -146,17 +146,18 @@ contains
 
   ! variables for Coulomb friction law
   real(dp) :: coulomb_c   ! Coulomb law friction coefficient (unitless)
-  real(dp) :: powerlaw_c  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
-  real(dp) :: lambda_max  ! wavelength of bedrock bumps at subgrid scale (m)
-  real(dp) :: m_max       ! maximum bed obstacle slope (unitless)
-  real(dp) :: m           ! exponent m in power law
+  real(dp) :: powerlaw_c_const  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
+  real(dp) :: lambda_max        ! wavelength of bedrock bumps at subgrid scale (m)
+  real(dp) :: m_max             ! maximum bed obstacle slope (unitless)
+  real(dp) :: m                 ! exponent m in power law
+
   integer, dimension(size(thck,1), size(thck,2)) :: &
-       ice_or_land_mask, &! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
-       imask              ! = 1 where thck > 0, else = 1
+       ice_or_land_mask,   & ! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
+       imask                 ! = 1 where thck > 0, else = 1
 
   real(dp), dimension(size(beta,1), size(beta,2)) ::  &
-       big_lambda,                 &  ! bedrock characteristics
-       flwa_basal_stag                ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
+       big_lambda,         & ! bedrock characteristics
+       flwa_basal_stag       ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
 
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
@@ -195,27 +196,27 @@ contains
   ! Compute coulomb_c; used in basal friction laws with yield stress proportional to coulomb_c
 
   if (which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
-     ! set coulomb_c_2d = constant value
-     basal_physics%coulomb_c_2d(:,:) = basal_physics%coulomb_c
+     ! set coulomb_c = constant value
+     basal_physics%coulomb_c(:,:) = basal_physics%coulomb_c_const
   elseif (which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
 
      ! set coulomb_c based on bed elevation
      call set_coulomb_c_elevation(ewn,        nsn,   &
                                   topg,       eus,   &
                                   basal_physics,     &
-                                  basal_physics%coulomb_c_2d)
+                                  basal_physics%coulomb_c)
 
   else  ! HO_COULOMB_C_INVERSION, HO_COULOMB_C_EXTERNAL
-     ! do nothing; use coulomb_c_2d as computed elsewhere
+     ! do nothing; use coulomb_c as computed elsewhere
   endif
 
   ! Compute powerlaw_c; used in basal friction laws with beta proportional to u^(1/m)
 
   if (which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
-     ! set powerlaw_c_2d = constant value
-     basal_physics%powerlaw_c_2d(:,:) = basal_physics%powerlaw_c
+     ! set powerlaw_c = constant value
+     basal_physics%powerlaw_c(:,:) = basal_physics%powerlaw_c_const
   else  ! HO_POWERLAW_C_INVERSION, HO_POWERLAW_C_EXTERNAL
-     ! do nothing; use powerlaw_c_2d as computed elsewhere
+     ! do nothing; use powerlaw_c as computed elsewhere
   endif
 
   ! Compute beta based on whichbabc
@@ -254,14 +255,14 @@ contains
        ! compute beta based on N, coulomb_c and u
        do ns = 1, nsn-1
           do ew = 1, ewn-1
-             tau_c = basal_physics%effecpress_stag(ew,ns) * basal_physics%coulomb_c_2d(ew,ns)
+             tau_c = basal_physics%effecpress_stag(ew,ns) * basal_physics%coulomb_c(ew,ns)
              beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
 
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
                    write(6,*) 'i, j, bed, coulomb_c, tau_c, speed, beta:', &
-                        ew, ns, bed, phi, basal_physics%coulomb_c_2d(ew,ns), tau_c, speed(ew,ns), beta(ew,ns)
+                        ew, ns, bed, phi, basal_physics%coulomb_c(ew,ns), tau_c, speed(ew,ns), beta(ew,ns)
                 endif
              endif
           enddo   ! ew
@@ -344,14 +345,14 @@ contains
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
-             tau_c = basal_physics%coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns)
+             tau_c = basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)
              beta(ew,ns) = tau_c * speed(ew,ns)**(1.0d0/m - 1.0d0)  &
                   / (speed(ew,ns) + basal_physics%zoet_iverson_ut)**(1.0d0/m)
 
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest) .and. &
                   this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                write(6,*) 'Cc, N, speed, beta =', basal_physics%coulomb_c_2d(ew,ns), &
+                write(6,*) 'Cc, N, speed, beta =', basal_physics%coulomb_c(ew,ns), &
                      basal_physics%effecpress_stag(ew,ns), speed(ew,ns), beta(ew,ns)
              endif
 
@@ -437,14 +438,14 @@ contains
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
-             beta(ew,ns) = basal_physics%powerlaw_c_2d(ew,ns) &
+             beta(ew,ns) = basal_physics%powerlaw_c(ew,ns) &
                          * speed(ew,ns)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
                    write(6,*) 'r, i, j, Cp, speed, beta:', &
-                        rtest, itest, jtest, basal_physics%powerlaw_c_2d(ew,ns), speed(ew,ns), beta(ew,ns)
+                        rtest, itest, jtest, basal_physics%powerlaw_c(ew,ns), speed(ew,ns), beta(ew,ns)
                 endif
              endif
           enddo
@@ -471,8 +472,11 @@ contains
 
     case(HO_BABC_COULOMB_FRICTION)
 
-      ! Basal stress representation using Coulomb friction law
-      ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
+      ! TODO: Remove this option; effectively the same as the Schoof option below
+      !       Might need to modify MISMIP test config files that use this option
+
+      ! Basal stress representation using Schoof sliding law with Coulomb friction
+      ! See Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
 
        ! Set up parameters needed for the friction law
        m_max = basal_physics%coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
@@ -503,12 +507,12 @@ contains
        !       following the notation of Leguy et al. (2014).
        !       Changed to powerlaw_m to be consistent with the Schoof and Tsai laws.
        m = basal_physics%powerlaw_m
-       beta(:,:) = basal_physics%coulomb_c_2d(:,:) * basal_physics%effecpress_stag(:,:) &
+       beta(:,:) = basal_physics%coulomb_c(:,:) * basal_physics%effecpress_stag(:,:) &
             * speed(:,:)**(1.0d0/m - 1.0d0) * &
             (speed(:,:) + basal_physics%effecpress_stag(:,:)**m * big_lambda)**(-1.0d0/m)
 
        ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
-       ! TODO: Replace c_space_factor with a spatially varying coulomb_c_2d field.
+       ! TODO: Replace c_space_factor with a spatially varying coulomb_c field.
        if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
           beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
        endif
@@ -551,10 +555,10 @@ contains
        do ns = 1, nsn-1
           do ew = 1, ewn-1
 
-             numerator = basal_physics%powerlaw_c_2d(ew,ns) * basal_physics%coulomb_c_2d(ew,ns)  &
+             numerator = basal_physics%powerlaw_c(ew,ns) * basal_physics%coulomb_c(ew,ns)  &
                        * basal_physics%effecpress_stag(ew,ns)
-             denominator = (basal_physics%powerlaw_c_2d(ew,ns)**m * speed(ew,ns) +  &
-                  (basal_physics%coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+             denominator = (basal_physics%powerlaw_c(ew,ns)**m * speed(ew,ns) +  &
+                  (basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
              beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
 
              !WHL - debug
@@ -562,9 +566,9 @@ contains
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
                    print*, ' '
                    write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
-                        rtest, ew, ns, basal_physics%powerlaw_c_2d(ew,ns), &
-                        (basal_physics%powerlaw_c_2d(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
-                        (basal_physics%coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns)), &
+                        rtest, ew, ns, basal_physics%powerlaw_c(ew,ns), &
+                        (basal_physics%powerlaw_c(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
+                        (basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)), &
                         speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
                 endif
              endif
@@ -605,8 +609,8 @@ contains
        do ns = 1, nsn-1
           do ew = 1, ewn-1
              
-             taub_powerlaw = basal_physics%powerlaw_c_2d(ew,ns) * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
-             taub_coulomb  = basal_physics%coulomb_c_2d(ew,ns) * basal_physics%effecpress_stag(ew,ns)
+             taub_powerlaw = basal_physics%powerlaw_c(ew,ns) * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
+             taub_coulomb  = basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)
 
              if (taub_coulomb <= taub_powerlaw) then   ! apply Coulomb stress, which is smaller
                 beta(ew,ns) = taub_coulomb / speed(ew,ns)
@@ -1062,7 +1066,7 @@ contains
   subroutine set_coulomb_c_elevation(ewn,        nsn,   &
                                      topg,       eus,   &
                                      basal_physics,     &
-                                     coulomb_c_2d)
+                                     coulomb_c)
 
     ! Compute coulomb_c as a function of bed elevation.
     ! Assume a linear ramp between the max value at elevation bedmax and the min value at bedmin.
@@ -1075,7 +1079,7 @@ contains
     real(dp), dimension(ewn,nsn), intent(in)      :: topg            ! bed topography (m)
     real(dp), intent(in)                          :: eus             ! eustatic sea level (m) relative to z = 0
     type(glide_basal_physics), intent(in)         :: basal_physics   ! basal physics object
-    real(dp), dimension(ewn-1,nsn-1), intent(out) :: coulomb_c_2d    ! 2D field of coulomb_c
+    real(dp), dimension(ewn-1,nsn-1), intent(out) :: coulomb_c       ! 2D field of coulomb_c
 
     real(dp), dimension(ewn-1,nsn-1) :: &
          stagtopg                             ! topg (m) on the staggered grid
@@ -1105,11 +1109,11 @@ contains
        do ew = 1, ewn-1
           bed = stagtopg(ew,ns) - eus
           if (bed <= bedmin) then
-             coulomb_c_2d(ew,ns) = coulomb_c_min
+             coulomb_c(ew,ns) = coulomb_c_min
           elseif (bed >= bedmax) then
-             coulomb_c_2d(ew,ns) = coulomb_c_max
+             coulomb_c(ew,ns) = coulomb_c_max
           else   ! bed elevation is between bedmin and bedmax
-             coulomb_c_2d(ew,ns) = coulomb_c_min + &
+             coulomb_c(ew,ns) = coulomb_c_min + &
                   ((bed - bedmin)/(bedmax - bedmin)) * (coulomb_c_max - coulomb_c_min)
           endif
        enddo

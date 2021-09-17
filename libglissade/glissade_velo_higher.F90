@@ -756,10 +756,6 @@
        tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
        tau_eff                  ! effective stress (Pa)
 
-    real(dp), dimension(:,:), pointer ::  &
-       powerlaw_c_2d,          &! Cp (for basal friction), on staggered grid
-       coulomb_c_2d             ! Cc (for basal friction), on staggered grid
-
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
        umask_no_penetration,   &! = 1 at vertices along east/west global boundary where uvel = 0, = 0 elsewhere
@@ -1127,9 +1123,6 @@
      tau_yy   => model%stress%tau%yy(:,:,:)
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
-
-     powerlaw_c_2d => model%basal_physics%powerlaw_c_2d(:,:)
-     coulomb_c_2d  => model%basal_physics%coulomb_c_2d(:,:)
 
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)

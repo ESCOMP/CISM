@@ -1153,18 +1153,18 @@ long_name:     spatial factor for basal shear stress
 data:          data%basal_physics%c_space_factor
 load:          1
 
-[powerlaw_c_2d]
+[powerlaw_c]
 dimensions:    time, y0, x0
 units:         Pa (m/yr)**(-1/3)
 long_name:     spatially varying C for powerlaw sliding, staggered grid
-data:          data%basal_physics%powerlaw_c_2d
+data:          data%basal_physics%powerlaw_c
 load:          1
 
-[coulomb_c_2d]
+[coulomb_c]
 dimensions:    time, y0, x0
 units:         1
 long_name:     spatially varying C for Coulomb sliding, staggered grid
-data:          data%basal_physics%coulomb_c_2d
+data:          data%basal_physics%coulomb_c
 load:          1
 
 [thck_inversion_save]

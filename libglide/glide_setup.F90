@@ -2130,27 +2130,27 @@ contains
        deallocate(tempvar)
     end if
 
-!!    call GetValue(section,'sliding_constant',  model%climate%slidconst)  ! not currently used
-
     call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
     call GetValue(section,'ho_beta_const', model%basal_physics%ho_beta_const)
     call GetValue(section,'ho_beta_small', model%basal_physics%ho_beta_small)
     call GetValue(section,'ho_beta_large', model%basal_physics%ho_beta_large)
 
     ! basal friction parameters
-    call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
-    call GetValue(section, 'coulomb_c', model%basal_physics%coulomb_c)
-    call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
-    call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
-    call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
-    call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_c)
+    call GetValue(section, 'powerlaw_c_const', model%basal_physics%powerlaw_c_const)
+    call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
+    call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
     call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
-    call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
-    call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
+    call GetValue(section, 'coulomb_c_const', model%basal_physics%coulomb_c_const)
     call GetValue(section, 'coulomb_c_max', model%basal_physics%coulomb_c_max)
     call GetValue(section, 'coulomb_c_min', model%basal_physics%coulomb_c_min)
     call GetValue(section, 'coulomb_c_bedmax', model%basal_physics%coulomb_c_bedmax)
     call GetValue(section, 'coulomb_c_bedmin', model%basal_physics%coulomb_c_bedmin)
+    call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
+    call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
+    call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
+    call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
+    call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
+    call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
@@ -2167,6 +2167,7 @@ contains
     ! pseudo-plastic parameters
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
+    !TODO - next four to be removed in favor of coulomb_c_min, etc.
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
     call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
@@ -2193,8 +2194,6 @@ contains
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
 
-    call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
-    call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
 
@@ -2532,9 +2531,9 @@ contains
           call write_log(message, GM_WARNING)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
-       ! Note: The Zoet-Iverson law typically uses coulomb_c_2d.
+       ! Note: The Zoet-Iverson law typically uses a spatially variable coulomb_c.
        !       If so, the value written here is just the initial value.
-       write(message,*) 'Cc for Zoet-Iversion law                     : ', model%basal_physics%coulomb_c
+       write(message,*) 'Cc for Zoet-Iversion law                     : ', model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'm exponent for Zoet-Iverson law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
@@ -2545,32 +2544,32 @@ contains
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
-       write(message,*) 'Cp for power law, Pa (m/yr)^(-1/3)           : ', model%basal_physics%powerlaw_c
+       write(message,*) 'Cp for power law, Pa (m/yr)^(-1/3)           : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
-       write(message,*) 'Cc for Coulomb friction law                  : ', model%basal_physics%coulomb_c
+       write(message,*) 'Cc for Coulomb friction law                  : ', model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'bed bump max slope for Coulomb friction law  : ', model%basal_physics%coulomb_bump_max_slope
        call write_log(message)
        write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%coulomb_bump_wavelength
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
-       ! Note: The Schoof law typically uses powerlaw_c_2d.
+       ! Note: The Schoof law typically uses a spatially variable powerlaw_c.
        !       If so, the value written here is just the initial value.
-       write(message,*) 'Cc for Schoof Coulomb law                    : ', model%basal_physics%coulomb_c
+       write(message,*) 'Cc for Schoof Coulomb law                    : ', model%basal_physics%coulomb_c_const
        call write_log(message)
-       write(message,*) 'Cp for Schoof power law, Pa (m/yr)^(-1/3)    : ', model%basal_physics%powerlaw_c
+       write(message,*) 'Cp for Schoof power law, Pa (m/yr)^(-1/3)    : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
        write(message,*) 'm exponent for Schoof power law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
-       ! Note: The Tsai law typically uses powerlaw_c_2d.
+       ! Note: The Tsai law typically uses a spatially variable powerlaw_c. 
        !       If so, the value written here is just the initial value.
-       write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c
+       write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c_const
        call write_log(message)
-       write(message,*) 'Cp for Tsai power law, Pa (m/yr)^(-1/3)      : ', model%basal_physics%powerlaw_c
+       write(message,*) 'Cp for Tsai power law, Pa (m/yr)^(-1/3)      : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
        write(message,*) 'm exponent for Tsai power law                : ', model%basal_physics%powerlaw_m
        call write_log(message)
@@ -3477,19 +3476,19 @@ contains
     ! basal friction options
 
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
-       call glide_add_to_restart_variable_list('powerlaw_c_2d', model_id)
+       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
        call glide_add_to_restart_variable_list('dthck_dt', model_id)
     elseif (options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL) then
-       call glide_add_to_restart_variable_list('powerlaw_c_2d', model_id)
+       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
     if (options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
-       call glide_add_to_restart_variable_list('coulomb_c_2d', model_id)
+       call glide_add_to_restart_variable_list('coulomb_c', model_id)
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
        call glide_add_to_restart_variable_list('dthck_dt', model_id)
     elseif (options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
-       call glide_add_to_restart_variable_list('coulomb_c_2d', model_id)
+       call glide_add_to_restart_variable_list('coulomb_c', model_id)
     endif
 
     ! bmlt inversion options
