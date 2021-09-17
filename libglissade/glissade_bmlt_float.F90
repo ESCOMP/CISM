@@ -659,8 +659,6 @@ module glissade_bmlt_float
 
     integer :: basin_number_min         ! global minval of the basin_number field
 
-    real(dp) :: tf_baseline_max    ! global max value of thermal_forcing_baseline
-
     logical :: simple_init = .false.
 
     type(parallel_type) :: parallel   ! info for parallel communication
@@ -695,9 +693,6 @@ module glissade_bmlt_float
        ! Use Xylar's median value (m/yr) for gamma0
        ocean_data%gamma0 = 15000.d0
 
-       ! Set baseline thermal forcing with zero thermal forcing everywhere
-       ocean_data%thermal_forcing_baseline(:,:,:) = 0.0d0
-
        ! Let the transient thermal forcing be steady in time, increasing from surface to bed
        do k = 1, ocean_data%nzocn
           ocean_data%zocn(k) = -100.0d0 * k   ! ocean level every 100 m
@@ -708,73 +703,17 @@ module glissade_bmlt_float
 
     endif  ! simple_init
 
-    ! For ISMIP6 parameterizations: based on the kind of parameterization (local or nonlocal)
-    !  and the forcing magnitude, assign appropriate values to deltaT_basin and gamma0.
-    ! Note: On restart, deltaT_basin and gamma0 are in the restart file.
-
     if (model%options%is_restart == RESTART_FALSE) then
 
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-          if (ocean_data%gamma0 > 0.0d0) then
-
-             ! gamma0 aleady read from the config file; do nothing
-
-          else  ! set gamma0 based on the chosen ISMIP6 options
-
-             if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
-
-                if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
-                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct5
-                   ocean_data%gamma0 = ocean_data%gamma0_local_pct5
-                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
-                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_median
-                   ocean_data%gamma0 = ocean_data%gamma0_local_median
-                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
-                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_local_pct95
-                   ocean_data%gamma0 = ocean_data%gamma0_local_pct95
-                endif
-
-             elseif (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
-                  model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-
-                if (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT5) then
-                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct5
-                   ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct5
-                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_MEDIAN) then
-                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_median
-                   ocean_data%gamma0 = ocean_data%gamma0_nonlocal_median
-                elseif (model%options%bmlt_float_ismip6_magnitude == BMLT_FLOAT_ISMIP6_PCT95) then
-                   ocean_data%deltaT_basin = ocean_data%deltaT_basin_nonlocal_pct95
-                   ocean_data%gamma0 = ocean_data%gamma0_nonlocal_pct95
-                endif
-
-             endif  ! local or nonlocal
-
-             ! Abort if gamma0 does not yet have a nonzero value.
-
-             if (ocean_data%gamma0 == 0.0d0) then
-                call write_log('Error: Must assign a nonzero value to ocean_data%gamma0', GM_FATAL)
-             endif
-
-          endif  ! gamma > 0
-
-          ! Check whether thermal_forcing_baseline has been read in.
-          ! If so, then set thermal_forcing = thermal_forcing_baseline,
-          !  and use this field to compute bmlt_float_baseline.
-          ! If not, just use the input thermal_forcing, if present.
-
-          tf_baseline_max = maxval(model%ocean_data%thermal_forcing_baseline)
-          tf_baseline_max = parallel_reduce_max(tf_baseline_max)
-
-          if (tf_baseline_max > tiny(0.0d0)) then
-             model%ocean_data%thermal_forcing = model%ocean_data%thermal_forcing_baseline
-             if (verbose_bmlt_float .and. this_rank==rtest) then
-                print*, 'Set thermal_forcing = thermal_forcing_baseline'
-             endif
-          endif
+          !WHL - In earlier code, nonzero values of gamma0 could be set in the config file,
+          !       read from the input file, or assigned here based on the ISMIP6 parameterization.
+          !      This led to errors because with multiple ways of setting gamma0, it was unclear
+          !       which value would actually be used.
+          !      Now, nonzero values of gamma0 must be set in the config file.
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
@@ -822,8 +761,9 @@ module glissade_bmlt_float
           call parallel_halo(ocean_data%basin_number, parallel)
           call parallel_halo(ocean_data%thermal_forcing, parallel)
 
-         ! Compute the melt rate associated with the baseline thermal forcing and initial lower ice surface (lsrf).
+         ! Compute the melt rate associated with the initial thermal forcing and lower ice surface (lsrf).
          ! This melt rate can be subtracted from the runtime melt rate to give a runtime anomaly.
+         ! TODO - Remove bmlt_float_baseline.
          ! Note: On restart, bmlt_float_baseline is read from the restart file.
 
           if (verbose_bmlt_float .and. main_task) then
