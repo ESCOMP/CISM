@@ -509,7 +509,7 @@ module glide_types
     !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
     !> \item[3] Depth-dependent basal melt rate for floating ice
     !> \item[4] External basal melt rate field (from input file or coupler)
-    !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model
+    !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model (not supported)
     !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
@@ -1747,24 +1747,8 @@ module glide_types
   type glide_plume
 
      !> Holds fields and parameters relating to a sub-shelf plume model
-     !> Note: Entrainment/detrainment rates are computed with units of m/s but output with m/yr
+     !> Used to hold more fields, but most were removed when the plume model was abandoned
 
-     real(dp),dimension(:,:), pointer :: T_basal => null()       !> basal ice temperature; at freezing point (deg C)
-     real(dp),dimension(:,:), pointer :: S_basal => null()       !> basal salinity; at freezing point (psu)
-     real(dp),dimension(:,:), pointer :: u_plume => null()       !> x component of plume velocity at cell centers (m/s)
-     real(dp),dimension(:,:), pointer :: v_plume => null()       !> y component of plume velocity at cell centers (m/s)
-                                                                 !> Note: Plume velocities are prognosed on edges, then interpolated
-                                                                 !>       to cell centers for diagnostics 
-     real(dp),dimension(:,:), pointer :: u_plume_Cgrid => null() !> x component of plume velocity on C grid edges (m/s)
-     real(dp),dimension(:,:), pointer :: v_plume_Cgrid => null() !> y component of plume velocity on C grid edges (m/s)
-     real(dp),dimension(:,:), pointer :: D_plume => null()       !> plume thickness (m)
-     real(dp),dimension(:,:), pointer :: ustar_plume => null()   !> plume friction velocity (m/s) on ice grid
-     real(dp),dimension(:,:), pointer :: drho_plume => null()    !> density difference between plume and ambient ocean (kg/m3)
-     real(dp),dimension(:,:), pointer :: T_plume => null()       !> plume temperature (deg C)
-     real(dp),dimension(:,:), pointer :: S_plume => null()       !> plume salinity (psu)
-     real(dp),dimension(:,:), pointer :: entrainment => null()   !> entrainment rate from ambient ocean to plume (positive up)
-     real(dp),dimension(:,:), pointer :: detrainment => null()   !> detrainment rate from plume to ambient ocean (positive down)
-     real(dp),dimension(:,:), pointer :: divDu_plume => null()   !> divergence of D_plume*u_plume
      real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
      real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
 
@@ -2374,20 +2358,6 @@ contains
 
     !> In \texttt{model\%plume}:
     !> \begin{itemize}
-    !> \item \texttt{T_basal(ewn,nsn)}
-    !> \item \texttt{S_basal(ewn,nsn)}
-    !> \item \texttt{u_plume(ewn,nsn)}
-    !> \item \texttt{v_plume(ewn,nsn)}
-    !> \item \texttt{u_plume_Cgrid(ewn,nsn)}
-    !> \item \texttt{v_plume_Cgrid(ewn,nsn)}
-    !> \item \texttt{D_plume(ewn,nsn)}
-    !> \item \texttt{ustar_plume(ewn,nsn)}
-    !> \item \texttt{drho_plume(ewn,nsn)}
-    !> \item \texttt{T_plume(ewn,nsn)}
-    !> \item \texttt{S_plume(ewn,nsn)}
-    !> \item \texttt{entrainment(ewn,nsn)}
-    !> \item \texttt{detrainment(ewn,nsn)}
-    !> \item \texttt{divDu_plume(ewn,nsn)}
     !> \item \texttt{T_ambient(ewn,nsn)}
     !> \item \texttt{S_ambient(ewn,nsn)}
     !> \end{itemize}
@@ -2752,20 +2722,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-          call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%S_basal)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume_Cgrid)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume_Cgrid)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%D_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%ustar_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%drho_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%T_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%S_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%entrainment)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%detrainment)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%divDu_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
@@ -3208,35 +3164,7 @@ contains
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
 
-    ! plume arrays
-    if (associated(model%plume%T_basal)) &
-        deallocate(model%plume%T_basal)
-    if (associated(model%plume%S_basal)) &
-        deallocate(model%plume%S_basal)
-    if (associated(model%plume%u_plume)) &
-        deallocate(model%plume%u_plume)
-    if (associated(model%plume%v_plume)) &
-        deallocate(model%plume%v_plume)
-    if (associated(model%plume%u_plume_Cgrid)) &
-        deallocate(model%plume%u_plume_Cgrid)
-    if (associated(model%plume%v_plume_Cgrid)) &
-        deallocate(model%plume%v_plume_Cgrid)
-    if (associated(model%plume%D_plume)) &
-        deallocate(model%plume%D_plume)
-    if (associated(model%plume%ustar_plume)) &
-        deallocate(model%plume%ustar_plume)
-    if (associated(model%plume%drho_plume)) &
-        deallocate(model%plume%drho_plume)
-    if (associated(model%plume%T_plume)) &
-        deallocate(model%plume%T_plume)
-    if (associated(model%plume%S_plume)) &
-        deallocate(model%plume%S_plume)
-    if (associated(model%plume%entrainment)) &
-        deallocate(model%plume%entrainment)
-    if (associated(model%plume%detrainment)) &
-        deallocate(model%plume%detrainment)
-    if (associated(model%plume%divDu_plume)) &
-        deallocate(model%plume%divDu_plume)
+    ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &
         deallocate(model%plume%T_ambient)
     if (associated(model%plume%S_ambient)) &
