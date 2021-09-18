@@ -329,23 +329,6 @@ factor:        scale_acab
 standard_name: floating_ice_basal_melt_rate_anomaly
 load:          1
 
-[bmlt_float_baseline]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     baseline basal melt rate for floating ice
-data:          data%basal_melt%bmlt_float_baseline
-factor:        scyr
-standard_name: floating_ice_baseline_basal_melt_rate
-load:          1
-
-[bmlt_float_inversion]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate for floating ice from inversion
-data:          data%inversion%bmlt_float_inversion
-factor:        scyr
-load:          0
-
 [warm_ocean_mask]
 dimensions:    time, y1, x1
 units:         1
