@@ -1033,7 +1033,7 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             if (0.0d0 < model%temper%stagbwat(ew,ns)) then
+             if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
                 btrc(ew,ns) = model%velocity%bed_softness(ew,ns)
              else
                 btrc(ew,ns) = 0.0d0
@@ -1078,10 +1078,10 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             if (0.0d0 < model%temper%stagbwat(ew,ns)) then
+             if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
                
                 btrc(ew,ns) = model%velowk%c(1) + model%velowk%c(2) * tanh(model%velowk%c(3) * &
-                     model%temper%stagbwat(ew,ns) - model%velowk%c(4))
+                     model%basal_hydro%stagbwat(ew,ns) - model%velowk%c(4))
                 
                 if (0.0d0 > sum(model%isostasy%relx(ew:ew+1,ns:ns+1))) then
                    btrc(ew,ns) = btrc(ew,ns) * model%velowk%marine  

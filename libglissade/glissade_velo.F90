@@ -43,9 +43,6 @@ contains
 
       ! Glissade higher-order velocity driver
 
-      use glimmer_global, only : dp
-      use glimmer_physcon, only: gn, scyr
-      use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0, evs0
       use glimmer_log
       use glide_types
       use glissade_velo_higher, only: glissade_velo_higher_solve

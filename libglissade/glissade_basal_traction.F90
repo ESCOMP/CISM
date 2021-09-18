@@ -440,9 +440,12 @@ contains
        !       If this factor is not present in the input file, it is set to 1 everywhere.
 
        ! Compute beta
-       ! gn = Glen's n from physcon module
-       beta(:,:) = coulomb_c * basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
-            (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+       ! Note: Where this equation has powerlaw_m, we used to have Glen's flow exponent n,
+       !       following the notation of Leguy et al. (2014).
+       !       Changed to powerlaw_m to be consistent with the Schoof and Tsai laws.
+       m = basal_physics%powerlaw_m
+       beta(:,:) = coulomb_c * basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/m - 1.0d0) * &
+            (speed(:,:) + basal_physics%effecpress_stag(:,:)**m * big_lambda)**(-1.0d0/m)
 
        ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
        if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
@@ -696,7 +699,7 @@ contains
 
   subroutine calc_effective_pressure (which_effecpress,             &
                                       ewn,           nsn,           &
-                                      basal_physics,                &
+                                      basal_physics, basal_hydro,   &
                                       ice_mask,      floating_mask, &
                                       thck,          topg,          &
                                       eus,                          &
@@ -722,6 +725,10 @@ contains
     type(glide_basal_physics), intent(inout) :: &
          basal_physics       ! basal physics object
                              ! includes effecpress, effecpress_stag and various parameters
+
+    type(glide_basal_hydro), intent(inout) :: &
+         basal_hydro         ! basal hydro object
+                             ! includes bwat and various parameters
 
     integer, dimension(:,:), intent(in) :: &
          ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
@@ -843,7 +850,7 @@ contains
 
        if (present(bwat)) then
 
-          ! Reduce N where basal water is present.
+          ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
           ! The effective pressure decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
           ! Note: Instead of using a linear ramp for the variation between overburden and the small value
           !       (as for the BPMP and BMLT options above), we use the published formulation of Bueler & van Pelt (2015).
@@ -855,27 +862,53 @@ contains
 
                 if (bwat(i,j) > 0.0d0) then
 
-                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
 
                    ! Eq. 23 from Bueler & van Pelt (2015)
-                   basal_physics%effecpress(i,j) = basal_physics%N_0  &
-                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
-                        * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
+                   basal_physics%effecpress(i,j) = basal_hydro%N_0  &
+                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_hydro%N_0)**relative_bwat  &
+                        * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
                    ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
                    ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
                    !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
 
 !!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
-!!                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
-
-                   !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
-                   !      This might lead to smoother variations in N with spatial variation in bwat.
-!!                 basal_physics%effecpress(i,j) = overburden(i,j) * &
-!!                      (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+!!                      * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
                    ! limit so as not to exceed overburden
                    basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+                end if
+             enddo
+          enddo
+
+       endif   ! present(bwat)
+
+       where (floating_mask == 1)
+          ! set to zero for floating ice
+          basal_physics%effecpress = 0.0d0
+       end where
+
+    case(HO_EFFECPRESS_BWAT_RAMP)  ! Similar to HO_EFFECPRESS_BWAT, but with a ramp function
+
+       ! Initialize for the case where bwat isn't present, and also for points with bwat == 0
+
+       basal_physics%effecpress(:,:) = overburden(:,:)
+
+       if (present(bwat)) then
+
+          ! Reduce N where basal water is present.
+          ! The effective pressure decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
+
+          do j = 1, nsn
+             do i = 1, ewn
+                if (bwat(i,j) > 0.0d0) then
+
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
+
+                   basal_physics%effecpress(i,j) = overburden(i,j) * &
+                        (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+
                 end if
              enddo
           enddo
