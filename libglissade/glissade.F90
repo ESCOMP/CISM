@@ -839,7 +839,6 @@ contains
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or. &
         model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
        call glissade_init_inversion(model)
@@ -1321,8 +1320,7 @@ contains
 
     ! melt rate field for ISMIP6
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
-         bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s);
-                                  ! take bmlt_float_transient - bmlt_float_baseline to compute anomaly
+         bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s)
 
     real(dp) :: previous_time     ! time (yr) at the end of the previous timestep
     real(dp) :: time_from_start   ! time (yr) since the start of applying the anomaly
@@ -1467,59 +1465,6 @@ contains
             model%basal_melt%bmlt_float,           &
             tf_anomaly_in = tf_anomaly,            & ! deg C
             tf_anomaly_basin_in = tf_anomaly_basin)
-
-       ! There are two ways to compute the transient basal melting from the thermal forcing at runtime:
-       ! (1) Use the value just computed, based on the current thermal_forcing.
-       !     Note: Even if the thermal forcing is fixed, the melt rate will evolve with the shelf geometry.
-       ! (2) Start with the value obtained from inversion, and add the runtime anomaly.
-       !     The runtime anomaly is obtained here by subtracting the baseline value from the value just computed.
-       !     Below, it will be added to bmlt_float_inversion.
-       ! If doing a forward run following inversion, we use method (2).
-       ! Note: bmlt_float_baseline = 0 where the baseline ice is fully grounded.
-       !       This means that the anomaly is potentially much larger for new cavities
-       !        than for cavities initially present.
-       ! Note: bmlt_float is a basal melting potential; it is reduced below for partly or fully grounded ice.
-       ! TODO: Remove option (2), which was used for ISMIP6 Antarctica but is now deprecated.
-       !       Might be simplest to remove HO_BMLT_INVERSION altogether.
-
-       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-
-          if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'ISMIP6 bmlt_float from full thermal forcing (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-          model%basal_melt%bmlt_float = model%basal_melt%bmlt_float - model%basal_melt%bmlt_float_baseline
-
-          if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'Baseline bmlt_float (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float_baseline(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'Adjusted ISMIP6 bmlt_float due to TF anomaly (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif
 
        ! Convert bmlt_float from SI units (m/s) to scaled model units
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
@@ -2080,7 +2025,7 @@ contains
                                   glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask, &
                               glissade_calving_front_mask
-    use glissade_inversion, only: glissade_inversion_bmlt_float, verbose_inversion
+    use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
@@ -2764,26 +2709,6 @@ contains
           bmlt_unscaled(:,:) = 0.0d0
        endif
 
-       !-------------------------------------------------------------------------
-       ! Optionally, invert for basal melting.
-       ! Note: The masks passed to glissade_inversion_solve are based on the ice state before transport.
-       !       Inversion for basal_friction used to be done here but now is done
-       !        as part of the diagnostic solve, just before computing velocity.
-       !-------------------------------------------------------------------------
-
-       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
-           model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-
-          ! Compute the new ice thickness that would be computed after applying the SMB and BMB, without inversion.
-          thck_new_unscaled = thck_unscaled(:,:) + (acab_unscaled - bmlt_unscaled) * model%numerics%dt*tim0
-
-          call glissade_inversion_bmlt_float(model,               &
-                                             thck_new_unscaled,   &
-                                             ice_mask,            &
-                                             floating_mask)
-
-       endif  ! which_ho_bmlt_inversion
-
        ! ------------------------------------------------------------------------
        ! Get masks used for the mass balance calculation.
        ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
@@ -2815,40 +2740,6 @@ contains
                                         ocean_mask,             land_mask,          &
                                         calving_front_mask,     thck_calving_front, &
                                         effective_areafrac = effective_areafrac)
-
-       if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
-           model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-
-          ! Add bmlt_float_inversion to bmlt_unscaled, the melt rate passed to the mass balance driver.
-          ! Both fields have units of m/s.
-
-          ! Note: The bmlt array passed to glissade_mass_balance_driver is assumed to apply
-          !        only to the ice-covered fraction of the cell, as measured by effective_areafrac.
-          !        For example, if bmlt = 1 m/yr and effective_areafrac = 0.5, the melt rate
-          !         is applied to only 50% of the ice. The effective melt rate is thus 0.5 m/yr.
-          !       However, bmlt_float_inversion is assumed to apply to the full cell area.
-          !        For example, if the mean ice thickness (i.e., thck) is 100 m and the target 
-          !        thickness is 50 m, then we would have bmlt_float_inversion = (100 - 50)/dt.
-          !        Suppose effective_areafrac = 0.5. Then we should divide bmlt_float_inversion by 0.5
-          !        when adding it to bmlt, because bmlt will be applied to only half the cell
-          !        in glissade_mass_balance_driver.
-
-          where (effective_areafrac > 0.0d0)
-             bmlt_unscaled = bmlt_unscaled + model%inversion%bmlt_float_inversion/effective_areafrac
-          endwhere
-
-          if (this_rank == rtest .and. verbose_bmlt_float) then
-             print*, ' '
-             print*, 'bmlt passed to mbal driver (m/yr):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') bmlt_unscaled(i,j) * scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif  ! which_ho_bmlt_inversion
 
        ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
        !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
@@ -4760,117 +4651,6 @@ contains
     ! calving rate (m/yr ice; positive for calving)
     model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
 
-    !WHL - inversion debug
-    if (verbose_inversion .and.  &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .and.  &
-        model%numerics%time > model%numerics%tstart) then
-
-       ! compute max diff in bmlt_applied
-       model%basal_melt%bmlt_applied_diff(:,:) = &
-            abs(model%basal_melt%bmlt_applied(:,:) - model%basal_melt%bmlt_applied_old(:,:))
-
-       my_max = maxval(model%basal_melt%bmlt_applied_diff)
-       global_max = parallel_reduce_max(my_max)
-
-       if (abs((my_max - global_max)/global_max) < 1.0d-6) then
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-                if (abs((model%basal_melt%bmlt_applied_diff(i,j) - global_max)/global_max) < 1.0d-6) then
-                   ii = i; jj = j
-                   print*, ' '
-                   print*, 'task, i, j, global_max_diff (m/yr):', this_rank, i, j, global_max * scyr*thk0/tim0
-                   print*, 'bmlt_float_inversion:', model%inversion%bmlt_float_inversion(i,j) * scyr
-                   print*, 'bmlt_applied old, new:', model%basal_melt%bmlt_applied_old(i,j) * scyr*thk0/tim0, &
-                        model%basal_melt%bmlt_applied(i,j) * scyr*thk0/tim0
-                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'global i, j =', iglobal, jglobal
-!                   print*, ' '
-!                   print*, 'bmlt_applied:'
-!                   do jj = j-3, j+3
-!                      write(6,'(i8)',advance='no') jj
-!                      do ii = i-3, i+3
-!                         write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_applied(ii,jj) * scyr*thk0/tim0
-!                      enddo
-!                      print*, ' '
-!'                   enddo
-                endif
-             enddo
-          enddo
-       endif
-
-       model%basal_melt%bmlt_applied_old(:,:) = model%basal_melt%bmlt_applied(:,:)
-
-       ! global max and min values of bmlt_float_inversion
-       my_max = maxval(model%inversion%bmlt_float_inversion)
-       my_min = minval(model%inversion%bmlt_float_inversion)
-       global_max = parallel_reduce_max(my_max)
-       global_min = parallel_reduce_min(my_min)
-
-       !WHL - Will have multiple prints if the same limit is reached in multiple cells
-       ! TODO - Just print for one cell?
-!       if (abs((my_max - global_max)/global_max) < 1.0d-3) then
-!          do j = nhalo+1, nsn-nhalo
-!             do i = nhalo+1, ewn-nhalo
-!                if (ice_mask(i,j) == 1 .and. &
-!                     abs((model%inversion%bmlt_float_inversion(i,j) - global_max)/global_max) < 1.0d-3) then
-!                   print*, ' '
-!                   print*, 'task, i, j, global_max bmlt_float_inversion (m/yr):', this_rank, i, j, global_max * scyr
-!                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
-!                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!                   print*, 'global i, j =', iglobal, jglobal
-!                endif
-!             enddo
-!          enddo
-!       endif
-
-!       if (abs((my_min - global_min)/global_min) < 1.0d-3) then
-!          do j = nhalo+1, nsn-nhalo
-!             do i = nhalo+1, ewn-nhalo
-!                if (ice_mask(i,j) == 1 .and. &
-!                     abs((model%inversion%bmlt_float_inversion(i,j) - global_min)/global_min) < 1.0d-11) then
-!                   print*, ' '
-!                   print*, 'task, i, j, global_min bmlt_float_inversion (m/yr):', this_rank, i, j, global_min * scyr
-!                   print*, 'thck, thck_obs:', model%geometry%thck(i,j)*thk0, model%geometry%thck_obs(i,j)*thk0
-!                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!                   print*, 'global i, j =', iglobal, jglobal
-!                   exit
-!                endif
-!             enddo
-!          enddo
-!       endif
-
-       ! repeat for dthck_dt
-       my_max = maxval(model%geometry%dthck_dt)
-       my_min = minval(model%geometry%dthck_dt)
-       global_max = parallel_reduce_max(my_max)
-       global_min = parallel_reduce_min(my_min)
-
-       if (abs((my_max - global_max)/global_max) < 1.0d-6) then
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-
-                if (abs((model%geometry%dthck_dt(i,j) - global_max)/global_max) < 1.0d-6) then
-                   print*, ' '
-                   print*, 'task, i, j, global_max_diff dthck/dt (m/yr):', this_rank, i, j, global_max * scyr
-                   print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
-                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'global i, j =', iglobal, jglobal
-                endif
-
-                if (abs((model%geometry%dthck_dt(i,j) - global_min)/global_min) < 1.0d-6) then
-                   print*, ' '
-                   print*, 'task, i, j, global_min_diff dthck/dt (m/yr):', this_rank, i, j, global_min * scyr
-                   print*, 'thck old, new:', model%geometry%thck_old(i,j)*thk0, model%geometry%thck(i,j)*thk0
-                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'global i, j =', iglobal, jglobal
-                endif
-
-             enddo
-          enddo
-       endif
-
-    endif ! verbose_inversion
-
     ! save old masks for diagnostics
     floating_mask_old = model%geometry%floating_mask
     grounded_mask_old = model%geometry%grounded_mask
@@ -4912,11 +4692,9 @@ contains
 
     !WHL - inversion debug
     ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
-    if (verbose_inversion .and.  &
+    if (verbose_inversion .and. model%numerics%time > model%numerics%tstart .and. &
         (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
-         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
-         model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE)  .and.  &
-        model%numerics%time > model%numerics%tstart) then
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION) ) then
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then

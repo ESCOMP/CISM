@@ -209,11 +209,7 @@ contains
     model%basal_melt%bmlt_float_depth_meltmin = model%basal_melt%bmlt_float_depth_meltmin / scyr
 
     ! scale basal inversion parameters
-    !TODO - Leave buffer units as meters?
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
-    model%inversion%bmlt_timescale = model%inversion%bmlt_timescale * scyr    ! convert yr to s
-    model%inversion%bmlt_max_melt = model%inversion%bmlt_max_melt / scyr      ! convert m/yr to m/s
-    model%inversion%bmlt_max_freeze = model%inversion%bmlt_max_freeze / scyr  ! convert m/yr to m/s
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
     model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
@@ -784,7 +780,6 @@ contains
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
     call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
-    call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
     call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
@@ -1056,11 +1051,6 @@ contains
          'friction parameter Cc found by inversion', &
          'friction parameter Cc read from file    ', &
          'Cc is a function of bed elevation       ' /)
-
-    character(len=*), dimension(0:2), parameter :: ho_bmlt_whichinversion = (/ &
-         'no inversion for basal melt rate            ', &
-         'invert for basal melt rate                  ', &
-         'apply basal melt rate from earlier inversion' /)
 
     character(len=*), dimension(0:2), parameter :: ho_bmlt_basin_whichinversion = (/ &
          'no inversion for basin-based basal melting parameters      ', &
@@ -1751,17 +1741,6 @@ contains
           endif
        endif
 
-       if (model%options%which_ho_bmlt_inversion /= HO_BMLT_INVERSION_NONE) then
-          write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
-                            ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
-          call write_log(message)
-       endif
-
-       if (model%options%which_ho_bmlt_inversion < 0 .or. &
-            model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
-          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
-       end if
-
        if (model%options%which_ho_bmlt_basin_inversion /= HO_BMLT_BASIN_INVERSION_NONE) then
           write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
                             ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
@@ -2186,14 +2165,6 @@ contains
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
 
-    call GetValue(section, 'inversion_bmlt_timescale', model%inversion%bmlt_timescale)
-    call GetValue(section, 'inversion_bmlt_max_melt', model%inversion%bmlt_max_melt)
-    call GetValue(section, 'inversion_bmlt_max_freeze', model%inversion%bmlt_max_freeze)
-    call GetValue(section, 'inversion_nudging_factor_min', model%inversion%nudging_factor_min)
-    call GetValue(section, 'inversion_wean_bmlt_float_tstart', model%inversion%wean_bmlt_float_tstart)
-    call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
-    call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
-
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
     call GetValue(section, 'inversion_bmlt_basin_flotation_threshold', &
@@ -2602,17 +2573,13 @@ contains
 
     ! inversion parameters
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
        call write_log(message)
        write(message,*) 'inversion thickness threshold (m)            : ', &
             model%inversion%thck_threshold
        call write_log(message)
-    endif
-
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', &
             model%basal_physics%powerlaw_c_max
        call write_log(message)
@@ -2641,38 +2608,6 @@ contains
             model%inversion%babc_thck_scale
        call write_log(message)
     endif   ! which_ho_coulomb_c
-
-    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
-       write(message,*) 'inversion basal melting timescale (yr)       : ', &
-            model%inversion%bmlt_timescale
-       call write_log(message)
-       write(message,*) 'inversion max melting rate (m/yr)            : ', &
-            model%inversion%bmlt_max_melt
-       call write_log(message)
-       write(message,*) 'inversion max freezing rate (m/yr)           : ', &
-            model%inversion%bmlt_max_freeze
-       call write_log(message)
-       if (model%inversion%wean_bmlt_float_tstart > 0.0d0 .and. model%inversion%wean_bmlt_float_tend > 0.0d0) then
-          write(message,*) 'start time (yr) for bmlt_float abated nudging  : ', &
-               model%inversion%wean_bmlt_float_tstart
-          call write_log(message)
-          write(message,*) 'end time (yr) for bmlt_float abated nudging    : ', &
-               model%inversion%wean_bmlt_float_tend
-          call write_log(message)
-          write(message,*) 'time scale (yr) for bmlt_float abated nudging  : ', &
-               model%inversion%wean_bmlt_float_timescale
-          call write_log(message)
-          write(message,*) 'min nudging factor for bmlt_float              : ', &
-               model%inversion%nudging_factor_min
-          call write_log(message)
-          if (model%inversion%wean_bmlt_float_tend < model%inversion%wean_bmlt_float_tstart) then
-             call write_log('Error, must have wean_bmlt_float_tend >= wean_bmlt_float_tstart', GM_FATAL)
-          endif
-          if (model%inversion%wean_bmlt_float_tend == 0.0d0) then
-             call write_log('bmlt_float will not be nudged, since wean_bmlt_float_tend = 0')
-          endif
-       endif
-    endif   ! which_ho_bmlt_inversion
 
     if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
        write(message,*) 'timescale (yr) for adjusting deltaT_basin    : ', model%inversion%bmlt_basin_timescale
@@ -3249,12 +3184,6 @@ contains
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing')
 
-          ! If applying bmlt_float from inversion, then we may be adding an anomaly to the value obtained from inversion.
-          ! In this case we need the baseline melt rate to compute the anomaly.
-          if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-             call glide_add_to_restart_variable_list('bmlt_float_baseline')
-          endif
-
           ! If using an ISMIP6 melt parameterization (either local or nonlocal),
           !  we need basin numbers and deltaT values for the parameterization.
           if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
@@ -3472,16 +3401,6 @@ contains
        call glide_add_to_restart_variable_list('dthck_dt')
     elseif (options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
        call glide_add_to_restart_variable_list('coulomb_c')
-    endif
-
-    ! bmlt inversion options
-
-    if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('usrf_obs')
-       call glide_add_to_restart_variable_list('bmlt_float_inversion')
-       call glide_add_to_restart_variable_list('thck_inversion_save')
-    elseif (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-       call glide_add_to_restart_variable_list('bmlt_float_inversion')
     endif
 
     ! The bmlt_basin inversion option needs a thickness target for floating ice

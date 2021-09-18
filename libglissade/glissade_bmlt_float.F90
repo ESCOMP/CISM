@@ -613,56 +613,6 @@ module glissade_bmlt_float
           call parallel_halo(ocean_data%basin_number, parallel)
           call parallel_halo(ocean_data%thermal_forcing, parallel)
 
-         ! Compute the melt rate associated with the initial thermal forcing and lower ice surface (lsrf).
-         ! This melt rate can be subtracted from the runtime melt rate to give a runtime anomaly.
-         ! TODO - Remove bmlt_float_baseline.
-         ! Note: On restart, bmlt_float_baseline is read from the restart file.
-
-          if (verbose_bmlt_float .and. main_task) then
-             print*, 'Compute baseline bmlt_float at initialization'
-          endif
-
-          ! Compute some masks
-          !TODO: Modify glissade_get_masks so that 'parallel' is not needed
-          call glissade_get_masks(&
-               ewn,                 nsn,                   &
-               parallel,                                   &
-               model%geometry%thck, model%geometry%topg,   &
-               model%climate%eus,   0.0d0,                 &  ! thklim = 0
-               ice_mask,                                   &
-               ocean_mask = ocean_mask)
-
-          ! Compute basal melt rates, given the thermal forcing.
-
-          call glissade_bmlt_float_thermal_forcing(&
-               model%options%bmlt_float_thermal_forcing_param,   &
-               model%options%ocean_data_extrapolate,             &
-               parallel,                                         &
-               ewn,                     nsn,                     &
-               model%numerics%dew*len0, model%numerics%dew*len0, &  ! m
-               itest,     jtest,   rtest,                &
-               ice_mask,                                 &
-               ocean_mask,                               &
-               model%geometry%marine_connection_mask,    &
-               model%geometry%f_ground_cell,             &
-               model%geometry%thck*thk0,                 & ! m
-               model%geometry%lsrf*thk0,                 & ! m
-               model%geometry%topg*thk0,                 & ! m
-               ocean_data,                               &
-               model%basal_melt%bmlt_float_baseline)       ! m/s
-
-          if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'bmlt_float_baseline (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float_baseline(i,j) * scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
           ! Make sure every cell is assigned a basin number >= 1.
           ! If not, then extrapolate the current basin numbers to fill the grid.
           ! Note: Could remove this code if guaranteed that the basin number in the input file
