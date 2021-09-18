@@ -122,7 +122,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
   integer, parameter :: BMLT_FLOAT_DEPTH = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
-  integer, parameter :: BMLT_FLOAT_MISOMIP = 5
+  integer, parameter :: BMLT_FLOAT_MISOMIP = 5   ! not supported
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
   integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
@@ -271,10 +271,6 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_INVERSION = 1
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
   integer, parameter :: HO_COULOMB_C_ELEVATION = 3
-
-  integer, parameter :: HO_BMLT_INVERSION_NONE = 0
-  integer, parameter :: HO_BMLT_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_BMLT_INVERSION_APPLY = 2
 
   integer, parameter :: HO_BMLT_BASIN_INVERSION_NONE = 0
   integer, parameter :: HO_BMLT_BASIN_INVERSION_COMPUTE = 1
@@ -822,14 +818,6 @@ module glide_types
     !> \item[1] coulomb_c = 2D field found by inversion
     !> \item[2] coulomb_c = 2D field read from external file
     !> \item[3] coulomb_c = function of bed elevation
-    !> \end{description}
-
-    integer :: which_ho_bmlt_inversion = 0
-    !> Flag for basal inversion options: invert for bmlt_float
-    !> \begin{description}
-    !> \item[0] no inversion
-    !> \item[1] invert for basal melt rate, bmlt_float
-    !> \item[2] apply bmlt_float from a previous inversion
     !> \end{description}
 
     integer :: which_ho_bmlt_basin_inversion = 0
@@ -1569,31 +1557,6 @@ module glide_types
           thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
 
-     ! fields and parameters for bmlt_float inversion
-     real(dp), dimension(:,:), pointer :: &
-          bmlt_float_save => null(),           & !> saved value of bmlt_float; potential melt rate (m/s)
-          bmlt_float_inversion => null()         !> applied basal melt rate, computed by inversion (m/s)
-
-     real(dp) ::  &
-          bmlt_timescale = 0.d0,          &  !> time scale (yr) for relaxing toward observed thickness
-          bmlt_max_melt = 0.d0,           &  !> max melting rate allowed from inversion (m/yr); ignored when set to 0
-          bmlt_max_freeze = 0.d0             !> max freezing rate allowed from inversion (m/yr); ignored when set to 0
-
-     ! parameters for weighted nudging
-     ! The idea of this nudging is that the inversion fields (e.g., bmlt_float_inversion),
-     !  instead of being set to new values every timestep, are set to a weighted average of the saved value
-     !  and the new value, with the weight of the new value falling off exponentially over time.
-     ! Setting wean_*_tend = 0.0 (the default) is interpreted as turning off this nudging.
-     ! In this case, the saved values are set to the new values every time step.
-
-     !TODO - Remove nudging_factor_min option for Cp inversion?  Parameter currently is doing double duty.
-
-     real(dp) ::  &
-          nudging_factor_min = 0.0d0,       & !> min value of nudging factor between wean_tstart and wean_tend
-          wean_bmlt_float_tstart = 0.0d0,   & !> starting time (yr) for weighted nudging of bmlt_float
-          wean_bmlt_float_tend = 0.0d0,     & !> end time (yr) for weighted nudging of bmlt_float
-          wean_bmlt_float_timescale = 0.0d0   !> time scale for weaning of bmlt_float
-
      ! fields and parameters for powerlaw_c and coulomb_c inversion
 
      !Note: Moved powerlaw_c and coulomb_c to basal_physics type
@@ -1653,8 +1616,7 @@ module glide_types
           bmlt_ground => null(),                  & !> basal melt rate for grounded ice
           bmlt_float => null(),                   & !> basal melt rate for floating ice
           bmlt_float_external => null(),          & !> external basal melt rate field
-          bmlt_float_anomaly => null(),           & !> basal melt rate anomaly field
-          bmlt_float_baseline => null()             !> baseline melt rate (subtracted to compute the ISMIP6 anomaly melt rate)
+          bmlt_float_anomaly => null()              !> basal melt rate anomaly field
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
@@ -2338,7 +2300,6 @@ contains
     !> \item \texttt{bmlt_float(ewn,nsn)}
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
-    !> \item \texttt{bmlt_float_baseline(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%ocean_data}:
@@ -2350,11 +2311,15 @@ contains
     !> \end{itemize}
 
     !> In \texttt{model\%inversion}:
-    !> \item \texttt{bmlt_float_save(ewn,nsn)}
-    !> \item \texttt{bmlt_float_inversion(ewn,nsn)}
+    !> \begin{itemize}
+    !> \item \texttt{thck_save(ewn,nsn)}
+    !> \end{itemize}
+
+    !> In \texttt{model\%basal_physics}:
+    !> \begin{itemize}
     !> \item \texttt{powerlaw_c(ewn-1,nsn-1)}
     !> \item \texttt{coulomb_c(ewn-1,nsn-1)}
-    !> \item \texttt{thck_save(ewn,nsn)}
+    !> \end{itemize}
 
     !> In \texttt{model\%plume}:
     !> \begin{itemize}
@@ -2732,7 +2697,6 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-          call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_baseline)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
@@ -2753,12 +2717,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
     elseif (model%options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
        call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
-    endif
-
-    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE .or.  &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_save)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%bmlt_float_inversion)
     endif
 
     if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or. &
@@ -3131,8 +3089,6 @@ contains
         deallocate(model%basal_melt%bmlt_float_external)
     if (associated(model%basal_melt%bmlt_float_anomaly)) &
         deallocate(model%basal_melt%bmlt_float_anomaly)
-    if (associated(model%basal_melt%bmlt_float_baseline)) &
-        deallocate(model%basal_melt%bmlt_float_baseline)
     if (associated(model%basal_melt%warm_ocean_mask)) &
         deallocate(model%basal_melt%warm_ocean_mask)
     if (associated(model%basal_melt%bmlt_applied_old)) &
@@ -3151,10 +3107,6 @@ contains
         deallocate(model%ocean_data%thermal_forcing_lsrf)
 
     ! inversion arrays
-    if (associated(model%inversion%bmlt_float_save)) &
-        deallocate(model%inversion%bmlt_float_save)
-    if (associated(model%inversion%bmlt_float_inversion)) &
-        deallocate(model%inversion%bmlt_float_inversion)
     if (associated(model%basal_physics%powerlaw_c)) &
         deallocate(model%basal_physics%powerlaw_c)
     if (associated(model%basal_physics%coulomb_c)) &
