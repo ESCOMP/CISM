@@ -163,10 +163,6 @@ contains
     logical,                  optional,intent(in)  :: gcm_debug   ! logical flag from GCM to output debug information
     integer,                  optional,intent(in)  :: gcm_fileunit! fileunit for reading config files
     
-    ! Internal variables -----------------------------------------------------------------------
-
-    type(ConfigSection), pointer :: global_config
-    
     ! Begin subroutine code --------------------------------------------------------------------
 
 
@@ -219,20 +215,12 @@ contains
     ! ---------------------------------------------------------------
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read paramfile'
-       write(stdout,*) 'paramfile =', paramfile
+       write(stdout,*) 'paramfile(s) =', paramfile
     end if
 
-    if (size(paramfile) == 1) then
-       ! Load the configuration file into the linked list
-       call ConfigRead(process_path(paramfile(1)), global_config, params%gcm_fileunit)    
-       ! Parse the list
-       call glad_readconfig(global_config, params%ninstances, params%config_fnames, paramfile)
-    else
-       params%ninstances = size(paramfile)
-       allocate(params%config_fnames(params%ninstances))
-       params%config_fnames(:) = paramfile(:)
-    end if
+    params%ninstances = size(paramfile)
+    allocate(params%config_fnames(params%ninstances))
+    params%config_fnames(:) = paramfile(:)
 
     allocate(params%instances(params%ninstances))
 
@@ -1014,62 +1002,6 @@ contains
     call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask, parallel)
 
   end subroutine glad_set_output_fields
-  
-  !TODO - Move subroutine glad_readconfig to a glad_setup module, in analogy to glide_setup?
-
-  subroutine glad_readconfig(config, ninstances, fnames, infnames)
-
-    !> Determine whether a given config file is a
-    !> top-level glad config file, and return parameters
-    !> accordingly.
-
-    use glimmer_config
-    use glimmer_log
-    implicit none
-
-    ! Arguments -------------------------------------------
-
-    type(ConfigSection),      pointer :: config !> structure holding sections of configuration file
-    integer,              intent(out) :: ninstances !> Number of instances to create
-    character(fname_length),dimension(:),pointer :: fnames !> list of filenames (output)
-    character(fname_length),dimension(:) :: infnames !> list of filenames (input)
-
-    ! Internal variables ----------------------------------
-
-    type(ConfigSection), pointer :: section
-    character(len=100) :: message
-    integer :: i
-
-    if (associated(fnames)) nullify(fnames)
-
-    call GetSection(config,section,'GLAD')
-    if (associated(section)) then
-       call GetValue(section,'n_instance',ninstances)
-       allocate(fnames(ninstances))
-       do i=1,ninstances
-          call GetSection(section%next,section,'GLAD instance')
-          if (.not.associated(section)) then
-             write(message,*) 'Must specify ',ninstances,' instance config files'
-             call write_log(message,GM_FATAL,__FILE__,__LINE__)
-          end if
-          call GetValue(section,'name',fnames(i))
-       end do
-    else
-       ninstances=1
-       allocate(fnames(1))
-       fnames=infnames
-    end if
-
-    ! Print some configuration information
-
-!!$    call write_log('GLAD global')
-!!$    call write_log('------------')
-!!$    write(message,*) 'number of instances :',params%ninstances
-!!$    call write_log(message)
-!!$    call write_log('')
-
-  end subroutine glad_readconfig
-
 
   !========================================================
 
