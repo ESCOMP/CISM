@@ -67,6 +67,7 @@ module glad_type
      type(glad_input_averages_type)   :: glad_inputs        !> Time-averaged inputs from the climate model
      type(glide_global_type)          :: model              !> The instance and all its arrays.
      character(fname_length)          :: paramfile          !> The name of the configuration file.
+     character(fname_length)          :: gcm_restart_file   !> Name of restart file
      integer                          :: ice_tstep          !> Ice timestep in hours
      integer                          :: mbal_tstep         !> Mass-balance timestep in hours
      integer                          :: mbal_accum_time    !> Accumulation time for mass-balance (hours)
