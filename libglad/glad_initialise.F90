@@ -105,14 +105,22 @@ contains
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
 
+    ! initialize to empty string in case it isn't set
+    instance%gcm_restart_file = ' '
     if (present(gcm_restart)) then
 
       if (gcm_restart) then
 
          if (present(gcm_restart_file)) then
 
+            if (gcm_restart_file == ' ') then
+               call write_log('gcm_restart is true, but gcm_restart_file is empty',&
+                    GM_FATAL,__FILE__,__LINE__)
+            end if
+
             ! read the restart file
             call glad_read_restart_gcm(instance%model, gcm_restart_file)
+            instance%gcm_restart_file = gcm_restart_file
             instance%model%options%is_restart = 1
  
          else

@@ -74,7 +74,6 @@ module glad_main
      ! Parameters that can be set by the GCM calling Glad
 
      logical  :: gcm_restart = .false. !> If true, restart the model from a GCM restart file
-     character(fname_length) :: gcm_restart_file   !> Name of restart file
      integer  :: gcm_fileunit = 99     !> Fileunit specified by GCM for reading config files
 
   end type glad_params
@@ -147,7 +146,7 @@ module glad_main
 contains
 
   subroutine glad_initialize(params, time_step, paramfile, daysinyear, start_time, &
-                             gcm_restart, gcm_restart_file, gcm_debug, gcm_fileunit)
+                             gcm_restart, gcm_debug, gcm_fileunit)
 
     ! Initialize the model for runs coupled to a GCM. This routine initializes variables
     ! shared between instances. See above for documentation of the full initialization
@@ -161,8 +160,6 @@ contains
     integer,                  optional,intent(in)  :: daysinyear  !> Number of days in the year
     integer,                  optional,intent(in)  :: start_time  !> Time of first call to glad (hours)
     logical,                  optional,intent(in)  :: gcm_restart ! logical flag to restart from a GCM restart file
-    character(*),             optional,intent(in)  :: gcm_restart_file ! restart filename for a GCM restart
-                                                                  ! (currently assumed to be CESM)
     logical,                  optional,intent(in)  :: gcm_debug   ! logical flag from GCM to output debug information
     integer,                  optional,intent(in)  :: gcm_fileunit! fileunit for reading config files
     
@@ -198,11 +195,6 @@ contains
     params%gcm_restart = .false.
     if (present(gcm_restart)) then
        params%gcm_restart = gcm_restart
-    endif
-
-    params%gcm_restart_file = ''
-    if (present(gcm_restart_file)) then
-       params%gcm_restart_file = gcm_restart_file
     endif
 
     params%gcm_fileunit = 99
@@ -252,8 +244,8 @@ contains
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time, &
-       test_coupling)
+  subroutine glad_initialize_instance(params, instance_index, gcm_restart_file, &
+       my_forcing_start_time, test_coupling)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -264,6 +256,7 @@ contains
 
     type(glad_params) , intent(inout)        :: params          !> parameters to be set
     integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
+    character(len=*)  , intent(in), optional :: gcm_restart_file ! restart filename for a GCM restart (ignored if not doing a restart)
     integer           , intent(in), optional :: my_forcing_start_time
     logical           , intent(in), optional :: test_coupling   !> if true, force frequent coupling for testing purposes
 
@@ -288,8 +281,8 @@ contains
     end if
 
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
-                               forcing_start_time,  params%time_step,        &
-                               params%gcm_restart,  params%gcm_restart_file, &
+                               forcing_start_time,  params%time_step, &
+                               params%gcm_restart,  gcm_restart_file, &
                                params%gcm_fileunit, test_coupling )
 
   end subroutine glad_initialize_instance
