@@ -50,6 +50,7 @@
 module glimmer_config
 
   use glimmer_global, only : sp, dp, msg_length
+  use glimmer_utils , only : strip_quotes
   use glimmer_log
 
   implicit none
@@ -653,6 +654,10 @@ contains
   end subroutine GetValueIntArray
 
   !> get character array value
+  !! If the list is surrounded by either single or double quotes, the quote characters are
+  !! stripped from the return value. The assumption is that the entire list of strings is
+  !! quoted (as in "list of values"); it does *not* work for the individual items to be
+  !! quoted (as in "list" "of" "values").
   subroutine GetValueCharArray(section,name,val,numval)
     use glimmer_log
     implicit none
@@ -788,6 +793,8 @@ contains
   end subroutine GetValueInt
 
   !> get character value
+  !! If the value is surrounded by either single or double quotes, the quote characters
+  !! are stripped from the returned value.
   subroutine GetValueChar(section,name,val)
     use glimmer_log
     implicit none
@@ -800,7 +807,7 @@ contains
     value=>section%values
     do while(associated(value))
        if (name == trim(value%name)) then
-          val = value%value
+          val = strip_quotes(value%value)
           if ((len_trim(val) + 1) >= len(val)) then 
             ! Assume that if we get within one space of the variable length (excluding spaces) then we may be truncating the intended value.
             call write_log('The value of config option   ' // trim(name) // '   is too long for the variable.' ,GM_FATAL)
