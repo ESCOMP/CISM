@@ -102,6 +102,7 @@ module glad_main
   public :: glad_initialize
   public :: glad_initialize_instance
   public :: glad_get_grid_size
+  public :: glad_get_nzocn
   public :: glad_get_initial_outputs
   public :: glad_initialization_wrapup
 
@@ -316,7 +317,24 @@ contains
     npts_tot = ewn_tot * nsn_tot
 
   end subroutine glad_get_grid_size
-    
+
+  !===================================================================
+
+  subroutine glad_get_nzocn(params, instance_index, nzocn)
+
+    ! Get nzocn (the number of ocean levels, needed for ocean coupling fields)
+    ! corresponding to this instance.
+
+    use glide_types, only : get_nzocn
+
+    type(glad_params), intent(in) :: params
+    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(out) :: nzocn  ! number of ocean levels, needed for ocean coupling fields
+
+    nzocn = get_nzocn(params%instances(instance_index)%model)
+
+  end subroutine glad_get_nzocn
+
   !===================================================================
   
   subroutine glad_get_initial_outputs(params,         instance_index,        &
@@ -581,7 +599,7 @@ contains
     use glad_timestep, only : glad_i_tstep_gcm
     use glimmer_log
     use glimmer_physcon, only : celsius_to_kelvin
-    use glide_types, only : get_ewn, get_nsn, get_nzocn
+    use glide_types, only : get_ewn, get_nsn
     use glad_output_fluxes, only : calculate_average_output_fluxes
     use cism_parallel, only : parallel_type, parallel_convert_nonhaloed_to_haloed
 
@@ -642,7 +660,7 @@ contains
     if (present(ice_tstep))   ice_tstep = .false.
 
     parallel = params%instances(instance_index)%model%parallel
-    nzocn = get_nzocn(params%instances(instance_index)%model)
+    call glad_get_nzocn(params, instance_index, nzocn)
     allocate(zocn(nzocn))
     zocn(:) = params%instances(instance_index)%model%ocean_data%zocn(:)
 
