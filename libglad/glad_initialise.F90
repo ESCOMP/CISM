@@ -292,6 +292,7 @@ contains
 
     use glide
     use glimmer_ncio
+    use glide_stop, only : glide_finalise
     implicit none
     type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
@@ -347,14 +348,14 @@ contains
     ! restart file (and not the original input file) we need to write lat and lon back to
     ! the restart file so they will be available for the following run segment.
     
-    call glad_add_to_restart_variable_list('lat lon')
+    call glad_add_to_restart_variable_list('lat lon', instance%model%model_id)
     
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
     !  the correct fluxes after restart; otherwise these fluxes would have values of zero.
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
-    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
+    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg', instance%model%model_id)
 
   end subroutine define_glad_restart_variables
 

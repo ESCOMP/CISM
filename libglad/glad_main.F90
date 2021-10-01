@@ -43,6 +43,7 @@ module glad_main
   use glimmer_filenames, only : process_path
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
+  use glide_model_registry, only : set_max_models, check_num_models
   use glimmer_paramets, only: stdout, GLC_DEBUG, unphys_val
   use cism_parallel, only: main_task, this_rank
 
@@ -225,6 +226,8 @@ contains
 
     allocate(params%instances(params%ninstances))
 
+    call set_max_models(params%ninstances)
+
     if (GLC_DEBUG .and. main_task) then
        write(stdout,*) 'Number of instances =', params%ninstances
     end if
@@ -381,6 +384,8 @@ contains
 
     ! Wrapup glad initialization - perform error checks, etc. See above for documentation
     ! of the full initialization sequence
+
+    call check_num_models()
 
     ! Check that all mass-balance time-steps are the same length and
     ! assign that value to the top-level variable

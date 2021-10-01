@@ -47,7 +47,7 @@ module glide
   ! Driver for Glide (serial, SIA) dynamical core
   
   use glide_types
-  use glide_stop
+  use glide_model_registry, only : register_model
   use glide_io
   use glide_lithot
   use glide_profile
@@ -393,10 +393,11 @@ contains
     ! initialise standard glide profiling
     call glide_prof_init(model)
 
-    !TODO - Unclear on how subroutine register_model is used - Is it needed for serial code?
-    ! register the newly created model so that it can be finalised in the case
+    ! Register the newly created model so that it can be finalised in the case
     ! of an error without needing to pass the whole thing around to every
     ! function that might cause an error
+    !
+    ! This also sets model%model_id
 
     call register_model(model)
 
