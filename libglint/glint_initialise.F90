@@ -72,6 +72,7 @@ contains
     use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
+    use glide_model_registry, only : register_model
     use glide
     use glissade
     use glad_constants
@@ -107,6 +108,7 @@ contains
 
     ! initialise model
 
+    call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart
@@ -330,6 +332,7 @@ contains
     use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
+    use glide_model_registry, only : register_model
     use glide
     use glissade
     use glad_constants
@@ -364,6 +367,7 @@ contains
 
     ! initialise model
 
+    call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart

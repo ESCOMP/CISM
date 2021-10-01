@@ -42,7 +42,9 @@ module glide_model_registry
   ! Usage is as follows:
   !
   ! Required:
-  ! - Call register_model for each model in initialization
+  ! - Call register_model for each model in initialization (this should be called
+  !   relatively early in initialization, so that model%model_id is set before it's
+  !   needed)
   ! - Call deregister_model for each model in finalization
   !
   ! Optional:
@@ -98,6 +100,9 @@ contains
   subroutine register_model(model)
     !> Registers a model, setting model%model_id and ensuring that it is finalised in the
     !> case of an error.
+    !>
+    !> This should be called relatively early in initialization so that model%model_id is
+    !> set before it's needed.
     type(glide_global_type), target :: model
 
     num_models = num_models + 1
