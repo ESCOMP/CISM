@@ -42,6 +42,7 @@ program verifglide
   use glimmer_commandline
   use glimmer_writestats
   use glide_nc_custom, only: glide_nc_fillall
+  use glide_model_registry, only : register_model
   implicit none
 
   ! some variables
@@ -61,6 +62,7 @@ program verifglide
   
   ! read configuration
   call ConfigRead(commandline_configname,config)
+  call register_model(model)
   call glide_config(model,config)
   call verif_config(config,veri)
   call verif_printconfig(veri)
