@@ -95,7 +95,7 @@ contains
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
          parallel_create_comm_row, parallel_create_comm_col, not_parallel
 
-    use glide_stop, only: register_model
+    use glide_model_registry, only: register_model
     use glide_setup
     use glimmer_ncio
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?

@@ -860,7 +860,7 @@ contains
     ! Variables needed for restart with glint.
     ! TODO I am inserting out_mask because it was the only variable with hot=1 in the old glint_vars.def
     !      Not sure outflux is needed
-    call glint_add_to_restart_variable_list('outmask')
+    call glint_add_to_restart_variable_list('outmask', instance%model%model_id)
 
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
@@ -869,12 +869,12 @@ contains
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
     if (instance%whichacab == MASS_BALANCE_GCM) then
-       call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
+       call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg', instance%model%model_id)
     endif
 
     ! Variables needed for restart with glint_mbal
     ! No variables had hot=1 in glint_mbal_vars.def, so I am not adding any restart variables here.
-    ! call glint_mbal_add_to_restart_variable_list('')
+    ! call glint_mbal_add_to_restart_variable_list('', instance%model%model_id)
 
   end subroutine define_glint_restart_variables
 
