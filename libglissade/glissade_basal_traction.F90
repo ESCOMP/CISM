@@ -780,7 +780,7 @@ contains
 
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
-         relative_bwat,   &  ! ratio bwat/bwat_till_max, limited to range [0,1]
+         relative_bwat,   &  ! ratio bwat/bwat_threshold, limited to range [0,1]
          relative_bwatflx    ! ratio bwatflx/bwatflx_threshold, limited to range [0,1]
 
     real(dp), dimension(ewn,nsn) ::  &
@@ -853,7 +853,8 @@ contains
                    relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%effecpress_bwat_threshold, 1.0d0))
 
                    basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                        (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+                        (basal_physics%effecpress_delta + &
+                        (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
 
                 end if
              enddo
@@ -881,10 +882,12 @@ contains
              do i = 1, ewn
                 if (bwatflx(i,j) > 0.0d0) then
 
-                   relative_bwat = max(0.0d0, min(bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold, 1.0d0))
+                   relative_bwatflx = &
+                        max(0.0d0, min(bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold, 1.0d0))
 
                    basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                        (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
+                        (basal_physics%effecpress_delta + &
+                        (1.0d0 - relative_bwatflx) * (1.0d0 - basal_physics%effecpress_delta))
 
                 end if
              enddo
@@ -903,23 +906,24 @@ contains
        if (present(bwat)) then
 
           ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
-          ! N decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
+          ! N decreases from overburden P_0 for bwat = 0 to a small value for bwat = effecpress_bwat_threshold.
           ! This scheme was used for Greenland simulations in Lipscomb et al. (2019, GMD)
-          !  and is retained for back compatibility..
+          !  and is retained for back compatibility.
           ! Note: Instead of using a linear ramp for the variation between overburden and the small value
           !       (as for the BPMP and BWAT options above), we use the published formulation of Bueler & van Pelt (2015).
-          !       This formulation has N = P_0 for bwat up to ~0.6*bwat_till_max; then N decreases as bwat => bwat_till_max.
+          !       This formulation has N = P_0 for bwat up to ~0.6*effecpress_bwat_threshold; then N decreases
+          !        as bwat => effecpress_bwat_threshold.
           !       See Fig. 1b of Bueler & van Pelt (2015).
-          ! Note: This option is typically used along with the local basal till model,
-          !       and thus the max threshold for bwat is given by basal_hydro%bwat_till_max
-          !       instead of basal_physics%effecpress_bwat_threshold.
+          ! Note: relative bwat used to be computed in terms of basal_hydro%bwat_till_max.
+          !       This formulation gives the same answer, provided that effecpress_bwat_threshold = bwat_till_max.
+          !       Both parameters have default values of 2 m.
 
           do j = 1, nsn
              do i = 1, ewn
 
                 if (bwat(i,j) > 0.0d0) then
 
-                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
+                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%effecpress_bwat_threshold, 1.0d0))
 
                    ! Eq. 23 from Bueler & van Pelt (2015)
                    basal_physics%effecpress(i,j) = basal_hydro%N_0  &
@@ -928,7 +932,7 @@ contains
 
                    ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
                    ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
-                   !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
+                   !  with a larger value of bwat (~0.7*bwat_threshold instead of 0.6*bwat_threshold).
 
 !!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
 !!                      * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
