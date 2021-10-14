@@ -1803,8 +1803,9 @@ module glide_types
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
      real(dp) :: effecpress_delta = 0.02d0            !> multiplier for effective pressure N where the bed is saturated or thawed (unitless)
      real(dp) :: effecpress_bpmp_threshold = 0.1d0    !> temperature range over which N ramps up from a small value to overburden (deg C)
-     real(dp) :: effecpress_bwat_threshold = 1.0d-3   !> bwat range over which N ramps down from overburden to a small value (m)
-     !TODO - Test the bwatflx threshold
+     real(dp) :: effecpress_bwat_threshold = 2.0d0    !> bwat range over which N ramps down from overburden to a small value (m);
+                                                      !> typically set to same value as bwat_till_max when using local till model
+     !TODO - Test the bwatflx threshold; 1 m/yr might be too low for Antarctica
      real(dp) :: effecpress_bwatflx_threshold = 1.0d0 !> bwatflx range over which N ramps down from overburden to a small value (m/yr)
      real(dp) :: p_ocean_penetration = 0.0d0          !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (unitless, 0 <= p <= 1)
 

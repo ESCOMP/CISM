@@ -24,9 +24,6 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO - Test and parallelize Jesse's water-routing code.
-!       Currently supported only for serial Glide runs, in module glide_bwater.F90
-
 module glissade_basal_water
 
    use glimmer_global, only: dp
@@ -176,11 +173,16 @@ contains
        thck,          topg,          &
        thklim,                       &
        bwat_mask,     floating_mask, &
-       bmlt,          bwat,          &
+       bmlt,                         &
        bwatflx,       head)
 
     ! This subroutine is a recoding of Jesse Johnson's steady-state water routing scheme in Glide.
     ! It has been parallelized for Glissade.
+    !
+    ! The subroutine returns the steady-state basal water flux, bwatflx,
+    !  which reduces effective pressure N when which_ho_effecpress = HO_EFFECPRESS_BWATFLX.
+    ! It should not be used with which_ho_effecpress = HO_EFFECPRESS_BWAT, since bwat is not returned.
+    ! (See the comments below on bwat.)
 
     use cism_parallel, only: tasks   ! while code is serial only
 
@@ -215,9 +217,6 @@ contains
          floating_mask              ! = 1 if ice is present (thck > thklim) and floating, else = 0
 
 
-    real(dp), dimension(nx,ny), intent(inout) ::  &
-         bwat                       ! basal water depth (m)
-
     real(dp), dimension(nx,ny), intent(out) ::  &
          bwatflx,                 & ! basal water flux (m/yr)
          head                       ! hydraulic head (m)
@@ -226,14 +225,14 @@ contains
 
     integer :: i, j, p
 
-    !TODO - Make effecpress in/out?
     real(dp), dimension(nx, ny) ::  &
+         bwat,                    & ! diagnosed basal water depth (m), not used outside this module
          effecpress,              & ! effective pressure
          lakes                      ! difference between filled head and original head (m)
 
     ! parameters related to effective pressure
     real(dp), parameter :: &
-         c_effective_pressure = 0.0d0                   ! for now estimated as N = c/bwat
+         c_effective_pressure = 0.0d0    ! parameter in N = c/bwat; not currently used
 
     ! parameters related to subglacial fluxes
     ! The water flux q is given by Sommers et al. (2018), Eq. 5:
@@ -327,12 +326,17 @@ contains
     call parallel_halo(bwat, parallel)
     call parallel_halo(bmlt, parallel)
 
-    ! Compute effective pressure N as a function of water depth
+    ! Compute effective pressure N.
+    ! In the old Glimmer code, N was computed as a function of water depth by subroutine effective_pressure.
+    ! Here, simply set N = 0 for the purpose of computing the hydraulic head.
+    ! This approximation implies head = z_b + (rhoi/rhow) * H
 
-    call effective_pressure(&
-         bwat,                 &
-         c_effective_pressure, &
-         effecpress)
+!    call effective_pressure(&
+!         bwat,                 &
+!         c_effective_pressure, &
+!         effecpress)
+
+    effecpress(:,:) = 0.0d0
 
     ! Compute the hydraulic head
 
@@ -479,6 +483,15 @@ contains
        enddo
     endif
 
+    ! Note: bwat is not passed out of this subroutine, for the following reason:
+    ! In the thermal solve, the basal temperature is held at Tpmp wherever bwat > 0.
+    ! This is appropriate when bwat is prognosed from local basal melting.
+    ! For the flux-routing scheme, however, we can diagnose nonzero bwat beneath ice
+    !  that is frozen to the bed (due to basal melting upstream).
+    ! If passed to the thermal solver, this bwat can drive a sudden large increase in basal temperature.
+    ! The workaround is to make the effective pressure depend on bwatflx instead of bwat.
+    ! If desired, we could pass out a diagnostic bwat field that would not affect basal temperature.
+
   end subroutine glissade_bwat_flux_routing
 
 !==============================================================
@@ -489,7 +502,8 @@ contains
        effecpress)
 
     ! Compute the effective pressure: the part of ice overburden not balanced by water pressure
-    ! TODO: Try c_effective_pressure > 0, or call calc_effecpress instead
+    ! For now, this subroutine is not called; we just set effecpress = 0 for purposes of computing 'head'.
+    ! TODO: Call calc_effecpress instead?
 
     real(dp),dimension(:,:),intent(in)  ::  bwat                  ! water depth
     real(dp)               ,intent(in)  ::  c_effective_pressure  ! constant of proportionality
@@ -497,7 +511,6 @@ contains
 
     ! Note: By default, c_effective_pressure = 0
     !       This implies N = 0; full support of the ice by water at the bed
-    !       Alternatively, could call the standard glissade subroutine, calc_effective_pressure
 
     where (bwat > 0.d0)
         effecpress = c_effective_pressure / bwat
@@ -528,9 +541,9 @@ contains
     !          N = effective pressure (Pa) = part of overburden not supported by water
     !          H = ice thickness (m)
     !
-    !  If we make the approximation p_w =~ p_i, then
+    !  If we make the approximation p_w = p_i, then
     !
-    !     head =~ z_b + (rhoi/rhow) * H
+    !     head = z_b + (rhoi/rhow) * H
 
     implicit none
 
@@ -861,7 +874,8 @@ contains
        enddo
        global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
 
-       if (verbose_bwat .and. this_rank == rtest) then
+!!       if (verbose_bwat .and. this_rank == rtest) then
+       if (0 == 1) then
           print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
           print*, ' '
           print*, 'sum_bwatflx_halo:'
@@ -1202,8 +1216,8 @@ contains
     !WHL - Typically, it takes ~10 iterations to fill all depressions on a large domain.
     integer, parameter :: count_max = 100
 
-!!    logical, parameter :: verbose_depression = .false.
-    logical, parameter :: verbose_depression = .true.
+    logical, parameter :: verbose_depression = .false.
+!!    logical, parameter :: verbose_depression = .true.
 
     ! Initial halo update, in case phi_in is not up to date in halo cells
     call parallel_halo(phi_in, parallel)
