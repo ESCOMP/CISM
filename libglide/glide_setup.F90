@@ -2656,9 +2656,8 @@ contains
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
        write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
-       !Note: Usually used with a local basal till model, with bwat_till_max written above
-!       write(message,*) 'bwat_till_max                 : ', model%basal_hydro%bwat_till_max
-!       call write_log(message)
+       write(message,*) 'effecpress bwat threshold (m) : ', model%basal_physics%effecpress_bwat_threshold
+       call write_log(message)
     endif
 
     if (model%basal_physics%p_ocean_penetration > 0.0d0) then

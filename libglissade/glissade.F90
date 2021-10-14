@@ -1938,7 +1938,7 @@ contains
 
        call parallel_halo(bwat_mask, parallel)
 
-       ! Compute bwat based on a steady-state flux routing scheme
+       ! Compute the steady-state basal water flux based on a flux-routing scheme
 
        call glissade_bwat_flux_routing(&
             model%general%ewn,       model%general%nsn,       &
@@ -1952,7 +1952,6 @@ contains
             bwat_mask,                                        &
             floating_mask,                                    &
             bmlt_ground_unscaled,                             &  ! m/s
-            bwat_unscaled,                                    &  ! m
             model%basal_hydro%bwatflx,                        &  ! m^3/s
             model%basal_hydro%head)                              ! m
 
