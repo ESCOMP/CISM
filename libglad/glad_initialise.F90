@@ -66,6 +66,7 @@ contains
     use glad_mbal_io     , only: glad_mbal_io_createall, glad_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
+    use glide_model_registry, only : register_model
     use glide
     use glissade
     use glad_constants
@@ -100,19 +101,28 @@ contains
 
     ! initialise model
 
+    call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
 
+    ! initialize to empty string in case it isn't set
+    instance%gcm_restart_file = ' '
     if (present(gcm_restart)) then
 
       if (gcm_restart) then
 
          if (present(gcm_restart_file)) then
 
+            if (gcm_restart_file == ' ') then
+               call write_log('gcm_restart is true, but gcm_restart_file is empty',&
+                    GM_FATAL,__FILE__,__LINE__)
+            end if
+
             ! read the restart file
             call glad_read_restart_gcm(instance%model, gcm_restart_file)
+            instance%gcm_restart_file = gcm_restart_file
             instance%model%options%is_restart = 1
  
          else
@@ -284,6 +294,7 @@ contains
 
     use glide
     use glimmer_ncio
+    use glide_stop, only : glide_finalise
     implicit none
     type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
@@ -339,14 +350,14 @@ contains
     ! restart file (and not the original input file) we need to write lat and lon back to
     ! the restart file so they will be available for the following run segment.
     
-    call glad_add_to_restart_variable_list('lat lon')
+    call glad_add_to_restart_variable_list('lat lon', instance%model%model_id)
     
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
     !  the correct fluxes after restart; otherwise these fluxes would have values of zero.
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
-    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
+    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg', instance%model%model_id)
 
   end subroutine define_glad_restart_variables
 

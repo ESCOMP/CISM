@@ -311,4 +311,25 @@ contains
 
   end subroutine tridiag
 
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  !> Strip leading and trailing single or double quotes from a string.
+  !! Returns the string with these quote characters removed, or a copy of the original
+  !! string if it didn't have leading and trailing quotes.
+  function strip_quotes(str) result(stripped_str)
+    character(len=*), intent(in) :: str
+    character(len=len(str)) :: stripped_str
+
+    integer :: n
+
+    n = len_trim(str)
+    if ((str(1:1) == "'" .and. str(n:n) == "'") .or. &
+         (str(1:1) == '"' .and. str(n:n) == '"')) then
+       ! This is a quoted string; return the string with the leading and trailing quotes removed
+       stripped_str = str(2:(n-1))
+    else
+       stripped_str = str
+    end if
+  end function strip_quotes
+
 end module glimmer_utils
