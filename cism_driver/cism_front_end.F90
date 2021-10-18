@@ -39,6 +39,7 @@ contains
 subroutine cism_init_dycore(model)
 
   use glimmer_global
+  use glide_model_registry, only : register_model
   use glide
   use glissade
   use eismint_forcing
@@ -106,6 +107,7 @@ subroutine cism_init_dycore(model)
   ! initialise GLIDE
   call t_startf('initialization')
 
+  call register_model(model)
   call glide_config(model,config)
 
   ! This call is needed only if running the EISMINT test cases

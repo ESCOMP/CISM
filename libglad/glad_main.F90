@@ -43,6 +43,7 @@ module glad_main
   use glimmer_filenames, only : process_path
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
+  use glide_model_registry, only : set_max_models, check_num_models
   use glimmer_paramets, only: stdout, GLC_DEBUG, unphys_val
   use cism_parallel, only: main_task, this_rank
 
@@ -74,7 +75,6 @@ module glad_main
      ! Parameters that can be set by the GCM calling Glad
 
      logical  :: gcm_restart = .false. !> If true, restart the model from a GCM restart file
-     character(fname_length) :: gcm_restart_file   !> Name of restart file
      integer  :: gcm_fileunit = 99     !> Fileunit specified by GCM for reading config files
 
   end type glad_params
@@ -148,7 +148,7 @@ module glad_main
 contains
 
   subroutine glad_initialize(params, time_step, paramfile, daysinyear, start_time, &
-                             gcm_restart, gcm_restart_file, gcm_debug, gcm_fileunit)
+                             gcm_restart, gcm_debug, gcm_fileunit)
 
     ! Initialize the model for runs coupled to a GCM. This routine initializes variables
     ! shared between instances. See above for documentation of the full initialization
@@ -162,14 +162,8 @@ contains
     integer,                  optional,intent(in)  :: daysinyear  !> Number of days in the year
     integer,                  optional,intent(in)  :: start_time  !> Time of first call to glad (hours)
     logical,                  optional,intent(in)  :: gcm_restart ! logical flag to restart from a GCM restart file
-    character(*),             optional,intent(in)  :: gcm_restart_file ! restart filename for a GCM restart
-                                                                  ! (currently assumed to be CESM)
     logical,                  optional,intent(in)  :: gcm_debug   ! logical flag from GCM to output debug information
     integer,                  optional,intent(in)  :: gcm_fileunit! fileunit for reading config files
-    
-    ! Internal variables -----------------------------------------------------------------------
-
-    type(ConfigSection), pointer :: global_config
     
     ! Begin subroutine code --------------------------------------------------------------------
 
@@ -201,11 +195,6 @@ contains
        params%gcm_restart = gcm_restart
     endif
 
-    params%gcm_restart_file = ''
-    if (present(gcm_restart_file)) then
-       params%gcm_restart_file = gcm_restart_file
-    endif
-
     params%gcm_fileunit = 99
     if (present(gcm_fileunit)) then
        params%gcm_fileunit = gcm_fileunit
@@ -228,22 +217,16 @@ contains
     ! ---------------------------------------------------------------
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read paramfile'
-       write(stdout,*) 'paramfile =', paramfile
+       write(stdout,*) 'paramfile(s) =', paramfile
     end if
 
-    if (size(paramfile) == 1) then
-       ! Load the configuration file into the linked list
-       call ConfigRead(process_path(paramfile(1)), global_config, params%gcm_fileunit)    
-       ! Parse the list
-       call glad_readconfig(global_config, params%ninstances, params%config_fnames, paramfile)
-    else
-       params%ninstances = size(paramfile)
-       allocate(params%config_fnames(params%ninstances))
-       params%config_fnames(:) = paramfile(:)
-    end if
+    params%ninstances = size(paramfile)
+    allocate(params%config_fnames(params%ninstances))
+    params%config_fnames(:) = paramfile(:)
 
     allocate(params%instances(params%ninstances))
+
+    call set_max_models(params%ninstances)
 
     if (GLC_DEBUG .and. main_task) then
        write(stdout,*) 'Number of instances =', params%ninstances
@@ -253,8 +236,8 @@ contains
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time, &
-       test_coupling)
+  subroutine glad_initialize_instance(params, instance_index, gcm_restart_file, &
+       my_forcing_start_time, test_coupling)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -265,6 +248,7 @@ contains
 
     type(glad_params) , intent(inout)        :: params          !> parameters to be set
     integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
+    character(len=*)  , intent(in), optional :: gcm_restart_file ! restart filename for a GCM restart (ignored if not doing a restart)
     integer           , intent(in), optional :: my_forcing_start_time
     logical           , intent(in), optional :: test_coupling   !> if true, force frequent coupling for testing purposes
 
@@ -289,8 +273,8 @@ contains
     end if
 
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
-                               forcing_start_time,  params%time_step,        &
-                               params%gcm_restart,  params%gcm_restart_file, &
+                               forcing_start_time,  params%time_step, &
+                               params%gcm_restart,  gcm_restart_file, &
                                params%gcm_fileunit, test_coupling )
 
   end subroutine glad_initialize_instance
@@ -400,6 +384,8 @@ contains
 
     ! Wrapup glad initialization - perform error checks, etc. See above for documentation
     ! of the full initialization sequence
+
+    call check_num_models()
 
     ! Check that all mass-balance time-steps are the same length and
     ! assign that value to the top-level variable
@@ -1039,62 +1025,6 @@ contains
     call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask, parallel)
 
   end subroutine glad_set_output_fields
-  
-  !TODO - Move subroutine glad_readconfig to a glad_setup module, in analogy to glide_setup?
-
-  subroutine glad_readconfig(config, ninstances, fnames, infnames)
-
-    !> Determine whether a given config file is a
-    !> top-level glad config file, and return parameters
-    !> accordingly.
-
-    use glimmer_config
-    use glimmer_log
-    implicit none
-
-    ! Arguments -------------------------------------------
-
-    type(ConfigSection),      pointer :: config !> structure holding sections of configuration file
-    integer,              intent(out) :: ninstances !> Number of instances to create
-    character(fname_length),dimension(:),pointer :: fnames !> list of filenames (output)
-    character(fname_length),dimension(:) :: infnames !> list of filenames (input)
-
-    ! Internal variables ----------------------------------
-
-    type(ConfigSection), pointer :: section
-    character(len=100) :: message
-    integer :: i
-
-    if (associated(fnames)) nullify(fnames)
-
-    call GetSection(config,section,'GLAD')
-    if (associated(section)) then
-       call GetValue(section,'n_instance',ninstances)
-       allocate(fnames(ninstances))
-       do i=1,ninstances
-          call GetSection(section%next,section,'GLAD instance')
-          if (.not.associated(section)) then
-             write(message,*) 'Must specify ',ninstances,' instance config files'
-             call write_log(message,GM_FATAL,__FILE__,__LINE__)
-          end if
-          call GetValue(section,'name',fnames(i))
-       end do
-    else
-       ninstances=1
-       allocate(fnames(1))
-       fnames=infnames
-    end if
-
-    ! Print some configuration information
-
-!!$    call write_log('GLAD global')
-!!$    call write_log('------------')
-!!$    write(message,*) 'number of instances :',params%ninstances
-!!$    call write_log(message)
-!!$    call write_log('')
-
-  end subroutine glad_readconfig
-
 
   !========================================================
 

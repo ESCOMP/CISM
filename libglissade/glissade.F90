@@ -95,7 +95,6 @@ contains
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
          parallel_create_comm_row, parallel_create_comm_col, not_parallel
 
-    use glide_stop, only: register_model
     use glide_setup
     use glimmer_ncio
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
@@ -768,11 +767,6 @@ contains
     else
        call parallel_halo(model%isostasy%relx, parallel)
     endif
-
-    ! register the newly created model so that it can be finalised in the case
-    ! of an error without needing to pass the whole thing around to every
-    ! function that might cause an error
-    call register_model(model)
 
     ! optional unit tests
 

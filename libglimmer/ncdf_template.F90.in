@@ -45,9 +45,12 @@ module NAME_io
   implicit none
 
   private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
-       is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
+       is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal, &
+       initialize_restart_variable_list
 
-  character(glimmer_nc_vars_len), save :: restart_variable_list=''    ! list of variables needed for a restart
+  ! List of variables needed for a restart; there is an array of restart variable lists,
+  ! one for each ice sheet instance.
+  character(glimmer_nc_vars_len), allocatable, save :: restart_variable_list(:)
 
   interface is_enabled  ! MJH 10/21/13: Interface needed for determining if arrays have been enabled.  See notes below in NAME_io_create.
     module procedure is_enabled_0dint
@@ -152,7 +155,7 @@ contains
     type(glide_global_type) :: model
     type(DATATYPE) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
 
-    integer status,varid,pos
+    integer status,varid,pos,model_id
 
     ! MJH 10/21/13: Local variables needed for checking if a variable is enabled.
     real(dp) :: tavgf
@@ -178,13 +181,17 @@ contains
     end if
     ! Now apply necessary changes if the file is a restart file.
     if (NCO%restartfile) then
-       if ((len_trim(NCO%vars) + len_trim(restart_variable_list) + 2) >= len(NCO%vars) ) then
+       model_id = model%model_id
+       if (model_id > size(restart_variable_list)) then
+          call write_log('model_id too large in call to NAME_io_create', GM_FATAL)
+       end if
+       if ((len_trim(NCO%vars) + len_trim(restart_variable_list(model_id)) + 2) >= len(NCO%vars) ) then
           call write_log('Adding restart variables has made the list of output variables too long for file ' // NCO%filename, &
                GM_FATAL)
        else
           ! Expand the restart variable list 
           ! Need to maintain a space at beginning and end of list
-          NCO%vars = trim(NCO%vars) // ' ' // trim(restart_variable_list) // ' ' ! (a module variable)  
+          NCO%vars = trim(NCO%vars) // ' ' // trim(restart_variable_list(model_id)) // ' ' ! (a module variable)
           ! Set the xtype to be double (required for an exact restart)
           outfile%default_xtype = NF90_DOUBLE   
        endif
@@ -260,9 +267,11 @@ contains
   end subroutine NAME_io_write
 
 
-  subroutine NAME_add_to_restart_variable_list(vars_to_add)
-    ! This subroutine adds variables to the list of variables needed for a restart.
-    ! It is a public subroutine that allows other parts of the model to modify the list, 
+  subroutine NAME_add_to_restart_variable_list(vars_to_add, model_id)
+    ! This subroutine adds variables to the list of variables needed for a restart for the
+    ! given ice sheet instance.
+    !
+    ! This is a public subroutine that allows other parts of the model to modify the list,
     ! which is a module level variable.   MJH 1/17/2013
 
     use glimmer_log
@@ -272,7 +281,7 @@ contains
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
     character(len=*), intent (in) :: vars_to_add  ! list of variable(s) to be added to the list of restart variables 
-    !character(*), intent (inout) :: restart_variable_list  ! list of variables needed to perform an exact restart - module variable
+    integer, intent(in) :: model_id  ! identifier of this ice sheet instance (1 - N, where N is the total number of ice sheet models in this run)
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -280,11 +289,20 @@ contains
 
     !------------------------------------------------------------------------------------
 
+    ! The first time this subroutine is called, allocate and initialize the restart_variable_list
+    if (.not. allocated(restart_variable_list)) then
+       call initialize_restart_variable_list()
+    end if
+
+    if (model_id > size(restart_variable_list)) then
+       call write_log('model_id too large in call to NAME_add_to_restart_variable_list', GM_FATAL)
+    end if
+
     ! Add the variables to the list so long as they don't make the list too long.
-    if ( (len_trim(restart_variable_list) + 1 + len_trim(vars_to_add)) > len(restart_variable_list)) then
+    if ( (len_trim(restart_variable_list(model_id)) + 1 + len_trim(vars_to_add)) > len(restart_variable_list(model_id))) then
        call write_log('Adding restart variables has made the restart variable list too long.',GM_FATAL)
     else
-       restart_variable_list = trim(adjustl(restart_variable_list)) // ' ' // trim(vars_to_add)
+       restart_variable_list(model_id) = trim(adjustl(restart_variable_list(model_id))) // ' ' // trim(vars_to_add)
        !call write_log('Adding to NAME restart variable list: ' // trim(vars_to_add) )
     endif
 
@@ -614,6 +632,14 @@ contains
        get_xtype = NF90_REAL
     end if
   end function get_xtype
+
+  !> allocate and initialize the restart_variable_list
+  subroutine initialize_restart_variable_list()
+    use glide_model_registry, only : get_max_models
+
+    allocate(restart_variable_list(get_max_models()))
+    restart_variable_list(:) = ''
+  end subroutine initialize_restart_variable_list
 
   !*********************************************************************
   ! lots of accessor subroutines follow
