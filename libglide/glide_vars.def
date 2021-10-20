@@ -924,6 +924,12 @@ dimensions:    time, y1, x1
 units:         Pa
 long_name:     effective pressure
 data:          data%basal_physics%effecpress
+
+[f_effecpress]
+dimensions:    time, y1, x1
+units:         1
+long_name:     ratio of effective pressure to overburden
+data:          data%basal_physics%f_effecpress
 load:          1
 
 [c_space_factor]
