@@ -115,6 +115,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
+    use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
@@ -832,6 +833,13 @@ contains
                            model%geometry%iarea, model%geometry%ivol)
 
     endif  ! initial calving
+
+    ! Initialize the effective pressure calculation
+
+    if (model%options%is_restart == RESTART_FALSE) then
+       call glissade_init_effective_pressure(model%options%which_ho_effecpress,  &
+                                             model%basal_physics)
+    endif
 
     ! Optionally, do initial calculations for inversion
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
@@ -4115,6 +4123,7 @@ contains
                                  model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
                                  model%basal_hydro%bwat * thk0,     &   ! m
                                  model%basal_hydro%bwatflx,         &   ! m/yr
+                                 model%numerics%dt * tim0/scyr,     &   ! yr
                                  itest, jtest,  rtest)
 
     ! ------------------------------------------------------------------------ 

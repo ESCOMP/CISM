@@ -184,6 +184,9 @@ contains
     ! It should not be used with which_ho_effecpress = HO_EFFECPRESS_BWAT, since bwat is not returned.
     ! (See the comments below on bwat.)
 
+    !TODO - Pass in a potential for basal freezing (bfrz_pot).
+    !       Return the actual bfrz.
+
     use cism_parallel, only: tasks   ! while code is serial only
 
     ! Input/output arguments
@@ -325,6 +328,7 @@ contains
 !    call parallel_halo(topg, parallel)
     call parallel_halo(bwat, parallel)
     call parallel_halo(bmlt, parallel)
+    !TODO - Add bfrz?
 
     ! Compute effective pressure N.
     ! In the old Glimmer code, N was computed as a function of water depth by subroutine effective_pressure.
@@ -427,6 +431,7 @@ contains
     endif
 
     ! Route basal water down the gradient of hydraulic head, giving a water flux
+    ! TODO - Pass in bfrz_pot, return bfrz.
 
     call route_basal_water(&
          nx,      ny,            &
@@ -596,6 +601,8 @@ contains
     !  The method used is by Quinn et. al. (1991).
     !
     ! Based on code by Jesse Johnson (2005), adapted from the glimmer_routing file by Ian Rutt.
+
+    ! TODO - Pass in bfrz_pot, return bfrz.
 
     use cism_parallel, only: parallel_global_sum
 
@@ -814,7 +821,8 @@ contains
     !       With Dinf or FD8, we can have flow back and forth across processor boundaries,
     !        requiring many iterations to reach the margin.
     !       For Greenland 4 km, Dinf requires ~20 iterations on 4 cores, and FD8 can require > 40.
-    count_max = 50
+    !       For Antarctica 8 km, FD8 can require > 50.
+    count_max = 100
     finished = .false.
 
     do while (.not.finished)
@@ -1075,10 +1083,10 @@ contains
 !!    call parallel_halo(grad_head, parallel)
 
     !WHL - debug
-    p = 5
+    p = pdiag
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
-       print*, 'grad(head):'
+       print*, 'grad_head:'
        write(6,'(a3)',advance='no') '   '
        do i = itest-p, itest+p
           write(6,'(i10)',advance='no') i
@@ -1087,7 +1095,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(e10.3)',advance='no') grad_head(i,j)
+             write(6,'(f10.5)',advance='no') grad_head(i,j)
           enddo
           write(6,*) ' '
        enddo
