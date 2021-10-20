@@ -1787,9 +1787,9 @@ module glide_types
      integer,  dimension(:,:), pointer :: bpmp_mask => null()   !> basal pressure melting point mask; = 1 where Tbed = bpmp, elsewhere = 0
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
-     ! Note: It may make sense to move effecpress to a hydrology model when one is available.
      real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
+     real(dp), dimension(:,:), pointer :: f_effecpress                  !> ratio effecpress/(rhoi*g*H); 0 <= f <= 1
 
      ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *COULOMB_POWERLAW_SCHOOF AND *COULOMB_POWERLAW_TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
@@ -1798,18 +1798,20 @@ module glide_types
      real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
 
      ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
-     real(dp) :: effecpress_delta = 0.02d0            !> multiplier for effective pressure N where the bed is saturated or thawed (unitless)
-     real(dp) :: effecpress_bpmp_threshold = 0.1d0    !> temperature range over which N ramps up from a small value to overburden (deg C)
-     real(dp) :: effecpress_bwat_threshold = 2.0d0    !> bwat range over which N ramps down from overburden to a small value (m);
-                                                      !> typically set to same value as bwat_till_max when using local till model
-     !TODO - Test the bwatflx threshold; 1 m/yr might be too low for Antarctica
-     real(dp) :: effecpress_bwatflx_threshold = 1.0d0 !> bwatflx range over which N ramps down from overburden to a small value (m/yr)
-     real(dp) :: p_ocean_penetration = 0.0d0          !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (unitless, 0 <= p <= 1)
+     real(dp) :: effecpress_delta = 0.02d0             !> multiplier for effecpress N where the bed is saturated or thawed (unitless)
+     real(dp) :: effecpress_bpmp_threshold = 0.1d0     !> temperature range over which N ramps up from a small value to overburden (deg C)
+     real(dp) :: effecpress_bwat_threshold = 2.0d0     !> bwat range over which N ramps down from overburden to a small value (m);
+                                                       !> typically set to same value as bwat_till_max when using local till model
+     real(dp) :: effecpress_bwatflx_threshold = 0.01d0 !> bwatflx scale (m/yr); min value that gives N < overburden
+     real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
+     real(dp) :: effecpress_timescale = 100.d0         !> timescale to relax effective pressure (yr)
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
      ! Here, tan(phi) is replaced by coulomb_c
-     real(dp) :: zoet_iverson_ut= 200.d0            !> threshold velocity for Zoet-Iverson law (m/yr)
+     real(dp) :: zoet_iverson_ut= 200.d0         !> threshold velocity for Zoet-Iverson law (m/yr)
+     real(dp) :: zoet_iverson_nmax = 1.0d8       !> max effective pressure for Zoet-Iverson law (Pa)
+                                                 !> default value is a high cap, greater than actual overburden pressures
 
      ! parameters for pseudo-plastic sliding law (based on PISM)
      ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
@@ -2665,6 +2667,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
@@ -3065,6 +3068,8 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
+    if (associated(model%basal_physics%f_effecpress)) &
+        deallocate(model%basal_physics%f_effecpress)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%c_space_factor)) &

@@ -2113,6 +2113,7 @@ contains
     call GetValue(section, 'coulomb_c_bedmin', model%basal_physics%coulomb_c_bedmin)
     call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
     call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
+    call GetValue(section, 'zoet_iversion_nmax', model%basal_physics%zoet_iverson_nmax)
     call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
     call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
@@ -2124,6 +2125,7 @@ contains
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
     call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
     call GetValue(section, 'effecpress_bwatflx_threshold', model%basal_physics%effecpress_bwatflx_threshold)
+    call GetValue(section, 'effecpress_timescale', model%basal_physics%effecpress_timescale)
 
     ! basal water parameters
     call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
@@ -2497,6 +2499,8 @@ contains
        call write_log(message)
        write(message,*) 'threshold speed for Zoet-Iverson law (m/yr)  : ', model%basal_physics%zoet_iverson_ut
        call write_log(message)
+       write(message,*) 'max effecpress for Zoet-Iverson law (Pa)     : ', model%basal_physics%zoet_iverson_nmax
+       call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_ISHOMC) then
        if (model%general%ewn /= model%general%nsn) then
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
@@ -2649,9 +2653,11 @@ contains
        write(message,*) 'effecpress bwat threshold (m) : ', model%basal_physics%effecpress_bwat_threshold
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
        write(message,*) 'effecpress bwatflx threshold (m/yr) : ', model%basal_physics%effecpress_bwatflx_threshold
+       call write_log(message)
+       write(message,*) 'effecpress timescale (yr)     : ', model%basal_physics%effecpress_timescale
+       call write_log(message)
+       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
        write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
@@ -3398,6 +3404,12 @@ contains
        call glide_add_to_restart_variable_list('dthck_dt')
     elseif (options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
        call glide_add_to_restart_variable_list('coulomb_c')
+    endif
+
+    ! effective pressure options
+    ! The bwatflx option prognoses f_effecpress, the ratio N/overburden
+    if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
+       call glide_add_to_restart_variable_list('f_effecpress')
     endif
 
     ! The bmlt_basin inversion option needs a thickness target for floating ice
