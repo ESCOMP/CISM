@@ -38,10 +38,8 @@ module glissade_basal_water
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-!!   logical, parameter :: verbose_bwat = .false.
-   logical, parameter :: verbose_bwat = .true.
+   logical, parameter :: verbose_bwat = .false.
 
-!!   integer, parameter :: pdiag = 4  ! range for diagnostic prints
    integer, parameter :: pdiag = 3  ! range for diagnostic prints
 
 contains
@@ -318,8 +316,7 @@ contains
 
     endif
 
-    !WHL - debug
-    if (this_rank == rtest) then
+    if (verbose_bwat .and. this_rank == rtest) then
        print*, 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
     endif
 
@@ -384,20 +381,16 @@ contains
           enddo
           write(6,*) ' '
        enddo
-       print*, ' '
-       print*, 'effecpress (Pa):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') effecpress(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+!       print*, ' '
+!       print*, 'effecpress (Pa):'
+!       write(6,*) ' '
+!       do j = jtest+p, jtest-p, -1
+!          write(6,'(i6)',advance='no') j
+!          do i = itest-p, itest+p
+!             write(6,'(f10.3)',advance='no') effecpress(i,j)
+!          enddo
+!          write(6,*) ' '
+!       enddo
        print*, ' '
        print*, 'bmlt (m/yr):'
        write(6,*) ' '
@@ -445,7 +438,17 @@ contains
          bwatflx,                &
          lakes)
 
+    call parallel_halo(bwatflx, parallel)
+
     ! Convert the water flux to a basal water depth
+    ! Note: bwat is not passed out of this subroutine, for the following reason:
+    ! In the thermal solve, the basal temperature is held at Tpmp wherever bwat > 0.
+    ! This is appropriate when bwat is prognosed from local basal melting.
+    ! For the flux-routing scheme, however, we can diagnose nonzero bwat beneath ice
+    !  that is frozen to the bed (due to basal melting upstream).
+    ! If passed to the thermal solver, this bwat can drive a sudden large increase in basal temperature.
+    ! For this reason, the effective pressure is reduced based on bwatflx instead of bwat.
+    ! If desired, we could pass out a diagnostic bwat field that would not affect basal temperature.
 
     call flux_to_depth(&
          nx,       ny,           &
@@ -464,7 +467,7 @@ contains
 
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
-       write(6,*) 'bwatflx (m/yr):'
+       write(6,*) 'Final bwatflx (m/yr):'
        do i = itest-p, itest+p
           write(6,'(i10)',advance='no') i
        enddo
@@ -472,30 +475,21 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') bwatflx(i,j)
+             write(6,'(f10.5)',advance='no') bwatflx(i,j)
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
-       print*, 'bwat (mm):'
+       print*, 'Diagnosed bwat (mm):'
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') bwat(i,j) * 1000.d0
+             write(6,'(f10.5)',advance='no') bwat(i,j) * 1000.d0
           enddo
           write(6,*) ' '
        enddo
     endif
-
-    ! Note: bwat is not passed out of this subroutine, for the following reason:
-    ! In the thermal solve, the basal temperature is held at Tpmp wherever bwat > 0.
-    ! This is appropriate when bwat is prognosed from local basal melting.
-    ! For the flux-routing scheme, however, we can diagnose nonzero bwat beneath ice
-    !  that is frozen to the bed (due to basal melting upstream).
-    ! If passed to the thermal solver, this bwat can drive a sudden large increase in basal temperature.
-    ! The workaround is to make the effective pressure depend on bwatflx instead of bwat.
-    ! If desired, we could pass out a diagnostic bwat field that would not affect basal temperature.
 
   end subroutine glissade_bwat_flux_routing
 
@@ -847,6 +841,10 @@ contains
                    if (flux_fraction(ii,jj,i,j) > 0.0d0) then
                       if (halo_mask(ip,jp) == 1) then
                          bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                         if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
+                            print*, 'Flux to halo, i, j, ii, jj, flux:', &
+                                 i, j, ii, jj, bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                         endif
                       elseif (local_mask(ip,jp) == 1) then
                          bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)
                       endif
@@ -862,6 +860,12 @@ contains
 
        bwatflx_accum = bwatflx_accum + bwatflx
        bwatflx = 0.0d0
+
+       if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
+          i = itest
+          j = jtest
+          print*, 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
+       endif
 
        ! If bwatflx_halo = 0 everywhere, then we are done.
        ! (If the remaining flux is very small (< eps11), discard it to avoid
@@ -882,8 +886,8 @@ contains
        enddo
        global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
 
-!!       if (verbose_bwat .and. this_rank == rtest) then
-       if (0 == 1) then
+       if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
+          print*, ' '
           print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
           print*, ' '
           print*, 'sum_bwatflx_halo:'
@@ -897,11 +901,9 @@ contains
           enddo
           print*, ' '
           print*, 'rank, i, j, bwatflx_halo:'
-          do j = jtest+1, jtest
-             do i = itest-4, itest + 4
-                write(6, '(3i5,9e10.3)') this_rank, i, j, bwatflx_halo(:,:,i,j)
-             enddo
-          enddo
+          i = itest
+          j = jtest
+          write(6, '(3i5,9e10.3)') this_rank, i, j, bwatflx_halo(:,:,i,j)
        endif
 
        if (global_flux_sum > eps11) then
@@ -925,11 +927,13 @@ contains
                             jp = j + jj
                             if (local_mask(ip,jp) == 1) then
                                bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
-                               if (verbose_bwat) then
-!!!                                    print*, 'Nonzero bwatflx, rank, i, j:', this_rank, ip, jp, bwatflx(ip,jp)
-                                 endif
+                               if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest &
+                                    .and. count <= 2) then
+                                  print*, 'Nonzero bwatflx from halo, rank, i, j:', &
+                                       this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
+                               endif
                             endif
-                         endif   !  bwatflx_halo > 0 to this local cell
+                         endif   !  bwatflx_halo > 0 to a local cell
                       enddo   ! ii
                    enddo   ! jj
                 endif   ! bwatflx_halo > 0 from this halo cell
@@ -940,9 +944,10 @@ contains
           bwatflx_halo = 0.0d0
 
           global_flux_sum = parallel_global_sum(bwatflx, parallel)
-          if (verbose_bwat .and. this_rank == rtest) then
+          if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
              ! Should be equal to the global sum of bwatflx_halo computed above
-             print*, 'After halo update, sum(bwatflx) =', global_flux_sum
+             print*, 'After halo update, sum(bwatflx from halo) =', global_flux_sum
+             print*, ' '
           endif
 
        else   ! bwatflx_halo = 0 everywhere; no fluxes to route to adjacent processors
@@ -2164,8 +2169,7 @@ contains
 
           sum_slope = sum(slope)
 
-          !WHL - debug
-          if (this_rank == rtest .and. i == itest .and. j == jtest) then
+          if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
              print*, ' '
              print*, 'slope: task, i, j =', rtest, i, j
              print*, slope(:,1)
@@ -2209,7 +2213,7 @@ contains
                 print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
-             if (this_rank == rtest .and. i == itest .and. j == jtest) then
+             if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
                 print*, 'i1, j1, slope1 =', i1, j1, slope1
              endif
 
@@ -2258,7 +2262,7 @@ contains
                 print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
-             if (this_rank == rtest .and. i == itest .and. j == jtest) then
+             if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
                 print*, 'i1, j1, slope1:', i1, j1, slope1
                 print*, 'i2, j2, slope2:', i2, j2, slope2
                 print*, 'sum_slope:', sum_slope
@@ -2296,6 +2300,17 @@ contains
                 enddo
              endif  ! sum(slope) > 0
 
+             if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
+                print*, 'i1, j1, slope1:', i1, j1, slope1
+                print*, 'i2, j2, slope2:', i2, j2, slope2
+                print*, 'sum_slope:', sum_slope
+                print*, 'slope(:, 1):', slope(:, 1)
+                print*, 'slope(:, 0):', slope(:, 0)
+                print*, 'slope(:,-1):', slope(:,-1)
+                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+             endif
           endif   ! flux_routing_scheme: D8, Dinf, FD8
 
        endif  ! bwat_mask = 1

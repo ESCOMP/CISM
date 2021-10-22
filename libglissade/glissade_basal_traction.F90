@@ -730,6 +730,8 @@ contains
     ! Initialize calculations related to effective pressure.
     ! Currently, the only thing to do is initialize an array for
     !  option which_effecpress = HO_EFFECPRESS_BWATFLX.
+    ! Note: f_effecpress should not be reset if restarting.
+    !       Currently, this subroutine is called only when *not* restarting
 
     ! Input/output arguments
 
@@ -748,6 +750,7 @@ contains
 !***********************************************************************
 
   subroutine calc_effective_pressure (which_effecpress,             &
+                                      parallel,                     &
                                       ewn,           nsn,           &
                                       basal_physics, basal_hydro,   &
                                       ice_mask,      floating_mask, &
@@ -774,6 +777,9 @@ contains
 
     integer, intent(in) :: &
          which_effecpress    ! input option for effective pressure
+
+    type(parallel_type), intent(in) :: &
+         parallel            ! info for parallel communication
 
     integer, intent(in) :: &
          ewn, nsn            ! grid dimensions
@@ -829,8 +835,7 @@ contains
     real(dp) :: frac
     integer :: i, j
 
-!!    logical, parameter :: verbose_effecpress = .false.
-    logical, parameter :: verbose_effecpress = .true.
+    logical, parameter :: verbose_effecpress = .false.
 
     ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
 
@@ -939,17 +944,7 @@ contains
 
           if (verbose_effecpress .and. this_rank == rtest) then
              print*, ' '
-             print*, 'After bwatflx, effecpress, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.0)',advance='no') basal_physics%effecpress(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'f_effecpress, itest, jtest, rank =', itest, jtest, rtest
+             print*, 'After bwatflx, f_effecpress, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
@@ -1130,6 +1125,18 @@ contains
        basal_physics%effecpress = overburden
     endwhere
 
+    ! Halo update before staggering
+    call parallel_halo(basal_physics%effecpress, parallel)
+
+    ! Interpolate the effective pressure to the staggered grid.
+    ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells
+    ! (to give a smooth transition in N_stag as a cell switches from ice-free to ice-covered)
+    !TODO - Does ice_mask need to be passed in? Modify glissade_stagger so it can be called without a mask.
+
+    call glissade_stagger(ewn,                       nsn,                             &
+                          basal_physics%effecpress,  basal_physics%effecpress_stag,   &
+                          ice_mask,                  stagger_margin_in = 0)
+
     if (verbose_effecpress .and. this_rank == rtest) then
        print*, ' '
        print*, 'ocean_p N/overburden, itest, jtest, rank =', itest, jtest, rtest
@@ -1157,16 +1164,16 @@ contains
           enddo
           write(6,*) ' '
        enddo
+       print*, ' '
+       print*, 'effecpress_stag:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+            write(6,'(f10.0)',advance='no') basal_physics%effecpress_stag(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
     endif
-
-    ! Interpolate the effective pressure to the staggered grid.
-    ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells
-    ! (to give a smooth transition in N_stag as a cell switches from ice-free to ice-covered)
-    !TODO - Does ice_mask need to be passed in? Modify glissade_stagger so it can be called without a mask.
-
-    call glissade_stagger(ewn,                       nsn,                             &
-                          basal_physics%effecpress,  basal_physics%effecpress_stag,   &
-                          ice_mask,                  stagger_margin_in = 0)
 
   end subroutine calc_effective_pressure
 

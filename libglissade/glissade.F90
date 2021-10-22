@@ -4107,6 +4107,7 @@ contains
 
     !TODO - Use btemp_ground instead of temp(nz)?
     call calc_effective_pressure(model%options%which_ho_effecpress, &
+                                 parallel,                          &
                                  ewn,           nsn,                &
                                  model%basal_physics,               &
                                  model%basal_hydro,                 &
