@@ -54,6 +54,7 @@
     private
     public :: pcg_solver_standard_3d,  pcg_solver_standard_2d,  &
               pcg_solver_chrongear_3d, pcg_solver_chrongear_2d, &
+              bicgstab_solver_2d,      test_bicg_solver,        &
               matvec_multiply_structured_3d
     
     interface global_sum_staggered
@@ -65,8 +66,11 @@
 
     logical, parameter :: verbose_pcg = .false.
     logical, parameter :: verbose_tridiag = .false.
-!!    logical, parameter :: verbose_pcg = .true.
-!!    logical, parameter :: verbose_tridiag = .true.
+
+    !WHL - Used the following parameter for solutions of simple test matrices.
+    !      If solving test matrices, then uncomment the following line,
+    !       and put 'if (.not.test_matrix_pcg)' logic around halo calls.
+!    logical, parameter :: test_matrix_pcg = .false.
 
   contains
 
@@ -89,7 +93,7 @@
     !  to solve the equation $Ax=b$.
     !  Convergence is checked every {\em linear_solve_ncheck} steps.
     !
-    !  It is based on the barotropic solver in the POP ocean model 
+    !  It is based on the barotropic solver in the POP ocean model
     !  (author Phil Jones, LANL).  Input and output arrays are located
     !  on a structured (i,j,k) grid as defined in the glissade_velo_higher
     !  module.  The global matrix is sparse, but its nonzero elements
@@ -132,7 +136,7 @@
     !        M = preconditioning matrix
     !    (r,z) = dot product of vectors r and z
     !            and similarly for (d,q)
-    !       
+    !
     !---------------------------------------------------------------
 
     !---------------------------------------------------------------
@@ -582,10 +586,10 @@
     !  shallow-shelf approximation.  See the comments in that subroutine
     !  (above) for more details on data structure and solver methods.
     !
-    !  Input and output arrays are located on a structured (i,j) grid 
-    !  as defined in the glissade_velo_higher module.  The global matrix 
-    !  is sparse, but its nonzero element are stored in four dense matrices 
-    !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential 
+    !  Input and output arrays are located on a structured (i,j) grid
+    !  as defined in the glissade_velo_higher module.  The global matrix
+    !  is sparse, but its nonzero elements are stored in four dense matrices
+    !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential
     !  nonzero elements per node (i,j).
     !
     !  The current preconditioning options are
@@ -1019,9 +1023,9 @@
     !        University of Tennessee, Knoxville. 1993.
     !---------------------------------------------------------------
     !
-    !  The input and output arrays are located on a structured (i,j,k) grid 
-    !  as defined in the glissade_velo_higher module.  
-    !  The global matrix is sparse, but its nonzero elements are stored in 
+    !  The input and output arrays are located on a structured (i,j,k) grid
+    !  as defined in the glissade_velo_higher module.
+    !  The global matrix is sparse, but its nonzero elements are stored in
     !  four dense matrices called Auu, Avv, Auv, and Avu.
     !  Each matrix has 3x3x3 = 27 potential nonzero elements per node (i,j,k).
     !
@@ -2005,10 +2009,10 @@
     !  shallow-shelf approximation.  See the comments in that subroutine
     !  (above) for more details on data structure and solver methods.
     !
-    !  Input and output arrays are located on a structured (i,j) grid 
-    !  as defined in the glissade_velo_higher module.  The global matrix 
-    !  is sparse, but its nonzero element are stored in four dense matrices 
-    !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential 
+    !  Input and output arrays are located on a structured (i,j) grid
+    !  as defined in the glissade_velo_higher module.  The global matrix
+    !  is sparse, but its nonzero elements are stored in four dense matrices
+    !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential
     !  nonzero elements per node (i,j).
     !
     !  The current preconditioning options for the solver are
@@ -3106,6 +3110,700 @@
     if (allocated(gather_data_col)) deallocate(gather_data_col)
 
   end subroutine pcg_solver_chrongear_2d
+
+!****************************************************************************
+
+  subroutine bicgstab_solver_2d(nx,        ny,            &
+                                parallel,                 &
+                                indxA_2d,  active_vertex, &
+                                Auu,       Auv,           &
+                                Avu,       Avv,           &
+                                bu,        bv,            &
+                                xu,        xv,            &
+                                precond,   linear_solve_ncheck,  &
+                                tolerance, maxiters,      &
+                                err,       niters,        &
+                                itest, jtest, rtest)
+
+    !---------------------------------------------------------------
+    !  This subroutine uses a preconditioned, stabilized biconjugate-gradient
+    !  algorithm (BiCGSTAB) to solve the equation $Ax=b$.
+    !  Convergence is checked every {\em linear_solve_ncheck} steps.
+    !
+    !  It is similar in structure to the PCG solvers above, but it works
+    !  for non-symmetric A, whereas PCG requires that A is symmetric.
+    !
+    !  Input and output arrays are located on a structured (i,j) grid
+    !  as defined in the glissade_velo_higher module.  The global matrix
+    !  is sparse, but its nonzero elements are stored in four dense matrices
+    !  called Auu, Avv, Auv, and Avu. Each matrix has 3x3 = 9 potential
+    !  nonzero elements per node (i,j).
+    !
+    !  The current preconditioning options are
+    !  (0) no preconditioning
+    !  (1) diagonal preconditioning
+    !
+    ! The algorithm is as follows (based on the Wikipedia article on BiCGSTAB,
+    ! last accessed 23 October 2021):
+    !
+    !  halo_update for x(0)
+    !  r(0) = b - A*x(0)
+    !  r0 = r(0)
+    !  rho(0) = alpha = omega(0) = 1
+    !  v(0) = p(0) = 0
+    !
+    !  for i = 1,2,3,...
+    !     rho(i) = (r0, r(i-1))
+    !     beta = (rho(i)/rho(i-1)) * (alpha/omega(i-1))
+    !     p(i) = r(i-1) + beta * (p(i-1) - omega(i-1)*v(i-1))
+    !     solve M*y = p(i) for y
+    !        halo update for y
+    !     v(i) = A*y
+    !     alpha = rho(i) / (r0, v(i))
+    !     s = r(i-1) - alpha*v(i)
+    !     solve M*z = s for z
+    !        halo update for z
+    !     t = A*z
+    !     solve M*zz = t for zz
+    !     omega(i) = (zz, z) / (zz, zz)
+    !     x(i) = x(i-1) + alpha*y + omega(i)*z
+    !     r(i) = s - omega(i)*t
+    !     Check for convergence:
+    !        resid = b - Ax
+    !        err = sqrt(resid,resid)/sqrt(b,b)
+    !        if err < tolerance, then exit
+    !
+    !  where x = solution
+    !        p = conjugate direction vector
+    !        r = residual vector
+    !        M = preconditioning matrix
+    !  (v1,v2) = dot product of vectors v1 and v2
+    !
+    !  With the exception of rho, values from previous iterations need not be stored.
+    !  Each iteration requires four dot products, two matvec multiplies, and two halo updates.
+    !  The number of operations for BiCGSTAB is about twice the number for PCG.
+    !---------------------------------------------------------------
+
+    !---------------------------------------------------------------
+    ! input-output arguments
+    !---------------------------------------------------------------
+
+    integer, intent(in) ::   &
+         nx, ny                 ! horizontal grid dimensions (for scalars)
+                                ! velocity grid has dimensions (nx-1,ny-1)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+         indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
+
+    logical, dimension(nx-1,ny-1), intent(in) ::   &
+         active_vertex          ! T for vertices (i,j) where velocity is computed, else F
+
+    real(dp), dimension(nx-1,ny-1,9), intent(in) ::   &
+         Auu, Auv, Avu, Avv     ! four components of assembled matrix
+                                ! 3rd dimension = 9 (node and its nearest neighbors in x and y direction)
+                                ! 1st and 2nd dimensions = (x,y) indices
+                                !
+                                !    Auu  | Auv
+                                !    _____|____
+                                !    Avu  | Avv
+                                !         |
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+         bu, bv                 ! assembled load (rhs) vector, divided into 2 parts
+
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::   &
+         xu, xv                 ! u and v components of solution (i.e., uvel and vvel)
+
+    integer, intent(in)  ::   &
+         precond                ! = 0 for no preconditioning
+                                ! = 1 for diagonal preconditioning (best option for SSA-dominated flow)
+
+    integer, intent(in)  :: &
+         linear_solve_ncheck    ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+         maxiters               ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+         tolerance              ! tolerance for linear solver
+
+    real(dp), intent(out) ::  &
+         err                    ! error (L2 norm of residual) in final solution
+
+    integer, intent(out) ::   &
+         niters                 ! iterations needed to solution
+
+    integer, intent(in) :: &
+         itest, jtest, rtest    ! point for debugging diagnostics
+
+    !---------------------------------------------------------------
+    ! Local variables and parameters
+    !---------------------------------------------------------------
+
+    integer :: i, j          ! grid indices
+    integer :: iter          ! iteration counter
+    integer :: n
+
+    real(dp) ::           &
+         rho,               &! dot product (r0,r)
+         rho_old,           &! rho from previous iteration
+         beta,              &! dot product combination (rho/rho_old)*(alpha/omega)
+         alpha,             &! dot product ratio rho/(r0,v)
+         omega,             &! dot product ratio (zz,z)/(zz,zz)
+         dotprod             ! temporary dot product value
+
+    ! vectors (each of these is split into u and v components)
+    real(dp), dimension(nx-1,ny-1) ::  &
+         Adiagu, Adiagv,    &! diagonal terms of matrices Auu and Avv
+         ru, rv,            &! residual vector
+         r0u, r0v,          &! initial residual vector
+         pu, pv,            &! conjugate direction vector
+         yu, yv,            &! solution of M*y = p
+         vu, vv,            &! matvec product A*y
+         su, sv,            &! r - alpha*v
+         zu, zv,            &! solution of M*z = s
+         tu, tv,            &! matvec product A*z
+         zzu, zzv,          &! solution of M*zz = t
+         work1u, work1v      ! intermediate results for dot product
+
+    real(dp), dimension(nx-1,ny-1,2) ::  &
+         work2u, work2v      ! intermediate results for two dot products
+
+    real(dp) ::  &
+         gsum1,             &! result of global sum for dot products
+         L2_resid,          &! L2 norm of residual vector Ax-b
+         L2_rhs              ! L2 norm of rhs vector b
+                             ! solver converges when L2_resid/L2_rhs < tolerance
+
+    real(dp), dimension(2) ::   &
+         gsum2               ! result of global sum for dot products
+
+    if (verbose_pcg .and. main_task) then
+       print*, 'Using native BiCGSTAB solver'
+       print*, 'tolerance, maxiters, precond =', tolerance, maxiters, precond
+       print*, 'nx-1, ny-1 =', nx-1, ny-1
+       print*, 'indxA_2d =', indxA_2d
+    endif
+
+    ! Set up matrices for preconditioning
+    !TODO - Add tridiagonal option?
+
+    if (precond == HO_PRECOND_DIAG) then
+       if (verbose_pcg .and. main_task) then
+          print*, 'Using diagnonal preconditioning'
+       endif  ! verbose_pcg
+
+       call t_startf("bicg_precond_init")
+       call setup_preconditioner_diag_2d(nx,         ny,       &
+                                         indxA_2d,             &
+                                         Auu,        Avv,      &
+                                         Adiagu,     Adiagv)
+       call t_stopf("bicg_precond_init")
+    endif
+
+    ! Compute initial residual and set other initial values
+    ! Note: The matrix A must be complete for all rows corresponding to
+    !       locally owned vertices, and x must have the correct values in
+    !       halo vertices bordering the locally owned vertices.
+    !       Then y = A*x will be correct for locally owned vertices.
+
+    ! Halo update for x (initial guess for velocity solution)
+
+    !if (.not.test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+    call t_startf("bicg_halo_init")
+    call staggered_parallel_halo(xu, parallel)
+    call staggered_parallel_halo(xv, parallel)
+    call t_stopf("bicg_halo_init")
+    !endif
+
+    ! Compute A*x (use y as a temp vector for A*x)
+
+    call t_startf("bicg_matmult_init")
+    call matvec_multiply_structured_2d(nx,            ny,            &
+                                       parallel,                     &
+                                       indxA_2d,      active_vertex, &
+                                       Auu,           Auv,           &
+                                       Avu,           Avv,           &
+                                       xu,            xv,            &
+                                       yu,            yv)
+    call t_stopf("bicg_matmult_init")
+
+    ! Compute the initial residual r(0) = b - A*x(0)
+    ! This is correct for locally owned vertices.
+
+    call t_startf("bicg_vecupdate_init")
+    ru(:,:) = bu(:,:) - yu(:,:)
+    rv(:,:) = bv(:,:) - yv(:,:)
+    call t_stopf("bicg_vecupdate_init")
+
+    if (verbose_pcg .and. main_task) then
+       print*, 'init matvec multiply'
+       do n = 1, nx-1
+          print*, 'n, Auu =', Auu(n,1,:)
+          print*, 'n, Avv =', Avv(n,1,:)
+       enddo
+       print*, ' '
+       print*, 'xu =', xu(:,1)
+       print*, 'xv =', xv(:,1)
+       print*, ' '
+       print*, 'yu =', yu(:,1)
+       print*, 'yv =', yv(:,1)
+       print*, ' '
+       print*, 'bu =', bu(:,1)
+       print*, 'bv =', bv(:,1)
+       print*, ' '
+       print*, 'ru =', ru(:,1)
+       print*, 'rv =', rv(:,1)
+    endif
+
+    ! Copy to vector r0, which is dotted repeatedly with r and v below
+
+    r0u(:,:) = ru(:,:)
+    r0v(:,:) = rv(:,:)
+
+    ! Initialize scalars and vectors
+
+    niters = maxiters
+    rho   = 1.d0
+    alpha = 1.d0
+    omega = 1.d0
+
+    pu(:,:) = 0.d0
+    pv(:,:) = 0.d0
+
+    vu(:,:) = 0.d0
+    vv(:,:) = 0.d0
+
+    ! Compute the L2 norm of the RHS vectors
+    ! (Goal is to obtain L2_resid/L2_rhs < tolerance)
+
+    call t_startf("bicg_dotprod")
+    work1u(:,:) = bu(:,:)*bu(:,:)    ! terms of dot product (b,b)
+    work1v(:,:) = bv(:,:)*bv(:,:)
+    call t_stopf("bicg_dotprod")
+
+    ! find global sum of the squared L2 norm
+
+    call t_startf("bicg_glbsum_init")
+    call global_sum_staggered(nx,        ny,       &
+                              parallel,            &
+                              L2_rhs,              &
+                              work1u,    work1v)
+    call t_stopf("bicg_glbsum_init")
+
+    ! take square root
+    L2_rhs = sqrt(L2_rhs)       ! L2 norm of RHS
+
+    if (verbose_pcg .and. main_task) then
+       print*, ' '
+       print*, 'L2rhs =', L2_rhs
+    endif
+
+    ! iterate to solution
+
+    iter_loop: do iter = 1, maxiters
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'iter =', iter
+       endif
+
+       ! Save rho from the previous iteration
+       rho_old = rho
+
+       ! Compute the dot product rho = (r0, r)
+
+       call t_startf("bicg_dotprod")
+       work1u(:,:) = r0u(:,:)*ru(:,:)    ! terms of dot product (r0, r)
+       work1v(:,:) = r0v(:,:)*rv(:,:)
+       call t_stopf("bicg_dotprod")
+
+       call t_startf("bicg_glbsum_iter")
+       call global_sum_staggered(nx,     ny,     &
+                                 parallel,       &
+                                 rho,            &
+                                 work1u, work1v)
+       call t_stopf("bicg_glbsum_iter")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'r0u*ru =', work1u(:,1)
+          print*, 'new rho = sum(r0*r)', rho
+       endif
+
+       !WHL - If the solver has failed due to singular matrices, then rho may be NaN.
+
+       if (rho /= rho) then  ! rho is NaN
+          call write_log('BiCGSTAB solver has failed, rho = NaN', GM_FATAL)
+       endif
+
+       ! Update the conjugate direction vector p
+
+       call t_startf("bicg_vecupdate")
+       if (rho_old == 0.0d0) then
+          call write_log('BiCGSTAB solver has failed, rho_old = 0', GM_FATAL)
+       elseif (omega == 0.0d0) then
+          call write_log('BiCGSTAB solver has failed, omega = 0', GM_FATAL)
+       else
+          beta = (rho/rho_old) * (alpha/omega)
+       endif
+
+       pu(:,:) = ru(:,:) + beta*(pu(:,:) - omega*vu(:,:))   ! p(i) = r(i-1)  + beta * (p(i-1) - omega(i-1)*v(i-1))
+       pv(:,:) = rv(:,:) + beta*(pv(:,:) - omega*vv(:,:))
+       call t_stopf("bicg_vecupdate")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ''
+          print*, 'beta = (rho/rho_old) * (alpha/omega) =', beta
+          print*, 'p = r + beta*(p - omega*v)'
+          print*, 'pu =', pu(:,1)
+          print*, 'pv =', pv(:,1)
+       endif
+
+       ! Compute PC(p) = solution y of M*y = p
+
+       call t_startf("bicg_precond")
+       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+          yu(:,:) = pu(:,:)         ! PC(p) = p
+          yv(:,:) = pv(:,:)
+       elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (Adiagu(i,j) /= 0.d0) then
+                   yu(i,j) = pu(i,j) / Adiagu(i,j)   ! PC(p), where PC is formed from diagonal elements of A
+                else
+                   yu(i,j) = 0.d0
+                endif
+                if (Adiagv(i,j) /= 0.d0) then
+                   yv(i,j) = pv(i,j) / Adiagv(i,j)
+                else
+                   yv(i,j) = 0.d0
+                endif
+             enddo   ! i
+          enddo   ! j
+       endif    ! precond
+       call t_stopf("bicg_precond")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ''
+          print*, 'PC vector y = M^{-1}*p:'
+          print*, 'yu =', yu(:,1)
+          print*, 'yv =', yv(:,1)
+       endif
+
+       ! Note: To compute A*y correctly, A must be complete for all rows corresponding
+       !        to locally owned vertices, and y must have the correct values in
+       !        halo vertices bordering the locally owned vertices.
+       !       Then the product v = A*y will be correct for locally owned vertices.
+       !       Similarly for A*z below.
+
+       ! Halo update for y
+
+       !if (.not.test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+       call t_startf("bicg_halo_iter")
+       call staggered_parallel_halo(yu, parallel)
+       call staggered_parallel_halo(yv, parallel)
+       call t_stopf("bicg_halo_iter")
+       !endif
+
+       ! Compute v = A*y
+
+       call t_startf("bicg_matmult_iter")
+       call matvec_multiply_structured_2d(nx,            ny,            &
+                                          parallel,                     &
+                                          indxA_2d,      active_vertex, &
+                                          Auu,           Auv,           &
+                                          Avu,           Avv,           &
+                                          yu,            yv,            &
+                                          vu,            vv)
+       call t_stopf("bicg_matmult_iter")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ''
+          print*, 'v = A*y:'
+          print*, 'vu =', vu(:,1)
+          print*, 'vv =', vv(:,1)
+       endif
+
+       ! Compute the dot product (r0,v)
+
+       call t_startf("bicg_dotprod")
+       work1u(:,:) = r0u(:,:) * vu(:,:)    ! terms of dot product (r0,v)
+       work1v(:,:) = r0v(:,:) * vv(:,:)
+       call t_stopf("bicg_dotprod")
+
+       call t_startf("bicg_glbsum_iter")
+       call global_sum_staggered(nx,     ny,       &
+                                 parallel,         &
+                                 gsum1,            &
+                                 work1u, work1v)
+       call t_stopf("bicg_glbsum_iter")
+
+       ! Compute alpha = rho/(r0,v)
+
+       if (gsum1 /= 0.0d0) then
+          alpha = rho/gsum1
+       else
+          call write_log('BiCGSTAB solver has failed, (r0,v) = 0', GM_FATAL)
+       endif
+
+       ! Compute s = r - alpha*v
+
+       call t_startf("bicg_vecupdate")
+       su(:,:) = ru(:,:) - alpha * vu(:,:)
+       sv(:,:) = rv(:,:) - alpha * vv(:,:)
+       call t_stopf("bicg_vecupdate")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'alpha = rho/(r0,v)', alpha
+          print*, 's = r - alpha*v:'
+          print*, 'su =', su(:,1)
+          print*, 'sv =', sv(:,1)
+       endif
+
+       ! Compute PC(s) = solution z of M*z = s
+
+       call t_startf("bicg_precond")
+       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+          zu(:,:) = su(:,:)         ! PC(s) = s
+          zv(:,:) = sv(:,:)
+       elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (Adiagu(i,j) /= 0.d0) then
+                   zu(i,j) = su(i,j) / Adiagu(i,j)   ! PC(p), where PC is formed from diagonal elements of A
+                else
+                   zu(i,j) = 0.d0
+                endif
+                if (Adiagv(i,j) /= 0.d0) then
+                   zv(i,j) = sv(i,j) / Adiagv(i,j)
+                else
+                   zv(i,j) = 0.d0
+                endif
+             enddo   ! i
+          enddo   ! j
+       endif    ! precond
+       call t_stopf("bicg_precond")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'PC vector z = M^{-1}*s:'
+          print*, 'zu =', zu(:,1)
+          print*, 'zv =', zv(:,1)
+       endif
+
+       ! Halo update for z (must precede matvec multiply A*z)
+
+       !if (.not.test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+       call t_startf("bicg_halo_iter")
+       call staggered_parallel_halo(zu, parallel)
+       call staggered_parallel_halo(zv, parallel)
+       call t_stopf("bicg_halo_iter")
+       !endif
+
+       ! Compute t = A*z
+
+    !TODO - Modify for test matrix
+
+       call t_startf("bicg_matmult_iter")
+       call matvec_multiply_structured_2d(nx,            ny,            &
+                                          parallel,                     &
+                                          indxA_2d,      active_vertex, &
+                                          Auu,           Auv,           &
+                                          Avu,           Avv,           &
+                                          zu,            zv,            &
+                                          tu,            tv)
+       call t_stopf("bicg_matmult_iter")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'Product t = A*z:'
+          print*, 'tu =', tu(:,1)
+          print*, 'tv =', tv(:,1)
+       endif
+
+       ! Compute PC(t) = solution zz of M*zz = t
+
+       call t_startf("bicg_precond")
+       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+          zzu(:,:) = tu(:,:)         ! PC(s) = s
+          zzv(:,:) = tv(:,:)
+       elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (Adiagu(i,j) /= 0.d0) then
+                   zzu(i,j) = tu(i,j) / Adiagu(i,j)   ! PC(p), where PC is formed from diagonal elements of A
+                else
+                   zzu(i,j) = 0.d0
+                endif
+                if (Adiagv(i,j) /= 0.d0) then
+                   zzv(i,j) = tv(i,j) / Adiagv(i,j)
+                else
+                   zzv(i,j) = 0.d0
+                endif
+             enddo   ! i
+          enddo   ! j
+
+       endif    ! precond
+       call t_stopf("bicg_precond")
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'PC vector zz = M^{-1}*t:'
+          print*, 'zzu =', zzu(:,1)
+          print*, 'zzv =', zzv(:,1)
+       endif
+
+       ! Compute dot products (zz,z) and (zz,zz)
+       ! Note: Both global sums are found with a single MPI call
+
+       call t_startf("bicg_dotprod")
+       work2u(:,:,1) = zzu(:,:) * zu(:,:)    ! terms of dot product (zz,z)
+       work2v(:,:,1) = zzv(:,:) * zv(:,:)
+
+       work2u(:,:,2) = zzu(:,:) * zzu(:,:)   ! terms of dot product (zz,zz)
+       work2v(:,:,2) = zzv(:,:) * zzv(:,:)
+       call t_stopf("bicg_dotprod")
+
+       call t_startf("bicg_glbsum_iter")
+       call global_sum_staggered(nx,     ny,       &
+                                 parallel,         &
+                                 gsum2,             &
+                                 work2u, work2v)
+       call t_stopf("bicg_glbsum_iter")
+
+       ! Compute omega = (zz,z)/(zz,zz)
+       ! TODO - Check for the case s = 0?
+       !        If s = 0, then z = zz = t = 0, ensuring that r = 0 below.
+       !        Skip to solution?
+       if (gsum2(2) /= 0.0d0) then
+          omega = gsum2(1) / gsum2(2)
+       else
+          ! In this case, zz is a zero vector and omega = 0/0 is undefined.
+          ! Set omega = 0 and continue to the x update.
+          omega = 0.0d0
+       endif
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'omega=', omega
+       endif
+
+       ! Compute the new solution and residual
+
+       call t_startf("bicg_vecupdate")
+
+       ! new solution, x = x_i + alpha*y + omega*z
+       xu(:,:) = xu(:,:) + alpha * yu(:,:) + omega*zu(:,:)
+       xv(:,:) = xv(:,:) + alpha * yv(:,:) + omega*zv(:,:)
+
+       ! new residual, r = s - omega*t
+       ! Note: s = r_old - alpha*v
+       ru(:,:) = su(:,:) - omega * tu(:,:)
+       rv(:,:) = sv(:,:) - omega * tv(:,:)
+
+       if (verbose_pcg .and. main_task) then
+          print*, ' '
+          print*, 'New solution x:'
+          print*, 'xu =', xu(:,1)
+          print*, 'xv =', xv(:,1)
+          print*, ' '
+          print*, 'New residual r = s - omega*t:'
+          print*, 'ru =', ru(:,1)
+          print*, 'rv =', rv(:,1)
+       endif
+
+       ! Check for convergence every linear_solve_ncheck iterations.
+       ! Also check at iter = 5, to reduce iterations when the nonlinear solver is close to convergence.
+       !
+       ! For convergence check, use the residual b - Ax
+
+       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
+
+          if (verbose_pcg .and. main_task) then
+             print*, ' '
+             print*, 'Convergence check iter =', iter
+          endif
+
+          ! Halo update for x
+
+          !if (.not.test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+          call t_startf("bicg_halo_resid")
+          call staggered_parallel_halo(xu, parallel)
+          call staggered_parallel_halo(xv, parallel)
+          call t_stopf("bicg_halo_resid")
+          !endif
+
+          ! Compute A*x (use y as a temp vector for A*x)
+
+          call t_startf("bicg_matmult_resid")
+          call matvec_multiply_structured_2d(nx,            ny,            &
+                                             parallel,                     &
+                                             indxA_2d,      active_vertex, &
+                                             Auu,           Auv,           &
+                                             Avu,           Avv,           &
+                                             xu,            xv,            &
+                                             yu,            yv)
+          call t_stopf("bicg_matmult_resid")
+
+          ! Compute residual b - Ax (use z as a temp vector for b - A*x)
+
+          call t_startf("bicg_vecupdate")
+          zu(:,:) = bu(:,:) - yu(:,:)
+          zv(:,:) = bv(:,:) - yv(:,:)
+          call t_stopf("bicg_vecupdate")
+
+          ! Compute squared L2 norm of the residual
+
+          call t_startf("bicg_dotprod")
+          work1u(:,:) = zu(:,:)*zu(:,:)   ! terms of dot product (z,z)
+          work1v(:,:) = zv(:,:)*zv(:,:)
+          call t_stopf("bicg_dotprod")
+
+          call t_startf("bicg_glbsum_resid")
+          call global_sum_staggered(nx,     ny,     &
+                                    parallel,       &
+                                    L2_resid,       &
+                                    work1u, work1v)
+          call t_stopf("bicg_glbsum_resid")
+
+          ! take square root
+          L2_resid = sqrt(L2_resid)       ! L2 norm of residual
+
+          ! compute normalized error
+          err = L2_resid/L2_rhs
+
+          if (verbose_pcg .and. main_task) then
+             print*, 'err, tolerance =', err, tolerance
+          endif
+
+          if (err < tolerance) then
+             niters = iter
+             exit iter_loop
+          endif
+
+       endif    ! linear_solve_ncheck
+
+    enddo iter_loop
+
+    !WHL - Without good preconditioning, convergence can be slow, but the solution after maxiters might be good enough.
+
+    if (niters == maxiters) then
+       if (verbose_pcg .and. main_task) then
+          print*, 'Glissade BiCGSTAB solver not converged'
+          print*, 'niters, err, tolerance:', niters, err, tolerance
+       endif
+    else
+       if (verbose_pcg .and. main_task) then
+          print*, 'Glissade_BiCGSTAB solver converged, err =', err
+       endif
+    endif
+
+  end subroutine bicgstab_solver_2d
 
 !****************************************************************************
 
@@ -5192,10 +5890,17 @@
           staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
           staggered_jlo, staggered_jhi
 
+     !if (test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+     !staggered_ilo = 1
+     !staggered_ihi = nx-1
+     !staggered_jlo = 1
+     !staggered_jhi = ny-1
+     !else
      staggered_ilo = parallel%staggered_ilo
      staggered_ihi = parallel%staggered_ihi
      staggered_jlo = parallel%staggered_jlo
      staggered_jhi = parallel%staggered_jhi
+     !endif
 
      local_sum = 0.d0
 
@@ -5250,10 +5955,17 @@
            staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
            staggered_jlo, staggered_jhi
 
+      !if (test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+      !staggered_ilo = 1
+      !staggered_ihi = nx-1
+      !staggered_jlo = 1
+      !staggered_jhi = ny-1
+      !else
       staggered_ilo = parallel%staggered_ilo
       staggered_ihi = parallel%staggered_ihi
       staggered_jlo = parallel%staggered_jlo
       staggered_jhi = parallel%staggered_jhi
+      !endif
 
       nvar = size(global_sum)
 
@@ -5486,10 +6198,17 @@
        staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
        staggered_jlo, staggered_jhi
 
+    !if (test_matrix_pcg) then  ! see comment above on test_matrix_pcg logic
+    !staggered_ilo = 1
+    !staggered_ihi = nx-1
+    !staggered_jlo = 1
+    !staggered_jhi = ny-1
+    !else
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
+    !endif
 
     ! Initialize the result vector.
 
@@ -5687,6 +6406,185 @@
     enddo
 
   end subroutine tridiag_solver
+
+!****************************************************************************
+
+  subroutine test_bicg_solver(nmat,                             &
+                              parallel,   indxA_2d,             &
+                              precond,    linear_solve_ncheck,  &
+                              tolerance,  maxiters,             &
+                              err,        niters)
+
+    ! Call the BiCGSTAB solver with a simple test matrix of order nmat.
+
+    integer, intent(in) :: nmat
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+         indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
+
+    integer, intent(in)  ::   &
+         precond           ! = 0 for no preconditioning
+
+    integer, intent(in)  :: &
+         linear_solve_ncheck         ! number of iterations between convergence checks in the linear solver
+
+    integer, intent(in) ::    &
+         maxiters                    ! max number of linear iterations before quitting
+
+    real(dp), intent(in) ::   &
+         tolerance                   ! tolerance for linear solver
+
+    real(dp), intent(out) ::  &
+         err                         ! error (L2 norm of residual) in final solution
+
+    integer, intent(out) ::   &
+         niters                      ! iterations needed to solution
+
+    ! local variables
+
+    real(dp), dimension(nmat,nmat) :: &
+         Atest    ! test matrix in usual row-column format
+
+    real(dp), dimension(nmat) :: &
+         rhs      ! rhs in usual column format
+
+    real(dp), dimension(nmat,1,9) ::   &
+         Auu, Auv, Avu, Avv     ! four components of assembled matrix in CISM structured format
+                                ! 3rd index corresponds to the indexA_2d values
+
+    real(dp), dimension(nmat,1) :: &
+         bu, bv,             & ! right-hand-side (b) in Ax = b
+         xu, xv                ! answer (x) in Ax = b
+
+    logical, dimension(nmat,1) ::  &
+         active_vertex
+
+    integer :: n, nx, ny
+
+    integer :: itest, jtest, rtest
+
+    logical, parameter :: verbose_test = .true.
+    logical, parameter :: symmetric = .true.
+
+    itest = 1
+    jtest = 1
+    rtest = -999  ! to prevent verbose diagnostics
+
+    ! Set up a simple test matrix and rhs
+
+    Atest(:,:) = 0.d0
+    rhs(:) = 0.0d0
+
+    if (symmetric) then
+
+       if (nmat == 3) then
+          Atest(1,1:3) = (/ 7.d0, -2.d0,  0.d0 /)
+          Atest(2,1:3) = (/-2.d0,  6.d0, -2.d0 /)
+          Atest(3,1:3) = (/ 0.d0, -2.d0,  5.d0 /)
+          rhs(1:3)   =   (/ 3.d0,  8.d0,  1.d0 /)   ! answer = (1 2 1)
+       elseif (nmat == 4) then
+          Atest(1,1:4) = (/ 2.d0, -1.d0,  0.d0,  0.d0 /)
+          Atest(2,1:4) = (/-1.d0,  2.d0, -1.d0,  0.d0 /)
+          Atest(3,1:4) = (/ 0.d0, -1.d0,  2.d0, -1.d0 /)
+          Atest(4,1:4) = (/ 0.d0,  0.d0, -1.d0,  2.d0 /)
+          rhs(1:4)    = (/  0.d0,  1.d0, -1.d0,  4.d0 /)   ! answer = (1 2 2 3)
+       else  ! simple symmetric matrix of arbitrary size;
+             ! solution x = (1 1 1 ... 1 1 1)
+          do n = 1, nmat
+             Atest(n,n) = 2.d0
+             if (n > 1) Atest(n,n-1) = -1.d0
+             if (n < nmat) Atest(n,n+1) = -1.d0
+          enddo
+          rhs(1) = 1.d0
+          rhs(nmat) = 1.d0
+          rhs(2:nmat-1) = 0.d0
+       endif
+
+    else  ! not symmetric
+
+       if (nmat == 3) then
+          Atest(1,1:3) = (/3.d0,   1.d0,   0.d0 /)
+          Atest(2,1:3) = (/2.d0,   2.d0,   5.d0 /)
+          Atest(3,1:3) = (/0.d0,  -3.d0,  -4.d0 /)
+          rhs(1:3)   =  (/ 5.d0,  11.d0, -10.d0 /)   ! answer = (1 2 1)
+       elseif (nmat == 4) then
+          Atest(1,1:4) = (/3.d0,  2.d0,  0.d0,  0.d0 /)
+          Atest(2,1:4) = (/1.d0,  2.d0,  2.d0,  0.d0 /)
+          Atest(3,1:4) = (/0.d0,  4.d0,  1.d0,  6.d0 /)
+          Atest(4,1:4) = (/0.d0,  0.d0,  5.d0,  2.d0 /)
+          rhs(1:4)    = (/ 7.d0,  9.d0, 16.d0, 12.d0 /)   ! answer = (1 2 2 1)
+       else  ! currently no non-symmetric matrix for nmat >= 5
+          call write_log('No support for non-symmetric matrix solve with N > 4', GM_FATAL)
+       endif
+
+    endif   ! symmetric
+
+       print*, 'Solving test matrix, order =', nmat
+       if (verbose_test) then
+          print*, ' '
+          print*, 'Atest =', Atest
+          print*, 'rhs =', rhs
+       endif
+
+       ! Set up parameter and arrays to pass to the solver.
+       !Note: You might expect nx = nmat, ny = 1.
+       !      However, the solver expects matrices of size (nx-1,ny-1).
+       !      We pass a tridiagonal matrix corresponding to a grid with n columns and 1 row.
+       !      Elements 4, 5 and 6 are nonzero for n = 1 to nmat, and the other elements are zero.
+
+       nx = nmat + 1
+       ny = 2
+
+    ! Initialize the matrices passed to the solver.
+    ! These are set up in CISM format, with 9 elements per grid cell.
+
+    Auu = 0.0d0
+    do n = 1, nmat
+       if (n == 1) then
+          Auu(n,1,5) = Atest(1,1)     ! diagonal
+          Auu(n,1,6) = Atest(1,2)     ! superdiagonal
+       elseif (n == nmat) then
+          Auu(n,1,4) = Atest(nmat,nmat-1)   ! subdiagonal
+          Auu(n,1,5) = Atest(nmat,nmat)     ! diagonal
+       else
+          Auu(n,1,4) = Atest(n,n-1)   ! subdiagonal
+          Auu(n,1,5) = Atest(n,n)     ! diagonal
+          Auu(n,1,6) = Atest(n,n+1)   ! superdiagonal
+       endif
+    enddo
+
+    ! Initialize the other 3 matrices
+    ! Setting Avv = Auu with Auv = Avu = 0 gives two identical, independent systems,
+    !  one for xu and one for xv.
+    Auv = 0.0d0
+    Avu = 0.0d0
+    Avv = Auu
+
+    ! Initialize the rhs and solution
+    bu(:,1) = rhs(:)
+    bv(:,:) = bu(:,:)
+
+    xu(:,:) = 0.0d0
+    xv(:,:) = 0.0d0
+
+    active_vertex(:,:) = .true.
+
+    call bicgstab_solver_2d(nx,         ny,              &
+                            parallel,                    &
+                            indxA_2d,   active_vertex,   &
+                            Auu,        Auv,             &
+                            Avu,        Avv,             &
+                            bu,         bv,              &
+                            xu,         xv,              &
+                            precond,    linear_solve_ncheck,  &
+                            tolerance,  maxiters,        &
+                            err,        niters,          &
+                            itest, jtest, rtest)
+
+  end subroutine test_bicg_solver
 
 !****************************************************************************
 

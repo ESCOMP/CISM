@@ -1087,12 +1087,13 @@ contains
          'L2 norm of Ax-b = resid     ', &
          'relative L2 norm, |Ax-b|/|b|' /)
 
-    character(len=*), dimension(-1:4), parameter :: ho_whichsparse = (/ &
+    character(len=*), dimension(-1:5), parameter :: ho_whichsparse = (/ &
          'PCG with incomplete Cholesky preconditioner', &
          'BiCG with LU preconditioner                ', &
          'GMRES with LU preconditioner               ', &
          'Native PCG solver, standard                ', &
          'Native PCG solver, Chronopoulos-Gear       ', &
+         'Native BiCGSTAB solver                     ', &
          'Trilinos interface                         '/)
 
     character(len=*), dimension(-1:4), parameter :: ho_whichapprox = (/ &
@@ -1247,7 +1248,8 @@ contains
              model%options%which_ho_approx == HO_APPROX_DIVA)   &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
-              model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
+              model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR .or.   &
+              model%options%which_ho_sparse == HO_SPARSE_BICGSTAB) ) then
           if (model%options%which_ho_precond == HO_PRECOND_SIA) then
              !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
              model%options%which_ho_precond = HO_PRECOND_DIAG
@@ -1275,8 +1277,9 @@ contains
     if (model%options%whichdycore /= DYCORE_GLISSADE) then 
 
        if (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.   &
-           model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) then
-          call write_log('Error, native PCG solver requires glissade dycore', GM_FATAL)
+           model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR .or.  &
+           model%options%which_ho_sparse == HO_SPARSE_BICGSTAB) then
+          call write_log('Error, native velocity solvers requires glissade dycore', GM_FATAL)
        endif
 
        if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
@@ -1991,7 +1994,8 @@ contains
 
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
            (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
-            model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then 
+            model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR .or. &
+            model%options%which_ho_sparse == HO_SPARSE_BICGSTAB) ) then
           write(message,*) 'ho_whichprecond         : ',model%options%which_ho_precond,  &
                             ho_whichprecond(model%options%which_ho_precond)
           call write_log(message)

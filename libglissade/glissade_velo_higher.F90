@@ -76,7 +76,8 @@
     use glissade_velo_higher_pcg, only:   &
          pcg_solver_standard_3d,   pcg_solver_standard_2d,  &
          pcg_solver_chrongear_3d,  pcg_solver_chrongear_2d, &
-         matvec_multiply_structured_3d
+         bicgstab_solver_2d,       matvec_multiply_structured_3d, &
+         test_bicg_solver
 
 #ifdef TRILINOS
     use glissade_velo_higher_trilinos, only: &
@@ -993,13 +994,12 @@
     integer :: i, j, k, m, n, p, r
     integer :: iA, jA, kA
     real(dp) :: maxthck, maxusrf
-    logical, parameter :: test_matrix = .false.
-!    logical, parameter :: test_matrix = .true.
+    logical, parameter :: test_matrix_slap = .false.
+    logical, parameter :: test_matrix_bicg = .false.
     integer, parameter :: test_order = 4
 
     ! for trilinos test problem
     logical, parameter :: test_trilinos = .false.
-!    logical, parameter :: test_trilinos = .true.
 
     ! for diagnostic prints
     integer, parameter :: xmax_print = 20
@@ -1293,7 +1293,7 @@
        vvel_2d(:,:) = vvel(nz,:,:)
     endif
 
-    if (test_matrix) then
+    if (test_matrix_slap) then
        if (whichsparse <= HO_SPARSE_GMRES) then   ! this test works for SLAP solver only
           call slap_solve_test_matrix(test_order, whichsparse)
        else
@@ -3649,9 +3649,10 @@
           L2_norm_relative = 0.d0
 
        elseif (whichsparse == HO_SPARSE_PCG_STANDARD .or.   &
-               whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! native PCG solver
-                                                              ! works for both serial and parallel runs
-
+               whichsparse == HO_SPARSE_PCG_CHRONGEAR .or.  &
+               whichsparse == HO_SPARSE_BICGSTAB) then        ! native velocity solvers;
+                                                              ! work for both serial and parallel runs
+                                                              ! BICGSTAB currently works only for a 2d solve
           if (solve_2d) then
 
              !------------------------------------------------------------------------
@@ -3677,7 +3678,7 @@
                                              err,          niters,        &
                                              itest, jtest, rtest)
 
-             else   ! use standard PCG algorithm
+             elseif (whichsparse == HO_SPARSE_PCG_STANDARD) then   ! use standard PCG algorithm
              
                 call pcg_solver_standard_2d(nx,           ny,            &
                                             parallel,                    &
@@ -3691,6 +3692,35 @@
                                             linear_maxiters,             &
                                             err,          niters,        &
                                             itest, jtest, rtest)
+
+             elseif (whichsparse == HO_SPARSE_BICGSTAB) then   ! use BiCGSTAB algorithm
+
+                if (test_matrix_bicg) then
+
+                   !WHL - Solve a simple test matrix using the BiCG solver
+                   if (main_task) print*, 'call test_bicg_solver'
+                   call test_bicg_solver(test_order,                           &
+                                         parallel,       indxA_2d,             &
+                                         whichprecond,   linear_solve_ncheck,  &
+                                         linear_tolerance,                     &
+                                         linear_maxiters,                      &
+                                         err,        niters)
+                   stop
+
+                endif
+
+                call bicgstab_solver_2d(nx,           ny,            &
+                                        parallel,                    &
+                                        indxA_2d,     active_vertex, &
+                                        Auu_2d,       Auv_2d,        &
+                                        Avu_2d,       Avv_2d,        &
+                                        bu_2d,        bv_2d,         &
+                                        uvel_2d,      vvel_2d,       &
+                                        whichprecond, linear_solve_ncheck, &
+                                        linear_tolerance,            &
+                                        linear_maxiters,             &
+                                        err,          niters,        &
+                                        itest, jtest, rtest)
 
              endif  ! whichsparse
 
@@ -3721,8 +3751,8 @@
                                              err,          niters,        &
                                              itest, jtest, rtest)
 
-             else   ! use standard PCG algorithm
-             
+             elseif (whichsparse == HO_SPARSE_PCG_STANDARD) then   ! use standard PCG algorithm
+
                 call pcg_solver_standard_3d(nx,           ny,            &
                                             nz,           parallel,      &
                                             indxA_3d,     active_vertex, &
@@ -3735,6 +3765,10 @@
                                             linear_maxiters,             &
                                             err,          niters,        &
                                             itest, jtest, rtest)
+
+             elseif (whichsparse == HO_SPARSE_BICGSTAB) then   ! use BiCGSTAB algorithm
+
+                call write_log('BiCGSTAB not yet implemented for a 3D solve', GM_FATAL)
 
              endif   ! whichsparse
 
