@@ -20,7 +20,7 @@ The solutions for n = 1 are derived in Dukowicz (2012), and solutions for n > 1
 are derived in an unpublished manuscript by Dukowicz (2013).
 
 The original scripts, runSlab.py and plotSlab.py, were written by Matt Hoffman
-with support for Glens' n = 1.  They came with warnings that the test is not supported.
+with support for Glen's n = 1.  They came with warnings that the test is not supported.
 The test is now supported, and the scripts include some new features:
 
 * The user may specify any n >= 1 (not necessarily an integer).
@@ -35,9 +35,9 @@ The test is now supported, and the scripts include some new features:
 
 The run script is executed by a command like the following:
 
-> python runSlab.py -n 4 -a DIVA -theta 0.0375 -thk 1000. -mu 1.e5 -beta 1000.
+> python runSlab.py -n 4 -a DIVA -theta 0.0573 -thk 1000. -mu 1.e5 -beta 1000.
 
-In this case, the user runs on 4 processors with the DIVA solver, a slope angle of 0.0375 degrees,
+In this case, the user runs on 4 processors with the DIVA solver, a slope angle of 0.0573 degrees,
 Glen's n = 1 (the default), slab thickness H = 1000 m, sliding coefficient beta = 1000 Pa (m/yr)^{-1},
 and viscosity coefficient 1.e5 Pa yr.
 These parameters correspond to the thick shearing test case described by Robinson et al. (2021).
@@ -52,7 +52,7 @@ Notes on effective viscosity:
      mu_1 = 1.e6 Pa yr and the same values of thickness, beta, and theta.
    * There is a subtle difference between the Dukowicz and CISM definitions of the
      effective strain rate; the Dukowicz value is twice as large. Later, it might be helpful
-     to make the Dukowicz convention consistent with CISM.)
+     to make the Dukowicz convention consistent with CISM.
 
 The plotting script, plotSlab.py, is run by typing 'python plotSlab.py'.  It creates two plots.
 The first plot shows the vertical velocity profile in nondimensional units and in units of m/yr.
@@ -63,9 +63,8 @@ For the second plot, the extent of the y-axis is wrong. This remains to be fixed
 
 This directory also includes a new script, stabilitySlab.py, to carry out the stability tests
 described in Robinson et al. (2021).
-
 For a given set of physics parameters and stress-balance approximation (DIVA, L1L2, etc.),
-the script launches multiple CISM runs at a range of grid resolutions.
+this script launches multiple CISM runs at a range of grid resolutions.
 At each grid resolution, the script determines the maximum stable time step.
 A run is deemed stable when the standard deviation of an initial small thickness perturbation
 is reduced over the course of 100 time steps.  A run is unstable if the standard deviation
@@ -84,5 +83,5 @@ This test takes several minutes to complete on a Macbook Pro with 4 cores.
 
 To see the full set of commmand line options, type 'python stabilitySlab.py -h'.
 
-For questions, please contact Willian Lipscomb (lipscomb@ucar.edu) or Gunter Leguy (gunterl@ucar.edu).
+For questions, please contact William Lipscomb (lipscomb@ucar.edu) or Gunter Leguy (gunterl@ucar.edu).
 
