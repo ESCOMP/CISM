@@ -1093,13 +1093,14 @@ contains
          'Native PCG solver, Chronopoulos-Gear       ', &
          'Trilinos interface                         '/)
 
-    character(len=*), dimension(-1:4), parameter :: ho_whichapprox = (/ &
+    character(len=*), dimension(-1:5), parameter :: ho_whichapprox = (/ &
          'SIA only (glissade_velo_sia)                     ', &
          'SIA only (glissade_velo_higher)                  ', &
          'SSA only (glissade_velo_higher)                  ', &
          'Blatter-Pattyn HO (glissade_velo_higher)         ', &
          'Depth-integrated L1L2 (glissade_velo_higher)     ', &
-         'Depth-integrated viscosity (glissade_velo_higher)' /)
+         'Depth-integrated viscosity (glissade_velo_higher)', &
+         'Hybrid SIA/SSA                                   ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whichprecond = (/ &
          'No preconditioner (native PCG)                ', &
@@ -1242,7 +1243,8 @@ contains
 
        if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
              model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-             model%options%which_ho_approx == HO_APPROX_DIVA)   &
+             model%options%which_ho_approx == HO_APPROX_DIVA .or.  &
+             model%options%which_ho_approx == HO_APPROX_HYBRID)    &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
