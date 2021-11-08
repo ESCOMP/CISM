@@ -414,6 +414,7 @@ def main():
             print(i, dthk, thk[0,ny//2,i])
             thk_in = thk   # for comparing later to final thk
 
+
     # Create the required variables in the netCDF file.
     nc_file.createVariable('thk', 'f',('time','y1','x1'))[:] = thk
     nc_file.createVariable('topg','f',('time','y1','x1'))[:] = topg
