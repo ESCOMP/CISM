@@ -62,7 +62,7 @@ parser.add_argument('-s','--setup-only', action='store_true',
 #      Rather, mu_n is computed below, unless mu_n > 0 is specified in the command line.
 #      For n = 1, the default is mu_1 = 1.0e6 Pa yr.
 parser.add_argument('-a','--approx', default='DIVA',
-        help="Stokes approximation (SIALOC, SIA, SSA, BP, L1L2, DIVA)")
+        help="Stokes approximation (SIALOC, SIA, SSA, BP, L1L2, DIVA, HYBRID)")
 parser.add_argument('-beta','--beta', default=2000.0,
         help="Friction parameter beta (Pa (m/yr)^{-1})")
 parser.add_argument('-dh','--delta_thck', default=0.0,
@@ -324,6 +324,8 @@ def main():
         approx = 3
     elif (args.approx == 'DIVA'):
         approx = 4
+    elif (args.approx == 'HYBRID'):
+        approx = 5
     config_parser.set('ho_options', 'which_ho_approx', str(approx))
 
     config_parser.set('CF input', 'name', file_name)
