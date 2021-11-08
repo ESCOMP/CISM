@@ -49,6 +49,7 @@ module glissade_grid_operators
     private
     public :: glissade_stagger, glissade_unstagger, glissade_stagger_real_mask, &
               glissade_gradient, glissade_gradient_at_edges, &
+              glissade_average_to_edges,            &
               glissade_surface_elevation_gradient,  &
               glissade_slope_angle,                 &
               glissade_laplacian_smoother,          &
@@ -705,6 +706,64 @@ contains
     endif
 
   end subroutine glissade_gradient_at_edges
+
+!****************************************************************************
+
+  subroutine glissade_average_to_edges(nx,           ny,           &
+                                       field,                      &
+                                       field_east,   field_north,  &
+                                       cell_mask)
+
+    !----------------------------------------------------------------
+    ! Given a scalar variable f on the unstaggered grid (dimension nx, ny),
+    ! average the field to east and north edges.
+    ! Note: The east fields have dimension (nx-1,ny) and the north fields (nx,ny-1).
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+       nx, ny                   ! horizontal grid dimensions
+
+    real(dp), dimension(nx,ny), intent(in) ::       &
+       field                    ! scalar field, defined at cell centers
+
+    real(dp), dimension(nx-1,ny), intent(out) ::    &
+       field_east               ! field averaged to east edges
+
+    real(dp), dimension(nx,ny-1), intent(out) ::    &
+       field_north              ! field averaged to north edges
+
+    integer, dimension(nx,ny), intent(in) ::        &
+       cell_mask                ! average at edges only if cell_mask = 1 on either side
+
+    ! Local variables
+
+    integer :: i, j
+
+    field_east(:,:) = 0.0d0
+    field_north(:,:) = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx-1
+          if (cell_mask(i,j) == 1  .and. cell_mask(i+1,j) == 1) then
+             field_east(i,j) = 0.5d0*(field(i,j) + field(i+1,j))
+          endif
+       enddo
+    enddo
+
+    do j = 1, ny-1
+       do i = 1, nx
+          if (cell_mask(i,j) == 1  .and. cell_mask(i,j+1) == 1) then
+             field_north(i,j) = 0.5d0*(field(i,j) + field(i,j+1))
+          endif
+       enddo
+    enddo
+
+
+  end subroutine glissade_average_to_edges
 
 !****************************************************************************
 

@@ -1119,10 +1119,13 @@ module glissade_therm
 
              delta_e = (ucondflx(ew,ns) - lcondflx(ew,ns) + dissipcol(ew,ns)) * dttem
 
-             ! Note: For very small dttem (e.g., 1.0d-6 year or less), this error can be triggered
-             !       by roundoff error.  In that case, the user may need to increase the threshold.
-             ! July 2021: Increased from 1.0d-8 to 1.0d-7 to allow smaller dttem.
              if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
+             ! WHL: For stability tests with a very short time step (e.g., < 1.d-6 year),
+             !      the energy-conservation error can be triggered by machine roundoff.
+             !      For these tests, I uncommented the line below, which compares the
+             !      error to the total amount of energy.  The latter criterion is less likely
+             !      to give false positives, but might be more likely to give false negatives.
+!!             if (abs((efinal-einit-delta_e)/(efinal)) > 1.0d-8) then
 
                 if (verbose_column) then
                    print*, 'Ice thickness:', thck(ew,ns)
