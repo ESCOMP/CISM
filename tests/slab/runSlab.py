@@ -61,8 +61,8 @@ parser.add_argument('-s','--setup-only', action='store_true',
 #Note: The default mu_n = 0.0 is not actually used.
 #      Rather, mu_n is computed below, unless mu_n > 0 is specified in the command line.
 #      For n = 1, the default is mu_1 = 1.0e6 Pa yr.
-parser.add_argument('-a','--approx', default='BP',
-        help="Stokes approximation (SIA, SSA, BP, L1L2, DIVA)")
+parser.add_argument('-a','--approx', default='DIVA',
+        help="Stokes approximation (SIALOC, SIA, SSA, BP, L1L2, DIVA)")
 parser.add_argument('-beta','--beta', default=2000.0,
         help="Friction parameter beta (Pa (m/yr)^{-1})")
 parser.add_argument('-dh','--delta_thck', default=0.0,
@@ -267,11 +267,11 @@ def main():
     # This is how CISM incorporates a prescribed mu_n (with flow_law = 0, i.e. constant flwa).
     # Note: The complicated exponent of 2 in the denominator results from CISM and the Dukowicz papers
     #       having different conventions for the squared effective strain rate, eps_sq.
-    #       In CISM:     mu = 1/2 * A^(-1/n) * eps_sq_c^((1-n)/(2n))
-    #        where eps_sq_c = 1/2 * eps_ij * eps_ij
-    #                eps_ij = strain rate tensor
-    #       In Dukowicz: mu = mu_n * eps_sq_d^((1-n)/(2n))
-    #        where eps_sq_d = eps_ij * eps_ij = 2 * eps_sq_c
+    #       In CISM:        mu = 1/2 * A^(-1/n) * eps_sq_cism^((1-n)/(2n))
+    #        where eps_sq_cism = 1/2 * eps_ij * eps_ij
+    #                   eps_ij = strain rate tensor
+    #       In Dukowicz:    mu = mu_n * eps_sq_duk^((1-n)/(2n))
+    #        where eps_sq_duk = eps_ij * eps_ij = 2 * eps_sq_cism
     #       Equating the two values of mu, we get mu_n * 2^((1-n)/(2n)) = 1/2 * A^(-1/n),
     #        which we solve to find A = 1 / [2^((1+n)/2) * mu_n^n]
     #       Conversely, we have  mu_n = 1 / [2^((1+n)/(2n)) * A^(1/n)]
@@ -310,8 +310,12 @@ def main():
     config_parser.set('parameters', 'n_glen', str(gn))
     config_parser.set('parameters', 'default_flwa', str(flwa))
 
-    if (args.approx == 'SIA'):
-        approx = 0
+    if (args.approx == 'SIALOC'):
+        approx = -1             # Glissade local SIA; uses basal_tract_const = 1/beta
+        config_parser.set('options', 'slip_coeff', str(1))
+        config_parser.set('parameters', 'basal_tract_const', str(1./beta))
+    elif (args.approx == 'SIA'):
+        approx = 0              # Glissade matrix-based SIA
     elif (args.approx == 'SSA'):
         approx = 1
     elif (args.approx == 'BP'):
@@ -394,9 +398,15 @@ def main():
 #            rnd_normal = mu + sigma * sqrt(-2.0 * np.log(rnd2)) * sin(2.0*pi*rnd1)
 
             dthk = dh * rnd_normal
+
+            # Uncomment to make the perturbation a sine wave (alternating 1, -1)
+            # This can be useful if we want reproducible results (no random numbers)
+##            dthk = dh * sin((float(i) - 0.5)*pi)
+
             thk[0,:,i] = thk[0,:,i] + dthk
             print(i, dthk, thk[0,ny/2,i])
             thk_in = thk   # for comparing later to final thk
+
 
     # Create the required variables in the netCDF file.
     nc_file.createVariable('thk', 'f',('time','y1','x1'))[:] = thk
