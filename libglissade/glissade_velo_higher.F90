@@ -6546,17 +6546,11 @@
        stagtau_parallel_sq,     &! tau_parallel^2, interpolated to staggered grid
        stagflwa                  ! flwa, interpolated to staggered grid
 
-    real(dp), dimension(nx-1,ny-1) ::   &
-       vintfact                  ! vertical integration factor at vertices
-
     real(dp) ::   &
        depth,                   &! distance from upper surface to midpoint of a given layer
        eps_parallel,            &! parallel effective strain rate, evaluated at cell centers
        tau_eff_sq,              &! square of effective stress (Pa^2)
                                  ! = tau_parallel^2 + tau_perp^2 for L1L2
-       tau_xz_vertex,           &! tau_xz averaged from edges to vertices
-       tau_yz_vertex,           &! tau_yz averaged from edges to vertices
-       fact_east, fact_north,   &! factors in velocity integral
        fact                      ! factor in velocity integral
 
     integer :: i, j, k, n
@@ -6669,7 +6663,6 @@
        enddo      ! i
     enddo         ! j
 
-    ! Halo update for tau_parallel, so it is valid in all halo cells
     call parallel_halo(tau_parallel, parallel)
 
     !--------------------------------------------------------------------------------
@@ -6785,7 +6778,6 @@
                 !  =>   1/efvs = 2 * A * tau_e(n-1)
                 !
                 ! Thus, for options 0 and 1, we can replace 2 * A * tau_e^(n-1) below with 1/efvs.
-                !TODO - Copy this logic to the edge-based calculation
 
                 if (whichefvs == HO_EFVS_NONLINEAR) then
                    fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0) &
