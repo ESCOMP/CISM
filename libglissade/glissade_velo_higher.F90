@@ -4013,7 +4013,6 @@
           if (verbose_velo .and. this_rank==rtest) then
              i = itest
              j = jtest
-             print*, ' '
              print*, 'rank, i, j, uvel_2d, vvel_2d (m/yr):', &
                       this_rank, i, j, uvel_2d(i,j), vvel_2d(i,j)               
           endif
@@ -4209,7 +4208,8 @@
        enddo
 
        call compute_3d_velocity_L1L2(nx,               ny,              &
-                                     nz,               sigma,           &
+                                     nz,                                &
+                                     sigma,            stagsigma,       &
                                      dx,               dy,              &
                                      itest,   jtest,   rtest,           &
                                      parallel,                          &
@@ -4222,9 +4222,7 @@
                                      usrf,                              &
                                      dusrf_dx,         dusrf_dy,        &
                                      flwa,             efvs,            &
-                                     whichefvs,        efvs_constant,   &
-                                     whichgradient_margin,              &
-                                     max_slope,                         &
+                                     whichefvs,                         &
                                      uvel,             vvel)
 
        call staggered_parallel_halo(uvel, parallel)
@@ -4310,7 +4308,7 @@
        print*, 'uvel, k=1 (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f8.2)',advance='no') uvel(1,i,j)
+             write(6,'(f10.3)',advance='no') uvel(1,i,j)
           enddo
           print*, ' '
        enddo
@@ -4318,7 +4316,23 @@
        print*, 'vvel, k=1 (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f8.2)',advance='no') vvel(1,i,j)
+             write(6,'(f10.3)',advance='no') vvel(1,i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'uvel, k=nz (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') uvel(nz,i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'vvel, k=nz (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') vvel(1,i,j)
           enddo
           print*, ' '
        enddo
@@ -6412,7 +6426,8 @@
 !****************************************************************************
 
   subroutine compute_3d_velocity_L1L2(nx,               ny,              &
-                                      nz,               sigma,           &
+                                      nz,                                &
+                                      sigma,            stagsigma,       &
                                       dx,               dy,              &
                                       itest,   jtest,   rtest,           &
                                       parallel,                          &
@@ -6424,15 +6439,13 @@
                                       usrf,                              &
                                       dusrf_dx,         dusrf_dy,        &
                                       flwa,             efvs,            &
-                                      whichefvs,        efvs_constant,   &
-                                      whichgradient_margin,              &
-                                      max_slope,                         &
+                                      whichefvs,                         &
                                       uvel,             vvel)
 
     !----------------------------------------------------------------
-    ! Given the basal velocity and the 3D profile of effective viscosity
-    !  and horizontal-plane stresses, construct the 3D stress and velocity
-    !  profiles for the L1L2 approximation.
+    ! Given the basal velocity and the 3D profile of effective viscosity and
+    !  horizontal-plane stresses, construct the 3D stress and velocity profiles
+    !  for the L1L2 approximation, following Perego et al. (J. Glaciol., 2012).
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -6453,7 +6466,10 @@
        parallel                    ! info for parallel communication
 
     real(dp), dimension(nz), intent(in) ::    &
-       sigma              ! sigma vertical coordinate
+       sigma                       ! sigma vertical coordinate at layer boundaries
+
+    real(dp), dimension(nz-1), intent(in) ::    &
+       stagsigma                   ! sigma vertical coordinate at layer midpoints
 
     integer, dimension(nx,ny), intent(in) ::  &
        ice_mask,        & ! = 1 for cells where ice is present (thck > thklim), else = 0
@@ -6487,18 +6503,6 @@
 
     integer, intent(in) :: &
        whichefvs          ! option for effective viscosity calculation
-
-    real(dp), intent(in) :: &
-       efvs_constant      ! constant value of effective viscosity (Pa yr)
-
-    integer, intent(in) ::  &
-       whichgradient_margin     ! option for computing gradient at ice margin
-                                ! 0 = include all neighbor cells in gradient calculation
-                                ! 1 = include ice-covered and/or land cells
-                                ! 2 = include ice-covered cells only
-
-    real(dp), intent(in) ::  &
-       max_slope          ! maximum slope allowed for surface gradient computations (unitless)
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        uvel, vvel         ! velocity components (m/yr)
@@ -6542,93 +6546,29 @@
        stagtau_parallel_sq,     &! tau_parallel^2, interpolated to staggered grid
        stagflwa                  ! flwa, interpolated to staggered grid
 
-    real(dp), dimension(nx-1,ny-1) ::   &
-       vintfact                  ! vertical integration factor at vertices
-
     real(dp) ::   &
        depth,                   &! distance from upper surface to midpoint of a given layer
        eps_parallel,            &! parallel effective strain rate, evaluated at cell centers
        tau_eff_sq,              &! square of effective stress (Pa^2)
                                  ! = tau_parallel^2 + tau_perp^2 for L1L2
-       tau_xz_vertex,           &! tau_xz averaged from edges to vertices
-       tau_yz_vertex,           &! tau_yz averaged from edges to vertices
-       fact_east, fact_north,   &! factors in velocity integral
        fact                      ! factor in velocity integral
-
-    real(dp), dimension(nx-1,ny) ::  &
-       thck_east,               &! ice thickness averaged to east edges
-       flwa_east,               &! flow factor averaged to east edges
-       tau_parallel_sq_east,    &! tau_parallel^2, averaged to east edges
-       dusrf_dx_east,           &! x gradient of upper surface elevation at east edges (m/m)
-       dusrf_dy_east,           &! y gradient of upper surface elevation averaged to east edges (m/m)
-       dwork1_dx_east,          &! x gradient of work1 array at east edges
-       dwork2_dx_east,          &! x gradient of work2 array at east edges
-       dwork3_dx_east,          &! x gradient of work3 array at east edges
-       dwork2_dy_east,          &! y gradient of work2 array averaged to east edges
-       dwork3_dy_east,          &! y gradient of work3 array averaged to east edges
-       tau_xz_east,             &! tau_xz at east edges
-       tau_yz_east,             &! tau_yz at east edges
-       tau_xz_east_sia,         &! tau_xz_east with SIA stresses only
-       uedge                     ! u velocity component at east edge, relative to bed (m/yr)
-
-    real(dp), dimension(nx,ny-1) ::  &
-       thck_north,              &! ice thickness averaged to north edges
-       flwa_north,              &! flow factor averaged to north edges
-       tau_parallel_sq_north,   &! tau_parallel^2, averaged to north edges
-       dusrf_dy_north,          &! y gradient of upper surface elevation at north edges (m/m)
-       dusrf_dx_north,          &! x gradient of upper surface elevation averaged to north edges (m/m)
-       dwork1_dy_north,         &! y gradient of work1 array at north edges
-       dwork2_dy_north,         &! y gradient of work2 array at north edges
-       dwork3_dy_north,         &! y gradient of work3 array at north edges
-       dwork1_dx_north,         &! x gradient of work1 array averaged to north edges
-       dwork2_dx_north,         &! x gradient of work2 array averaged to north edges
-       tau_xz_north,            &! tau_xz at north edges
-       tau_yz_north,            &! tau_yz at north edges
-       tau_yz_north_sia,        &! tau_yz_north with SIA stresses only
-       vedge                     ! v velocity component at north edge, relative to bed (m/yr)
 
     integer :: i, j, k, n
 
     !-----------------------------------------------------------------------------------------------
-    !WHL: I tried three ways to compute the 3D velocity, given the basal velocity field:
-    ! (1) Compute velocity at vertices using     
-    !          u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
-    !          v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
-    ! (2) Compute integration factors at vertices, and then compute velocity at edges using
-    !          uedge(z) =  (vintfact(i,j) + vintfact(i,j-1))/2.d0 * dsdx_edge 
-    !          vedge(z) =  (vintfact(i,j) + vintfact(i-1,j))/2.d0 * dsdy_edge 
-    !     where vintfact = 2*A*tau_eff^(n-1)*(rho*g*|grad(s)|
-    !     Average uedge and vedge to vertices and add to u_b to get 3D uvel and vvel.
-    !     Apart from the averaging at the end, this algorithm is similar to that in Yelmo,
-    !      but Yelmo uses a C grid and skips the last step.
-    ! (3) Do all the intermediate computations at cell edges rather than vertices.
-    !     Average uedge and vedge to vertices at the end, and add to u_b to get 3D uvel and vvel.
+    ! Compute velocity at vertices following Perego et al. (2012).
     !
-    ! Methods 2 and 3 were developed while running slab tests for the paper by Robinson et al. (2021).
-    ! The goal was to make CISM more stable at fine resolution (<~ 200 m).
-    ! However, all three methods yield similar behavior.  Stability follows the SSA curve
-    !  (see Fig. 1 in Robinson et al.) at resolutions of ~400 m to 1 km, but then suddenly drops off.
-    !  All three methods have a 'stability cliff' and appear to be unconditionally unstable at high resolution.
-    ! That is, reducing the time step to a small value does not ensure stability.
-    ! Yelmo, on the other hand, follows the SIA stability limit at fine resolution.
-    ! The reason for the differences is unclear, but might be related to CISM's B-grid staggering
-    !  as compared to Yelmo's C-grid staggering.
-    ! When tau_xz and tau_yz are replaced with their SIA counterparts in vertical integrals,
-    !  the CISM algorithms become more stable, following the SIA curve.
+    ! The latest version was implemented in fall 2021 for the paper by Robinson et al. (TC, 2021).
+    ! An important change was to evaluate both the membrane stress and SIA stress terms at layer midpoints.
+    ! Previously, the membrane stress was evaluated at lower layer boundaries.
+    ! With the change, the stability curve is parallel to the SIA curve at fine resolution for the slab problem.
+    ! Before the change, the model did not converge on the solution for dx <~ 200 m.
     !-----------------------------------------------------------------------------------------------
 
-    logical, parameter :: edge_velocity = .false.  ! if false, use method 1 as discussed above
-!!    logical, parameter :: edge_velocity = .true.  ! if true, use method 2 or 3
-
-    logical, parameter :: all_edge = .false.      ! if false, use method 2 (Yelmo-style with some interpolation back and forth)
-!!    logical, parameter :: all_edge = .true.      ! if true, use method 3 (all possible computations on edges)
-
-    ! Note: Membrane stresses are included in tau_eff even if left out of the tau_xz and tau_yz terms
-    !       in the vertical velocity integral.
     logical, parameter :: &
-         include_membrane_stress_in_tau = .true.  ! if true, include membrane stresses in tau_xz and tau_yz
-                                                  ! if false, leave them out
+         include_membrane_stress_in_tau = .true.  ! if true, include membrane stresses in tau_xz and tau_yz;
 
+                                                  ! if false, include the SIA stress only
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
@@ -6645,13 +6585,20 @@
     du_dy(:,:) = 0.d0
     dv_dx(:,:) = 0.d0
     dv_dy(:,:) = 0.d0
+    tau_xz(:,:,:) = 0.d0
+    tau_yz(:,:,:) = 0.d0
+    tau_xz_sia(:,:,:) = 0.d0
+    tau_yz_sia(:,:,:) = 0.d0
+
+    ! initialize uvel = vvel = 0 except at bed
+    uvel(1:nz-1,:,:) = 0.d0
+    vvel(1:nz-1,:,:) = 0.d0
 
     ! Compute viscosity integral and strain rates in elements.
     ! Loop over all cells that border locally owned vertices.
 
     do j = nhalo+1, ny-nhalo+1
        do i = nhalo+1, nx-nhalo+1
-       
           if (active_cell(i,j)) then
 
              ! Load x and y coordinates and basal velocity at cell vertices
@@ -6692,7 +6639,7 @@
              enddo
 
              ! Compute effective strain rate (squared) at cell centers
-             ! See Perego et al. eq. 17: 
+             ! See Perego et al. Eq. 17:
              !     eps_parallel^2 = eps_xx^2 + eps_yy^2 + eps_xx*eps_yy + eps_xy^2
 
              eps_parallel = sqrt(du_dx(i,j)**2 + dv_dy(i,j)**2 + du_dx(i,j)*dv_dy(i,j)  &
@@ -6704,28 +6651,26 @@
              enddo
 
              ! For each layer k, compute the integral of the effective viscosity from
-             ! the base of layer k to the upper surface.
- 
-             efvs_integral_z_to_s(1,i,j) = efvs(1,i,j) * (sigma(2) - sigma(1))*thck(i,j)
+             ! the midpoint of layer k to the upper surface.
 
+             efvs_integral_z_to_s(1,i,j) = efvs(1,i,j) * (stagsigma(1))*thck(i,j)
              do k = 2, nz-1
                 efvs_integral_z_to_s(k,i,j) = efvs_integral_z_to_s(k-1,i,j)  &
-                                            + efvs(k,i,j) * (sigma(k+1) - sigma(k))*thck(i,j)
+                                            + efvs(k-1,i,j) * (sigma(k) - stagsigma(k-1))*thck(i,j)  &
+                                            + efvs(k,i,j)   * (stagsigma(k) - sigma(k))*thck(i,j)
              enddo   ! k
 
           endif   ! active_cell
-
        enddo      ! i
     enddo         ! j
 
-    ! Halo update for tau_parallel, so it is valid in all halo cells
     call parallel_halo(tau_parallel, parallel)
 
     !--------------------------------------------------------------------------------
     ! For each active vertex, compute the vertical shear stresses tau_xz and tau_yz
     ! in each layer of the column.
     !
-    ! These stresses are given by (PGB eq. 27)
+    ! These stresses are given by Perego et al. Eq. 27:
     !
     !   tau_xz(z) = -rhoi*grav*ds_dx*(s-z) + 2*d/dx[efvs_int(z) * (2*du_dx + dv_dy)]
     !                                      + 2*d/dy[efvs_int(z) *   (du_dy + dv_dx)] 
@@ -6740,18 +6685,9 @@
     ! because strain rates are discontinuous at cell edges and vertices.  Instead, we use
     ! a standard centered finite difference method to evaluate d/dx and d/dy of the
     ! bracketed terms.
-    !--------------------------------------------------------------------------------
-
-    tau_xz(:,:,:) = 0.d0
-    tau_yz(:,:,:) = 0.d0
-    tau_xz_sia(:,:,:) = 0.d0
-    tau_yz_sia(:,:,:) = 0.d0
-
-    !--------------------------------------------------------------------------------
-    ! Given the vertical shear stresses tau_xz and tau_yz for each layer k,
-    !  compute the velocity components at each level.
     !
-    ! These are given by (PGB eq. 30)
+    ! Given the vertical shear stresses tau_xz and tau_yz for each layer k,
+    !  compute the velocity components at each level, following Perego et al. Eq. 30:
     ! 
     !    u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
     !    v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
@@ -6760,399 +6696,78 @@
     !
     !    tau_parallel^2 = (2 * efvs * eps_parallel)^2
     !    tau_perp ^2 = tau_xz^2 + tau_yz^2
-    !
     !--------------------------------------------------------------------------------
-
-    ! initialize uvel = vvel = 0 except at bed
-       
-    uvel(1:nz-1,:,:) = 0.d0
-    vvel(1:nz-1,:,:) = 0.d0
-
-    ! Compute surface elevation gradient on cell edges.
-    ! Setting gradient_margin_in = 0 takes the gradient over both neighboring cells,
-    !  including ice-free cells.
-    ! Setting gradient_margin_in = 1 computes a gradient if both neighbor cells are
-    !  ice-covered, or an ice-covered cell sits above ice-free land; else gradient = 0
-    ! Setting gradient_margin_in = 2 computes a gradient only if both neighbor cells
-    !  are ice-covered.
-    ! At a land margin, either 0 or 1 is appropriate, but 2 is inaccurate.
-    ! At a shelf margin, either 1 or 2 is appropriate, but 0 is inaccurate.
-    ! So HO_GRADIENT_MARGIN_HYBRID = 1 is the safest value.
-
-    if (edge_velocity) then   ! compute thickness and surface gradients at cell edges
-
-       uedge(:,:) = 0.d0
-       vedge(:,:) = 0.d0
-
-       call glissade_gradient_at_edges(nx,               ny,                &
-                                       dx,               dy,                &
-                                       usrf,                                &
-                                       dusrf_dx_east,    dusrf_dy_north,    &
-                                       ice_mask,                            &
-                                       gradient_margin_in = whichgradient_margin, &
-                                       usrf = usrf,                         &
-                                       land_mask = land_mask,               &
-                                       max_slope = max_slope)
-
-       call glissade_average_to_edges(nx,                ny,                &
-                                      thck,                                 &
-                                      thck_east,         thck_north,        &
-                                      ice_mask)
-    endif
 
     do k = nz-1, 1, -1   ! loop over velocity levels above the bed
 
-       ! Compute work arrays (work1, work2, work3) at cell centers.
+       ! Average tau_parallel and flwa to vertices
+       ! With stagger_margin_in = 1, only cells with ice are included in the average.
+
+       call glissade_stagger(nx,                   ny,                         &
+                             tau_parallel(k,:,:),  stagtau_parallel_sq(:,:),   &
+                             ice_mask,             stagger_margin_in = 1)
+       stagtau_parallel_sq(:,:) = stagtau_parallel_sq(:,:)**2
+
+       call glissade_stagger(nx,          ny,              &
+                             flwa(k,:,:), stagflwa(:,:),   &
+                             ice_mask,    stagger_margin_in = 1)
+
+       ! Compute work arrays at cell centers.
        ! These are needed to find tau_xz and tau_yz.
 
        work1(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*du_dx(:,:) + dv_dy(:,:))
        work2(:,:) = efvs_integral_z_to_s(k,:,:) *      (du_dy(:,:) + dv_dx(:,:))
        work3(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*dv_dy(:,:) + du_dx(:,:))
 
-       ! Halo update for work arrays, so values are valid in all halo cells
        call parallel_halo(work1, parallel)
        call parallel_halo(work2, parallel)
        call parallel_halo(work3, parallel)
 
-       if (all_edge) then   ! average tau_parallel and flwa to edges
-
-          call glissade_average_to_edges(nx,                   ny,                    &
-                                         tau_parallel(k,:,:),                         &
-                                         tau_parallel_sq_east, tau_parallel_sq_north, &
-                                         ice_mask)
-          tau_parallel_sq_east(:,:)  = tau_parallel_sq_east(:,:)**2
-          tau_parallel_sq_north(:,:) = tau_parallel_sq_north(:,:)**2
-
-          call glissade_average_to_edges(nx,                ny,                &
-                                         flwa(k,:,:),                          &
-                                         flwa_east,         flwa_north,        &
-                                         ice_mask)
-
-       else   ! average tau_parallel and flwa to vertices
-              ! With stagger_margin_in = 1, only cells with ice are included in the average.
-
-          call glissade_stagger(nx,                   ny,                         &
-                                tau_parallel(k,:,:),  stagtau_parallel_sq(:,:),   &
-                                ice_mask,             stagger_margin_in = 1)
-          stagtau_parallel_sq(:,:) = stagtau_parallel_sq(:,:)**2
-
-          call glissade_stagger(nx,          ny,              &
-                                flwa(k,:,:), stagflwa(:,:),   &
-                                ice_mask,    stagger_margin_in = 1)
+       ! Compute horizontal gradients of the work arrays.
+       ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx at vertices.
+       ! The calls to glissade_centered_gradient compute a couple of extraneous derivatives,
+       !  but these calls are simpler than inlining the gradient code.
+       ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
+       ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
        
-       endif   ! all_edge
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work1,                        &
+                              dwork1_dx,        dwork1_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
 
-       if (edge_velocity) then   ! new algorithm based on Yelmo
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work2,                        &
+                              dwork2_dx,        dwork2_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
 
-          vintfact(:,:) = 0.0d0
-          tau_xz_east(:,:) = 0.0d0
-          tau_yz_east(:,:) = 0.0d0
-          tau_xz_north(:,:) = 0.0d0
-          tau_yz_north(:,:) = 0.0d0
-          tau_xz_east_sia(:,:) = 0.0d0
-          tau_yz_north_sia(:,:) = 0.0d0
+       call glissade_gradient(nx,               ny,         &
+                              dx,               dy,         &
+                              work3,                        &
+                              dwork3_dx,        dwork3_dy,  &
+                              ice_mask,                     &
+                              gradient_margin_in = 1)
 
-          dwork1_dx_east   = 0.0d0
-          dwork1_dy_north  = 0.0d0
-          dwork2_dx_east   = 0.0d0
-          dwork2_dy_north  = 0.0d0
-          dwork3_dx_east   = 0.0d0
-          dwork3_dy_north  = 0.0d0
-
-          dwork1_dx_north  = 0.0d0
-          dwork2_dx_north  = 0.0d0
-          dwork2_dy_east   = 0.0d0
-          dwork3_dy_east   = 0.0d0
-
-          ! Compute gradients of horizontal stresses at edges
-          ! (at east edges for d/dx, and at north edges for d/dy).
-          ! Note: This subroutine assumes dimensions of (nx,ny) for the input array,
-          !       (nx-1,ny) for east edge gradients, and (nx,ny-1) for north edge gradients.
-          ! Note: Do not pass max_slope to the gradient routines;
-          !       this is appropriate only when computing elevation gradients.
-
-          call glissade_gradient_at_edges(nx,               ny,                &
-                                          dx,               dy,                &
-                                          work1,                               &
-                                          dwork1_dx_east,   dwork1_dy_north,   &
-                                          ice_mask,                            &
-                                          gradient_margin_in = whichgradient_margin, &
-                                          usrf = usrf,                         &
-                                          land_mask = land_mask)
-
-          call glissade_gradient_at_edges(nx,               ny,                &
-                                          dx,               dy,                &
-                                          work2,                               &
-                                          dwork2_dx_east,   dwork2_dy_north,   &
-                                          ice_mask,                            &
-                                          gradient_margin_in = whichgradient_margin, &
-                                          usrf = usrf,                         &
-                                          land_mask = land_mask)
-
-          call glissade_gradient_at_edges(nx,               ny,                &
-                                          dx,               dy,                &
-                                          work3,                               &
-                                          dwork3_dx_east,   dwork3_dy_north,   &
-                                          ice_mask,                            &
-                                          gradient_margin_in = whichgradient_margin, &
-                                          usrf = usrf,                         &
-                                          land_mask = land_mask)
-
-          ! Interpolate dwork2_dy and dwork3_dy from north to east edges.
-          ! The north arrays have dimensions (nx,ny-1) and are valid for all edges in their domain.
-          ! The interpolated east arrays are valid for edges(1:nx-1,2:ny-1).
-
-          do j = 2, ny-1
-             do i = 1, nx-1
-                dwork2_dy_east(i,j) = &
-                     0.25d0 * (dwork2_dy_north(i,j)   + dwork2_dy_north(i+1,j)   +  &
-                               dwork2_dy_north(i,j-1) + dwork2_dy_north(i+1,j-1))
-                dwork3_dy_east(i,j) = &
-                     0.25d0 * (dwork3_dy_north(i,j)   + dwork3_dy_north(i+1,j)   +  &
-                               dwork3_dy_north(i,j-1) + dwork3_dy_north(i+1,j-1))
-                dusrf_dy_east(i,j) = &
-                     0.25d0 * (dusrf_dy_north(i,j)    + dusrf_dy_north(i+1,j) +  &
-                               dusrf_dy_north(i,j-1)  + dusrf_dy_north(i+1,j-1))
-             enddo
-          enddo
-
-          ! Interpolate dwork1_dx and dwork2_dx from east to north edges.
-          ! The east arrays have dimensions (nx-1,ny) and are valid for all edges in their domain.
-          ! The interpolated north arrays are valid for edges (2:nx-1,1:ny-1).
-
-          do j = 1, ny-1
-             do i = 2, nx-1
-                dwork1_dx_north(i,j) = &
-                     0.25d0 * (dwork1_dx_east(i-1,j+1) + dwork1_dx_east(i,j+1) +  &
-                               dwork1_dx_east(i-1,j)   + dwork1_dx_east(i,j))
-                dwork2_dx_north(i,j) = &
-                     0.25d0 * (dwork2_dx_east(i-1,j+1) + dwork2_dx_east(i,j+1) +  &
-                               dwork2_dx_east(i-1,j)   + dwork2_dx_east(i,j))
-                dusrf_dx_north(i,j) = &
-                     0.25d0 * (dusrf_dx_east(i-1,j+1)  + dusrf_dx_east(i,j+1) +  &
-                               dusrf_dx_east(i-1,j)    + dusrf_dx_east(i,j))
-             enddo
-          enddo
-
-          ! Compute shear stresses tau_xz (at east edges) and tau_yz (at north edges)
-          ! Note: Results are valid only where dwork2_dy_east and dwork2_dx_north are valid:
-          !       east edges (1:nx-1,2:ny-1) and north edges (2:nx-1,1:ny-1).
-          !       This includes all edges of locally owned cells and one row of halo cells.
-
-          ! loop over east edges
-          do j = 1, ny
-             do i = 1, nx-1
-                if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then
-                   depth = 0.5d0*(sigma(k) + sigma(k+1)) * thck_east(i,j)
-                   tau_xz_east_sia(i,j) = -rhoi*grav*depth*dusrf_dx_east(i,j)
-                   tau_xz_east(i,j)     =  tau_xz_east_sia(i,j) &
-                                         + 2.d0*dwork1_dx_east(i,j) + dwork2_dy_east(i,j)
-                   tau_yz_east(i,j)     =  -rhoi*grav*depth*dusrf_dy_east(i,j)  &
-                                         + dwork2_dx_east(i,j) + 2.d0*dwork3_dy_east(i,j)
-                endif
-             enddo
-          enddo
-
-          ! loop over north edges
-          do j = 1, ny-1
-             do i = 1, nx
-                if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then
-                   depth = 0.5d0*(sigma(k) + sigma(k+1)) * thck_north(i,j)
-                   tau_yz_north_sia(i,j) = -rhoi*grav*depth*dusrf_dy_north(i,j)
-                   tau_yz_north(i,j)     =  tau_yz_north_sia(i,j) &
-                                          + dwork2_dx_north(i,j) + 2.d0*dwork3_dy_north(i,j)
-                   tau_xz_north(i,j)     = -rhoi*grav*depth*dusrf_dx_north(i,j) &
-                                          + 2.d0*dwork1_dx_north(i,j) + dwork2_dy_north(i,j)
-                endif
-             enddo
-          enddo
-
-          if (all_edge) then
-
-             ! loop over east edges (1:nx-1,2:ny-1) and north edges (2:nx-1,1:ny-1).
-             do j = 2, ny-1
-                do i = 1, nx-1
-                   tau_eff_sq = tau_parallel_sq_east(i,j)   &
-                        + tau_xz_east(i,j)**2 + tau_yz_east(i,j)**2
-                   fact_east = 2.d0 * flwa_east(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0)  &
-                        * (sigma(k+1) - sigma(k))*thck_east(i,j)
-                   if (include_membrane_stress_in_tau) then
-                      uedge(i,j) = uedge(i,j) + fact_east * tau_xz_east(i,j)
-                   else
-                      uedge(i,j) = uedge(i,j) + fact_east * tau_xz_east_sia(i,j)
-                   endif
-                enddo
-             enddo
-
-             do j = 1, ny-1
-                do i = 2, nx-1
-                   tau_eff_sq = tau_parallel_sq_north(i,j)   &
-                        + tau_xz_north(i,j)**2 + tau_yz_north(i,j)**2
-                   fact_north = 2.d0 * flwa_north(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0)  &
-                        * (sigma(k+1) - sigma(k))*thck_north(i,j)
-                   if (include_membrane_stress_in_tau) then
-                      vedge(i,j) = vedge(i,j) + fact_north * tau_yz_north(i,j)
-                   else
-                      vedge(i,j) = vedge(i,j) + fact_north * tau_yz_north_sia(i,j)
-                   endif
-                enddo
-             enddo
-
-          else   ! average some quantities to vertices
-
-             ! Average tau_xz and tau_yz from edges to vertices.
-             ! Compute tau_eff_sq and a multiplicative factor at vertices.
-             ! Results are valid for vertices (2:nx-2, 2:ny-2): all vertices of locally owned cells.
-
-             do j = 2, ny-2
-             do i = 2, nx-2
-                if (active_vertex(i,j)) then
-                   tau_xz_vertex = 0.5d0*(tau_xz_east(i,j) + tau_xz_east(i,j+1))
-                   tau_yz_vertex = 0.5d0*(tau_yz_north(i,j) + tau_yz_north(i+1,j))
-                   tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                        + tau_xz_vertex**2 + tau_yz_vertex**2
-                   vintfact(i,j) = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0)  &
-                                 * (sigma(k+1) - sigma(k))*stagthck(i,j)
-                endif
-             enddo
-             enddo
-
-             ! Halo update for vintfact so uedge/vedge can be found at all locally owned vertices
-             call staggered_parallel_halo(vintfact, parallel)
-
-             ! Remove the membrane stresses from the velocity computation if desired.
-             ! Note: This should not be done until after including the full stresses in tau_eff_sq.
-
-             if (.not. include_membrane_stress_in_tau) then
-                tau_xz_east  = tau_xz_east_sia
-                tau_yz_north = tau_yz_north_sia
-             endif
-
-             ! Compute u at east edges, and v at north edges, for this level k.
-             ! Note: uedge and vedge do not include the basal speed (which is computed on vertices only)
-
-             do j = 2, ny-1
-             do i = 1, nx-1
-                if (active_vertex(i,j) .and. active_vertex(i,j-1)) then
-                   uedge(i,j) = uedge(i,j) + (vintfact(i,j) + vintfact(i,j-1))/2.d0 * tau_xz_east(i,j)
-                endif
-             enddo
-             enddo
-
-             do j = 1, ny-1
-             do i = 2, nx-1
-                if (active_vertex(i,j) .and. active_vertex(i-1,j)) then
-                   vedge(i,j) = vedge(i,j) + (vintfact(i,j) + vintfact(i-1,j))/2.d0 * tau_yz_north(i,j)
-                endif
-             enddo
-             enddo
-
-          endif   ! all_edge
-
-                !TODO - incorporate efvs logic (code pasted from below)
-!                if (whichefvs == HO_EFVS_NONLINEAR) then
-!                   fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0) &
-!                        * (sigma(k+1) - sigma(k))*stagthck(i,j)
-!                else   ! HO_EFVS_CONSTANT, HO_EFVS_FLOWFACT
-!                   if (efvs(k,i,j) > 0.0d0) then
-!                      fact = (sigma(k+1) - sigma(k))*stagthck(i,j) / efvs(k,i,j)
-!                   else
-!                      fact = 0.0d0
-!                   endif
-!                endif
-
-          ! For locally owned vertices, average edge velocities to vertices and add to bed velocity.
-          ! (Halo update is done at a higher level after returning)
-          ! Note: Currently do not support Dirichlet BC with depth-varying velocity
-
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-
-                if (umask_dirichlet(i,j) == 1) then
-                   uvel(k,i,j) = uvel(nz,i,j)
-                else
-                   uvel(k,i,j) = uvel(nz,i,j) + (uedge(i,j) + uedge(i,j+1)) / 2.d0
-                endif
-
-                if (vmask_dirichlet(i,j) == 1) then
-                   vvel(k,i,j) = vvel(nz,i,j)
-                else
-                   vvel(k,i,j) = vvel(nz,i,j) + (vedge(i,j) + vedge(i+1,j)) / 2.d0
-                endif
-
-             enddo   ! i
-          enddo   ! j
-
-          if (verbose_L1L2 .and. this_rank==rtest) then
-             i = itest
-             j = jtest
-             depth = 0.5d0*(sigma(k) + sigma(k+1)) * thck_east(i,j)  ! based on thck at east edge
-             print*, 'k, edgethck, depth, fact, tau_xz, tau_yz:', &
-                  k, thck_east(i,j), depth, vintfact(i,j), tau_xz_east(i,j), tau_yz_north(i,j)
-             print*, '   dw1_dx, dw2_dx, dw2_dy, dw3_dy:', &
-                  dwork1_dx_east(i,j), dwork2_dy_east(i,j), dwork2_dx_north(i,j), dwork3_dy_north(i,j)
-             print*, '   uedge(i,j:j+1):', uedge(i,j), uedge(i,j+1)
-             print*, '   vedge(i:i+1,j):', vedge(i,j), vedge(i+1,j)
-             print*, '   uvel(k), vvel(k):', uvel(k,i,j), vvel(k,i,j)
-             print*, ' '
-          endif
-
-       else   ! compute velocity at vertices (method 1)
-
-          ! Compute horizontal gradients of the work arrays above.
-          ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx at vertices.
-          ! The calls to glissade_centered_gradient compute a couple of extraneous derivatives,
-          !  but these calls are simpler than inlining the gradient code.
-          ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_MARINE uses only ice-covered cells to
-          !  compute the gradient.  This is the appropriate flag for these
-          !  calls, because efvs and strain rates have no meaning in ice-free cells.
-
-          ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
-          ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
-
-          call glissade_gradient(nx,               ny,         &
-                                 dx,               dy,         &
-                                 work1,                        &
-                                 dwork1_dx,        dwork1_dy,  &
-                                 ice_mask,                     &
-                                 gradient_margin_in = 1)
-
-          call glissade_gradient(nx,               ny,         &
-                                 dx,               dy,         &
-                                 work2,                        &
-                                 dwork2_dx,        dwork2_dy,  &
-                                 ice_mask,                     &
-                                 gradient_margin_in = 1)
-
-          call glissade_gradient(nx,               ny,         &
-                                 dx,               dy,         &
-                                 work3,                        &
-                                 dwork3_dx,        dwork3_dy,  &
-                                 ice_mask,                     &
-                                 gradient_margin_in = 1)
-
-          ! loop over locally owned active vertices
-          do j = staggered_jlo, staggered_jhi
+       ! loop over locally owned active vertices
+       do j = staggered_jlo, staggered_jhi
           do i = staggered_ilo, staggered_ihi
-
              if (active_vertex(i,j)) then
 
                 ! Evaluate tau_xz and tau_yz for this layer
                 ! Compute two versions of these stresses: with all terms including membrane stresses,
                 !  and with SIA terms only.  Optionally, the SIA-only versions can be used in velocity integrals.
 
-                depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)   ! depth at layer midpoint
-
+                depth = stagsigma(k) * stagthck(i,j)   ! depth at layer midpoint
                 tau_xz_sia(k,i,j) = -rhoi*grav*depth*dusrf_dx(i,j)
                 tau_yz_sia(k,i,j) = -rhoi*grav*depth*dusrf_dy(i,j)
 
-                tau_xz(k,i,j) = tau_xz_sia(k,i,j) &
-                               + 2.d0*dwork1_dx(i,j) + dwork2_dy(i,j)
-                tau_yz(k,i,j) = tau_yz_sia(k,i,j) &
-                               + dwork2_dx(i,j) + 2.d0*dwork3_dy(i,j)
+                tau_xz(k,i,j) = tau_xz_sia(k,i,j) + 2.d0*dwork1_dx(i,j) + dwork2_dy(i,j)
+                tau_yz(k,i,j) = tau_yz_sia(k,i,j) + dwork2_dx(i,j) + 2.d0*dwork3_dy(i,j)
 
-                tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
+                tau_eff_sq = stagtau_parallel_sq(i,j) + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
 
                 ! Note: The first formula below is correct for whichefvs = 2 (efvs computed from effective strain rate),
                 !        but not for whichefvs = 0 (constant efvs) or whichefvs = 1 (multiple of flow factor).
@@ -7164,7 +6779,6 @@
                 !  =>   1/efvs = 2 * A * tau_e(n-1)
                 !
                 ! Thus, for options 0 and 1, we can replace 2 * A * tau_e^(n-1) below with 1/efvs.
-                !TODO - Copy this logic to the edge-based calculation
 
                 if (whichefvs == HO_EFVS_NONLINEAR) then
                    fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0) &
@@ -7177,15 +6791,15 @@
                    endif
                 endif
 
-                ! reset velocity to prescribed basal value if Dirichlet condition applies
-                ! else compute velocity at this level 
+                ! Reset velocity to prescribed basal value if Dirichlet condition applies,
+                ! else compute velocity at this level
 
                 if (umask_dirichlet(i,j) == 1) then
                    uvel(k,i,j) = uvel(nz,i,j)
                 else
                    if (include_membrane_stress_in_tau) then
                       uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
-                   else
+                   else   ! SIA stress term only
                       uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz_sia(k,i,j)
                    endif
                 endif
@@ -7195,27 +6809,27 @@
                 else
                    if (include_membrane_stress_in_tau) then
                       vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
-                   else
+                   else   ! SIA stress term only
                       vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz_sia(k,i,j)
                    endif
                 endif
 
                 if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                   depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)
-                   print*, 'k, edgethck, depth, fact, tau_xz, tau_yz:', &
-                        k, stagthck(i,j), depth, fact, tau_xz(k,i,j), tau_yz(k,i,j)
-                   print*, '   dw1_dx, dw2_dx, dw2_dy, dw3_dy:', &
-                        dwork1_dx(i,j), dwork2_dx(i,j), dwork2_dy(i,j), dwork3_dy(i,j)
-                   print*, '   uvel(k), vvel(k):', uvel(k,i,j), vvel(k,i,j)
+                   depth = stagsigma(k) * stagthck(i,j)
                    print*, ' '
+                   print*, 'k, depth, fact:', &
+                        k, depth, fact
+                   print*, 'tau_xz(i,j): SIA term, membrane term, total:', &
+                        tau_xz_sia(k,i,j), tau_xz(k,i,j) - tau_xz_sia(k,i,j), tau_xz(k,i,j)
+                   print*, 'tau_yz(i,j): SIA term, membrane term, total:', &
+                        tau_yz_sia(k,i,j), tau_yz(k,i,j) - tau_yz_sia(k,i,j), tau_yz(k,i,j)
+                   print*, 'uvel(k), vvel(k):', uvel(k,i,j), vvel(k,i,j)
                 endif
 
              endif
 
           enddo   ! i
-          enddo   ! j
-
-       endif      ! edge_velocity
+       enddo      ! j
 
     enddo         ! k
 
