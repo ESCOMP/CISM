@@ -1122,9 +1122,10 @@ module glissade_therm
              if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
              ! WHL: For stability tests with a very short time step (e.g., < 1.d-6 year),
              !      the energy-conservation error can be triggered by machine roundoff.
-             !      For these tests, I uncommented the line below, which compares the
-             !      error to the total amount of energy.  The latter criterion is less likely
-             !      to give false positives, but might be more likely to give false negatives.
+             !      For the tests in Robinson et al. (2021), I replaced the line above
+             !      with the line below, which compares the error to the total energy.
+             !      The latter criterion is less likely to give false positives,
+             !       but might be more likely to give false negatives.
 !!             if (abs((efinal-einit-delta_e)/(efinal)) > 1.0d-8) then
 
                 if (verbose_column) then
