@@ -107,7 +107,7 @@
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%whichcalving == CALVING_DAMAGE) then
+         if (model%options%whichcalving == CALVING_DAMAGE .and. model%options%damage_advect) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -164,7 +164,7 @@
          endif
 
          ! damage parameter for prognostic calving scheme
-         if (model%options%whichcalving == CALVING_DAMAGE) then
+         if (model%options%whichcalving == CALVING_DAMAGE .and. model%options%damage_advect) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -246,7 +246,7 @@
       endif
 
       ! damage parameter for prognostic calving scheme
-      if (model%options%whichcalving == CALVING_DAMAGE) then
+      if (model%options%whichcalving == CALVING_DAMAGE .and. model%options%damage_advect) then
          nt = nt + 1
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
