@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #FIXME: More detailed description of this test case!!!
 """
@@ -15,7 +15,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -125,7 +125,7 @@ def main():
     scale_factor = 2 ** args.scale
     
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser()
         config_parser.read( args.config )
         
         nz = int(config_parser.get('grid','upn'))
@@ -141,10 +141,10 @@ def main():
         try:
             forcing_name = config_parser.get('CF forcing','name')
             forcing_root, forcing_ext = os.path.splitext(forcing_name)
-        except ConfigParser.NoSectionError as noForce:
+        except configparser.NoSectionError as noForce:
             forcing_name = ''
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "), 
         print(error)
@@ -179,7 +179,7 @@ def main():
         forcing_name = forcing_root+mod+forcing_ext
         config_parser.set('CF forcing', 'name', forcing_name)
 
-    with open(config_name, 'wb') as config_file:
+    with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
 
 
