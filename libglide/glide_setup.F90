@@ -2323,6 +2323,10 @@ contains
           call write_log('setting relx to first slice of input topg')
        elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_COMPUTE) then
           call write_log('computing relx, given that input topg is in equilibrium')
+       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_TARGET) then
+          call write_log('reading relx as load-independent target topg')
+       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_FORCED) then
+          call write_log('setting relx as load-independent target to first slice of input topg ')
        else
           call write_log('Error, unknown whichrelaxed option',GM_FATAL)
        end if

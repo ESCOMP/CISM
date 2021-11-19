@@ -86,6 +86,24 @@ module isostasy
   !
   ! In general, the preferred setting is whichrelaxed = 0, with topg and relx read in separately
   ! from the input file. The other settings have specialized uses but may be inappropriate for production.
+  !
+  ! HG!
+  ! Added two more options to deal with forced topography changes. The topography is relaxed to a given
+  ! load-independent target with the chosen adjustment time scale. This may be useful to impose a topography
+  ! smoothly over time. A typical application would be to impose a high resolution topography after restarting from
+  ! an interpolated model state resulting from a lower resolution spinup. Another example would be to let a spinup
+  ! reach a given observed topography at present day independent of the loading history. The two options only
+  ! differ in how relx is initialized. Since the lithosphere is not used, it is suggested to set (lithosphere = 0).
+  ! To use the adjustment time scale use the default relaxing asthenosphere or set asthenosphere = 1 explicitly
+  ! in the [isostasy] section. 'lithosphere_period' and 'flexural_rigidity' have no impact on the results.
+  !
+  ! - whichrelaxed = 3. Use relx as load-independent target for topg. Relax the topography to the one
+  ! given in relx with the chosen adjustment time scale. If relx is not specified, it is initialized to zero.
+  !
+  ! - whichrelaxed = 4. Set relx to input topg as load-independent target for topg. Results in a time-constant
+  ! topography until relx is modified during the experiment. Could be used to start with the given topography
+  ! and then relax to a target topography that is introduced at some point as a forcing.
+
   !-------------------------------------------------------------------------
 
 
@@ -138,6 +156,48 @@ contains
     model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr / tim0
 
   end subroutine init_isostasy
+
+!-------------------------------------------------------------------------
+  ! HG! forced topographic calculations (Greek isos "equal", zori "force")
+
+  subroutine init_isozory(model)
+
+    !> initialise forced topographic calculations
+
+    use parallel
+    use glide_types
+    use glimmer_physcon,  only: scyr
+    use glimmer_paramets, only: tim0
+    implicit none
+
+    type(glide_global_type) :: model
+
+    model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr / tim0
+
+  end subroutine init_isozory
+
+!-------------------------------------------------------------------------
+
+  subroutine isozory_compute(model)
+
+    !> calculate forced topographic adjustment
+
+    use glide_types
+    implicit none
+
+    type(glide_global_type) :: model
+
+    ! update bedrock abruptly if the mantle is fluid (non-viscous)
+    if (model%isostasy%asthenosphere == ASTHENOSPHERE_FLUID) then
+       model%geometry%topg = model%isostasy%relx
+    end if
+
+    ! update bedrock smoothly if the mantle is relaxing
+    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING) then
+       call relaxing_mantle(model)
+    end if
+
+  end subroutine isozory_compute
 
 !-------------------------------------------------------------------------
   
