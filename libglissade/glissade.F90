@@ -213,7 +213,6 @@ contains
        call glimmer_nc_get_var(infile, 'ice_domain_mask', &
                                model%general%ice_domain_mask)
 
-
        if (model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
 
           ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
@@ -975,7 +974,7 @@ contains
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
-    ! save starting ice thickness for diagnostics
+    ! save the initial ice thickness
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
     ! initialize ocean forcing data, if desired
@@ -1070,7 +1069,7 @@ contains
        return
     endif
 
-    ! save old ice thickness for diagnostics
+    ! save the old ice thickness; used for diagnostics and tendencies
     ! also used to reset thickness for the no-evolution option
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
@@ -3664,8 +3663,7 @@ contains
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
-    use glissade_inversion, only: &
-         glissade_inversion_basal_friction_powerlaw, glissade_inversion_basal_friction_coulomb,  &
+    use glissade_inversion, only: glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, verbose_inversion
 
     implicit none
@@ -3907,68 +3905,41 @@ contains
     endif  ! this_rank = rtest
 
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
-    ! Note: This diagnostic is needed for inversion of basal friction.
-    !       However, it is not computed correctly on the first step of a restart, since thck_old is unavailable.
-    !       If doing inversion, dthck_dt is added to the restart file since it is needed for exact restart.
-    ! TODO: Put thck_old instead of dthck_dt in the restart file?
-    !       Then the diagnostic would be correct, and inversion would still restart exactly.
+    ! This tendency is used for coulomb_c and powerlaw_c inversion.
 
     if ( (model%options%is_restart == RESTART_TRUE) .and. &
          (model%numerics%time == model%numerics%tstart) ) then
-
        ! first call after a restart; do not compute dthck_dt
-
     else
-
-       do j = 1, nsn
-          do i = 1, ewn
-             model%geometry%dthck_dt(i,j) = (model%geometry%thck(i,j) - model%geometry%thck_old(i,j)) * thk0 &
-                                          / (model%numerics%dt * tim0)
-          enddo
-       enddo
-
+       model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
+                                    / (model%numerics%dt * tim0)
     endif
 
-    ! If inverting for Cp = powerlaw_c, then update it here.
+    ! If inverting for Cp = powerlaw_c or Cc = coulomb_c, then update it here.
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
 
     if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
-         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL) then
+         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL  .or. &
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
-          ! first call after a restart; do not update powerlaw_c
+          ! first call after a restart; do not update powerlaw_c or coulomb_c
        else
-          call glissade_inversion_basal_friction_powerlaw(model)
+          call glissade_inversion_basal_friction(model)
        endif
 
-    endif   ! which_ho_cp_inversion
-
-
-    ! If inverting for Cc = coulomb_c, then update it here.
-
-    if ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
-         model%options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
-
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
-          ! first call after a restart; do not update coulomb_c
-       else
-          call glissade_inversion_basal_friction_coulomb(model)
-       endif
-
-    endif   ! which_ho_cc_inversion
+    endif   ! which_ho_powerlaw_c/coulomb_c
 
 
     ! If inverting for deltaT_basin, then update it here
-    ! Note: We do not need to update deltaT_basin if simply applying a value from a previous inversion.
 
     if ( model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
-
           ! first call after a restart; do not update basin-scale melting parameters
 
        else
@@ -4617,11 +4588,6 @@ contains
     ! DIVA needs a halo update for efvs, since the latest guess (in both local and halo cells)
     ! is used to start iterating for efvs in the next time step.
     call parallel_halo(model%stress%efvs, parallel)
-
-    !TODO - I don't think we need to update ubas, vbas, or velnorm, since these are diagnostic only
-    call staggered_parallel_halo(model%velocity%velnorm, parallel)
-    call staggered_parallel_halo(model%velocity%ubas, parallel)
-    call staggered_parallel_halo(model%velocity%vbas, parallel)
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
