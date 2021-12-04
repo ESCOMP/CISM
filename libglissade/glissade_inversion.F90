@@ -39,8 +39,7 @@ module glissade_inversion
 
   private
   public :: verbose_inversion, glissade_init_inversion, &
-            glissade_inversion_basal_friction_powerlaw,  &
-            glissade_inversion_basal_friction_coulomb,  &
+            glissade_inversion_basal_friction,  &
             glissade_inversion_bmlt_basin
 
   !-----------------------------------------------------------------------------
@@ -49,8 +48,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
-!!    logical, parameter :: verbose_inversion = .true.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
 !***********************************************************************
 
@@ -64,7 +63,6 @@ contains
     ! Should be called after usrf and thck have been input and (possibly) modified by initial calving
 
     use glissade_masks, only: glissade_get_masks
-    use glissade_bmlt_float, only: basin_sum
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -113,7 +111,9 @@ contains
     endif
 
     !----------------------------------------------------------------------
-    ! If inverting for Cp or Cc, then set the target elevation, usrf_obs.
+    ! If inverting for Cp or Cc, then set the target elevation, usrf_obs,
+    !  and the target surface ice speed, velo_sfc_obs.
+    ! Note: Must read in usfc_obs and vsfc_obs to set velo_sfc_obs correctly.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
@@ -206,6 +206,22 @@ contains
 
        call parallel_halo(model%geometry%usrf_obs, parallel)
        call parallel_halo(thck_obs, parallel)
+
+       ! Set the surface speed target, velo_sfc_obs
+       if (model%options%is_restart == RESTART_FALSE) then
+          model%velocity%velo_sfc_obs(:,:) = &
+               sqrt(model%velocity%usfc_obs(:,:)**2 + model%velocity%vsfc_obs(:,:)**2)
+       endif
+
+       ! If inverting based on a velocity target, check that nonzero values were read in
+       if (model%inversion%babc_velo_scale > 0.0d0) then
+          var_maxval = maxval(model%velocity%velo_sfc_obs)
+          var_maxval = parallel_reduce_max(var_maxval)
+          if (var_maxval == 0.0d0) then
+             call write_log &
+                  ('Error: velo_sfc_obs = 0 everywhere, when babc_velo_scale > 0', GM_FATAL)
+          endif
+       endif
 
     endif  ! inversion for Cp or Cc
 
@@ -365,9 +381,9 @@ contains
 
 !***********************************************************************
 
-  subroutine glissade_inversion_basal_friction_powerlaw(model)
+  subroutine glissade_inversion_basal_friction(model)
 
-    use glimmer_paramets, only: tim0, thk0
+    use glimmer_paramets, only: tim0, thk0, vel0
     use glimmer_physcon, only: scyr
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
 
@@ -382,11 +398,9 @@ contains
 
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
          stag_thck,            & ! ice thickness on staggered grid
+         stag_dthck_dt,        & ! dthck_dt on staggered grid
          stag_thck_obs,        & ! thck_obs on staggered grid
-         stag_dthck_dt           ! dthck_dt on staggered grid
-
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-         stag_smoothed          ! work array to hold a smoothed field
+         velo_sfc                ! surface ice speed
 
     integer :: i, j
     integer :: ewn, nsn
@@ -398,6 +412,8 @@ contains
          f_ground_weight = .true.   ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
                                     ! Found that unweighted staggering can lead to low-frequency thickness oscillations
                                     !  in Antarctic runs, because of large dH/dt in floating cells
+
+    logical :: invert_coulomb_c, invert_powerlaw_c
 
     type(parallel_type) :: parallel
 
@@ -415,9 +431,20 @@ contains
     ewn = model%general%ewn
     nsn = model%general%nsn
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
+    ! Set logical variables
 
-       ! Compute the new value of powerlaw_c at each vertex
+    invert_coulomb_c = .false.
+    invert_powerlaw_c = .false.
+
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
+       invert_powerlaw_c = .true.
+    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+       invert_coulomb_c = .true.
+    endif
+
+    if (invert_powerlaw_c .or. invert_coulomb_c) then
+
+       ! Compute the new value of powerlaw_c or coulomb_c at each vertex
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -426,8 +453,9 @@ contains
                          model%climate%eus,        &
                          thck_obs)
 
-       if (f_ground_weight) then
-          ! Interpolation will give a greater weight to cells that are fully grounded.
+       ! Interpolate the thickness fields to the staggered grid
+
+       if (f_ground_weight) then  ! give a greater weight to cells that are fully grounded
 
           ! Interpolate thck_obs to the staggered grid
           call glissade_stagger_real_mask(&
@@ -447,8 +475,7 @@ contains
                model%geometry%dthck_dt,  stag_dthck_dt, &
                model%geometry%f_ground_cell)
 
-       else
-          ! Interpolation will equally weight the values in all four neighbor cells, including ice-free cells.
+       else   ! equally weight the values in all four neighbor cells, including ice-free cells
 
           ! Interpolate thck_obs to the staggered grid
           call glissade_stagger(ewn,         nsn,              &
@@ -468,32 +495,105 @@ contains
        call staggered_parallel_halo(stag_thck, parallel)
        call staggered_parallel_halo(stag_dthck_dt, parallel)
 
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'stag_thck at vertices:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') stag_thck(i,j)*thk0
+       ! Given the ice velocity, compute the surface speed
+
+       velo_sfc(:,:) = sqrt(model%velocity%uvel(1,:,:)**2 + model%velocity%vvel(1,:,:)**2)
+       call staggered_parallel_halo(velo_sfc, parallel)
+
+       ! Invert for powerlaw_c or coulomb_c
+       ! The logic is the same for each; only the max and min values and the in/out field are different.
+
+       if (invert_powerlaw_c) then
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'Old powerlaw_c:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') model%basal_physics%powerlaw_c(i,j)
+                enddo
+                print*, ' '
              enddo
-             write(6,*) ' '
-          enddo
-       endif
+          endif   ! verbose_inversion
 
-       ! Invert for powerlaw_c_inversion
-       call invert_basal_friction_powerlaw(model%numerics%dt*tim0,                 &  ! s
-                                  ewn,               nsn,                 &
-                                  itest,    jtest,   rtest,               &
-                                  model%inversion%babc_timescale,         &  ! s
-                                  model%inversion%babc_thck_scale,        &  ! m
-                                  model%basal_physics%powerlaw_c_max,     &
-                                  model%basal_physics%powerlaw_c_min,     &
-                                  model%geometry%f_ground,                &
-                                  stag_thck*thk0,                         &  ! m
-                                  stag_thck_obs*thk0,                     &  ! m
-                                  stag_dthck_dt,                          &  ! m/s
-                                  model%basal_physics%powerlaw_c)
+          call invert_basal_friction(model%numerics%dt*tim0,                   &  ! s
+                                     ewn,               nsn,                   &
+                                     itest,    jtest,   rtest,                 &
+                                     model%inversion%babc_timescale,           &  ! s
+                                     model%inversion%babc_thck_scale,          &  ! m
+                                     model%inversion%babc_velo_scale,          &  ! m/yr
+                                     model%basal_physics%powerlaw_c_max,       &
+                                     model%basal_physics%powerlaw_c_min,       &
+                                     model%geometry%f_ground,                  &
+                                     stag_thck*thk0,                           &  ! m
+                                     stag_thck_obs*thk0,                       &  ! m
+                                     stag_dthck_dt,                            &  ! m/s
+                                     velo_sfc*(vel0*scyr),                     &  ! m/yr
+                                     model%velocity%velo_sfc_obs*(vel0*scyr),  &  ! m/yr
+                                     model%basal_physics%powerlaw_c)
 
-    else   ! do not adjust powerlaw_c; just print optional diagnostics
+          if (verbose_inversion .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'New powerlaw_c:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.2)',advance='no') model%basal_physics%powerlaw_c(i,j)
+                enddo
+                print*, ' '
+             enddo
+          endif   ! verbose_inversion
+
+       elseif (invert_coulomb_c) then
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'Old coulomb_c:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') model%basal_physics%coulomb_c(i,j)
+                enddo
+                print*, ' '
+             enddo
+          endif   ! verbose_inversion
+
+          call invert_basal_friction(model%numerics%dt*tim0,                   &  ! s
+                                     ewn,               nsn,                   &
+                                     itest,    jtest,   rtest,                 &
+                                     model%inversion%babc_timescale,           &  ! s
+                                     model%inversion%babc_thck_scale,          &  ! m
+                                     model%inversion%babc_velo_scale,          &  ! m/yr
+                                     model%basal_physics%coulomb_c_max,        &
+                                     model%basal_physics%coulomb_c_min,        &
+                                     model%geometry%f_ground,                  &
+                                     stag_thck*thk0,                           &  ! m
+                                     stag_thck_obs*thk0,                       &  ! m
+                                     stag_dthck_dt,                            &  ! m/s
+                                     velo_sfc*(vel0*scyr),                     &  ! m/yr
+                                     model%velocity%velo_sfc_obs*(vel0*scyr),  &  ! m/yr
+                                     model%basal_physics%coulomb_c)
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'New coulomb_c:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') model%basal_physics%coulomb_c(i,j)
+                enddo
+                print*, ' '
+             enddo
+          endif   ! verbose_inversion
+
+       endif  ! invert for powerlaw_c or coulomb_c
+
+    else   ! do not invert for powerlaw_c or coulomb_c; just print optional diagnostics
 
        if (verbose_inversion .and. this_rank == rtest) then
           print*, ' '
@@ -512,165 +612,6 @@ contains
              enddo
              write(6,*) ' '
           enddo
-       endif
-
-    endif   ! which_ho_powerlaw_c
-
-    ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
-    ! Note: The current algorithm initializes Cp to a nonzero value everywhere and never sets Cp = 0;
-    !       this check is just to be on the safe side.
-
-    where (model%basal_physics%powerlaw_c == 0.0d0)
-       model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_min
-    endwhere
-
-  end subroutine glissade_inversion_basal_friction_powerlaw
-
-!***********************************************************************
-
-  subroutine glissade_inversion_basal_friction_coulomb(model)
-
-    use glimmer_paramets, only: tim0, thk0
-    use glimmer_physcon, only: scyr
-    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
-
-    implicit none
-
-    type(glide_global_type), intent(inout) :: model   ! model instance
-
-    ! --- Local variables ---
-
-    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-         thck_obs                ! observed ice thickness, derived from usrf_obs and topg
-
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-         stag_thck,            & ! ice thickness on staggered grid
-         stag_thck_obs,        & ! thck_obs on staggered grid
-         stag_dthck_dt           ! dthck_dt on staggered grid
-
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-         stag_smoothed          ! work array to hold a smoothed field
-
-    integer :: i, j
-    integer :: ewn, nsn
-    integer :: itest, jtest, rtest
-
-    real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
-
-    logical :: &
-         f_ground_weight = .true.   ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
-                                    ! Found that unweighted staggering can lead to low-frequency thickness oscillations
-                                    !  in Antarctic runs, because of large dH/dt in floating cells
-
-    type(parallel_type) :: parallel
-
-    parallel = model%parallel
-
-    rtest = -999
-    itest = 1
-    jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
-    endif
-
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
-
-       !TODO - Put the following code in a subroutine to avoid duplication
-       !       with the Cp inversion subroutine above
-       ! Compute the new value of coulomb_c at each vertex
-
-       ! Given the surface elevation target, compute the thickness target.
-       ! (This can change in time if the bed topography is dynamic.)
-       call usrf_to_thck(model%geometry%usrf_obs,  &
-                         model%geometry%topg,      &
-                         model%climate%eus,        &
-                         thck_obs)
-
-       if (f_ground_weight) then
-          ! Interpolation will give a greater weight to cells that are fully grounded.
-
-          ! Interpolate thck_obs to the staggered grid
-          call glissade_stagger_real_mask(&
-               ewn,         nsn,               &
-               thck_obs,    stag_thck_obs,     &
-               model%geometry%f_ground_cell)
-
-          ! Interpolate thck to the staggered grid
-          call glissade_stagger_real_mask(&
-               ewn,                  nsn,       &
-               model%geometry%thck,  stag_thck, &
-               model%geometry%f_ground_cell)
-
-          ! Interpolate dthck_dt to the staggered grid
-          call glissade_stagger_real_mask(&
-               ewn,                      nsn,           &
-               model%geometry%dthck_dt,  stag_dthck_dt, &
-               model%geometry%f_ground_cell)
-
-       else
-          ! Interpolation will equally weight the values in all four neighbor cells, including ice-free cells.
-
-          ! Interpolate thck_obs to the staggered grid
-          call glissade_stagger(ewn,         nsn,              &
-                                thck_obs,    stag_thck_obs)
-
-          ! Interpolate thck to the staggered grid
-          call glissade_stagger(ewn,                  nsn,             &
-                                model%geometry%thck,  stag_thck)
-
-          ! Interpolate dthck_dt to the staggered grid
-          call glissade_stagger(ewn,                      nsn,             &
-                                model%geometry%dthck_dt,  stag_dthck_dt)
-
-       endif   ! f_ground_weight
-
-       call staggered_parallel_halo(stag_thck_obs, parallel)
-       call staggered_parallel_halo(stag_thck, parallel)
-       call staggered_parallel_halo(stag_dthck_dt, parallel)
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'stag_thck at vertices:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') stag_thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       ! Invert for coulomb_c
-       ! Note: The logic of this subroutine is the same as for powerlaw_c_inversion.
-       !       The only difference is that the max and min allowed values are different.
-       call invert_basal_friction_coulomb(model%numerics%dt*tim0,                 &  ! s
-                                  ewn,               nsn,                 &
-                                  itest,    jtest,   rtest,               &
-                                  model%inversion%babc_timescale,         &  ! s
-                                  model%inversion%babc_thck_scale,        &  ! m
-                                  model%basal_physics%coulomb_c_max,      &
-                                  model%basal_physics%coulomb_c_min,      &
-                                  model%geometry%f_ground,                &
-                                  stag_thck*thk0,                         &  ! m
-                                  stag_thck_obs*thk0,                     &  ! m
-                                  stag_dthck_dt,                          &  ! m/s
-                                  model%basal_physics%coulomb_c)
-
-    else   ! do not adjust coulomb_c; just print optional diagnostics
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'f_ground at vertices:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.4)',advance='no') model%geometry%f_ground(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
           print*, ' '
           print*, 'coulomb_c:'
           do j = jtest+3, jtest-3, -1
@@ -681,93 +622,115 @@ contains
           enddo
        endif
 
-    endif   ! which_ho_coulomb_c
+    endif   ! invert_powerlaw_c or invert_coulomb_c
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cc = 0;
-    !       this check is just to be on the safe side.
+    !       this code is just to be on the safe side.
 
-    where (model%basal_physics%coulomb_c == 0.0d0)
-       model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_min
+    if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
+       where (model%basal_physics%powerlaw_c == 0.0d0)
+          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_min
+       endwhere
+    endif
+
+    if (model%options%which_ho_powerlaw_c /= HO_COULOMB_C_CONSTANT) then
+       where (model%basal_physics%coulomb_c == 0.0d0)
+          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_min
+       endwhere
+    endif
+
+  end subroutine glissade_inversion_basal_friction
+
+!***********************************************************************
+
+  subroutine invert_basal_friction(dt,                       &
+                                   nx,            ny,        &
+                                   itest, jtest,  rtest,     &
+                                   babc_timescale,           &
+                                   babc_thck_scale,          &
+                                   babc_velo_scale,          &
+                                   friction_c_max,           &
+                                   friction_c_min,           &
+                                   f_ground,                 &
+                                   stag_thck,                &
+                                   stag_thck_obs,            &
+                                   stag_dthck_dt,            &
+                                   velo_sfc,                 &
+                                   velo_sfc_obs,             &
+                                   friction_c)
+
+    ! Compute a spatially varying basal friction field defined at cell vertices.
+    ! Here, the field has the generic name 'friction_c', which could be either powerlaw_c or coulomb_c.
+    ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
+    ! Adjustments can be based on a thickness target, a surface ice target, or both:
+    !    Where stag_thck > stag_thck_obs, friction_c is reduced to increase sliding.
+    !    Where stag_thck < stag_thck_obs, friction_c is increased to reduce sliding.
+    !    Where velo_sfc > velo_sfc_obs, friction_c is increased to reduce sliding.
+    !    Where velo_sfc < velo_sfc_obs, friction_c is decreased to increase sliding.
+    ! Note: friction_c is constrained to lie within a prescribed range, [friction_c_min, friction_c_max].
+    ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
+    !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
+    !        are greater in magnitude than usrf errors, and we do not want to underweight the errors.
+
+    real(dp), intent(in) ::  dt  ! time step (s)
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         babc_timescale,       & ! inversion timescale (s); must be > 0
+         babc_thck_scale,      & ! thickness inversion scale (m)
+         babc_velo_scale,      & ! velocity inversion scale (m/yr)
+         friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
+         friction_c_min          ! lower bound for friction_c
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+         f_ground,             & ! grounded fraction at vertices, 0 to 1
+         stag_thck,            & ! ice thickness at vertices (m)
+         stag_thck_obs,        & ! observed ice thickness at vertices (m)
+         stag_dthck_dt,        & ! rate of change of ice thickness at vertices (m/s)
+         velo_sfc,             & ! ice surface speed at vertices (m/yr)
+         velo_sfc_obs            ! observed ice surface speed at vertices (m/yr)
+
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
+         friction_c              ! basal friction field to be adjusted (powerlaw_c or coulomb_c)
+
+    ! local variables
+
+    real(dp), dimension(nx-1,ny-1) ::  &
+         stag_dthck,           & ! stag_thck - stag_thck_obs
+         dvelo_sfc,            & ! velo_sfc - velo_sfc_obs
+         dfriction_c             ! change in friction_c
+
+    real(dp) :: term1_thck, term2_thck  ! tendency terms based on thickness target
+    real(dp) :: term1_velo              ! tendency term based on surface speed target
+
+    integer :: i, j
+
+    ! Initialize
+    dfriction_c(:,:) = 0.0d0
+
+    ! Compute difference between current and target thickness and surface speed
+    ! Note: Where the target cell is ice-free, stag_dthck will be > 0, to encourage thinning.
+    !       Where the target speed = 0 (because of missing data, or because the target
+    !        is ice-free), there is no nudging toward a target speed.
+
+    stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
+
+    where (velo_sfc_obs > 0.0d0)
+       dvelo_sfc = velo_sfc - velo_sfc_obs
+    elsewhere
+       dvelo_sfc = 0.0d0
     endwhere
 
-  end subroutine glissade_inversion_basal_friction_coulomb
-
-!***********************************************************************
-
-  subroutine invert_basal_friction_powerlaw(dt,                       &
-                                   nx,            ny,        &
-                                   itest, jtest,  rtest,     &
-                                   babc_timescale,           &
-                                   babc_thck_scale,          &
-                                   powerlaw_c_max,           &
-                                   powerlaw_c_min,           &
-                                   f_ground,                 &
-                                   stag_thck,                &
-                                   stag_thck_obs,            &
-                                   stag_dthck_dt,            &
-                                   powerlaw_c)
-
-    ! Compute a spatially varying basal friction field, powerlaw_c, defined at cell vertices.
-    ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
-    ! Where stag_thck > stag_thck_obs, powerlaw_c is reduced to increase sliding.
-    ! Where stag_thck < stag_thck_obs, powerlaw_c is increased to reduce sliding.
-    ! Note: powerlaw_c is constrained to lie within a prescribed range.
-    ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
-    !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
-    !        errors are greater in magnitude than errors in usrf, and we do not want to underweight the errors.
-    !       With dynamic topography, we would either invert based on usrf, or else adjust thck_obs to match usrf_obs.
-
-    real(dp), intent(in) ::  dt  ! time step (s)
-
-    integer, intent(in) :: &
-         nx, ny                  ! grid dimensions
-
-    integer, intent(in) :: &
-         itest, jtest, rtest     ! coordinates of diagnostic point
-
-    real(dp), intent(in) :: &
-         babc_timescale,       & ! inversion timescale (s); must be > 0
-         babc_thck_scale,      & ! thickness inversion scale (m); must be > 0
-         powerlaw_c_max,       & ! upper bound for powerlaw_c, Pa (m/yr)^(-1/3)
-         powerlaw_c_min          ! lower bound for powerlaw_c, Pa (m/yr)^(-1/3)
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-         f_ground,             & ! grounded fraction at vertices, 0 to 1
-         stag_thck,            & ! ice thickness at vertices (m)
-         stag_thck_obs,        & ! observed ice thickness at vertices (m)
-         stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
-
-    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
-         powerlaw_c              ! powerlaw_c field to be adjusted
-
-    ! local variables
-
-    real(dp), dimension(nx-1,ny-1) ::  &
-         stag_dthck,           & ! stag_thck - stag_thck_obs
-         dpowerlaw_c             ! change in powerlaw_c
-
-    real(dp) :: term1, term2
-    integer :: i, j
-
-    ! Initialize
-    dpowerlaw_c(:,:) = 0.0d0
-
-    ! Compute difference between current and target thickness
-    stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
-
     ! optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'Old powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') powerlaw_c(i,j)
-          enddo
-          print*, ' '
-       enddo
        print*, ' '
        print*, 'stag_thck - stag_thck_obs:'
        do j = jtest+3, jtest-3, -1
@@ -780,7 +743,15 @@ contains
        print*, 'stag_dthck_dt (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') stag_dthck_dt(i,j)*scyr
+             write(6,'(f10.3)',advance='no') stag_dthck_dt(i,j)*scyr
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'velo_sfc - velo_sfc_obs (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dvelo_sfc(i,j)
           enddo
           print*, ' '
        enddo
@@ -788,7 +759,7 @@ contains
        print*, 'f_ground'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_ground(i,j)
+             write(6,'(f10.3)',advance='no') f_ground(i,j)
           enddo
           print*, ' '
        enddo
@@ -796,16 +767,17 @@ contains
 
     ! Loop over vertices where f_ground > 0
     ! Note: f_ground should be computed before transport, so that if a vertex is grounded
-    !       before transport and fully floating afterward, powerlaw_c_inversion is computed here.
+    !       before transport and fully floating afterward, friction_c is computed here.
 
     do j = 1, ny-1
        do i = 1, nx-1
 
           if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
 
-             ! Compute the rate of change of powerlaw_c, based on stag_dthck and stag_dthck_dt.
-             ! This rate of change is proportional to the sum of two terms:
-             !     dCp/dt = -Cp * (1/tau) * (H - H_obs)/H0 + (2*tau/H0) * dH/dt
+             ! Compute the rate of change of friction_c, based on stag_dthck and stag_dthck_dt,
+             !  and/or dvelo_sfc.
+             ! For a thickness target, the rate of change is proportional to the sum of two terms:
+             !     dC/dt = -C * (1/tau) * (H - H_obs)/H0 + (2*tau/H0) * dH/dt
              ! where tau = babc_timescale and H0 = babc_thck_scale.
              ! This equation is similar to that of a damped harmonic oscillator:
              !     m * d2x/dt2 = -k*x - c*dx/dt
@@ -814,38 +786,62 @@ contains
              !  In this case the system reaches equilibrium as quickly as possible without oscillating.
              ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
              !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
-             ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/Cp)*dCp/dt with d2x/dt2,
+             ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
              !  we obtain the equation solved here.
+             ! With a surface speed target (babc_velo_scale > 0), we add a term proportional to (u - u_obs)/u0.
+             ! However, there is no tendency term associated with velocity changes du/dt.
+             ! Note: babc_thck_scale and babc_velo_scale have default values of 0.
+             !       Setting either or both to positive values in the config file will activate the inversion.
 
-             term1 = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
-             term2 = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+             ! Compute tendency terms based on the thickness target
 
-             dpowerlaw_c(i,j) = powerlaw_c(i,j) * (term1 + term2) * dt
+             if (babc_thck_scale > 0.0d0) then
+                term1_thck = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
+                term2_thck = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+             else
+                term1_thck = 0.0d0
+                term2_thck = 0.0d0
+             endif
+
+             ! Compute tendency terms based on the surface speed target
+             ! Note: I tried adding a term2_velo in analogy to term2_thck (Dec. 2021),
+             !       but it triggers oscillations in friction_c without improving accuracy.
+
+             if (babc_velo_scale > 0.0d0) then
+                term1_velo = dvelo_sfc(i,j) / (babc_velo_scale * babc_timescale)
+             else
+                term1_velo = 0.0d0
+             endif
+
+             dfriction_c(i,j) = friction_c(i,j) * (term1_thck + term2_thck + term1_velo) * dt
 
              ! Limit to prevent a large relative change in one step
-             if (abs(dpowerlaw_c(i,j)) > 0.05d0 * powerlaw_c(i,j)) then
-                if (dpowerlaw_c(i,j) > 0.0d0) then
-                   dpowerlaw_c(i,j) =  0.05d0 * powerlaw_c(i,j)
+             if (abs(dfriction_c(i,j)) > 0.05d0 * friction_c(i,j)) then
+                if (dfriction_c(i,j) > 0.0d0) then
+                   dfriction_c(i,j) =  0.05d0 * friction_c(i,j)
                 else
-                   dpowerlaw_c(i,j) = -0.05d0 * powerlaw_c(i,j)
+                   dfriction_c(i,j) = -0.05d0 * friction_c(i,j)
                 endif
              endif
 
-             ! Update powerlaw_c
-             powerlaw_c(i,j) = powerlaw_c(i,j) + dpowerlaw_c(i,j)
+             ! Update friction_c
+             friction_c(i,j) = friction_c(i,j) + dfriction_c(i,j)
 
              ! Limit to a physically reasonable range
-             powerlaw_c(i,j) = min(powerlaw_c(i,j), powerlaw_c_max)
-             powerlaw_c(i,j) = max(powerlaw_c(i,j), powerlaw_c_min)
+             friction_c(i,j) = min(friction_c(i,j), friction_c_max)
+             friction_c(i,j) = max(friction_c(i,j), friction_c_min)
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                  print*, ' '
-                print*, 'Invert for powerlaw_c: rank, i, j =', rtest, itest, jtest
+                print*, 'Invert for friction_c: rank, i, j =', rtest, itest, jtest
                 print*, 'thck, thck_obs, dthck, dthck_dt:', &
                      stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
-                print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
-                print*, 'dpowerlaw_c, newpowerlaw_c =', dpowerlaw_c(i,j), powerlaw_c(i,j)
+                print*, 'velo_sfc, velo_sfc_obs, dvelo_sfc:', velo_sfc(i,j), velo_sfc_obs(i,j), dvelo_sfc(i,j)
+                print*, 'dthck term, dthck_dt term, sum =', &
+                     term1_thck*dt, term2_thck*dt, (term1_thck + term2_thck)*dt
+                print*, 'dvelo term =', term1_velo*dt
+                print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
 
           else   ! f_ground = 0
@@ -857,201 +853,7 @@ contains
        enddo  ! i
     enddo  ! j
 
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'New powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') powerlaw_c(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif   ! verbose_inversion
-
-  end subroutine invert_basal_friction_powerlaw
-
-!***********************************************************************
-
-  ! Note: It may be possible to merge this subroutine with the powerlaw version,
-  !       if the logic ends up being very similar.
-  subroutine invert_basal_friction_coulomb(dt,                       &
-                                   nx,            ny,        &
-                                   itest, jtest,  rtest,     &
-                                   babc_timescale,           &
-                                   babc_thck_scale,          &
-                                   coulomb_c_max,            &
-                                   coulomb_c_min,            &
-                                   f_ground,                 &
-                                   stag_thck,                &
-                                   stag_thck_obs,            &
-                                   stag_dthck_dt,            &
-                                   coulomb_c)
-
-    ! Compute a spatially varying basal friction field, coulomb_c, defined at cell vertices.
-    ! The method is similar to that of Pollard & DeConto (TC, 2012), and is applied to all grounded ice.
-    ! Where stag_thck > stag_thck_obs, coulomb_c is reduced to increase sliding.
-    ! Where stag_thck < stag_thck_obs, coulomb_c is increased to reduce sliding.
-    ! Note: coulomb_c is constrained to lie within a prescribed range.
-    ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
-    !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
-    !        errors are greater in magnitude than errors in usrf, and we do not want to underweight the errors.
-    !       With dynamic topography, we would either invert based on usrf, or else adjust thck_obs to match usrf_obs.
-
-    real(dp), intent(in) ::  dt  ! time step (s)
-
-    integer, intent(in) :: &
-         nx, ny                  ! grid dimensions
-
-    integer, intent(in) :: &
-         itest, jtest, rtest     ! coordinates of diagnostic point
-
-    real(dp), intent(in) :: &
-         babc_timescale,       & ! inversion timescale (s); must be > 0
-         babc_thck_scale,      & ! thickness inversion scale (m); must be > 0
-         coulomb_c_max,        & ! upper bound for coulomb_c, unitless in range [0,1]
-         coulomb_c_min           ! lower bound for coulomb_c, unitless in range [0,1]
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-         f_ground,             & ! grounded fraction at vertices, 0 to 1
-         stag_thck,            & ! ice thickness at vertices (m)
-         stag_thck_obs,        & ! observed ice thickness at vertices (m)
-         stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
-
-    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
-         coulomb_c               ! coulomb_c field to be adjusted
-
-    ! local variables
-
-    real(dp), dimension(nx-1,ny-1) ::  &
-         stag_dthck,           & ! stag_thck - stag_thck_obs
-         dcoulomb_c              ! change in coulomb_c
-
-    real(dp) :: term1, term2
-    integer :: i, j
-
-    ! Initialize
-    dcoulomb_c(:,:) = 0.0d0
-
-    ! Compute difference between current and target thickness
-    stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
-
-    ! optional diagnostics
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'Old coulomb_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') coulomb_c(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'stag_thck - stag_thck_obs:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_dthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'stag_dthck_dt (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') stag_dthck_dt(i,j)*scyr
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif
-
-    ! Loop over vertices where f_ground > 0
-    ! Note: f_ground should be computed before transport, so that if a vertex is grounded
-    !       before transport and fully floating afterward, coulomb_c is computed here.
-
-    do j = 1, ny-1
-       do i = 1, nx-1
-
-          if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
-
-             ! Compute the rate of change of coulomb_c, based on stag_dthck and stag_dthck_dt.
-             ! This rate of change is proportional to the sum of two terms:
-             !     dCp/dt = -Cp * (1/tau) * (H - H_obs)/H0 + (2*tau/H0) * dH/dt
-             ! where tau = babc_timescale and H0 = babc_thck_scale.
-             ! This equation is similar to that of a damped harmonic oscillator:
-             !     m * d2x/dt2 = -k*x - c*dx/dt
-             ! where m is the mass, k is a spring constant, and c is a damping term.
-             ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
-             !  In this case the system reaches equilibrium as quickly as possible without oscillating.
-             ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
-             !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
-             ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/Cp)*dCp/dt with d2x/dt2,
-             !  we obtain the equation solved here.
-
-             term1 = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
-             term2 = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
-
-             dcoulomb_c(i,j) = coulomb_c(i,j) * (term1 + term2) * dt
-
-             ! Limit to prevent a large relative change in one step
-             if (abs(dcoulomb_c(i,j)) > 0.05d0 * coulomb_c(i,j)) then
-                if (dcoulomb_c(i,j) > 0.0d0) then
-                   dcoulomb_c(i,j) =  0.05d0 * coulomb_c(i,j)
-                else
-                   dcoulomb_c(i,j) = -0.05d0 * coulomb_c(i,j)
-                endif
-             endif
-
-             ! Update coulomb_c
-             coulomb_c(i,j) = coulomb_c(i,j) + dcoulomb_c(i,j)
-
-             ! Limit to a physically reasonable range
-             coulomb_c(i,j) = min(coulomb_c(i,j), coulomb_c_max)
-             coulomb_c(i,j) = max(coulomb_c(i,j), coulomb_c_min)
-
-             !WHL - debug
-             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                 print*, ' '
-                print*, 'Invert for coulomb_c: rank, i, j =', rtest, itest, jtest
-                print*, 'thck, thck_obs, dthck, dthck_dt:', &
-                     stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
-                print*, 'dthck term, dthck_dt term, sum =', term1*dt, term2*dt, (term1 + term2)*dt
-                print*, 'dcoulomb_c, newcoulomb_c =', dcoulomb_c(i,j), coulomb_c(i,j)
-             endif
-
-          else   ! f_ground = 0
-
-             ! do nothing; keep the old value
-
-          endif  ! f_ground > 0
-
-       enddo  ! i
-    enddo  ! j
-
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'New coulomb_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') coulomb_c(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif   ! verbose_inversion
-
-  end subroutine invert_basal_friction_coulomb
+  end subroutine invert_basal_friction
 
 !***********************************************************************
 
