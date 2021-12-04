@@ -302,6 +302,33 @@ data:          data%velocity%wvel(data%general%upn,1:data%general%ewn,1:data%gen
 factor:        scale_uvel
 standard_name: land_ice_basal_z_velocity
 
+[usfc_obs]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     observed surface velocity in x direction
+data:          data%velocity%usfc_obs
+factor:        scale_uvel
+standard_name: land_ice_surface_x_velocity_observed
+load:          1
+
+[vsfc_obs]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     observed surface velocity in y direction
+data:          data%velocity%vsfc_obs
+factor:        scale_uvel
+standard_name: land_ice_surface_y_velocity_observed
+load:          1
+
+[velo_sfc_obs]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     observed surface speed
+data:          data%velocity%velo_sfc_obs
+factor:        scale_uvel
+standard_name: land_ice_surface_speed_observed
+load:          1
+
 [bmlt_float]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -953,13 +980,6 @@ long_name:     spatially varying C for Coulomb sliding, staggered grid
 data:          data%basal_physics%coulomb_c
 load:          1
 
-[thck_inversion_save]
-dimensions:    time, y1,x1
-units:         meter
-long_name:     thickness from previous time step, for inversion
-data:          data%inversion%thck_save
-load:          1
-
 [artm]
 dimensions:    time, y1, x1
 units:         degree_Celsius
@@ -1003,14 +1023,6 @@ units:         meter/year
 long_name:     tendency of ice thickness (NOTE: Glide only)
 data:          data%geomderv%dthckdtm
 factor:        scale_acab
-
-[dthck_dt]
-dimensions:    time, y1,x1
-units:         meter/year
-long_name:     tendency of ice thickness (NOTE: Glissade only)
-data:          data%geometry%dthck_dt
-factor:        scyr
-load:          1
 
 [uvel]
 dimensions:    time, level, y0, x0

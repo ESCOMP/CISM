@@ -1258,7 +1258,7 @@ module glide_types
 
   type glide_velocity
 
-    !> Holds the velocity fields in 2D and 3D. At least some of these fields
+    !> Holds the velocity fields in 2D and 3D. Some of these fields are defined only in Glide.
     real(dp),dimension(:,:,:),pointer :: uvel  => null()   !> 3D $x$-velocity.
     real(dp),dimension(:,:,:),pointer :: vvel  => null()   !> 3D $y$-velocity.
     real(dp),dimension(:,:,:),pointer :: velnorm => null() ! horizontal ice speed
@@ -1266,6 +1266,8 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: wgrd  => null()   !> 3D grid vertical velocity.
     real(dp),dimension(:,:)  ,pointer :: uflx  => null()   !> 
     real(dp),dimension(:,:)  ,pointer :: vflx  => null()   !> 
+    real(dp),dimension(:,:)  ,pointer :: ubas  => null()   !> basal $x$-velocity at cell vertices (Glide only)
+    real(dp),dimension(:,:)  ,pointer :: vbas  => null()   !> basal $y$-velocity at cell vertices (Glide only)
     real(dp),dimension(:,:)  ,pointer :: diffu => null()   !> 
     real(dp),dimension(:,:)  ,pointer :: diffu_x => null() !*sfp* moved from velocity_hom deriv type
     real(dp),dimension(:,:)  ,pointer :: diffu_y => null() 
@@ -1274,10 +1276,13 @@ module glide_types
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
     real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D $x$-velocity; typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity; typically the vertical average
-    real(dp),dimension(:,:)  ,pointer :: ubas  => null()      !> basal $x$-velocity at cell vertices
-    real(dp),dimension(:,:)  ,pointer :: vbas  => null()      !> basal $y$-velocity at cell vertices
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
+
+    real(dp),dimension(:,:)  ,pointer :: usfc_obs => null()     !> observed surface $x$-velocity
+    real(dp),dimension(:,:)  ,pointer :: vsfc_obs => null()     !> observed surface $y$-velocity
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_obs => null() !> observed surface speed = sqrt(usfc_obc^2 + vsfc_obs^2)
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc => null()     !> surface speed
 
     ! Note: uvel_extend and vvel_extend can be used for input and output of uvel, vvel on a staggered grid 
     !       that is the same size as the unstaggered grid. This is required for exact restart if velocities
@@ -1561,16 +1566,20 @@ module glide_types
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
+     ! Note: Moved powerlaw_c and coulomb_c to basal_physics type
 
-     !Note: Moved powerlaw_c and coulomb_c to basal_physics type
-     real(dp), dimension(:,:), pointer :: &
-          thck_save => null()                    !> saved thck field (m); used to compute dthck_dt_inversion
-
-     ! parameters for adjusting powerlaw_c during inversion
-     ! Note: inversion_babc_timescale is later rescaled to SI units (s).
+     ! parameters for adjusting powerlaw_c or coulomb_c during inversion
+     ! Note: inversion%babc_timescale is later rescaled to SI units (s).
+     ! If babc_thck_scale > 0.0, then there is inversion based on a thickness target.
+     ! If babc_velo_scale > 0.0, then there is inversion based on a velocity target.
+     ! Either babc_thck_scale or babc_velo_scale must be set > 0 to turn on the inversion.
+     ! Setting both scales > 0 gives two inversion targets.
      real(dp) ::  &
           babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
-          babc_thck_scale = 100.d0               !> thickness inversion scale (m); must be > 0
+          babc_thck_scale = 0.0d0,             & !> thickness inversion scale (m)
+                                                 !> typical value for inversion = 100 m (used for ISMIP6)
+          babc_velo_scale = 0.0d0                !> velocity inversion scale (m/yr)
+                                                 !> typical value for inversion = 200 m/yr
 
      ! fields and parameters for deltaT_basin inversion
      ! Note: This is defined on the 2D (i,j) grid, even though it is uniform within a basin
@@ -2316,11 +2325,6 @@ contains
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
     !> \end{itemize}
 
-    !> In \texttt{model\%inversion}:
-    !> \begin{itemize}
-    !> \item \texttt{thck_save(ewn,nsn)}
-    !> \end{itemize}
-
     !> In \texttt{model\%basal_physics}:
     !> \begin{itemize}
     !> \item \texttt{powerlaw_c(ewn-1,nsn-1)}
@@ -2342,9 +2346,11 @@ contains
     !> \item \texttt{uflx(ewn-1,nsn-1))}
     !> \item \texttt{vflx(ewn-1,nsn-1))}
     !> \item \texttt{diffu(ewn,nsn))}
-    !> \item \texttt{btrc(ewn,nsn))}
-    !> \item \texttt{ubas(ewn,nsn))}
-    !> \item \texttt{vbas(ewn,nsn))}
+    !> \item \texttt{btrc(ewn-1,nsn-1))}
+    !> \item \texttt{usfc_obs(ewn,nsn))}
+    !> \item \texttt{vsfc_obs(ewn,nsn))}
+    !> \item \texttt{velo_sfc_obs(ewn-1,nsn-1))}
+    !> \item \texttt{velo_sfc(ewn-1,nsn-1))}
     !> \end{itemize}
 
     !> In \texttt{model\%climate}:
@@ -2535,10 +2541,10 @@ contains
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%rhs_v)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_2d)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_2d)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%vbas)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_mean)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_mean)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%usfc_obs)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%vsfc_obs)
     call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel)
 
     ! The following are on the extended staggered grid, which is the same size as the ice grid.
@@ -2549,6 +2555,8 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLIDE) then
        call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wgrd)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%vbas)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu_x)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu_y)
@@ -2651,6 +2659,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
@@ -2719,12 +2729,6 @@ contains
     ! inversion and basal physics arrays (Glissade only)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
-
-    if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
-    elseif (model%options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%thck_save)
-    endif
 
     if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or. &
         model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_APPLY) then
@@ -2967,17 +2971,25 @@ contains
         deallocate(model%velocity%uvel_2d_extend)
     if (associated(model%velocity%vvel_2d_extend)) &
         deallocate(model%velocity%vvel_2d_extend)
-    if (associated(model%velocity%ubas)) &
-        deallocate(model%velocity%ubas)
-    if (associated(model%velocity%vbas)) &
-        deallocate(model%velocity%vbas)
     if (associated(model%velocity%uvel_mean)) &
         deallocate(model%velocity%uvel_mean)
     if (associated(model%velocity%vvel_mean)) &
         deallocate(model%velocity%vvel_mean)
+    if (associated(model%velocity%usfc_obs)) &
+        deallocate(model%velocity%usfc_obs)
+    if (associated(model%velocity%vsfc_obs)) &
+        deallocate(model%velocity%vsfc_obs)
+    if (associated(model%velocity%velo_sfc_obs)) &
+        deallocate(model%velocity%velo_sfc_obs)
+    if (associated(model%velocity%velo_sfc)) &
+        deallocate(model%velocity%velo_sfc)
 
     if (associated(model%velocity%wgrd)) &
         deallocate(model%velocity%wgrd)
+    if (associated(model%velocity%ubas)) &
+        deallocate(model%velocity%ubas)
+    if (associated(model%velocity%vbas)) &
+        deallocate(model%velocity%vbas)
     if (associated(model%velocity%diffu)) &
         deallocate(model%velocity%diffu)
     if (associated(model%velocity%diffu_x)) &
@@ -3120,8 +3132,6 @@ contains
         deallocate(model%basal_physics%powerlaw_c)
     if (associated(model%basal_physics%coulomb_c)) &
         deallocate(model%basal_physics%coulomb_c)
-    if (associated(model%inversion%thck_save)) &
-        deallocate(model%inversion%thck_save)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
 

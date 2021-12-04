@@ -2166,6 +2166,7 @@ contains
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
+    call GetValue(section, 'inversion_babc_velo_scale', model%inversion%babc_velo_scale)
 
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
@@ -2593,9 +2594,16 @@ contains
        write(message,*) 'inversion basal friction timescale (yr)      : ', &
             model%inversion%babc_timescale
        call write_log(message)
-       write(message,*) 'inversion thickness scale (m)                : ', &
-            model%inversion%babc_thck_scale
-       call write_log(message)
+       if (model%inversion%babc_thck_scale > 0.0d0) then
+          write(message,*) 'inversion thickness scale (m)                : ', &
+               model%inversion%babc_thck_scale
+          call write_log(message)
+       endif
+       if (model%inversion%babc_velo_scale > 0.0d0) then
+          write(message,*) 'inversion velocity scale (m/yr)              : ', &
+               model%inversion%babc_velo_scale
+          call write_log(message)
+       endif
     endif   ! which_ho_powerlaw_c
 
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
@@ -2608,9 +2616,16 @@ contains
        write(message,*) 'inversion basal friction timescale (yr)      : ', &
             model%inversion%babc_timescale
        call write_log(message)
-       write(message,*) 'inversion thickness scale (m)                : ', &
-            model%inversion%babc_thck_scale
-       call write_log(message)
+       if (model%inversion%babc_thck_scale > 0.0d0) then
+          write(message,*) 'inversion thickness scale (m)                : ', &
+               model%inversion%babc_thck_scale
+          call write_log(message)
+       endif
+       if (model%inversion%babc_velo_scale > 0.0d0) then
+          write(message,*) 'inversion velocity scale (m/yr)              : ', &
+               model%inversion%babc_velo_scale
+          call write_log(message)
+       endif
     endif   ! which_ho_coulomb_c
 
     if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
@@ -3397,7 +3412,7 @@ contains
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        call glide_add_to_restart_variable_list('powerlaw_c', model_id)
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       call glide_add_to_restart_variable_list('dthck_dt', model_id)
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     elseif (options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL) then
        call glide_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
@@ -3405,7 +3420,7 @@ contains
     if (options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
        call glide_add_to_restart_variable_list('coulomb_c', model_id)
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       call glide_add_to_restart_variable_list('dthck_dt', model_id)
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     elseif (options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
        call glide_add_to_restart_variable_list('coulomb_c', model_id)
     endif
