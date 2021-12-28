@@ -102,6 +102,7 @@ module glad_type
      ! Climate options -------------------------------------------
 
      integer :: evolve_ice = 1
+     logical :: zero_gcm_fluxes = .false.
 
      !> Whether the ice sheet can evolve:
      !> \begin{description}
@@ -209,6 +210,7 @@ contains
     call GetSection(config,section,'GLAD climate')
     if (associated(section)) then
        call GetValue(section,'evolve_ice',instance%evolve_ice)
+       call GetValue(section,'zero_gcm_fluxes',instance%zero_gcm_fluxes)
        call GetValue(section,'mbal_accum_time',mbal_time_temp)
        call GetValue(section,'ice_tstep_multiply',instance%ice_tstep_multiply)
     end if
@@ -310,6 +312,11 @@ contains
     if (instance%evolve_ice == EVOLVE_ICE_FALSE) then
        call write_log('The ice sheet state will not evolve after initialization')
     endif
+    if (instance%zero_gcm_fluxes) then
+       call write_log('Fluxes to the GCM will be set to zero')
+    else
+       call write_log('Fluxes to the GCM will NOT be set to zero')
+    end if
 
     if (instance%mbal_accum_time == -1) then
        call write_log('Mass-balance accumulation time will be set to max(ice timestep, mbal timestep)')
