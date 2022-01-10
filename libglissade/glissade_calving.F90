@@ -47,7 +47,8 @@ module glissade_calving
             glissade_limit_cliffs
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -57,6 +58,7 @@ contains
                                         parallel,                            &
                                         thck,              topg,             &
                                         eus,               thklim,           &
+                                        usfc_obs,          vsfc_obs,         &
                                         calving_front_x,   calving_front_y,  &
                                         calving_mask)
 
@@ -72,6 +74,8 @@ contains
     real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
     real(dp), intent(in) :: eus                    !> eustatic sea level (m)
     real(dp), intent(in) :: thklim                 !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), dimension(:,:), intent(in) :: &
+         usfc_obs, vsfc_obs                        !> observed surface velocity components (m/yr)
     real(dp), intent(in) :: calving_front_x        !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
     real(dp), intent(in) :: calving_front_y        !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
 
@@ -179,15 +183,36 @@ contains
                                ice_mask,                      &
                                ocean_mask = ocean_mask)
 
-       ! Set calving_mask = 1 for ice-free ocean cells.
+       ! Set the calving mask to include all ice-free ocean cells.
+       ! Make an exception for cells where usfc_obs or vsfc_obs > 0.
+       ! This would include cells with observed nonzero velocity (and hence ice present)
+       !  which are ice-free ocean in the input thickness dataset (e.g., Bedmachine).
+       !  As of Dec. 2021, this is the case for parts of the Thwaites shelf region.
+       !  We want to allow the shelf to expand into regions where ice was present
+       !   and flowing recently, even if no longer present.
        ! Any ice entering these cells during the run will calve.
-       do j = 1, ny
-          do i = 1, nx
+
+       do j = 2, ny-1
+          do i = 2, nx-1
              if (ocean_mask(i,j) == 1) then
-                calving_mask(i,j) = 1
+                if (usfc_obs(i-1,j)   == 0.0d0 .and. usfc_obs(i,j)   == 0.0d0 .and. &
+                    usfc_obs(i-1,j-1) == 0.0d0 .and. usfc_obs(i,j-1) == 0.0d0 .and. &
+                    vsfc_obs(i-1,j)   == 0.0d0 .and. vsfc_obs(i,j)   == 0.0d0 .and. &
+                    vsfc_obs(i-1,j-1) == 0.0d0 .and. vsfc_obs(i,j-1) == 0.0d0) then
+                   calving_mask(i,j) = 1   ! calve ice in this cell
+                else
+                   calving_mask(i,j) = 0
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   print*, 'ocean cell with uobs, vobs > 0: iglobal, jglobal, thck, uobs, vobs', &
+                        iglobal, jglobal, thck(i,j), usfc_obs(i,j), vsfc_obs(i,j)
+                endif
+             else
+                calving_mask(i,j) = 0
              endif
           enddo
        enddo
+
+       call parallel_halo(calving_mask, parallel)
 
        deallocate(ice_mask)
        deallocate(ocean_mask)
