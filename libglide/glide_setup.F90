@@ -130,7 +130,7 @@ contains
     ! This is done regardless of whether or not a restart ouput file is going 
     ! to be created for this run, but this information is needed before setting up outputs.   MJH 1/17/13
 
-    call define_glide_restart_variables(model%options)
+    call define_glide_restart_variables(model)
 
   end subroutine glide_readconfig
 
@@ -1068,13 +1068,12 @@ contains
          'Dinf; route flux to two lower-elevation neighbors', &
          'FD8; route flux to all lower-elevation neighbors ' /)
 
-    character(len=*), dimension(0:5), parameter :: ho_whicheffecpress = (/ &
+    character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
          'reduced effecpress near pressure melting point       ', &
-         'reduced effecpress where there is melting at the bed ', &
-         'reduced effecpress where bed is connected to ocean   ', &
-         'reduced effecpress with increasing basal water (B/vP)', &
-         'reduced effecpress with increasing basal water (ramp)'/)
+         'reduced effecpress where bwat > 0 (ramp)             ', &
+         'reduced effecpress where bwatflx > 0                 ', &
+         'reduced effecpress where bwat > 0 (B/vP)             '/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration          ', &
@@ -2123,6 +2122,7 @@ contains
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
+    call GetValue(section, 'ocean_p_timescale', model%basal_physics%ocean_p_timescale)
     call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
     call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
@@ -2687,6 +2687,10 @@ contains
        call write_log('Apply ocean connection to reduce effective pressure')
        write(message,*) 'p_ocean_penetration           : ', model%basal_physics%p_ocean_penetration
        call write_log(message)
+       if (model%basal_physics%ocean_p_timescale > 0.0d0) then
+          write(message,*) 'ocean_p relaxation time (yr)  : ', model%basal_physics%ocean_p_timescale
+          call write_log(message)
+       endif
     endif
 
     if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
@@ -2786,7 +2790,7 @@ contains
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-       write(message,*) 'gamma0 (nondimensional)  :  ', model%ocean_data%gamma0
+       write(message,*) 'gamma0 (m/yr)            :  ', model%ocean_data%gamma0
        call write_log(message)
        if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
           write(message,*) 'thermal forcing anomaly (C) :', model%ocean_data%thermal_forcing_anomaly
@@ -3055,7 +3059,8 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine define_glide_restart_variables(options)
+  subroutine define_glide_restart_variables(model)
+
     !> This subroutine analyzes the glide/glissade options input by the user in the config file
     !> and determines which variables are necessary for an exact restart.  MJH 1/11/2013
 
@@ -3071,11 +3076,18 @@ contains
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
-    type(glide_options), intent (in) :: options  !> Derived type holding all model options
+    type(glide_global_type), intent (in) :: model  !> Derived type holding all model info
 
     !------------------------------------------------------------------------------------
     ! Internal variables
     !------------------------------------------------------------------------------------
+    type(glide_options) :: options  !> Derived type holding all model options
+
+    ! Copy model%options to options to save typing below
+    ! Note: Originally, only model%options was passed in, but passing in the full model derived type
+    !       allows the restart logic to be based on parameter values also.
+
+    options = model%options
 
     !------------------------------------------------------------------------------------
 
@@ -3410,7 +3422,6 @@ contains
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        call glide_add_to_restart_variable_list('powerlaw_c')
        call glide_add_to_restart_variable_list('usrf_obs')
-       call glide_add_to_restart_variable_list('velo_sfc_obs')
     elseif (options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL) then
        call glide_add_to_restart_variable_list('powerlaw_c')
     endif
@@ -3418,15 +3429,27 @@ contains
     if (options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
        call glide_add_to_restart_variable_list('coulomb_c')
        call glide_add_to_restart_variable_list('usrf_obs')
-       call glide_add_to_restart_variable_list('velo_sfc_obs')
+
     elseif (options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
        call glide_add_to_restart_variable_list('coulomb_c')
     endif
 
+    ! If inverting for coulomb_c or powerlaw_c based on observed surface speed
+    ! (with model%inversion%babc_velo_scale > 0), then write velo_sfc_obs to the restart file.
+    if (model%inversion%babc_velo_scale > 0.0d0) then
+       call glide_add_to_restart_variable_list('velo_sfc_obs')
+    endif
+
     ! effective pressure options
-    ! The bwatflx option prognoses f_effecpress, the ratio N/overburden
+    ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       call glide_add_to_restart_variable_list('f_effecpress')
+       call glide_add_to_restart_variable_list('f_effecpress_bwat')
+    endif
+
+    ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
+    ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
+    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
+       call glide_add_to_restart_variable_list('f_effecpress_ocean_p')
     endif
 
     ! The bmlt_basin inversion option needs a thickness target for floating ice
