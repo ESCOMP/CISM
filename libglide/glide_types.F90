@@ -1801,7 +1801,8 @@ module glide_types
 
      real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
-     real(dp), dimension(:,:), pointer :: f_effecpress                  !> ratio effecpress/(rhoi*g*H); 0 <= f <= 1
+     real(dp), dimension(:,:), pointer :: f_effecpress_bwat => null()   !> fractional effecpress due to bwatflx; in range (0,1]
+     real(dp), dimension(:,:), pointer :: f_effecpress_ocean_p => null()!> fractional effecpress due to ocean_p > 0; in range [0,1]
 
      ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *COULOMB_POWERLAW_SCHOOF AND *COULOMB_POWERLAW_TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
@@ -1815,8 +1816,10 @@ module glide_types
      real(dp) :: effecpress_bwat_threshold = 2.0d0     !> bwat range over which N ramps down from overburden to a small value (m);
                                                        !> typically set to same value as bwat_till_max when using local till model
      real(dp) :: effecpress_bwatflx_threshold = 0.01d0 !> bwatflx scale (m/yr); min value that gives N < overburden
+     real(dp) :: effecpress_timescale = 500.0d0        !> timescale (yr) for relaxing N/overburden based on bwatflx
+                                                       !> same default value as babc_timescale
      real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
-     real(dp) :: effecpress_timescale = 100.d0         !> timescale to relax effective pressure (yr)
+     real(dp) :: ocean_p_timescale = 0.0d0             !> timescale (yr) for relaxing N/overburden to (1-Hf/H)^p
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -2680,7 +2683,8 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress_bwat)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress_ocean_p)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
@@ -3083,8 +3087,10 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
-    if (associated(model%basal_physics%f_effecpress)) &
-        deallocate(model%basal_physics%f_effecpress)
+    if (associated(model%basal_physics%f_effecpress_bwat)) &
+        deallocate(model%basal_physics%f_effecpress_bwat)
+    if (associated(model%basal_physics%f_effecpress_ocean_p)) &
+        deallocate(model%basal_physics%f_effecpress_ocean_p)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%c_space_factor)) &
