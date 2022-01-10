@@ -114,6 +114,8 @@ contains
     ! If inverting for Cp or Cc, then set the target elevation, usrf_obs,
     !  and the target surface ice speed, velo_sfc_obs.
     ! Note: Must read in usfc_obs and vsfc_obs to set velo_sfc_obs correctly.
+    !       Typically, the inversion is based only on the surface elevation, usrf_obs,
+    !        but compute velo_sfc_obs regardless since it is a useful diagnostic.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
@@ -271,8 +273,8 @@ contains
        if (var_maxval > 0.0d0) then
           ! do nothing; coulomb_c has been read in already (e.g., when restarting)
        else
-          ! initialize to a uniform value of 1.0, implying full overburden pressure
-          model%basal_physics%coulomb_c(:,:) = 1.0d0
+          ! initialize to a uniform value (which can be set in the config file)
+          model%basal_physics%coulomb_c(:,:) = model%basal_physics%coulomb_c_const
        endif  ! var_maxval > 0
 
        if (verbose_inversion .and. this_rank == rtest) then
@@ -296,23 +298,19 @@ contains
 
        if (model%options%is_restart == RESTART_FALSE) then
 
-          ! Set floating_thck_target to the thickness of lightly floating and lightly grounded ice.
-          ! Here, "lightly" means that the absolute value of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
-          !  is less than a prescribed threshold.
-          ! Thus we include both ice that is floating but might ground (leading to
-          !  a positive volume bias that will be corrected with ocean warming) and ice
-          !  that is grounded but might float (leading to a negative volume bias
-          !  that will be corrected with ocean cooling).
+          ! Set floating_thck_target for floating ice and lightly grounded ice.
+          ! Here, "lightly grounded" means that the magnitude of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
+          !  is less than a prescribed threshold.  (Recall f_flotation < 0 for grounded ice.)
+          ! The inversion will nudge the ice thickness toward this target in a basin-average sense.
+          ! Positive volume biases will be corrected with ocean warming, and negative biases with cooling.
 
           do j = 1, nsn
              do i = 1, ewn
                 f_flotation = (-(model%geometry%topg(i,j) - model%climate%eus)  &
                               - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0    ! f_flotation < 0 for grounded ice
-
-
                 if (model%geometry%thck(i,j) > 0.0d0 .and. &
                     model%geometry%marine_connection_mask(i,j) == 1 .and. &
-                    abs(f_flotation) < model%inversion%bmlt_basin_flotation_threshold) then
+                    f_flotation > -model%inversion%bmlt_basin_flotation_threshold) then
                    model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
                 else
                    model%inversion%floating_thck_target(i,j) = 0.0d0
