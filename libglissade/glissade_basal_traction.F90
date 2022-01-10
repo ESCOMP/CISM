@@ -728,10 +728,11 @@ contains
   subroutine glissade_init_effective_pressure(which_effecpress, basal_physics)
 
     ! Initialize calculations related to effective pressure.
-    ! Currently, the only thing to do is initialize an array for
-    !  option which_effecpress = HO_EFFECPRESS_BWATFLX.
-    ! Note: f_effecpress should not be reset if restarting.
-    !       Currently, this subroutine is called only when *not* restarting
+    ! Currently, the only thing to do is initialize two scalar arrays that represent
+    !  the fractional reduction of effective pressure due to basal water flux
+    !  or an ocean connection.
+    ! Note: f_effecpress_bwat and f_effecpress_ocean_p should not be reset if restarting.
+    !       This subroutine is called only when *not* restarting
 
     ! Input/output arguments
 
@@ -742,8 +743,10 @@ contains
          basal_physics       ! basal physics object
 
     if (which_effecpress == HO_EFFECPRESS_BWATFLX) then
-       basal_physics%f_effecpress(:,:) = 1.0d0
+       basal_physics%f_effecpress_bwat(:,:) = 1.0d0
     endif
+
+    basal_physics%f_effecpress_ocean_p(:,:) = 1.0d0
 
   end subroutine glissade_init_effective_pressure
 
@@ -819,28 +822,30 @@ contains
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
          relative_bwat,   &  ! ratio bwat/bwat_threshold, limited to range [0,1]
-         df_dt               ! rate of change of f_effecpress
+         df_dt               ! rate of change of f_effecpress_bwat
 
     real(dp), dimension(ewn,nsn) ::  &
          overburden,            & ! overburden pressure, rhoi*g*H
-         effecpress_ocean_p,    & ! pressure reduced by ocean connection
-         f_pattyn_2d              ! rhoo*(eus-topg)/(rhoi*thck)
+         f_pattyn_2d,           & ! rhoo*(eus-topg)/(rhoi*thck)
                                   ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
+         f_ocean_p_target         ! target value for (1 - Hf/H)^p
+                                  ! can either set f_effecpress_ocean_p to the target, or relax toward the target over time
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
-
     real(dp) :: f_pattyn          ! rhoo*(eus-topg)/(rhoi*thck)
     real(dp) :: f_pattyn_capped   ! f_pattyn capped to lie in range [0,1]
 
-    real(dp) :: frac
     integer :: i, j
 
     logical, parameter :: verbose_effecpress = .false.
+!!    logical, parameter :: verbose_effecpress = .true.
 
     ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
 
     overburden(:,:) = rhoi*grav*thck(:,:)
     basal_physics%effecpress(:,:) = overburden(:,:)
+
+    ! Optionally, reduce N as a function of water or melt conditions at the bed
 
     select case(which_effecpress)
 
@@ -910,15 +915,16 @@ contains
 
     case(HO_EFFECPRESS_BWATFLX)
 
-       ! Note: The units of bwatflux are volume per unit area per unit time, i.e. m/yr.
+       ! Reduce N where there the flux of basal water at the bed exceeds a threshold value.
+       ! Note: The units of bwatflx are volume per unit area per unit time, i.e. m/yr.
        !       This is the rate at which bwat would increase if there were inflow but no outflow.
+       ! Note: The relaxation scale is babc_timescale, the same as for coulomb_c or powerlaw_c.
 
        if (present(bwatflx)) then
 
-          ! Reduce N where the basal water flux is greater than zero.
-          ! This is done by prognosing f_effecpress = effecpress/overburden:
+          ! Prognose a scalar f_effecpress_bwat = effecpress/overburden:
           !          df/dt = [1 - f*(F/F0)] / tau
-          !          where f = f_effecpress, F = bwatflx, F0 = effecpress_bwatflx_threshold,
+          !          where f = f_effecpress_bwat, F = bwatflx, F0 = effecpress_bwatflx_threshold,
           !              tau = effecpress_timescale
           ! The steady-state f < 1 when F > F0.
           ! As f decreases, the marginal effect of additional flux also decreases.
@@ -927,16 +933,18 @@ contains
              do i = 1, ewn
                 if (bwatflx(i,j) > 0.0d0) then
 
-                   df_dt = ( 1.0d0 - basal_physics%f_effecpress(i,j) * &
+                   df_dt = ( 1.0d0 - basal_physics%f_effecpress_bwat(i,j) * &
                         (bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold) ) / &
                         basal_physics%effecpress_timescale
-                   basal_physics%f_effecpress(i,j) = basal_physics%f_effecpress(i,j) + df_dt * dt
+                   basal_physics%f_effecpress_bwat(i,j) = basal_physics%f_effecpress_bwat(i,j) + df_dt * dt
 
                    ! Limit to be in the range [effecpress_delta, 1.0)
-                   basal_physics%f_effecpress(i,j) = min(basal_physics%f_effecpress(i,j), 1.0d0)
-                   basal_physics%f_effecpress(i,j) = max(basal_physics%f_effecpress(i,j), basal_physics%effecpress_delta)
+                   basal_physics%f_effecpress_bwat(i,j) = min(basal_physics%f_effecpress_bwat(i,j), 1.0d0)
+                   basal_physics%f_effecpress_bwat(i,j) = &
+                        max(basal_physics%f_effecpress_bwat(i,j), basal_physics%effecpress_delta)
 
-                   basal_physics%effecpress(i,j) = basal_physics%f_effecpress(i,j) * overburden(i,j)
+                   ! Compute the effective pressure relative to overburden
+                   basal_physics%effecpress(i,j) = basal_physics%f_effecpress_bwat(i,j) * overburden(i,j)
 
                 end if
              enddo
@@ -944,12 +952,12 @@ contains
 
           if (verbose_effecpress .and. this_rank == rtest) then
              print*, ' '
-             print*, 'After bwatflx, f_effecpress, itest, jtest, rank =', itest, jtest, rtest
+             print*, 'After bwatflx, f_effecpress_bwat, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    if (thck(i,j) > 0.0d0) then
-                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress(i,j)
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat(i,j)
                    else
                       write(6,'(f10.5)',advance='no') 0.0d0
                    endif
@@ -1019,15 +1027,20 @@ contains
 
     end select   ! which_effecpress
 
-    ! Optionally, reduce N for ice grounded below sea level based on connectivity of subglacial water to the ocean.
+    ! Optionally, reduce N for grounded marine ice based on the connectivity of subglacial water to the ocean.
     ! N is weighted by the factor (1 - Hf/H)^p, where Hf is the flotation thickness.
     ! p = 1 => full connectivity
     ! 0 < p < 1 => partial connectivity
-    ! p = 0 => no connectivity; p_w = 0
+    ! p = 0 => no connectivity; water pressure p_w = 0
+
+    ! The adjustment of N to N*(1 - Hf/H)^p can either be instantaneous, or else over a prescribed timescale.
+    ! A relaxation timescale may be appropriate for a spin-up in the following situation:
+    !  Marine-based ice is initialized to a transient state in which (1 - Hf/H)^p is small, and a result
+    !   the grounding line retreats unstably.  (Thwaites Glacier is a typical case.)
+    !  However, we want the GL to advance, which will happen only if N is *not* immmediately reduced,
+    !   and instead the ice is allowed to thicken, increasing (1 - Hf/H)^p and stabilizing the GL.
 
     ocean_p = basal_physics%p_ocean_penetration
-
-    effecpress_ocean_p(:,:) = overburden(:,:)
 
     if (ocean_p > 0.0d0) then
 
@@ -1041,12 +1054,25 @@ contains
              if (thck(i,j) > 0.0d0) then
                 f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))     ! > 1 for floating, < 1 for grounded
                 f_pattyn_capped = max( min(f_pattyn, 1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
-                effecpress_ocean_p(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
+                f_ocean_p_target(i,j) = (1.0d0 - f_pattyn_capped)**ocean_p  ! (1 - Hf/H)^p = target ratio of N / overburden
              endif
           enddo
        enddo
 
-       !WHL - debug
+       if (basal_physics%ocean_p_timescale > 0.0d0) then
+          ! relax f_ocean_p toward the target value computed above
+          ! Note: dt and f_ocean_p_timescale have units of yr
+          basal_physics%f_effecpress_ocean_p(:,:) = basal_physics%f_effecpress_ocean_p(:,:) &
+               + (f_ocean_p_target(:,:) - basal_physics%f_effecpress_ocean_p(:,:)) &
+               * min(dt/basal_physics%ocean_p_timescale, 1.0d0)
+       else
+          basal_physics%f_effecpress_ocean_p(:,:) = f_ocean_p_target(:,:)
+       endif
+
+       ! Reduce the effective pressure where f_effecpress_ocean_p < 1.
+       ! Note: f_effecpress_ocean_p is initialized to 1, and is reduced near marine margins only if ocean_p > 0.
+       basal_physics%effecpress(:,:) = basal_physics%effecpress(:,:) * basal_physics%f_effecpress_ocean_p(:,:)
+
        if (present(itest) .and. present(jtest) .and. present(rtest)) then
           if (this_rank == rtest .and. verbose_effecpress) then
 
@@ -1075,21 +1101,11 @@ contains
                 write(6,*) ' '
              enddo
              print*, ' '
-             print*, 'multiplier for N, itest, jtest, rank =', itest, jtest, rtest
+             print*, 'f_effecpress_ocean_p, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   f_pattyn_capped = max( min(f_pattyn_2d(i,j), 1.0d0), 0.0d0)
-                   write(6,'(f10.4)',advance='no') (1.0d0 - f_pattyn_capped)**ocean_p
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'N_ocean_p, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.0)',advance='no') effecpress_ocean_p(i,j)
+                   write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_ocean_p(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -1098,7 +1114,7 @@ contains
 
     else   ! ocean_p = 0
 
-       ! do nothing, (1 - Hf/H)^p = 1
+       ! (1 - Hf/H)^p = 1; do not reduce N
 
        ! Note(WHL): If ocean_p = 0, then we have N = rhoi*grav*H for floating ice (f_pattyn_capped = 1).
        !            Equivalently, we are defining 0^0 = 1 for purposes of the Leguy et al. effective pressure parameterization.
@@ -1109,12 +1125,6 @@ contains
        !             falls from 1 to a value slightly below 1.  This sudden increase would occur despite the use of a GLP.
 
     endif
-
-    ! Choose the minimum of the ocean-connection value and the previously computed value.
-    ! Thus, the effective pressure can be reduced by an ocean connection or by the presence of meltwater,
-    !  but these two processes do not compound on each other.
-
-    basal_physics%effecpress = min(basal_physics%effecpress, effecpress_ocean_p)
 
     ! Cap the effective pressure at 0x and 1x overburden pressure to avoid strange values going to the friction laws.
     ! This capping may not be necessary, but is included as a precaution.
@@ -1138,19 +1148,6 @@ contains
                           ice_mask,                  stagger_margin_in = 0)
 
     if (verbose_effecpress .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'ocean_p N/overburden, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             if (thck(i,j) > 0.0d0) then
-                write(6,'(f10.5)',advance='no') effecpress_ocean_p(i,j) / overburden(i,j)
-             else
-                write(6,'(f10.5)',advance='no') 0.0d0
-             endif
-          enddo
-          write(6,*) ' '
-       enddo
        print*, ' '
        print*, 'Final N/overburden, itest, jtest, rank =', itest, jtest, rtest
        do j = jtest+3, jtest-3, -1

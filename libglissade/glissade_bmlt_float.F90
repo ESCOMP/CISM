@@ -561,7 +561,7 @@ module glissade_bmlt_float
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-          !WHL - In earlier code, nonzero values of gamma0 could be set in the config file,
+          !WHL - In earlier code, nonzero values of gamma0 could either be set in the config file,
           !       read from the input file, or assigned here based on the ISMIP6 parameterization.
           !      This led to errors because with multiple ways of setting gamma0, it was unclear
           !       which value would actually be used.
