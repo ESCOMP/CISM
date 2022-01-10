@@ -103,7 +103,7 @@ contains
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
-    use glimmer_paramets, only: eps11, thk0, len0, tim0, scyr
+    use glimmer_paramets, only: eps11, thk0, len0, tim0, vel0, scyr
     use glimmer_physcon, only: rhow, rhoi
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
@@ -943,15 +943,20 @@ contains
        ! Initialize the no-advance calving_mask
        ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
        !       The calving front that exists after initial culling is the one that is held fixed during the simulation.
+       ! Note: Typically, the calving mask is set to 1 (i.e., force calving) in all ice-free ocean cells.
+       !       If usfc_obs and vsfc_obs have been read in, then the mask will be set to 0 in ice-free ocean cells
+       !        where the observed velocity is nonzero.  Ice-free cells can have nonzero velocity
+       !        if the input velocity comes from a different data source than the input thickness.
        ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0.
        ! On restart, calving_mask is read from the restart file.
 
        call glissade_calving_mask_init(&
-            model%numerics%dew*len0,       model%numerics%dns*len0,        &
-            parallel,                                                      &
-            model%geometry%thck*thk0,      model%geometry%topg*thk0,       &
-            model%climate%eus*thk0,        model%numerics%thklim*thk0,     &
-            model%calving%calving_front_x, model%calving%calving_front_y,  &
+            model%numerics%dew*len0,           model%numerics%dns*len0,           &
+            parallel,                                                             &
+            model%geometry%thck*thk0,          model%geometry%topg*thk0,          &  ! m
+            model%climate%eus*thk0,            model%numerics%thklim*thk0,        &  ! m
+            model%velocity%usfc_obs*vel0*scyr, model%velocity%vsfc_obs*vel0*scyr, &  ! m/yr
+            model%calving%calving_front_x,     model%calving%calving_front_y,     &
             model%calving%calving_mask)
 
     endif   ! calving grid mask
@@ -2909,6 +2914,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
     use glimmer_paramets, only: thk0, tim0, len0
+    use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, verbose_calving
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask,  &
@@ -2962,9 +2968,7 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    !WHL - debug
     logical, parameter :: verbose_retreat = .true.
-
 
     nx = model%general%ewn
     ny = model%general%nsn
@@ -2985,7 +2989,7 @@ contains
     model%calving%calving_thck = 0.0d0
 
     ! Thin or remove ice where retreat is forced.
-    ! Note: This option is similar to apply_calving_mask.  It is different in that the mask
+    ! Note: This option is similar to apply_calving_mask.  It is different in that ice_fraction_retreat_mask
     !       is a real number in the range [0,1], allowing thinning instead of complete removal.
     !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
     ! There are two forced retreat options:
@@ -3170,17 +3174,79 @@ contains
        endif
 
        ! calve ice where calving_mask = 1
-       where (thck_unscaled > 0.0d0 .and. model%calving%calving_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
-          thck_unscaled = 0.0d0
-          !TODO - Reset temperature and other tracers in cells where the ice calved?
-       endwhere
+       ! Optionally, if calving%timescale > 0, then there is a time scale for removal,
+       !  allowing the CF to advance into masked regions.
+       !TODO - Apply a time scale wherever calving%timescale > 0.
+       !TODO - Move the mask logic to a subroutine.
+
+       if (model%calving%timescale <= 1.0d0) then  ! currently have 1.0 yr in config files
+
+          ! Remove ice in all cells with calving_mask = 1
+          where (thck_unscaled > 0.0d0 .and. model%calving%calving_mask == 1)
+             model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
+             thck_unscaled = 0.0d0
+             !TODO - Reset temperature and other tracers in cells where the ice calved?
+          endwhere
+
+       else
+
+          ! Thin the ice in floating cells where calving_mask = 1, based on a relaxation timescale
+
+          ! In each masked floating cell, the thinning rate is max(H, H_c)/tau_c,
+          !  where H_c is the calving thickness scale and tau_c the timescale.
+          ! Thus the thinning rate is largest for thick ice.
+          ! For thin ice, the rate has a minimum value H_c/tau_c..
+          ! Note: calving%timescale has units of s (though input in yr in the config file)
+
+          do j = 1, ny
+             do i = 1, nx
+                if (floating_mask(i,j) == 1 .and. model%calving%calving_mask(i,j) == 1) then
+                   dthck = model%numerics%dt*tim0  &  ! dt in seconds
+                        * max(thck_unscaled(i,j), model%calving%minthck) / model%calving%timescale
+                   if (thck_unscaled(i,j) > dthck) then
+                      model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+                      thck_unscaled(i,j) = thck_unscaled(i,j) - dthck
+                   else
+                      model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + thck_unscaled(i,j)
+                      thck_unscaled(i,j) = 0.0d0
+                   endif
+                endif
+             enddo   ! i
+          enddo   ! j
+
+          if (verbose_calving .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
+             print*, 'dt (yr) =', model%numerics%dt * tim0/scyr
+             print*, 'calving_minthck (m) =', model%calving%minthck
+             print*, ' '
+             print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%calving%calving_thck(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'New thck (m):'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+      endif  ! relaxed calving
 
     elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
        ! If using a subgrid calving_front scheme (but apply_calving_mask = F),
        !  remove thin ice that was transported beyond the CF to ice-free cells without active neighbors.
        ! In that case, a temporary version of model%calving%calving_mask is computed after transport and applied here.
+       !TODO - Add a timescale
 
        where (model%calving%calving_mask == 1)
           model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
