@@ -1601,3 +1601,24 @@ dimensions:    time
 units:         years
 long_name:     diffusive CFL maximum time step
 data:          data%numerics%diff_cfl_dt
+
+[glacier_id]
+dimensions:    time, y1, x1
+units:         1
+long_name:     input integer glacier ID
+data:          data%glacier%glacier_id
+load:          1
+
+[glacier_id_cism]
+dimensions:    time, y1, x1
+units:         1
+long_name:     CISM-specific integer glacier ID
+data:          data%glacier%glacier_id_cism
+load:          1
+
+[mu_star]
+dimensions:    time, y1, x1
+units:         mm/yr w.e. per deg K
+long_name:     glacier ablation parameter
+data:          data%glacier%mu_star
+load:          1

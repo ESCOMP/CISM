@@ -118,6 +118,7 @@ contains
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
+    use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
     use glissade_utils, only: glissade_stdev, glissade_basin_average
@@ -415,7 +416,7 @@ contains
     ! Write projection info to log
     call glimmap_printproj(model%projection)
 
-    ! Optionally, adjust the input ice thickness is grid cells where there are interior lakes
+    ! Optionally, adjust the input ice thickness in grid cells where there are interior lakes
     !  (usrf - thck > topg), but the ice is above flotation thickness.
     ! In these grid cells, we set thck = usrf - topg, preserving the input usrf and removing the lakes.
 
@@ -507,6 +508,11 @@ contains
 
     ! Compute the cell areas of the grid
     model%geometry%cell_area = model%numerics%dew*model%numerics%dns
+
+    ! If running with glaciers, then process the input glacier data
+    if (model%options%enable_glaciers .and. model%options%is_restart == RESTART_FALSE) then
+       call glissade_glacier_init(model)
+    endif
 
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
