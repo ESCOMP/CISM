@@ -369,8 +369,16 @@ module glide_types
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEARB = 3
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR_STDEV = 4
 
-  integer, parameter :: HO_ICE_AGE_NONE = 0 
+  integer, parameter :: HO_ICE_AGE_NONE = 0
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
+
+  integer, parameter :: GLACIER_MU_STAR_CONSTANT = 0
+  integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
+  integer, parameter :: GLACIER_MU_STAR_EXTERNAL = 2
+
+  integer, parameter :: GLACIER_POWERLAW_C_CONSTANT = 0
+  integer, parameter :: GLACIER_POWERLAW_C_INVERSION = 1
+  integer, parameter :: GLACIER_POWERLAW_C_EXTERNAL = 2
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1068,6 +1076,24 @@ module glide_types
     !> \item[1] ice age computation on
     !> \end{description}
 
+    logical :: enable_glaciers = .false.
+    !> if true, then read glacier info at initialization and (optionally)
+    !>  tune glacier parameters during the run
+
+    integer :: glacier_mu_star
+    !> \begin{description}
+    !> \item[0] apply spatially uniform mu_star
+    !> \item[1] invert for glacier-specific mu_star
+    !> \item[2] read glacier-specific mu_star from external file
+    !> \end{description}
+
+    integer :: glacier_powerlaw_c
+    !> \begin{description}
+    !> \item[0] apply spatially uniform powerlaw_c
+    !> \item[1] invert for glacier-specific powerlaw_c
+    !> \item[2] read glacier-specific powerlaw_c from external file
+    !> \end{description}
+
     !TODO - Put the next few variables in a solver derived type
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
@@ -1736,6 +1762,47 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  type glide_glacier
+
+     integer :: nglacier = 0                      !> number of glaciers in the global domain
+
+     ! glacier-specific 1D arrays
+     ! These will be allocated with size nglacier, once nglacier is known
+     ! Note: mu_star and powerlaw_c have the suffix 'glc' to avoid confusion with the 2D fields
+     !       glacier%mu_star and basal_physics%powerlaw_c
+     ! TODO: Add 2D versions of cism_to_glacier_id, area, and volume?
+     !       Not sure it's possible to read and write arrays of dimension (nglacier),
+     !        since nglacier is not computed until runtime.
+
+     integer, dimension(:), pointer :: &
+          cism_to_glacier_id => null()            !> maps CISM glacier IDs (1:nglacier) to input glacier IDs
+
+     real(dp), dimension(:), pointer :: &
+          area => null(),                       & !> glacier area (m^2)
+          volume => null(),                     & !> glacier volume (m^3)
+          mu_star_glc => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
+                                                  !> defined as positive for ablation
+          powerlaw_c_glc => null()                !> tunable coefficient in basal friction power law
+
+     ! glacier-related 2D arrays
+     ! Note: powerlaw_c is already part of the basal physics derived type.
+
+     integer, dimension(:,:), pointer :: &
+          glacier_id => null(),                 & !> unique glacier ID, usually based on the Randolph Glacier Inventory
+                                                  !> first 2 digits give the RGI region; the rest give the number within the region
+          glacier_id_cism => null()               !> derived CISM-specific glacier ID, numbered consecutively from 1 to nglacier
+
+     real(dp), dimension(:,:), pointer :: &
+          mu_star => null()                       !> mu_star_glc mapped to the 2D grid for I/O
+
+     integer, dimension(:,:), pointer :: &
+          imask => null()                         !> 2D mask; indicates whether glaciers are present in the input file
+                                                  !> TODO - Remove this field?  Easily derived from initial thickness > 0.
+
+  end type glide_glacier
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   type glide_plume
 
      !> Holds fields and parameters relating to a sub-shelf plume model
@@ -2285,6 +2352,7 @@ module glide_types
     type(glide_basal_physics):: basal_physics
     type(glide_basal_melt)   :: basal_melt
     type(glide_ocean_data)   :: ocean_data
+    type(glide_glacier)  :: glacier
     type(glide_inversion):: inversion
     type(glide_plume)    :: plume
     type(glide_lithot_type)  :: lithot
@@ -2345,6 +2413,13 @@ contains
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
+    !> \end{itemize}
+
+    !> In \texttt{model\%glacier}:
+    !> \begin{itemize}
+    !> \item \texttt{glacier_id(ewn,nsn)}
+    !> \item \texttt{glacier_id_cism(ewn,nsn)}
+    !> \item \texttt{mu_star(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%basal_physics}:
@@ -2748,6 +2823,13 @@ contains
           endif
        endif
     endif  ! Glissade
+
+    ! glacier options (Glissade only)
+    if (model%options%enable_glaciers) then
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%glacier_id)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%glacier_id_cism)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%mu_star)
+    endif
 
     ! inversion and basal physics arrays (Glissade only)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
@@ -3156,6 +3238,14 @@ contains
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
+
+    ! glacier arrays
+    if (associated(model%glacier%glacier_id)) &
+        deallocate(model%glacier%glacier_id)
+    if (associated(model%glacier%glacier_id_cism)) &
+        deallocate(model%glacier%glacier_id_cism)
+    if (associated(model%glacier%mu_star)) &
+        deallocate(model%glacier%mu_star)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &

@@ -694,6 +694,7 @@ contains
        allocate(recvcounts(1))
        allocate(recvbuf(1))
     end if
+
     allocate(sendbuf(d_gs_mybounds(1):d_gs_mybounds(2),&
                      d_gs_mybounds(3):d_gs_mybounds(4)))
     sendbuf(:,:) = values(1+lhalo:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -4223,6 +4224,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     integer,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4268,7 +4271,6 @@ contains
     call fc_gather_int(d_gs_mybounds,4,mpi_integer,d_gs_bounds,4,&
          mpi_integer,main_rank,comm)
 
-
     if (main_task) then
        allocate(displs(tasks+1))
        allocate(sendcounts(tasks))
@@ -4279,7 +4281,6 @@ contains
           displs(i+1) = displs(i)+sendcounts(i)
        end do
        allocate(sendbuf(displs(tasks+1)))
-
        do i = 1,tasks
           sendbuf(displs(i)+1:displs(i+1)) = &
              reshape(global_values(d_gs_bounds(1,i):d_gs_bounds(2,i),&
@@ -4291,6 +4292,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
+
     allocate(recvbuf(d_gs_mybounds(1):d_gs_mybounds(2),&
                      d_gs_mybounds(3):d_gs_mybounds(4)))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_integer,&
@@ -4310,6 +4312,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     logical,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4396,6 +4400,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(sp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4482,6 +4488,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(sp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4570,6 +4578,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(dp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4656,6 +4666,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(dp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
@@ -9567,7 +9579,7 @@ contains
          gather_block_size = min(max(1,flow_cntl),max_gather_block_size)
          fc_gather = .true.
       else
-        fc_gather = .false.
+         fc_gather = .false.
       endif
    else
       gather_block_size = max(1,max_gather_block_size)
@@ -9623,7 +9635,7 @@ contains
                             comm, ier )
          end if
 
-     endif
+      endif
 
    else
  
