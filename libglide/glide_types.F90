@@ -272,9 +272,14 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
   integer, parameter :: HO_COULOMB_C_ELEVATION = 3
 
-  integer, parameter :: HO_BMLT_BASIN_INVERSION_NONE = 0
-  integer, parameter :: HO_BMLT_BASIN_INVERSION_COMPUTE = 1
-  integer, parameter :: HO_BMLT_BASIN_INVERSION_APPLY = 2
+  integer, parameter :: HO_BMLT_BASIN_NONE = 0
+  integer, parameter :: HO_BMLT_BASIN_INVERSION = 1
+  integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
+  integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
+
+  integer, parameter :: HO_FLOW_FACTOR_BASIN_CONST = 0
+  integer, parameter :: HO_FLOW_FACTOR_BASIN_INVERSION = 1
+  integer, parameter :: HO_FLOW_FACTOR_BASIN_EXTERNAL = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -821,13 +826,21 @@ module glide_types
     !> \item[3] coulomb_c = function of bed elevation
     !> \end{description}
 
-    integer :: which_ho_bmlt_basin_inversion = 0
-    !> Flag for inversion of basin-based basal melting parameters
+    integer :: which_ho_bmlt_basin = 0
+    !> Flag for basin-based temperature corrections
     !> \begin{description}
-    !> \item[0] no inversion
-    !> \item[1] invert for basin-based melting parameters
-    !> \item[2] apply basin-based melting parameters from a previous inversion
+    !> \item[0] deltaT_basin = 0
+    !> \item[1] invert for deltaT_basin
+    !> \item[2] read deltaT_basin from external file
+    !> \item[3] prescribe deltaT_basin using ISMIP6 values
     !> \end{description}
+
+    integer :: which_ho_flow_factor_basin = 0
+    !> Flag for basin-based flow factors for floating ice
+    !> \begin{description}
+    !> \item[0] flow_factor_float = constant
+    !> \item[1] invert for flow_factor_basin
+    !> \item[2] read flow_factor_basin from external file
 
     integer :: which_ho_bwat = 0
     !> Basal water depth:
@@ -1540,6 +1553,8 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
+    real(dp),dimension(:,:),  pointer :: flow_factor_basin => null()  !> flow enhancement factor; uniform within each basin (unitless)
+
     real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
@@ -1581,25 +1596,28 @@ module glide_types
           babc_velo_scale = 0.0d0                !> velocity inversion scale (m/yr)
                                                  !> typical value for inversion = 200 m/yr
 
-     ! fields and parameters for deltaT_basin inversion
-     ! Note: This is defined on the 2D (i,j) grid, even though it is uniform within a basin
+     ! fields and parameters for deltaT_basin and flow_factor_basin_inversion
+     ! Note: This target is defined on the 2D (i,j) grid, even though it is uniform within a basin
      real(dp), dimension(:,:), pointer ::  &
           floating_thck_target => null()         !> Observational target for floating ice thickness
 
      real(dp) ::  &
-          dbmlt_dtemp_scale = 10.0d0,             & !> scale for rate of change of bmlt w/temperature, m/yr/degC
-          bmlt_basin_timescale = 10.0d0,          & !> timescale (yr) for adjusting deltaT_basin
-          bmlt_basin_flotation_threshold = 500.d0   !> threshold (m) for counting ice as lightly floating/grounded
+          dbmlt_dtemp_scale = 10.0d0,              & !> scale for rate of change of bmlt w/temperature, m/yr/degC
+          bmlt_basin_timescale = 100.0d0,          & !> timescale (yr) for adjusting deltaT_basin
+          basin_flotation_threshold = 200.d0,      & !> threshold (m) for counting ice as lightly floating/grounded
+          flow_factor_basin_thck_scale = 100.d0,   & !> thickness scale (m) for adjusting flow_factor_basin
+          flow_factor_basin_timescale = 500.d0       !> timescale (yr) for adjusting flow_factor_basin
+
 
      ! parameters for adjusting the ice mass target in a given basin for deltaT_basin inversion
      ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
      !       In practice, this basin is likely to be the Amundsen Sea Embayment (IMBIE/ISMIP6 basin #9).
 
      real(dp) :: &
-          bmlt_basin_mass_correction = 0.0d0        !> optional mass correction (Gt) for a selected basin
+          basin_mass_correction = 0.0d0        !> optional mass correction (Gt) for a selected basin
 
      integer ::  &
-          bmlt_basin_number_mass_correction = 0     !> integer ID for the basin receiving the correction
+          basin_number_mass_correction = 0     !> integer ID for the basin receiving the correction
 
   end type glide_inversion
 
@@ -1703,7 +1721,7 @@ module glide_types
           basin_number => null()                    !> basin number for each grid cell
 
      real(dp), dimension(:,:), pointer :: &
-          deltaT_basin => null()                    !> deltaT in each basin (deg C) 
+          deltaT_basin => null()                    !> deltaT in each basin (deg C)
 
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
@@ -2323,6 +2341,7 @@ contains
     !> In \texttt{model\%ocean_data}:
     !> \begin{itemize}
     !> \item \texttt{deltaT_basin(ewn,nsn)}
+    !> \item \texttt{flow_factor_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
@@ -2718,6 +2737,7 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
@@ -2725,7 +2745,6 @@ contains
                 call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
              endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
-             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
           endif
        endif
     endif  ! Glissade
@@ -2733,11 +2752,16 @@ contains
     ! inversion and basal physics arrays (Glissade only)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
+    call coordsystem_allocate(model%general%ice_grid, model%temper%flow_factor_basin)
 
-    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE .or. &
-        model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_APPLY) then
+    if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
        if (model%ocean_data%nbasin < 1) then
-          call write_log ('Must set nbasin >= 1 for the bmlt_basin inversion option', GM_FATAL)
+          call write_log ('Must set nbasin >= 1 for the bmlt_basin options', GM_FATAL)
+       endif
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
+    elseif (model%options%which_ho_flow_factor_basin /= HO_FLOW_FACTOR_BASIN_CONST) then
+       if (model%ocean_data%nbasin < 1) then
+          call write_log ('Must set nbasin >= 1 for the flow_factor_basin options', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
     endif
@@ -3124,10 +3148,10 @@ contains
         deallocate(model%basal_melt%bmlt_applied_diff)
 
     ! ocean data arrays
-    if (associated(model%ocean_data%deltaT_basin)) &
-        deallocate(model%ocean_data%deltaT_basin)
     if (associated(model%ocean_data%basin_number)) &
         deallocate(model%ocean_data%basin_number)
+    if (associated(model%ocean_data%deltaT_basin)) &
+        deallocate(model%ocean_data%deltaT_basin)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
@@ -3140,6 +3164,8 @@ contains
         deallocate(model%basal_physics%coulomb_c)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
+    if (associated(model%temper%flow_factor_basin)) &
+        deallocate(model%temper%flow_factor_basin)
 
     ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &

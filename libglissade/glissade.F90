@@ -633,6 +633,7 @@ contains
     if (make_ice_domain_mask) then
 
        where (model%geometry%thck > 0.0d0 .or. model%geometry%topg > 0.0d0)
+!!       where (model%geometry%thck > 0.0d0 .or. model%geometry%topg*thk0 > -1000.0d0)
 !!       where (model%geometry%thck > 0.0d0)  ! uncomment for terrestrial margins
           model%general%ice_domain_mask = 1
        elsewhere
@@ -650,7 +651,7 @@ contains
           do j = nhalo+1, model%general%nsn - nhalo
              do i = nhalo+1, model%general%ewn - nhalo
                 if (ice_domain_mask(i-1,j) == 1 .or. ice_domain_mask(i+1,j) == 1 .or. &
-                     ice_domain_mask(i,j-1) == 1 .or. ice_domain_mask(i,j+1) == 1) then
+                    ice_domain_mask(i,j-1) == 1 .or. ice_domain_mask(i,j+1) == 1) then
                    model%general%ice_domain_mask(i,j) = 1
                 endif
              enddo
@@ -846,7 +847,7 @@ contains
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
-        model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+        model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
        call glissade_init_inversion(model)
 
@@ -3729,8 +3730,8 @@ contains
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
-    use glissade_inversion, only: glissade_inversion_basal_friction,  &
-         glissade_inversion_bmlt_basin, verbose_inversion
+    use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
+         glissade_inversion_bmlt_basin, glissade_inversion_flow_factor_basin
 
     implicit none
 
@@ -3750,7 +3751,10 @@ contains
          marine_interior_mask  ! = 1 if ice is marine-based and borders no ocean cells, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-       thck_calving_front      ! effective thickness of ice at the calving front
+         thck_calving_front          ! effective thickness of ice at the calving front
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         flow_enhancement_factor_float    ! flow enhancement factor for floating ice
 
     real(dp) :: &
          dsigma,                   & ! layer thickness in sigma coordinates
@@ -4002,7 +4006,7 @@ contains
 
     ! If inverting for deltaT_basin, then update it here
 
-    if ( model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+    if ( model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
@@ -4020,15 +4024,47 @@ contains
                                              model%geometry%thck*thk0,                  &  ! m
                                              model%geometry%dthck_dt,                   &  ! m/s
                                              model%inversion%floating_thck_target*thk0, &  ! m
+                                             model%inversion%basin_mass_correction,     &
+                                             model%inversion%basin_number_mass_correction, &
                                              model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
                                              model%inversion%bmlt_basin_timescale,      &  ! s
-                                             model%ocean_data%deltaT_basin,             &
-                                             model%inversion%bmlt_basin_mass_correction,&
-                                             model%inversion%bmlt_basin_number_mass_correction)
+                                             model%ocean_data%deltaT_basin)
 
        endif  ! first call after a restart
 
-    endif   ! which_ho_bmlt_basin_inversion
+    endif   ! which_ho_bmlt_basin
+
+
+    ! If inverting for flow_factor_basin, then update it here
+
+    if ( model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
+
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+          ! first call after a restart; do not update basin-scale parameters
+
+       else
+
+          call glissade_inversion_flow_factor_basin(&
+               model%numerics%dt * tim0,                     &
+               ewn, nsn,                                     &
+               model%numerics%dew * len0,                    &  ! m
+               model%numerics%dns * len0,                    &  ! m
+               itest, jtest, rtest,                          &
+               model%ocean_data%nbasin,                      &
+               model%ocean_data%basin_number,                &
+               model%geometry%thck*thk0,                     &  ! m
+               model%geometry%dthck_dt,                      &  ! m/s
+               model%inversion%floating_thck_target*thk0,    &  ! m
+               model%inversion%basin_mass_correction,        &
+               model%inversion%basin_number_mass_correction, &
+               model%inversion%flow_factor_basin_thck_scale, &  ! m
+               model%inversion%flow_factor_basin_timescale,  &  ! s
+               model%temper%flow_factor_basin)
+
+       endif  ! first call after a restart
+
+    endif   ! which_ho_bmlt_basin
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -4038,10 +4074,19 @@ contains
     !      here for whether to calculate it on initial time (as is done in Glide).
     ! (2) We are passing in only vertical elements (1:upn-1) of the temp array,
     !       so that it has the same vertical dimensions as flwa.
-    ! (3) The flow enhancement factor is 1 by default.
-    ! (4) The waterfrac field is ignored unless whichtemp = TEMP_ENTHALPY.
-    ! (5) Inputs and outputs of glissade_flow_factor should have SI units.
+    ! (3) The flow enhancement factor for grounded ice is 1 by default.
+    ! (4) The flow enhancement factor for floating ice is uniform by default,
+    !     but optionally can be basin-specific.
+    ! (5) The waterfrac field is ignored unless whichtemp = TEMP_ENTHALPY.
+    ! (6) Inputs and outputs of glissade_flow_factor should have SI units.
     ! ------------------------------------------------------------------------
+
+    ! Set the flow enhancement factor for floating ice
+    if (model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_CONST) then
+       flow_enhancement_factor_float(:,:) = model%paramets%flow_enhancement_factor_float
+    else
+       flow_enhancement_factor_float(:,:) = model%temper%flow_factor_basin(:,:)
+    endif
 
     call glissade_flow_factor(model%options%whichflwa,            &
                               model%options%whichtemp,            &
@@ -4050,12 +4095,40 @@ contains
                               model%temper%temp(1:upn-1,:,:),     &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
-                              model%paramets%flow_enhancement_factor,       &
-                              model%paramets%flow_enhancement_factor_float, &
+                              model%paramets%flow_enhancement_factor,  &
+                              flow_enhancement_factor_float,      &
                               model%options%which_ho_ground,      &
                               floating_mask,                      &
                               model%geometry%f_ground_cell,       &
                               model%temper%waterfrac)
+
+    !WHL - debug
+    if (this_rank==rtest) then
+       i = itest
+       j = jtest
+       print*, 'itest, jtest =', i, j
+       print*, 'flow_enhancement_factor_float:'
+       do i = itest-3, itest+3
+          write(6,'(i12)',advance='no') i
+       enddo
+       print*, ' '
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f12.3)',advance='no') flow_enhancement_factor_float(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'flwa(1)'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i8)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(e12.3)',advance='no') model%temper%flwa(1,i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
 
     !TODO - flwa halo update not needed?
     ! Halo update for flwa
@@ -4139,31 +4212,6 @@ contains
              
     endif   ! time = tstart
 
-    !------------------------------------------------------------------------------
-    ! Compute the effective pressure N at the bed.
-    ! Although N is not needed for all sliding options, it is computed here just in case.
-    ! Note: effective pressure is part of the basal_physics derived type.
-    ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
-    !       just before the velocity solve. Then they will be consistent with the
-    !       current thickness field.
-    !------------------------------------------------------------------------------
-
-    !TODO - Use btemp_ground instead of temp(nz)?
-    call calc_effective_pressure(model%options%which_ho_effecpress, &
-                                 parallel,                          &
-                                 ewn,           nsn,                &
-                                 model%basal_physics,               &
-                                 model%basal_hydro,                 &
-                                 ice_mask,      floating_mask,      &
-                                 model%geometry%thck * thk0,        &
-                                 model%geometry%topg * thk0,        &
-                                 model%climate%eus * thk0,          &
-                                 model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
-                                 model%basal_hydro%bwat * thk0,     &   ! m
-                                 model%basal_hydro%bwatflx,         &   ! m/yr
-                                 model%numerics%dt * tim0/scyr,     &   ! yr
-                                 itest, jtest,  rtest)
-
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
     ! 2. Second part of diagnostic solve: 
@@ -4183,6 +4231,36 @@ contains
     else
 
        ! If this is not a restart or we are not at the initial time, then proceed normally
+
+       !------------------------------------------------------------------------------
+       ! Compute the effective pressure N at the bed.
+       ! Although N is not needed for all basal friction options, it is computed here just in case.
+       ! Notes:
+       ! (1) effecpress is part of the basal_physics derived type.
+       ! (2) Ideally, bpmp and temp(nz) are computed after the transport solve,
+       !     just before the velocity solve. Then they will be consistent with the
+       !     current thickness field.
+       ! (3) Previously, N was computed at the end of the first part of the diagnostic solve.
+       !     However, some effecpress options now use a prognostic field that is relaxed
+       !     over time.  Calling this subroutine on restart would give an unwanted
+       !     extra relaxation step.
+       !------------------------------------------------------------------------------
+
+       !TODO - Use btemp_ground instead of temp(upn)?
+       call calc_effective_pressure(model%options%which_ho_effecpress, &
+                                    parallel,                          &
+                                    ewn,           nsn,                &
+                                    model%basal_physics,               &
+                                    model%basal_hydro,                 &
+                                    ice_mask,      floating_mask,      &
+                                    model%geometry%thck * thk0,        &
+                                    model%geometry%topg * thk0,        &
+                                    model%climate%eus * thk0,          &
+                                    model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
+                                    model%basal_hydro%bwat * thk0,     &   ! m
+                                    model%basal_hydro%bwatflx,         &   ! m/yr
+                                    model%numerics%dt * tim0/scyr,     &   ! yr
+                                    itest, jtest,  rtest)
 
        if ( (model%numerics%time == model%numerics%tstart) .and. &
          ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 
