@@ -2376,17 +2376,17 @@ module glissade_therm
   !TODO - For damage-based calving, try multiplying flwa by a damage factor, (1 - damage)
   !TODO - Pass in nx and ny, to avoid allocations within the subroutine.
 
-  subroutine glissade_flow_factor(whichflwa,               whichtemp,  &
-                                  stagsigma,                           &
-                                  thck,                                &
-                                  temp,                                &
-                                  flwa,                                &
-                                  default_flwa,                        &
-                                  flow_enhancement_factor,             &
-                                  flow_enhancement_factor_float,       &
-                                  which_ho_ground,                     &
-                                  floating_mask,                       &
-                                  f_ground_cell,                       &
+  subroutine glissade_flow_factor(whichflwa,            whichtemp,  &
+                                  stagsigma,                        &
+                                  thck,                             &
+                                  temp,                             &
+                                  flwa,                             &
+                                  default_flwa,                     &
+                                  flow_enhancement_factor,          &
+                                  flow_enhancement_factor_float,    &
+                                  which_ho_ground,                  &
+                                  floating_mask,                    &
+                                  f_ground_cell,                    &
                                   waterfrac)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
@@ -2428,13 +2428,19 @@ module glissade_therm
     real(dp),dimension(:,:),   intent(in)    :: thck      !> ice thickness (m)
     real(dp),dimension(:,:,:), intent(in)    :: temp      !> 3D temperature field (deg C)
     real(dp),dimension(:,:,:), intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
-    real(dp),                  intent(in)    :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
-    real(dp),                  intent(in)    :: flow_enhancement_factor       !> flow enhancement factor in Arrhenius relationship
-    real(dp),                  intent(in)    :: flow_enhancement_factor_float !> flow enhancement factor for floating ice
+    real(dp),                  intent(in)    :: default_flwa        !> Glen's A to use in isothermal case, Pa^{-n} s^{-1}
+
+    ! Note: flow_enhancement_factor for grounded ice is a parameter, but flow_enhancement_factor_float is a 2D field.
+    !       This is because flow_enhancement_factor_float can be basin-specific, instead of a single parameter.
+    real(dp),                  intent(in)    :: &
+         flow_enhancement_factor                          !> flow enhancement factor in Arrhenius relationship, for grounded ice
+    real(dp),dimension(:,:),   intent(in)    :: &
+         flow_enhancement_factor_float                    !> flow enhancement factor for floating ice
+
     integer,                   intent(in)    :: which_ho_ground     !> option for applying a GLP
-    integer, dimension(:,:),   intent(in)    :: floating_mask !> = 1 for floating ice
-    real(dp),dimension(:,:),   intent(in)    :: f_ground_cell !> grounded ice fraction in cell, 0 to 1
-    real(dp),dimension(:,:,:), intent(in), optional :: waterfrac     !> internal water content fraction, 0 to 1
+    integer, dimension(:,:),   intent(in)    :: floating_mask       !> = 1 for floating ice
+    real(dp),dimension(:,:),   intent(in)    :: f_ground_cell       !> grounded ice fraction in cell, 0 to 1
+    real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
 
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
@@ -2450,7 +2456,7 @@ module glissade_therm
     real(dp), dimension(size(stagsigma)) :: pmptemp   ! pressure melting point temperature
 
     real(dp), dimension(:,:), allocatable :: &
-         enhancement_factor      ! flow enhancement factor in Arrhenius relationship
+         enhancement_factor             ! flow enhancement factor in Arrhenius relationship
 
     real(dp) :: tempcor                 ! temperature relative to pressure melting point
 
@@ -2474,14 +2480,12 @@ module glissade_therm
     if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
 
        ! set enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
-
        enhancement_factor(:,:) = flow_enhancement_factor * f_ground_cell(:,:) &
-                               + flow_enhancement_factor_float * (1.0d0 - f_ground_cell(:,:))
+                               + flow_enhancement_factor_float(:,:) * (1.0d0 - f_ground_cell(:,:))
 
     else
 
        ! set enhancement factor in floating cells based on floating_mask
-
        where (floating_mask == 1)
           enhancement_factor = flow_enhancement_factor_float
        elsewhere

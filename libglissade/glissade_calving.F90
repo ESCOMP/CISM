@@ -47,8 +47,8 @@ module glissade_calving
             glissade_limit_cliffs
   public :: verbose_calving
 
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -203,8 +203,10 @@ contains
                 else
                    calving_mask(i,j) = 0
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'ocean cell with uobs, vobs > 0: iglobal, jglobal, thck, uobs, vobs', &
+                   if (verbose_calving) then   ! debug
+                      print*, 'ocean cell with uobs, vobs > 0: iglobal, jglobal, thck, uobs, vobs', &
                         iglobal, jglobal, thck(i,j), usfc_obs(i,j), vsfc_obs(i,j)
+                   endif
                 endif
              else
                 calving_mask(i,j) = 0

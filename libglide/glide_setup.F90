@@ -214,6 +214,7 @@ contains
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
     model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
     model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
+    model%inversion%flow_factor_basin_timescale = model%inversion%flow_factor_basin_timescale * scyr   ! yr to s
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -780,7 +781,8 @@ contains
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
     call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
-    call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
+    call GetValue(section, 'which_ho_bmlt_basin',         model%options%which_ho_bmlt_basin)
+    call GetValue(section, 'which_ho_flow_factor_basin',  model%options%which_ho_flow_factor_basin)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
@@ -1052,10 +1054,16 @@ contains
          'friction parameter Cc read from file    ', &
          'Cc is a function of bed elevation       ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_bmlt_basin_whichinversion = (/ &
-         'no inversion for basin-based basal melting parameters      ', &
-         'invert for basin-based basal melting parameters            ', &
-         'apply basin basal melting parameters from earlier inversion' /)
+    character(len=*), dimension(0:3), parameter :: ho_bmlt_basin = (/ &
+         'uniform deltaT_basin for basal melting  ', &
+         'invert for deltaT_basin                 ', &
+         'read deltaT_basin from external file    ', &
+         'prescribe deltaT_basin from ISMIP6      '/)
+
+    character(len=*), dimension(0:2), parameter :: ho_flow_factor_basin = (/ &
+         'uniform flow factor for floating ice      ', &
+         'invert for flow_factor_basin              ', &
+         'read flow_factor_basin from external file ' /)
 
     character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -1740,21 +1748,45 @@ contains
           endif
        endif
 
-       if (model%options%which_ho_bmlt_basin_inversion /= HO_BMLT_BASIN_INVERSION_NONE) then
-          write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
-                            ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
+       if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
+          write(message,*) 'ho_bmlt_basin           : ',model%options%which_ho_bmlt_basin,  &
+                            ho_bmlt_basin(model%options%which_ho_bmlt_basin)
           call write_log(message)
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
-             call write_log('Error, bmlt_basin inversion is not supported for this bmlt_float option')
-             write(message,*) 'bmlt_basin inversion is supported only for bmlt_float = ', BMLT_FLOAT_THERMAL_FORCING
-             call write_log(message, GM_FATAL)
+             write(message,*) 'bmlt_basin options are supported only for bmlt_float = ', &
+                  BMLT_FLOAT_THERMAL_FORCING
+             call write_log(message)
+             call write_log('User setting will be ignored')
           endif
        endif
 
-       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
-            model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
-          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
+       if (model%options%which_ho_bmlt_basin < 0 .or. &
+            model%options%which_ho_bmlt_basin >= size(ho_bmlt_basin)) then
+          call write_log('Error, ho_bmlt_basin out of range', GM_FATAL)
        end if
+
+       if (model%options%which_ho_flow_factor_basin /= HO_FLOW_FACTOR_BASIN_CONST) then
+          write(message,*) 'ho_flow_factor_basin    : ',model%options%which_ho_flow_factor_basin,  &
+                            ho_flow_factor_basin(model%options%which_ho_flow_factor_basin)
+          call write_log(message)
+          !TODO - Could support this option without thermal forcing, but still would need to define basins
+          if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
+             write(message,*) 'flow_factor_basin options are supported only for bmlt_float = ', &
+                  BMLT_FLOAT_THERMAL_FORCING
+             call write_log(message)
+             call write_log('User setting will be ignored')
+          endif
+       endif
+
+       if (model%options%which_ho_flow_factor_basin < 0 .or. &
+            model%options%which_ho_flow_factor_basin >= size(ho_flow_factor_basin)) then
+          call write_log('Error, flow_factor_basin out of range', GM_FATAL)
+       end if
+
+       if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .and. &
+           model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
+          call write_log('Cannot invert for both deltaT_basin and flow_factor_basin', GM_FATAL)
+       endif
 
        ! basal water options
 
@@ -2170,12 +2202,12 @@ contains
 
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
-    call GetValue(section, 'inversion_bmlt_basin_flotation_threshold', &
-         model%inversion%bmlt_basin_flotation_threshold)
-    call GetValue(section, 'inversion_bmlt_basin_mass_correction', &
-         model%inversion%bmlt_basin_mass_correction)
-    call GetValue(section, 'inversion_bmlt_basin_number_mass_correction', &
-         model%inversion%bmlt_basin_number_mass_correction)
+    call GetValue(section, 'inversion_basin_flotation_threshold', &
+         model%inversion%basin_flotation_threshold)
+    call GetValue(section, 'inversion_basin_mass_correction', &
+         model%inversion%basin_mass_correction)
+    call GetValue(section, 'inversion_basin_number_mass_correction', &
+         model%inversion%basin_number_mass_correction)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2628,24 +2660,39 @@ contains
        endif
     endif   ! which_ho_coulomb_c
 
-    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
-       write(message,*) 'timescale (yr) for adjusting deltaT_basin    : ', model%inversion%bmlt_basin_timescale
-       call write_log(message)
-       write(message,*) 'dbmlt/dtemp scale (m/yr/deg C)               : ', model%inversion%dbmlt_dtemp_scale
-       call write_log(message)
-       write(message,*) 'Flotation threshold (m) for bmlt_basin inversion: ', &
-            model%inversion%bmlt_basin_flotation_threshold
-       call write_log(message)
-       if (abs(model%inversion%bmlt_basin_mass_correction) > 0.0d0 .and. &
-            model%inversion%bmlt_basin_number_mass_correction > 0) then
-          write(message,*) 'Inversion mass correction applied to basin # :', &
-               model%inversion%bmlt_basin_number_mass_correction
+    ! basin inversion options
+    if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or.   &
+        model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
+
+       if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
+          write(message,*) 'timescale (yr) to adjust deltaT_basin        : ', model%inversion%bmlt_basin_timescale
           call write_log(message)
-          write(message,*) 'Mass correction (Gt)                         :', &
-               model%inversion%bmlt_basin_mass_correction
+          write(message,*) 'dbmlt/dtemp scale (m/yr/deg C)               : ', model%inversion%dbmlt_dtemp_scale
+          call write_log(message)
+       else  ! model%options%which_ho_flow_factor_basin = HO_FLOW_FACTOR_BASIN_INVERSION
+          write(message,*) 'timescale (yr) to adjust flow_factor_basin   : ', &
+               model%inversion%flow_factor_basin_timescale
+          call write_log(message)
+          write(message,*) 'thck scale (m) to adjust flow_factor_basin   : ', &
+               model%inversion%flow_factor_basin_thck_scale
           call write_log(message)
        endif
-    endif
+
+       write(message,*) 'Flotation threshold (m) for basin inversion  : ', &
+            model%inversion%basin_flotation_threshold
+       call write_log(message)
+
+       if (abs(model%inversion%basin_mass_correction) > 0.0d0 .and. &
+            model%inversion%basin_number_mass_correction > 0) then
+          write(message,*) 'Inversion mass correction applied to basin # :', &
+               model%inversion%basin_number_mass_correction
+          call write_log(message)
+          write(message,*) 'Mass correction (Gt)                         :', &
+               model%inversion%basin_mass_correction
+          call write_log(message)
+       endif
+
+    endif   ! basin-scale inversion
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
        write(message,*) 'max ice speed (m/yr) when evaluating beta(u) : ', model%basal_physics%beta_powerlaw_umax
@@ -2684,7 +2731,8 @@ contains
     endif
 
     if (model%basal_physics%p_ocean_penetration > 0.0d0) then
-       call write_log('Apply ocean connection to reduce effective pressure')
+       write(message,*) 'Apply ocean connection to reduce effective pressure'
+       call write_log(message)
        write(message,*) 'p_ocean_penetration           : ', model%basal_physics%p_ocean_penetration
        call write_log(message)
        if (model%basal_physics%ocean_p_timescale > 0.0d0) then
@@ -3210,23 +3258,38 @@ contains
           call glide_add_to_restart_variable_list('warm_ocean_mask', model_id)
 
        case (BMLT_FLOAT_THERMAL_FORCING)
-
           ! Need the latest value of the thermal forcing field.
           ! This could be either the baseline value (if not updating during runtime), or a value read from a forcing file.
           ! If the latter, this field may not be needed, but include to be on the safe side, in case the forcing file
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing', model_id)
 
-          ! If using an ISMIP6 melt parameterization (either local or nonlocal),
-          !  we need basin numbers and deltaT values for the parameterization.
-          if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-             call glide_add_to_restart_variable_list('basin_number', model_id)
-             call glide_add_to_restart_variable_list('deltaT_basin', model_id)
-          endif
-
     end select  ! whichbmlt_float
+
+    ! If using an ISMIP6 melt parameterization (either local or nonlocal),
+    !  we need deltaT values for the parameterization.
+    ! Also need a 2D field of basin numbers
+    if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+        options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+        options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+       call glide_add_to_restart_variable_list('deltaT_basin', model_id)
+       call glide_add_to_restart_variable_list('basin_number', model_id)
+    endif
+
+    ! If using a basin-specific flow factor for floating ice, we need this factor on restart
+    ! Also need a 2D field of basin numbers
+    ! Note: The user can invert for deltaT_basin or flow_factor_basin, but not both
+    if (options%which_ho_flow_factor_basin /= HO_FLOW_FACTOR_BASIN_CONST) then
+       call glide_add_to_restart_variable_list('flow_factor_basin', model_id)
+       call glide_add_to_restart_variable_list('basin_number', model_id)
+    endif
+
+    ! If using either basin inversion option, we need a target thickness for floating ice
+    ! Note: deltaT_basin is added to the restart file above.
+    if (options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or. &
+        options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
+       call glide_add_to_restart_variable_list('floating_thck_target', model_id)
+    endif
 
     ! add dycore specific restart variables
     select case (options%whichdycore)
@@ -3438,25 +3501,19 @@ contains
     ! If inverting for coulomb_c or powerlaw_c based on observed surface speed
     ! (with model%inversion%babc_velo_scale > 0), then write velo_sfc_obs to the restart file.
     if (model%inversion%babc_velo_scale > 0.0d0) then
-       call glide_add_to_restart_variable_list('velo_sfc_obs')
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! effective pressure options
     ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       call glide_add_to_restart_variable_list('f_effecpress_bwat')
+       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
     endif
 
     ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
     ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
     if (model%basal_physics%p_ocean_penetration > 0.0d0) then
-       call glide_add_to_restart_variable_list('f_effecpress_ocean_p')
-    endif
-
-    ! The bmlt_basin inversion option needs a thickness target for floating ice
-    ! Note: deltaT_basin is added to the restart file above.
-    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('floating_thck_target', model_id)
+       call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
     endif
 
     ! geothermal heat flux option

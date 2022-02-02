@@ -39,8 +39,9 @@ module glissade_utils
 
   private
   public :: glissade_adjust_thickness, glissade_smooth_usrf, &
-       glissade_smooth_topography, glissade_adjust_topography
-  public :: glissade_stdev, verbose_stdev
+       glissade_smooth_topography, glissade_adjust_topography, &
+       glissade_basin_sum, glissade_basin_average, &
+       glissade_stdev, verbose_stdev
 
   logical, parameter :: verbose_stdev = .true.
 
@@ -793,6 +794,140 @@ contains
     endif
 
   end subroutine glissade_adjust_topography
+
+!****************************************************
+
+  subroutine glissade_basin_sum(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       rmask,                       &
+       field_2d,                    &
+       field_basin_sum)
+
+    ! For a given 2D input field, compute the sum over a basin.
+    ! The sum is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    use cism_parallel, only: parallel_reduce_sum, nhalo
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask,                 &  !> real mask for weighting the input field
+         field_2d                  !> input field to be averaged over basins
+
+    real(dp), dimension(nbasin), intent(out) :: &
+         field_basin_sum           !> basin-sum output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(nbasin) ::  &
+         sumfield_local     ! sum of field on local task
+
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
+
+  end subroutine glissade_basin_sum
+
+!****************************************************
+
+  subroutine glissade_basin_average(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       rmask,                       &
+       field_2d,                    &
+       field_basin_avg,             &
+       itest, jtest, rtest)
+
+    ! For a given 2D input field, compute the average over a basin.
+    ! The average is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    use cism_parallel, only: parallel_reduce_sum, nhalo
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask                     !> real mask for weighting the value in each cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field_2d                  !> input field to be averaged over basins
+
+    real(dp), dimension(nbasin), intent(out) :: &
+         field_basin_avg           !> basin-average output field
+
+    integer, intent(in), optional :: &
+         itest, jtest, rtest       !> coordinates of diagnostic point
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(nbasin) ::  &
+         summask_local,          & ! sum of mask in each basin on local task
+         summask_global,         & ! sum of mask in each basin on full domain
+         sumfield_local,         & ! sum of field on local task
+         sumfield_global           ! sum of field over full domain
+
+    summask_local(:) = 0.0d0
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             summask_local(nb) = summask_local(nb) + rmask(i,j)
+             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
+    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
+
+    do nb = 1, nbasin
+       if (summask_global(nb) > tiny(0.0d0)) then
+          field_basin_avg(nb) = sumfield_global(nb)/summask_global(nb)
+       else
+          field_basin_avg(nb) = 0.0d0
+       endif
+    enddo
+
+  end subroutine glissade_basin_average
 
 !****************************************************************************
 
