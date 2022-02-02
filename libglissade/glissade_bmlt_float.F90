@@ -48,10 +48,10 @@ module glissade_bmlt_float
   
   private
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
-       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
-       basin_sum, basin_average
+       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
 
-    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .false.
+    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -505,8 +505,11 @@ module glissade_bmlt_float
          ocean_mask,                 &  ! = 1 if topg < 0 and ice is absent
          land_mask                      ! = 1 if topg >= 0
 
+    real(dp), dimension(:), allocatable :: &
+         deltaT_basin_ismip6            ! prescribed deltaT_basin values for each of 18 basins
+
     integer :: itest, jtest, rtest      ! coordinates of diagnostic point
-    integer :: i, j, k
+    integer :: i, j, k, nb
     integer :: ewn, nsn
 
     integer :: basin_number_min         ! global minval of the basin_number field
@@ -524,6 +527,8 @@ module glissade_bmlt_float
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
+
+    allocate(deltaT_basin_ismip6(ocean_data%nbasin))
 
     if (verbose_bmlt_float .and. main_task) then
        print*, 'In glissade_bmlt_float_thermal_forcing_init'
@@ -560,6 +565,71 @@ module glissade_bmlt_float
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+
+          ! Initialize deltaT_basin, if needed for the ISMIP6 option
+          ! For other options, deltaT_basin(:,:) = 0 initially or has already been read in
+
+          if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_ISMIP6) then
+
+             if (main_task) then
+                print*, 'Assign deltaT_basin from ismip6'
+             endif
+
+             ! Note: For now, these values are hardwired for the standard 16 ISMIP6 basins
+             if (ocean_data%nbasin /= 16) then
+                call write_log('Error, ISMIP6 deltaT_basin values are set for exactly 16 Antarctic basins', GM_FATAL)
+             endif
+
+             ! Set values computed by Nico Jourdain to match observed basin-scale mean melt.
+             ! See Jourdain et al. (2019) and Lipscomb et al. (2021).
+             ! Note: Uncommented values are for the MeanAnt calibration; commented values are for PIGL.
+             !       It would be possible to make MeanAnt v. PIGL a config option,
+             !        but for now a new compile is needed to use the PIGL numbers.
+             if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
+
+                ! MeanAnt
+                deltaT_basin_ismip6 = (/ 0.68,  0.15,  0.62,  0.87,  0.36,  0.05, -0.11,  0.51,  &
+                                         1.28, -0.13, -0.95, -0.13, -0.17, -0.05,  0.12, -0.34 /)
+
+                ! PIGL
+!                deltaT_basin_ismip6 = (/-0.04, -0.24,  0.06, -0.13, -0.17, -0.56, -0.27, -0.34, &
+!                                        -0.14, -1.17, -2.01, -0.74, -0.38, -0.27, -0.11, -1.04 /)
+
+             elseif (model%options%bmlt_float_thermal_forcing_param== BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
+
+                ! MeanAnt
+                deltaT_basin_ismip6 = (/ 0.57,  0.13,  0.51,  0.70,  0.27,  0.08, -0.12,  0.43,  &
+                                         1.07, -0.01, -0.66, -0.06, -0.12, -0.06,  0.10, -0.16 /)
+
+                ! PIGL
+!                deltaT_basin_ismip6 = (/-0.19, -0.22, -0.10, -0.39, -0.30, -0.39, -0.28, -0.39,  &
+!                                        -0.43, -0.70, -1.43, -0.37, -0.27, -0.27, -0.12, -0.46 /)
+
+             elseif (model%options%bmlt_float_thermal_forcing_param== BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+
+                if (main_task) print*, '   Assign nonlocal-slope values'
+
+                ! MeanAnt
+                deltaT_basin_ismip6 = (/ 0.36, -0.03,  0.45,  0.05,  0.02, -0.22, -0.01,  0.37,  &
+                                         0.64, -0.03, -0.58, -0.10, -0.11, -0.01,  0.14, -0.15 /)
+
+                ! PIGL
+!                deltaT_basin_ismip6 = (/ 0.03, -0.18,  0.13, -0.31, -0.21, -0.37, -0.14, -0.05,  &
+!                                        -0.03, -0.42, -1.02, -0.27, -0.19, -0.15,  0.00, -0.32 /)
+
+             endif
+
+             ! Assign the numbers above to each grid cell, given its basin number
+             do j = 1, nsn
+                do i = 1, ewn
+                   nb = ocean_data%basin_number(i,j)
+                   if (nb >= 1) then
+                      ocean_data%deltaT_basin(i,j) = deltaT_basin_ismip6(nb)
+                   endif
+                enddo
+             enddo
+
+          endif   ! ho_bmlt_basin_ismip6
 
           !WHL - In earlier code, nonzero values of gamma0 could either be set in the config file,
           !       read from the input file, or assigned here based on the ISMIP6 parameterization.
@@ -611,6 +681,7 @@ module glissade_bmlt_float
           ! Fill halos (might not be needed)
           ! TODO: Remove these halo updates?
           call parallel_halo(ocean_data%basin_number, parallel)
+          call parallel_halo(ocean_data%deltaT_basin, parallel)
           call parallel_halo(ocean_data%thermal_forcing, parallel)
 
           ! Make sure every cell is assigned a basin number >= 1.
@@ -631,7 +702,6 @@ module glissade_bmlt_float
                   parallel,                 &
                   model%ocean_data%nbasin,  &
                   model%ocean_data%basin_number)
-
           endif
 
        endif   ! ISMIP6 thermal forcing option
@@ -663,6 +733,7 @@ module glissade_bmlt_float
 
     use glimmer_paramets, only: thk0, unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
+    use glissade_utils, only: glissade_basin_average
 
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
     !  and the current lower ice surface, using either a local or nonlocal melt parameterization.
@@ -1092,7 +1163,7 @@ module glissade_bmlt_float
        ! The average is taken over grid cells with thermal_forcing_mask = 1,
        !  with reduced weights for partly grounded cells and thin floating cells.
 
-       call basin_average(&
+       call glissade_basin_average(&
             nx,        ny,                   &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
@@ -1104,7 +1175,7 @@ module glissade_bmlt_float
        ! For diagnostics, compute the average value of deltaT_basin each basin.
        ! Note: Each cell in the basin should have this average value.
 
-       call basin_average(&
+       call glissade_basin_average(&
             nx,        ny,                   &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
@@ -1793,136 +1864,6 @@ module glissade_bmlt_float
     enddo
 
   end subroutine interpolate_thermal_forcing_to_lsrf
-
-!****************************************************
-
-  subroutine basin_sum(&
-       nx,           ny,            &
-       nbasin,       basin_number,  &
-       rmask,                       &
-       field_2d,                    &
-       field_basin_sum)
-
-    ! For a given 2D input field, compute the sum over a basin.
-    ! The sum is taken over grid cells with mask = 1.
-    ! All cells are weighted equally.
-
-    integer, intent(in) :: &
-         nx, ny                    !> number of grid cells in each dimension
-
-    integer, intent(in) :: &
-         nbasin                    !> number of basins
-
-    integer, dimension(nx,ny), intent(in) :: &
-         basin_number              !> basin ID for each grid cell
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         rmask,                 &  !> real mask for weighting the input field
-         field_2d                  !> input field to be averaged over basins
-
-    real(dp), dimension(nbasin), intent(out) :: &
-         field_basin_sum           !> basin-sum output field
-
-    ! local variables
-
-    integer :: i, j, nb
-
-    !TODO - Replace sumcell with sumarea, and pass in cell area.
-    !       Current algorithm assumes all cells with mask = 1 have equal weight.
-
-    real(dp), dimension(nbasin) ::  &
-         sumfield_local     ! sum of field on local task
-
-    sumfield_local(:) = 0.0d0
-
-    ! loop over locally owned cells only
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          nb = basin_number(i,j)
-          if (nb >= 1) then
-             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
-
-  end subroutine basin_sum
-
-!****************************************************
-
-  subroutine basin_average(&
-       nx,           ny,            &
-       nbasin,       basin_number,  &
-       rmask,                       &
-       field_2d,                    &
-       field_basin_avg,             &
-       itest, jtest, rtest)
-
-    ! For a given 2D input field, compute the average over a basin.
-    ! The average is taken over grid cells with mask = 1.
-    ! All cells are weighted equally.
-
-    integer, intent(in) :: &
-         nx, ny                    !> number of grid cells in each dimension
-
-    integer, intent(in) :: &
-         nbasin                    !> number of basins
-
-    integer, dimension(nx,ny), intent(in) :: &
-         basin_number              !> basin ID for each grid cell
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         rmask                     !> real mask for weighting the value in each cell
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         field_2d                  !> input field to be averaged over basins
-
-    real(dp), dimension(nbasin), intent(out) :: &
-         field_basin_avg           !> basin-average output field
-
-    integer, intent(in), optional :: &
-         itest, jtest, rtest       !> coordinates of diagnostic point
-
-    ! local variables
-
-    integer :: i, j, nb
-
-    !TODO - Replace sumcell with sumarea, and pass in cell area.
-    !       Current algorithm assumes all cells with mask = 1 have equal weight.
-
-    real(dp), dimension(nbasin) ::  &
-         summask_local,          & ! sum of mask in each basin on local task
-         summask_global,         & ! sum of mask in each basin on full domain
-         sumfield_local,         & ! sum of field on local task
-         sumfield_global           ! sum of field over full domain
-
-    summask_local(:) = 0.0d0
-    sumfield_local(:) = 0.0d0
-
-    ! loop over locally owned cells only
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          nb = basin_number(i,j)
-          if (nb >= 1) then
-             summask_local(nb) = summask_local(nb) + rmask(i,j)
-             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
-    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
-
-    do nb = 1, nbasin
-       if (summask_global(nb) > tiny(0.0d0)) then
-          field_basin_avg(nb) = sumfield_global(nb)/summask_global(nb)
-       else
-          field_basin_avg(nb) = 0.0d0
-       endif
-    enddo
-
-  end subroutine basin_average
 
 !****************************************************
 
