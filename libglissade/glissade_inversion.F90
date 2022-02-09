@@ -401,7 +401,7 @@ contains
   subroutine glissade_inversion_basal_friction(model)
 
     use glimmer_paramets, only: tim0, thk0, vel0
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: scyr, grav
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
 
     implicit none
@@ -418,6 +418,11 @@ contains
          stag_dthck_dt,        & ! dthck_dt on staggered grid
          stag_thck_obs,        & ! thck_obs on staggered grid
          velo_sfc                ! surface ice speed
+
+    !WHL - debug
+    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+         stag_topg,            &
+         stag_thck_flotation
 
     integer :: i, j
     integer :: ewn, nsn
@@ -577,7 +582,32 @@ contains
                 enddo
                 print*, ' '
              enddo
+             print*, ' '
+             print*, 'effecpress/overburden:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   if (stag_thck(i,j) > 0.0d0) then
+                      write(6,'(f10.4)',advance='no') &
+                           model%basal_physics%effecpress_stag(i,j) / &
+                           (rhoi * grav * stag_thck(i,j) * thk0)
+                   else
+                      write(6,'(f10.4)',advance='no') 0.0d0
+                   endif
+                enddo
+                print*, ' '
+             enddo
+
           endif   ! verbose_inversion
+
+          ! Compute flotation thickness, given by H = (rhoo/rhoi)*|b|
+
+          ! Interpolate topg to the staggered grid
+          call glissade_stagger(ewn,                   nsn,             &
+                                model%geometry%topg,   stag_topg)
+
+          ! correct for eus (if nonzero) and convert to meters
+          stag_topg = (stag_topg - model%climate%eus) * thk0
+          stag_thck_flotation = (rhoo/rhoi) * max(-stag_topg, 0.0d0)
 
           call invert_basal_friction(model%numerics%dt*tim0,                   &  ! s
                                      ewn,               nsn,                   &
@@ -593,7 +623,9 @@ contains
                                      stag_dthck_dt,                            &  ! m/s
                                      velo_sfc*(vel0*scyr),                     &  ! m/yr
                                      model%velocity%velo_sfc_obs*(vel0*scyr),  &  ! m/yr
-                                     model%basal_physics%coulomb_c)
+                                     model%basal_physics%coulomb_c,            &
+                                     stag_thck_flotation = stag_thck_flotation, &
+                                     p_ocean = model%basal_physics%p_ocean_penetration)
 
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
@@ -675,7 +707,9 @@ contains
                                    stag_dthck_dt,            &
                                    velo_sfc,                 &
                                    velo_sfc_obs,             &
-                                   friction_c)
+                                   friction_c,               &
+                                   stag_thck_flotation,      &
+                                   p_ocean)
 
     ! Compute a spatially varying basal friction field defined at cell vertices.
     ! Here, the field has the generic name 'friction_c', which could be either powerlaw_c or coulomb_c.
@@ -716,6 +750,11 @@ contains
     real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
          friction_c              ! basal friction field to be adjusted (powerlaw_c or coulomb_c)
 
+    real(dp), dimension(nx-1,ny-1), intent(in), optional :: &
+         stag_thck_flotation     ! flotation thickness (m) on staggered grid; used for term3_thck
+
+    real(dp), intent(in), optional :: p_ocean
+
     ! local variables
 
     real(dp), dimension(nx-1,ny-1) ::  &
@@ -723,8 +762,9 @@ contains
          dvelo_sfc,            & ! velo_sfc - velo_sfc_obs
          dfriction_c             ! change in friction_c
 
-    real(dp) :: term1_thck, term2_thck  ! tendency terms based on thickness target
-    real(dp) :: term1_velo              ! tendency term based on surface speed target
+    real(dp), dimension(nx-1, ny-1) :: &
+         term1_thck, term2_thck, term3_thck, & ! tendency terms based on thickness target
+         term1_velo                            ! tendency term based on surface speed target
 
     integer :: i, j
 
@@ -782,6 +822,12 @@ contains
        enddo
     endif
 
+    ! Initialize the tendency terms
+    term1_thck(:,:) = 0.0d0
+    term2_thck(:,:) = 0.0d0
+    term3_thck(:,:) = 0.0d0
+    term1_velo(:,:) = 0.0d0
+
     ! Loop over vertices where f_ground > 0
     ! Note: f_ground should be computed before transport, so that if a vertex is grounded
     !       before transport and fully floating afterward, friction_c is computed here.
@@ -813,11 +859,31 @@ contains
              ! Compute tendency terms based on the thickness target
 
              if (babc_thck_scale > 0.0d0) then
-                term1_thck = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
-                term2_thck = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
-             else
-                term1_thck = 0.0d0
-                term2_thck = 0.0d0
+                term1_thck(i,j) = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
+                term2_thck(i,j) = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+             endif
+
+             ! Third tendency term added for coulomb_c inversion.
+             ! The origin of the term is as follows:  Basal shear stress is proportional to N * C_c.
+             ! We want to relax (N * C_c) such that H approaches a steady value without oscillating.
+             !  The prognostic equation is:
+             !      1/(N*C_c) * d(N*C_c)/dt = -(1/tau) * [(H - H_obs)/H0 + (2*tau/H0) * dH/dt]
+             ! Using the product rule on the LHS gives a term of the form (1/N)(dN/dt).
+             ! Move this term to the RHS and set dN/dt = dN/dh * dh/dt.
+             ! With N = (rhoi*g*H) * (1 - Hf/H)^p, we can show dN/dh = N * [(1 - p)/H + p/(H - Hf)],
+             ! giving the term below.
+             ! The result is to increase the rate of change of C_c near the grounding line
+             !  when ice is thinning and retreating.  Ideally, this should help with stability
+             !  by reducing the chance of overshooting the GL.  In practice, it may only delay
+             !  the onset of instability, if the thickness target is an unstable state.
+
+             if (present(p_ocean)) then
+                if (stag_thck(i,j) > 0.0d0 .and. &
+                     stag_thck(i,j) > stag_thck_flotation(i,j)) then
+                   term3_thck(i,j) = -stag_dthck_dt(i,j) *  &
+                        ( (1.0d0 - p_ocean)/stag_thck(i,j) &
+                        + p_ocean / (stag_thck(i,j) - stag_thck_flotation(i,j)) )
+                endif
              endif
 
              ! Compute tendency terms based on the surface speed target
@@ -825,12 +891,20 @@ contains
              !       but it triggers oscillations in friction_c without improving accuracy.
 
              if (babc_velo_scale > 0.0d0) then
-                term1_velo = dvelo_sfc(i,j) / (babc_velo_scale * babc_timescale)
-             else
-                term1_velo = 0.0d0
+                term1_velo(i,j) = dvelo_sfc(i,j) / (babc_velo_scale * babc_timescale)
              endif
 
-             dfriction_c(i,j) = friction_c(i,j) * (term1_thck + term2_thck + term1_velo) * dt
+             if (verbose_inversion .and. this_rank == rtest .and. i == itest .and. j == jtest) then
+                print*, ' '
+                print*, 'Increment C_c, rank, i, j =', this_rank, i, j
+                print*, 'dt*term1_thck =', dt*term1_thck(i,j)
+                print*, 'dt*term2_thck =', dt*term2_thck(i,j)
+                if (present(p_ocean)) print*, 'dt*term3_thck =', dt*term3_thck(i,j)
+                if (babc_velo_scale > 0.0d0) print*, 'dt*term1_velo =', dt*term3_thck(i,j)
+             endif
+
+             dfriction_c(i,j) = friction_c(i,j) * &
+                  (term1_thck(i,j) + term2_thck(i,j) + term3_thck(i,j) + term1_velo(i,j)) * dt
 
              ! Limit to prevent a large relative change in one step
              if (abs(dfriction_c(i,j)) > 0.05d0 * friction_c(i,j)) then
@@ -850,14 +924,15 @@ contains
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                 print*, ' '
+                print*, ' '
                 print*, 'Invert for friction_c: rank, i, j =', rtest, itest, jtest
                 print*, 'thck, thck_obs, dthck, dthck_dt:', &
                      stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
                 print*, 'velo_sfc, velo_sfc_obs, dvelo_sfc:', velo_sfc(i,j), velo_sfc_obs(i,j), dvelo_sfc(i,j)
                 print*, 'dthck term, dthck_dt term, sum =', &
-                     term1_thck*dt, term2_thck*dt, (term1_thck + term2_thck)*dt
-                print*, 'dvelo term =', term1_velo*dt
+                     term1_thck(i,j)*dt, term2_thck(i,j)*dt, (term1_thck(i,j) + term2_thck(i,j))*dt
+                if (present(p_ocean)) print*, 'dN/dH term:', term3_thck(i,j)*dt
+                if (babc_velo_scale > 0.0d0) print*, 'dvelo term =', term1_velo(i,j)*dt
                 print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
 
@@ -1153,7 +1228,7 @@ contains
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters
     real(dp), parameter :: &
-         flow_factor_basin_maxval = 3.0d0,  & ! max allowed magnitude of flow_factor_basin (unitless)
+         flow_factor_basin_maxval = 5.0d0,  & ! max allowed magnitude of flow_factor_basin (unitless)
          flow_factor_basin_minval = 0.2d0,  & ! min allowed magnitude of flow_factor_basin (unitless)
          dflow_factor_basin_dt_maxval = 0.1d0/scyr  ! max allowed magnitude of d(flow_factor_basin)/dt (1/yr converted to 1/s)
 
