@@ -2182,6 +2182,12 @@ contains
     call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
     call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
 
+    ! glacier parameters
+    !TODO - Create a separate glacier section
+    call GetValue(section, 'gamma0', model%glacier%mu_star_const)
+    call GetValue(section, 'gamma0', model%glacier%mu_star_min)
+    call GetValue(section, 'gamma0', model%glacier%mu_star_max)
+
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
     call GetValue(section, 'adjust_topg_xmax', model%paramets%adjust_topg_xmax)
@@ -3525,15 +3531,18 @@ contains
           ! no restart variables needed
     end select
 
-    !TODO - Add glacier options
     if (model%options%enable_glaciers) then
-       call glide_add_to_restart_variable_list('glacier_id')
-       call glide_add_to_restart_variable_list('glacier_id_cism')
-       ! TODO: Write model%glacier%mu_star and model%basal_physics%powerlaw_c
+!       call glide_add_to_restart_variable_list('nglacier')
+!       call glide_add_to_restart_variable_list('ngdiag')
+!       call glide_add_to_restart_variable_list('glacierid')
+       call glide_add_to_restart_variable_list('rgi_glacier_id')
+       call glide_add_to_restart_variable_list('cism_glacier_id')
+       call glide_add_to_restart_variable_list('glacier_area_target')
+       call glide_add_to_restart_variable_list('glacier_volume_target')
+       call glide_add_to_restart_variable_list('glacier_mu_star')
+       call glide_add_to_restart_variable_list('glacier_powerlaw_c')
        ! Some arrays have dimension nglacier, which isn't known initially.
-       ! These could be written out as 2D arrays, then read in and used to recompute the 1D arrays on restart.
-       ! *  glacier%area_target and glacier%volume_target should be added
-       ! Note: cism_to_glacier_id can be recomputed, given glacier_id and glacier_id_cism
+       ! Note: cism_to_rgi_glacier_id can be recomputed, given rgi_glacier_id and cism_glacier_id
     endif
     !
     ! basal processes module - requires tauf for a restart
