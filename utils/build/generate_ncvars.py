@@ -427,7 +427,7 @@ class PrintNC_template(PrintVars):
                     dimstring = dimstring + 'up'
                 else:
                     dimstring = dimstring + '1'
-                
+
             if  'level' in dims:
                 # handle 3D fields
                 spaces = ' '*3
@@ -455,8 +455,9 @@ class PrintNC_template(PrintVars):
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
 
-            #WHL: Call parallel_put_var to write scalars; else call distributed_put_var
-            if dimstring == 'outfile%timecounter':   # scalar variable; no dimensions except time
+            #WHL: Call parallel_put_var to write scalars and 1D arrays without horizontal dimensions
+            #     Otherwise, call distributed_put_var
+            if dimstring == 'outfile%timecounter' or dimstring == '1,outfile%timecounter':
                 self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
                                                                                                                spaces,data,dimstring))
             else:
@@ -542,8 +543,9 @@ class PrintNC_template(PrintVars):
                     spaces = ' '*3
                     self.stream.write("       do up=1,NCI%nzocn\n")
 
-                #WHL: Call parallel_get_var to get scalars; else call distributed_get_var
-                if dimstring == 'infile%current_time':   # scalar variable; no dimensions except time
+                #WHL: Call parallel_get_var to read scalars and 1D arrays without horizontal dimensions
+                #     Otherwise, call distributed_get_var
+                if dimstring == 'infile%current_time' or dimstring == '1,infile%current_time':
                     self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
                                                                                                                    spaces,var['data']))
                 else:

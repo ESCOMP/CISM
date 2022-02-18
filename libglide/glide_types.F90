@@ -1451,6 +1451,8 @@ module glide_types
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
+     real(dp),dimension(:,:),pointer :: snow            => null() !> snowfall rate (mm/yr w.e.)
+
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
@@ -1820,40 +1822,51 @@ module glide_types
 
   type glide_glacier
 
-     integer :: nglacier = 0                      !> number of glaciers in the global domain
+     integer :: nglacier = 1                      !> number of glaciers in the global domain
+
+     integer :: ngdiag = 0                        !> CISM index of diagnostic glacier
+                                                  !> (associated with global cell idiag, jdiag)
+
+     integer, dimension(:), pointer :: &
+          glacierid => null()                     !> glacier ID dimension variable, used for I/O
 
      ! glacier-specific 1D arrays
      ! These will be allocated with size nglacier, once nglacier is known
      ! Note: mu_star and powerlaw_c have the suffix 'glc' to avoid confusion with the 2D fields
      !       glacier%mu_star and basal_physics%powerlaw_c
-     ! TODO: Add 2D versions of cism_to_glacier_id, area, and volume?
-     !       Not sure it's possible to read and write arrays of dimension (nglacier),
-     !        since nglacier is not computed until runtime.
 
      integer, dimension(:), pointer :: &
-          cism_to_glacier_id => null()            !> maps CISM glacier IDs (1:nglacier) to input glacier IDs
+          cism_to_rgi_glacier_id => null()      !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs
 
      real(dp), dimension(:), pointer :: &
-          area => null(),                       & !> glacier area (m^2)
-          volume => null(),                     & !> glacier volume (m^3)
-          mu_star_glc => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
-                                                  !> defined as positive for ablation
-          powerlaw_c_glc => null()                !> tunable coefficient in basal friction power law
+          area => null(),                   & !> glacier area (m^2)
+          volume => null(),                 & !> glacier volume (m^3)
+          area_target => null(),            & !> glacier area target (m^2) based on observations
+          volume_target => null(),          & !> glacier volume target (m^3) based on observations
+          dvolume_dt => null(),             & !> d(volume)/dt for each glacier (m^3/s)
+          mu_star => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
+                                              !> defined as positive for ablation
+          powerlaw_c => null()                !> tunable coefficient in basal friction power law (Pa (m/yr)^(-1/3))
+                                              !> copied to basal_physics%powerlaw_c, a 2D array
+
+     ! The following can be set in the config file
+     ! Note: The constant, max and min values for powerlaw_c are in the basal_physics type
+     real(dp) :: &
+          mu_star_const = 1000.d0,          & !> uniform initial value for mu_star (mm/yr w.e/deg K)
+          mu_star_min = 10.0d0,             & !> min value of tunable mu_star (mm/yr w.e/deg K)
+          mu_star_max = 10000.0d0             !> max value of tunable mu_star (mm/yr w.e/deg K)
 
      ! glacier-related 2D arrays
-     ! Note: powerlaw_c is already part of the basal physics derived type.
 
      integer, dimension(:,:), pointer :: &
-          glacier_id => null(),                 & !> unique glacier ID, usually based on the Randolph Glacier Inventory
-                                                  !> first 2 digits give the RGI region; the rest give the number within the region
-          glacier_id_cism => null()               !> derived CISM-specific glacier ID, numbered consecutively from 1 to nglacier
-
-     real(dp), dimension(:,:), pointer :: &
-          mu_star => null()                       !> mu_star_glc mapped to the 2D grid for I/O
+          rgi_glacier_id => null(),         & !> unique glacier ID  based on the Randolph Glacier Inventory
+                                              !> first 2 digits give the RGI region;
+                                              !> the rest give the number within the region
+          cism_glacier_id => null()           !> CISM-specific glacier ID, numbered consecutively from 1 to nglacier
 
      integer, dimension(:,:), pointer :: &
-          imask => null()                         !> 2D mask; indicates whether glaciers are present in the input file
-                                                  !> TODO - Remove this field?  Easily derived from initial thickness > 0.
+          imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
+                                              !> TODO - Remove this field?  Easily derived from initial thickness > 0.
 
   end type glide_glacier
 
@@ -2476,9 +2489,8 @@ contains
 
     !> In \texttt{model\%glacier}:
     !> \begin{itemize}
-    !> \item \texttt{glacier_id(ewn,nsn)}
-    !> \item \texttt{glacier_id_cism(ewn,nsn)}
-    !> \item \texttt{mu_star(ewn,nsn)}
+    !> \item \texttt{rgi_glacier_id(ewn,nsn)}
+    !> \item \texttt{cism_glacier_id(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%basal_physics}:
@@ -2896,9 +2908,23 @@ contains
 
     ! glacier options (Glissade only)
     if (model%options%enable_glaciers) then
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%glacier_id)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%glacier_id_cism)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%mu_star)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
+       ! Allocate arrays with dimension(nglacier)
+       ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
+       !       after reading the input file.  If so, these arrays will be reallocated.
+       !WHL - TODO - For restart, do these arrays need to be already allocated with the correct nglacier?
+       !             If so, then might need to put nglacier in the config file.
+       allocate(model%glacier%glacierid(model%glacier%nglacier))
+       allocate(model%glacier%cism_to_rgi_glacier_id(model%glacier%nglacier))
+       allocate(model%glacier%area(model%glacier%nglacier))
+       allocate(model%glacier%volume(model%glacier%nglacier))
+       allocate(model%glacier%area_target(model%glacier%nglacier))
+       allocate(model%glacier%volume_target(model%glacier%nglacier))
+       allocate(model%glacier%dvolume_dt(model%glacier%nglacier))
+       allocate(model%glacier%mu_star(model%glacier%nglacier))
+       allocate(model%glacier%powerlaw_c(model%glacier%nglacier))
     endif
 
     ! inversion and basal physics arrays (Glissade only)
@@ -2942,7 +2968,7 @@ contains
 
     ! Note: Typically, smb_input_function and acab_input_function will have the same value.
     !       If both use a lapse rate, they will share the array smb_reference_usrf.
-    !       If both are 3d, they will shard the array smb_levels.
+    !       If both are 3d, they will share the array smb_levels.
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_gradz)
@@ -3309,12 +3335,28 @@ contains
         deallocate(model%ocean_data%thermal_forcing_lsrf)
 
     ! glacier arrays
-    if (associated(model%glacier%glacier_id)) &
-        deallocate(model%glacier%glacier_id)
-    if (associated(model%glacier%glacier_id_cism)) &
-        deallocate(model%glacier%glacier_id_cism)
+    if (associated(model%glacier%glacierid)) &
+        deallocate(model%glacier%glacierid)
+    if (associated(model%glacier%rgi_glacier_id)) &
+        deallocate(model%glacier%rgi_glacier_id)
+    if (associated(model%glacier%cism_glacier_id)) &
+        deallocate(model%glacier%cism_glacier_id)
+    if (associated(model%glacier%cism_to_rgi_glacier_id)) &
+        deallocate(model%glacier%cism_to_rgi_glacier_id)
+    if (associated(model%glacier%area)) &
+        deallocate(model%glacier%area)
+    if (associated(model%glacier%volume)) &
+        deallocate(model%glacier%volume)
+    if (associated(model%glacier%area_target)) &
+        deallocate(model%glacier%area_target)
+    if (associated(model%glacier%volume_target)) &
+        deallocate(model%glacier%volume_target)
+    if (associated(model%glacier%dvolume_dt)) &
+        deallocate(model%glacier%dvolume_dt)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
+    if (associated(model%glacier%powerlaw_c)) &
+        deallocate(model%glacier%powerlaw_c)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &

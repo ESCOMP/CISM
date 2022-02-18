@@ -81,7 +81,13 @@ units:         meter
 long_name:     ocean_z_coordinate
 data:          data%ocean_data%zocn
 positive:      up
-dimlen:        data%ocean_data%nzocn
+dimlen:        model%ocean_data%nzocn
+
+[glacierid]
+dimensions:    glacierid
+units:         1
+long_name:     glacier_id_coordinate
+dimlen:        model%glacier%nglacier
 
 [nlev_smb]
 dimensions:    nlev_smb
@@ -751,6 +757,15 @@ long_name:     surface mass balance
 data:          data%climate%smb
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance
+load:          1
+
+[snow]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     snowfall rate
+data:          data%climate%snow
+factor:        1.0
+standard_name: land_ice_surface_snowfall_rate
 load:          1
 
 [acab]
@@ -1602,23 +1617,56 @@ units:         years
 long_name:     diffusive CFL maximum time step
 data:          data%numerics%diff_cfl_dt
 
-[glacier_id]
+[rgi_glacier_id]
 dimensions:    time, y1, x1
 units:         1
-long_name:     input integer glacier ID
-data:          data%glacier%glacier_id
+long_name:     input RGI glacier ID
+data:          data%glacier%rgi_glacier_id
 load:          1
 
-[glacier_id_cism]
+[cism_glacier_id]
 dimensions:    time, y1, x1
 units:         1
-long_name:     CISM-specific integer glacier ID
-data:          data%glacier%glacier_id_cism
+long_name:     CISM-specific glacier ID
+data:          data%glacier%cism_glacier_id
 load:          1
 
-[mu_star]
-dimensions:    time, y1, x1
-units:         mm/yr w.e. per deg K
-long_name:     glacier ablation parameter
+[glacier_area]
+dimensions:    time, glacierid
+units:         m2
+long_name:     glacier area
+data:          data%glacier%area
+
+[glacier_volume]
+dimensions:    time, glacierid
+units:         m3
+long_name:     glacier volume
+data:          data%glacier%volume
+
+[glacier_area_target]
+dimensions:    time, glacierid
+units:         m2
+long_name:     glacier area target
+data:          data%glacier%area_target
+load:          1
+
+[glacier_volume_target]
+dimensions:    time, glacierid
+units:         m3
+long_name:     glacier volume target
+data:          data%glacier%volume_target
+load:          1
+
+[glacier_mu_star]
+dimensions:    time, glacierid
+units:         mm w.e./yr/deg
+long_name:     glacier SMB coefficient
+data:          data%glacier%mu_star
+load:          1
+
+[glacier_powerlaw_c]
+dimensions:    time, glacierid
+units:         Pa (m/yr)**(-1/3)
+long_name:     glacier basal friction coefficient
 data:          data%glacier%mu_star
 load:          1
