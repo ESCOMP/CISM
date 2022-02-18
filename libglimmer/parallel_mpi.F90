@@ -335,6 +335,7 @@ module cism_parallel
 
   interface parallel_put_var
      module procedure parallel_put_var_integer
+     module procedure parallel_put_var_integer_1d
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
@@ -7856,6 +7857,26 @@ contains
     call broadcast(parallel_put_var_integer)
 
   end function parallel_put_var_integer
+
+
+  function parallel_put_var_integer_1d(ncid, varid, values, start)
+
+    implicit none
+    integer :: ncid,parallel_put_var_integer_1d,varid
+    integer,dimension(:) :: values
+    integer,dimension(:),optional :: start
+
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values)
+       endif
+    endif
+    call broadcast(parallel_put_var_integer_1d)
+
+  end function parallel_put_var_integer_1d
 
 
   function parallel_put_var_real4(ncid, varid, values, start)

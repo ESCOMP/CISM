@@ -376,7 +376,7 @@ contains
           if (ice_mask(i,j) == 1) then
              if (floating_mask(i,j) == 0) then  ! grounded ice
                 if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
-                   thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! thickness of ice that is exactly floating
+                   thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! exactly floating
                    thck_above_flotation = model%geometry%thck(i,j) - thck_floating
                    tot_mass_above_flotation = tot_mass_above_flotation    &
                                             + thck_above_flotation * cell_area(i,j)
@@ -599,16 +599,35 @@ contains
                                    tot_volume*1.0d-9         ! convert to km^3
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
-                                   tot_mass                  ! kg
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
 
-    write(message,'(a25,e24.16)') 'Mass above flotation (kg)',   &
-                                   tot_mass_above_flotation  ! kg
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
+                                      tot_mass                  ! kg
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Total ice energy (J)     ', tot_energy
-    call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Mass above flotation (kg)',   &
+                                      tot_mass_above_flotation  ! kg
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total ice energy (J)     ',   &
+                                      tot_energy                ! J
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+
+       write(message,'(a25,e24.16)') 'Total ice mass (Gt)      ',   &
+                                      tot_mass * 1.0d-12        ! Gt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Mass above flotation (Gt)',   &
+                      tot_mass_above_flotation * 1.0d-12        ! Gt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total ice energy (GJ)     ',  &
+                                    tot_energy * 1.0d-9         ! GJ
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! dm_dt_diag
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
@@ -654,7 +673,7 @@ contains
           write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       endif
+       endif   ! dm_dt_diag
 
 !       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
