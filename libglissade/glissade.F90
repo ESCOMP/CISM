@@ -68,7 +68,8 @@ module glissade
   implicit none
 
   integer, private, parameter :: dummyunit=99
-  logical, parameter :: verbose_glissade = .false.
+!!  logical, parameter :: verbose_glissade = .false.
+  logical, parameter :: verbose_glissade = .true.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
@@ -493,24 +494,10 @@ contains
 
     end select
 
-    ! open all output files
-    call openall_out(model)
-
-    ! create glide variables
-    call glide_io_createall(model, model)
-
-    ! Compute the cell areas of the grid
-    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
-
-    ! If running with glaciers, then process the input glacier data
-    if (model%options%enable_glaciers .and. model%options%is_restart == RESTART_FALSE) then
-       call glissade_glacier_init(model)
-    endif
-
-    ! If a 2D bheatflx field is present in the input file, it will have been written 
+    ! If a 2D bheatflx field is present in the input file, it will have been written
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
     !  a uniform heat flux instead.
-    ! If no bheatflx field is present in the input file, then we default to the 
+    ! If no bheatflx field is present in the input file, then we default to the
     !  prescribed uniform value, model%paramets%geot.
 
     if (model%options%gthf == GTHF_UNIFORM) then
@@ -539,6 +526,23 @@ contains
        endif
 
     endif  ! geothermal heat flux
+
+    ! Compute the cell areas of the grid
+    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
+
+    ! If running with glaciers, then process the input glacier data
+    ! Note: This subroutine counts the glaciers.  It should be called before glide_io_createall,
+    !       which needs to know nglacier to set up glacier output files with the right dimensions.
+
+    if (model%options%enable_glaciers .and. model%options%is_restart == RESTART_FALSE) then
+       call glissade_glacier_init(model)
+    endif
+
+    ! open all output files
+    call openall_out(model)
+
+    ! create glide I/O variables
+    call glide_io_createall(model, model)
 
     ! initialize glissade components
 
@@ -1217,6 +1221,14 @@ contains
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_ground(i,j)*scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'bmlt_float (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
           enddo
           write(6,*) ' '
        enddo
@@ -2070,6 +2082,7 @@ contains
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
+    use glissade_glacier, only: glissade_glacier_smb, verbose_glacier
     use glide_stop, only: glide_finalise
 
     implicit none
@@ -2655,6 +2668,42 @@ contains
           endif   ! artm_input_function
 
        endif  ! verbose_smb and this_rank
+
+       ! If using a glacier-specific SMB index method, then compute the SMB and convert to acab
+
+!!       if (0 == 1) then
+       if (model%options%enable_glaciers) then
+
+          !WHL - debug
+          if (verbose_glacier .and. main_task) then
+             print*, 'call glissade_glacier_smb, nglacier =', model%glacier%nglacier
+          endif
+
+          ! Halo update for snow; halo update for artm is done above
+          call parallel_halo(model%climate%snow, parallel)
+
+          call glissade_glacier_smb(&
+               model%general%ewn,  model%general%nsn,  &
+               itest,    jtest,    rtest,              &
+               model%glacier%nglacier,                 &
+               model%glacier%cism_glacier_id,          &
+               model%glacier%mu_star,                  &  ! mm/yr w.e./deg
+               model%climate%snow,                     &  ! mm/yr w.e.
+               model%climate%artm,                     &  ! deg C
+               model%climate%smb)                         ! mm/yr w.e.
+
+          ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
+          model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+
+          if (verbose_glacier .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'Computed glacier SMB, rank, i, j =', this_rank, i, j
+             print*, '   acab (m/yr ice) =', model%climate%acab(i,j)*thk0*scyr/tim0
+          endif
+
+       endif   ! enable_glaciers
 
        ! Compute a corrected acab field that includes any prescribed anomalies.
        ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.
@@ -3761,6 +3810,7 @@ contains
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, glissade_inversion_flow_factor_basin
+    use glissade_glacier, only: glissade_glacier_inversion
 
     implicit none
 
@@ -3768,7 +3818,7 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k, n
+    integer :: i, j, k, n, ng
     integer :: itest, jtest, rtest
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
@@ -3780,7 +3830,8 @@ contains
          marine_interior_mask  ! = 1 if ice is marine-based and borders no ocean cells, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         thck_calving_front          ! effective thickness of ice at the calving front
+         thck_calving_front,   & ! effective thickness of ice at the calving front
+         powerlaw_c_icegrid      ! powerlaw_c on the unstaggered ice grid
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          flow_enhancement_factor_float    ! flow enhancement factor for floating ice
@@ -3802,8 +3853,8 @@ contains
     integer :: ewn, nsn, upn
 
     !WHL - debug
-    real(dp) :: my_max, my_min, global_max, global_min
     integer :: iglobal, jglobal, ii, jj
+    real(dp) :: my_max, my_min, global_max, global_min
     real(dp) :: sum_cell, sum1, sum2  ! temporary sums
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
@@ -4043,7 +4094,7 @@ contains
 
        else
 
-          call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &
+          call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &  ! s
                                              ewn, nsn,                                  &
                                              model%numerics%dew * len0,                 &  ! m
                                              model%numerics%dns * len0,                 &  ! m
@@ -4094,6 +4145,52 @@ contains
        endif  ! first call after a restart
 
     endif   ! which_ho_bmlt_basin
+
+    ! If glaciers are enabled, then invert for mu_star and powerlaw_c
+    !  based on glacier area and volume targets
+
+!!    if (0 == 1 .and. &
+    if (model%options%enable_glaciers .and. &
+         (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
+          model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)) then
+
+       call glissade_glacier_inversion(&
+            model%options%glacier_mu_star,                         &
+            model%options%glacier_powerlaw_c,                      &
+            model%numerics%dt * tim0/scyr,                         &  ! yr
+            itest,       jtest,         rtest,                     &
+            ewn,                        nsn,                       &
+            model%numerics%dew * len0,  model%numerics%dns * len0, &  ! m
+            model%geometry%thck * thk0,                            &  ! m
+            model%geometry%dthck_dt * scyr,                        &  ! m/yr
+            model%basal_physics%powerlaw_c_min,                    &
+            model%basal_physics%powerlaw_c_max,                    &
+            model%glacier)
+
+       ! Copy glacier%powerlaw_c(ng) to the unstaggered ice grid.
+
+       powerlaw_c_icegrid(:,:) = 0.0d0
+       do j = 1, nsn
+          do i = 1, ewn
+             ng = model%glacier%cism_glacier_id(i,j)
+             if (ng >= 1) then
+                powerlaw_c_icegrid(i,j) = model%glacier%powerlaw_c(ng)
+             endif
+          enddo
+       enddo
+
+       ! Interpolate powerlaw_c to the staggered velocity grid.
+       ! At glacier margins, ignoring powerlaw_c in adjacent ice-free cells
+       !  (by setting stagger_margin_in = 1).
+       ! Thus, powerlaw_c = 0 at vertices surrounded by ice-free cells.
+       ! Note: Here, 'ice-free' means thck < thklim.
+
+       call glissade_stagger(ewn,                 nsn,                             &
+                             powerlaw_c_icegrid,  model%basal_physics%powerlaw_c,  &
+                             ice_mask = ice_mask,                                  &
+                             stagger_margin_in = 1)
+
+    endif   ! enable_glaciers with inversion
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A

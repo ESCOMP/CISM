@@ -1267,6 +1267,14 @@ module glissade_therm
     !       if so, it is combined with bmlt_ground
     ! TODO: Treat melt_internal as a separate field in glissade_tstep?
 
+    ! WHL - debug
+    if (verbose_therm .and. this_rank == rtest) then
+       ew = itest
+       ns = jtest
+       print*, 'bmlt_ground (m/yr) w/out internal melt:', bmlt_ground(ew,ns)*scyr
+       print*, 'Internal melt (m/yr):', melt_internal(ew,ns)*scyr
+    endif
+
     bmlt_ground(:,:) = bmlt_ground(:,:) + melt_internal(:,:)
 
     ! Check for temperatures that are physically unrealistic.
