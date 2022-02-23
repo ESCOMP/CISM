@@ -98,7 +98,7 @@ contains
 
     use glide_stop, only: register_model
     use glide_setup
-    use glimmer_ncio
+    use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
     use glissade_transport, only: glissade_overwrite_acab_mask, glissade_add_2d_anomaly
@@ -300,6 +300,16 @@ contains
     model%general%velo_grid = coordsystem_new(model%numerics%dew/2.d0, model%numerics%dns/2.d0, &
                                               model%numerics%dew,      model%numerics%dns,      &
                                               model%general%ewn-1,     model%general%nsn-1)
+
+    ! If the length of any dimension is unknown, then get the length now, before allocating arrays.
+    ! Currently, the length of most dimensions is set in the config file.
+    ! An exception is dimension glacierid, whose length (nglacier) is computed internally by CISM.
+    ! On restart, we can get the length from the restart file.
+
+    if (model%options%enable_glaciers .and. model%options%is_restart == RESTART_TRUE) then
+       infile => model%funits%in_first   ! assume glacierid is a dimension in the restart file
+       call glimmer_nc_get_dimlength(infile, 'glacierid', model%glacier%nglacier)
+    endif
 
     ! allocate arrays
     call glide_allocarr(model)
@@ -508,10 +518,12 @@ contains
     model%geometry%cell_area = model%numerics%dew*model%numerics%dns
 
     ! If running with glaciers, then process the input glacier data
-    ! Note: This subroutine counts the glaciers.  It should be called before glide_io_createall,
-    !       which needs to know nglacier to set up glacier output files with the right dimensions.
+    ! On start-up, this subroutine counts the glaciers.  It should be called before glide_io_createall,
+    !  which needs to know nglacier to set up glacier output files with the right dimensions.
+    ! On restart, most of the required glacier arrays are in the restart file, and this subroutine
+    !  computes a few remaining variable.
 
-    if (model%options%enable_glaciers .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%enable_glaciers) then
        call glissade_glacier_init(model)
     endif
 
@@ -2647,19 +2659,19 @@ contains
 
        ! If using a glacier-specific SMB index method, then compute the SMB and convert to acab
 
-!!       if (0 == 1) then
        if (model%options%enable_glaciers) then
 
-          !WHL - debug
           if (verbose_glacier .and. main_task) then
              print*, 'call glissade_glacier_smb, nglacier =', model%glacier%nglacier
           endif
 
-          ! Halo update for snow; halo update for artm is done above
+          ! Halo updates for snow and artm
+          ! (Not sure the artm update is needed; there is one above)
+          call parallel_halo(model%climate%artm, parallel)
           call parallel_halo(model%climate%snow, parallel)
 
           call glissade_glacier_smb(&
-               model%general%ewn,  model%general%nsn,  &
+               ewn,      nsn,                          &
                itest,    jtest,    rtest,              &
                model%glacier%nglacier,                 &
                model%glacier%cism_glacier_id,          &
@@ -4088,48 +4100,56 @@ contains
     endif   ! which_ho_bmlt_basin_inversion
 
     ! If glaciers are enabled, then invert for mu_star and powerlaw_c
-    !  based on glacier area and volume targets
+    !  based on glacier area and volume targets.  Do not invert on restart.
 
-!!    if (0 == 1 .and. &
     if (model%options%enable_glaciers .and. &
          (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
           model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)) then
 
-       call glissade_glacier_inversion(&
-            model%options%glacier_mu_star,                         &
-            model%options%glacier_powerlaw_c,                      &
-            model%numerics%dt * tim0/scyr,                         &  ! yr
-            itest,       jtest,         rtest,                     &
-            ewn,                        nsn,                       &
-            model%numerics%dew * len0,  model%numerics%dns * len0, &  ! m
-            model%geometry%thck * thk0,                            &  ! m
-            model%geometry%dthck_dt * scyr,                        &  ! m/yr
-            model%basal_physics%powerlaw_c_min,                    &
-            model%basal_physics%powerlaw_c_max,                    &
-            model%glacier)
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+          ! first call after a restart; do not invert for glacier parameters
 
-       ! Copy glacier%powerlaw_c(ng) to the unstaggered ice grid.
+       else
 
-       powerlaw_c_icegrid(:,:) = 0.0d0
-       do j = 1, nsn
-          do i = 1, ewn
-             ng = model%glacier%cism_glacier_id(i,j)
-             if (ng >= 1) then
-                powerlaw_c_icegrid(i,j) = model%glacier%powerlaw_c(ng)
-             endif
+          call glissade_glacier_inversion(&
+               model%options%glacier_mu_star,                         &
+               model%options%glacier_powerlaw_c,                      &
+               model%numerics%dt * tim0/scyr,                         &  ! yr
+               itest,       jtest,         rtest,                     &
+               ewn,                        nsn,                       &
+               model%numerics%dew * len0,  model%numerics%dns * len0, &  ! m
+               model%geometry%thck * thk0,                            &  ! m
+               model%geometry%dthck_dt * scyr,                        &  ! m/yr
+               model%basal_physics%powerlaw_c_min,                    &
+               model%basal_physics%powerlaw_c_max,                    &
+               model%glacier)
+
+          ! Copy glacier%powerlaw_c(ng) to the unstaggered ice grid.
+
+          powerlaw_c_icegrid(:,:) = 0.0d0
+          do j = 1, nsn
+             do i = 1, ewn
+                ng = model%glacier%cism_glacier_id(i,j)
+                if (ng >= 1) then
+                   powerlaw_c_icegrid(i,j) = model%glacier%powerlaw_c(ng)
+                endif
+             enddo
           enddo
-       enddo
 
-       ! Interpolate powerlaw_c to the staggered velocity grid.
-       ! At glacier margins, ignoring powerlaw_c in adjacent ice-free cells
-       !  (by setting stagger_margin_in = 1).
-       ! Thus, powerlaw_c = 0 at vertices surrounded by ice-free cells.
-       ! Note: Here, 'ice-free' means thck < thklim.
+          ! Interpolate powerlaw_c to the staggered velocity grid.
+          ! At glacier margins, ignoring powerlaw_c in adjacent ice-free cells
+          !  (by setting stagger_margin_in = 1).
+          ! Thus, powerlaw_c = 0 at vertices surrounded by ice-free cells.
+          ! Note: Here, 'ice-free' means thck < thklim.
 
-       call glissade_stagger(ewn,                 nsn,                             &
-                             powerlaw_c_icegrid,  model%basal_physics%powerlaw_c,  &
-                             ice_mask = ice_mask,                                  &
-                             stagger_margin_in = 1)
+          call glissade_stagger(&
+               ewn,                 nsn,                             &
+               powerlaw_c_icegrid,  model%basal_physics%powerlaw_c,  &
+               ice_mask = ice_mask,                                  &
+               stagger_margin_in = 1)
+
+       endif   ! first call after restart
 
     endif   ! enable_glaciers with inversion
 

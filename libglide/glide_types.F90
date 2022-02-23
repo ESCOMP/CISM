@@ -1748,13 +1748,13 @@ module glide_types
 
   type glide_glacier
 
-     integer :: nglacier = 1                      !> number of glaciers in the global domain
+     integer :: nglacier = 1                  !> number of glaciers in the global domain
 
-     integer :: ngdiag = 0                        !> CISM index of diagnostic glacier
-                                                  !> (associated with global cell idiag, jdiag)
+     integer :: ngdiag = 0                    !> CISM index of diagnostic glacier
+                                              !> (associated with global cell idiag, jdiag)
 
      integer, dimension(:), pointer :: &
-          glacierid => null()                     !> glacier ID dimension variable, used for I/O
+          glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
      ! glacier-specific 1D arrays
      ! These will be allocated with size nglacier, once nglacier is known
@@ -1762,7 +1762,7 @@ module glide_types
      !       glacier%mu_star and basal_physics%powerlaw_c
 
      integer, dimension(:), pointer :: &
-          cism_to_rgi_glacier_id => null()      !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs
+          cism_to_rgi_glacier_id => null()    !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs
 
      real(dp), dimension(:), pointer :: &
           area => null(),                   & !> glacier area (m^2)
@@ -2824,9 +2824,9 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
-       !       after reading the input file.  If so, these arrays will be reallocated.
-       !WHL - TODO - For restart, do these arrays need to be already allocated with the correct nglacier?
-       !             If so, then might need to put nglacier in the config file.
+       !        after reading the input file.  If so, these arrays will be reallocated.
+       !       On restart, nglacier is read from the restart file before calling glide_allocarr,
+       !        so these allocations will be correct.
        allocate(model%glacier%glacierid(model%glacier%nglacier))
        allocate(model%glacier%cism_to_rgi_glacier_id(model%glacier%nglacier))
        allocate(model%glacier%area(model%glacier%nglacier))
