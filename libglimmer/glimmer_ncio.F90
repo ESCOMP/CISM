@@ -46,7 +46,6 @@ module glimmer_ncio
 
   integer,parameter,private :: msglen=512
   
-  ! WHL - added subroutines for reading single fields at initialization
   interface glimmer_nc_get_var
      module procedure glimmer_nc_get_var_integer_2d
      module procedure glimmer_nc_get_var_real8_2d
@@ -899,6 +898,56 @@ contains
       nc%vars_copy = nc%vars
 
   end subroutine check_for_tempstag
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_dimlength(infile, dimname, dimlength)
+
+    !WHL, Feb. 2022:
+    ! This is a custom subroutine that opens an input file, finds the length
+    ! of a specific dimension, and closes the file.
+    ! It is useful for getting array dimension whose size is not known in advance.
+    ! Currently, it is called from glissade_initialise to get the length of the
+    ! glacierid dimension, without having to put 'nglacier' in the config file by hand.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: dimname
+    integer, intent(out) :: dimlength
+
+    ! local variables
+    integer :: status, dimid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! get the dimension length
+    status = parallel_inq_dimid(infile%nc%id, trim(dimname), dimid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Getting length of dimension'//trim(dimname)//' ')
+       status = parallel_inquire_dimension(infile%nc%id, dimid, len=dimlength)
+       if (status /= nf90_noerr) then
+          call write_log('Error getting dimlength '//trim(dimname)//':'//nf90_strerror(status),&
+               type=GM_FATAL, file=__FILE__,line=__LINE__)
+       endif
+    else
+       call write_log('Error getting dimension '//trim(dimname)//':'//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_dimlength
 
   !------------------------------------------------------------------------------
 
