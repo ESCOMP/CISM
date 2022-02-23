@@ -55,7 +55,6 @@ dimensions:    level
 units:         1
 long_name:     sigma layers
 standard_name: land_ice_sigma_coordinate
-#formula_terms: sigma: level topo: topg thick: thk
 positive:      down
 dimlen:        model%general%upn
 
@@ -1610,6 +1609,13 @@ long_name:     CISM-specific glacier ID
 data:          data%glacier%cism_glacier_id
 load:          1
 
+[cism_to_rgi_glacier_id]
+dimensions:    time, glacierid
+units:         1
+long_name:     RGI glacier ID corresponding to CISM ID
+data:          data%glacier%cism_to_rgi_glacier_id
+load:          1
+
 [glacier_area]
 dimensions:    time, glacierid
 units:         m2
@@ -1647,5 +1653,5 @@ load:          1
 dimensions:    time, glacierid
 units:         Pa (m/yr)**(-1/3)
 long_name:     glacier basal friction coefficient
-data:          data%glacier%mu_star
+data:          data%glacier%powerlaw_c
 load:          1

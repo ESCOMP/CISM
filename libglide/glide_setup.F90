@@ -3595,17 +3595,17 @@ contains
     end select
 
     if (model%options%enable_glaciers) then
-!       call glide_add_to_restart_variable_list('nglacier')
-!       call glide_add_to_restart_variable_list('ngdiag')
-!       call glide_add_to_restart_variable_list('glacierid')
        call glide_add_to_restart_variable_list('rgi_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id')
-       call glide_add_to_restart_variable_list('glacier_area_target')
-       call glide_add_to_restart_variable_list('glacier_volume_target')
+       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_powerlaw_c')
-       ! Some arrays have dimension nglacier, which isn't known initially.
-       ! Note: cism_to_rgi_glacier_id can be recomputed, given rgi_glacier_id and cism_glacier_id
+       if (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION) then
+          call glide_add_to_restart_variable_list('glacier_area_target')
+       endif
+       if (model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          call glide_add_to_restart_variable_list('glacier_volume_target')
+       endif
     endif
     !
     ! basal processes module - requires tauf for a restart

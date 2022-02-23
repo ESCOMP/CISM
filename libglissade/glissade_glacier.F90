@@ -25,16 +25,7 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 !TODO:
-! Set options for repeatedly reading the monthly climatological forcing
 ! Put a glacier section in the config file.
-! Add restart logic in glissade_glacier_init.
-! Decide on the list of glacier restart fields:
-!    rgi_glacier_id, cism_glacier_id, glacier_area_target, glacier_volume_target,
-!    glacier_mu_star, glacier_powerlaw_c
-! What about nglacier?  Diagnose from size of restart arrays?
-! What about ngdiag? Recompute?
-! What about cism_to_rgi_glacier_id?  Recompute?
-! What about array allocation?
 
 module glissade_glacier
 
@@ -68,21 +59,19 @@ contains
 
   subroutine glissade_glacier_init(model)
 
-    ! Initialize glaciers for a region
+    ! Initialize glaciers for an RGI region
     ! If running on multiple disconnected glacier regions, this routine should be called once per region.
-    !TODO: One set of logic for init, another for restart
 
-    ! One key task is to create maps between input RGI glacier IDs (in the rgi_glacier_id array)
-    !  and an array called cism_glacier_id.
-    ! The cism_glacier_id array assigns to each grid cell (i,j) a number between 1 and nglacier,
+    ! This subroutine creates an array called cism_glacier_id, which assigns an integer glacier ID
+    !  to each CISM grid cell (i,j).  These IDs are numbered between 1 and nglacier,
     !  where nglacier is the total number of unique glacier IDs.
     ! This allows us to loop over IDs in the range (1:nglacier), which is more efficient than
     !  looping over the input glacier IDs, which often have large gaps.
+    ! Another array, cism_to_rgi_glacier_id, identifies the RGI ID associated with each CISM ID.
+    !  The CISM input file uses the RGI IDs.
 
     use cism_parallel, only: distributed_gather_var, distributed_scatter_var, &
-         parallel_reduce_sum, broadcast, parallel_halo
-
-    use cism_parallel, only: parallel_barrier  !WHL - debug
+         parallel_reduce_sum, broadcast, parallel_halo, parallel_globalindex
 
     type(glide_global_type),intent(inout) :: model
 
@@ -114,6 +103,9 @@ contains
     type(parallel_type) :: parallel   ! info for parallel communication
 
     integer :: i, j, nc, ng, count
+    integer :: iglobal, jglobal
+    integer :: min_id
+    character(len=100) :: message
 
     !WHL - debug
 !    integer, dimension(:), allocatable :: test_list
@@ -152,115 +144,121 @@ contains
        enddo
     endif
 
-    ! Arrays in the glacier derived type may have been allocated with dimension(1).
-    ! If so, then deallocate here, and reallocate below with dimension (nglacier).
-    ! Typically, nglacier is not known until after initialization.
+    if (model%options%is_restart == RESTART_FALSE) then
 
-    if (associated(model%glacier%glacierid)) deallocate(model%glacier%glacierid)
-    if (associated(model%glacier%cism_to_rgi_glacier_id)) &
-         deallocate(model%glacier%cism_to_rgi_glacier_id)
-    if (associated(model%glacier%area)) deallocate(model%glacier%area)
-    if (associated(model%glacier%volume)) deallocate(model%glacier%volume)
-    if (associated(model%glacier%area_target)) deallocate(model%glacier%area_target)
-    if (associated(model%glacier%volume_target)) deallocate(model%glacier%volume_target)
-    if (associated(model%glacier%dvolume_dt)) deallocate(model%glacier%dvolume_dt)
-    if (associated(model%glacier%mu_star)) deallocate(model%glacier%mu_star)
-    if (associated(model%glacier%powerlaw_c)) deallocate(model%glacier%powerlaw_c)
+       ! not a restart; initialize everything from the input file
 
-    ! Count the number of cells with glaciers
-    ! Loop over locally owned cells
+       ! At start-up, arrays in the glacier derived type are allocated with dimension(1),
+       !  since nglacier has not yet been computed.
+       ! Deallocate here, and reallocate below with dimension (nglacier).
+       ! Note: For a restart, nglacier is determined from the restart file,
+       !       and these arrays should already have the correct dimensions.
+       if (associated(model%glacier%glacierid)) deallocate(model%glacier%glacierid)
+       if (associated(model%glacier%cism_to_rgi_glacier_id)) &
+            deallocate(model%glacier%cism_to_rgi_glacier_id)
+       if (associated(model%glacier%area)) deallocate(model%glacier%area)
+       if (associated(model%glacier%volume)) deallocate(model%glacier%volume)
+       if (associated(model%glacier%area_target)) deallocate(model%glacier%area_target)
+       if (associated(model%glacier%volume_target)) deallocate(model%glacier%volume_target)
+       if (associated(model%glacier%dvolume_dt)) deallocate(model%glacier%dvolume_dt)
+       if (associated(model%glacier%mu_star)) deallocate(model%glacier%mu_star)
+       if (associated(model%glacier%powerlaw_c)) deallocate(model%glacier%powerlaw_c)
 
-    count = 0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          if (model%glacier%rgi_glacier_id(i,j) > 0) then
-             count = count + 1
-          elseif (model%glacier%rgi_glacier_id(i,j) < 0) then  ! should not happen
-             print*, 'glacier_id < 0: i, j, value =', i, j, model%glacier%rgi_glacier_id(i,j)
-             stop   ! TODO - exit gracefully
-          endif
-       enddo
-    enddo
-
-    ncells_glacier = parallel_reduce_sum(count)
-
-    ! Gather the RGI glacier IDs to the main task
-    if (main_task) allocate(rgi_glacier_id_global(global_ewn, global_nsn))
-    call distributed_gather_var(model%glacier%rgi_glacier_id, rgi_glacier_id_global, parallel)
-
-    ! Allocate a global array for the CISM glacier IDs on the main task..
-    ! Allocate a size 0 array on other tasks; distributed_scatter_var wants arrays allocated on all tasks.                   
-
-    if (main_task) then
-       allocate(cism_glacier_id_global(global_ewn,global_nsn))
-    else
-       allocate(cism_glacier_id_global(0,0))
-    endif
-    cism_glacier_id_global(:,:) = 0.0d0
-
-    if (verbose_glacier .and. main_task) then
-       print*, ' '
-       print*, 'Gathered RGI glacier IDs to main task'
-       print*, 'size(rgi_glacier_id) =', &
-            size(model%glacier%rgi_glacier_id,1), size(model%glacier%rgi_glacier_id,2)
-       print*, 'size(rgi_glacier_id_global) =', &
-            size(rgi_glacier_id_global,1), size(rgi_glacier_id_global,2)
-    endif
-
-    if (main_task) then
-
-       gid_minval = minval(rgi_glacier_id_global)
-       gid_maxval = maxval(rgi_glacier_id_global)
-
-       if (verbose_glacier) then
-          print*, 'Total ncells   =', global_ewn * global_nsn
-          print*, 'ncells_glacier =', ncells_glacier
-          print*, 'glacier_id minval, maxval =', gid_minval, gid_maxval
-       endif
-
-       ! Create an unsorted list of glacier IDs, with associated i and j indices.
-       ! There is one entry per glacier-covered cell.
-
-       allocate(glacier_list(ncells_glacier))
-       glacier_list(:)%id = 0
-       glacier_list(:)%indxi = 0
-       glacier_list(:)%indxj = 0
+       ! Count the number of cells with glaciers
+       ! Loop over locally owned cells
 
        count = 0
-
-       do j = 1, global_nsn
-          do i = 1, global_ewn
-             if (rgi_glacier_id_global(i,j) > 0) then
+       do j = nhalo+1, nsn-nhalo
+          do i = nhalo+1, ewn-nhalo
+             if (model%glacier%rgi_glacier_id(i,j) > 0) then
                 count = count + 1
-                glacier_list(count)%id = rgi_glacier_id_global(i,j)
-                glacier_list(count)%indxi = i
-                glacier_list(count)%indxj = j
+             elseif (model%glacier%rgi_glacier_id(i,j) < 0) then  ! should not happen
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                write(message,*) 'RGI glacier_id < 0: i, j, value =', &
+                     iglobal, jglobal, model%glacier%rgi_glacier_id(i,j)
+                call write_log(message, GM_FATAL)
              endif
           enddo
        enddo
 
-       ! Deallocate the RGI global array (no longer needed after glacier_list is built)
-       deallocate(rgi_glacier_id_global)  
+       ncells_glacier = parallel_reduce_sum(count)
 
-       ! Sort the list from low to high IDs.
-       ! As the IDs are sorted, the i and j indices come along for the ride.
-       ! When there are multiple cells with the same glacier ID, these cells are adjacent on the list.
-       ! For example, suppose the initial list is (5, 9, 7, 6, 7, 10, 4, 1, 1, 3, 1).
-       ! The sorted list would be (1, 1, 1, 3, 4, 5, 6, 7, 7, 9, 10).
+       ! Gather the RGI glacier IDs to the main task
+       if (main_task) allocate(rgi_glacier_id_global(global_ewn, global_nsn))
+       call distributed_gather_var(model%glacier%rgi_glacier_id, rgi_glacier_id_global, parallel)
 
-       call glacier_quicksort(glacier_list, 1, ncells_glacier)
-
-       if (verbose_glacier) then
-          print*, 'Sorted glacier IDs in ascending order'
-          print*, ' '
-          print*, 'icell, i, j, ID for a few cells:'
-          do i = 1, 10
-             print*, i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
-          enddo
-          do i = ncells_glacier-9, ncells_glacier
-             print*, i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
-          enddo
+       ! Allocate a global array for the CISM glacier IDs on the main task..
+       ! Allocate a size 0 array on other tasks; distributed_scatter_var wants arrays allocated on all tasks.
+       if (main_task) then
+          allocate(cism_glacier_id_global(global_ewn,global_nsn))
+       else
+          allocate(cism_glacier_id_global(0,0))
        endif
+       cism_glacier_id_global(:,:) = 0.0d0
+
+       if (verbose_glacier .and. main_task) then
+          print*, ' '
+          print*, 'Gathered RGI glacier IDs to main task'
+          print*, 'size(rgi_glacier_id) =', &
+               size(model%glacier%rgi_glacier_id,1), size(model%glacier%rgi_glacier_id,2)
+          print*, 'size(rgi_glacier_id_global) =', &
+               size(rgi_glacier_id_global,1), size(rgi_glacier_id_global,2)
+       endif
+
+       if (main_task) then
+
+          gid_minval = minval(rgi_glacier_id_global)
+          gid_maxval = maxval(rgi_glacier_id_global)
+
+          if (verbose_glacier) then
+             print*, 'Total ncells   =', global_ewn * global_nsn
+             print*, 'ncells_glacier =', ncells_glacier
+             print*, 'glacier_id minval, maxval =', gid_minval, gid_maxval
+          endif
+
+          ! Create an unsorted list of glacier IDs, with associated i and j indices.
+          ! There is one entry per glacier-covered cell.
+
+          allocate(glacier_list(ncells_glacier))
+          glacier_list(:)%id = 0
+          glacier_list(:)%indxi = 0
+          glacier_list(:)%indxj = 0
+
+          count = 0
+
+          do j = 1, global_nsn
+             do i = 1, global_ewn
+                if (rgi_glacier_id_global(i,j) > 0) then
+                   count = count + 1
+                   glacier_list(count)%id = rgi_glacier_id_global(i,j)
+                   glacier_list(count)%indxi = i
+                   glacier_list(count)%indxj = j
+                endif
+             enddo
+          enddo
+
+          ! Deallocate the RGI global array (no longer needed after glacier_list is built)
+          deallocate(rgi_glacier_id_global)
+
+          ! Sort the list from low to high IDs.
+          ! As the IDs are sorted, the i and j indices come along for the ride.
+          ! When there are multiple cells with the same glacier ID, these cells are adjacent on the list.
+          ! For example, suppose the initial list is (5, 9, 7, 6, 7, 10, 4, 1, 1, 3, 1).
+          ! The sorted list would be (1, 1, 1, 3, 4, 5, 6, 7, 7, 9, 10).
+
+          call glacier_quicksort(glacier_list, 1, ncells_glacier)
+
+          if (verbose_glacier) then
+             print*, 'Sorted glacier IDs in ascending order'
+             print*, ' '
+             print*, 'icell, i, j, ID for a few cells:'
+             do i = 1, 10
+                print*, i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
+             enddo
+             do i = ncells_glacier-9, ncells_glacier
+                print*, i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
+             enddo
+          endif
 
 !       WHL - Short list to test quicksort for integer arrays
 !       print*, ' '
@@ -275,87 +273,191 @@ contains
 !       call quicksort(test_list, 1, nlist)
 !       print*, 'Sorted list:', test_list(:)
 
-       ! Now that the glacier IDs are sorted from low to high, count the glaciers
+          ! Now that the glacier IDs are sorted from low to high, count the glaciers
 
-       nglacier = 0
-       current_id = 0
-       do nc = 1, ncells_glacier
-          if (glacier_list(nc)%id > current_id) then
-             nglacier = nglacier + 1
-             current_id = glacier_list(nc)%id
+          nglacier = 0
+          current_id = 0
+          do nc = 1, ncells_glacier
+             if (glacier_list(nc)%id > current_id) then
+                nglacier = nglacier + 1
+                current_id = glacier_list(nc)%id
+             endif
+          enddo
+
+          model%glacier%nglacier = nglacier
+
+          ! Fill two useful arrays:
+          ! (1) The cism_to_rgi_glacier_id array maps the CISM ID (between 1 and nglacier) to the RGI glacier_id.
+          ! (2) The cism_glacier_id array maps each glaciated grid cell (i,j) to a CISM ID.
+          ! By carrying i and j in the sorted glacier_list, we can efficiently fill cism_glacier_id.
+          ! Note: cism_to_rgi_glacier_id cannot be allocated until nglacier is known.
+
+          allocate(model%glacier%cism_to_rgi_glacier_id(nglacier))
+          model%glacier%cism_to_rgi_glacier_id(:) = 0
+
+          if (verbose_glacier) then
+             print*, ' '
+             print*, 'Counted glaciers: nglacier =', nglacier
+             print*, ' '
+             ng = nglacier/2
+             print*, 'Random cism_glacier_id:', ng
+             print*, 'icell, i, j, cism_glacier_id_global(i,j), cism_to_rgi_glacier_id(ng)'
           endif
-       enddo
 
-       model%glacier%nglacier = nglacier
+          ng = 0
+          current_id = 0
+          do nc = 1, ncells_glacier
+             if (glacier_list(nc)%id > current_id) then
+                ng = ng + 1
+                current_id = glacier_list(nc)%id
+                model%glacier%cism_to_rgi_glacier_id(ng) = glacier_list(nc)%id
+             endif
+             i = glacier_list(nc)%indxi
+             j = glacier_list(nc)%indxj
+             cism_glacier_id_global(i,j) = ng
+             if (ng == nglacier/2) then   ! random glacier
+                print*, nc, i, j, cism_glacier_id_global(i,j), model%glacier%cism_to_rgi_glacier_id(ng)
+             endif
+             if (ng > nglacier) then
+                write(message,*) 'CISM glacier ID > nglacier, i, j , ng =', i, j, ng
+                call write_log(message, GM_FATAL)
+             endif
+          enddo
 
-       ! Fill two useful arrays:
-       ! (1) The cism_to_rgi_glacier_id array maps the CISM ID (between 1 and nglacier) to the RGI glacier_id.
-       ! (2) The cism_glacier_id array maps each glaciated grid cell (i,j) to a CISM ID.
-       ! By carrying i and j in the sorted glacier_list, we can efficiently fill cism_glacier_id.
-       ! Note: cism_to_rgi_glacier_id cannot be allocated until nglacier is known.
+          deallocate(glacier_list)
 
-       allocate(model%glacier%cism_to_rgi_glacier_id(nglacier))
-       model%glacier%cism_to_rgi_glacier_id(:) = 0
+          if (verbose_glacier) then
+             print*, ' '
+             print*, 'maxval(cism_to_rgi_glacier_id) =', maxval(model%glacier%cism_to_rgi_glacier_id)
+             print*, 'maxval(cism_glacier_id_global) =', maxval(cism_glacier_id_global)
+          endif
 
-       if (verbose_glacier) then
+       endif   ! main_task
+
+       ! Scatter cism_glacier_id_global to all processors
+       ! Note: This global array is deallocated in the distributed_scatter_var subroutine
+
+       if (verbose_glacier .and. main_task) print*, 'Scatter cism_glacier_id'
+       call distributed_scatter_var(model%glacier%cism_glacier_id, cism_glacier_id_global, parallel)
+
+       ! Broadcast nglacier and cism_to_rgi_glacier_id from the main task to all processors
+
+       if (verbose_glacier .and. main_task) print*, 'Broadcast nglacier and cism_to_rgi_glacier_id'
+       call broadcast(model%glacier%nglacier)
+       nglacier = model%glacier%nglacier
+
+       if (.not.associated(model%glacier%cism_to_rgi_glacier_id)) &
+            allocate(model%glacier%cism_to_rgi_glacier_id(nglacier))
+       call broadcast(model%glacier%cism_to_rgi_glacier_id)
+
+       ! Allocate glacier arrays with dimension(nglacier)
+
+       allocate(model%glacier%glacierid(nglacier))
+       allocate(model%glacier%area(nglacier))
+       allocate(model%glacier%volume(nglacier))
+       allocate(model%glacier%area_target(nglacier))
+       allocate(model%glacier%volume_target(nglacier))
+       allocate(model%glacier%dvolume_dt(nglacier))
+       allocate(model%glacier%mu_star(nglacier))
+       allocate(model%glacier%powerlaw_c(nglacier))
+
+       ! Compute the initial area and volume of each glacier.
+       ! These values will be targets for inversion.
+
+       call glacier_area_volume(&
+            ewn,           nsn,               &
+            nglacier,                         &
+            model%glacier%cism_glacier_id,    &
+            dew*dns*len0**2,                  &
+            model%geometry%thck*thk0,         &
+            model%glacier%area,               &
+            model%glacier%volume)
+
+       ! Initialize other glacier arrays
+       model%glacier%area_target(:) = model%glacier%area(:)
+       model%glacier%volume_target(:) = model%glacier%volume(:)
+       model%glacier%dvolume_dt(:) = 0.0d0
+       model%glacier%mu_star(:) = model%glacier%mu_star_const
+       model%glacier%powerlaw_c(:) = model%basal_physics%powerlaw_c_const
+
+       ! Check for area_target = 0 and volume_target = 0.
+       ! This might not be a problem in practice.
+       if (main_task) then
           print*, ' '
-          print*, 'Counted glaciers: nglacier =', nglacier
-          print*, ' '
-          ng = nglacier/2
-          print*, 'Random cism_glacier_id:', ng
-          print*, 'icell, i, j, cism_glacier_id_global(i,j), cism_to_rgi_glacier_id(ng)'
+          print*, 'Check for A = 0, V = 0'
+          do ng = 1, nglacier
+             if (model%glacier%area_target(ng) == 0.0d0 .or. &
+                  model%glacier%volume_target(ng) == 0.0d0) then
+                print*, 'ng, A (km^2), V (km^3):', &
+                     ng, model%glacier%area_target(ng)/1.0d6, model%glacier%volume_target(ng)/1.0d9
+             endif
+          enddo
        endif
 
-       ng = 0
-       current_id = 0
-       do nc = 1, ncells_glacier
-          if (glacier_list(nc)%id > current_id) then
-             ng = ng + 1
-             current_id = glacier_list(nc)%id
-             model%glacier%cism_to_rgi_glacier_id(ng) = glacier_list(nc)%id
-          endif
-          i = glacier_list(nc)%indxi
-          j = glacier_list(nc)%indxj
-          if (i == 0 .or. j == 0) then
-             print*, 'Warning: zeroes, ng, i, j, id =', ng, i, j, glacier_list(nc)%id
-             stop   ! TODO - exit gracefully
-          endif
-          cism_glacier_id_global(i,j) = ng
-          if (ng == nglacier/2) then   ! random glacier
-             print*, nc, i, j, cism_glacier_id_global(i,j), model%glacier%cism_to_rgi_glacier_id(ng)
-          endif
-          if (ng > nglacier) then
-             print*, 'ng > nglacier, nc, i, j , ng =', nc, i, j, ng
-             stop  !TODO - exit gracefully
-          endif
-       enddo
+    else  ! restart; most glacier info has already been read from the restart file
 
-       deallocate(glacier_list)
+       ! In this case, nglacier is found from the restart file as the length of dimension 'glacierid'.
+       ! The 1D glacier arrays are then allocated with dimension(nglacier) in subroutine glide_allocarr.
+       ! The following glacier arrays should be present in the restart file:
+       !     rgi_glacier_id, cism_glacier_id, cism_to_rgi_glacier_id
+       !     mu_star, powerlaw_c
+       !     area_target, volume_target (if needed for inversion)
+       ! The following parameters and arrays need to be set in this subroutine:
+       !     glacierid, ngdiag
 
-       if (verbose_glacier) then
-          print*, ' '
-          print*, 'maxval(cism_to_rgi_glacier_id) =', maxval(model%glacier%cism_to_rgi_glacier_id)
-          print*, 'maxval(cism_glacier_id_global) =', maxval(cism_glacier_id_global)
+       nglacier = model%glacier%nglacier
+
+       ! Check that the glacier arrays which are read from the restart file have nonzero values.
+       ! Note: These arrays are read in by all processors
+       if (maxval(model%glacier%mu_star) <= 0.0d0) then
+          call write_log ('Error, no positive values for glacier_mu_star', GM_FATAL)
        endif
 
-    endif   ! main_task
+       if (maxval(model%glacier%powerlaw_c) <= 0.0d0) then
+          call write_log ('Error, no positive values for glacier_powerlaw_c', GM_FATAL)
+       endif
 
-    ! Scatter cism_glacier_id_global to all processors
-    ! Note: This global array is deallocated in the distributed_scatter_var subroutine
+       if (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION) then
+          if (maxval(model%glacier%area_target) <= 0.0d0) then
+             call write_log ('Error, no positive values for glacier_area_target', GM_FATAL)
+          endif
+       endif
 
-    if (verbose_glacier .and. main_task) print*, 'Scatter cism_glacier_id'
-    call distributed_scatter_var(model%glacier%cism_glacier_id, cism_glacier_id_global, parallel)
+       if (model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          if (maxval(model%glacier%volume_target) <= 0.0d0) then
+             call write_log ('Error, no positive values for glacier_volume_target', GM_FATAL)
+          endif
+       endif
+
+       min_id = minval(model%glacier%cism_to_rgi_glacier_id)
+       if (min_id < 1) then
+          write(message,*) 'Error, minval(cism_to_rgi_glacier_id) =', min_id
+          call write_log(message, GM_FATAL)
+       endif
+
+       ! Compute the area and volume of each glacier.
+       ! Not strictly needed, but done as a diagnostic
+       call glacier_area_volume(&
+            ewn,           nsn,               &
+            nglacier,                         &
+            model%glacier%cism_glacier_id,    &
+            dew*dns*len0**2,                  &
+            model%geometry%thck*thk0,         &
+            model%glacier%area,               &
+            model%glacier%volume)
+
+    endif   ! not a restart
+
+    ! The remaining code applies to both start-up and restart runs.
+
+    ! Halo updates for the 2D glacier_id arrays
+    call parallel_halo(model%glacier%rgi_glacier_id, parallel)
     call parallel_halo(model%glacier%cism_glacier_id, parallel)
 
-    ! Broadcast glacier info from the main task to all processors
-
-    if (verbose_glacier .and. main_task) print*, 'Broadcast nglacier and cism_to_rgi_glacier_id'
-    call broadcast(model%glacier%nglacier)
-    nglacier = model%glacier%nglacier
-
-    if (.not.associated(model%glacier%cism_to_rgi_glacier_id)) &
-         allocate(model%glacier%cism_to_rgi_glacier_id(nglacier))
-    call broadcast(model%glacier%cism_to_rgi_glacier_id)
+    ! Allocate and fill the glacierid dimension array
+    do ng = 1, nglacier
+       model%glacier%glacierid(ng) = ng
+    enddo
 
     ! Set the index of the diagnostic glacier, using the CISM glacier ID for the diagnostic point
     if (this_rank == rtest) then
@@ -363,61 +465,14 @@ contains
     endif
     call broadcast(model%glacier%ngdiag, rtest)
 
-    ! Allocate and fill the glacierid dimension array
-    allocate(model%glacier%glacierid(nglacier))
-    do ng = 1, nglacier
-       model%glacier%glacierid(ng) = ng
-    enddo
-
-    ! Allocate other arrays with dimension(nglacier)
-    allocate(model%glacier%area(nglacier))
-    allocate(model%glacier%volume(nglacier))
-    allocate(model%glacier%area_target(nglacier))
-    allocate(model%glacier%volume_target(nglacier))
-    allocate(model%glacier%dvolume_dt(nglacier))
-    allocate(model%glacier%mu_star(nglacier))
-    allocate(model%glacier%powerlaw_c(nglacier))
-
-    ! Compute the initial area and volume of each glacier.
-    ! These values will be targets for inversion.
-
-    call glacier_area_volume(&
-         ewn,           nsn,               &
-         nglacier,                         &
-         model%glacier%cism_glacier_id,    &
-         dew*dns*len0**2,                  &
-         model%geometry%thck*thk0,         &
-         model%glacier%area,               &
-         model%glacier%volume)
-
-    ! Initialize the other glacier arrays
-
-    model%glacier%area_target(:) = model%glacier%area(:)
-    model%glacier%volume_target(:) = model%glacier%volume(:)
-    model%glacier%dvolume_dt(:) = 0.0d0
-    model%glacier%mu_star(:) = model%glacier%mu_star_const
-    model%glacier%powerlaw_c(:) = model%basal_physics%powerlaw_c_const
-
-    ! Check for zero A or V target
-    if (main_task) then
-       print*, ' '
-       print*, 'Check for A = 0, V = 0'
-       do ng = 1, nglacier
-          if (model%glacier%area_target(ng) == 0.0d0 .or. &
-              model%glacier%volume_target(ng) == 0.0d0) then
-             print*, 'ng, A (km^2), V (km^3):', &
-                  ng, model%glacier%area_target(ng)/1.0d6, model%glacier%volume_target(ng)/1.0d9
-          endif
-       enddo
-    endif
-
+    ! Write some values for the diagnostic glacier
     if (verbose_glacier .and. main_task) then
        print*, ' '
        ng = model%glacier%ngdiag
        print*, 'Glacier ID for diagnostic cell: r, i, j, ng =', rtest, itest, jtest, ng
        print*, 'area target (km^2) =', model%glacier%area_target(ng) / 1.0d6
        print*, 'volume target (km^3) =', model%glacier%volume_target(ng) / 1.0d9
-!!       print*, 'dvolume_dt (km^3/yr) =', model%glacier%dvolume_dt(ng) * scyr/1.0d9
+!!        print*, 'dvolume_dt (km^3/yr) =', model%glacier%dvolume_dt(ng) * scyr/1.0d9
        print*, 'mu_star (mm/yr w.e./deg) =', model%glacier%mu_star(ng)
        print*, 'powerlaw_c (Pa (m/yr)^(-1/3)) =', model%glacier%powerlaw_c(ng)
        print*, 'Done in glissade_glacier_init'
@@ -964,7 +1019,7 @@ contains
        print*, 'Selected A (km^2) and  V(km^3) of large glaciers (> 3 km^3):'
        do ng = 1, nglacier
           if (volume(ng) * 1.0d-9 > 3.0d0) then  ! 3 km^3 or more
-             write(6,'(i8,2f10.3)') ng, area(ng)*1.0d-6, volume(ng)*1.0d-9
+             write(6,'(i8,2f12.6)') ng, area(ng)*1.0d-6, volume(ng)*1.0d-9
           endif
        enddo
     endif
