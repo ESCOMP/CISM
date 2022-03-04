@@ -80,19 +80,19 @@ contains
        call handle_time(section, model)
     end if
 
-    ! read options parameters
+    ! read options
     call GetSection(config,section,'options')
     if (associated(section)) then
        call handle_options(section, model)
     end if
 
-    !read options for higher-order computation
+    ! read options for higher-order computation
     call GetSection(config,section,'ho_options')
     if (associated(section)) then
         call handle_ho_options(section, model)
     end if
 
-     !read options for computation using an external dycore -- Doug Ranken 04/20/12
+    ! read options for computation using an external dycore -- Doug Ranken 04/20/12
     call GetSection(config,section,'external_dycore_options')
     if (associated(section)) then
         call handle_dycore_options(section, model)
@@ -123,12 +123,13 @@ contains
        end if
     endif
 
-    ! Till options are not currently supported
-    ! read till parameters
-!!    call GetSection(config,section,'till_options')
-!!    if (associated(section)) then
-!!       call handle_till_options(section, model)
-!!    end if
+    ! read glacier info
+    if (model%options%enable_glaciers) then
+       call GetSection(config,section,'glaciers')
+       if (associated(section)) then
+          call handle_glaciers(section, model)
+       end if
+    endif
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file.
@@ -157,7 +158,7 @@ contains
     call print_parameters(model)
     call print_gthf(model)
     call print_isostasy(model)
-!!    call print_till_options(model)  ! disabled for now
+    call print_glaciers(model)
 
   end subroutine glide_printconfig
 
@@ -765,9 +766,6 @@ contains
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
     call GetValue(section,'forcewrite_restart',model%options%forcewrite_restart)
 
-    ! These are not currently supported
-    !call GetValue(section,'basal_proc',model%options%which_bproc)
-
   end subroutine handle_options
 
 !--------------------------------------------------------------------------------
@@ -819,8 +817,6 @@ contains
     call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
-    call GetValue(section, 'glacier_mu_star',             model%options%glacier_mu_star)
-    call GetValue(section, 'glacier_powerlaw_c',          model%options%glacier_powerlaw_c)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
     call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
     call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
@@ -915,14 +911,6 @@ contains
          'local water balance      ', &
          'local + steady-state flux', &
          'Constant value (= 10 m)  ' /)
-
-      ! basal proc model is disabled for now.
-!!    character(len=*), dimension(0:2), parameter :: which_bproc = (/ &
-!!         'Basal proc mod disabled '  , &
-!!         'Basal proc, high res.   '   , &
-!!         'Basal proc, fast calc.  ' /)
-    character(len=*), dimension(0:0), parameter :: which_bproc = (/ &
-         'Basal process model disabled ' /)
 
     character(len=*), dimension(0:1), parameter :: b_mbal = (/ &
          'not in continuity eqn', &
@@ -1201,17 +1189,6 @@ contains
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
          'ice age computation on ' /)
-
-    character(len=*), dimension(0:2), parameter :: which_glacier_mu_star = (/ &
-         'spatially uniform glacier parameter mu_star', &
-         'glacier-specific mu_star found by inversion', &
-         'glacier-specific mu_star read from file    ' /)
-
-    character(len=*), dimension(0:2), parameter :: which_glacier_powerlaw_c = (/ &
-         'spatially uniform glacier parameter Cp', &
-         'glacier-specific Cp found by inversion', &
-         'glacier-specific Cp read from file    ' /)
-
 
     call write_log('Dycore options')
     call write_log('-------------')
@@ -1676,13 +1653,6 @@ contains
        call write_log('Will write to output files on restart')
     endif
 
-!!     This option is not currently supported
-!!    if (model%options%which_bproc < 0 .or. model%options%which_bproc >= size(which_bproc)) then
-!!       call write_log('Error, basal_proc out of range',GM_FATAL)
-!!    end if
-!!    write(message,*) 'basal_proc              : ',model%options%which_bproc,which_bproc(model%options%which_bproc)
-!!    call write_log(message)
-
     !HO options
 
     if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade higher-order
@@ -2094,24 +2064,6 @@ contains
           if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(ho_whichice_age)) then
              call write_log('Error, ice_age option out of range for glissade dycore', GM_FATAL)
           end if
-
-          if (model%options%enable_glaciers) then
-             call write_log('Glacier tracking and tuning is enabled')
-             write(message,*) 'glacier_mu_star         : ', model%options%glacier_mu_star, &
-                  which_glacier_mu_star(model%options%glacier_mu_star)
-             call write_log(message)
-             if (model%options%glacier_mu_star < 0 .or. &
-                  model%options%glacier_mu_star >= size(which_glacier_mu_star)) then
-                call write_log('Error, glacier_mu_star option out of range', GM_FATAL)
-             end if
-             write(message,*) 'glacier_powerlaw_c      : ', model%options%glacier_powerlaw_c, &
-                  which_glacier_powerlaw_c(model%options%glacier_powerlaw_c)
-             call write_log(message)
-             if (model%options%glacier_powerlaw_c < 0 .or. &
-                  model%options%glacier_powerlaw_c >= size(which_glacier_powerlaw_c)) then
-                call write_log('Error, glacier_powerlaw_c option out of range', GM_FATAL)
-             end if
-          endif
 
           write(message,*) 'glissade_maxiter        : ',model%options%glissade_maxiter
           call write_log(message)
@@ -3182,72 +3134,77 @@ contains
 
 !--------------------------------------------------------------------------------
 
-! These options are disabled for now.
+  subroutine handle_glaciers(section, model)
 
-!!  subroutine handle_till_options(section,model)
-!!    !Till options
-!!    use glimmer_config
-!!    use glide_types
-!!    implicit none
-!!    type(ConfigSection), pointer :: section
-!!    type(glide_global_type) :: model
+    use glimmer_config
+    use glide_types
+    implicit none
 
-!!    if (model%options%which_bproc==1) then
-!!        call GetValue(section, 'fric',  model%basalproc%fric)
-!!        call GetValue(section, 'etillo',  model%basalproc%etillo)
-!!        call GetValue(section, 'No',  model%basalproc%No)
-!!        call GetValue(section, 'Comp',  model%basalproc%Comp)
-!!        call GetValue(section, 'Cv',  model%basalproc%Cv)
-!!        call GetValue(section, 'Kh',  model%basalproc%Kh)
-!!    else if (model%options%which_bproc==2) then
-!!        call GetValue(section, 'aconst',  model%basalproc%aconst)
-!!        call GetValue(section, 'bconst',  model%basalproc%bconst)
-!!    end if
-!!    if (model%options%which_bproc > 0) then
-!!        call GetValue(section, 'Zs',  model%basalproc%Zs)
-!!        call GetValue(section, 'tnodes',  model%basalproc%tnodes)
-!!        call GetValue(section, 'till_hot', model%basalproc%till_hot)
-!!    end if  
-!!  end subroutine handle_till_options    
+    type(ConfigSection), pointer :: section
+    type(glide_global_type)  :: model
 
-!!  subroutine print_till_options(model)
-!!    use glide_types
-!!    use glimmer_log
-!!    implicit none
-!!    type(glide_global_type)  :: model
-!!    character(len=100) :: message
+    call GetValue(section,'set_mu_star',    model%glacier%set_mu_star)
+    call GetValue(section,'set_powerlaw_c', model%glacier%set_powerlaw_c)
+    call GetValue(section,'minthck',        model%glacier%minthck)
+    call GetValue(section,'tmlt',           model%glacier%tmlt)
 
-!!    if (model%options%which_bproc > 0) then 
-!!        call write_log('Till options')
-!!        call write_log('----------')
-!!        if (model%options%which_bproc==1) then
-!!            write(message,*) 'Internal friction           : ',model%basalproc%fric
-!!            call write_log(message)
-!!            write(message,*) 'Reference void ratio        : ',model%basalproc%etillo
-!!            call write_log(message)
-!!            write(message,*) 'Reference effective Stress  : ',model%basalproc%No
-!!            call write_log(message)
-!!            write(message,*) 'Compressibility             : ',model%basalproc%Comp
-!!            call write_log(message)
-!!            write(message,*) 'Diffusivity                 : ',model%basalproc%Cv
-!!            call write_log(message)
-!!            write(message,*) 'Hyd. conductivity           : ',model%basalproc%Kh
-!!            call write_log(message)
-!!        end if
-!!        if (model%options%which_bproc==2) then
-!!            write(message,*) 'aconst  : ',model%basalproc%aconst
-!!            call write_log(message)
-!!            write(message,*) 'bconst  : ',model%basalproc%aconst
-!!            call write_log(message)
-!!        end if
-!!        write(message,*) 'Solid till thickness : ',model%basalproc%Zs
-!!        call write_log(message)
-!!        write(message,*) 'Till nodes number : ',model%basalproc%tnodes
-!!        call write_log(message)
-!!        write(message,*) 'till_hot  :',model%basalproc%till_hot
-!!        call write_log(message)
-!!    end if
-!!  end subroutine print_till_options
+  end subroutine handle_glaciers
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_glaciers(model)
+
+    use glide_types
+    use glimmer_log
+
+    implicit none
+    type(glide_global_type)  :: model
+    character(len=100) :: message
+
+    ! glacier inversion options
+
+    character(len=*), dimension(0:2), parameter :: glacier_set_mu_star = (/ &
+         'spatially uniform glacier parameter mu_star', &
+         'glacier-specific mu_star found by inversion', &
+         'glacier-specific mu_star read from file    ' /)
+
+    character(len=*), dimension(0:2), parameter :: glacier_set_powerlaw_c = (/ &
+         'spatially uniform glacier parameter Cp', &
+         'glacier-specific Cp found by inversion', &
+         'glacier-specific Cp read from file    ' /)
+
+    if (model%options%enable_glaciers) then
+
+       call write_log(' ')
+       call write_log('Glaciers')
+       call write_log('--------')
+
+       call write_log('Glacier tracking and tuning is enabled')
+
+       write(message,*) 'set_mu_star              : ', model%glacier%set_mu_star, &
+            glacier_set_mu_star(model%glacier%set_mu_star)
+       call write_log(message)
+       if (model%glacier%set_mu_star < 0 .or. &
+            model%glacier%set_mu_star >= size(glacier_set_mu_star)) then
+          call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'set_powerlaw_c           : ', model%glacier%set_powerlaw_c, &
+            glacier_set_powerlaw_c(model%glacier%set_powerlaw_c)
+       call write_log(message)
+       if (model%glacier%set_powerlaw_c < 0 .or. &
+            model%glacier%set_powerlaw_c >= size(glacier_set_powerlaw_c)) then
+          call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'glacier minthck (m)      :  ', model%glacier%minthck
+       call write_log(message)
+       write(message,*) 'glacier Tmlt (deg C)     :  ', model%glacier%tmlt
+       call write_log(message)
+
+    endif   ! enable_glaciers
+
+  end subroutine print_glaciers
 
 !--------------------------------------------------------------------------------
 
@@ -3715,15 +3672,10 @@ contains
        ! Save the arrays used to find the SMB and basal friction
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_powerlaw_c')
-       if (model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           call glide_add_to_restart_variable_list('glacier_volume_target')
        endif
     endif
-
-    ! basal processes module - requires tauf for a restart
-!!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
-!!        call glide_add_to_restart_variable_list('tauf', model_id)
-!!    endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
 

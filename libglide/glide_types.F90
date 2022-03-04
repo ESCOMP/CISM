@@ -1119,20 +1119,6 @@ module glide_types
     !> if true, then read glacier info at initialization and (optionally)
     !>  tune glacier parameters during the run
 
-    integer :: glacier_mu_star
-    !> \begin{description}
-    !> \item[0] apply spatially uniform mu_star
-    !> \item[1] invert for glacier-specific mu_star
-    !> \item[2] read glacier-specific mu_star from external file
-    !> \end{description}
-
-    integer :: glacier_powerlaw_c
-    !> \begin{description}
-    !> \item[0] apply spatially uniform powerlaw_c
-    !> \item[1] invert for glacier-specific powerlaw_c
-    !> \item[2] read glacier-specific powerlaw_c from external file
-    !> \end{description}
-
     !TODO - Put the next few variables in a solver derived type
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
@@ -1155,7 +1141,6 @@ module glide_types
     !> \item[1] Full calculation, with at least 3 nodes to represent the till layer
     !> \item[2] Fast calculation, using Tulaczyk empirical parametrization
     !> \end{description}
-
 
   end type glide_options
 
@@ -1822,15 +1807,45 @@ module glide_types
 
   type glide_glacier
 
+     !----------------------------------------------------------------
+     ! options, fields and parameters for tracking and tuning glaciers
+     !----------------------------------------------------------------
+
      integer :: nglacier = 1                  !> number of glaciers in the global domain
 
      integer :: ngdiag = 0                    !> CISM index of diagnostic glacier
                                               !> (associated with global cell idiag, jdiag)
 
+     ! inversion options
+
+     integer :: set_mu_star
+     !> \begin{description}
+     !> \item[0] apply spatially uniform mu_star
+     !> \item[1] invert for glacier-specific mu_star
+     !> \item[2] read glacier-specific mu_star from external file
+     !> \end{description}
+
+     integer :: set_powerlaw_c
+     !> \begin{description}
+     !> \item[0] apply spatially uniform powerlaw_c
+     !> \item[1] invert for glacier-specific powerlaw_c
+     !> \item[2] read glacier-specific powerlaw_c from external file
+     !> \end{description}
+
+     ! parameters
+     ! Note: Other glacier parameters are declared at the top of module glissade_glacier.
+     !       These could be added to the derived type.
+
+     real(dp) :: minthck = 5.0d0       !> min ice thickness (m) to be counted as part of a glacier;
+                                       !> not a threshold for dynamic calculations
+     real(dp) :: tmlt = -2.0d0         !> air temperature (deg C) at which ablation occurs
+                                       !> Maussion et al. suggest -1 C; a lower value extends the ablation zone
+
+     ! 1D arrays with size nglacier
+
      integer, dimension(:), pointer :: &
           glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
-     ! glacier-specific 1D arrays
      ! These will be allocated with size nglacier, once nglacier is known
      ! Note: mu_star and powerlaw_c have the suffix 'glc' to avoid confusion with the 2D fields
      !       glacier%mu_star and basal_physics%powerlaw_c
@@ -1849,7 +1864,7 @@ module glide_types
           powerlaw_c => null()                !> tunable coefficient in basal friction power law (Pa (m/yr)^(-1/3))
                                               !> copied to basal_physics%powerlaw_c, a 2D array
 
-     ! glacier-related 2D arrays
+     ! 2D arrays
 
      integer, dimension(:,:), pointer :: &
           rgi_glacier_id => null(),         & !> unique glacier ID  based on the Randolph Glacier Inventory
@@ -1866,9 +1881,6 @@ module glide_types
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
                                               !> TODO - Remove this field?  Easily derived from initial thickness > 0.
-
-     ! Note: Several glacier parameters are declared at the top of module glissade_glacier.
-     !       These could be added to the derived type and set in the config file.
 
   end type glide_glacier
 

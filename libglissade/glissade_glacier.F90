@@ -53,13 +53,11 @@ module glissade_glacier
        integer :: indxj        ! j index of cell
     end type glacier_info
 
-    ! Glacier parameters used in this module.
+    ! Glacier parameters used in this module
     ! Any of these could be added to the glacier derived type and set in the config file.
-    ! Note: The constant, max and min values for powerlaw_c are in the basal_physics type
+    ! Note: The constant, max and min values for powerlaw_c are in the basal_physics type.
+
     real(dp), parameter ::  &
-         glacier_tmlt = -2.0d0,             & ! artm (deg C) above which ablation occurs
-                                              ! Maussion et al. suggest -1 C; a lower value extends the ablation zone
-         glacier_minthck = 5.0d0,           & ! min ice thickness (m) to be counted as part of a glacier
          mu_star_const = 500.d0,            & ! uniform initial value for mu_star (mm/yr w.e/deg C)
          mu_star_min = 10.d0,               & ! min value of tunable mu_star (mm/yr w.e/deg C)
          mu_star_max = 1.0d5,               & ! max value of tunable mu_star (mm/yr w.e/deg C)
@@ -438,13 +436,13 @@ contains
           call write_log ('Error, no positive values for glacier_powerlaw_c', GM_FATAL)
        endif
 
-       if (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION) then
+       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
           if (maxval(glacier%cism_glacier_id_init) <= 0.0d0) then
              call write_log ('Error, no positive values for cism_glacier_id_init', GM_FATAL)
           endif
        endif
 
-       if (model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           if (maxval(glacier%volume_target) <= 0.0d0) then
              call write_log ('Error, no positive values for glacier_volume_target', GM_FATAL)
           endif
@@ -510,12 +508,13 @@ contains
        nglacier,                    &
        cism_glacier_id,             &
        snow,      artm,             &
-       mu_star,   glacier_smb)
+       tmlt,      mu_star,          &
+       glacier_smb)
 
     ! Compute the SMB in each grid cell using an empirical relationship
     !  based on Maussion et al. (2019):
     !
-    !     SMB = snow - mu_star * max(artm - T_mlt, 0),
+    !     SMB = snow - mu_star * max(artm - Tmlt, 0),
     !
     ! where snow = monthly mean snowfall rate (mm/yr w.e.),
     !       mu_star is a glacier-specific tuning parameter (mm/yr w.e./deg C),
@@ -541,6 +540,9 @@ contains
     real(dp), dimension(nglacier), intent(in) :: &
          mu_star                        ! glacier-specific SMB tuning parameter (mm w.e./yr/deg)
 
+    real(dp), intent(in) :: &
+         tmlt                           ! min temperature (deg C) at which oblation occurs
+
     real(dp), dimension(ewn,nsn), intent(out) :: &
          glacier_smb                    ! SMB in each gridcell (mm w.e./yr)
 
@@ -564,7 +566,7 @@ contains
           ng = cism_glacier_id(i,j)
 
           if (ng > 0) then
-             glacier_smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) - glacier_tmlt, 0.0d0)
+             glacier_smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) - tmlt, 0.0d0)
           endif
 
           if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
@@ -583,10 +585,10 @@ contains
 !****************************************************
 
   subroutine glissade_glacier_advance_retreat(&
-       dt,                               &
        ewn,             nsn,             &
        itest,   jtest,  rtest,           &
        thck,            usrf,            &
+       glacier_minthck,                  &
        cism_glacier_id_init,             &
        cism_glacier_id, &
        parallel)
@@ -613,9 +615,6 @@ contains
 
     use cism_parallel, only: parallel_globalindex
 
-    real(dp), intent(in) :: &
-         dt                             ! time step (s)
-
     integer, intent(in) ::  &
          ewn, nsn,                    & ! number of cells in each horizontal direction
          itest, jtest, rtest            ! coordinates of diagnostic cell
@@ -625,6 +624,9 @@ contains
 
     real(dp), dimension(ewn,nsn), intent(in) ::  &
          usrf                           ! upper surface elevation (m)
+
+    real(dp), intent(in) :: &
+         glacier_minthck                ! min ice thickness (m) counted as part of a glacier
 
     integer, dimension(ewn,nsn), intent(in) :: &
          cism_glacier_id_init           ! cism_glacier_id at the start of the run
@@ -829,7 +831,7 @@ contains
          ewn,                    nsn,                       &
          dt,                     time_since_last_avg,       &
          model%climate%snow,     glacier%snow_accum,        &  ! mm/yr w.e.
-         max(model%climate%artm - glacier_tmlt, 0.0d0),     &
+         max(model%climate%artm - glacier%tmlt, 0.0d0),     &
          glacier%Tpos_accum,                                &  ! deg C
          dthck_dt,               glacier%dthck_dt_accum)       ! m/yr ice
 
@@ -902,7 +904,7 @@ contains
 
        ! Given the current and target glacier areas, invert for mu_star
 
-       if (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION) then
+       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
 
           call glacier_invert_mu_star(&
                ewn,                 nsn,                   &
@@ -958,7 +960,7 @@ contains
 
        ! Given the current and target glacier volumes, invert for powerlaw_c
 
-       if (model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
 
           call glacier_invert_powerlaw_c(&
                ewn,                 nsn,                   &
