@@ -1787,18 +1787,11 @@ module glide_types
           volume => null(),                 & !> glacier volume (m^3)
           area_target => null(),            & !> glacier area target (m^2) based on observations
           volume_target => null(),          & !> glacier volume target (m^3) based on observations
-          dvolume_dt => null(),             & !> d(volume)/dt for each glacier (m^3/s)
+          dvolume_dt => null(),             & !> d(volume)/dt for each glacier (m^3/s)  !TODO - Is this needed?
           mu_star => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
                                               !> defined as positive for ablation
           powerlaw_c => null()                !> tunable coefficient in basal friction power law (Pa (m/yr)^(-1/3))
                                               !> copied to basal_physics%powerlaw_c, a 2D array
-
-     ! The following can be set in the config file
-     ! Note: The constant, max and min values for powerlaw_c are in the basal_physics type
-     real(dp) :: &
-          mu_star_const = 1000.d0,          & !> uniform initial value for mu_star (mm/yr w.e/deg K)
-          mu_star_min = 10.0d0,             & !> min value of tunable mu_star (mm/yr w.e/deg K)
-          mu_star_max = 10000.0d0             !> max value of tunable mu_star (mm/yr w.e/deg K)
 
      ! glacier-related 2D arrays
 
@@ -1806,11 +1799,20 @@ module glide_types
           rgi_glacier_id => null(),         & !> unique glacier ID  based on the Randolph Glacier Inventory
                                               !> first 2 digits give the RGI region;
                                               !> the rest give the number within the region
-          cism_glacier_id => null()           !> CISM-specific glacier ID, numbered consecutively from 1 to nglacier
+          cism_glacier_id => null(),        & !> CISM-specific glacier ID, numbered consecutively from 1 to nglacier
+          cism_glacier_id_init => null()      !> cism_glacier_id at start of run
+
+     real(dp), dimension(:,:), pointer :: &
+          snow_accum => null(),             & !> accumulated snowfall (mm/yr w.e.)
+          Tpos_accum => null(),             & !> accumulated max(artm - Tmlt,0) (deg C)
+          dthck_dt_accum => null()            !> accumulated rate of change of ice thickness (m/yr)
 
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
                                               !> TODO - Remove this field?  Easily derived from initial thickness > 0.
+
+     ! Note: Several glacier parameters are declared at the top of module glissade_glacier.
+     !       These could be added to the derived type and set in the config file.
 
   end type glide_glacier
 
@@ -2432,6 +2434,7 @@ contains
     !> \begin{itemize}
     !> \item \texttt{rgi_glacier_id(ewn,nsn)}
     !> \item \texttt{cism_glacier_id(ewn,nsn)}
+    !> \item \texttt{cism_glacier_id_init(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%basal_physics}:
@@ -2840,6 +2843,10 @@ contains
     if (model%options%enable_glaciers) then
        call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_accum)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_accum)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_accum)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
@@ -3272,8 +3279,16 @@ contains
         deallocate(model%glacier%rgi_glacier_id)
     if (associated(model%glacier%cism_glacier_id)) &
         deallocate(model%glacier%cism_glacier_id)
+    if (associated(model%glacier%cism_glacier_id_init)) &
+        deallocate(model%glacier%cism_glacier_id_init)
     if (associated(model%glacier%cism_to_rgi_glacier_id)) &
         deallocate(model%glacier%cism_to_rgi_glacier_id)
+    if (associated(model%glacier%snow_accum)) &
+        deallocate(model%glacier%snow_accum)
+    if (associated(model%glacier%Tpos_accum)) &
+        deallocate(model%glacier%Tpos_accum)
+    if (associated(model%glacier%dthck_dt_accum)) &
+        deallocate(model%glacier%dthck_dt_accum)
     if (associated(model%glacier%area)) &
         deallocate(model%glacier%area)
     if (associated(model%glacier%volume)) &

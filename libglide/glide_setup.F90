@@ -2220,12 +2220,6 @@ contains
     call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
     call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
 
-    ! glacier parameters
-    !TODO - Create a separate glacier section
-    call GetValue(section, 'gamma0', model%glacier%mu_star_const)
-    call GetValue(section, 'gamma0', model%glacier%mu_star_min)
-    call GetValue(section, 'gamma0', model%glacier%mu_star_max)
-
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
     call GetValue(section, 'adjust_topg_xmax', model%paramets%adjust_topg_xmax)
@@ -3595,19 +3589,19 @@ contains
     end select
 
     if (model%options%enable_glaciers) then
+       ! Save some arrays related to glacier indexing
        call glide_add_to_restart_variable_list('rgi_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id')
+       call glide_add_to_restart_variable_list('cism_glacier_id_init')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
+       ! Save the arrays used to find the SMB and basal friction
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_powerlaw_c')
-       if (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION) then
-          call glide_add_to_restart_variable_list('glacier_area_target')
-       endif
        if (model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           call glide_add_to_restart_variable_list('glacier_volume_target')
        endif
     endif
-    !
+
     ! basal processes module - requires tauf for a restart
 !!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
 !!        call glide_add_to_restart_variable_list('tauf')
