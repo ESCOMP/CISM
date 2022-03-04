@@ -68,8 +68,8 @@ module glissade
   implicit none
 
   integer, private, parameter :: dummyunit=99
-!!  logical, parameter :: verbose_glissade = .false.
-  logical, parameter :: verbose_glissade = .true.
+  logical, parameter :: verbose_glissade = .false.
+!!  logical, parameter :: verbose_glissade = .true.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
@@ -524,7 +524,7 @@ contains
     !  computes a few remaining variable.
 
     if (model%options%enable_glaciers) then
-       call glissade_glacier_init(model)
+       call glissade_glacier_init(model, model%glacier)
     endif
 
     ! open all output files
@@ -2050,10 +2050,10 @@ contains
     !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
-    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
-         parallel_reduce_max
+    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
+         staggered_parallel_halo, parallel_reduce_max
 
-    use glimmer_paramets, only: eps11, tim0, thk0, vel0, len0
+    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
@@ -2070,7 +2070,8 @@ contains
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
-    use glissade_glacier, only: glissade_glacier_smb, verbose_glacier
+    use glissade_glacier, only: verbose_glacier, glissade_glacier_smb, &
+                                glissade_glacier_advance_retreat
     use glide_stop, only: glide_finalise
 
     implicit none
@@ -2661,10 +2662,6 @@ contains
 
        if (model%options%enable_glaciers) then
 
-          if (verbose_glacier .and. main_task) then
-             print*, 'call glissade_glacier_smb, nglacier =', model%glacier%nglacier
-          endif
-
           ! Halo updates for snow and artm
           ! (Not sure the artm update is needed; there is one above)
           call parallel_halo(model%climate%artm, parallel)
@@ -2675,9 +2672,9 @@ contains
                itest,    jtest,    rtest,              &
                model%glacier%nglacier,                 &
                model%glacier%cism_glacier_id,          &
-               model%glacier%mu_star,                  &  ! mm/yr w.e./deg
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%artm,                     &  ! deg C
+               model%glacier%mu_star,                  &  ! mm/yr w.e./deg
                model%climate%smb)                         ! mm/yr w.e.
 
           ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
@@ -2838,8 +2835,8 @@ contains
        !       * acab, bmlt (m/s)
        ! ------------------------------------------------------------------------
 
-       call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &
-                                         model%numerics%dew * len0, model%numerics%dns * len0, &
+       call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &  ! s
+                                         model%numerics%dew * len0, model%numerics%dns * len0, &  ! m
                                          ewn,         nsn,          upn-1,                     &
                                          model%numerics%sigma,                                 &
                                          parallel,                                             &
@@ -2855,6 +2852,31 @@ contains
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap)
+
+       !-------------------------------------------------------------------------
+       ! If running with glaciers, then adjust glacier indices based on advance and retreat,
+       ! Call once a year to avoid subannual variability.
+       !-------------------------------------------------------------------------
+
+       if (model%options%enable_glaciers) then
+
+          ! Determine whether a year has passed, asssuming an integer number of timesteps per year.
+          ! model%numerics%time is real(dp) with units of yr
+          if (abs(model%numerics%time - nint(model%numerics%time)) < eps08) then
+
+             ! TODO - Correct acab_applied for glacier mass removed?
+             call glissade_glacier_advance_retreat(&
+                  model%numerics%dt * tim0/scyr,       &  ! s
+                  ewn,             nsn,                &
+                  itest,   jtest,  rtest,              &
+                  thck_unscaled,                       &  ! m
+                  model%geometry%usrf*thk0,            &  ! m
+                  model%glacier%cism_glacier_id_init,  &
+                  model%glacier%cism_glacier_id,  &
+                  parallel)   !WHL - debug
+
+          endif   ! 1-year interval has passed
+       endif   ! enable_glaciers
 
        !WHL - debug
        call parallel_halo(thck_unscaled, parallel)
@@ -3780,7 +3802,7 @@ contains
          staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
-    use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3798,7 +3820,7 @@ contains
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, verbose_inversion
-    use glissade_glacier, only: glissade_glacier_inversion
+    use glissade_glacier, only: verbose_glacier, glissade_glacier_inversion
 
     implicit none
 
@@ -3818,8 +3840,7 @@ contains
          marine_interior_mask  ! = 1 if ice is marine-based and borders no ocean cells, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-       thck_calving_front,   & ! effective thickness of ice at the calving front
-       powerlaw_c_icegrid      ! powerlaw_c on the unstaggered ice grid
+         thck_calving_front      ! effective thickness of ice at the calving front
 
     real(dp) :: &
          dsigma,                   & ! layer thickness in sigma coordinates
@@ -4099,57 +4120,21 @@ contains
 
     endif   ! which_ho_bmlt_basin_inversion
 
-    ! If glaciers are enabled, then invert for mu_star and powerlaw_c
-    !  based on glacier area and volume targets.  Do not invert on restart.
+    ! If glaciers are enabled, invert for mu_star and powerlaw_c based on area and volume targets
 
     if (model%options%enable_glaciers .and. &
          (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
           model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
-          ! first call after a restart; do not invert for glacier parameters
+       if (model%numerics%time == model%numerics%tstart) then
+
+           ! first call at start-up or after a restart; do not invert
 
        else
 
-          call glissade_glacier_inversion(&
-               model%options%glacier_mu_star,                         &
-               model%options%glacier_powerlaw_c,                      &
-               model%numerics%dt * tim0/scyr,                         &  ! yr
-               itest,       jtest,         rtest,                     &
-               ewn,                        nsn,                       &
-               model%numerics%dew * len0,  model%numerics%dns * len0, &  ! m
-               model%geometry%thck * thk0,                            &  ! m
-               model%geometry%dthck_dt * scyr,                        &  ! m/yr
-               model%basal_physics%powerlaw_c_min,                    &
-               model%basal_physics%powerlaw_c_max,                    &
-               model%glacier)
+          call glissade_glacier_inversion(model, model%glacier)
 
-          ! Copy glacier%powerlaw_c(ng) to the unstaggered ice grid.
-
-          powerlaw_c_icegrid(:,:) = 0.0d0
-          do j = 1, nsn
-             do i = 1, ewn
-                ng = model%glacier%cism_glacier_id(i,j)
-                if (ng >= 1) then
-                   powerlaw_c_icegrid(i,j) = model%glacier%powerlaw_c(ng)
-                endif
-             enddo
-          enddo
-
-          ! Interpolate powerlaw_c to the staggered velocity grid.
-          ! At glacier margins, ignoring powerlaw_c in adjacent ice-free cells
-          !  (by setting stagger_margin_in = 1).
-          ! Thus, powerlaw_c = 0 at vertices surrounded by ice-free cells.
-          ! Note: Here, 'ice-free' means thck < thklim.
-
-          call glissade_stagger(&
-               ewn,                 nsn,                             &
-               powerlaw_c_icegrid,  model%basal_physics%powerlaw_c,  &
-               ice_mask = ice_mask,                                  &
-               stagger_margin_in = 1)
-
-       endif   ! first call after restart
+       endif   ! time = tstart
 
     endif   ! enable_glaciers with inversion
 
