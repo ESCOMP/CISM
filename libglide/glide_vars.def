@@ -1630,6 +1630,13 @@ long_name:     CISM-specific glacier ID
 data:          data%glacier%cism_glacier_id
 load:          1
 
+[cism_glacier_id_init]
+dimensions:    time, y1, x1
+units:         1
+long_name:     initial CISM-specific glacier ID
+data:          data%glacier%cism_glacier_id_init
+load:          1
+
 [cism_to_rgi_glacier_id]
 dimensions:    time, glacierid
 units:         1
