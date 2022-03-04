@@ -2762,6 +2762,7 @@ contains
                model%glacier%cism_glacier_id,          &
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%artm,                     &  ! deg C
+               model%glacier%tmlt,                     &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
                model%climate%smb)                         ! mm/yr w.e.
 
@@ -3011,11 +3012,11 @@ contains
 
              ! TODO - Correct acab_applied for glacier mass removed?
              call glissade_glacier_advance_retreat(&
-                  model%numerics%dt * tim0/scyr,       &  ! s
                   ewn,             nsn,                &
                   itest,   jtest,  rtest,              &
                   thck_unscaled,                       &  ! m
                   model%geometry%usrf*thk0,            &  ! m
+                  model%glacier%minthck,               &  ! m
                   model%glacier%cism_glacier_id_init,  &
                   model%glacier%cism_glacier_id,  &
                   parallel)   !WHL - debug
@@ -4448,8 +4449,8 @@ contains
     ! If glaciers are enabled, invert for mu_star and powerlaw_c based on area and volume targets
 
     if (model%options%enable_glaciers .and. &
-         (model%options%glacier_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
-          model%options%glacier_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)) then
+         (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
+          model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)) then
 
        if (model%numerics%time == model%numerics%tstart) then
 
