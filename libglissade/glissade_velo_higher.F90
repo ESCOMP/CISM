@@ -764,7 +764,6 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
-       which_powerlaw_c, &      ! option for powerlaw friction parameter Cp
        which_coulomb_c, &       ! option for coulomb friction parameter Cc
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
@@ -1139,7 +1138,6 @@
 
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
-     which_powerlaw_c     = model%options%which_ho_powerlaw_c
      which_coulomb_c      = model%options%which_ho_coulomb_c
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
@@ -2754,7 +2752,8 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    if (thck(i,j) > 0.0d0) then
-                      write(6,'(f10.5)',advance='no') model%basal_physics%effecpress(i,j) / (rhoi*grav*thck(i,j))
+                      write(6,'(f10.5)',advance='no') &
+                           model%basal_physics%effecpress(i,j) / (rhoi*grav*thck(i,j))
                    else
                       write(6,'(f10.5)',advance='no') 0.0d0
                    endif
@@ -2791,7 +2790,6 @@
                          beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
-                         which_ho_powerlaw_c = which_powerlaw_c,  &
                          which_ho_coulomb_c  = which_coulomb_c,   &
                          itest = itest, jtest = jtest, rtest = rtest)
 
