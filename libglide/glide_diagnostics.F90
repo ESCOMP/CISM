@@ -147,6 +147,12 @@ contains
 
     endif  ! main_task
 
+    ! Broadcast from main task to all processors
+    !TODO - Uncomment and make sure this does not cause problems
+!    call broadcast(model%numerics%idiag_local)
+!    call broadcast(model%numerics%jdiag_local)
+!    call broadcast(model%numerics%rdiag_local)
+
   end subroutine glide_init_diag
 
 !--------------------------------------------------------------------------
