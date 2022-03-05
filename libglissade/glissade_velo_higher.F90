@@ -2038,7 +2038,7 @@
     flwafact(:,:,:) = 0.d0
 
     ! Note: flwa is available in all cells, so flwafact can be computed in all cells.
-    !       This includes cells with thck < thklim, in case a value of flwa is needed
+    !       This includes cells with thck <= thklim, in case a value of flwa is needed
     !        (e.g., inactive land-margin cells adjacent to active cells).
 
     ! Loop over all cells that border locally owned vertices.
