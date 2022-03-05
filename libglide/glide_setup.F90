@@ -2985,7 +2985,6 @@ contains
 
     call GetValue(section,'set_mu_star',    model%glacier%set_mu_star)
     call GetValue(section,'set_powerlaw_c', model%glacier%set_powerlaw_c)
-    call GetValue(section,'minthck',        model%glacier%minthck)
     call GetValue(section,'tmlt',           model%glacier%tmlt)
 
   end subroutine handle_glaciers
@@ -3037,8 +3036,6 @@ contains
           call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'glacier minthck (m)      :  ', model%glacier%minthck
-       call write_log(message)
        write(message,*) 'glacier Tmlt (deg C)     :  ', model%glacier%tmlt
        call write_log(message)
 

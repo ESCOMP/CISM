@@ -1759,13 +1759,17 @@ module glide_types
      !> \end{description}
 
      ! parameters
-     ! Note: Other glacier parameters are declared at the top of module glissade_glacier.
+     ! Note: glacier%tmlt can be set by the user in the config file.
+     !       glacier%minthck is currently set at initialization based on model%numerics%thklim.
+     !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
-     real(dp) :: minthck = 5.0d0       !> min ice thickness (m) to be counted as part of a glacier;
-                                       !> not a threshold for dynamic calculations
-     real(dp) :: tmlt = -2.0d0         !> air temperature (deg C) at which ablation occurs
-                                       !> Maussion et al. suggest -1 C; a lower value extends the ablation zone
+
+     real(dp) :: tmlt = -2.0d0     !> air temperature (deg C) at which ablation occurs
+                                   !> Maussion et al. suggest -1 C; a lower value extends the ablation zone
+
+     real(dp) :: minthck           !> min ice thickness (m) to be counted as part of a glacier;
+                                   !> currently set based on model%numerics%thklim
 
      ! 1D arrays with size nglacier
 
