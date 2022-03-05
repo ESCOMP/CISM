@@ -886,9 +886,23 @@ contains
                                              model%basal_physics)
     endif
 
+    ! Initialize powerlaw_c and coulomb_c.
+    ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
+    !       but is simpler than checking all possible basal friction options.
+
+    if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
+          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+       endif
+       if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+       endif
+    endif
+
     ! Optionally, do initial calculations for inversion
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
+    !TODO: Separate the basal friction inversion from the bmlt_basin inversion.
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
@@ -2704,6 +2718,7 @@ contains
 
           ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
           model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+          call parallel_halo(model%climate%acab, parallel)
 
           if (verbose_glacier .and. this_rank == rtest) then
              i = itest
@@ -2879,28 +2894,28 @@ contains
                                          model%options%which_ho_vertical_remap)
 
        !-------------------------------------------------------------------------
-       ! If running with glaciers, then adjust glacier indices based on advance and retreat,
-       ! Call once a year to avoid subannual variability.
+       ! If running with glaciers, then adjust glacier indices based on advance and retreat.
+       ! Note: This subroutine limits the ice thickness in grid cells that do not yet have
+       !       a nonzero cism_glacier_id.  The acab_applied field is adjusted accordingly.
+       ! Note: It would probably be OK to call this subroutine annually instead of every step.
+       !       In that case, we might want to separate the special glacier acab adjustment
+       !       from the rest of acab_applied.
        !-------------------------------------------------------------------------
 
        if (model%options%enable_glaciers) then
 
-          ! Determine whether a year has passed, asssuming an integer number of timesteps per year.
-          ! model%numerics%time is real(dp) with units of yr
-          if (abs(model%numerics%time - nint(model%numerics%time)) < eps08) then
+          call glissade_glacier_advance_retreat(&
+               ewn,             nsn,                &
+               itest,   jtest,  rtest,              &
+               model%geometry%usrf*thk0,            &  ! m
+               thck_unscaled,                       &  ! m
+               model%climate%acab_applied,          &  ! m/s
+               model%numerics%dt * tim0,            &  ! s
+               model%glacier%minthck,               &  ! m
+               model%glacier%cism_glacier_id_init,  &
+               model%glacier%cism_glacier_id,       &
+               parallel)
 
-             ! TODO - Correct acab_applied for glacier mass removed?
-             call glissade_glacier_advance_retreat(&
-                  ewn,             nsn,                &
-                  itest,   jtest,  rtest,              &
-                  thck_unscaled,                       &  ! m
-                  model%geometry%usrf*thk0,            &  ! m
-                  model%glacier%minthck,               &  ! m
-                  model%glacier%cism_glacier_id_init,  &
-                  model%glacier%cism_glacier_id,  &
-                  parallel)   !WHL - debug
-
-          endif   ! 1-year interval has passed
        endif   ! enable_glaciers
 
        !WHL - debug
@@ -4107,11 +4122,16 @@ contains
     ! If inverting for Cp = powerlaw_c or Cc = coulomb_c, then update it here.
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
+    ! If running with glaciers, inversion for powerlaw_c is done elsewhere,
+    !  in subroutine glissade_glacier_inversion.
+    !TODO: Call when the inversion options are set, not the external options.
+    !      Currently, the only thing done for the external options is to remove
+    !       zero values.
 
     if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
          model%options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL  .or. &
          model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
-         model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL) then
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL ) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
@@ -4121,7 +4141,6 @@ contains
        endif
 
     endif   ! which_ho_powerlaw_c/coulomb_c
-
 
     ! If inverting for deltaT_basin, then update it here
 
