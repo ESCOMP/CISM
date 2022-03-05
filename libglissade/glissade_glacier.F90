@@ -24,15 +24,12 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO:
-! Put a glacier section in the config file.
-
 module glissade_glacier
 
     ! Subroutines for glacier tuning and tracking
 
     use glimmer_global 
-    use glimmer_paramets, only: thk0, len0
+    use glimmer_paramets, only: thk0, len0, tim0, eps08
     use glimmer_physcon, only: scyr
     use glide_types
     use glimmer_log
@@ -391,11 +388,6 @@ contains
        glacier%mu_star(:) = mu_star_const
        glacier%powerlaw_c(:) = model%basal_physics%powerlaw_c_const
 
-       ! Initialize powerlaw_c to a constant value.
-       ! This value will be adjusted with each call to glissade_glacier_inversion.
-       !TODO: Replace with a call to glacier_powerlaw_c_to_2d
-       model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
-
        ! Check for area_target = 0 and volume_target = 0.
        ! In practice, volume_target = 0 might not be problematic;
        !  we would just lower powerlaw_c to obtain a thin glacier.
@@ -479,13 +471,31 @@ contains
        glacier%glacierid(ng) = ng
     enddo
 
-    !TODO: call glacier_powerlaw_c_to_2d
+    ! Given powerlaw_c for each glacier, compute model%basal_physics%powerlaw_c,
+    !  a 2D array defined at cell vertices.
+    ! Set model%basal_physics%powerlaw_c = 0 at vertices that are not adjacent
+    !  to any glacier cells.
 
+    call glacier_powerlaw_c_to_2d(&
+         ewn,             nsn,                 &
+         nglacier,                             &
+         glacier%cism_glacier_id,              &
+         glacier%powerlaw_c,                   &
+         model%basal_physics%powerlaw_c,       &
+         parallel)
 
     ! Halo updates for the 2D glacier_id arrays
     call parallel_halo(glacier%rgi_glacier_id, parallel)
     call parallel_halo(glacier%cism_glacier_id, parallel)
     call parallel_halo(glacier%cism_glacier_id_init, parallel)
+
+    ! Set the minimum thickness (m) for ice to be counted as a glacier.
+    ! Choose this limit equal to the dynamics threshold (actually, slightly
+    !  less in case of roundoff error).
+    ! Thus, any ice that is not part of a glacier is dynamically inactive,
+    !  but could receive a glacier ID and become active with thickening.
+
+    glacier%minthck = model%numerics%thklim*thk0 - eps08
 
     ! Set the index of the diagnostic glacier, using the CISM glacier ID for the diagnostic point
     if (this_rank == rtest) then
@@ -608,17 +618,21 @@ contains
     ! * At start-up, glaciated cells have cism_glacier_id in the range (1, nglacier).
     !   Other cells have cism_glacier_id = 0.
     !   The initial cism_glacier_id array is saved as cism_glacier_id_init.
-    ! * When a cell has H < H_min and cism_glacier_id > 0, we set cism_glacier_id = 0.
+    ! * If a cell has H <= minthck and cism_glacier_id > 0, we set cism_glacier_id = 0.
     !   It no longer contributes to glacier area or volume.
-    !   Here, H_min is a threshold for counting ice as part of a glacier.
-    ! * When a cell has H >= H_min and cism_glacier_id = 0, we give it a nonzero ID:
+    !   Here, minthck is a threshold for counting ice as part of a glacier.
+    !   By default, minthck = model%numerics%thklim, typically 1 m.
+    !   (Actually minthck is slightly less than thklim, to make sure these cells
+    !   are not dynamically active.)
+    ! * When a cell has H > minthck and cism_glacier_id = 0, we give it a nonzero ID:
     !   either (1) cism_glacier_id_init, if the initial ID > 0,
     !   or (2) the ID of an adjacent glaciated neighbor (the neighbor with
     !   the highest surface elevation, if there is more than one).
     !   Preference is given to (1), to preserve the original glacier outlines
     !   as much as possible.
-    ! * If H >= H_min in a cell with cism_glacier_id_init = 0 and no glaciated neighbors,
-    !   we do not give it a glacier ID.  Instead, we set H = H_min and remove the excess ice.
+    ! * If H > minthck in a cell with cism_glacier_id_init = 0 and no glaciated neighbors,
+    !   we do not give it a glacier ID.  Instead, we set H = minthck and remove the excess ice.
+    !   This ice remains dynamically inactive.
     !   Thus, there is no glacier inception; we only allow existing glaciers to advance.
 
     use cism_parallel, only: parallel_globalindex, parallel_halo
@@ -671,7 +685,7 @@ contains
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
           ng = cism_glacier_id(i,j)
-          if (ng > 0 .and. thck(i,j) < glacier_minthck) then
+          if (ng > 0 .and. thck(i,j) <= glacier_minthck) then
              !WHL - debug
              if (verbose_glacier .and. this_rank==rtest) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
@@ -693,7 +707,7 @@ contains
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
           ng = cism_glacier_id(i,j)
-          if (ng == 0 .and. thck(i,j) >= glacier_minthck) then
+          if (ng == 0 .and. thck(i,j) > glacier_minthck) then
              ! Assign this cell its original ID, if > 0
              if (cism_glacier_id_init(i,j) > 0) then
                 cism_glacier_id(i,j) = cism_glacier_id_init(i,j)
@@ -728,12 +742,12 @@ contains
                 enddo   ! jj
              endif   ! cism_glacier_id_init > 0
 
-             ! If the cell still has cism_glacier_id = 0 and H >= glacier_minthck,
+             ! If the cell still has cism_glacier_id = 0 and H > glacier_minthck,
              !  then cap the thickness at glacier_minthck.
              ! Note: The ice removed is used to increment acab_applied, the ice SMB in m/s.
              !       Thus, the total SMB flux will generally be more negative during time steps
              !        when this subroutine is solved.
-             if (cism_glacier_id(i,j) == 0 .and. thck(i,j) >= glacier_minthck) then
+             if (cism_glacier_id(i,j) == 0 .and. thck(i,j) > glacier_minthck) then
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'Cap H = glacier_minthck, ig, jg, thck =', &
@@ -758,8 +772,6 @@ contains
 
   subroutine glissade_glacier_inversion(model, glacier)
 
-    use glimmer_paramets, only: len0, thk0, tim0, eps08
-    use glimmer_physcon, only: scyr
     use glissade_grid_operators, only: glissade_stagger
     use cism_parallel, only: parallel_reduce_sum, staggered_parallel_halo
 
@@ -786,6 +798,10 @@ contains
 
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask                   ! = 1 where ice is present (thck > thklim), else = 0
+
+
+    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+         glacier_mask               ! = 1 where glacier ice is present (thck > thklim), else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck,                    & ! ice thickness (m)
@@ -1001,39 +1017,18 @@ contains
 !          enddo
        endif
 
-       !TODO: call glacier_powerlaw_c_to_2d
-       ! Need to pass powerlaw_c(ng), cism_glacier_id, ewn, nsn, ice_mask, parallel
-       ! Return basal_physics%powerlaw_c
+       ! Given powerlaw_c for each glacier, compute a 2D array of powerlaw_c,
+       !  part of the basal_physics derived type.
+       ! Set basal_physics%powerlaw_c = 0 at vertices that are not adjacent
+       !  to any glacier cells.
 
-
-       ! Copy glacier%powerlaw_c(ng) to model%basal_physics_powerlaw_c, a 2D array on the ice grid
-
-       powerlaw_c_icegrid(:,:) = 0.0d0
-       do j = 1, nsn
-          do i = 1, ewn
-             ng = glacier%cism_glacier_id(i,j)
-             if (ng > 0) powerlaw_c_icegrid(i,j) = glacier%powerlaw_c(ng)
-          enddo
-       enddo
-
-       ! Interpolate powerlaw_c to the velocity grid.
-       ! At glacier margins, ignore powerlaw_c in adjacent ice-free cells
-       !  (by setting stagger_margin_in = 1).
-       ! Thus, powerlaw_c = 0 at vertices surrounded by ice-free cells.
-       ! Note: Here, 'ice-free' means thck < thklim.
-
-       where (thck >= model%numerics%thklim)
-          ice_mask = 1
-       elsewhere
-          ice_mask = 0
-       endwhere
-
-       call glissade_stagger(&
-            ewn,                  nsn,                             &
-            powerlaw_c_icegrid,   model%basal_physics%powerlaw_c,  &
-            ice_mask = ice_mask,  stagger_margin_in = 1)
-
-       call staggered_parallel_halo(model%basal_physics%powerlaw_c, parallel)
+       call glacier_powerlaw_c_to_2d(&
+            ewn,             nsn,                 &
+            nglacier,                             &
+            glacier%cism_glacier_id,              &
+            glacier%powerlaw_c,                   &
+            model%basal_physics%powerlaw_c,       &
+            parallel)
 
        ! Reset the accumulated fields
        call reset_glacier_fields(&
@@ -1291,6 +1286,87 @@ contains
     enddo   ! ng
 
   end subroutine glacier_invert_powerlaw_c
+
+!****************************************************
+
+  subroutine glacier_powerlaw_c_to_2d(&
+       ewn,            nsn,             &
+       nglacier,                        &
+       cism_glacier_id,                 &
+       glacier_powerlaw_c,              &
+       basal_physics_powerlaw_c,        &
+       parallel)
+
+    ! Given model%glacier%powerlaw_c(ng) for each glacier,
+    ! compute basal_physics%powerlaw_c(i,j) for each vertex.
+
+    use cism_parallel, only: staggered_parallel_halo
+    use glissade_grid_operators, only: glissade_stagger
+
+    ! input/output arguments
+
+    integer, intent(in) ::  &
+         ewn, nsn,                 & ! number of cells in each horizontal direction
+         nglacier                    ! total number of glaciers in the domain
+
+    integer, dimension(ewn,nsn), intent(in) ::  &
+         cism_glacier_id             ! integer glacier ID in the range (1, nglacier)
+
+    real(dp), dimension(nglacier), intent(in) :: &
+         glacier_powerlaw_c          ! glacier-specific powerlaw_c from inversion
+
+    real(dp), dimension(ewn-1,nsn-1), intent(inout) :: &
+         basal_physics_powerlaw_c    ! powerlaw_c at each vertex, derived from glacier values
+
+    !TODO - Not sure if the halo update is needed
+    type(parallel_type), intent(in) :: &
+         parallel                    ! info for parallel communication
+
+    ! local variables
+
+    integer :: i, j, ng
+
+    real(dp), dimension(ewn,nsn) :: &
+         powerlaw_c_icegrid            ! powerlaw_c at cell centers, before interpolating to vertices
+
+    integer, dimension(ewn,nsn) :: &
+         glacier_mask
+
+    ! Copy glacier_powerlaw_c to a 2D array on the ice grid
+
+    powerlaw_c_icegrid(:,:) = 0.0d0
+    do j = 1, nsn
+       do i = 1, ewn
+          ng = cism_glacier_id(i,j)
+          if (ng > 0) powerlaw_c_icegrid(i,j) = glacier_powerlaw_c(ng)
+       enddo
+    enddo
+
+    ! Compute a mask of cells with glacier ice
+    where (cism_glacier_id > 0)
+       glacier_mask = 1
+    elsewhere
+       glacier_mask = 0
+    endwhere
+
+    ! Interpolate powerlaw_c to the velocity grid.
+    ! At glacier margins, ignore powerlaw_c in cells with glacier_mask = 0
+    !  (by setting stagger_margin_in = 1).
+    ! Thus, powerlaw_c = 0 at vertices surrounded by cells without glaciers.
+    ! Note: This could pose problems if there are dynamically active cells
+    !        with cism_glacier_id = 0, but all such cells are currently inactive.
+
+    call glissade_stagger(&
+         ewn,                  nsn,    &
+         powerlaw_c_icegrid,           &
+         basal_physics_powerlaw_c,     &
+         ice_mask = glacier_mask,      &
+         stagger_margin_in = 1)
+
+    !TODO - Is this update needed?
+    call staggered_parallel_halo(basal_physics_powerlaw_c, parallel)
+
+  end subroutine glacier_powerlaw_c_to_2d
 
 !****************************************************
 
