@@ -49,8 +49,7 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-!!    logical, parameter :: verbose_inversion = .false.
-    logical, parameter :: verbose_inversion = .true.
+    logical, parameter :: verbose_inversion = .false.
 
     real(dp), parameter :: &
          deltaT_ocn_maxval = 5.0d0      ! max allowed magnitude of deltaT_ocn (degC)

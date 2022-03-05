@@ -79,7 +79,6 @@ contains
                        beta_external,                &
                        beta,                         &
                        which_ho_beta_limit,          &
-                       which_ho_powerlaw_c,          &
                        which_ho_coulomb_c,           &
                        itest, jtest,  rtest)
 
@@ -123,7 +122,6 @@ contains
 
   integer, intent(in) :: which_ho_beta_limit                    ! option to limit beta for grounded ice
                                                                 ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
-  integer, intent(in) :: which_ho_powerlaw_c                    ! basal friction option for Cp
   integer, intent(in) :: which_ho_coulomb_c                     ! basal frection option for Cc
   integer, intent(in), optional :: itest, jtest, rtest          ! coordinates of diagnostic point
 
@@ -147,7 +145,6 @@ contains
 
   ! variables for Coulomb friction law
   real(dp) :: coulomb_c   ! Coulomb law friction coefficient (unitless)
-  real(dp) :: powerlaw_c_const  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
   real(dp) :: lambda_max        ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max             ! maximum bed obstacle slope (unitless)
   real(dp) :: m                 ! exponent m in power law
@@ -196,12 +193,14 @@ contains
      speed(:,:) = min(speed(:,:), basal_physics%beta_powerlaw_umax)
   endif
 
-  ! Compute coulomb_c; used in basal friction laws with yield stress proportional to coulomb_c
+  ! Compute coulomb_c if needed.
+  ! Note: This calculation could be done once and for all for fixed topography,
+  !        but is done here in case topg or eus is evolving.
+  !       For other options (HO_COULOMB_C_CONSTANT, *_INVERSION, *_EXTERNAL),
+  !        coulomb_c is initialized or computed elsewhere.
+  ! Note: powerlaw_c is always initialized or computed elsewhere.
 
-  if (which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
-     ! set coulomb_c = constant value
-     basal_physics%coulomb_c(:,:) = basal_physics%coulomb_c_const
-  elseif (which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
+  if (which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
 
      ! set coulomb_c based on bed elevation
      call set_coulomb_c_elevation(ewn,        nsn,   &
@@ -211,18 +210,6 @@ contains
                                   basal_physics%coulomb_c_bedmin,  &
                                   basal_physics%coulomb_c_bedmax,  &
                                   basal_physics%coulomb_c)
-
-  else  ! HO_COULOMB_C_INVERSION, HO_COULOMB_C_EXTERNAL
-     ! do nothing; use coulomb_c as computed elsewhere
-  endif
-
-  ! Compute powerlaw_c; used in basal friction laws with beta proportional to u^(1/m)
-
-  if (which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
-     ! set powerlaw_c = constant value
-     basal_physics%powerlaw_c(:,:) = basal_physics%powerlaw_c_const
-  else  ! HO_POWERLAW_C_INVERSION, HO_POWERLAW_C_EXTERNAL
-     ! do nothing; use powerlaw_c as computed elsewhere
   endif
 
   ! Compute beta based on whichbabc
@@ -465,13 +452,15 @@ contains
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
        ! See Cuffey & Paterson, Physics of Glaciers, 4th Ed. (2010), p. 240, eq. 7.17
-       ! This is based on Weertman's classic sliding relation (1957) augmented by the bed-separation index described by Bindschadler (1983)
+       ! This is based on Weertman's classic sliding relation (1957),
+       ! augmented by the bed-separation index described by Bindschadler (1983):
        !   ub = k taub^p N^-q
-       ! rearranging for taub gives:
+       ! Rearranging for taub gives:
        !   taub = k^(-1/p) ub^(1/p) N^(q/p)
 
        ! p and q should be _positive_ exponents. If p/=1, this is nonlinear in velocity.
-       ! Cuffey & Paterson recommend p=3 and q=1, and k dependent on thermal & mechanical properties of ice and inversely on bed roughness.   
+       ! Cuffey & Paterson recommend p=3 and q=1, and k dependent on
+       ! thermal and mechanical properties of ice and inversely on bed roughness.
        !TODO - Change powerlaw_p to powerlaw_m, and make powerlaw_q a config parameter
 
        powerlaw_p = 3.0d0

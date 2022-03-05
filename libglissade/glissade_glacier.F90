@@ -86,7 +86,8 @@ contains
     ! The CISM input file contains the RGI IDs.
 
     use cism_parallel, only: distributed_gather_var, distributed_scatter_var, &
-         parallel_reduce_sum, broadcast, parallel_halo, parallel_globalindex
+         parallel_reduce_sum, parallel_reduce_max, parallel_reduce_min, &
+         broadcast, parallel_halo, parallel_globalindex
 
     type(glide_global_type),intent(inout) :: model
 
@@ -101,7 +102,7 @@ contains
 
     integer :: i, j, nc, ng, count
     integer :: iglobal, jglobal
-    integer :: min_id
+    integer :: min_id, max_id
     character(len=100) :: message
 
     ! temporary global arrays
@@ -126,11 +127,6 @@ contains
 !    integer ::  nlist
 !    real(sp) :: random
 
-    if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_glacier_init'
-    endif
-
     ! Set some local variables
     parallel = model%parallel
 
@@ -145,9 +141,11 @@ contains
     jtest = model%numerics%jdiag_local
 
     if (verbose_glacier .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_glacier_init'
+       print*, ' '
        i = itest
        j = jtest
-       print*, ' '
        print*, 'RGI glacier ID, rtest, itest, jtest:', rtest, itest, jtest
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
@@ -393,6 +391,11 @@ contains
        glacier%mu_star(:) = mu_star_const
        glacier%powerlaw_c(:) = model%basal_physics%powerlaw_c_const
 
+       ! Initialize powerlaw_c to a constant value.
+       ! This value will be adjusted with each call to glissade_glacier_inversion.
+       !TODO: Replace with a call to glacier_powerlaw_c_to_2d
+       model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
+
        ! Check for area_target = 0 and volume_target = 0.
        ! In practice, volume_target = 0 might not be problematic;
        !  we would just lower powerlaw_c to obtain a thin glacier.
@@ -436,22 +439,23 @@ contains
           call write_log ('Error, no positive values for glacier_powerlaw_c', GM_FATAL)
        endif
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
-          if (maxval(glacier%cism_glacier_id_init) <= 0.0d0) then
-             call write_log ('Error, no positive values for cism_glacier_id_init', GM_FATAL)
-          endif
+       max_id = maxval(glacier%cism_glacier_id_init)
+       max_id = parallel_reduce_max(max_id)
+       if (max_id <= 0) then
+          call write_log ('Error, no positive values for cism_glacier_id_init', GM_FATAL)
+       endif
+
+       min_id = minval(glacier%cism_to_rgi_glacier_id)
+       min_id = parallel_reduce_min(min_id)
+       if (min_id <= 0) then
+          write(message,*) 'Error, minval(cism_to_rgi_glacier_id) =', min_id
+          call write_log(message, GM_FATAL)
        endif
 
        if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           if (maxval(glacier%volume_target) <= 0.0d0) then
              call write_log ('Error, no positive values for glacier_volume_target', GM_FATAL)
           endif
-       endif
-
-       min_id = minval(glacier%cism_to_rgi_glacier_id)
-       if (min_id < 1) then
-          write(message,*) 'Error, minval(cism_to_rgi_glacier_id) =', min_id
-          call write_log(message, GM_FATAL)
        endif
 
        ! Compute the initial area and volume of each glacier.
@@ -474,6 +478,9 @@ contains
     do ng = 1, nglacier
        glacier%glacierid(ng) = ng
     enddo
+
+    !TODO: call glacier_powerlaw_c_to_2d
+
 
     ! Halo updates for the 2D glacier_id arrays
     call parallel_halo(glacier%rgi_glacier_id, parallel)
@@ -587,10 +594,11 @@ contains
   subroutine glissade_glacier_advance_retreat(&
        ewn,             nsn,             &
        itest,   jtest,  rtest,           &
-       thck,            usrf,            &
+       usrf,            thck,            &
+       acab_applied,    dt,              &
        glacier_minthck,                  &
        cism_glacier_id_init,             &
-       cism_glacier_id, &
+       cism_glacier_id,                  &
        parallel)
 
     ! Allow glaciers to advance and retreat.
@@ -613,19 +621,21 @@ contains
     !   we do not give it a glacier ID.  Instead, we set H = H_min and remove the excess ice.
     !   Thus, there is no glacier inception; we only allow existing glaciers to advance.
 
-    use cism_parallel, only: parallel_globalindex
+    use cism_parallel, only: parallel_globalindex, parallel_halo
 
     integer, intent(in) ::  &
          ewn, nsn,                    & ! number of cells in each horizontal direction
          itest, jtest, rtest            ! coordinates of diagnostic cell
 
-    real(dp), dimension(ewn,nsn), intent(inout) ::  &
-         thck                           ! ice thickness (m)
-
     real(dp), dimension(ewn,nsn), intent(in) ::  &
          usrf                           ! upper surface elevation (m)
 
+    real(dp), dimension(ewn,nsn), intent(inout) ::  &
+         thck,                        & ! ice thickness (m)
+         acab_applied                   ! SMB applied to ice surface (m/s)
+
     real(dp), intent(in) :: &
+         dt,                          & ! time step (s)
          glacier_minthck                ! min ice thickness (m) counted as part of a glacier
 
     integer, dimension(ewn,nsn), intent(in) :: &
@@ -641,7 +651,9 @@ contains
     real(dp), dimension(ewn,nsn) :: &
          cism_glacier_id_old            ! old value of cism_glacier_id
 
-    real(dp) :: usrf_max                ! highest elevation (m) in a neighbor cell
+    real(dp) :: &
+         usrf_max,             & ! highest elevation (m) in a neighbor cell
+         dthck                   ! ice thickness loss (m)
 
     integer :: i, j, ii, jj, ip, jp
     integer :: iglobal, jglobal
@@ -718,20 +730,27 @@ contains
 
              ! If the cell still has cism_glacier_id = 0 and H >= glacier_minthck,
              !  then cap the thickness at glacier_minthck.
-             !TODO - Account for this ice removal in acab_applied or a related flux.
+             ! Note: The ice removed is used to increment acab_applied, the ice SMB in m/s.
+             !       Thus, the total SMB flux will generally be more negative during time steps
+             !        when this subroutine is solved.
              if (cism_glacier_id(i,j) == 0 .and. thck(i,j) >= glacier_minthck) then
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'Cap H = glacier_minthck, ig, jg, thck =', &
                         iglobal, jglobal, thck(i,j)
                 endif
-                !TODO: acab_applied = acab_applied - dthck/dt?
+                dthck = thck(i,j) - glacier_minthck
                 thck(i,j) = glacier_minthck
+                acab_applied(i,j) = acab_applied(i,j) - dthck/dt   ! m/s
              endif
 
           endif   ! ng = 0, H > 0
        enddo   ! i
     enddo   ! j
+
+    ! Halo updates for output arrays
+    call parallel_halo(cism_glacier_id, parallel)
+    call parallel_halo(thck, parallel)
 
   end subroutine glissade_glacier_advance_retreat
 
@@ -742,7 +761,7 @@ contains
     use glimmer_paramets, only: len0, thk0, tim0, eps08
     use glimmer_physcon, only: scyr
     use glissade_grid_operators, only: glissade_stagger
-    use cism_parallel, only: parallel_reduce_sum
+    use cism_parallel, only: parallel_reduce_sum, staggered_parallel_halo
 
     ! input/output arguments
 
@@ -800,11 +819,6 @@ contains
     ! real(dp), dimension(:,:) :: Tpos_accum      ! max(artm-Tmlt,0) accumulated and averaged over 1 year
     ! real(dp), dimension(:,:) :: dthck_dt_accum  ! dthck_dt accumulated and averaged over 1 year
 
-    if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_glacier_inversion, diag cell (r, i, j) =', rtest, itest, jtest
-    endif
-
     ! Set some local variables
 
     parallel = model%parallel
@@ -816,6 +830,11 @@ contains
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
+
+    if (verbose_glacier .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'In glissade_glacier_inversion, diag cell (r, i, j) =', rtest, itest, jtest
+    endif
 
     nglacier = glacier%nglacier
     ngdiag = glacier%ngdiag
@@ -895,7 +914,7 @@ contains
           print*, ' '
           print*, 'All glaciers: ng, A, A_target, Aerr, V, V_target, Verr:'
           do ng = 1, nglacier
-             write(6,'(i6,3f12.2,3f12.4)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
+             write(6,'(i6,3f12.2,3f14.6)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
                   (glacier%area(ng) - glacier%area_target(ng))/1.0d6, &
                   glacier%volume(ng)/1.0d9, glacier%volume_target(ng)/1.0d9, &
                   (glacier%volume(ng) - glacier%volume_target(ng))/1.0d9
@@ -949,11 +968,11 @@ contains
                smb_current_area(:) = smb_current_area(:) / glacier%area(:)
 
           if (verbose_glacier .and. main_task) then
-             print*, ' '
-             print*, 'All glaciers: smb_init_area, smb_current_area'
-             do ng = 1, nglacier
-                write(6,'(i6,2f12.4)') ng, smb_init_area(ng), smb_current_area(ng)
-             enddo
+!             print*, ' '
+!             print*, 'All glaciers: smb_init_area, smb_current_area'
+!             do ng = 1, nglacier
+!                write(6,'(i6,2f12.4)') ng, smb_init_area(ng), smb_current_area(ng)
+!             enddo
           endif
 
        endif   ! invert for mu_star
@@ -972,6 +991,20 @@ contains
                glacier%powerlaw_c)
 
        endif
+
+       !WHL - debug
+       if (verbose_glacier .and. main_task) then
+!          print*, ' '
+!          print*, 'All glaciers: powerlaw_c'
+!          do ng = 1, nglacier
+!             write(6,*) ng, glacier%powerlaw_c(ng)
+!          enddo
+       endif
+
+       !TODO: call glacier_powerlaw_c_to_2d
+       ! Need to pass powerlaw_c(ng), cism_glacier_id, ewn, nsn, ice_mask, parallel
+       ! Return basal_physics%powerlaw_c
+
 
        ! Copy glacier%powerlaw_c(ng) to model%basal_physics_powerlaw_c, a 2D array on the ice grid
 
@@ -999,6 +1032,15 @@ contains
             ewn,                  nsn,                             &
             powerlaw_c_icegrid,   model%basal_physics%powerlaw_c,  &
             ice_mask = ice_mask,  stagger_margin_in = 1)
+
+       call staggered_parallel_halo(model%basal_physics%powerlaw_c, parallel)
+
+       ! Reset the accumulated fields
+       call reset_glacier_fields(&
+            ewn,           nsn,    &
+            glacier%snow_accum,    &
+            glacier%Tpos_accum,    &
+            glacier%dthck_dt_accum)
 
     endif   ! time to do inversion
 
@@ -1062,14 +1104,26 @@ contains
     ! we can find mu_star such that SMB = 0.
     !
     ! We take sums are taken over the target area of each glacier, using cism_glacier_id_init.
-    ! If a glacier is too large, the net SMB will be < 0 and the glacier will shrink.
-    ! Similarly, if the glacier is too small, the net SMB > 0 and the glacier will grow.
+    ! If a glacier is too large, the net SMB will be < 0 and the glacier should shrink.
+    ! Similarly, if the glacier is too small, the net SMB > 0 and the glacier should grow.
     !
     ! Optionally, by setting glacier_mu_star_timescale > inversion_time_interval,
     ! we can relax toward the computed mu_star instead of going there immediately.
     !
-    ! Note: This approach works only for land-based glaciers.
-    ! TODO: Modify for marine-terminating glaciers.
+    ! Notes:
+    !
+    ! (1) This approach works only for land-based glaciers.
+    !     TODO: Modify for marine-terminating glaciers.
+    ! (2) If spinning up with climatological SMB, then mu_star will have the same value
+    !     throughout the inversion.  This means that when the glacier advances or retreats,
+    !     mu_star will not change to compensate.
+    ! (3) If the glacier advances, then its net SMB should be < 0, so it should lose mass.
+    !     It is possible that the steady-state glacier will have the correct total volume,
+    !     but will be too advanced and too thin. An alternative is to adjust C_p
+    !     based on the volume contained within the original glacier outline.
+    !     TODO: Try this.  Get the volume right within the original outlines,
+    !     which allows a slight advance (e.g., if the ice is too thin in the center
+    !     and thick at the margins) but hopefully not far beyond those outlines.
 
     if (verbose_glacier .and. main_task) then
        print*, ' '
@@ -1117,10 +1171,6 @@ contains
           ! By default, inversion_time_interval = glacier_mu_star_timescale = 1 yr
           mu_star(ng) = mu_star(ng) + (mu_star_new(ng) - mu_star(ng)) &
                * max(inversion_time_interval/glacier_mu_star_timescale, 1.0d0)
-
-          if (verbose_glacier .and. main_task) then
-             print*, 'ng, new mu_star:', ng, mu_star(ng)
-          endif
 
        else   ! glacier_Tpos = 0; no ablation
 
@@ -1190,6 +1240,11 @@ contains
     ! See the comments in module glissade_inversion, subroutine invert_basal_friction.
     ! Here is the prognostic equation:
     ! dC/dt = -C * (1/tau) * [(V - V_target)/V_target + (2*tau/V_target) * dV/dt]
+
+    if (verbose_glacier .and. main_task) then
+       print*, ' '
+       print*, 'In glissade_invert_powerlaw_c'
+    endif
 
     do ng = 1, nglacier
 
@@ -1410,6 +1465,31 @@ contains
     time_since_last_avg = 0.0d0
 
   end subroutine calculate_glacier_averages
+
+!****************************************************
+
+  subroutine reset_glacier_fields(&
+       ewn,           nsn,        &
+       snow_accum,                &
+       Tpos_accum,                &
+       dthck_dt_accum)
+
+    ! input/output variables
+
+    integer, intent(in) ::  &
+         ewn, nsn                    ! number of cells in each horizontal direction
+
+    real(dp), dimension(ewn,nsn), intent(inout) ::  &
+         snow_accum,               & ! snow (mm/yr w.e.)
+         Tpos_accum,               & ! max(artm - Tmlt, 0) (deg C)
+         dthck_dt_accum              ! rate of change of ice thickness (m/yr)
+
+    ! Reset the accumulated fields to zero
+    snow_accum = 0.0d0
+    Tpos_accum = 0.0d0
+    dthck_dt_accum = 0.0d0
+
+  end subroutine reset_glacier_fields
 
 !****************************************************
 
