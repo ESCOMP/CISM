@@ -1788,6 +1788,7 @@ module glide_types
           volume => null(),                 & !> glacier volume (m^3)
           area_target => null(),            & !> glacier area target (m^2) based on observations
           volume_target => null(),          & !> glacier volume target (m^3) based on observations
+          volume_in_init_region => null(),  & !> current volume (m^3) in the region defined by cism_glacier_id_init
           dvolume_dt => null(),             & !> d(volume)/dt for each glacier (m^3/s)  !TODO - Is this needed?
           mu_star => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
                                               !> defined as positive for ablation
@@ -2856,6 +2857,7 @@ contains
        allocate(model%glacier%volume(model%glacier%nglacier))
        allocate(model%glacier%area_target(model%glacier%nglacier))
        allocate(model%glacier%volume_target(model%glacier%nglacier))
+       allocate(model%glacier%volume_in_init_region(model%glacier%nglacier))
        allocate(model%glacier%dvolume_dt(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%powerlaw_c(model%glacier%nglacier))
@@ -3289,6 +3291,8 @@ contains
         deallocate(model%glacier%area_target)
     if (associated(model%glacier%volume_target)) &
         deallocate(model%glacier%volume_target)
+    if (associated(model%glacier%volume_in_init_region)) &
+        deallocate(model%glacier%volume_in_init_region)
     if (associated(model%glacier%dvolume_dt)) &
         deallocate(model%glacier%dvolume_dt)
     if (associated(model%glacier%mu_star)) &

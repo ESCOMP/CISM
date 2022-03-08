@@ -3486,14 +3486,13 @@ contains
        call glide_add_to_restart_variable_list('cism_glacier_id_init')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
        ! Save the arrays used to find the SMB and basal friction
+       !TODO: Not sure that area_target and volume_target are needed.
+       !      These could be computed based on cism_glacier_id_init and thck_obs.
        call glide_add_to_restart_variable_list('glacier_area_target')
        call glide_add_to_restart_variable_list('glacier_volume_target')
        ! Not sure that mu_star is needed (if computed based on SMB = 0 over init area)
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_powerlaw_c')
-       !WHL - Write to restart for now; also possible to derive from glacier_powerlaw_c
-       !      (in a subroutine to be written)
-       call glide_add_to_restart_variable_list('powerlaw_c')
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
