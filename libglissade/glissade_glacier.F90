@@ -170,6 +170,7 @@ contains
        if (associated(glacier%volume)) deallocate(glacier%volume)
        if (associated(glacier%area_target)) deallocate(glacier%area_target)
        if (associated(glacier%volume_target)) deallocate(glacier%volume_target)
+       if (associated(glacier%volume_in_init_region)) deallocate(glacier%volume_in_init_region)
        if (associated(glacier%dvolume_dt)) deallocate(glacier%dvolume_dt)
        if (associated(glacier%mu_star)) deallocate(glacier%mu_star)
        if (associated(glacier%powerlaw_c)) deallocate(glacier%powerlaw_c)
@@ -365,6 +366,7 @@ contains
        allocate(glacier%area_target(nglacier))
        allocate(glacier%volume(nglacier))
        allocate(glacier%volume_target(nglacier))
+       allocate(glacier%volume_in_init_region(nglacier))
        allocate(glacier%dvolume_dt(nglacier))
        allocate(glacier%mu_star(nglacier))
        allocate(glacier%powerlaw_c(nglacier))
@@ -384,6 +386,7 @@ contains
        ! Initialize other glacier arrays
        glacier%area_target(:) = glacier%area(:)
        glacier%volume_target(:) = glacier%volume(:)
+       glacier%volume_in_init_region(:) = glacier%volume(:)
        glacier%dvolume_dt(:) = 0.0d0
        glacier%mu_star(:) = mu_star_const
        glacier%powerlaw_c(:) = model%basal_physics%powerlaw_c_const
@@ -460,7 +463,9 @@ contains
             dew*dns,                        &
             model%geometry%thck*thk0,       &
             glacier%area,                   &
-            glacier%volume)
+            glacier%volume,                 &
+            glacier%cism_glacier_id_init,   &
+            glacier%volume_in_init_region)
 
     endif   ! not a restart
 
@@ -916,6 +921,8 @@ contains
             model%geometry%thck * thk0,      &  ! m
             glacier%area,                    &  ! m^2
             glacier%volume,                  &  ! m^3
+            glacier%cism_glacier_id_init,    &
+            glacier%volume_in_init_region,   &  ! m^3
             glacier%dthck_dt_accum,          &  ! m/yr
             glacier%dvolume_dt)                 ! m^3/yr
 
@@ -924,6 +931,7 @@ contains
           print*, 'Update area (km^2) and volume (km^3) for glacier:', ngdiag
           print*, 'Current area and volume:', glacier%area(ngdiag)/1.0d6, &
                glacier%volume(ngdiag)/1.0d9
+          print*, '   Volume in init region =', glacier%volume_in_init_region(ngdiag)/1.0d9
           print*, '   Target area and volume:', glacier%area_target(ngdiag)/1.0d6, &
                glacier%volume_target(ngdiag)/1.0d9
           print*, '   dV_dt (m^3/yr):', glacier%dvolume_dt(ngdiag)/1.0d9
@@ -932,8 +940,8 @@ contains
           do ng = 1, nglacier
              write(6,'(i6,3f12.2,3f14.6)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
                   (glacier%area(ng) - glacier%area_target(ng))/1.0d6, &
-                  glacier%volume(ng)/1.0d9, glacier%volume_target(ng)/1.0d9, &
-                  (glacier%volume(ng) - glacier%volume_target(ng))/1.0d9
+                  glacier%volume_in_init_region(ng)/1.0d9, glacier%volume_target(ng)/1.0d9, &
+                  (glacier%volume_in_init_region(ng) - glacier%volume_target(ng))/1.0d9
           enddo
        endif
 
@@ -994,16 +1002,23 @@ contains
        endif   ! invert for mu_star
 
        ! Given the current and target glacier volumes, invert for powerlaw_c
+       ! Note: The current volume is computed not over the entire glacier
+       !       (which could be advanced or retreat compared to the initial extent),
+       !       but over the initial region defined by cism_glacier_id_init.
+       !       This prevents the inversion scheme from generating thickness errors
+       !       to compensate for area errors.
 
        if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
 
           call glacier_invert_powerlaw_c(&
-               ewn,                 nsn,                   &
-               nglacier,            ngdiag,                &
-               model%basal_physics%powerlaw_c_min,         &
-               model%basal_physics%powerlaw_c_max,         &
-               glacier%volume,      glacier%volume_target, &
-               glacier%dvolume_dt,                         &
+               ewn,                 nsn,              &
+               nglacier,            ngdiag,           &
+               model%basal_physics%powerlaw_c_min,    &
+               model%basal_physics%powerlaw_c_max,    &
+!!               glacier%volume,                        &
+               glacier%volume_in_init_region,         &
+               glacier%volume_target,                 &
+               glacier%dvolume_dt,                    &
                glacier%powerlaw_c)
 
        endif
@@ -1206,7 +1221,7 @@ contains
          powerlaw_c_min, powerlaw_c_max ! min and max allowed values of powerlaw_c (Pa (m/yr)^(-1/3))
 
     real(dp), dimension(nglacier), intent(in) :: &
-         volume,                      & ! current glacier volume (m^3)
+         volume,                      & ! current glacier volume over the target region (m^3)
          volume_target,               & ! volume target (m^3)
          dvolume_dt                     ! rate of change of volume (m^3/yr)
 
@@ -1375,6 +1390,8 @@ contains
        nglacier,      cism_glacier_id,   &
        cell_area,     thck,              &
        area,          volume,            &
+       cism_glacier_id_init,             &
+       volume_in_init_region,            &
        dthck_dt,      dvolume_dt)
 
     use cism_parallel, only: parallel_reduce_sum
@@ -1395,8 +1412,14 @@ contains
          thck                           ! ice thickness (m)
 
     real(dp), dimension(nglacier), intent(out) ::  &
-         area,                & ! area of each glacier (m^2)
-         volume                 ! volume of each glacier (m^3)
+         area,                        & ! area of each glacier (m^2)
+         volume                         ! volume of each glacier (m^3)
+
+    integer, dimension(ewn,nsn), intent(in), optional ::  &
+         cism_glacier_id_init           ! initial value of cism_glacier_id
+
+    real(dp), dimension(nglacier), intent(out), optional ::  &
+         volume_in_init_region          ! volume (m^3) in the region defined by cism_glacier_id_init
 
     real(dp), dimension(ewn,nsn), intent(in), optional ::  &
          dthck_dt               ! rate of change of ice thickness (m/yr)
@@ -1452,6 +1475,25 @@ contains
              write(6,'(i8,2f12.6)') ng, area(ng)*1.0d-6, volume(ng)*1.0d-9
           endif
        enddo
+    endif
+
+    ! Optionally, compute the volume over the region defined by cism_glacier_id_init.
+    ! The idea is that instead of choosing the current glacier volume as a target,
+    !  we might want to match the volume over the initial glacier region.
+    ! Then, CISM will not compensate for a too-far-advanced glacier by making it thin,
+    !  or for a too-far-retreated glacier by making it thick.
+
+    if (present(cism_glacier_id_init) .and. present(volume_in_init_region)) then
+       local_volume(:) = 0.0d0
+       do j = nhalo+1, nsn-nhalo
+          do i = nhalo+1, ewn-nhalo
+             ng = cism_glacier_id_init(i,j)
+             if (ng >= 1) then
+                local_volume(ng) = local_volume(ng) + cell_area * thck(i,j)
+             endif
+          enddo
+       enddo
+       volume_in_init_region = parallel_reduce_sum(local_volume)
     endif
 
     ! Optionally, compute the rate of change of glacier volume
