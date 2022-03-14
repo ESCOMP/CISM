@@ -59,7 +59,7 @@ module glissade_glacier
          mu_star_min = 10.d0,               & ! min value of tunable mu_star (mm/yr w.e/deg C)
          mu_star_max = 1.0d5,               & ! max value of tunable mu_star (mm/yr w.e/deg C)
          glacier_mu_star_timescale = 1.d0,  & ! inversion timescale for mu_star (yr)
-         glacier_powerlaw_c_timescale = 10.d0 ! inversion timescale for powerlaw_c (yr)
+         glacier_powerlaw_c_timescale = 25.d0 ! inversion timescale for powerlaw_c (yr)
 
     integer, parameter :: &
          inversion_time_interval = 1          ! time interval (yr) between inversion calls; must be an integer
@@ -525,23 +525,24 @@ contains
 !****************************************************
 
   subroutine glissade_glacier_smb(&
-       ewn,       nsn,              &
-       itest,     jtest,    rtest,  &
-       nglacier,                    &
-       cism_glacier_id,             &
-       snow,      artm,             &
-       tmlt,      mu_star,          &
+       ewn,      nsn,                  &
+       itest,    jtest,  rtest,        &
+       nglacier,                       &
+       cism_glacier_id,                &
+       t_mlt,                          &
+       snow,             artm,         &
+       mu_star,                        &
        glacier_smb)
 
     ! Compute the SMB in each grid cell using an empirical relationship
     !  based on Maussion et al. (2019):
     !
-    !     SMB = snow - mu_star * max(artm - Tmlt, 0),
+    !     SMB = snow - mu_star * max(artm - T_mlt, 0),
     !
     ! where snow = monthly mean snowfall rate (mm/yr w.e.),
     !       mu_star is a glacier-specific tuning parameter (mm/yr w.e./deg C),
     !       atrm = monthly mean air temperature (deg C),
-    !       Tmlt = monthly mean air temp above which ablation occurs (deg C)
+    !       T_mlt = monthly mean air temp above which ablation occurs (deg C)
     !
     ! This subroutine should be called at least once per model month.
 
@@ -555,15 +556,17 @@ contains
     integer, dimension(ewn,nsn), intent(in) ::  &
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
 
+    real(dp), intent(in) :: &
+         t_mlt                          ! min temperature (deg C) at which ablation occurs
+
     real(dp), dimension(ewn,nsn), intent(in) :: &
          snow,                        & ! monthly mean snowfall rate (mm w.e./yr)
-         artm                           ! monthly mean 2m air temperature (deg C)
+         artm                           ! artm adjusted for elevation using t_lapse (deg C)
 
     real(dp), dimension(nglacier), intent(in) :: &
          mu_star                        ! glacier-specific SMB tuning parameter (mm w.e./yr/deg)
 
-    real(dp), intent(in) :: &
-         tmlt                           ! min temperature (deg C) at which oblation occurs
+                                        ! defined as positive for T decreasing with height
 
     real(dp), dimension(ewn,nsn), intent(out) :: &
          glacier_smb                    ! SMB in each gridcell (mm w.e./yr)
@@ -577,18 +580,20 @@ contains
        print*, 'In glissade_glacier_smb'
        print*, 'minval, maxval(snow) =', minval(snow), maxval(snow)
        print*, 'minval, maxval(artm) =', minval(artm), maxval(artm)
+       print*, 't_mlt (deg C) =', t_mlt
     endif
 
     ! initialize
     glacier_smb(:,:) = 0.0d0
 
     ! compute SMB
+
     do j = 1, nsn
        do i = 1, ewn
           ng = cism_glacier_id(i,j)
 
           if (ng > 0) then
-             glacier_smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) - tmlt, 0.0d0)
+             glacier_smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) - t_mlt, 0.0d0)
           endif
 
           if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
@@ -837,7 +842,7 @@ contains
     ! integer, dimension(:,:) :: cism_glacier_id  ! CISM glacier ID for each grid cell
     ! integer, dimension(:,:) :: cism_glacier_id_init  ! initial value of CISM glacier ID
     ! real(dp), dimension(:,:) :: snow_accum      ! snow accumulated and averaged over 1 year
-    ! real(dp), dimension(:,:) :: Tpos_accum      ! max(artm-Tmlt,0) accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: Tpos_accum      ! max(artm-T_mlt,0) accumulated and averaged over 1 year
     ! real(dp), dimension(:,:) :: dthck_dt_accum  ! dthck_dt accumulated and averaged over 1 year
 
     ! Set some local variables
@@ -871,7 +876,7 @@ contains
          ewn,                    nsn,                       &
          dt,                     time_since_last_avg,       &
          model%climate%snow,     glacier%snow_accum,        &  ! mm/yr w.e.
-         max(model%climate%artm - glacier%tmlt, 0.0d0),     &
+         max(model%climate%artm - glacier%t_mlt, 0.0d0),    &
          glacier%Tpos_accum,                                &  ! deg C
          dthck_dt,               glacier%dthck_dt_accum)       ! m/yr ice
 
@@ -938,7 +943,7 @@ contains
           print*, ' '
           print*, 'All glaciers: ng, A, A_target, Aerr, V, V_target, Verr:'
           do ng = 1, nglacier
-             write(6,'(i6,3f12.2,3f14.6)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
+             write(6,'(i6,3f12.4,3f14.6)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
                   (glacier%area(ng) - glacier%area_target(ng))/1.0d6, &
                   glacier%volume_in_init_region(ng)/1.0d9, glacier%volume_target(ng)/1.0d9, &
                   (glacier%volume_in_init_region(ng) - glacier%volume_target(ng))/1.0d9
@@ -991,13 +996,13 @@ contains
           where (glacier%area > 0.0d0) &
                smb_current_area(:) = smb_current_area(:) / glacier%area(:)
 
-          if (verbose_glacier .and. main_task) then
+!          if (verbose_glacier .and. main_task) then
 !             print*, ' '
 !             print*, 'All glaciers: smb_init_area, smb_current_area'
 !             do ng = 1, nglacier
 !                write(6,'(i6,2f12.4)') ng, smb_init_area(ng), smb_current_area(ng)
 !             enddo
-          endif
+!          endif
 
        endif   ! invert for mu_star
 
@@ -1015,7 +1020,6 @@ contains
                nglacier,            ngdiag,           &
                model%basal_physics%powerlaw_c_min,    &
                model%basal_physics%powerlaw_c_max,    &
-!!               glacier%volume,                        &
                glacier%volume_in_init_region,         &
                glacier%volume_target,                 &
                glacier%dvolume_dt,                    &
@@ -1026,9 +1030,9 @@ contains
        !WHL - debug
        if (verbose_glacier .and. main_task) then
 !          print*, ' '
-!          print*, 'All glaciers: powerlaw_c'
+!          print*, 'All glaciers: mu_star, powerlaw_c'
 !          do ng = 1, nglacier
-!             write(6,*) ng, glacier%powerlaw_c(ng)
+!             write(6,*) ng, glacier%mu_star(ng), glacier%powerlaw_c(ng)
 !          enddo
        endif
 
@@ -1079,7 +1083,7 @@ contains
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
          snow_accum,                  & ! time-avg snowfall for each cell (mm/yr w.e.)
-         Tpos_accum                     ! time-avg of max(artm - Tmlt) for each cell (deg)
+         Tpos_accum                     ! time-avg of max(artm - T_mlt) for each cell (deg)
 
     integer, dimension(ewn,nsn), intent(in) :: &
          cism_glacier_id_init           ! cism_glacier_id at the start of the run
@@ -1104,7 +1108,7 @@ contains
     !
     ! The SMB for glacier ng is given by
     !      sum_ij(smb) = sum_ij(snow) - mu_star(ng) * sum_ij(Tpos),
-    ! where Tpos = max(artm - Tmlt, 0),
+    ! where Tpos = max(artm - T_mlt, 0),
     ! and sum_ij notes a sum over all cells (i,j) in the glacier.
     !
     ! Setting SMB = 0 and rearranging, we get
@@ -1479,11 +1483,11 @@ contains
 
     ! Optionally, compute the volume over the region defined by cism_glacier_id_init.
     ! The idea is that instead of choosing the current glacier volume as a target,
-    !  we might want to match the volume over the initial glacier region.
+    !  we would match the volume over the initial glacier region.
     ! Then, CISM will not compensate for a too-far-advanced glacier by making it thin,
     !  or for a too-far-retreated glacier by making it thick.
 
-    if (present(cism_glacier_id_init) .and. present(volume_in_init_region)) then
+    if (present(volume_in_init_region) .and. present(cism_glacier_id_init)) then
        local_volume(:) = 0.0d0
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
@@ -1496,14 +1500,14 @@ contains
        volume_in_init_region = parallel_reduce_sum(local_volume)
     endif
 
-    ! Optionally, compute the rate of change of glacier volume
-    if (present(dthck_dt) .and. present(dvolume_dt)) then
+    ! Optionally, compute the rate of change of glacier volume over the initial glacier region.
+    if (present(dthck_dt) .and. present(dvolume_dt) .and. present(cism_glacier_id_init)) then
        ! use local_volume as a work array for dvolume_dt
        dvolume_dt(:) = 0.0d0
        local_volume(:) = 0.0d0
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
-             ng = cism_glacier_id(i,j)
+             ng = cism_glacier_id_init(i,j)
              if (ng >= 1) then
                 local_volume(ng) = local_volume(ng) + cell_area * dthck_dt(i,j)
              endif
@@ -1538,7 +1542,7 @@ contains
 
     real(dp), dimension(ewn, nsn), intent(in) ::  &
          snow,                     & ! snowfall rate (mm/yr w.e.)
-         Tpos,                     & ! max(artm - Tmlt, 0) (deg C)
+         Tpos,                     & ! max(artm - T_mlt, 0) (deg C)
          dthck_dt                    ! rate of change of ice thickness (m/yr)
 
     real(dp), dimension(ewn, nsn), intent(inout) ::  &
@@ -1573,7 +1577,7 @@ contains
 
     real(dp), dimension(ewn, nsn), intent(inout) ::  &
          snow_accum,               & ! snow (mm/yr w.e.)
-         Tpos_accum,               & ! max(artm - Tmlt, 0) (deg C)
+         Tpos_accum,               & ! max(artm - T_mlt, 0) (deg C)
          dthck_dt_accum              ! rate of change of ice thickness (m/yr)
 
     snow_accum = snow_accum / time_since_last_avg
@@ -1599,7 +1603,7 @@ contains
 
     real(dp), dimension(ewn,nsn), intent(inout) ::  &
          snow_accum,               & ! snow (mm/yr w.e.)
-         Tpos_accum,               & ! max(artm - Tmlt, 0) (deg C)
+         Tpos_accum,               & ! max(artm - T_mlt, 0) (deg C)
          dthck_dt_accum              ! rate of change of ice thickness (m/yr)
 
     ! Reset the accumulated fields to zero
