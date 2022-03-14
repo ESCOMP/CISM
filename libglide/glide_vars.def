@@ -763,7 +763,6 @@ dimensions:    time, y1, x1
 units:         mm/year water equivalent per m
 long_name:     surface mass balance vertical gradient
 data:          data%climate%smb_gradz
-factor:        1.0/thk0
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
 load:          1
 
@@ -790,7 +789,7 @@ dimensions:    time, y1, x1
 units:         m/year ice per m
 long_name:     surface mass balance vertical gradient
 data:          data%climate%acab_gradz
-factor:        scale_acab/thk0
+factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
 load:          1
 
@@ -817,7 +816,6 @@ units:         deg Celsius per m
 long_name:     surface temperature vertical gradient
 data:          data%climate%artm_gradz
 standard_name: land_ice_surface_temperature_vertical_gradient
-factor:        1./thk0
 load:          1
 
 [artm_anomaly]
@@ -828,13 +826,12 @@ data:          data%climate%artm_anomaly
 standard_name: land_ice_surface_temperature_anomaly
 load:          1
 
-[smb_reference_usrf]
+[usrf_ref]
 dimensions:    time, y1, x1
 units:         m
-long_name:     reference upper surface elevation for SMB forcing
-data:          data%climate%smb_reference_usrf
-factor:        thk0
-standard_name: land_ice_specific_surface_mass_balance_reference_elevation
+long_name:     reference upper surface elevation for input forcing
+data:          data%climate%usrf_ref
+standard_name: land_ice_reference_surface_elevation
 load:          1
 
 [smb_3d]
@@ -1616,6 +1613,18 @@ units:         1
 long_name:     RGI glacier ID corresponding to CISM ID
 data:          data%glacier%cism_to_rgi_glacier_id
 load:          1
+
+[snow_accum]
+dimensions:    time, y1, x1
+units:         mm/yr w.e.
+long_name:     annual accumulated snowfall
+data:          data%glacier%snow_accum
+
+[Tpos_accum]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     annual accumulated positive degrees
+data:          data%glacier%Tpos_accum
 
 [glacier_area]
 dimensions:    time, glacierid

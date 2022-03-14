@@ -1780,6 +1780,7 @@ contains
 
     !WHL - debug
     use cism_parallel, only: parallel_reduce_max
+    use glissade_glacier, only : verbose_glacier
 
     implicit none
 
@@ -1859,13 +1860,14 @@ contains
     ! (0) artm(x,y); no dependence on surface elevation
     ! (1) artm(x,y) + d(artm)/dz(x,y) * dz; artm depends on input field at reference elevation, plus vertical correction
     ! (2) artm(x,y,z); artm obtained by linear interpolation between values prescribed at adjacent vertical levels
-    ! For options (1) and (2), the elevation-dependent artm is computed here.
+    ! (3) artm(x,y) adjusted with a uniform lapse rate
+    ! For options (1) - (3), the elevation-dependent artm is computed here.
 
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
 
        ! compute artm by a lapse-rate correction to the reference value
        model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
-            (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%artm_gradz(:,:)
+            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
 
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
 
@@ -1882,7 +1884,22 @@ contains
                                           model%climate%artm,                                &
                                           linear_extrapolate_in = .true.)
 
-       call parallel_halo(model%climate%artm, parallel)
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+
+       ! compute artm by a lapse-rate correction to artm_ref
+       ! T_lapse is defined as positive for T decreasing with height
+       ! Note: This option is currently used for glaciers lapse rate adjustments
+
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) - &
+            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+       if (verbose_glacier .and. this_rank == rtest) then
+          i = itest; j = jtest
+          print*, ' '
+          print*, 'rank, i, j, usrf, usrf_ref, dz:', this_rank, i, j, &
+               model%geometry%usrf(i,j)*thk0, model%climate%usrf_ref(i,j), &
+               model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
+          print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
+       endif
 
     endif   ! artm_input_function
 
@@ -2490,7 +2507,7 @@ contains
 
           ! compute acab by a lapse-rate correction to the reference value
           model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
-               (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%acab_gradz(:,:)
+               (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%acab_gradz(:,:)
 
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
 
@@ -2546,12 +2563,12 @@ contains
 
           if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              write(6,*) ' '
-             write(6,*) 'usrf - smb_ref_elevation'
+             write(6,*) 'usrf - usrf_ref'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') &
-                        (model%geometry%usrf(i,j) - model%climate%smb_reference_usrf(i,j)) * thk0
+                        (model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j))
                 enddo
                 write(6,*) ' '
              enddo
@@ -2678,17 +2695,17 @@ contains
 
           ! Halo updates for snow and artm
           ! (Not sure the artm update is needed; there is one above)
-          call parallel_halo(model%climate%artm, parallel)
           call parallel_halo(model%climate%snow, parallel)
+          call parallel_halo(model%climate%artm, parallel)
 
           call glissade_glacier_smb(&
                ewn,      nsn,                          &
                itest,    jtest,    rtest,              &
                model%glacier%nglacier,                 &
                model%glacier%cism_glacier_id,          &
+               model%glacier%t_mlt,                    &  ! deg C
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%artm,                     &  ! deg C
-               model%glacier%tmlt,                     &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
                model%climate%smb)                         ! mm/yr w.e.
 
@@ -3836,7 +3853,7 @@ contains
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, verbose_inversion
-    use glissade_glacier, only: verbose_glacier, glissade_glacier_inversion
+    use glissade_glacier, only: glissade_glacier_inversion
 
     implicit none
 

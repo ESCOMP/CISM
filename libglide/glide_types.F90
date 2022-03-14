@@ -150,6 +150,7 @@ module glide_types
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: ARTM_INPUT_FUNCTION_XYZ = 2
+  integer, parameter :: ARTM_INPUT_FUNCTION_XY_LAPSE = 3
  
   integer, parameter :: OVERWRITE_ACAB_NONE = 0
   integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
@@ -577,6 +578,7 @@ module glide_types
     !> \item[0] artm(x,y); input as a function of horizontal location only
     !> \item[1] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
     !> \item[2] artm(x,y,z); input artm at multiple elevations
+    !> \item[3] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
     !> \end{description}
 
     logical :: enable_acab_anomaly = .false.
@@ -1390,16 +1392,16 @@ module glide_types
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
 
-     ! Next several fields used for SMB_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_GRADZ
-     ! Note: If both smb and artm are input in this format, they share the array smb_reference_ursf.
-     !       Sign convention is positive up, so artm_gradz is usually negative.
-     real(dp),dimension(:,:),pointer :: acab_ref => null()            !> SMB at reference elevation (m/yr ice)
-     real(dp),dimension(:,:),pointer :: acab_gradz => null()          !> vertical gradient of acab (m/yr ice per m), positive up
-     real(dp),dimension(:,:),pointer :: smb_ref  => null()            !> SMB at reference elevation (mm/yr w.e.)
-     real(dp),dimension(:,:),pointer :: smb_gradz  => null()          !> vertical gradient of SMB (mm/yr w.e. per m), positive up
-     real(dp),dimension(:,:),pointer :: smb_reference_usrf => null()  !> reference upper surface elevation for SMB before lapse rate correction (m)
-     real(dp),dimension(:,:),pointer :: artm_ref => null()            !> artm at reference elevation (deg C)
-     real(dp),dimension(:,:),pointer :: artm_gradz => null()          !> vertical gradient of artm (deg C per m), positive up
+     ! Next several fields used for SMB_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_LAPSE
+     ! Note: If both smb and artm are input in this format, they share the array usrf_ref.
+     !       Sign convention for gradz is positive up, so artm_gradz is usually negative.
+     real(dp),dimension(:,:),pointer :: acab_ref => null()        !> SMB at reference elevation (m/yr ice)
+     real(dp),dimension(:,:),pointer :: acab_gradz => null()      !> vertical gradient of acab (m/yr ice per m), positive up
+     real(dp),dimension(:,:),pointer :: smb_ref  => null()        !> SMB at reference elevation (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: smb_gradz  => null()      !> vertical gradient of SMB (mm/yr w.e. per m), positive up
+     real(dp),dimension(:,:),pointer :: artm_ref => null()        !> artm at reference elevation (deg C)
+     real(dp),dimension(:,:),pointer :: artm_gradz => null()      !> vertical gradient of artm (deg C per m), positive up
+     real(dp),dimension(:,:),pointer :: usrf_ref => null()        !> reference upper surface elevation before lapse rate correction (m)
 
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
      ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
@@ -1418,6 +1420,7 @@ module glide_types
      real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
      real(dp) :: artm_anomaly_timescale = 0.0d0     !> number of years over which the artm anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
+     real(dp) :: t_lapse = 0.0d0                    !> air temp lapse rate (deg/m); positive for T decreasing with height
 
   end type glide_climate
 
@@ -1765,11 +1768,10 @@ module glide_types
      !       These could be added to the derived type.
 
 
-     real(dp) :: tmlt = -2.0d0     !> air temperature (deg C) at which ablation occurs
-                                   !> Maussion et al. suggest -1 C; a lower value extends the ablation zone
-
-     real(dp) :: minthck           !> min ice thickness (m) to be counted as part of a glacier;
-                                   !> currently set based on model%numerics%thklim
+     real(dp) :: t_mlt = -2.0d0     !> air temperature (deg C) at which ablation occurs
+                                    !> Maussion et al. suggest -1 C; a lower value extends the ablation zone
+     real(dp) :: minthck            !> min ice thickness (m) to be counted as part of a glacier;
+                                    !> currently set based on model%numerics%thklim
 
      ! 1D arrays with size nglacier
 
@@ -2846,6 +2848,11 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_accum)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_accum)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
+       !TODO - Delete these is they are allocated with XY_LAPSE logic
+       if (.not.associated(model%climate%usrf_ref)) &
+            call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
+       if (.not.associated(model%climate%artm_ref)) &
+            call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
        !        after reading the input file.  If so, these arrays will be reallocated.
@@ -2894,7 +2901,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%climate%acab_gradz)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_gradz)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
+       if (.not.associated(model%climate%usrf_ref)) &
+            call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%acab_3d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%smb_3d)
@@ -2902,18 +2910,23 @@ contains
     endif
 
     ! Note: Typically, smb_input_function and acab_input_function will have the same value.
-    !       If both use a lapse rate, they will share the array smb_reference_usrf.
+    !       If both use a lapse rate, they will share the array usrf_ref
     !       If both are 3d, they will share the array smb_levels.
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_gradz)
-       if (.not.associated(model%climate%smb_reference_usrf)) then
-          call coordsystem_allocate(model%general%ice_grid, model%climate%smb_reference_usrf)
+       if (.not.associated(model%climate%usrf_ref)) then
+          call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
        endif
     elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%artm_3d)
        if (.not.associated(model%climate%smb_levels)) then
           allocate(model%climate%smb_levels(model%climate%nlev_smb))
+       endif
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
+       if (.not.associated(model%climate%usrf_ref)) then
+          call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
        endif
     endif
 
@@ -3468,8 +3481,8 @@ contains
         deallocate(model%climate%smb_ref)
     if (associated(model%climate%smb_gradz)) &
         deallocate(model%climate%smb_gradz)
-    if (associated(model%climate%smb_reference_usrf)) &
-        deallocate(model%climate%smb_reference_usrf)
+    if (associated(model%climate%usrf_ref)) &
+        deallocate(model%climate%usrf_ref)
     if (associated(model%climate%artm_ref)) &
         deallocate(model%climate%artm_ref)
     if (associated(model%climate%artm_gradz)) &

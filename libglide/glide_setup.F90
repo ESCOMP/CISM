@@ -936,10 +936,11 @@ contains
          'SMB and d(SMB)/dz input as function of (x,y)', &
          'SMB input as function of (x,y,z)            ' /)
 
-    character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
+    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
          'artm and d(artm)/dz input as function of (x,y)', &
-         'artm input as function of (x,y,z)             ' /)
+         'artm input as function of (x,y,z)             ', &
+         'artm input as function of (x,y) w/ lapse rate ' /)
 
     character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
@@ -1566,6 +1567,9 @@ contains
        if (model%climate%nlev_smb < 2) then
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       write(message,*) 'artm lapse rate (deg/m) : ', model%climate%t_lapse
+       call write_log(message)
     endif
 
     if (model%options%enable_acab_anomaly) then
@@ -2005,6 +2009,7 @@ contains
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
+    !TODO - Reorganize parameters into sections based on relevant physics
     !Note: The following physical constants have default values in glimmer_physcon.F90.
     !      Some test cases (e.g., MISMIP) specify different values. The default values
     !       can therefore be overridden by the user in the config file.
@@ -2045,6 +2050,7 @@ contains
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
     ! parameters to adjust external forcing
+    call GetValue(section,'t_lapse',            model%climate%t_lapse)
     call GetValue(section,'acab_factor',        model%climate%acab_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
@@ -2985,7 +2991,7 @@ contains
 
     call GetValue(section,'set_mu_star',    model%glacier%set_mu_star)
     call GetValue(section,'set_powerlaw_c', model%glacier%set_powerlaw_c)
-    call GetValue(section,'tmlt',           model%glacier%tmlt)
+    call GetValue(section,'t_mlt',          model%glacier%t_mlt)
 
   end subroutine handle_glaciers
 
@@ -3020,7 +3026,7 @@ contains
 
        call write_log('Glacier tracking and tuning is enabled')
 
-       write(message,*) 'set_mu_star              : ', model%glacier%set_mu_star, &
+       write(message,*) 'set_mu_star               : ', model%glacier%set_mu_star, &
             glacier_set_mu_star(model%glacier%set_mu_star)
        call write_log(message)
        if (model%glacier%set_mu_star < 0 .or. &
@@ -3028,7 +3034,7 @@ contains
           call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'set_powerlaw_c           : ', model%glacier%set_powerlaw_c, &
+       write(message,*) 'set_powerlaw_c            : ', model%glacier%set_powerlaw_c, &
             glacier_set_powerlaw_c(model%glacier%set_powerlaw_c)
        call write_log(message)
        if (model%glacier%set_powerlaw_c < 0 .or. &
@@ -3036,7 +3042,7 @@ contains
           call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'glacier Tmlt (deg C)     :  ', model%glacier%tmlt
+       write(message,*) 'glacier T_mlt (deg C)     :  ', model%glacier%t_mlt
        call write_log(message)
 
     endif   ! enable_glaciers
@@ -3121,7 +3127,7 @@ contains
              call glide_add_to_restart_variable_list('smb_gradz')
           end select
 
-          call glide_add_to_restart_variable_list('smb_reference_usrf')
+          call glide_add_to_restart_variable_list('usrf_ref')
 
        case(SMB_INPUT_FUNCTION_XYZ)
 
@@ -3137,7 +3143,7 @@ contains
     end select  ! smb_input_function
 
     ! Similarly for surface temperature (artm), based on options%artm_input
-    ! Note: These options share smb_reference_usrf and smb_levels with the SMB options above.
+    ! Note: These options share usrf_ref and smb_levels with the SMB options above.
 
     select case(options%artm_input_function)
 
@@ -3145,9 +3151,9 @@ contains
           call glide_add_to_restart_variable_list('artm_ref')
           call glide_add_to_restart_variable_list('artm_gradz')
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-             ! smb_reference_usrf was added to restart above; nothing to do here
+             ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('smb_reference_usrf')
+             call glide_add_to_restart_variable_list('usrf_ref')
           endif
 
        case(ARTM_INPUT_FUNCTION_XYZ)
@@ -3156,6 +3162,15 @@ contains
              ! smb_levels was added to restart above; nothing to do here
           else
              call glide_add_to_restart_variable_list('smb_levels')
+          endif
+
+       case(ARTM_INPUT_FUNCTION_XY_LAPSE)
+          call glide_add_to_restart_variable_list('artm_ref')
+          ! Note: Instead of artm_gradz, there is a uniform lapse rate
+          if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+             ! usrf_ref was added to restart above; nothing to do here
+          else
+             call glide_add_to_restart_variable_list('usrf_ref')
           endif
 
     end select  ! artm_input_function
