@@ -1790,12 +1790,8 @@ module glide_types
           volume => null(),                 & !> glacier volume (m^3)
           area_target => null(),            & !> glacier area target (m^2) based on observations
           volume_target => null(),          & !> glacier volume target (m^3) based on observations
-          volume_in_init_region => null(),  & !> current volume (m^3) in the region defined by cism_glacier_id_init
-          dvolume_dt => null(),             & !> d(volume)/dt for each glacier (m^3/s)  !TODO - Is this needed?
-          mu_star => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
+          mu_star => null()                   !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg K)
                                               !> defined as positive for ablation
-          powerlaw_c => null()                !> tunable coefficient in basal friction power law (Pa (m/yr)^(-1/3))
-                                              !> copied to basal_physics%powerlaw_c, a 2D array
 
      ! 2D arrays
 
@@ -1807,9 +1803,9 @@ module glide_types
           cism_glacier_id_init => null()      !> cism_glacier_id at start of run
 
      real(dp), dimension(:,:), pointer :: &
+          dthck_dt_accum => null(),         & !> accumulated dthck_dt (m/yr)
           snow_accum => null(),             & !> accumulated snowfall (mm/yr w.e.)
-          Tpos_accum => null(),             & !> accumulated max(artm - Tmlt,0) (deg C)
-          dthck_dt_accum => null()            !> accumulated rate of change of ice thickness (m/yr)
+          Tpos_accum => null()                !> accumulated max(artm - Tmlt,0) (deg C)
 
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
@@ -2844,9 +2840,9 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_accum)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_accum)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_accum)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_accum)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
        !TODO - Delete these is they are allocated with XY_LAPSE logic
        if (.not.associated(model%climate%usrf_ref)) &
@@ -2864,10 +2860,7 @@ contains
        allocate(model%glacier%volume(model%glacier%nglacier))
        allocate(model%glacier%area_target(model%glacier%nglacier))
        allocate(model%glacier%volume_target(model%glacier%nglacier))
-       allocate(model%glacier%volume_in_init_region(model%glacier%nglacier))
-       allocate(model%glacier%dvolume_dt(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
-       allocate(model%glacier%powerlaw_c(model%glacier%nglacier))
     endif
 
     ! inversion and basal physics arrays (Glissade only)
@@ -3290,12 +3283,12 @@ contains
         deallocate(model%glacier%cism_glacier_id_init)
     if (associated(model%glacier%cism_to_rgi_glacier_id)) &
         deallocate(model%glacier%cism_to_rgi_glacier_id)
+    if (associated(model%glacier%dthck_dt_accum)) &
+        deallocate(model%glacier%dthck_dt_accum)
     if (associated(model%glacier%snow_accum)) &
         deallocate(model%glacier%snow_accum)
     if (associated(model%glacier%Tpos_accum)) &
         deallocate(model%glacier%Tpos_accum)
-    if (associated(model%glacier%dthck_dt_accum)) &
-        deallocate(model%glacier%dthck_dt_accum)
     if (associated(model%glacier%area)) &
         deallocate(model%glacier%area)
     if (associated(model%glacier%volume)) &
@@ -3304,14 +3297,8 @@ contains
         deallocate(model%glacier%area_target)
     if (associated(model%glacier%volume_target)) &
         deallocate(model%glacier%volume_target)
-    if (associated(model%glacier%volume_in_init_region)) &
-        deallocate(model%glacier%volume_in_init_region)
-    if (associated(model%glacier%dvolume_dt)) &
-        deallocate(model%glacier%dvolume_dt)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
-    if (associated(model%glacier%powerlaw_c)) &
-        deallocate(model%glacier%powerlaw_c)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &

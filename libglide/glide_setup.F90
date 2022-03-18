@@ -1567,9 +1567,6 @@ contains
        if (model%climate%nlev_smb < 2) then
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
-    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-       write(message,*) 'artm lapse rate (deg/m) : ', model%climate%t_lapse
-       call write_log(message)
     endif
 
     if (model%options%enable_acab_anomaly) then
@@ -2721,6 +2718,12 @@ contains
        call write_log(message)
     endif
 
+    ! lapse rate
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       write(message,*) 'artm lapse rate (deg/m) : ', model%climate%t_lapse
+       call write_log(message)
+    endif
+
     if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
        write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
        call write_log(message)
@@ -3500,14 +3503,20 @@ contains
        call glide_add_to_restart_variable_list('cism_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id_init')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
-       ! Save the arrays used to find the SMB and basal friction
-       !TODO: Not sure that area_target and volume_target are needed.
-       !      These could be computed based on cism_glacier_id_init and thck_obs.
-       call glide_add_to_restart_variable_list('glacier_area_target')
+       ! Save some arrays used to find the SMB and basal friction
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          call glide_add_to_restart_variable_list('usrf_obs')
+          call glide_add_to_restart_variable_list('powerlaw_c')
+       elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
+          call glide_add_to_restart_variable_list('powerlaw_c')
+       endif
+       !TODO: Are area_target and volume_target needed?
+       !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_target')
-       ! Not sure that mu_star is needed (if computed based on SMB = 0 over init area)
-       call glide_add_to_restart_variable_list('glacier_mu_star')
-       call glide_add_to_restart_variable_list('glacier_powerlaw_c')
+       call glide_add_to_restart_variable_list('glacier_area_target')
+       ! mu_star is needed only if relaxing toward the desired value;
+       !  not needed if computed based on SMB = 0 over the target area
+!!       call glide_add_to_restart_variable_list('glacier_mu_star')
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.

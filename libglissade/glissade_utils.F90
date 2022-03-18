@@ -39,7 +39,8 @@ module glissade_utils
 
   private
   public :: glissade_adjust_thickness, glissade_smooth_usrf, &
-       glissade_smooth_topography, glissade_adjust_topography
+       glissade_smooth_topography, glissade_adjust_topography, &
+       glissade_usrf_to_thck, glissade_thck_to_usrf
   public :: glissade_stdev, verbose_stdev
 
   logical, parameter :: verbose_stdev = .true.
@@ -899,6 +900,76 @@ contains
 
   end subroutine glissade_stdev
 
+!***********************************************************************
+
+  subroutine glissade_usrf_to_thck(usrf, topg, eus, thck)
+
+    ! Given the bed topography and upper ice surface elevation, compute the ice thickness.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
+    !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
+    !  rhoi*H = -rhoo*(topg-eus).
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         usrf,           & ! ice upper surface elevation
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         thck              ! ice thickness
+
+    ! initialize
+    thck(:,:) = 0.0d0
+
+    where (usrf > (topg - eus))   ! ice is present, thck > 0
+       where (topg - eus < 0.0d0)   ! marine-based ice
+          where ((topg - eus) * (1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - (topg - eus)
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - (topg - eus)
+       endwhere
+    endwhere
+
+  end subroutine glissade_usrf_to_thck
+
+!***********************************************************************
+
+  subroutine glissade_thck_to_usrf(thck, topg, eus, usrf)
+
+    ! Given the bed topography and ice thickness, compute the upper surface elevation.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the ice is too thin to be grounded,
+    !  then the upper surface is chosen to satisfy rhoi*H = rhoo*(H - usrf),
+    !  or equivalently usrf = (1 - rhoi/rhoo)*H.
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         thck,           & ! ice thickness
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         usrf              ! ice upper surface elevation
+
+    where ((topg - eus) < -(rhoi/rhoo)*thck)
+       usrf = (1.0d0 - rhoi/rhoo)*thck   ! ice is floating
+    elsewhere   ! ice is grounded
+       usrf = (topg - eus) + thck
+    endwhere
+
+  end subroutine glissade_thck_to_usrf
 
 !TODO - Other utility subroutines to add here?
 !       E.g., tridiag; calclsrf; subroutines to zero out tracers

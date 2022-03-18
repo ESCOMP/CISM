@@ -524,7 +524,24 @@ contains
     !  computes a few remaining variable.
 
     if (model%options%enable_glaciers) then
+
+       !WHL - debug
+       ! Glaciers are run with a no-ice BC to allow removal of inactive regions.
+       ! This can be problematic when running in a sub-region that has glaciers along the global boundary.
+       ! A halo update here for 'thck' will remove ice from cells along the global boundary.
+       ! It is best to do this before initializing glaciers, so that ice that initially exists
+       !  in these cells is removed before computing the area and thickness targets.
+       !TODO - These calls are repeated a few lines below.  Try moving them up, before the call
+       !       to glissade_glacier_init.  I don't think it's possible to move the glissade_glacier_init call
+       !       down, because we need to compute nglacier before setting up output files.
+
+       call parallel_halo(model%geometry%thck, parallel)
+       ! calculate the lower and upper ice surface
+       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
        call glissade_glacier_init(model, model%glacier)
+
     endif
 
     ! open all output files
@@ -557,7 +574,7 @@ contains
     !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
     !       Similarly, for no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
     !        but we do not want to zero out the topography.
-    ! Note: For periodic BCs, there is an optional aargument periodic_offset_ew for topg.
+    ! Note: For periodic BCs, there is an optional argument periodic_offset_ew for topg.
     !       This is for ismip-hom experiments. A positive EW offset means that
     !        the topography in west halo cells will be raised, and the topography
     !        in east halo cells will be lowered.  This ensures that the topography
