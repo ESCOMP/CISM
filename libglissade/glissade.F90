@@ -167,9 +167,9 @@ contains
     real(dp), dimension(:,:), allocatable :: topg_global, topg_stdev_global
     integer, parameter :: grid_ratio = 8   ! ratio between no. of grid cells on the input grid and
                                            ! the grid on which we want to compute topg_stdev; typically 2, 4, or 8
-
+#ifdef DEBUG
     if (main_task) print*, 'In glissade_initialise'
-
+#endif
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
     else
@@ -868,6 +868,7 @@ contains
        endif
 
        !WHL - debug
+#ifdef DEBUG
        if (this_rank == rtest) then
           i = itest
           j = jtest
@@ -889,7 +890,7 @@ contains
              write(6,*) ' '
           enddo
        endif
-
+#endif
     endif   ! force_retreat
 
     !TODO - Move to an init_calving subroutine
@@ -1011,9 +1012,9 @@ contains
     deallocate(floating_mask)
     deallocate(land_mask)
     deallocate(ocean_mask)
-
+#ifdef DEBUG
     if (main_task) print*, 'Done in glissade_initialise'
-
+#endif
   end subroutine glissade_initialise
   
 !=======================================================================
