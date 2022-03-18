@@ -1138,8 +1138,6 @@ contains
        write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)', ng
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       call write_log(' ')
-
        write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
             model%glacier%area(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -1158,10 +1156,6 @@ contains
 
        write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
             model%glacier%mu_star(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'powerlaw_c (Pa (m/yr)^{-1/3})      ', &
-            model%glacier%powerlaw_c(ng)
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        call write_log(' ')
