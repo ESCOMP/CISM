@@ -29,6 +29,7 @@ c                 handling package', sand82-0800, sandia laboratories,
 c                 1982.
 c***routines called  (none)
 c***end prologue  xerabt
+      character*(*) messg
       dimension messg(nmessg)
 c***first executable statement  xerabt
       stop 1
