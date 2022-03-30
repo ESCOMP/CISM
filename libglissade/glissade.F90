@@ -2905,14 +2905,17 @@ contains
 
        !-------------------------------------------------------------------------
        ! If running with glaciers, then adjust glacier indices based on advance and retreat.
+       ! Call once per year.
        ! Note: This subroutine limits the ice thickness in grid cells that do not yet have
-       !       a nonzero cism_glacier_id.  The acab_applied field is adjusted accordingly.
-       ! Note: It would probably be OK to call this subroutine annually instead of every step.
-       !       In that case, we might want to separate the special glacier acab adjustment
-       !       from the rest of acab_applied.
+       !       a nonzero cism_glacier_id.  The acab_applied field is adjusted accordingly,
+       !       which means that acab_applied will be more negative during timesteps
+       !       when this subroutine is called.
+       ! TODO: To make acab_applied more uniform on subannual time scales, create a new flux
+       !       (e.g., correction_flux) for artificial thickness changes, distinct from SMB, BMB and calving.
        !-------------------------------------------------------------------------
 
-       if (model%options%enable_glaciers) then
+       if (model%options%enable_glaciers .and. &
+          mod(model%numerics%tstep_count, model%numerics%nsteps_per_year) == 0) then
 
           call glissade_glacier_advance_retreat(&
                ewn,             nsn,                &
@@ -2927,9 +2930,6 @@ contains
                parallel)
 
        endif   ! enable_glaciers
-
-       !WHL - debug
-       call parallel_halo(thck_unscaled, parallel)
 
        !-------------------------------------------------------------------------
        ! Cleanup
