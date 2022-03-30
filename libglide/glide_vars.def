@@ -1641,17 +1641,23 @@ long_name:     RGI glacier ID corresponding to CISM ID
 data:          data%glacier%cism_to_rgi_glacier_id
 load:          1
 
-[snow_accum]
+[glacier_snow_accum]
 dimensions:    time, y1, x1
 units:         mm/yr w.e.
 long_name:     annual accumulated snowfall
 data:          data%glacier%snow_accum
 
-[Tpos_accum]
+[glacier_Tpos_accum]
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     annual accumulated positive degrees
 data:          data%glacier%Tpos_accum
+
+[glacier_mu_star_2d]
+dimensions:    time, y1, x1
+units:         mm w.e./yr/deg
+long_name:     glacier SMB coefficient in 2D
+data:          data%glacier%mu_star_2d
 
 [glacier_area]
 dimensions:    time, glacierid
