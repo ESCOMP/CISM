@@ -696,7 +696,7 @@ contains
          usrf_max,             & ! highest elevation (m) in a neighbor cell
          dthck                   ! ice thickness loss (m)
 
-    integer :: i, j, ii, jj, ip, jp
+    integer :: i, j, ii, jj, ip, jp, ipmax, jpmax
     integer :: iglobal, jglobal
     integer :: ng
 
@@ -755,25 +755,27 @@ contains
                               thck(ip,jp) > glacier_minthck) then
                             if (usrf(ip,jp) > usrf_max) then
                                usrf_max = usrf(ip,jp)
-                               cism_glacier_id(i,j) = cism_glacier_id(ip,jp)
-                               !WHL - debug
-                               if (verbose_glacier .and. this_rank == rtest) then
-                                  call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                                  print*, 'Set ID = neighbor ID, ig, jg, new ID, thck =', &
-                                       iglobal, jglobal, cism_glacier_id(i,j), thck(i,j)
-                               endif
+                               ipmax = ip; jpmax = jp
                             endif
                          endif
-                      endif
-                   enddo  ! ii
+                      endif   ! neighbor cell
+                   enddo   ! ii
                 enddo   ! jj
+                if (usrf_max > 0.0d0) then
+                   cism_glacier_id(i,j) = cism_glacier_id(ipmax,jpmax)
+                   if (verbose_glacier .and. this_rank == rtest) then
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, 'Set ID = neighbor ID, ig, jg, new ID, thck =', &
+                           iglobal, jglobal, cism_glacier_id(i,j), thck(i,j)
+                   endif
+                endif   ! usrf_max > 0
              endif   ! cism_glacier_id_init > 0
 
              ! If the cell still has cism_glacier_id = 0 and H > glacier_minthck,
              !  then cap the thickness at glacier_minthck.
              ! Note: The ice removed is used to increment acab_applied, the ice SMB in m/s.
-             !       Thus, the total SMB flux will generally be more negative during time steps
-             !        when this subroutine is solved.
+             !       Thus, the total SMB flux can be more negative during time steps
+             !        when this subroutine is called.
              if (cism_glacier_id(i,j) == 0 .and. thck(i,j) > glacier_minthck) then
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
@@ -844,8 +846,8 @@ contains
 
     type(parallel_type) :: parallel ! info for parallel communication
 
-    real(dp), save ::  &            ! time since the last averaging computation;
-         time_since_last_avg = 0.0d0  ! set to 1 yr for now
+    real(dp), save ::  &              ! time since the last averaging computation;
+         time_since_last_avg = 0.0d0  ! compute the average once a year
 
     real(dp) :: smb_annmean         ! annual mean SMB for a given cell
 
@@ -889,6 +891,17 @@ contains
     dthck_dt = model%geometry%dthck_dt * scyr   ! m/s to m/yr
 
     ! Accumulate the 2D fields used for mu_star inversion: snow and Tpos
+
+    if (time_since_last_avg == 0.0d0) then ! start of new averaging period
+
+       ! Reset the accumulated fields to zero
+       call reset_glacier_fields(&
+            ewn,           nsn,    &
+            glacier%snow_accum,    &
+            glacier%Tpos_accum,    &
+            glacier%dthck_dt_accum)
+
+    endif
 
     Tpos(:,:) = max(model%climate%artm(:,:) - glacier%t_mlt, 0.0d0)
 
@@ -987,11 +1000,11 @@ contains
           else   ! standard scheme based on setting SMB = 0 over the target area
 
              call glacier_invert_mu_star(&
-                  ewn,                 nsn,                   &
-                  nglacier,            ngdiag,                &
-                  glacier%snow_accum,  glacier%Tpos_accum,    &
-                  glacier%cism_glacier_id_init,               &
-                  glacier%mu_star)
+                  ewn,                     nsn,                          &
+                  nglacier,                ngdiag,                       &
+                  glacier%snow_accum,      glacier%Tpos_accum,           &
+                  glacier%cism_glacier_id, glacier%cism_glacier_id_init, &
+                  glacier%mu_star,         glacier%mu_star_2d)
 
           endif
 
@@ -1081,14 +1094,6 @@ contains
 
        endif   ! powerlaw_c_inversion
 
-       ! Reset the accumulated fields
-
-       call reset_glacier_fields(&
-            ewn,           nsn,    &
-            glacier%snow_accum,    &
-            glacier%Tpos_accum,    &
-            glacier%dthck_dt_accum)
-
     endif   ! time to do inversion
 
   end subroutine glissade_glacier_inversion
@@ -1096,11 +1101,11 @@ contains
 !****************************************************
 
   subroutine glacier_invert_mu_star(&
-       ewn,              nsn,               &
-       nglacier,         ngdiag,            &
-       snow_accum,       Tpos_accum,        &
-       cism_glacier_id_init,                &
-       mu_star)
+       ewn,              nsn,                   &
+       nglacier,         ngdiag,                &
+       snow_accum,       Tpos_accum,            &
+       cism_glacier_id,  cism_glacier_id_init,  &
+       mu_star,          mu_star_2d)
 
     ! Given the current glacier areas and area targets,
     ! invert for the parameter mu_star in the glacier SMB formula
@@ -1110,21 +1115,25 @@ contains
     ! input/output arguments
 
     integer, intent(in) ::  &
-         ewn, nsn,                 & ! number of cells in each horizontal direction
-         nglacier,                 & ! total number of glaciers in the domain
-         ngdiag                      ! CISM ID of diagnostic glacier
+         ewn, nsn,                    & ! number of cells in each horizontal direction
+         nglacier,                    & ! total number of glaciers in the domain
+         ngdiag                         ! CISM ID of diagnostic glacier
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
          snow_accum,                  & ! time-avg snowfall for each cell (mm/yr w.e.)
          Tpos_accum                     ! time-avg of max(artm - T_mlt) for each cell (deg)
 
     integer, dimension(ewn,nsn), intent(in) :: &
+         cism_glacier_id,             & ! CISM integer ID for each grid cell
          cism_glacier_id_init           ! cism_glacier_id at the start of the run
 
     ! Note: Here, mu_star_glacier(nglacier) is the value shared by all cells in a given glacier
     ! The calling subroutine will need to map these values onto each grid cell.
     real(dp), dimension(nglacier), intent(inout) :: &
          mu_star                        ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
+
+    real(dp), dimension(ewn,nsn), intent(out) :: &
+         mu_star_2d                     ! glacier-specific SMB mapped to the 2D grid
 
     ! local variables
     integer :: i, j, ng
@@ -1218,6 +1227,19 @@ contains
        endif
 
     enddo   ! ng
+
+    ! Map mu_star to the 2D grid
+
+    mu_star_2d(:,:) = 0.0d0
+    ! Loop over local cells
+    do j = nhalo+1, nsn-nhalo
+       do i = nhalo+1, ewn-nhalo
+          ng = cism_glacier_id(i,j)
+          if (ng > 0) then
+             mu_star_2d(i,j) = mu_star(ng)
+          endif
+       enddo   ! i
+    enddo   ! j
 
   end subroutine glacier_invert_mu_star
 
