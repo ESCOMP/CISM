@@ -10,7 +10,7 @@
 import sys, os
 import fileinput
 from optparse import OptionParser
-from ConfigParser import ConfigParser
+import configparser
 from netCDF4 import Dataset
 
 
@@ -29,28 +29,28 @@ options, args = optparser.parse_args()
 
 if options.experiment == 'Spinup':
     experiments = ['Spinup']
-    print 'Run the MISMIP+ Spinup experiment'
+    print( 'Run the MISMIP+ Spinup experiment')
 elif options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice1rax', 'Ice1rrx', 'Ice2rax', 'Ice2rrx']
-    print 'Run all the MISMIP+ experiments, including Spinup'
+    print( 'Run all the MISMIP+ experiments, including Spinup')
 elif options.experiment == 'allIce':
     experiments = ['Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice1rax', 'Ice1rrx', 'Ice2rax', 'Ice2rrx']
-    print 'Run all the MISMIP+ experiments, excluding Spinup'
+    print( 'Run all the MISMIP+ experiments, excluding Spinup')
 elif options.experiment == 'Ice1':
     experiments = ['Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx']
-    print 'Run the MISMIP+ Ice1 experiments'
+    print( 'Run the MISMIP+ Ice1 experiments')
 elif options.experiment == 'Ice2':
     experiments = ['Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
-    print 'Run the MISMIP+ Ice2 experiments'
+    print( 'Run the MISMIP+ Ice2 experiments')
 elif options.experiment in ['Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']:
     experiments = [options.experiment]
-    print 'Run experiment', options.experiment
+    print( 'Run experiment', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: Spinup, allIce, Ice1, Ice2, Spinup, Ice0, Ice1r, Ice1ra, Ice1rr, Ice1rax, Ice1rrx, Ice2r, Ice2ra, Ice2rr, Ice2rax, Ice2rrx')
 
 # Loop through experiments.
 for expt in experiments:
-    print 'Running experiment', expt
+    print( 'Running experiment', expt)
 
     # Change to directory for this experiment.
     os.chdir(expt)
@@ -62,7 +62,10 @@ for expt in experiments:
     # (Except for Spinup, the input file is a restart file from a previous run.)
 
     # Read the config file.
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config.read(configfile)
 
     if expt != 'Spinup':
@@ -71,9 +74,9 @@ for expt in experiments:
         inputfile = config.get('CF input', 'name')
         infile    = Dataset(inputfile,'r+')
         ntime     = len(infile.dimensions['time'])
-        config.set('CF input', 'time', ntime)
-        print 'input file =', inputfile
-        print 'time slice =', ntime
+        config.set('CF input', 'time', str(ntime))
+        print( 'input file =', inputfile)
+        print( 'time slice =', ntime)
         
         # Before starting each test suite experiment, we need to make sure
         # the Spinup restart file internal_time last entry is shifted to 0.
@@ -81,7 +84,7 @@ for expt in experiments:
             lastentry = infile['internal_time'][-1]
             if lastentry != 0:
                 infile['internal_time'][:] = infile['internal_time'][:] - lastentry
-                print 'the new internal_time array is ', infile['internal_time'][:]
+                print( 'the new internal_time array is ', infile['internal_time'][:])
 
         infile.close()
 
@@ -114,23 +117,23 @@ for expt in experiments:
             pass
         elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
             # The run for this A value is not done and needs to continue.
-            print 'Continuing experiment from restart.'
+            print( 'Continuing experiment from restart.')
         
             # Make sure restart is set to 1 in config file.
-            config.set('options', 'restart', 1)
+            config.set('options', 'restart', '1')
         
             # Write to config file.
             with open(configfile, 'w') as newconfigfile:
                 config.write(newconfigfile)
 
         else:
-            print 'There is nothing to restart from, executing from the beginning.'
+            print( 'There is nothing to restart from, executing from the beginning.')
 
 
 
     # Run CISM.
 
-    print 'parallel =', options.parallel
+    print( 'parallel =', options.parallel)
 
     if options.parallel == None:
         # Perform a serial run.
@@ -143,6 +146,8 @@ for expt in experiments:
             # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure.
             if os.system('which openmpirun > /dev/null') == 0:
                 mpiexec = 'openmpirun -np ' + str(options.parallel)
+            elif os.system('which mpiexec > /dev/null') == 0:
+                mpiexec = 'mpiexec -np ' + str(options.parallel)
             elif os.system('which mpirun > /dev/null') == 0:
                 mpiexec = 'mpirun -np ' + str(options.parallel)
             elif os.system('which aprun > /dev/null') == 0:
@@ -154,12 +159,12 @@ for expt in experiments:
                 sys.exit('Unable to execute parallel run.  Please edit the script to use your MPI run command, or run manually with something like: mpirun -np 4 ./cism_driver mismip+Init.config')
 
             runstring = mpiexec + ' ' + options.executable + ' ' + configfile
-            print 'Executing parallel run with:  ' + runstring + '\n\n'
+            print( 'Executing parallel run with:  ' + runstring + '\n\n')
 
             # Here is where the parallel run is actually executed!
             os.system(runstring)
 
-    print 'Finished experiment', expt
+    print( 'Finished experiment', expt)
 
     # Change to parent directory and continue.
     os.chdir('..')

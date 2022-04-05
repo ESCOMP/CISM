@@ -13,7 +13,7 @@ import numpy as np
 
 from optparse import OptionParser
 from netCDF4 import Dataset
-from ConfigParser import ConfigParser
+import configparser
 
 
 
@@ -107,7 +107,7 @@ AstatusRetreatPoly = ['retreat','retreat','retreat',
 
 def launchCism(executable, configfile, parallel):
     # Run CISM (only if no job script is being created and/or run).
-    print 'parallel =', parallel
+    print( 'parallel =', parallel)
     
     if parallel == None:
         # Perform a serial run.
@@ -131,7 +131,7 @@ def launchCism(executable, configfile, parallel):
                 sys.exit('Unable to execute parallel run.  Please edit the script to use your MPI run command, or run manually with something like: mpirun -np 4 ./cism_driver mismip3dInit.config')
         
             runstring = mpiexec + ' ' + executable + ' ' + configfile
-            print 'Executing parallel run with:  ' + runstring + '\n\n'
+            print( 'Executing parallel run with:  ' + runstring + '\n\n')
             
             # Here is where the parallel run is actually executed!
             os.system(runstring)
@@ -180,15 +180,15 @@ else:
 if options.experiment == 'all':
     experiments = As
     Astat       = Astatus
-    print 'Running all the MISMIP experiments'
+    print( 'Running all the MISMIP experiments')
 elif options.experiment == 'advance':
     experiments = AsAdvance
     Astat       = AstatusAdvance
-    print 'Running advance experiments'
+    print( 'Running advance experiments')
 elif options.experiment == 'retreat':
     experiments = AsRetreat
     Astat       = AstatusRetreat
-    print 'Running retreat experiments'
+    print( 'Running retreat experiments')
 elif options.experiment in As:
     # In this case there might be 2 possibilities, advance or retreat.
     experiments = [options.experiment]
@@ -197,7 +197,7 @@ elif options.experiment in As:
     else:
         Astat = ['advance']
     
-    print 'Running experiment ', options.experiment
+    print( 'Running experiment ', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: all, advance, retreat or a single value from Pattyn et al.2012.')
 
@@ -219,14 +219,17 @@ for expt in experiments:
 
     # Change to A value directory.
     os.chdir(expt)
-    print 'changed directory to ', stat+'/'+expt
+    print( 'changed directory to ', stat+'/'+expt)
 
     # Name of the restart pointer file.
     restartPointer = 'mismip_' + expt + '.pointer'
 
     # Read information from config file.
     configfile = 'mismip_' + expt + '.config'
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config.read(configfile)
     
     inputFile   = config.get('CF input',   'name')
@@ -257,10 +260,10 @@ for expt in experiments:
         pass
     elif (lastTimeEntry < endTime) and (sizeTimeOutput > 1):
         # The run for this A value is not done and needs to continue.
-        print 'Continuing experiment from restart.'
+        print( 'Continuing experiment from restart.')
 
         # Make sure restart is set to 1 in config file.
-        config.set('options', 'restart', 1)
+        config.set('options', 'restart', '1')
 
         # Write to config file.
         with open(configfile, 'w') as newconfigfile:
@@ -274,29 +277,29 @@ for expt in experiments:
         lastTimeEntry = outputData['time'][-1]
         outputData.close()
         if (lastTimeEntry >= (endTime - buffer)):
-            print 'Finished experiment', expt
+            print( 'Finished experiment', expt)
         else:
-            print 'Experiment interrupted.'
+            print( 'Experiment interrupted.')
             sys.exit('Terminating the run.')
                 
     else:
         # Start the experiment from time = 0.
         if (expt == As[0]) and (stat=='advance'):
-            print 'First A-value, beginning from initial setup.'
+            print( 'First A-value, beginning from initial setup.')
         else:
-            print 'Restarting from previous A-value restart file.'
+            print( 'Restarting from previous A-value restart file.')
 
             inputData          = Dataset(inputFile,'r+')
             lastEntryInternal  = inputData['internal_time'][-1]
             inputslice = 1
             if lastentry != 0:
                 inputData['internal_time'][:] = inputData['internal_time'][:] - lastEntryInternal
-                print 'the new internal_time array is ', inputData['internal_time'][:]
+                print( 'the new internal_time array is ', inputData['internal_time'][:])
 
             inputData.close()
                  
             # Set config file.
-            config.set('CF input', 'time', inputslice)
+            config.set('CF input', 'time', str(inputslice))
 
 
         # launch CISM.
@@ -307,9 +310,9 @@ for expt in experiments:
         lastTimeEntry = outputData['time'][-1]
         outputData.close()
         if (lastTimeEntry >= (endTime - buffer)):
-            print 'Finished experiment', expt
+            print( 'Finished experiment', expt)
         else:
-            print 'Experiment interrupted.'
+            print( 'Experiment interrupted.')
             sys.exit('Terminating the run.')
 
 

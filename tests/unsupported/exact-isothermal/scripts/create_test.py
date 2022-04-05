@@ -23,7 +23,7 @@ if __name__ == '__main__':
         parser.error("no output file name given")
 
     # ice sheet
-    print options.massbalance,options.flow_law_exponent,options.margin_radius
+    print( options.massbalance,options.flow_law_exponent,options.margin_radius)
     ism = exact_is.ModelAE(options.massbalance,options.flow_law_exponent,options.margin_radius)
 
     # creating output netCDF file

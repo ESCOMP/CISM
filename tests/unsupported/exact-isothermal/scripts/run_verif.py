@@ -151,7 +151,7 @@ if __name__ == '__main__':
         configname = create_config(exp,solver,dx,dt,args[0])
 
     if options.only_configure:
-        print 'Create configuration file %s.config'%base_name
+        print( 'Create configuration file %s.config'%base_name)
         sys.exit(0)
 
     prefix = os.path.abspath(os.path.dirname(sys.argv[0]))
@@ -182,6 +182,6 @@ if __name__ == '__main__':
 #            sys.stderr.write("glide model %s was terminated by signal %d\n"%(model,-retcode))
 #    except OSError, e:
 #        sys.stderr.write("Execution failed: %s\n"%e)
-    print os.popen(prog,'r').read()
+    print( os.popen(prog,'r').read())
 
 
