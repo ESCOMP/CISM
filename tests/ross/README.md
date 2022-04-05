@@ -1,6 +1,8 @@
 Ross Ice Shelf Experiment
 =========================
 
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+
 This experiment was designed to model the Ross Ice Shelf off Antarctica.  For
 information about the experiment and its results see:
 <http://homepages.vub.ac.be/~phuybrec/eismint/iceshelf.html>

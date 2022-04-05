@@ -9,7 +9,7 @@ import shutil
 import fileinput
 import numpy as np
 from optparse import OptionParser
-from ConfigParser import ConfigParser
+import configparser 
 from netCDF4 import Dataset
 
 
@@ -48,7 +48,7 @@ def replace_string(file, oldString, newString):
         if (not stringFound) and (oldString in line):
             line = line.replace(oldString, newString)
             stringFound = True
-            print line,
+            print( line,)
         else:
             print line,
 
@@ -76,22 +76,22 @@ options, args = optparser.parse_args()
 
 if options.experiment == 'all':
     experiments = ['Stnd', 'P75S', 'P75R']
-    print 'Run all the MISMIP3d experiments'
+    print( 'Run all the MISMIP3d experiments')
 elif options.experiment == 'allP75':
     experiments = ['P75S', 'P75R']
-    print 'Run all the MISMIP3d P75 (S) and (R) experiments'
+    print( 'Run all the MISMIP3d P75 (S) and (R) experiments')
 elif options.experiment in ['Stnd', 'P75S', 'P75R']:
     experiments = [options.experiment]
-    print 'Run experiment', options.experiment
+    print( 'Run experiment', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: Stnd, P75S, P75R')
 
 
 if (options.jobsubmit) and (not options.jobscript):
-    print 'You are trying to submit a batch job without the job option. No job will be submitted.'
+    print( 'You are trying to submit a batch job without the job option. No job will be submitted.')
 
 if (options.parallel is not None) and (options.jobscript):
-    print 'The number of processors will not be taken into account as you will be submitting a batch job script.'
+    print( 'The number of processors will not be taken into account as you will be submitting a batch job script.')
 
 restart = 0  # constant meant to keep track of restart status.
 
@@ -100,11 +100,14 @@ for expt in experiments:
 
     # Change to directory for this experiment.
     os.chdir(expt)
-    print 'Changed directory to ', expt
+    print( 'Changed directory to ', expt)
 
     # Set and open config file for reading.
     configfile = 'mismip3d' + expt + '.config'
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None))
     config.read(configfile)
 
     inputFile   = config.get('CF input',   'name')
@@ -143,7 +146,7 @@ for expt in experiments:
             config.write(newconfigfile)
     
     else:
-        print 'there is nothing to restart from, executing from the beginning'
+        print( 'there is nothing to restart from, executing from the beginning')
 
 
     # Make sure we are starting from the final time slice of the input file,
@@ -163,8 +166,8 @@ for expt in experiments:
         infile = Dataset(inputfile,'r')
         ntime = len(infile.dimensions['time']) # reading the last time slice of the previous experiment
         config.set('CF input', 'time', ntime)
-        print 'input file =', inputfile
-        print 'time slice =', ntime
+        print( 'input file =', inputfile)
+        print( 'time slice =', ntime)
        
         infile.close()
 
@@ -178,7 +181,7 @@ for expt in experiments:
             f_ground  = infileOut.variables['f_ground'][:,:,:]
             infileOut.close()
 
-            print 'opening inputfile ',inputfile
+            print( 'opening inputfile ',inputfile)
             infile = Dataset(inputfile,'r+')
             nx = len(infile.dimensions['x0'])
             ny = len(infile.dimensions['y0'])
@@ -186,7 +189,7 @@ for expt in experiments:
             y0 = infile.variables['y0'][:]
 
             ycenter = int(ny/2)
-            print 'ycenter=',ycenter
+            print( 'ycenter=',ycenter)
                 
             for i in range(1,nx-1):
                 if (f_ground[ntimeout-1,ycenter,i] > 0) and (f_ground[ntimeout-1,ycenter,i+1] == 0):
@@ -194,7 +197,7 @@ for expt in experiments:
                      print 'grounding line at ycenter =', xGL
         
             # We now write C_space factor to the file.
-            print 'writing peturbation to C_space_factor'
+            print( 'writing peturbation to C_space_factor')
             for i in range(nx):
                 for j in range(ny):
                      infile.variables['C_space_factor'][-1,j,i] = computeBasalPerturbation(x0[i]/1000,y0[j]/1000,xGL/1000)
@@ -203,7 +206,7 @@ for expt in experiments:
             lastentry = infile['internal_time'][-1]
             if lastentry != 0:
                 infile['internal_time'][:] = infile['internal_time'][:] - lastentry
-                print 'the new internal_time array is ', infile['internal_time'][:]
+                print( 'the new internal_time array is ', infile['internal_time'][:])
             
             infile.close()
 
@@ -211,13 +214,13 @@ for expt in experiments:
         # We need to reset C_space_factor to 1 and internal_time to 0.
         if (expt == 'P75R') and (restart==0):
              infile = Dataset(inputfile,'r+')
-             print 'opening inputfile ',inputfile
+             print( 'opening inputfile ',inputfile)
              infile.variables['C_space_factor'][:,:,:] = 1
 
              lastentry = infile['internal_time'][-1]
              if lastentry != 0:
                  infile['internal_time'][:] = infile['internal_time'][:] - lastentry
-                 print 'the new internal_time array is ', infile['internal_time'][:]
+                 print( 'the new internal_time array is ', infile['internal_time'][:])
 
              infile.close()
         
@@ -240,7 +243,7 @@ for expt in experiments:
         except:
             sys.exit('Could not copy ' +  templateJobScriptFile)
     
-        print 'Created master job submission script ', newJobScriptFile, ' for experiment ', expt
+        print( 'Created master job submission script ', newJobScriptFile, ' for experiment ', expt)
 
 
         # Modifying the walltime and computing power based on resolution (and Bill's experience).
@@ -309,7 +312,7 @@ for expt in experiments:
             linecheck = HPCpowerLook
             replace_string(newJobScriptFile, HPCpowerLook, HPCpowerReplace)
         except:
-            print 'this line does not exist: ', linecheck
+            print( 'this line does not exist: ', linecheck)
             
         # Modifying the executable line based on config file name.
         execlineLook    = 'mpiexec_mpt ./cism_driver mismip3d.config'
@@ -317,13 +320,13 @@ for expt in experiments:
         try:
             replace_string(newJobScriptFile, execlineLook, execlineReplace)
         except:
-            print 'this line does not exist: ', execlineLook
+            print( 'this line does not exist: ', execlineLook)
 
         if options.jobsubmit:
             # Submitting the job.
             try:
                 submitscriptstring = 'qsub' + ' ' + newJobScriptFile
-                print 'submitting the batch job script '
+                print( 'submitting the batch job script ')
                 os.system(submitscriptstring)
             except:
                 sys.exit('Could not submit job. Check if you are running this script on HPC Cheyenne.')
@@ -337,7 +340,7 @@ for expt in experiments:
 
     # Run CISM (only if no job script is being created and/or run).
 
-    print 'parallel =', options.parallel
+    print( 'parallel =', options.parallel)
 
     if options.parallel == None:
         # Perform a serial run.
@@ -361,12 +364,12 @@ for expt in experiments:
                 sys.exit('Unable to execute parallel run.  Please edit the script to use your MPI run command, or run manually with something like: mpirun -np 4 ./cism_driver mismip3dInit.config')
 
             runstring = mpiexec + ' ' + options.executable + ' ' + configfile
-            print 'Executing parallel run with:  ' + runstring + '\n\n'
+            print( 'Executing parallel run with:  ' + runstring + '\n\n')
 
             # Here is where the parallel run is actually executed.
             os.system(runstring)
 
-    print 'Finished experiment', expt
+    print( 'Finished experiment', expt)
 
     # Change to parent directory and continue.
     os.chdir('..')

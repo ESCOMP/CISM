@@ -9,7 +9,7 @@ import shutil
 import fileinput
 import numpy as np
 from netCDF4 import Dataset
-from ConfigParser import ConfigParser
+import configparser
 from optparse import OptionParser
 
 
@@ -69,13 +69,13 @@ options, args = optparser.parse_args()
 
 if options.experiment == 'all':
     experiments = ['Stnd','P75S','P75R']
-    print 'Setting up all the MISMIP3d experiments'
+    print( 'Setting up all the MISMIP3d experiments')
 elif options.experiment == 'allP75':
     experiments = ['P75S','P75R']
-    print 'Setting up P75S and P75R experiments'
+    print( 'Setting up P75S and P75R experiments')
 elif options.experiment in ['Stnd','P75S','P75R']:
     experiments = [options.experiment]
-    print 'Setting up experiment', options.experiment
+    print( 'Setting up experiment', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: Stnd, P75S, P75R')
 
@@ -116,8 +116,8 @@ if options.vertlevels >= 2:
 else:
     sys.exit('Error: must have at least 2 vertical levels')
 
-print 'MISMIP3d grid resolution (m) =', options.resolution
-print 'Number of vertical levels =', nz
+print( 'MISMIP3d grid resolution (m) =', options.resolution)
+print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
 # Include a few extra cells in the x direction to handle boundary conditions.
@@ -132,79 +132,85 @@ try:
 except OSError:
     sys.exit('Could not copy', options.configfile)
 
-print 'Creating master config file', masterConfigFile
+print( 'Creating master config file', masterConfigFile)
 
 # Read the master config file.
-config = ConfigParser()
+config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
 config.read(masterConfigFile)
 
 # Set the grid variables in the master config file.
-config.set('grid', 'ewn', nx)
-config.set('grid', 'nsn', ny)
-config.set('grid', 'upn', nz)
-config.set('grid', 'dew', dx)
-config.set('grid', 'dns', dy)
+config.set('grid', 'ewn', str(nx))
+config.set('grid', 'nsn', str(ny))
+config.set('grid', 'upn', str(nz))
+config.set('grid', 'dew', str(dx))
+config.set('grid', 'dns', str(dy))
 
 # Set the time step in the msster config file.
 # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
 
-config.set('time', 'dt', options.timestep)
-config.set('time', 'dt_diag', options.timestep)
+config.set('time', 'dt', str(options.timestep))
+config.set('time', 'dt_diag', str(options.timestep))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
     which_ho_approx = 1
-    print 'Using SSA velocity solver'
+    print( 'Using SSA velocity solver')
 elif options.approximation == 'DIVA':
     which_ho_approx = 4
-    print 'Using DIVA velocity solver'
+    print( 'Using DIVA velocity solver')
 elif options.approximation == 'BP':
     which_ho_approx = 2
-    print 'Using Blatter-Pattyn velocity solver'
+    print( 'Using Blatter-Pattyn velocity solver')
 else:
     which_ho_approx = 4
-    print 'Defaulting to DIVA velocity solver'
+    print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', which_ho_approx)
+config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'powerlaw':
     p_ocean_penetration = 0
-    print 'Using basal friction power law (Schoof2007)'
+    print( 'Using basal friction power law (Schoof2007)')
 elif options.basalFriction == 'schoof':
     p_ocean_penetration = 1
-    print 'Using Schoof 2005 basal friction law'
+    print( 'Using Schoof 2005 basal friction law')
 else:
     p_ocean_penetration = 0   #  is default
-    print 'Defaulting to Powerlaw basal friction law'
+    print( 'Defaulting to Powerlaw basal friction law')
 
-config.set('parameters', 'p_ocean_penetration', p_ocean_penetration)
+config.set('parameters', 'p_ocean_penetration', str(p_ocean_penetration))
 
 # Config setting related to spin up time.
 yearsStnd = float(options.yearsStnd)
-config.set('time', 'tend', yearsStnd)
+config.set('time', 'tend', str(yearsStnd))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
     config.write(configfile)
 
 
-print 'years of Stnd experiment =', yearsStnd
+print( 'years of Stnd experiment =', yearsStnd)
 restartfreqStnd = min(1000.0, options.yearsStnd)    # can be changed by the user if needed
-print 'Stnd restart frequency =', restartfreqStnd
+print( 'Stnd restart frequency =', restartfreqStnd)
 
 
 # Create the netCDF input file according to the information in the config file.
 try:
-    parser = ConfigParser()
+    parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     parser.read(options.configfile)
     initfile = parser.get('CF input', 'name')
 except OSError:
     sys.exit('Error parsing ' + options.configfile)
     
-print 'Creating input file', initfile
+print( 'Creating input file', initfile)
 ncfile = Dataset(initfile, 'w')
     
 
@@ -282,24 +288,27 @@ C_space_factor[0,:,:] = 1.
 
 ncfile.close()
 
-print 'Experiments:', experiments
+print( 'Experiments:', experiments)
 
 # Loop through experiments.
 for expt in experiments:
     
     # For each experiment, make a suitable config file and set up a subdirectory.
-    print 'Creating config file for experiment', expt
+    print( 'Creating config file for experiment', expt)
     
     # Make a copy of the mismip3dInit config file.
     # Below, this copy will be tailored for the chosen MISMIP3d experiment,
     # without changing the settings used for the Stnd experiment.
     
     newConfigFile = 'mismip3d' + expt + '.config'
-    print 'Config file for this experiment:', newConfigFile
+    print( 'Config file for this experiment:', newConfigFile)
     shutil.copy(masterConfigFile, newConfigFile)
     
     # Read the new config file.
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config.read(newConfigFile)
 
 # Experiment-specific settings.
@@ -331,8 +340,8 @@ for expt in experiments:
         restartfreq = 1000.0
 
     # Set the start and end times
-    config.set('time', 'tstart', tstart)
-    config.set('time', 'tend',   tend)
+    config.set('time', 'tstart', str(tstart))
+    config.set('time', 'tend',   str(tend))
     
     # Change the default comment
     comment = 'MISMIP3d experiment ' + expt
@@ -342,27 +351,27 @@ for expt in experiments:
     # Note: This method may not be robust for Stnd and P75R runs that start and restart.
     #       For this reason, the script mismip3dRun.py makes sure the 'time' entry
     #       in [CF input] corresponds to the final time slice.
-    print 'Input file:', inputfile
+    print( 'Input file:', inputfile)
     if expt=='P75S':
        config.set('CF input', 'nameOut', inputfileOut)
 
     config.set('CF input', 'name', inputfile)
-    config.set('CF input', 'time', inputslice)
+    config.set('CF input', 'time', str(inputslice))
 
     # Set the output filename in the section [CF output1].
     outfilename = 'mismip3d' + expt + '.out.nc'
-    print 'Output file:', outfilename
+    print( 'Output file:', outfilename)
     config.set('CF output', 'name',      outfilename)
-    config.set('CF output', 'frequency', outputfreq)
+    config.set('CF output', 'frequency', str(outputfreq))
 
     # Set restart info.  This should be in the section called '[CF output]'.
     # Note: Each experiment (except Stnd) writes out only one time slice to a restart file.
     restartfilename = 'mismip3d' + expt + '.restart.nc'
-    print 'Restart file:', restartfilename
+    print( 'Restart file:', restartfilename)
     config.set('CF restart', 'name',      restartfilename)
     config.set('CF restart', 'variables', 'restart')
-    config.set('CF restart', 'frequency', restartfreq)
-    config.set('CF restart', 'start',     tstart + restartfreq)
+    config.set('CF restart', 'frequency', str(restartfreq))
+    config.set('CF restart', 'start',     str(tstart + restartfreq))
     config.set('CF restart', 'xtype',     'double')
 
     # Write to the new config file.
@@ -372,15 +381,15 @@ for expt in experiments:
     # Create a subdirectory named for the experiment, and stage the run there.
     try:
         os.mkdir(expt)
-        print 'Created subdirectory', expt
+        print( 'Created subdirectory', expt)
     except OSError:
-        print 'Subdirectory', expt, 'already exists'
+        print( 'Subdirectory', expt, 'already exists')
 
     os.chdir(expt)
     
     # Move the config file from the parent directory to the subdirectory.
     shutil.move('../' + newConfigFile, newConfigFile)
-    print 'Created config file', newConfigFile
+    print( 'Created config file', newConfigFile)
     
     # Link to the cism_driver executable in the parent directory.
     try:

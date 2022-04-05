@@ -1,5 +1,7 @@
-How to create a new CISM test
+Hw to create a new CISM test
 =============================
+
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
 
 This directory contains a new test template called `runTest.py` which
 should be used to create a new test in CISM. This template is based off of the

@@ -15,7 +15,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -116,6 +116,8 @@ def prep_commands(args, config_name):
         # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure
         if os.system('which openmpirun > /dev/null') == 0:
             mpiexec = 'openmpirun -np ' + str(args.parallel)+" "
+        elif os.system('which mpiexec > /dev/null') == 0:
+            mpiexec = 'mpiexec -np ' + str(args.parallel)+" "
         elif os.system('which mpirun > /dev/null') == 0:
             mpiexec = 'mpirun -np ' + str(args.parallel)+" "
         elif os.system('which aprun > /dev/null') == 0:
@@ -163,7 +165,10 @@ def main():
                     ran_f = True
          
             try:
-                config_parser = ConfigParser.SafeConfigParser()
+                config_parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
                 config_parser.read( args.config )
                 
                 if args.vertical:
@@ -177,7 +182,7 @@ def main():
                 file_name = config_parser.get('CF input', 'name')
                 root, ext = os.path.splitext(file_name)
 
-            except ConfigParser.Error as error:
+            except configparser.Error as error:
                 print("Error parsing " + args.config )
                 print("   "), 
                 print(error)
@@ -224,7 +229,12 @@ def main():
                     offset = float(size)*1000.0 * tan(0.1 * pi/180.0)
                 elif experiment in ('f'):
                     offset = float(size)*1000.0 * tan(3.0 * pi/180.0)
-                config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+
+                # Note (GRL): this truncation is necessary to keep the same precision written to the
+                # config file as with python2. It will be removed in the future.
+                offset_str = "{:.9f}".format(offset)
+
+                config_parser.set('parameters', 'periodic_offset_ew', offset_str)
 
 #            if experiment in ('c' 'd'):
             if experiment in ('d'):
@@ -254,7 +264,7 @@ def main():
 
 
             # write the config file
-            with open(config_name, 'wb') as config_file:
+            with open(config_name, 'w') as config_file:
                 config_parser.write(config_file)
 
 
