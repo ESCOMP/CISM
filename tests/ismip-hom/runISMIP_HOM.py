@@ -230,10 +230,6 @@ def main():
                 elif experiment in ('f'):
                     offset = float(size)*1000.0 * tan(3.0 * pi/180.0)
 
-                # Note (GRL): this truncation is necessary to keep the same precision written to the
-                # config file as with python2. It will be removed in the future.
-                offset_str = "{:.9f}".format(offset)
-
                 config_parser.set('parameters', 'periodic_offset_ew', offset_str)
 
 #            if experiment in ('c' 'd'):
