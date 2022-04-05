@@ -15,7 +15,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -98,6 +98,8 @@ def prep_commands(args, config_name):
         # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure
         if os.system('which openmpirun > /dev/null') == 0:
             mpiexec = 'openmpirun -np ' + str(args.parallel)+" "
+        elif os.system('which mpiexec > /dev/null') == 0:
+            mpiexec = 'mpiexec -np ' + str(args.parallel)+" "
         elif os.system('which mpirun > /dev/null') == 0:
             mpiexec = 'mpirun -np ' + str(args.parallel)+" "
         elif os.system('which aprun > /dev/null') == 0:
@@ -134,7 +136,10 @@ def main():
     #scale_factor = 2 ** args.scale
     
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
         config_parser.read( args.config )
         
         nz = int(config_parser.get('grid','upn'))
@@ -147,7 +152,7 @@ def main():
         file_name = config_parser.get('CF input', 'name')
         root, ext = os.path.splitext(file_name)
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "), 
         print(error)
@@ -177,7 +182,7 @@ def main():
     config_parser.set('CF output', 'name', out_name)
     config_parser.set('CF output', 'xtype', 'double')
     
-    with open(config_name, 'wb') as config_file:
+    with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
 
 
@@ -243,11 +248,11 @@ def main():
 
     if not args.beta:        # Don't use a Gaussian
         beta[0,:,:] =  0                             # beta is 0 almost everywhere
-        beta[0,ny/2-1:ny/2+1,nx/2-1:nx/2+1] = 1.0e8  # but large in the center
+        beta[0,ny//2-1:ny//2+1,nx//2-1:nx//2+1] = 1.0e8  # but large in the center
 
     # Add a single bedrock spike in the domain center, to "ground" shelf for 
     # bisicles dycore
-    topg[0,(ny-1)/2-1:(ny-1)/2+2,(nx-1)/2-1:(nx-1)/2+2] = -880. 
+    topg[0,(ny-1)//2-1:(ny-1)//2+2,(nx-1)//2-1:(nx-1)//2+2] = -880. 
 
     # Create the required variables in the netCDF file.
     nc_file.createVariable('thk', 'f',('time','y1','x1'))[:] = thk

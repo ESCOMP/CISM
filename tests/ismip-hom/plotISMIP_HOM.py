@@ -244,7 +244,7 @@ def read(filename,experiment):
             #  print 'WARNING: unequal number of x values in file', filename
             for (a,b) in zip(dataA,dataB):
                 if a[0]!=b[0]: 
-                    print 'WARNING: the x values are not the same in file', filename
+                    print( 'WARNING: the x values are not the same in file', filename)
             # Return the interpolated values
             alpha = (target-below)/(above-below)
             return [(a[0],alpha*a[1]+(1-alpha)*b[1]) for (a,b) in zip(dataA,dataB)]
@@ -263,8 +263,8 @@ def main():
          nonFSmodelType='All Partial Stokes'
     else:
          nonFSmodelType='First Order'
-    print 'NOTE: The category being used for models approximating Full Stokes is: '+nonFSmodelType
-    print 'For more information, see details of option -a by invoking:   python plotISMIP_HOM.py --help \n'
+    print( 'NOTE: The category being used for models approximating Full Stokes is: '+nonFSmodelType)
+    print( 'For more information, see details of option -a by invoking:   python plotISMIP_HOM.py --help \n')
 
 
     # =========================================================
@@ -439,7 +439,7 @@ def main():
                 ISMIP_HOMfile.close()
                 netCDFfile.close()
             except:
-                print 'Warning: The CISM output file for experiment '+experiment+' at size '+str(size)+' could NOT be read successfully!'
+                print( 'Warning: The CISM output file for experiment '+experiment+' at size '+str(size)+' could NOT be read successfully!')
                 raise
 
     # =========================================================
@@ -448,7 +448,7 @@ def main():
     
     # Loop over the experiments requested on the command line
     for experiment in experiments:
-        print 'ISMIP-HOM', experiment.upper()
+        print( 'ISMIP-HOM', experiment.upper())
 
         # Create the figure on which the plot axes will be placed
         figure = pyplot.figure(subplotpars=matplotlib.figure.SubplotParams(top=.85,bottom=.15))
@@ -475,7 +475,7 @@ def main():
                 res = size
                 if experiment == 'f': 
                     if size != 100 or len(sizes) > 1:
-                        print 'NOTE: Experiment f uses a domain size of 100 km only'
+                        print( 'NOTE: Experiment f uses a domain size of 100 km only')
                     size = 100
                     res = 0
 
@@ -527,7 +527,7 @@ def main():
                                   continue # ignore the sliding version for now
                             if modelName == 'cma1':
                                   continue  # the cma1 'f' experiments made the x,y coords dimensionless instead of dimensional - ignore for convenience
-                        print 'Using data from file:',os.path.join(path,filename)
+                        print( 'Using data from file:',os.path.join(path,filename))
                         data = read(os.path.join(path,filename),experiment)
                         if modelName in fullStokesModels:
                             index = fullStokes
@@ -560,7 +560,7 @@ def main():
                                     xAbove,vAbove = data[a]
                                 
                                 if xAbove == xBelow:
-                                    print 'Surprise!',above,below,xAbove,xBelow,vAbove,vBelow
+                                    print( 'Surprise!',above,below,xAbove,xBelow,vAbove,vBelow)
                                     v = (vAbove+vBelow)/2
                                 else:
                                     alpha = (target-xBelow)/(xAbove-xBelow)
@@ -570,7 +570,7 @@ def main():
 
                 # Calculate statistics of the other model results
                 if sum(count) == 0:
-                    print 'To compare with other models you need to download the ISMIP-HOM results from: http://www.the-cryosphere.net/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip into a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.'
+                    print( 'To compare with other models you need to download the ISMIP-HOM results from: http://www.the-cryosphere.net/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip into a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.')
                 else:
                     # Find the mean and standard deviation of the velocities at each x
                     for index in (firstOrder,fullStokes):
@@ -604,18 +604,18 @@ def main():
                             compare = sum([(s/m) for (s,m) in zip(standardDeviation,mean)])
                             n = len(glimmerData)
                             #print '\t'.join([str(size)+' km',str(total/n),str(compare/n),str(position)])
-                            print 'Size='+str(size)+' km' 
-                            print '  Mean percent error along flowline of CISM relative to mean of first-order models='+str(total/float(n))+'%'
-                            print '  Mean COD (stdev/mean) along flowline of mean of first-order models (excluding CISM)='+str(compare/float(n)*100.0)+'%'
-                            print '  Max. CISM percent error='+str(maximum)+'% at x-position '+str(position)
-                            print '  Max. CISM absolute error='+str(max(abserror))+' m/yr at x-position '+str(glimmerData[abserror.index(max(abserror))][0])
+                            print( 'Size='+str(size)+' km' )
+                            print( '  Mean percent error along flowline of CISM relative to mean of first-order models='+str(total/float(n))+'%')
+                            print( '  Mean COD (stdev/mean) along flowline of mean of first-order models (excluding CISM)='+str(compare/float(n)*100.0)+'%')
+                            print( '  Max. CISM percent error='+str(maximum)+'% at x-position '+str(position))
+                            print( '  Max. CISM absolute error='+str(max(abserror))+' m/yr at x-position '+str(glimmerData[abserror.index(max(abserror))][0]))
 
             except:
-                print "Error in analyzing/plotting experiment ",experiment," at size ",size," km"
+                print( "Error in analyzing/plotting experiment ",experiment," at size ",size," km")
 
         if savePlotInFile:
             plot_file = pattern.replace('-?','-'+experiment).replace('.????','').replace('.out.nc',plotType)
-            print 'Writing:', plot_file
+            print( 'Writing:', plot_file)
             pyplot.savefig(plot_file)
 
         # Experiment f can also have a surface profile plotted
@@ -697,7 +697,7 @@ def main():
                             continue # ignore the sliding version for now
                         if modelName == 'cma1':
                             continue  # the cma1 'f' experiments made the x,y coords dimensionless instead of dimensional - ignore for convenience
-                    print 'Using data from file:',os.path.join(path,filename)
+                    print( 'Using data from file:',os.path.join(path,filename))
                     data = read(os.path.join(path,filename), experiment='f-elevation')
                     if modelName in fullStokesModels:
                         index = fullStokes
@@ -728,7 +728,7 @@ def main():
                             else:
                                 xAbove,vAbove = data[a]
                             if xAbove == xBelow:
-                                print 'Surprise!',above,below,xAbove,xBelow,vAbove,vBelow
+                                print( 'Surprise!',above,below,xAbove,xBelow,vAbove,vBelow)
                                 v = (vAbove+vBelow)/2
                             else:
                                 alpha = (target-xBelow)/(xAbove-xBelow)
@@ -738,7 +738,7 @@ def main():
 
                     # Calculate statistics of the other model results
                     if sum(count) == 0:
-                        print 'To compare with other models you need to download the ISMIP-HOM results from: http://www.the-cryosphere.net/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip into a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.'
+                        print( 'To compare with other models you need to download the ISMIP-HOM results from: http://www.the-cryosphere.net/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip into a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.')
                     else:
                         # Find the mean and standard deviation of the velocities at each x
                         for index in (firstOrder,fullStokes):
@@ -764,7 +764,7 @@ def main():
 
             if savePlotInFile:
                 plot_file = pattern.replace('-?','-'+experiment+'-SurfaceElevation').replace('.????','').replace('.out.nc',plotType)
-                print 'Writing:', plot_file
+                print( 'Writing:', plot_file)
                 pyplot.savefig(plot_file)
 
         # Experiment f should be run for one size (100 km) only

@@ -1,6 +1,8 @@
 ISMIP-HOM Experiments
 =====================
 
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+
 Ice Sheet Model Intercomparison Project for Higher-Order Models (ISMIP-HOM)
 prescribes a set of experiments meant to test the implementation of higher-order
 physics.  For more information, see

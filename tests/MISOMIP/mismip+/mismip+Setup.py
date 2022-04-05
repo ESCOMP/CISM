@@ -12,7 +12,7 @@ import shutil
 import fileinput
 import numpy as np
 from netCDF4 import Dataset
-from ConfigParser import ConfigParser
+import configparser
 from optparse import OptionParser
 
 
@@ -90,19 +90,19 @@ options, args = optparser.parse_args()
 
 if options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
-    print 'Setting up all the MISMIP+ experiments'
+    print( 'Setting up all the MISMIP+ experiments')
 elif options.experiment == 'allIce':
     experiments = ['Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice1rax', 'Ice1rrx', 'Ice2rax', 'Ice2rrx']
-    print 'Run all the MISMIP+ experiments, excluding Spinup'
+    print( 'Run all the MISMIP+ experiments, excluding Spinup')
 elif options.experiment == 'Ice1':
     experiments = ['Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx']
-    print 'Run the MISMIP+ Ice1 experiments'
+    print( 'Run the MISMIP+ Ice1 experiments')
 elif options.experiment == 'Ice2':
     experiments = ['Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
-    print 'Run the MISMIP+ Ice2 experiments'
+    print( 'Run the MISMIP+ Ice2 experiments')
 elif options.experiment in ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']:
     experiments = [options.experiment]
-    print 'Setting up experiment', options.experiment
+    print( 'Setting up experiment', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: all, Spinup, Ice0, Ice1r, Ice1ra, Ice1rr, Ice1rax, Ice1rrx, Ice2r, Ice2ra, Ice2rr, Ice2rax, Ice2rrx')
 
@@ -141,8 +141,8 @@ if options.vertlevels >= 2:
 else:
     sys.exit('Error: must have at least 2 vertical levels')
 
-print 'MISMIP+ grid resolution (m) =', options.resolution
-print 'Number of vertical levels =', nz
+print( 'MISMIP+ grid resolution (m) =', options.resolution)
+print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
 # Include a few extra cells in the x direction to handle boundary conditions.
@@ -157,72 +157,78 @@ try:
 except:
     sys.exit('Could not copy', options.configfile)
 
-print 'Creating master config file', masterConfigFile
+print( 'Creating master config file', masterConfigFile)
 
 # Read the master config file.
-config = ConfigParser()
+config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
 config.read(masterConfigFile)
 
 # Set the grid variables in the master config file.
-config.set('grid', 'ewn', nx)
-config.set('grid', 'nsn', ny)
-config.set('grid', 'upn', nz)
-config.set('grid', 'dew', dx)
-config.set('grid', 'dns', dy)
+config.set('grid', 'ewn', str(nx))
+config.set('grid', 'nsn', str(ny))
+config.set('grid', 'upn', str(nz))
+config.set('grid', 'dew', str(dx))
+config.set('grid', 'dns', str(dy))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
     which_ho_approx = 1 
-    print 'Using SSA velocity solver'
+    print( 'Using SSA velocity solver')
 elif options.approximation == 'DIVA':
     which_ho_approx = 4
-    print 'Using DIVA velocity solver'
+    print( 'Using DIVA velocity solver')
 elif options.approximation == 'BP':
     which_ho_approx = 2
-    print 'Using Blatter-Pattyn velocity solver'
+    print( 'Using Blatter-Pattyn velocity solver')
 else:
     which_ho_approx = 4
-    print 'Defaulting to DIVA velocity solver'
+    print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', which_ho_approx)
+config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'Schoof':
     which_ho_babc = 11
-    print 'Using Schoof basal friction law'
+    print( 'Using Schoof basal friction law')
 elif options.basalFriction == 'Tsai':
     which_ho_babc = 12
-    print 'Using Tsai basal friction law'
+    print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
     which_ho_babc = 9
-    print 'Using basal friction power law'
+    print( 'Using basal friction power law')
 else:
     which_ho_babc = 11   # Schoof is default
-    print 'Defaulting to Schoof basal friction law'
+    print( 'Defaulting to Schoof basal friction law')
 
-config.set('ho_options', 'which_ho_babc', which_ho_babc)
+config.set('ho_options', 'which_ho_babc', str(which_ho_babc))
 
 yearsSpinup = float(options.yearsSpinup)
-config.set('time', 'tend', yearsSpinup)
+config.set('time', 'tend', str(yearsSpinup))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
     config.write(configfile)
 
-print 'years of spinup =', yearsSpinup
-print 'spinup restart frequency =', restartfreqSpinup
+print( 'years of spinup =', yearsSpinup)
+print( 'spinup restart frequency =', restartfreqSpinup)
 
 # Create the netCDF input file.
 try:
-    parser = ConfigParser()
+    parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     parser.read(options.configfile)
     initfile = parser.get('CF input', 'name')
 except:
     sys.exit('Error parsing ' + options.configfile)
 
-print 'Creating input file', initfile
+print( 'Creating input file', initfile)
 ncfile = Dataset(initfile, 'w')
 
 # Create dimensions.
@@ -306,24 +312,27 @@ kinbcmask[:,:,-1] = 1   # mask out right-most column
 
 ncfile.close()
 
-print 'Experiments:', experiments
+print( 'Experiments:', experiments)
 
 # Loop through experiments.
 for expt in experiments:
 
     # For each experiment, make a suitable config file and set up a subdirectory.
-    print 'Creating config file for experiment', expt
+    print( 'Creating config file for experiment', expt)
 
     # Make a copy of the mismip+Init config file.
     # Below, this copy will be tailored for the chosen MISMIP+ experiment,
     #  without changing the settings used for spin-up.
 
     newConfigFile = 'mismip+' + expt + '.config'
-    print 'Config file for this experiment:', newConfigFile
+    print( 'Config file for this experiment:', newConfigFile)
     shutil.copy(masterConfigFile, newConfigFile)
 
     # Read the new config file.
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config.read(newConfigFile)
 
     # Experiment-specific settings.
@@ -352,7 +361,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1r':
-        config.set('options', 'bmlt_float', 1)
+        config.set('options', 'bmlt_float', '1')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -377,7 +386,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice1rr':
-        config.set('options', 'bmlt_float', 1)
+        config.set('options', 'bmlt_float', '1')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice1r/'
@@ -386,7 +395,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1rrx':
-        config.set('options', 'bmlt_float', 1)
+        config.set('options', 'bmlt_float', '1')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice1rr/'
@@ -395,7 +404,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2r':
-        config.set('options', 'bmlt_float', 2)
+        config.set('options', 'bmlt_float', '2')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -420,7 +429,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2rr':
-        config.set('options', 'bmlt_float', 2)
+        config.set('options', 'bmlt_float', '2')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice2r/'
@@ -429,7 +438,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice2rrx':
-        config.set('options', 'bmlt_float', 2)
+        config.set('options', 'bmlt_float', '2')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice2rr/'
@@ -441,22 +450,22 @@ for expt in experiments:
     # The Spinup run is initialized to the surface air temperature (temp_init = 1).
     # For all other experiments, the initial temperature is read from the input/restart file.
     if expt != 'Spinup':
-       config.set('options', 'temp_init', 4)
+       config.set('options', 'temp_init', '4')
 
     # Set the time step in the master config file.
     # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
     # Note: this step is necessary when running at resolution coarser that 4 km as the output files
     #       needs to be written every 10 years to satisfy plotting criteria.
     if expt != 'Spinup':
-        config.set('time', 'dt',      min(options.timestep, 2.))
-        config.set('time', 'dt_diag', min(options.timestep, 2.))
+        config.set('time', 'dt',      str(min(options.timestep, 2.)))
+        config.set('time', 'dt_diag', str(min(options.timestep, 2.)))
     else:
-        config.set('time', 'dt',      options.timestep)
-        config.set('time', 'dt_diag', options.timestep)
+        config.set('time', 'dt',      str(options.timestep))
+        config.set('time', 'dt_diag', str(options.timestep))
 
     # Set the start and end times.
-    config.set('time', 'tstart', tstart)
-    config.set('time', 'tend',   tend)
+    config.set('time', 'tstart', str(tstart))
+    config.set('time', 'tend',   str(tend))
 
     # Change the default comment.
     comment = 'MISMIP+ experiment ' + expt
@@ -466,25 +475,25 @@ for expt in experiments:
     # Note: This method may not be robust for Spinup runs that start and restart.
     #       For this reason, the script mismip+Run.py makes sure the 'time' entry
     #       in [CF input] corresponds to the final time slice.
-    print 'Input file:', inputfile
+    print( 'Input file:', inputfile)
     config.set('CF input', 'name', inputfile)
-    config.set('CF input', 'time', inputslice)
+    config.set('CF input', 'time', str(inputslice))
 
     # Set the output filename in the section '[CF output]'.
     outputfile = 'mismip+' + expt + '.out.nc'
-    print 'Output file:', outputfile
+    print( 'Output file:', outputfile)
     config.set('CF output', 'name',      outputfile)
-    config.set('CF output', 'frequency', outputfreq)
+    config.set('CF output', 'frequency', str(outputfreq))
 
     # Set restart info in the section '[CF restart]'.
     # Note: Each experiment (except Spinup) writes only one time slice to a restart file.
     restartfile = 'mismip+' + expt + '.restart.nc'
-    print 'Restart file:', restartfile
+    print( 'Restart file:', restartfile)
     config.set('CF restart', 'name',       restartfile)
     config.set('CF restart', 'variables', 'restart')
-    config.set('CF restart', 'frequency',  restartfreq)
+    config.set('CF restart', 'frequency',  str(restartfreq))
     config.set('CF restart', 'xtype',     'double')
-    config.set('CF restart', 'write_init', False)
+    config.set('CF restart', 'write_init', 'False')
 
     # Write to the new config file.
     with open(newConfigFile, 'w') as configfile:
@@ -493,15 +502,15 @@ for expt in experiments:
     # Create a subdirectory named for the experiment, and stage the run there.
     try:
         os.mkdir(expt)
-        print 'Created subdirectory', expt
+        print( 'Created subdirectory', expt)
     except:
-        print 'Subdirectory', expt, 'already exists'
+        print( 'Subdirectory', expt, 'already exists')
 
     os.chdir(expt)
 
     # Move the config file from the parent directory to the subdirectory.
     shutil.move('../' + newConfigFile, newConfigFile)
-    print 'Created config file', newConfigFile
+    print( 'Created config file', newConfigFile)
 
     # Link to the cism_driver executable in the parent directory.
     try:

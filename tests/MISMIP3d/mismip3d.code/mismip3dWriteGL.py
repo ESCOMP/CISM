@@ -62,8 +62,8 @@ for expt in experiments:
     else:
         file = 'mismip3d' + expt + '.out.nc'
 
-    print 'Creating a MISMIP3d grounding-line file for experiment', expt
-    print 'Attempting to read CISM file', file
+    print( 'Creating a MISMIP3d grounding-line file for experiment', expt)
+    print( 'Attempting to read CISM file', file)
 
     # Open the CISM output file, get needed dimensions.
     # Note: (x0,y0) are dimensions of the staggered (velocity) grid.
@@ -84,7 +84,7 @@ for expt in experiments:
    # Initialize some variables and arrays.
    # Read in some fields needed to compute diagnostics similar to the one of the MISMIP+ experiment.
 
-    print 'Reading in CISM variables...'
+    print( 'Reading in CISM variables...')
 
     try:
         # These array names are somewhat arbitrary.  Sometime I have used CISM names;
@@ -121,7 +121,7 @@ for expt in experiments:
 
     outfilename = expt + model + '.nc'
     ncfile = Dataset(outfilename, 'w')
-    print 'Created output file', outfilename
+    print( 'Created output file', outfilename)
 
     # Set dimensions.
     glptdim = ncfile.createDimension('nPointGL', size = None)
@@ -145,11 +145,11 @@ for expt in experiments:
     vMeanGL        = ncfile.createVariable('vMeanGL',        'f4', ('nPointGL', 'nTime'))
 
     # Loop over time slices and fill variables.
-    print 'Adding grounding-line variables to output file...'
+    print( 'Adding grounding-line variables to output file...')
 
     for iTime in range(nTime):
 
-        print '   Time slice:', iTime
+        print( '   Time slice:', iTime)
 
         # Add the scalar data for this time slice.
         time[iTime]         = t[iTime]
