@@ -1208,6 +1208,14 @@ data:       data%velocity%divu
 factor:     scyr
 load:       1
 
+[shear]
+dimensions: time, y1, x1
+units:      1/year
+long_name:  horizontal shear-stretch rate
+data:       data%velocity%shear
+factor:     scyr
+load:       1
+
 [eps_eff]
 dimensions: time, staglevel, y1, x1
 units:      1/year
