@@ -1580,27 +1580,24 @@
                             land_mask = land_mask,              &
                             active_ice_mask = active_ice_mask)
 
-    ! If using a subgrid calving-front scheme, then compute calving_front_mask
-    !  and recompute active_ice_mask.
-    ! Note: If running without a subgrid CF scheme, then CF cells are active,
-    !       and the values of calving_front_mask and thck_calving_front do not matter.
+    ! Compute calving_front_mask and, if necessary, recompute active_ice_mask.
+    ! If using a subgrid calving-front scheme, most CF cells are inactive, with
+    !  thck_calving_front given by the thickness of one or more interior neighbors.
+    ! Without this scheme, cells at the CF are active, with thck_calving_front = thck.
+    !
+    ! Note (bug fix, 15 April 2022):
+    ! Previously, we were computing the CF mask only when using the subgrid CF scheme.
+    ! This could give erroneous lateral pressures in subroutine load_vector_lateral_bc.
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-       call glissade_calving_front_mask(nx,                 ny,                 &
-                                        whichcalving_front,                     &
-                                        parallel,                               &
-                                        thck,               topg,               &
-                                        eus,                                    &
-                                        ice_mask,           floating_mask,      &
-                                        ocean_mask,         land_mask,          &
-                                        calving_front_mask, thck_calving_front, &
-                                        active_ice_mask = active_ice_mask)
-
-    else
-       calving_front_mask(:,:) = 0
-       thck_calving_front(:,:) = 0.0d0
-    endif
+    call glissade_calving_front_mask(nx,                 ny,                 &
+                                     whichcalving_front,                     &
+                                     parallel,                               &
+                                     thck,               topg,               &
+                                     eus,                                    &
+                                     ice_mask,           floating_mask,      &
+                                     ocean_mask,         land_mask,          &
+                                     calving_front_mask, thck_calving_front, &
+                                     active_ice_mask = active_ice_mask)
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
     where (ice_mask == 1 .or. land_mask == 1)
@@ -1765,40 +1762,41 @@
     if (verbose_gridop .and. this_rank==rtest) then
        print*, ' '
        print*, 'thck:'
-       do j = ny, 1, -1
-          do i = 1, nx
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
              write(6,'(f7.0)',advance='no') thck(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'stagthck, rank =',rtest
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.0)',advance='no') stagthck(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'usrf:'
-       do j = ny, 1, -1
-          do i = 1, nx
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.0)',advance='no') usrf(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'dusrf_dx:'
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.3)',advance='no') dusrf_dx(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'dusrf_dy:'
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.3)',advance='no') dusrf_dy(i,j)
           enddo
           print*, ' '
