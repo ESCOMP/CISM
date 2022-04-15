@@ -231,10 +231,10 @@ contains
 
           ! Set up a distributed grid with computations on active blocks only.
           ! An active block contains one or more cells with ice_domain_mask = 1.
-          ! This option is supported only with outflow BCs.
+          ! This option is supported only with no-ice BCs.
 
           if (model%general%global_bc /= GLOBAL_BC_NO_ICE) then
-             call write_log('Changing to outflow boundary conditions to support the active_blocks option')
+             call write_log('Changing to no-ice boundary conditions to support the active_blocks option')
              model%general%global_bc = GLOBAL_BC_NO_ICE
           endif
 
@@ -2664,7 +2664,7 @@ contains
              i = itest
              j = jtest
              print*, ' '
-             print*, 'After transport, calving_mask:'
+             print*, 'After transport, temporary calving_mask:'
              do j = jtest+3, jtest-3, -1
                 do i = itest-3, itest+3
                    write(6,'(i10)',advance='no') model%calving%calving_mask(i,j)
@@ -5020,8 +5020,8 @@ contains
 
     ! Compute the vertically integrated strain rate tensor (s^-1) and its eigenvalues.
     ! These could be used for eigencalving, but the current eigencalving scheme uses stresses, not strain rates.
+    !TODO - Move these computation to a subroutine.
 
-    !TODO - Check that units are 1/s
     model%calving%eps_eigen1(:,:) = 0.0d0
     model%calving%eps_eigen2(:,:) = 0.0d0
 
@@ -5056,6 +5056,15 @@ contains
                 model%calving%eps_eigen2(i,j) = lambda1
              endif
           endif  ! b^2 - 4ac > 0
+
+          ! Compute two other invariants of the horizontal flow::
+          !    divu = eps_xx + eps_yy
+          !    shear = sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
+          ! These are related to the eigenvalues as:
+          !    eps1 = divu + shear
+          !    eps2 = divu - shear
+          model%velocity%divu(i,j)  = (eps_xx + eps_yy)/2.0d0
+          model%velocity%shear(i,j) = sqrt(((eps_xx - eps_yy)/2.0d0)**2 + eps_xy**2)
 
        enddo   ! i
     enddo   ! j
@@ -5095,20 +5104,48 @@ contains
 
     if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
        print*, ' '
-       print*, 'strain rate eigen1 (yr^-1):'
+       print*, 'eps1 (1/yr), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%calving%eps_eigen1(i,j) * scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'eps2 (1/yr), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') model%calving%eps_eigen2(i,j) * scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'product eps1*eps2 (1/yr^2) * 1.e6, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') &
+                  max(model%calving%eps_eigen1(i,j), 0.0d0) * &
+                  max(model%calving%eps_eigen2(i,j), 0.0d0)*scyr**2 * 1.d6
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'divu(yr^-1):'
        do j = jtest+3, jtest-3, -1
           write(6,'(i8)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(e11.3)',advance='no') model%calving%eps_eigen1(i,j) * scyr
+             write(6,'(f10.5)',advance='no') model%velocity%divu(i,j) * scyr
           enddo
           print*, ' '
        enddo
        print*, ' '
-       print*, 'strain rate eigen2 (yr^-1):'
+       print*, 'shear (yr^-1):'
        do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
           do i = itest-3, itest+3
-             write(6,'(e11.3)',advance='no') model%calving%eps_eigen2(i,j) * scyr
+             write(6,'(f10.5)',advance='no') model%velocity%shear(i,j) * scyr
           enddo
           print*, ' '
        enddo
@@ -5124,20 +5161,6 @@ contains
           do k = 1, upn-1
              model%stress%efvs_vertavg(i,j) = model%stress%efvs_vertavg(i,j)  &
                                             + model%stress%efvs(k,i,j) * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
-          enddo
-       enddo
-    enddo
-
-    ! Compute the vertically integrated divergence of the horizontal velocity field.
-    ! Note: Units of divu and strain_rate components are s^{-1}.
-    model%velocity%divu(:,:) = 0.0d0
-
-    do j = 1, nsn
-       do i = 1, ewn
-          do k = 1, upn-1
-             dsigma = model%numerics%sigma(k+1) - model%numerics%sigma(k)
-             model%velocity%divu(i,j) = model%velocity%divu(i,j) + &
-                  (model%velocity%strain_rate%xx(k,i,j) + model%velocity%strain_rate%yy(k,i,j)) * dsigma
           enddo
        enddo
     enddo

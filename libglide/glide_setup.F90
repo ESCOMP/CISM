@@ -195,8 +195,8 @@ contains
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
     model%calving%eigencalving_constant = model%calving%eigencalving_constant / scyr    ! convert from m/yr/Pa to m/s/Pa
-    model%calving%damage_constant = model%calving%damage_constant / scyr    ! convert from yr^{-1} to s^{-1}
-    model%calving%lateral_rate_max = model%calving%lateral_rate_max / scyr  ! convert from m/yr to m/s
+    model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
+    model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -2191,17 +2191,17 @@ contains
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
-    call GetValue(section,'lateral_rate_max',   model%calving%lateral_rate_max)
+    call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
     call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
-    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'damage_constant1',   model%calving%damage_constant1)
+    call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
-    call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
@@ -2425,60 +2425,52 @@ contains
        call write_log(message)
     endif
 
-    ! thickness-based calving options
+    ! thickness- and damage-based calving options
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
         model%options%whichcalving == EIGENCALVING           .or. &
         model%options%whichcalving == CALVING_DAMAGE) then
 
-       if (model%calving%timescale <= 0.0d0) then
-          write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
+       if (model%calving%timescale > 0.0d0) then
+          write(message,*) 'calving_timescale (yr)          : ', model%calving%timescale
+          call write_log(message)
+       else
+          write(message,*) 'Error: This calving option requires calving_timescale > 0'
           call write_log(message, GM_FATAL)
        endif
 
-       if (model%options%whichcalving == EIGENCALVING .or. &
-           model%options%whichcalving == CALVING_DAMAGE) then
+       if (model%calving%minthck > 0.0d0) then
+          write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
+          call write_log(message)
+       else  ! minthck <= 0
+          if (model%options%whichcalving == EIGENCALVING .or. &
+              model%options%whichcalving == CALVING_DAMAGE) then
+             write(message,*) 'Error: This calving option requires minthck > 0'
+             call write_log(message, GM_FATAL)
+          else   ! CALVING_THCK_THRESHOLD
+             write(message,*) 'Will use a 2D calving thickness threshold field'
+             call write_log(message)
+          endif
+       endif
+
+       if (model%options%whichcalving == EIGENCALVING) then
           if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
              write(message,*) &
                   'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
              call write_log(message, GM_FATAL)
-          endif
-       endif
-
-       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          if (model%calving%minthck > 0.0d0) then
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          else
-             write(message,*) 'Will use a 2D calving thickness threshold field'
-             call write_log(message)
-          endif
-       elseif (model%options%whichcalving == EIGENCALVING) then
-          if (model%calving%minthck == 0.0d0) then
-             write(message,*) 'Error: Eigencalving requires minthck > 0'
-             call write_log(message, GM_FATAL)
-          else
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
           endif
           write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
           call write_log(message)
           write(message,*) 'eigenvalue 2 weight (unitless)       : ', model%calving%eigen2_weight
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          if (model%calving%minthck == 0.0d0) then
-             write(message,*) 'Error: Damage-based calving requires minthck > 0'
-             call write_log(message, GM_FATAL)
-          else
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          endif
-          write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
+          write(message,*) 'damage constant1 (yr^-1)             : ', model%calving%damage_constant1
+          call write_log(message)
+          write(message,*) 'damage constant2 (yr^-1)             : ', model%calving%damage_constant2
           call write_log(message)
           write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
           call write_log(message)
-          write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
-          call write_log(message)
        endif
+
     endif   ! CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then

@@ -1405,6 +1405,7 @@ module glide_types
     type(glide_tensor) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
 
     real(dp), dimension(:,:), pointer :: divu => null()        ! horizontal divergence rate, eps_xx + eps_yy (s^-1)
+    real(dp), dimension(:,:), pointer :: shear => null()       ! invariant related to shear (s^-1): sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
 
   end type glide_velocity
 
@@ -1554,12 +1555,11 @@ module glide_types
      real(dp) :: eigencalving_constant = 0.01d0  !> eigencalving constant, lateral calving rate (m/yr) per unit stress (Pa)
                                                  !> (whichcalving = EIGENCALVING)
      real(dp) :: eigen2_weight = 1.0d0           !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
-     real(dp) :: damage_constant = 1.0d-7        !> damage constant; rate of change of damage (1/yr) per unit stress (Pa)
-                                                 !> (whichcalving = CALVING_DAMAGE) 
-     real(dp) :: damage_threshold = 0.75d0       !> threshold at which ice column is deemed sufficiently damaged to calve
-                                                 !> assuming that 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
-     real(dp) :: lateral_rate_max = 3000.d0      !> max lateral calving rate (m/yr) for damaged ice (whichcalving = CALVING_DAMAGE)
-     integer :: ncull_calving_front = 0          !> number of times to cull calving_front cells at initialization, if cull_calving_front = T
+     real(dp) :: damage_threshold = 0.75d0       !> threshold at which ice column is sufficiently damaged to calve
+                                                 !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
+     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
+     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
+     integer  :: ncull_calving_front = 0         !> number of times to cull calving_front cells at initialization, if cull_calving_front = T
                                                  !> Set to a larger value to remove wider peninsulas
      real(dp) :: taumax_cliff = 1.0d6            !> yield stress (Pa) for marine-based ice cliffs
      real(dp) :: cliff_timescale = 10.0d0        !> time scale (yr) for limiting marine cliffs (yr)
@@ -2917,6 +2917,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
        call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%shear)
     endif
 
     ! higher-order stress arrays
@@ -3428,6 +3429,8 @@ contains
         deallocate(model%velocity%vmask_no_penetration)
     if (associated(model%velocity%divu)) &
         deallocate(model%velocity%divu)
+    if (associated(model%velocity%shear)) &
+        deallocate(model%velocity%shear)
 
     ! higher-order stress arrays
 
