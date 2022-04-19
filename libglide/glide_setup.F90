@@ -40,7 +40,13 @@ module glide_setup
 
   private
   public :: glide_readconfig, glide_printconfig, glide_scale_params, &
-            glide_load_sigma, glide_read_sigma, glide_calc_sigma, glide_get_zocn
+            glide_load_sigma, glide_read_sigma, glide_calc_sigma, glide_get_zocn, &
+            check_fill_values
+
+  interface check_fill_values
+     module procedure check_fill_values_real8_2d
+     module procedure check_fill_values_real8_3d
+  end interface check_fill_values
 
 !-------------------------------------------------------------------------
 
@@ -3569,6 +3575,103 @@ contains
     ! Need to add logic that will add it only when those drivers are used.
 
   end subroutine define_glide_restart_variables
+
+!--------------------------------------------------------------------------------
+
+! The following subroutines check an input field for fill values.
+! By default, the fill value is given by netcdf_fill_value in glimmer_paramets,
+!  and fill values are replaced by zeroes.
+! Optionally, the user can pass in a different fill value and replacement value.
+
+  subroutine check_fill_values_real8_2d(&
+       field,                           &
+       fill_value_in, replacement_value_in, &
+       replacement_mask)
+
+    use glimmer_paramets, only: netcdf_fill_value
+
+    ! input-output arguments
+
+    real(dp), dimension(:,:), intent(inout) :: field
+    real(dp), intent(in), optional :: fill_value_in
+    real(dp), intent(in), optional :: replacement_value_in
+    integer, dimension(:,:), intent(out), optional :: replacement_mask
+
+    ! local variables
+    real(dp) :: fill_value, replacement_value
+
+    if (present(fill_value_in)) then
+       fill_value = fill_value_in
+    else
+       fill_value = netcdf_fill_value
+    endif
+
+    if (present(replacement_value_in)) then
+       replacement_value = replacement_value_in
+    else
+       replacement_value = 0.0d0
+    endif
+
+    if (present(replacement_mask)) then
+       where (abs(field) > 0.99d0 * fill_value)
+          replacement_mask = 1
+       elsewhere
+          replacement_mask = 0
+       endwhere
+    endif
+
+    ! Overwrite any values whose magnitude is similar to or greater than fill_value.
+    where (abs(field) > 0.99d0 * fill_value)
+       field = replacement_value
+    endwhere
+
+  end subroutine check_fill_values_real8_2d
+
+!--------------------------------------------------------------------------------
+
+  subroutine check_fill_values_real8_3d(&
+       field,                           &
+       fill_value_in, replacement_value_in, &
+       replacement_mask)
+
+    use glimmer_paramets, only: netcdf_fill_value
+
+    ! input-output arguments
+
+    real(dp), dimension(:,:,:), intent(inout) :: field
+    real(dp), intent(in), optional :: fill_value_in
+    real(dp), intent(in), optional :: replacement_value_in
+    integer, dimension(:,:,:), intent(out), optional :: replacement_mask
+
+    ! local variables
+    real(dp) :: fill_value, replacement_value
+
+    if (present(fill_value_in)) then
+       fill_value = fill_value_in
+    else
+       fill_value = netcdf_fill_value
+    endif
+
+    if (present(replacement_value_in)) then
+       replacement_value = replacement_value_in
+    else
+       replacement_value = 0.0d0
+    endif
+
+    if (present(replacement_mask)) then
+       where (abs(field) > 0.99d0 * fill_value)
+          replacement_mask = 1
+       elsewhere
+          replacement_mask = 0
+       endwhere
+    endif
+
+    ! Overwrite any values whose magnitude is similar to or greater than fill_value.
+    where (abs(field) > 0.99d0 * fill_value)
+       field = replacement_value
+    endwhere
+
+  end subroutine check_fill_values_real8_3d
 
 !--------------------------------------------------------------------------------
 

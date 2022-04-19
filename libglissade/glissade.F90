@@ -356,6 +356,26 @@ contains
        endif
     endif
 
+    ! Some input fields may have a netCDF fill value, typically a very large positive number.
+    ! If present, convert these values to zero (or optionally, another suitable value).
+    ! Note: Optionally, can pass a user-specified fill value and replacement value,
+    !        and return a mask of grid cells where values are replaced.
+    !       Depending on the input dataset, might have fill values in other fields (e.g., artm, topg)
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+       call check_fill_values(model%climate%smb)
+    else
+       call check_fill_values(model%climate%acab)
+    endif
+
+    if (model%options%gthf == GTHF_PRESCRIBED_2D) then
+       call check_fill_values(model%temper%bheatflx)
+    endif
+
+    if (associated(model%ocean_data%thermal_forcing)) then
+       call check_fill_values(model%ocean_data%thermal_forcing)
+    endif
+
     ! Allocate mask arrays in case they are needed below
     allocate(ice_mask(model%general%ewn, model%general%nsn))
     allocate(floating_mask(model%general%ewn, model%general%nsn))
@@ -490,7 +510,7 @@ contains
 
        ! Check to see if this flux was present in the input file
        ! (by checking whether the flux is nonuniform over the domain)
-       if (abs(maxval(model%temper%bheatflx) - minval(model%temper%bheatflx)) > 1.d-6) then  
+       if (abs(maxval(model%temper%bheatflx) - minval(model%temper%bheatflx)) > 1.d-6) then
           call write_log('Setting uniform prescribed geothermal flux')
           call write_log('(Set gthf = 1 to read geothermal flux field from input file)')
        endif
@@ -498,17 +518,20 @@ contains
        ! set uniform basal heat flux (positive down)
        model%temper%bheatflx = model%paramets%geot
 
-    endif
+    elseif (model%options%gthf == GTHF_PRESCRIBED_2D) then
 
-    ! Make sure the basal heat flux follows the positive-down sign convention
-    if (maxval(model%temper%bheatflx) > 0.0d0) then
-       write(message,*) 'Error, Input basal heat flux has positive values: '
-       call write_log(trim(message))
-       write(message,*) 'this_rank, maxval =', this_rank, maxval(model%temper%bheatflx)
-       call write_log(trim(message))
-       write(message,*) 'Basal heat flux is defined as positive down, so should be <= 0 on input'
-       call write_log(trim(message), GM_FATAL)
-    endif
+       ! Make sure the input basal heat flux follows the positive-down sign convention.
+       local_maxval = maxval(model%temper%bheatflx)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval > 0.0d0) then
+          write(message,*) &
+               'Error, Input basal heat flux has positive values, maxval = ', global_maxval
+          call write_log(trim(message))
+          write(message,*) 'Basal heat flux is defined as positive down, so should be <= 0 on input'
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    endif  ! geothermal heat flux
 
     ! initialize glissade components
 
