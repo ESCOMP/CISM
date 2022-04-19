@@ -61,11 +61,9 @@ parser.add_argument('-s','--setup-only', action='store_true',
 parser.add_argument('-z','--stream-size', type=unsigned_int, default=25,
         help=") The number of grid cells used to model the ice stream portion of the domain."
             +"Note: values <19 may not work properly for all problems.")    
-#optparser.add_option('-s','--stream-size',dest='stream_grid_size',default=25,type='int',help='Number of cells to use to model the ice stream portion of the domain (values <19 may not work properly for all problems).')
 
 parser.add_argument('--vertical', type=unsigned_int,
         help="Override the vertical grid size (upn) in the config file.")
-#optparser.add_option('-v','--vert-grid-size',dest='vertical_grid_size',default=2,type='int',help='Number of vertical layers to use (upn); minimum value = 2')
 
 # Some useful functions
 # ---------------------

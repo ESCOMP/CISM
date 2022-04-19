@@ -52,10 +52,6 @@ parser.add_argument('-q', '--quiet', action='store_true',
 parser.add_argument('-s','--setup-only', action='store_true',
         help="Set up the test, but don't actually run it.")
 
-# Additional test specific options:
-
-#optparser.add_option("-r", "--run", dest="doRun", default=False, action="store_true", help="Including this flag will run CISM.  Excluding it will cause the script to only setup the initial condition file")
-
 
 # Some useful functions
 # ---------------------
