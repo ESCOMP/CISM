@@ -11,7 +11,7 @@ import shutil
 import fileinput
 import numpy as np
 
-from optparse import OptionParser
+from argparse import ArgumentParser
 from netCDF4 import Dataset
 import configparser
 
@@ -144,19 +144,16 @@ def launchCism(executable, configfile, parallel):
 ########
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-e', '--exec',    dest='executable',type = 'string',default='./cism_driver', help='Path to the CISM executable')
-optparser.add_option('-n', '--parallel',dest='parallel',  type='int',help='Number of processors: if specified then run in parallel', metavar="NUMPROCS")
-optparser.add_option('-x', '--expt',    dest='experiment',type='string',default='all',     help='MISMIP experiment set to run', metavar="EXPT")
-optparser.add_option('-s', '--stat',    dest='StatChoice',type='string',default='advance', help='Experiment status set to run', metavar='STATUS')
-optparser.add_option('--bed', dest='bedtopo', type='string', default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
+parser.add_argument('-e', '--exec',    dest='executable',type =str,default='./cism_driver', help='Path to the CISM executable')
+parser.add_argument('-n', '--parallel',dest='parallel',  type=int,help='Number of processors: if specified then run in parallel', metavar="NUMPROCS")
+parser.add_argument('-x', '--expt',    dest='experiment',type=str,default='all',     help='MISMIP experiment set to run', metavar="EXPT")
+parser.add_argument('-s', '--stat',    dest='StatChoice',type=str,default='advance', help='Experiment status set to run', metavar='STATUS')
+parser.add_argument('--bed', dest='bedtopo', type=str, default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
 
 
-for option in optparser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
-options, args = optparser.parse_args()
+options = parser.parse_args()
 
 
 if options.bedtopo == 'linear':
@@ -292,7 +289,7 @@ for expt in experiments:
             inputData          = Dataset(inputFile,'r+')
             lastEntryInternal  = inputData['internal_time'][-1]
             inputslice = 1
-            if lastentry != 0:
+            if lastEntryInternal != 0:
                 inputData['internal_time'][:] = inputData['internal_time'][:] - lastEntryInternal
                 print( 'the new internal_time array is ', inputData['internal_time'][:])
 

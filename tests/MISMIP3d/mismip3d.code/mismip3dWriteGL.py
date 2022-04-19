@@ -28,17 +28,14 @@ rhoi  = 900.  # kg/m^3
 model = '_cism'
 
 # Parse options
-from optparse import OptionParser
-parser = OptionParser()
+from argparse import ArgumentParser
+parser = ArgumentParser()
 
-parser.add_option("-x", "--expt", dest="experiment", type='string', default='all', help="Name of MISMIP3d experiment(s)", metavar="EXPT")
-parser.add_option("-f", "--file", dest="filename",   type='string', help="CISM output file from MISMIP3d run", metavar="FILE")
+parser.add_argument("-x", "--expt", dest="experiment", type=str, default='all', help="Name of MISMIP3d experiment(s)", metavar="EXPT")
+parser.add_argument("-f", "--file", dest="filename",   type=str, help="CISM output file from MISMIP3d run", metavar="FILE")
 
-for option in parser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
 
-options, args = parser.parse_args()
+options = parser.parse_args()
 
 if options.experiment:
     if options.experiment == 'all':

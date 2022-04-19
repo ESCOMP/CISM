@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """
 This script plots the results of running ISMIP-HOM experiments using CISM.
@@ -19,6 +19,9 @@ information.
 #     NOTE: Did not adjust inner workings except where needed. This could
 #     seriously use a clean-up (probably an entire rewrite).
 
+# This script was modified on 04-18-22 by GRL to make it python3 compatible.
+
+
 import os
 import sys
 import glob
@@ -27,7 +30,8 @@ import numpy as np
 
 from math import sqrt, sin, cos, pi
 from netCDF import *
-from optparse import OptionParser
+
+from functools import reduce
 
 import matplotlib.figure
 from matplotlib import pyplot
@@ -168,8 +172,10 @@ def get_experiments_and_sizes(pattern):
 
 # Lists of model classifications
 # Note: 'aas1' is skipped below -- see line ~165
+
 fullStokesModels = ['aas1','aas2','cma1','fpa2','ghg1','jvj1','mmr1','oga1','rhi1','rhi3','spr1','ssu1','yko1']
 lmlaModels = ['ahu1','ahu2','bds1','fpa1','mbr1','rhi2','tpa1']
+
 
 # Classification used in Pattyn et al. 2008 paper, but not used by this script.  Listed here for reference only.
 #nonFSModels = ['ahu1','ahu2','bds1','cma2','dpo1','fpa1','lpe1','mbr1','mtk1','oso1','rhi2','rhi4','rhi5','tpa1']
@@ -177,6 +183,7 @@ lmlaModels = ['ahu1','ahu2','bds1','fpa1','mbr1','rhi2','tpa1']
 # Function to read data files
 # Returns a list of tuples [(x0,|v0|),(x1,|v1|),...,(xm,|vm|)]
 def read(filename,experiment):
+    print('experiment=',experiment)
     if experiment in ['b','d','e']:
         #   Read two numbers, x and vx, from each line in the file
         n = 2 
@@ -204,14 +211,20 @@ def read(filename,experiment):
         target = 0.25  # desired dimensionless y-position to use for the profile
 
     with  open(filename) as inputfile:
+        print('inputfile=',filename)
         data = list()
         for line in inputfile:
-            row = map(float,line.strip().split()[:n])
-            if reduce(lambda a,b: a or b,[x != x for x in row]):
-                if printNaNwarnings:
-                    print 'WARNING: NaN in file', filename, line,
+            # This if statement was necessary with the update to python3 to avoid the code
+            # to crash because it would read empty lines in the text files. 
+            if line == "\n":
+               continue
             else:
-                data.append(tuple(row))
+               row = [float(x) for x in line.strip().split()[:n]]
+               if reduce(lambda a,b: a or b,[x != x for x in row]):
+                   if printNaNwarnings:
+                       print( 'WARNING: NaN in file', filename, line,)
+               else:
+                   data.append(tuple(row))
 
     if experiment in ['b','d','e']:
         return [( row[X], abs(row[VX]) ) for row in data]  # use the absolute value of the x-velocity
@@ -277,7 +290,6 @@ def main():
     # =========================================================
 
     pattern = get_file_pattern() 
-
     experiments, sizes = get_experiments_and_sizes(pattern)
 
     if args.sizes and (set(args.sizes) <= set(map(int,sizes))):
@@ -324,15 +336,13 @@ def main():
                 else:
                     res = size
                
-                
-
                 out_file = pattern.replace('-?','-'+experiment).replace('????',str(res).zfill(4))
+
                 netCDFfile = NetCDFFile(out_file,'r')
                 if netCDF_module == 'Scientific.IO.NetCDF':
                     velscale = netCDFfile.variables['uvel_extend'].scale_factor
                 else:
                     velscale = 1.0
-
 
                 if experiment in ['f',]:
                     # Convert CISM output data to the rotated coord system used by the problem setup
@@ -429,13 +439,16 @@ def main():
 
                 # Write a "standard" ISMIP-HOM file (example file name: "cis1a020.txt") in the "output" subdirectory 
                 ISMIP_HOMfilename = out_file.replace('.out.nc','.txt')
+
                 ISMIP_HOMfile = open(ISMIP_HOMfilename,'w')
                 for i, x in enumerate(xx):
                     for j, y in enumerate(yy):
+
                         if experiment in ('a','c','f'):  # include x and y positions
                             ISMIP_HOMfile.write('\t'.join(map(str,[x,y]+[v[j,i] for (v) in data]))+'\n')
                         else:  # only include x position
                             ISMIP_HOMfile.write('\t'.join(map(str,[x]+[v[j,i] for (v) in data]))+'\n')
+
                 ISMIP_HOMfile.close()
                 netCDFfile.close()
             except:
@@ -470,7 +483,7 @@ def main():
         figure.legend([Line2D,Patch],[nonFSmodelType+' Mean',nonFSmodelType+' Std. Dev.'],loc=(0.55,0.02),prop=prop).draw_frame(False)
 
         # Loop over the sizes requested on the command line
-        for i, size in enumerate(map(int,sizes)):
+        for i, size in enumerate(list(map(int,sizes))):
             try:
                 res = size
                 if experiment == 'f': 
@@ -494,6 +507,7 @@ def main():
 
                 # Get the Glimmer output data
                 glimmerData = read(out_file.replace('.out.nc','.txt'),experiment)
+
                 # The Glimmer data is on a staggered grid;
                 # Interpolate to obtain the value at x=0 and x=1
                 # using periodic boundary conditions

@@ -13,7 +13,7 @@ import fileinput
 import numpy as np
 from netCDF4 import Dataset
 import configparser
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 
 
@@ -69,24 +69,19 @@ def computeBed(x,y):
 ########
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-c', '--config', dest='configfile',    type='string', default='mismip+.config.template', help="config file template", metavar="FILE")
-optparser.add_option('-e', '--exec',   dest='executable',    type='string', default='cism_driver', help="path to the CISM executable")
-optparser.add_option('-x', '--expt',   dest='experiment',    type='string', default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
-optparser.add_option('-t', '--tstep',  dest='timestep',      type='float',  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
-optparser.add_option('-r', '--res',    dest='resolution',    type='int',    default= 2000,    help="grid resolution (m)",    metavar="RES")
-optparser.add_option('-v', '--vlevel', dest='vertlevels',    type='int',    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
-optparser.add_option('-a', '--approx', dest='approximation', type='string', default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
-optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
-optparser.add_option('-y', '--year',   dest='yearsSpinup',   type='int',    default= 20000,   help="length of spinup run (yr)")
+parser.add_argument('-c', '--config', dest='configfile',    type=str, default='mismip+.config.template', help="config file template", metavar="FILE")
+parser.add_argument('-e', '--exec',   dest='executable',    type=str, default='cism_driver', help="path to the CISM executable")
+parser.add_argument('-x', '--expt',   dest='experiment',    type=str, default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
+parser.add_argument('-t', '--tstep',  dest='timestep',      type=float,  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
+parser.add_argument('-r', '--res',    dest='resolution',    type=int,    default= 2000,    help="grid resolution (m)",    metavar="RES")
+parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
+parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
+parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
+parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
 
-optparser.add_option 
-
-for option in optparser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
-options, args = optparser.parse_args()
+options = parser.parse_args()
 
 if options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']

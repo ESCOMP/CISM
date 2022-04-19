@@ -9,23 +9,19 @@
 
 import sys, os
 import fileinput
-from optparse import OptionParser
+from argparse import ArgumentParser
 import configparser
 from netCDF4 import Dataset
 
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-e', '--exec',     dest='executable', type = 'string', default ='./cism_driver', help="Path to the CISM executable")
-optparser.add_option('-x', '--expt',     dest='experiment', type ='string',  default = 'all', help="MISMIP+ experiment(s) to run", metavar="EXPT")
-optparser.add_option('-n', '--parallel', dest='parallel',   type ='int', help="Number of processors: if specified then run in parallel", metavar="NUMPROCS")
+parser.add_argument('-e', '--exec',     dest='executable', type = str, default ='./cism_driver', help="Path to the CISM executable")
+parser.add_argument('-x', '--expt',     dest='experiment', type =str,  default = 'all', help="MISMIP+ experiment(s) to run", metavar="EXPT")
+parser.add_argument('-n', '--parallel', dest='parallel',   type =int, help="Number of processors: if specified then run in parallel", metavar="NUMPROCS")
 
-
-for option in optparser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
-options, args = optparser.parse_args()
+options = parser.parse_args()
 
 if options.experiment == 'Spinup':
     experiments = ['Spinup']

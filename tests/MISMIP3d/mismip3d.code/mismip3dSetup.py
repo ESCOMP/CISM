@@ -10,8 +10,7 @@ import fileinput
 import numpy as np
 from netCDF4 import Dataset
 import configparser
-from optparse import OptionParser
-
+from argparse import ArgumentParser
 
 #############
 # Constants #
@@ -48,24 +47,20 @@ def computeBed(x):
 
 
 # Parse options
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-c', '--config', dest='configfile',   type='string',  default='mismip3d.config.template', help='config file name for setting up the MISMIP3d experiment', metavar='FILE')
-optparser.add_option('-e', '--exec',   dest='executable',                   default='cism_driver',help='Set path to the CISM executable', metavar='EXECUTABLE')
-optparser.add_option('-x', '--expt',   dest='experiment',    type='string', default = 'all',    help='MISMIP3d experiment to set up', metavar='EXPT')
-optparser.add_option('-t', '--tstep',  dest='timestep',      type='float',  default = 1,        help='time step (yr)', metavar='TSTEP')
-optparser.add_option('-r', '--res',    dest='resolution',    type='int',    default = 2000,     help='grid resolution (m)', metavar='RES')
-optparser.add_option('-v', '--vlevel', dest='vertlevels',    type='int',    default = 3,        help='no. of vertical levels', metavar='VLEVEL')
-optparser.add_option('-a', '--approx', dest='approximation', type='string', default = 'DIVA',   help='Stokes approximation (SSA, DIVA, BP)', metavar='APPROXIMATION')
-optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='powerlaw', help='Basal friction law (powerlaw, schoof)', metavar='BASALFRICTION')
-optparser.add_option('-y', '--year',   dest='yearsStnd',     type='int',    default = 20000,    help='Length of Stnd run (yr)', metavar='YEARSPINUP')
+parser.add_argument('-c', '--config', dest='configfile',   type=str,  default='mismip3d.config.template', help='config file name for setting up the MISMIP3d experiment', metavar='FILE')
+parser.add_argument('-e', '--exec',   dest='executable',              default='cism_driver',help='Set path to the CISM executable', metavar='EXECUTABLE')
+parser.add_argument('-x', '--expt',   dest='experiment',    type=str, default = 'all',    help='MISMIP3d experiment to set up', metavar='EXPT')
+parser.add_argument('-t', '--tstep',  dest='timestep',      type=float,  default = 1,        help='time step (yr)', metavar='TSTEP')
+parser.add_argument('-r', '--res',    dest='resolution',    type=int,    default = 2000,     help='grid resolution (m)', metavar='RES')
+parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default = 3,        help='no. of vertical levels', metavar='VLEVEL')
+parser.add_argument('-a', '--approx', dest='approximation', type=str, default = 'DIVA',   help='Stokes approximation (SSA, DIVA, BP)', metavar='APPROXIMATION')
+parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='powerlaw', help='Basal friction law (powerlaw, schoof)', metavar='BASALFRICTION')
+parser.add_argument('-y', '--year',   dest='yearsStnd',     type=int,    default = 20000,    help='Length of Stnd run (yr)', metavar='YEARSPINUP')
 
-optparser.add_option
 
-for option in optparser.option_list:
-    if option.default != ('NO', 'DEFAULT'):
-        option.help += (' ' if option.help else '') + '[default: %default]'
-options, args = optparser.parse_args()
+options = parser.parse_args()
 
 if options.experiment == 'all':
     experiments = ['Stnd','P75S','P75R']

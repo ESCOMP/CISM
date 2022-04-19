@@ -8,7 +8,7 @@ import sys, os
 import shutil
 import fileinput
 import numpy as np
-from optparse import OptionParser
+from argparse import ArgumentParser
 import configparser 
 from netCDF4 import Dataset
 
@@ -50,7 +50,7 @@ def replace_string(file, oldString, newString):
             stringFound = True
             print( line,)
         else:
-            print line,
+            print( line,)
 
 
 
@@ -60,19 +60,15 @@ def replace_string(file, oldString, newString):
 
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-e', '--exec',     dest='executable', type = 'string', default='./cism_driver', help='Path to the CISM executable')
-optparser.add_option('-x', '--expt',     dest='experiment', type='string',   default='all', help='MISMIP3d experiment(s) to run', metavar='EXPT')
-optparser.add_option('-n', '--parallel', dest='parallel',   type='int', help='Number of processors: if specified then run in parallel', metavar='NUMPROCS')
-optparser.add_option('--job',     action="store_true", dest='jobscript', help='option to set up a script to run on HPC')
-optparser.add_option('--submit',  action="store_true", dest='jobsubmit', help='option to submit the run script directly after executing this script')
+parser.add_argument('-e', '--exec',     dest='executable', type =str, default='./cism_driver', help='Path to the CISM executable')
+parser.add_argument('-x', '--expt',     dest='experiment', type=str,  default='all', help='MISMIP3d experiment(s) to run', metavar='EXPT')
+parser.add_argument('-n', '--parallel', dest='parallel',   type=int, help='Number of processors: if specified then run in parallel', metavar='NUMPROCS')
+parser.add_argument('--job',     action="store_true", dest='jobscript', help='option to set up a script to run on HPC')
+parser.add_argument('--submit',  action="store_true", dest='jobsubmit', help='option to submit the run script directly after executing this script')
 
-
-for option in optparser.option_list:
-    if option.default != ('NO', 'DEFAULT'):
-        option.help += (' ' if option.help else '') + '[default: %default]'
-options, args = optparser.parse_args()
+options = parser.parse_args()
 
 if options.experiment == 'all':
     experiments = ['Stnd', 'P75S', 'P75R']
@@ -107,7 +103,7 @@ for expt in experiments:
     config = configparser.ConfigParser(delimiters=('=', ':'),
                             comment_prefixes=('#', ';'),
                             inline_comment_prefixes=';',
-                            interpolation=None))
+                            interpolation=None)
     config.read(configfile)
 
     inputFile   = config.get('CF input',   'name')
@@ -139,7 +135,7 @@ for expt in experiments:
         # The run for this A value is not done and needs to continue.
         
         # Make sure restart is set to 1 in config file.
-        config.set('options', 'restart', 1)
+        config.set('options', 'restart', '1')
         
         # Write to config file.
         with open(configfile, 'w') as newconfigfile:
@@ -165,9 +161,9 @@ for expt in experiments:
         
         infile = Dataset(inputfile,'r')
         ntime = len(infile.dimensions['time']) # reading the last time slice of the previous experiment
-        config.set('CF input', 'time', ntime)
+        config.set('CF input', 'time', str(ntime))
         print( 'input file =', inputfile)
-        print( 'time slice =', ntime)
+        print( 'time slice =', str(ntime))
        
         infile.close()
 
@@ -194,7 +190,7 @@ for expt in experiments:
             for i in range(1,nx-1):
                 if (f_ground[ntimeout-1,ycenter,i] > 0) and (f_ground[ntimeout-1,ycenter,i+1] == 0):
                      xGL = x0[i]
-                     print 'grounding line at ycenter =', xGL
+                     print( 'grounding line at ycenter =', xGL)
         
             # We now write C_space factor to the file.
             print( 'writing peturbation to C_space_factor')
