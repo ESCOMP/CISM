@@ -74,6 +74,7 @@ module glimmer_paramets
   !  later if they were read from an input file or otherwise computed correctly
   real(dp), parameter :: unphys_val = -99999.d0
 
+  real(dp), parameter :: netcdf_fill_value = 9.96921d+36
 
   ! Other numerical constants
   real(dp), parameter :: eps08 = 1.0d-08  ! small number, useful for some thresholds
