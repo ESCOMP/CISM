@@ -47,7 +47,8 @@ module glissade_calving
             glissade_limit_cliffs
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
+!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -574,10 +575,10 @@ contains
          d_damage_dt             ! rate of change of damage scalar (1/s)
 
     logical, parameter :: &
-         damage_scale_stress_by_thickness = .false.  ! if true, stress_scale is proportional to H
+         damage_scale_stress_by_thickness = .true.   ! if true, stress_scale is proportional to H
                                                      ! if false, stress_scale is independent of H
     real(dp), parameter :: &
-         stress_scale_thck = 100.d0    ! ice thickness (m) in stress_scale = rhoi*g*H
+         stress_scale_thck = 100.d0      ! ice thickness (m) in stress_scale = rhoi*g*H
 
     !WHL - debug
     real(dp) :: eigenproduct
@@ -828,9 +829,9 @@ contains
                    ! This damage_constant has units of s^{-1}
 
                    if (damage_scale_stress_by_thickness) then
-                      stress_scale = rhoi*grav*thck(i,j)
+                      stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
                    else
-                      stress_scale = rhoi*grav*stress_scale_thck
+                      stress_scale = rhoi*grav * stress_scale_thck
                    endif
 
                    d_damage_dt = (calving%damage_constant1 * max(calving%tau_eigen1(i,j), 0.0d0) +  &
@@ -895,9 +896,9 @@ contains
                 do i = itest-3, itest+3
                    if (thck(i,j) > 0.0d0) then
                       if (damage_scale_stress_by_thickness) then
-                         stress_scale = rhoi*grav*thck(i,j)
+                         stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
                       else
-                         stress_scale = rhoi*grav*100.d0   ! use H = 100 m in the scale
+                         stress_scale = rhoi*grav * stress_scale_thck
                       endif
                       write(6,'(f10.6)',advance='no') (dt / stress_scale) *  &
                            (calving%damage_constant1 * max(calving%tau_eigen1(i,j), 0.0d0) +  &

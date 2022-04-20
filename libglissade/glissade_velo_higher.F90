@@ -1336,8 +1336,8 @@
           
           print*, ' '
           print*, 'Thickness field, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
                 write(6,'(f6.0)',advance='no') thck(i,j)
              enddo
              write(6,*) ' '
@@ -1345,8 +1345,8 @@
           
           print*, ' '
           print*, 'Topography field, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
                 write(6,'(f6.0)',advance='no') topg(i,j)
              enddo
              write(6,*) ' '
@@ -1354,17 +1354,33 @@
           print*, ' '
           
           print*, 'Upper surface field, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
                 write(6,'(f6.0)',advance='no') usrf(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, 'Surface uvel, rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f6.0)',advance='no') uvel(1,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, 'Surface vvel, rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f6.0)',advance='no') vvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo
           
           print*, ' '
           print*, 'flwa (Pa-3 yr-1), k = 1, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
                 write(6,'(e12.5)',advance='no') flwa(1,i,j)
              enddo
              write(6,*) ' '

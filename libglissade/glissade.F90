@@ -4595,7 +4595,9 @@ contains
                               model%options%which_ho_ground,      &
                               floating_mask,                      &
                               model%geometry%f_ground_cell,       &
-                              model%temper%waterfrac)
+                              model%temper%waterfrac,             &
+                              model%calving%damage,               &
+                              model%options%damage_flwa_feedback)
 
     !TODO - flwa halo update not needed?
     ! Halo update for flwa
