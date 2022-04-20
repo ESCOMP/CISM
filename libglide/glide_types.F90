@@ -669,6 +669,10 @@ module glide_types
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
 
+    logical :: damage_flwa_feedback = .false.
+    !> if true, then flwa increases as damage increases
+    !> This can be a strong positive feedback on damage
+
     logical :: adjust_input_thickness = .false.
     !> if true, then adjust thck to maintain usrf, instead of deriving usrf from topg and thck
 
