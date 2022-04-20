@@ -750,6 +750,7 @@ contains
     call GetValue(section,'expand_calving_mask', model%options%expand_calving_mask)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
@@ -2468,6 +2469,8 @@ contains
           write(message,*) 'damage constant2 (yr^-1)             : ', model%calving%damage_constant2
           call write_log(message)
           write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+          call write_log(message)
+          write(message,*) 'damage-flwa feedback                 : ', model%options%damage_flwa_feedback
           call write_log(message)
        endif
 
