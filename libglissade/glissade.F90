@@ -4290,7 +4290,9 @@ contains
                               model%options%which_ho_ground,      &
                               floating_mask,                      &
                               model%geometry%f_ground_cell,       &
-                              model%temper%waterfrac)
+                              model%temper%waterfrac,             &
+                              model%calving%damage,               &
+                              model%options%damage_flwa_feedback)
 
     !WHL - debug
     if (this_rank==rtest) then

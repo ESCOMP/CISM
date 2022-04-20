@@ -2384,18 +2384,20 @@ module glissade_therm
   !TODO - For damage-based calving, try multiplying flwa by a damage factor, (1 - damage)
   !TODO - Pass in nx and ny, to avoid allocations within the subroutine.
 
-  subroutine glissade_flow_factor(whichflwa,            whichtemp,  &
-                                  stagsigma,                        &
-                                  thck,                             &
-                                  temp,                             &
-                                  flwa,                             &
-                                  default_flwa,                     &
-                                  flow_enhancement_factor,          &
-                                  flow_enhancement_factor_float,    &
-                                  which_ho_ground,                  &
-                                  floating_mask,                    &
-                                  f_ground_cell,                    &
-                                  waterfrac)
+  subroutine glissade_flow_factor(whichflwa,               whichtemp,  &
+                                  stagsigma,                           &
+                                  thck,                                &
+                                  temp,                                &
+                                  flwa,                                &
+                                  default_flwa,                        &
+                                  flow_enhancement_factor,             &
+                                  flow_enhancement_factor_float,       &
+                                  which_ho_ground,                     &
+                                  floating_mask,                       &
+                                  f_ground_cell,                       &
+                                  waterfrac,                           &
+                                  damage,                              &
+                                  damage_flwa_feedback)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
     !
@@ -2449,6 +2451,8 @@ module glissade_therm
     integer, dimension(:,:),   intent(in)    :: floating_mask       !> = 1 for floating ice
     real(dp),dimension(:,:),   intent(in)    :: f_ground_cell       !> grounded ice fraction in cell, 0 to 1
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
+    real(dp),dimension(:,:,:), intent(in), optional :: damage      !> damage tracer, 0 to 1
+    logical, intent(in), optional :: damage_flwa_feedback     !> if true, let flwa increase with damage
 
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
@@ -2476,6 +2480,7 @@ module glissade_therm
     
     real(dp), parameter :: const_temp = -5.0d0   ! deg C
     real(dp), parameter :: flwa_waterfrac_enhance_factor = 181.25d0
+    real(dp), parameter :: flwa_damage_max = 0.98d0   ! max damage value used to enhance flwa
 
     !------------------------------------------------------------------------------------
    
@@ -2581,6 +2586,19 @@ module glissade_therm
        ! do nothing (flwa is set above, with units Pa^{-n} s^{-1})
 
     end select
+
+    ! Optionally, increase flwa (i.e., make the ice softer) where damage > 0
+    ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^gn, where gn is the Glen exponent.
+    !       For simplicity, we assume a linear relationship here.
+    if (present(damage) .and. present(damage_flwa_feedback)) then
+       if (damage_flwa_feedback) then
+          where (damage < flwa_damage_max)
+             flwa = flwa / (1.0d0 - damage)
+          elsewhere
+             flwa = flwa / (1.0d0 - flwa_damage_max)
+          endwhere
+       endif
+    endif
 
     ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
     flwa(:,:,:) = flwa(:,:,:) / vis0
