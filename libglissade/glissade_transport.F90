@@ -253,21 +253,6 @@
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
          enddo
-
-         !WHL - debug
-!         print*, 'finish transport: new damage tracer'
-!         do k = 1, nlyr, nlyr-1
-!            print*, 'k =', k
-!!            do j = ny, 1, -1
-!            do j = ny-4, ny-12, -1
-!               write(6,'(i6)',advance='no') j
-!               do i = 4, nx/4
-!                  write(6,'(f10.6)',advance='no') model%geometry%tracers(i,j,nt,k)
-!               enddo
-!               write(6,*) ' '
-!            enddo
-!         enddo
-
       endif
 
       ! ice age parameter

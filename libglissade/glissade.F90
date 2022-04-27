@@ -2302,7 +2302,7 @@ contains
                               glissade_calving_front_mask
     use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
-    use glissade_calving, only: verbose_calving
+    use glissade_calving, only: verbose_calving, glissade_effective_calving_thck
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
@@ -2358,6 +2358,14 @@ contains
     integer :: itest, jtest, rtest
 
     type(parallel_type) :: parallel   ! info for parallel communication
+
+    ! used for damage-based calving
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+         thck_effective             ! effective ice thickness (m) for calving, weighted toward upstream thickness
 
     !WHL - debug
     real(dp) :: local_maxval, global_maxval
@@ -2430,7 +2438,11 @@ contains
                                active_ice_mask = active_ice_mask)
 
        ! If using a subgrid calving-front scheme, then recompute active_ice_mask.
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       !TODO - Introduce a new subgrid option?
+       !       Consolidate these two subroutines?
+!!       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
+           model%options%whichcalving == CALVING_DAMAGE) then
 
           call glissade_calving_front_mask(ewn,                    nsn,              &
                                            model%options%which_ho_calving_front,     &
@@ -2442,6 +2454,16 @@ contains
                                            ocean_mask,             land_mask,        &
                                            calving_front_mask,     thck_calving_front, &
                                            active_ice_mask = active_ice_mask)
+
+          ! Near the calving front, distinguish full cells from partial cells
+          call glissade_effective_calving_thck(&
+               ewn,             nsn,                 &
+               itest,  jtest,   rtest,               &
+               ice_mask,        calving_front_mask,  &
+               model%geometry%thck*thk0,             &   ! m
+               thck_effective,                       &   ! m
+               partial_cf_mask, full_mask)
+
        endif
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
@@ -2458,6 +2480,18 @@ contains
              enddo
           enddo
        endif    ! TEMP_ENTHALPY
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'Before tracer transport, damage layer 1:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') model%calving%damage(1,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
        ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
        call glissade_transport_setup_tracers (model)
@@ -2652,6 +2686,53 @@ contains
 
           ! Identify cells where thin ice should be removed.
           ! The mask is applied later, in glissade_calving_solve.
+          where (protected_mask == 0 .and. thck_unscaled > 0.0d0)
+             model%calving%calving_mask = 1
+          elsewhere
+             model%calving%calving_mask = 0
+          endwhere
+
+          call parallel_halo(model%calving%calving_mask, parallel)
+
+          if (verbose_calving .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'After transport, temporary calving_mask:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(i10)',advance='no') model%calving%calving_mask(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+       endif   ! calving_damage
+
+       if (model%options%whichcalving == CALVING_DAMAGE .and. .not.model%options%apply_calving_mask) then
+
+          ! compute a mask of protected cells
+          ! Protect cells where ice was present before advection, and protect land cells
+
+          protected_mask(:,:) = 0
+          where (ice_mask == 1 .or. land_mask == 1)
+             protected_mask = 1
+          endwhere
+
+          ! Near the calving front, protect cells that are adjacent to full cells
+          ! (either partial CF or ice-free ocean)
+          do j = 2, nsn-1
+             do i = 2, ewn-1
+                if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
+                    full_mask(i,j-1) == 1 .or. full_mask(i,j+1) == 1) then
+                   protected_mask(i,j) = 1
+                endif
+             enddo
+          enddo
+
+          ! Identify cells where thin ice should be removed.
+          ! The mask is applied later, in glissade_calving_solve.
+          !TODO - Could removal be done later based on the protected mask only?
           where (protected_mask == 0 .and. thck_unscaled > 0.0d0)
              model%calving%calving_mask = 1
           elsewhere
@@ -3136,6 +3217,18 @@ contains
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
 
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'After tracer transport, damage layer 1:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.5)',advance='no') model%calving%damage(1,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
        ! convert applied mass balance from m/s back to scaled model units
        model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
        model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 * tim0
@@ -3256,7 +3349,7 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_halo
 
-    use glimmer_paramets, only: thk0, tim0, len0
+    use glimmer_paramets, only: thk0, tim0, len0, vel0
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, verbose_calving
@@ -3588,7 +3681,9 @@ contains
 
       endif  ! relaxed calving
 
-    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+!!    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
+            model%options%whichcalving == CALVING_DAMAGE) then
 
        ! If using a subgrid calving_front scheme (but apply_calving_mask = F),
        !  remove thin ice that was transported beyond the CF to ice-free cells without active neighbors.
@@ -3600,6 +3695,29 @@ contains
           thck_unscaled = 0.0d0
           !TODO - Reset temperature and other tracers in cells where the ice calved?
        endwhere
+
+       if (verbose_calving .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'Removed unprotected ice'
+          print*, ' '
+          print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') model%calving%calving_thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'New thck (m):'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
 
     endif   ! apply_calving_mask
 
@@ -3623,6 +3741,7 @@ contains
                                model%numerics%dns*len0,           &        ! m
                                model%numerics%sigma,              &
                                model%numerics%thklim*thk0,        &        ! m
+                               model%velocity%velnorm_mean*vel0,  &        ! m/s
                                thck_unscaled,                     &        ! m
                                model%isostasy%relx*thk0,          &        ! m
                                model%geometry%topg*thk0,          &        ! m
@@ -4091,7 +4210,7 @@ contains
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
-    use glissade_calving, only: verbose_calving
+    use glissade_calving, only: verbose_calving, glissade_effective_calving_thck
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
@@ -4126,6 +4245,17 @@ contains
          f_ground_obs,       & ! f_ground as a function of thck_obs (instead of current thck)
          f_flotation_obs,    & ! f_flotation_obs as a function of thck_obs (instead of current thck)
          thck_calving_front    ! effective thickness of ice at the calving front
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         flow_enhancement_factor_float,  & ! flow enhancement factor for floating ice
+         thck_calving_front, & ! effective thickness of ice at the calving front
+         thck_effective,     & ! like thck_calving_front but for damage scheme
+         tau1, tau2,         & ! same as model%calving%tau_eigen1 and tau_eigen2
+         eps1, eps2            ! same as model%calving%tau_eigen1 and tau_eigen2
+
+    ! used for damage-based calving
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         partial_cf_mask, full_mask
 
     real(dp) :: &
          dsigma,                   & ! layer thickness in sigma coordinates
@@ -4892,6 +5022,7 @@ contains
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+    model%velocity%velnorm_mean(:,:) = sqrt(model%velocity%uvel_mean(:,:)**2 + model%velocity%vvel_mean(:,:)**2)
 
     ! Compute the vertically integrated stress tensor (Pa) and its eigenvalues.
     ! These are used for some calving schemes.
@@ -5059,7 +5190,7 @@ contains
              endif
           endif  ! b^2 - 4ac > 0
 
-          ! Compute two other invariants of the horizontal flow::
+          ! Compute two other invariants of the horizontal flow:
           !    divu = eps_xx + eps_yy
           !    shear = sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
           ! These are related to the eigenvalues as:
@@ -5153,6 +5284,48 @@ contains
        enddo
     endif  ! this_rank = rtest
 
+    ! For damage-based calving, replace tau and eps in partial_cf cells with values in adjacent full cells.
+    ! The partial cells have thin ice that moves slowly, often resulting in tau2 < 0 and eps2 < 0,
+    !  although the nearby full cells have tau2 > 0 and eps2 > 0.
+    !TODO - Do this for eigencalving also if we replace the subgrid CF scheme for eigencalving.
+
+    if (model%options%whichcalving == CALVING_DAMAGE) then
+
+       ! Near the calving front, distinguish full cells from partial cells
+       call glissade_effective_calving_thck(&
+            ewn,             nsn,                 &
+            itest,  jtest,   rtest,               &
+            ice_mask,        calving_front_mask,  &
+            model%geometry%thck*thk0,             &   ! m
+            thck_effective,                       &   ! m
+            partial_cf_mask, full_mask)
+
+       tau1 = model%calving%tau_eigen1
+       tau2 = model%calving%tau_eigen2
+       eps1 = model%calving%eps_eigen1
+       eps2 = model%calving%eps_eigen2
+
+       do j = 2, nsn-1
+          do i = 2, ewn-1
+             if (partial_cf_mask(i,j) == 1) then
+                model%calving%tau_eigen1(i,j) = &
+                     max(tau1(i-1,j)*full_mask(i-1,j), tau1(i+1,j)*full_mask(i+1,j), &
+                         tau1(i,j-1)*full_mask(i,j-1), tau1(i,j+1)*full_mask(i,j+1))
+                model%calving%tau_eigen2(i,j) = &
+                     max(tau2(i-1,j)*full_mask(i-1,j), tau2(i+1,j)*full_mask(i+1,j), &
+                         tau2(i,j-1)*full_mask(i,j-1), tau2(i,j+1)*full_mask(i,j+1))
+                model%calving%eps_eigen1(i,j) = &
+                     max(eps1(i-1,j)*full_mask(i-1,j), eps1(i+1,j)*full_mask(i+1,j), &
+                         eps1(i,j-1)*full_mask(i,j-1), eps1(i,j+1)*full_mask(i,j+1))
+                model%calving%eps_eigen2(i,j) = &
+                     max(eps2(i-1,j)*full_mask(i-1,j), eps2(i+1,j)*full_mask(i+1,j), &
+                         eps2(i,j-1)*full_mask(i,j-1), eps2(i,j+1)*full_mask(i,j+1))
+             endif
+          enddo
+       enddo
+
+    endif   ! damage-based calving
+
     ! Compute various vertical means.
     ! TODO - Write a utility subroutine for vertical averaging
 
@@ -5174,6 +5347,16 @@ contains
     ! These arrays have horizontal dimensions (nx,ny) instead of (nx-1,ny-1).
     ! They are needed for exact restart if we have nonzero velocities along the
     !  north and east edges of the global domain, as in some test problems.
+
+    ! Note: The uvel_extend and vvel_extend fields have dimension (nx,ny).
+    ! They provide exact restart if running with periodic BCs for a domain
+    !  with nonzero velocity at the global boundaries.
+    ! However, they do not give exact restart if running with outflow BCs
+    !  on such a domain.
+    ! A robust fix, not done yet, would be to write the restart velocities
+    !  onto a new grid with dimension (nx+1,ny+1).
+    ! TODO: Implement restart velocities on an extended (nx+1,ny+1) grid?
+
     
     model%velocity%uvel_extend(:,:,:) = 0.d0
     model%velocity%vvel_extend(:,:,:) = 0.d0
