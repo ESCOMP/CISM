@@ -1334,10 +1334,19 @@
           enddo
           
           print*, ' '
+          print*, 'Upper surface field, rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') usrf(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
           print*, 'Thickness field, rank =', rtest
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f6.0)',advance='no') thck(i,j)
+                write(6,'(f10.3)',advance='no') thck(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1346,32 +1355,25 @@
           print*, 'Topography field, rank =', rtest
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f6.0)',advance='no') topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          
-          print*, 'Upper surface field, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f6.0)',advance='no') usrf(i,j)
+                write(6,'(f10.3)',advance='no') topg(i,j)
              enddo
              write(6,*) ' '
           enddo
 
+          print*, ' '
           print*, 'Surface uvel, rank =', rtest
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f6.0)',advance='no') uvel(1,i,j)
+                write(6,'(f10.3)',advance='no') uvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo
 
+          print*, ' '
           print*, 'Surface vvel, rank =', rtest
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f6.0)',advance='no') vvel(1,i,j)
+                write(6,'(f10.3)',advance='no') vvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo

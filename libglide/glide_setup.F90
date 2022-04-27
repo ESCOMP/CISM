@@ -195,6 +195,7 @@ contains
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
     model%calving%eigencalving_constant = model%calving%eigencalving_constant / scyr    ! convert from m/yr/Pa to m/s/Pa
+    !TODO - No conversion for strain-based calving
     model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
     model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
 
@@ -2310,11 +2311,10 @@ contains
        call write_log(message)
     endif
 
-    ! thickness- and damage-based calving options
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-        model%options%whichcalving == EIGENCALVING           .or. &
-        model%options%whichcalving == CALVING_DAMAGE) then
+    ! thickness- and eigenvalue-based calving options
 
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+        model%options%whichcalving == EIGENCALVING) then
        if (model%calving%timescale > 0.0d0) then
           write(message,*) 'calving_timescale (yr)          : ', model%calving%timescale
           call write_log(message)
@@ -2322,6 +2322,11 @@ contains
           write(message,*) 'Error: This calving option requires calving_timescale > 0'
           call write_log(message, GM_FATAL)
        endif
+    endif
+
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+        model%options%whichcalving == EIGENCALVING           .or. &
+        model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%calving%minthck > 0.0d0) then
           write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck

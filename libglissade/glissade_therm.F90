@@ -2480,7 +2480,10 @@ module glissade_therm
     
     real(dp), parameter :: const_temp = -5.0d0   ! deg C
     real(dp), parameter :: flwa_waterfrac_enhance_factor = 181.25d0
-    real(dp), parameter :: flwa_damage_max = 0.98d0   ! max damage value used to enhance flwa
+
+    real(dp), parameter :: flwa_damage_max = 0.95d0   ! max damage value used to enhance flwa
+    real(dp), parameter :: nexp_damage = 1.0d0        ! exponent in damage-flwa relation
+!!    real(dp), parameter :: nexp_damage = 3.0d0      ! exponent in damage-flwa relation
 
     !------------------------------------------------------------------------------------
    
@@ -2590,12 +2593,13 @@ module glissade_therm
     ! Optionally, increase flwa (i.e., make the ice softer) where damage > 0
     ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^gn, where gn is the Glen exponent.
     !       For simplicity, we assume a linear relationship here.
+
     if (present(damage) .and. present(damage_flwa_feedback)) then
        if (damage_flwa_feedback) then
           where (damage < flwa_damage_max)
-             flwa = flwa / (1.0d0 - damage)
+             flwa = flwa / (1.0d0 - damage)**nexp_damage
           elsewhere
-             flwa = flwa / (1.0d0 - flwa_damage_max)
+             flwa = flwa / (1.0d0 - flwa_damage_max)**nexp_damage
           endwhere
        endif
     endif
