@@ -42,12 +42,12 @@ module glissade_calving
 
   private
   public :: glissade_calving_mask_init, glissade_thck_calving_threshold_init, &
-            glissade_calve_ice, glissade_cull_calving_front, &
+            glissade_calve_ice, glissade_effective_calving_thck,  &
             glissade_remove_icebergs, glissade_remove_isthmuses, &
-            glissade_limit_cliffs
+            glissade_cull_calving_front, glissade_limit_cliffs
   public :: verbose_calving
 
-!  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
   logical, parameter :: verbose_calving = .true.
 
 contains
@@ -477,6 +477,7 @@ contains
                                 dx,               dy,    &  ! m
                                 sigma,                   &
                                 thklim,                  &  ! m
+                                velnorm_mean,            &  ! m/s
                                 thck,             relx,  &  ! m
                                 topg,             eus)      ! m
 
@@ -529,10 +530,11 @@ contains
     real(dp), intent(in)                      :: dt                !> model timestep (s)
     real(dp), intent(in)                      :: dx, dy            !> grid cell size in x and y directions (m)
     real(dp), dimension(:), intent(in)        :: sigma             !> vertical sigma coordinate
-    real(dp), intent(in)                      :: thklim            !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), dimension(nx-1,ny-1), intent(in):: velnorm_mean      !> mean ice speed at vertices (m/s)
     real(dp), dimension(nx,ny), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(nx,ny), intent(in)    :: relx              !> relaxed bedrock topography (m)
     real(dp), dimension(nx,ny), intent(in)    :: topg              !> present bedrock topography (m)
+    real(dp), intent(in)                      :: thklim            !> minimum thickness for dynamically active grounded ice (m)
     real(dp), intent(in)                      :: eus               !> eustatic sea level (m)
 
     ! local variables
@@ -545,7 +547,7 @@ contains
     real(dp), dimension(nx,ny) ::  &
          thck_calving_front,     & ! effective ice thickness at the calving front
          tau1, tau2,             & ! tau_eigen1 and tau_eigen2 (Pa), modified for calving
-         damage_column             ! 2D vertically integrated scalar damage parameter
+         eps1, eps2                ! eps_eigen1 and eps_eigen2 (1/s), modified for calving
 
     ! basic masks
     integer, dimension(nx,ny)  ::  &
@@ -569,19 +571,14 @@ contains
          float_fraction_calve, & ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
                                  ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
          thinning_rate,        & ! vertical thinning rate (m/s)
-         damage_frac,          & ! fraction of maximum thinning rate, based on damage
-         dthck,                & ! thickness change (m)
-         stress_scale,         & ! stress scale in prognostic damage equation (Pa)
-         d_damage_dt             ! rate of change of damage scalar (1/s)
+         dthck                   ! thickness change (m)
 
-    logical, parameter :: &
-         damage_scale_stress_by_thickness = .true.   ! if true, stress_scale is proportional to H
-                                                     ! if false, stress_scale is independent of H
-    real(dp), parameter :: &
-         stress_scale_thck = 100.d0      ! ice thickness (m) in stress_scale = rhoi*g*H
+    real(dp), dimension(nx,ny) :: &
+         thck_effective          ! effective thickness (m) for calving, weighted toward upstream thickness
 
-    !WHL - debug
-    real(dp) :: eigenproduct
+    integer, dimension(nx,ny) :: &
+         partial_cf_mask,      & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask               ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     character(len=100) :: message
    
@@ -624,16 +621,38 @@ contains
        
     ! Do the calving based on the value of which_calving
 
-    if (which_calving == EIGENCALVING .or. which_calving == CALVING_DAMAGE) then
+    ! Notes on eigencalving and damage-based calving:
+    ! For both damage-based calving and eigencalving, the calving rate depends on eigenvalues of the 2D stress tensor.
+    ! The main difference is that for eigencalving, the calving rate is based on current stresses
+    !  at the calving front, whereas for damage-based calving, the calving rate is based on cumulative damage,
+    !  which accumulates in floating cells due to stresses and then is advected downstream.
 
-       ! For each method, the damage or calving rate depends on eigenvalues of the 2D horizontal stress tensor.
-       ! The main difference is that for eigencalving, the calving rate is based on current stresses
-       !  at the calving front, whereas for damage-based calving, the calving rate is based on cumulative damage,
-       !  which accumulates in floating cells due to stresses and then is advected downstream.
-       !
-       ! At some point, we may want to prognose damage in a way that depends on other factors such as mass balance.
 
-       ! Get masks
+    if (which_calving == CALVING_DAMAGE) then
+
+       call damage_based_calving(&
+            nx,       ny,       nz,                    &
+            dx,                 dy,                    &
+            sigma,              dt,                    &
+            itest,    jtest,    rtest,                 &
+            parallel,                                  &
+            which_ho_calving_front,                    &
+            velnorm_mean,                              &  ! m/s
+            thck,               topg,                  &  ! m
+            eus,                thklim,                &  ! m
+            calving%tau_eigen1, calving%tau_eigen2,    &  ! Pa
+            calving%eps_eigen1, calving%eps_eigen2,    &  ! 1/s
+            calving%damage_constant1,                  &
+            calving%damage_constant2,                  &
+            calving%damage_threshold,                  &
+            calving%minthck,                           &  ! m
+            calving%damage,                            &
+            calving%lateral_rate,                      &
+            calving%calving_thck)                         ! m
+
+    elseif (which_calving == EIGENCALVING) then
+
+       ! Compute masks needed for calving
        ! Need a calving_front_mask; calving/thinning is applied only to cells at the calving front.
        !
        ! If running with a subgrid calving scheme, thck_calving_front is the effective thickness at the calving front,
@@ -646,24 +665,28 @@ contains
        !  The subgrid CF scheme gives mixed results. Stress fields can be noisy, with some cells popping
        !  in and out of activity.  Might want to try eigencalving without the subgrid CF.
 
-       call glissade_get_masks(nx,            ny,             &
-                               parallel,                      &
-                               thck,          topg,           &
-                               eus,           thklim,         &
-                               ice_mask,                      &
-                               floating_mask = floating_mask, &
-                               ocean_mask = ocean_mask,       &
-                               land_mask = land_mask)
+       !TODO - Move the following code to an eigencalving subroutine
 
-       call glissade_calving_front_mask(nx,            ny,              &
-                                        which_ho_calving_front,         &
-                                        parallel,                       &
-                                        thck,          topg,            &
-                                        eus,                            &
-                                        ice_mask,      floating_mask,   &
-                                        ocean_mask,    land_mask,       &
-                                        calving_front_mask,             &
-                                        thck_calving_front)
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           thklim,         &
+            ice_mask,                      &
+            floating_mask = floating_mask, &
+            ocean_mask = ocean_mask,       &
+            land_mask = land_mask)
+
+       call glissade_calving_front_mask(&
+            nx,            ny,              &
+            which_ho_calving_front,         &
+            parallel,                       &
+            thck,          topg,            &
+            eus,                            &
+            ice_mask,      floating_mask,   &
+            ocean_mask,    land_mask,       &
+            calving_front_mask,             &
+            thck_calving_front)
 
        !WHL - Debug
        if (verbose_calving .and. this_rank == rtest) then
@@ -720,209 +743,86 @@ contains
        call parallel_halo(tau1, parallel)
        call parallel_halo(tau2, parallel)
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'tau1 (Pa), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') tau1(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'tau2 (Pa), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') tau2(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
+       ! Do the same for strain rate eigenvalues.
+
+       eps1 = max(calving%eps_eigen1, 0.0d0)
+       eps2 = max(calving%eps_eigen2, 0.0d0)
+
+       ! Ignore values on grounded ice
+       where (floating_mask == 0)
+          eps1 = 0.0d0
+          eps2 = 0.0d0
+       endwhere
+
+       call parallel_halo(eps1, parallel)
+       call parallel_halo(eps2, parallel)
 
        ! Use the effective stress either to directly compute a lateral calving rate (for eigencalving),
        ! or to accumulate damage which drives thinning at the CF (for damage-based calving).
 
-       if (which_calving == EIGENCALVING) then
+       ! Compute an effective stress.
+       ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
+       !       This may be useful in calving unbuttressed shelves that are spreading in both directions.
 
-          ! Compute an effective stress.
-          ! Note: By setting eigen2_weight > 1, we can give greater weight to the second principle stress.
-          !       This may be useful in calving unbuttressed shelves that are spreading in both directions.
+       calving%tau_eff(:,:) = sqrt(tau1(:,:)**2 + (calving%eigen2_weight * tau2(:,:))**2)
 
-          calving%tau_eff(:,:) = sqrt(tau1(:,:)**2 + (calving%eigen2_weight * tau2(:,:))**2)
+       ! Compute the lateral calving rate (m/s) from the effective stress in calving_front cells
 
-          ! Compute the lateral calving rate (m/s) from the effective stress in calving_front cells
+       calving%lateral_rate(:,:) = 0.0d0
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (calving_front_mask(i,j) == 1) then
+                calving%lateral_rate(i,j) = calving%eigencalving_constant * calving%tau_eff(i,j)
+             endif
+          enddo   ! i
+       enddo   ! j
 
-          calving%lateral_rate(:,:) = 0.0d0
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (calving_front_mask(i,j) == 1) then
-                   calving%lateral_rate(i,j) = calving%eigencalving_constant * calving%tau_eff(i,j)
+       call parallel_halo(calving%lateral_rate, parallel)
+
+       ! Convert the lateral calving rate to a vertical thinning rate, conserving volume.
+       ! Note: The calved volume is proportional to the effective shelf-edge thickness (thck_calving_front),
+       !       not the nominal ice thickness (thck).
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (calving%lateral_rate(i,j) >  0.0d0) then
+
+                thinning_rate = calving%lateral_rate(i,j) * thck_calving_front(i,j) / sqrt(dx*dy)  ! m/s
+                dthck = thinning_rate * dt  ! m
+
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   print*, ' '
+                   print*, 'Calving: r, i, j =', rtest, itest, jtest
+                   print*, 'dx (m), dt (yr) =', sqrt(dx*dy), dt/scyr
+                   print*, 'lateral calving rate (m/yr) =', calving%lateral_rate(i,j)*scyr
+                   print*, 'dthck (m) =', dthck
                 endif
-             enddo   ! i
-          enddo   ! j
 
-          call parallel_halo(calving%lateral_rate, parallel)
-
-          ! Convert the lateral calving rate to a vertical thinning rate, conserving volume.
-          ! Note: The calved volume is proportional to the effective shelf-edge thickness (thck_calving_front),
-          !       not the nominal ice thickness (thck).
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (calving%lateral_rate(i,j) >  0.0d0) then
-
-                   thinning_rate = calving%lateral_rate(i,j) * thck_calving_front(i,j) / sqrt(dx*dy)  ! m/s
-                   dthck = thinning_rate * dt  ! m
-
-                   if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                      print*, ' '
-                      print*, 'Calving: r, i, j =', rtest, itest, jtest
-                      print*, 'dx (m), dt (yr) =', sqrt(dx*dy), dt/scyr
-                      print*, 'lateral calving rate (m/yr) =', calving%lateral_rate(i,j)*scyr
-                      print*, 'dthck (m) =', dthck
-                   endif
-
-                   ! Compute the new ice thickness
-                   if (dthck > thck(i,j)) then
-                      calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
-                      thck(i,j) = 0.0d0
-                   else   ! dthck <= thck
-                      thck(i,j) = thck(i,j) - dthck
-                      calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
-                   endif
-
-                endif   ! calving%lateral_rate > 0
-             enddo   ! i
-          enddo   ! j
-
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Finished eigencalving, task =', this_rank
-             print*, ' '
-             print*, 'lateral calving rate (m/yr), itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') calving%lateral_rate(i,j) * scyr
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       elseif (which_calving == CALVING_DAMAGE) then
-
-          ! Prognose changes in damage.
-          ! For now, this is done using a simple scheme based on the horizontal stress tensor.
-          ! The damage is then advected downstream.
-          ! Note: Damage is formally a 3D field, which makes it easier to advect, even though
-          !       (in the current scheme) the damage source term is uniform in each column.
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (floating_mask(i,j) == 1) then
-
-                   ! Two cases:
-                   ! (1) d_damage_dt is proportional to tau_eff/H
-                   ! (2) d_damage_dt is proportional to tau_eff
-                   ! This damage_constant has units of s^{-1}
-
-                   if (damage_scale_stress_by_thickness) then
-                      stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
-                   else
-                      stress_scale = rhoi*grav * stress_scale_thck
-                   endif
-
-                   d_damage_dt = (calving%damage_constant1 * max(calving%tau_eigen1(i,j), 0.0d0) +  &
-                                  calving%damage_constant2 * max(calving%tau_eigen2(i,j), 0.0d0))   &
-                                  / stress_scale
-
-                   calving%damage(:,i,j) = calving%damage(:,i,j) + d_damage_dt * dt
-                   calving%damage(:,i,j) = min(calving%damage(:,i,j), 1.0d0)
-                   calving%damage(:,i,j) = max(calving%damage(:,i,j), 0.0d0)
-                else  ! set damage to zero for grounded ice
-                   calving%damage(:,i,j) = 0.0d0
+                ! Compute the new ice thickness
+                if (dthck > thck(i,j)) then
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
+                   thck(i,j) = 0.0d0
+                else   ! dthck <= thck
+                   thck(i,j) = thck(i,j) - dthck
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
                 endif
+
+             endif   ! calving%lateral_rate > 0
+          enddo   ! i
+       enddo   ! j
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'Finished eigencalving, task =', this_rank
+          print*, ' '
+          print*, 'lateral calving rate (m/yr), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') calving%lateral_rate(i,j) * scyr
              enddo
+             write(6,*) ' '
           enddo
-
-          ! Compute the vertically integrated damage in each column.
-          damage_column(:,:) = 0.0d0
-
-          do j = 1, ny
-             do i = 1, nx
-                do k = 1, nz-1
-                   damage_column(i,j) = damage_column(i,j) + calving%damage(k,i,j) * (sigma(k+1) - sigma(k))
-                enddo
-             enddo
-          enddo
-
-          ! Convert damage in CF cells to a thinning rate (m/s).
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (calving_front_mask(i,j) == 1) then
-                   if (damage_column(i,j) > calving%damage_threshold) then
-
-                      ! Compute a damage fraction, increasing linearly from 0 (at a damage threshold) to 1.
-                      damage_frac = (damage_column(i,j) - calving%damage_threshold) / (1.0d0 - calving%damage_threshold)
-
-                      ! Compute a thinning rate.  The maximum rate is equal to the ice thickness divided by the calving timescale.
-                      thinning_rate = damage_frac * thck(i,j) / calving%timescale
-                      dthck = thinning_rate * dt  ! m
-
-                      ! Compute the new ice thickness
-                      if (dthck > thck(i,j)) then
-                         calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
-                         thck(i,j) = 0.0d0
-                      else   ! dthck <= thck
-                         thck(i,j) = thck(i,j) - dthck
-                         calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
-                      endif
-
-                   endif   ! damage > threshold
-                endif  ! calving_front cell
-             enddo
-          enddo
-
-          if (verbose_calving .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'Finished damage-based calving, task =', this_rank
-             print*, ' '
-             print*, 'damage increment, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   if (thck(i,j) > 0.0d0) then
-                      if (damage_scale_stress_by_thickness) then
-                         stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
-                      else
-                         stress_scale = rhoi*grav * stress_scale_thck
-                      endif
-                      write(6,'(f10.6)',advance='no') (dt / stress_scale) *  &
-                           (calving%damage_constant1 * max(calving%tau_eigen1(i,j), 0.0d0) +  &
-                            calving%damage_constant2 * max(calving%tau_eigen2(i,j), 0.0d0))
-                   else   ! ice-free
-                      write(6,'(f10.6)',advance='no') 0.0d0
-                   endif
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'new damage, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.6)',advance='no') damage_column(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif   ! verbose_calving
-
-       endif   ! EIGENCALVING or CALVING_DAMAGE
-
-       if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
           print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
@@ -943,13 +843,18 @@ contains
           enddo
        endif
 
-    endif  ! eigencalving or damage-based calving
+    endif  ! eigencalving
 
+    if (which_calving == CALVING_DAMAGE) then
 
-    if (which_calving == CALVING_THCK_THRESHOLD .or. which_calving == EIGENCALVING .or. &
-        which_calving == CALVING_DAMAGE) then
+       ! do nothing; done above
+       !TODO - Clean up the logical flow, separating eigencalving from thickness-based calving
 
-       ! Note: Eigencalving or damage-based calving, if done above, is followed by thickness-based calving.
+    elseif (which_calving == CALVING_THCK_THRESHOLD .or. which_calving == EIGENCALVING) then
+
+       !TODO - Move thickness-based calving to subroutine
+
+       ! Note: Eigencalving, if done above, is followed by thickness-based calving.
        !       This helps get rid of thin ice near the CF where stress eigenvalues might be small.
 
        ! Note: If running without the subgrid CF scheme, then glissade_calving_front_mask will return CF_mask = 1
@@ -1236,6 +1141,637 @@ contains
     endif
 
   end subroutine glissade_calve_ice
+
+!---------------------------------------------------------------------------
+
+  subroutine damage_based_calving(&
+       nx,       ny,       nz,                    &
+       dx,                 dy,                    &
+       sigma,              dt,                    &
+       itest,    jtest,    rtest,                 &
+       parallel,                                  &
+       which_ho_calving_front,                    &
+       velnorm_mean,                              &
+       thck,               topg,                  &
+       eus,                thklim,                &
+       tau_eigen1,         tau_eigen2,            &
+       eps_eigen1,         eps_eigen2,            &
+       damage_constant1,   damage_constant2,      &
+       damage_threshold,   calving_minthck,       &
+       damage,                                    &
+       lateral_rate,       calving_thck)
+
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_grid_operators, only: glissade_unstagger
+
+    integer, intent(in) :: &
+         nx, ny, nz,  &
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dx, dy,      &     ! grid cell dimenions (m)
+         dt                 ! time step (s)
+
+    real(dp), dimension(nz), intent(in) ::&
+         sigma
+
+    type(parallel_type), intent(in) :: &
+         parallel           ! info for parallel communication
+
+    integer, intent(in) :: &
+         which_ho_calving_front
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         velnorm_mean       ! mean ice speed at vertices (m/s)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         topg,                      &
+         tau_eigen1,  tau_eigen2,   &
+         eps_eigen1,  eps_eigen2
+
+    real(dp), intent(in) ::  &
+         eus,             &  ! eustatic sea level (m)
+         thklim              ! minimum thickness for dynamically active grounded ice (m)
+
+    real(dp), intent(in) :: &
+         damage_constant1,  &
+         damage_constant2,  &
+         damage_threshold,  &
+         calving_minthck          ! min effective thickness for CF cells
+
+    real(dp), dimension(nz-1,nx,ny), intent(inout) :: &
+         damage
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         lateral_rate
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         thck,  &
+         calving_thck
+
+    ! local variables
+
+    integer :: i, j, k
+
+    integer, dimension(nx,ny) :: &
+         ice_mask,                &
+         floating_mask,           &
+         ocean_mask,              &
+         land_mask,               &
+         calving_front_mask,      &
+         calving_front_mask_old
+
+    ! Note: full_mask and partial_cf_mask are not used in this subroutine,
+    !       but are outputs of glissade_effective_calving_thck
+    integer, dimension(nx,ny) :: &
+         full_mask,           &
+         partial_cf_mask
+
+    real(dp), dimension(nx,ny) :: &
+         speed,                & ! 2D ice speed averaged to cell centers (m/s)
+         damage_column,        & ! 2D vertically integrated scalar damage parameter
+         thck_calving_front,   & ! effective ice thickness at the calving front (m)
+         thck_effective,       & ! effective thickness for calving (m)
+         dt_calving,           & ! time remaining for calving (s)
+         dt_calving_old          ! old value of dt_calving
+
+    real(dp) :: &
+         stress_scale,         & ! stress scale in prognostic damage equation (Pa)
+         d_damage_dt,          & ! rate of change of damage scalar (1/s)
+         damage_frac,        & ! fraction of maximum thinning rate, based on damage
+         thinning_rate,      & ! vertical thinning rate (m/s)
+         dthck                 ! thickness change (m)
+
+    logical, parameter :: &
+         damage_scale_stress_by_thickness = .true.   ! if true, stress_scale is proportional to H
+                                                     ! if false, stress_scale is independent of local H
+    real(dp), parameter :: &
+         stress_scale_thck = 100.d0     ! ice thickness (m) in stress_scale = rhoi*g*H
+
+    logical, parameter :: &
+         stress_based_damage = .true.   ! true if dD/dt is based on tau1 and tau2, false if based on eps1 and eps2
+
+    logical :: iterate_calving          ! Iterate the calving until dt_calving = 0 for all cells
+    integer :: count
+
+    ! Replaced lateral_rate_max with the local ice speed
+!!    real(dp), parameter :: lateral_rate_max = 1000.d0/scyr   ! m/yr, converted to m/s
+
+    !TODO - Not sure these updates are needed here
+    call parallel_halo(tau_eigen1, parallel)
+    call parallel_halo(tau_eigen2, parallel)
+    call parallel_halo(eps_eigen1, parallel)
+    call parallel_halo(eps_eigen2, parallel)
+
+    ! Compute masks needed for calving
+    ! Need a calving_front_mask; calving/thinning is applied only to cells at the calving front.
+
+    call glissade_get_masks(&
+         nx,            ny,             &
+         parallel,                      &
+         thck,          topg,           &
+         eus,           thklim,         &
+         ice_mask,                      &
+         floating_mask = floating_mask, &
+         ocean_mask = ocean_mask,       &
+         land_mask = land_mask)
+
+    call glissade_calving_front_mask(&
+         nx,            ny,                 &
+         which_ho_calving_front,            &
+         parallel,                          &
+         thck,          topg,               &
+         eus,                               &
+         ice_mask,      floating_mask,      &
+         ocean_mask,    land_mask,          &
+         calving_front_mask,                &
+         thck_calving_front)
+
+    ! Compute ice speed at cells centers
+    call glissade_unstagger(&
+         nx,            ny,    &
+         velnorm_mean,  speed)
+
+    ! Compute the vertically integrated damage in each column (diagnostic only)
+    damage_column(:,:) = 0.0d0
+    do j = 1, ny
+       do i = 1, nx
+          do k = 1, nz-1
+             damage_column(i,j) = damage_column(i,j) + damage(k,i,j) * (sigma(k+1) - sigma(k))
+          enddo
+       enddo
+    enddo
+
+    if (verbose_calving .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'speed(m/yr), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') speed(i,j) * scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'eps1 (1/yr), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.6)',advance='no') eps_eigen1(i,j) * scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'eps2 (1/yr), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.6)',advance='no') eps_eigen2(i,j) * scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'tau1 (Pa), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') tau_eigen1(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'tau2 (Pa), itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.2)',advance='no') tau_eigen2(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'Damage-based calving, task =', this_rank
+       print*, ' '
+       print*, 'initial damage, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.6)',advance='no') damage_column(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! Prognose changes in damage.
+    ! For now, this is done using a simple scheme based on the horizontal stress tensor.
+    ! At some point, we may want to prognose damage in a way that depends on other factors such as mass balance.
+    ! Note: Damage is formally a 3D field, which makes it easier to advect, even though
+    !       (in the current scheme) the damage source term is uniform in each column.
+
+    ! Compute the change in damage in each cell
+    do j = 2, ny-1
+       do i = 1, nx-1
+          if (floating_mask(i,j) == 1) then
+             if (stress_based_damage) then
+
+                ! Two cases:
+                ! (1) d_damage_dt is proportional to tau_eff/H
+                ! (2) d_damage_dt is proportional to tau_eff
+                ! This damage_constant has units of s^{-1}
+
+                if (damage_scale_stress_by_thickness) then
+                   stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
+                else
+                   stress_scale = rhoi*grav * stress_scale_thck
+                endif
+
+                d_damage_dt = (damage_constant1 * max(tau_eigen1(i,j), 0.0d0) +  &
+                               damage_constant2 * max(tau_eigen2(i,j), 0.0d0))   &
+                               / stress_scale
+
+             else   ! strain-based damage
+
+                ! Note: The damage constant is a scalar; eps and d_damage_dt have units of 1/s
+                d_damage_dt = (damage_constant1*scyr * max(eps_eigen1(i,j), 0.0d0) +  &
+                               damage_constant2*scyr * max(eps_eigen2(i,j), 0.0d0))
+
+             endif  ! stress or strain-based
+
+             damage(:,i,j) = damage(:,i,j) + d_damage_dt * dt
+             damage(:,i,j) = min(damage(:,i,j), 1.0d0)
+             damage(:,i,j) = max(damage(:,i,j), 0.0d0)
+
+          else    ! set damage to zero elsewhere (grounded or ice-free)
+             damage(:,i,j) = 0.0d0
+          endif   ! floating_mask
+
+       enddo   ! i
+    enddo   ! j
+
+    ! Compute the vertically integrated damage in each column.
+    damage_column(:,:) = 0.0d0
+    do j = 1, ny
+       do i = 1, nx
+          do k = 1, nz-1
+             damage_column(i,j) = damage_column(i,j) + damage(k,i,j) * (sigma(k+1) - sigma(k))
+          enddo
+       enddo
+    enddo
+
+    if (verbose_calving .and. this_rank==rtest) then
+       print*, ' '
+       print*, 'damage increment, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             if (thck(i,j) > 0.0d0) then
+                if (stress_based_damage) then
+                   if (damage_scale_stress_by_thickness) then
+                      stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
+                   else
+                      stress_scale = rhoi*grav * stress_scale_thck
+                   endif
+                   write(6,'(f10.6)',advance='no') (dt / stress_scale) *  &
+                        (damage_constant1 * max(tau_eigen1(i,j), 0.0d0) +  &
+                         damage_constant2 * max(tau_eigen2(i,j), 0.0d0))
+                else  ! strain-based damage
+                   write(6,'(f10.6)',advance='no') dt *  &
+                        (damage_constant1*scyr * max(eps_eigen1(i,j), 0.0d0) +  &
+                         damage_constant2*scyr * max(eps_eigen2(i,j), 0.0d0))
+                endif
+             else   ! ice-free
+                write(6,'(f10.6)',advance='no') 0.0d0
+             endif
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'new damage, itest, jtest, rank =', itest, jtest, rtest
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.6)',advance='no') damage_column(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! Main damage-calving loops
+    ! Loop over locally owned edges, identifying the CF edges
+    ! Calving occurs at edges with a full cell on one side and either
+    !  (1) a partial cell or (2) ice-free ocean on the other.
+    ! In case (1), calve ice in the full cell.
+    ! In case (2), calve ice in the partial cell, then calve in the full cell if time remains.
+
+    ! Loop over locally owned cells
+    ! Calving occurs only in CF cells: cells with one or more ocean neighbors.
+    ! If time remains after one or more columns have calved completely, iterate until dt_calving = 0 everywhere.
+
+    iterate_calving = .true.
+    count = 0
+
+    where (calving_front_mask == 1)
+       dt_calving = dt
+    elsewhere
+       dt_calving = 0.0d0
+    endwhere
+
+    do while (iterate_calving)
+
+       count = count + 1
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, 'Iterate calving, count =', count
+       endif
+
+       iterate_calving = .false.
+
+       ! For each cell, compute an effective ice thickness for calving.
+       ! Away from the calving front, we have thck_effective = thck.
+       ! For CF cells, thck_effective is a weighted average of the thickness in a cell and its four edge neighbors.
+       ! We require thck_effective >= calving%minthck, as well as thck_effective >= thck.
+
+       call glissade_effective_calving_thck(&
+            nx,              ny,                  &
+            itest,   jtest,  rtest,               &
+            ice_mask,        calving_front_mask,  &
+            thck,            thck_effective,      &
+            partial_cf_mask, full_mask,           &
+            calving_minthck)
+
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (calving_front_mask(i,j) == 1 .and. damage_column(i,j) > damage_threshold  &
+                  .and. dt_calving(i,j) > 0.0d0) then
+
+                if (verbose_calving .and. this_rank == rtest .and. count > 1) then
+                   print*, 'Next round of calving: count, i, j, dt_calving (yr):', &
+                        count, i, j, dt_calving(i,j)/scyr
+                endif
+
+                ! Compute a damage fraction, increasing linearly from 0 (at a damage threshold) to 1.
+                damage_frac = (damage_column(i,j) - damage_threshold) / (1.0d0 - damage_threshold)
+
+                ! Compute a lateral thinning rate (m/s)
+                ! The line commented out assumes a prescribed maximum rate instead of the local speed.
+                ! Using the local speed will generally halt CF advance when damage_frac ~ 1.
+!!                lateral_rate(i,j) = damage_frac * lateral_rate_max
+                lateral_rate(i,j) = damage_frac * speed(i,j)
+
+                ! Convert the lateral rate to a thinning rate
+                ! For the conversion, assume L * H_eff = dH/dt * l_edge,
+                !  where L is the lateral rate and H_eff is the effective thickness of calving ice.
+                ! The idea is that the volume removed is equal to the volume that would be removed
+                !  by lateral calving at a CF with H = H_eff.
+
+                thinning_rate = lateral_rate(i,j) * thck_effective(i,j) / sqrt(dx*dy)
+                dthck = thinning_rate * dt_calving(i,j)  ! m
+
+                ! Compute the new ice thickness
+
+                if (dthck > thck(i,j)) then
+                   ! calve the full column and compute the time remaining for more calving (if needed)
+                   dt_calving(i,j) = dt_calving(i,j) * (1.0d0 - thck(i,j)/dthck)
+                   iterate_calving = .true.
+                   if (verbose_calving .and. this_rank == rtest) then
+                      print*, 'Calving time remaining (yr):', i, j, dt_calving(i,j)/scyr
+                   endif
+                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                   thck(i,j) = 0.0d0
+                else
+                   ! calve part of the column
+                   thck(i,j) = thck(i,j) - dthck
+                   calving_thck(i,j) = calving_thck(i,j) + dthck
+                   dt_calving(i,j) = 0.0d0
+                endif
+
+             else   ! no calving
+
+                dt_calving(i,j) = 0.0d0
+
+             endif   ! calving_front cell with damage > threshold
+
+          enddo   ! i
+       enddo   ! j
+
+       call parallel_halo(thck, parallel)
+       call parallel_halo(calving_thck, parallel)
+
+       if (iterate_calving) then
+
+          ! Recompute the CF mask
+          ! This could result in new CF cells that were previously in the interior.
+
+          calving_front_mask_old = calving_front_mask
+
+          call glissade_get_masks(&
+               nx,            ny,             &
+               parallel,                      &
+               thck,          topg,           &
+               eus,           thklim,         &
+               ice_mask,                      &
+               floating_mask = floating_mask, &
+               ocean_mask = ocean_mask,       &
+               land_mask = land_mask)
+
+          call glissade_calving_front_mask(&
+               nx,            ny,                 &
+               which_ho_calving_front,            &
+               parallel,                          &
+               thck,          topg,               &
+               eus,                               &
+               ice_mask,      floating_mask,      &
+               ocean_mask,    land_mask,          &
+               calving_front_mask,                &
+               thck_calving_front)
+
+          ! Save the old dt_calving values and compute new values
+          ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
+          !  then use this time to calve.  If it has multiple such neighbors, then use the largest value.
+
+          dt_calving_old = dt_calving
+          dt_calving = 0.0d0
+
+          iterate_calving = .false.  ! reset to false, in case there are no calving-ready neighbors
+          do j = 2, ny-1
+             do i = 2, nx-1
+                if (calving_front_mask_old(i,j) == 0 .and. calving_front_mask(i,j) == 1  &
+                     .and. damage_column(i,j) > damage_threshold) then   ! new CF cell that can calve
+                   dt_calving(i,j) = max(dt_calving_old(i-1,j), dt_calving_old(i+1,j), &
+                                         dt_calving_old(i,j-1), dt_calving_old(i,j+1))
+                   iterate_calving = .true.
+                   !WHL - debug
+                   if (dt_calving(i,j) > 0.0d0) then
+                      print*, 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
+                   endif
+                endif
+             enddo
+          enddo
+
+       endif   ! iterate_calving
+
+       if (verbose_calving .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'End of iteration, thck:'
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+    enddo   ! do while iterate_calving = T
+
+    if (verbose_calving .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'Done in damage-based calving'
+    endif
+
+  end subroutine damage_based_calving
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_effective_calving_thck(&
+       nx,              ny,                  &
+       itest,   jtest,  rtest,               &
+       ice_mask,        calving_front_mask,  &
+       thck,            thck_effective,      &
+       partial_cf_mask, full_mask,           &
+       calving_minthck)
+
+    !TODO - Add to calving_mask subroutine?
+
+    ! For each cell, compute an effective ice thickness for calving.
+    ! Away from the calving front, we have thck_effective = thck.
+    ! For CF cells, thck_effective is a weighted average of the thickness in a cell and its four edge neighbors.
+    ! We require thck_effective >= calving%minthck, as well as thck_effective >= thck.
+    !
+    ! In earlier versions of CISM, H_eff was taken as the thickness of the adjacent upstream cell
+    !  (or the mean of two or more such cells), provided H_eff > H.
+    !  However, this methods leads to fluctuations in H_eff.
+    ! The method here includes the thickness of all neighbor cells, weighted toward thicker cells.
+    !  The resulting average is a rough estimate of the upstream calving-front thickness,
+    !  which varies smoothly as cells are filled or emptied.
+    ! Given H_eff, identify ice-covered cells as either 'full' or 'partial'.
+    ! Partial cells are CF cells with H < H_eff; other ice-covered cells are full.
+
+    ! input/output arguments
+    integer, intent(in) ::  &
+         nx, ny
+    integer, intent(in) ::  &
+         itest, jtest, rtest
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask, calving_front_mask
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck
+    real(dp), dimension(nx,ny), intent(out) :: &
+         thck_effective
+    integer, dimension(nx,ny), intent(out) ::  &
+         partial_cf_mask, full_mask
+    real(dp), intent(in), optional :: &
+         calving_minthck        ! if present, require thck_effective >= calving_minthck
+
+    ! local variables
+    integer :: i, j
+    logical, parameter :: verbose_thck_effective = .false.
+
+    real(dp), parameter :: &
+         nexp = 2.0d0           ! exponent used to weight thck_effective toward thicker cells
+                                ! nexp = 1 gives the arithmetic mean; larger nexp gives greater thck_effective
+
+    full_mask(:,:) = 0
+    partial_cf_mask(:,:) = 0
+    thck_effective(:,:) = 0.0d0
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1) then
+             thck_effective(i,j) = (thck(i,j)**nexp + thck(i-1,j)**nexp + thck(i+1,j)**nexp  &
+                                                    + thck(i,j-1)**nexp + thck(i,j+1)**nexp) / 5.0d0
+             thck_effective(i,j) = thck_effective(i,j)**(1.d0/nexp)
+
+             if (calving_front_mask(i,j) == 1) then
+                if (thck_effective(i,j) > thck(i,j)) then
+                   partial_cf_mask(i,j) = 1
+                else
+                   thck_effective(i,j) = thck(i,j)
+                   full_mask(i,j) = 1
+                endif
+             else
+                thck_effective(i,j) = thck(i,j)
+                full_mask(i,j) = 1
+             endif
+
+          endif   ! ice_mask
+       enddo   ! i
+    enddo   ! j
+
+    ! Optionally, cap thck_effective at a minimum thickness for calving
+    if (present(calving_minthck)) then
+       where (ice_mask == 1)
+          thck_effective = max(thck_effective, calving_minthck)
+       endwhere
+    endif
+
+    !WHL - debug
+    if (verbose_thck_effective .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'Compute effective thickness'
+       print*, ' '
+       print*, 'thck:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck_effective (before limiting):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') &
+                  ( (thck(i,j)**nexp + thck(i-1,j)**nexp + thck(i+1,j)**nexp  &
+                                     + thck(i,j-1)**nexp + thck(i,j+1)**nexp) / 5.0d0 ) **(1.0d0/nexp)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'thck_effective (after limiting):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck_effective(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'calving_front_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') calving_front_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'full_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') full_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'partial_cf_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') partial_cf_mask(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif   ! verbose
+
+  end subroutine glissade_effective_calving_thck
 
 !---------------------------------------------------------------------------
 
