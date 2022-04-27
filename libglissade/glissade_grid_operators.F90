@@ -262,7 +262,7 @@ contains
     if (present(stagger_margin_in)) then
        stagger_margin = stagger_margin_in
     else
-       stagger_margin = 0  ! default is to average over all cells, including those where ice is absent
+       stagger_margin = 0  ! default is to average over all vertices, including those where ice is absent
     endif
 
     if (stagger_margin == 1 .and. .not.present(vmask)) then

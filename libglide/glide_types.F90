@@ -1295,6 +1295,7 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity; typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
+    real(dp),dimension(:,:)  ,pointer :: velnorm_mean  => null() !> vertical mean ice speed
 
     real(dp),dimension(:,:)  ,pointer :: usfc_obs => null()     !> observed surface $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vsfc_obs => null()     !> observed surface $y$-velocity
@@ -2656,6 +2657,7 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_2d)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_mean)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_mean)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%velnorm_mean)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%usfc_obs)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vsfc_obs)
     call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel)
@@ -3125,6 +3127,8 @@ contains
         deallocate(model%velocity%uvel_mean)
     if (associated(model%velocity%vvel_mean)) &
         deallocate(model%velocity%vvel_mean)
+    if (associated(model%velocity%velnorm_mean)) &
+        deallocate(model%velocity%velnorm_mean)
     if (associated(model%velocity%usfc_obs)) &
         deallocate(model%velocity%usfc_obs)
     if (associated(model%velocity%vsfc_obs)) &
