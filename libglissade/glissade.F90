@@ -2272,8 +2272,11 @@ contains
           ! Near the calving front, distinguish full cells from partial cells
           call glissade_effective_calving_thck(&
                ewn,             nsn,                 &
+               model%numerics%dew * len0,            &  ! m
+               model%numerics%dns * len0,            &  ! m
                itest,  jtest,   rtest,               &
-               ice_mask,        calving_front_mask,  &
+               ice_mask,        floating_mask,       &
+               calving_front_mask,                   &
                model%geometry%thck*thk0,             &   ! m
                thck_effective,                       &   ! m
                partial_cf_mask, full_mask)
@@ -4907,8 +4910,11 @@ contains
        ! Near the calving front, distinguish full cells from partial cells
        call glissade_effective_calving_thck(&
             ewn,             nsn,                 &
+            model%numerics%dew * len0,            &  ! m
+            model%numerics%dns * len0,            &  ! m
             itest,  jtest,   rtest,               &
-            ice_mask,        calving_front_mask,  &
+            ice_mask,        floating_mask,       &
+            calving_front_mask,                   &
             model%geometry%thck*thk0,             &   ! m
             thck_effective,                       &   ! m
             partial_cf_mask, full_mask)
